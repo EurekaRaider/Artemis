@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS arm64" src="https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-111111?logo=apple&logoColor=white" />
-  <img alt="690 passing tests" src="https://img.shields.io/badge/Tests-690_passing-2EA44F" />
+  <img alt="724 passing tests" src="https://img.shields.io/badge/Tests-724_passing-2EA44F" />
   <img alt="Maximum 16 active agents" src="https://img.shields.io/badge/Agents-max_16-F5A524" />
 </p>
 
@@ -118,7 +118,7 @@ credentials are protected with operating-system encryption.
 
 <br />
 
-### Product preview
+## Product preview
 
 <table>
   <tr>
@@ -250,8 +250,9 @@ tasks. Interactive tasks run against the repository's local checkout.
   Agent session.
 - **Composer and commands** — send text, local files, images, PDF and Office
   attachments through the picker, drag/drop or clipboard; reuse prompt history;
-  invoke `/goal`, `/init` and one or more `/skill` selections; choose the mode,
-  model and thinking level.
+  invoke `/goal`, `/init` and one or more `/skill` selections; switch mode with
+  `/plan`, `/execute` or `/review` anywhere in a message; choose the model and
+  thinking level.
 - **Streaming timeline** — render safe Markdown, text/thinking deltas, tool
   input/output, approval cards with the model's decision, structured workflow
   choices, child-Agent status, errors and completion states in original event
@@ -317,6 +318,12 @@ The right workspace keeps repository work beside the conversation:
 The formal protocol and persistence enum is `execute | plan | review`. Every UI
 selector presents **Plan → Execute → Review**, while new tasks default to
 Execute.
+
+Enter `/plan`, `/execute` or `/review` by itself to switch mode without starting
+a turn, or include exactly one mode command anywhere in a prompt to switch mode
+and submit the remaining text. `Shift+Tab` cycles **Plan → Execute → Review**
+while the composer is idle. Invalid command combinations are shown above the
+composer for ten seconds, then fade away without covering task progress.
 
 | Mode        | Intended use                                                   |                    Workspace writes | Available execution                                                                             |
 | ----------- | -------------------------------------------------------------- | ----------------------------------: | ----------------------------------------------------------------------------------------------- |
@@ -871,11 +878,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **690 passing tests** (4 skipped):
+The current full test run contains **724 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       51 |       19 |         60 |     560 |   **690** |
+|       53 |       19 |         69 |     583 |   **724** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -899,13 +906,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.1.21` packaging configuration produces:
+The `1.1.22` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.21.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.21.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.21.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.22.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.22.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.22.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and

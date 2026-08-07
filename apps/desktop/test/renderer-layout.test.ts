@@ -339,6 +339,29 @@ describe("renderer layout contract", () => {
     );
   });
 
+  it("places transient notices above the composer without covering the task-step capsule", () => {
+    const composerStart = appSource.indexOf('<div className="composer-wrap">');
+    const taskPlanIndex = appSource.indexOf("<TaskPlanProgress", composerStart);
+    const noticeIndex = appSource.indexOf("<TransientNotice", taskPlanIndex);
+    const contextIndex = appSource.indexOf("<ComposerContextBar", noticeIndex);
+
+    expect(taskPlanIndex).toBeGreaterThan(composerStart);
+    expect(noticeIndex).toBeGreaterThan(taskPlanIndex);
+    expect(contextIndex).toBeGreaterThan(noticeIndex);
+    expect(appSource).toContain("const TOAST_VISIBLE_MILLISECONDS = 10_000;");
+    expect(appSource).toContain("const TOAST_FADE_MILLISECONDS = 600;");
+    expect(appSource).toContain("setToastState((current) =>");
+    expect(appSource).toContain("fading: true");
+    expect(cssRule(".composer-notice")).not.toMatch(
+      /\bposition:\s*(?:fixed|absolute)/u,
+    );
+    expect(cssRule(".transient-notice")).toMatch(
+      /\btransition:[\s\S]*\bopacity\s+600ms\s+ease/u,
+    );
+    expect(cssRule(".transient-notice.fading")).toMatch(/\bopacity:\s*0/u);
+    expect(stylesSource).not.toMatch(/\.toast\s*\{[^}]*\bbottom:/su);
+  });
+
   it("lets the active projects button restore a collapsed sidebar", () => {
     expect(appSource).toContain('activeView === "workspace"');
     expect(appSource).toContain('setActiveView("workspace")');

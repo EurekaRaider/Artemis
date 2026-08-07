@@ -73,6 +73,7 @@ import {
   deriveRunPresentation,
   formatRunDuration,
 } from "./run-presentation.js";
+import { nextRunMode, parseRunModeCommand } from "./run-mode-controls.js";
 import {
   formatBashTranscript,
   formatToolInput,
@@ -143,6 +144,13 @@ type ActiveView =
   "workspace" | "archive" | "resources" | "token-usage" | "automations";
 type SettingsEntryTab = "general" | "maintenance";
 type ConfirmationTone = "default" | "danger";
+type ToastContent = string | { error: true; message: string };
+
+interface ToastState {
+  content: ToastContent;
+  fading: boolean;
+  id: number;
+}
 
 interface ConfirmationState {
   message: string;
@@ -182,6 +190,8 @@ const EMPTY_WORKSPACE_TAB_SCROLL_STATE: WorkspaceTabScrollState = {
 };
 
 const WORKSPACE_TAB_SCROLL_INSET = 32;
+const TOAST_VISIBLE_MILLISECONDS = 10_000;
+const TOAST_FADE_MILLISECONDS = 600;
 
 const PROJECT_THREAD_PREVIEW_LIMIT = 5;
 const MODEL_PICKER_THINKING_LEVELS: ThinkingLevel[] = [
@@ -192,6 +202,31 @@ const MODEL_PICKER_THINKING_LEVELS: ThinkingLevel[] = [
   "xhigh",
   "max",
 ];
+
+function TransientNotice({
+  notice,
+  onDismiss,
+  placement,
+}: {
+  notice: ToastState;
+  onDismiss(): void;
+  placement: "composer" | "view";
+}) {
+  const error = typeof notice.content !== "string";
+  return (
+    <div
+      aria-live={error ? "assertive" : "polite"}
+      className={`transient-notice ${placement}-notice${error ? " error" : ""}${notice.fading ? " fading" : ""}`}
+      role={error ? "alert" : "status"}
+    >
+      <button onClick={onDismiss} type="button">
+        {typeof notice.content === "string"
+          ? notice.content
+          : notice.content.message}
+      </button>
+    </div>
+  );
+}
 
 function modelIdentity(providerId: string, modelId: string): string {
   return `${providerId}\u0000${modelId}`;
@@ -422,6 +457,16 @@ const copy = {
     compactFailed: "Context could not be compacted.",
     initCommand: "/init",
     initCommandDetail: "Create a project-level AGENTS.md file",
+    planCommand: "/plan",
+    planCommandDetail: "Switch to Plan mode",
+    executeCommand: "/execute",
+    executeCommandDetail: "Switch to Execute mode",
+    reviewCommand: "/review",
+    reviewCommandDetail: "Switch to Review mode",
+    multipleModeCommands:
+      "Only one /plan, /execute, or /review command is allowed per message.",
+    modeCommandWhileRunning:
+      "Stop the active turn before switching task modes.",
     installedSkills: "Installed Skills",
     installedPlugins: "Installed Plugins",
     loadingSkills: "Loading installed Skills…",
@@ -628,6 +673,15 @@ const copy = {
     compactFailed: "上下文压缩失败。",
     initCommand: "/init",
     initCommandDetail: "创建包含项目说明的 AGENTS.md 文件",
+    planCommand: "/plan",
+    planCommandDetail: "切换到 Plan 模式",
+    executeCommand: "/execute",
+    executeCommandDetail: "切换到 Execute 模式",
+    reviewCommand: "/review",
+    reviewCommandDetail: "切换到 Review 模式",
+    multipleModeCommands:
+      "每条消息只能包含一个 /plan、/execute 或 /review 指令。",
+    modeCommandWhileRunning: "请先停止当前执行，再切换任务模式。",
     installedSkills: "已安装的 Skills",
     installedPlugins: "已安装的插件",
     loadingSkills: "正在加载已安装的 Skills…",
@@ -1529,9 +1583,20 @@ export function App() {
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<ConfirmationState>();
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<
-    string | { error: true; message: string }
-  >();
+  const toastSerial = useRef(0);
+  const [toast, setToastState] = useState<ToastState>();
+  const setToast = useCallback((content: ToastContent | undefined) => {
+    if (content === undefined) {
+      setToastState(undefined);
+      return;
+    }
+    toastSerial.current += 1;
+    setToastState({
+      content,
+      fading: false,
+      id: toastSerial.current,
+    });
+  }, []);
   const [turnFailureNotices, setTurnFailureNotices] =
     useState<TurnFailureNotices>({});
   const timelineScroll = useRef<HTMLDivElement>(null);
@@ -1717,6 +1782,25 @@ export function App() {
     [],
   );
 
+  const activeToastId = toast?.id;
+  useEffect(() => {
+    if (activeToastId === undefined) return;
+    const fadeTimer = window.setTimeout(() => {
+      setToastState((current) =>
+        current?.id === activeToastId ? { ...current, fading: true } : current,
+      );
+    }, TOAST_VISIBLE_MILLISECONDS);
+    const removeTimer = window.setTimeout(() => {
+      setToastState((current) =>
+        current?.id === activeToastId ? undefined : current,
+      );
+    }, TOAST_VISIBLE_MILLISECONDS + TOAST_FADE_MILLISECONDS);
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(removeTimer);
+    };
+  }, [activeToastId]);
+
   useEffect(() => {
     if (!modelPickerOpen) return;
     const closeOutside = (event: PointerEvent) => {
@@ -1761,7 +1845,10 @@ export function App() {
       ...suggestions.filter(
         (suggestion) =>
           suggestion.kind !== "skill" &&
-          selectedComposerSkillNames.length === 0,
+          (selectedComposerSkillNames.length === 0 ||
+            suggestion.kind === "plan" ||
+            suggestion.kind === "execute" ||
+            suggestion.kind === "review"),
       ),
       ...suggestions.filter(
         (suggestion) =>
@@ -1789,6 +1876,14 @@ export function App() {
   );
   const initSuggestionIndex = slashCommandSuggestions.findIndex(
     (suggestion) => suggestion.kind === "init",
+  );
+  const modeSuggestions = slashCommandSuggestions.flatMap(
+    (suggestion, index) =>
+      suggestion.kind === "plan" ||
+      suggestion.kind === "execute" ||
+      suggestion.kind === "review"
+        ? [{ index, mode: suggestion.kind }]
+        : [],
   );
   const skillSuggestions = slashCommandSuggestions.flatMap(
     (suggestion, index) =>
@@ -3851,7 +3946,33 @@ export function App() {
 
   const sendPrompt = useCallback(async () => {
     const rawPrompt = prompt.trim();
-    const compactMatch = rawPrompt.match(/^\/compact(?:\s+([\s\S]*))?$/iu);
+    if (busy) return;
+    const runModeCommand = parseRunModeCommand(rawPrompt);
+    if (runModeCommand && runModeCommand.kind === "multiple") {
+      setToast({ error: true, message: t.multipleModeCommands });
+      return;
+    }
+    if (runModeCommand && runModeCommand.kind === "command" && turnActive) {
+      setToast({ error: true, message: t.modeCommandWhileRunning });
+      return;
+    }
+    const submittedMode =
+      runModeCommand?.kind === "command" ? runModeCommand.mode : mode;
+    const commandPrompt =
+      runModeCommand?.kind === "command" ? runModeCommand.prompt : rawPrompt;
+    if (runModeCommand?.kind === "command") {
+      setMode(submittedMode);
+      if (
+        !commandPrompt &&
+        attachments.length === 0 &&
+        selectedSkills.length === 0
+      ) {
+        clearSubmittedPrompt(rawPrompt);
+        return;
+      }
+    }
+
+    const compactMatch = commandPrompt.match(/^\/compact(?:\s+([\s\S]*))?$/iu);
     const compactInstructions = compactMatch?.[1]?.trim() || undefined;
     if (compactMatch && !activeThread) {
       setToast(t.compactRequiresTask);
@@ -3862,7 +3983,7 @@ export function App() {
       setToast(t.compactWhileRunning);
       return;
     }
-    const goalMatch = rawPrompt.match(/^\/goal(?:\s+([\s\S]*))?$/iu);
+    const goalMatch = commandPrompt.match(/^\/goal(?:\s+([\s\S]*))?$/iu);
     const goalArgument = goalMatch?.[1]?.trim();
     if (goalMatch && !goalArgument) {
       setToast(
@@ -3882,7 +4003,7 @@ export function App() {
     const visibleText =
       goalMatch && goalArgument && !clearingGoal
         ? goalArgument
-        : rawPrompt || (attachments.length ? t.inspectAttachments : "");
+        : commandPrompt || (attachments.length ? t.inspectAttachments : "");
     const text = goalMatch
       ? visibleText
       : promptWithSelectedSkills(visibleText, selectedSkills);
@@ -3940,7 +4061,7 @@ export function App() {
       const result = await window.artemis.startTurn({
         threadId: currentThread.id,
         text,
-        mode,
+        mode: submittedMode,
         submittedAt,
         ...(pendingAttachments.length
           ? { attachments: pendingAttachments }
@@ -3989,6 +4110,8 @@ export function App() {
     t.goalCleared,
     t.goalSet,
     t.inspectAttachments,
+    t.modeCommandWhileRunning,
+    t.multipleModeCommands,
     t.noGoal,
     t.taskError,
     turnActive,
@@ -4720,6 +4843,13 @@ export function App() {
                     {taskPlan && (
                       <TaskPlanProgress locale={locale} plan={taskPlan} />
                     )}
+                    {toast && (
+                      <TransientNotice
+                        notice={toast}
+                        onDismiss={() => setToast(undefined)}
+                        placement="composer"
+                      />
+                    )}
                     {activePendingUserInput ? (
                       <div className="pending-user-input-composer">
                         <UserInputCard
@@ -4944,6 +5074,43 @@ export function App() {
                                   </span>
                                 </button>
                               )}
+                              {modeSuggestions.map(({ index, mode }) => {
+                                const commandLabel =
+                                  mode === "plan"
+                                    ? t.planCommand
+                                    : mode === "execute"
+                                      ? t.executeCommand
+                                      : t.reviewCommand;
+                                const commandDetail =
+                                  mode === "plan"
+                                    ? t.planCommandDetail
+                                    : mode === "execute"
+                                      ? t.executeCommandDetail
+                                      : t.reviewCommandDetail;
+                                return (
+                                  <button
+                                    aria-selected={
+                                      index === activeSlashSuggestion
+                                    }
+                                    className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                    id={`skill-command-option-${index}`}
+                                    key={mode}
+                                    onClick={() =>
+                                      selectComposerCommand(`/${mode} `)
+                                    }
+                                    role="option"
+                                    tabIndex={-1}
+                                  >
+                                    <span className="slash-command-icon">
+                                      <ModeIcon />
+                                    </span>
+                                    <span>
+                                      <strong>{commandLabel}</strong>
+                                      <small>{commandDetail}</small>
+                                    </span>
+                                  </button>
+                                );
+                              })}
                               {skillsLoading ? (
                                 <div className="slash-command-status">
                                   {t.loadingSkills}
@@ -5154,6 +5321,17 @@ export function App() {
                             }}
                             onKeyDown={(event) => {
                               if (
+                                event.key === "Tab" &&
+                                event.shiftKey &&
+                                !event.nativeEvent.isComposing &&
+                                !turnActive &&
+                                !busy
+                              ) {
+                                event.preventDefault();
+                                setMode((current) => nextRunMode(current));
+                                return;
+                              }
+                              if (
                                 skillCommandMenuOpen &&
                                 slashCommandSuggestions.length > 0 &&
                                 !event.nativeEvent.isComposing
@@ -5190,6 +5368,14 @@ export function App() {
                                     selectComposerCommand("/compact");
                                   } else if (suggestion?.kind === "init") {
                                     selectComposerCommand("/init");
+                                  } else if (
+                                    suggestion?.kind === "plan" ||
+                                    suggestion?.kind === "execute" ||
+                                    suggestion?.kind === "review"
+                                  ) {
+                                    selectComposerCommand(
+                                      `/${suggestion.kind} `,
+                                    );
                                   } else if (suggestion?.kind === "skill") {
                                     selectSkillCommand(suggestion.skill);
                                   }
@@ -6668,15 +6854,16 @@ export function App() {
         </div>
       )}
 
-      {toast && (
-        <button
-          className={typeof toast === "string" ? "toast" : "toast error"}
-          onClick={() => setToast(undefined)}
-          role={typeof toast === "string" ? undefined : "alert"}
-        >
-          {typeof toast === "string" ? toast : toast.message}
-        </button>
-      )}
+      {toast &&
+        (activeView !== "workspace" ||
+          !activeProject ||
+          activeThread?.archived) && (
+          <TransientNotice
+            notice={toast}
+            onDismiss={() => setToast(undefined)}
+            placement="view"
+          />
+        )}
     </main>
   );
 }

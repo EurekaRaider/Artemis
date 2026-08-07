@@ -246,6 +246,46 @@ describe("Codex conversation shell contract", () => {
     expect(agentRuntimeSource).toContain("event.result?.estimatedTokensAfter");
   });
 
+  it("switches task modes from slash commands without weakening active-turn boundaries", () => {
+    const sendPrompt = sourceBetween(
+      appSource,
+      "const sendPrompt = useCallback",
+      "const deleteQueuedMessage",
+    );
+    const multipleCommandGuard = sourceBetween(
+      sendPrompt,
+      'runModeCommand.kind === "multiple"',
+      'runModeCommand.kind === "command"',
+    );
+
+    expect(sendPrompt).toContain("parseRunModeCommand(rawPrompt)");
+    expect(multipleCommandGuard).toContain("t.multipleModeCommands");
+    expect(multipleCommandGuard).toContain("return;");
+    expect(sendPrompt).toContain("setMode(submittedMode)");
+    expect(sendPrompt).toContain("mode: submittedMode");
+    expect(sendPrompt).toContain("t.modeCommandWhileRunning");
+    expect(sendPrompt.indexOf("t.modeCommandWhileRunning")).toBeLessThan(
+      sendPrompt.indexOf("window.artemis.followUpTurn({"),
+    );
+    expect(appSource).toMatch(
+      /multipleModeCommands:\s*"Only one \/plan, \/execute, or \/review command is allowed per message\."/u,
+    );
+    expect(appSource).toMatch(
+      /multipleModeCommands:\s*"每条消息只能包含一个 \/plan、\/execute 或 \/review 指令。"/u,
+    );
+    expect(appSource).toContain("selectComposerCommand(`/${mode} `)");
+    expect(appSource).toMatch(
+      /selectComposerCommand\(\s*`\/\$\{suggestion\.kind\} `,?\s*\)/u,
+    );
+  });
+
+  it("cycles task modes with Shift+Tab only while the composer can switch modes", () => {
+    expect(appSource).toMatch(
+      /event\.key === "Tab" &&[\s\S]{0,160}event\.shiftKey &&[\s\S]{0,240}!turnActive &&[\s\S]{0,80}!busy/u,
+    );
+    expect(appSource).toContain("setMode((current) => nextRunMode(current))");
+  });
+
   it("uses Codex shell tones, typography, and the rounded workspace boundary", () => {
     const sidebar = cssVariable("--codex-sidebar-bg");
     const workspace = cssVariable("--codex-workspace-bg");

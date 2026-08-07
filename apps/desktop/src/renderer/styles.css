@@ -9272,26 +9272,52 @@ kbd {
   padding: 2px 5px;
 }
 
-.toast {
-  background: var(--panel-3);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  bottom: 18px;
-  box-shadow: 0 8px 28px rgb(0 0 0 / 24%);
-  cursor: pointer;
+.transient-notice {
+  opacity: 1;
+  transition: opacity 600ms ease;
+  width: 100%;
+}
+
+.composer-notice {
+  flex: 0 0 auto;
+  margin: 0 0 10px;
+  position: relative;
+  z-index: 14;
+}
+
+.view-notice {
   left: 50%;
-  max-width: 560px;
-  padding: 9px 12px;
+  max-width: min(960px, calc(100vw - 40px));
   position: fixed;
+  top: 72px;
   transform: translateX(-50%);
   z-index: 30;
 }
 
-.toast.error {
+.transient-notice > button {
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 24%);
+  color: var(--text);
+  cursor: pointer;
+  display: block;
+  font: inherit;
+  line-height: 1.45;
+  padding: 10px 14px;
+  text-align: left;
+  width: 100%;
+}
+
+.transient-notice.error > button {
   background: color-mix(in srgb, var(--danger) 12%, var(--panel-3));
   border-color: color-mix(in srgb, var(--danger) 52%, var(--border));
   color: var(--danger);
-  text-align: left;
+}
+
+.transient-notice.fading {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .loading-shell {

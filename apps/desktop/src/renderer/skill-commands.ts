@@ -1,4 +1,7 @@
+import type { RunMode } from "@artemis/protocol";
+
 import type { InstalledSkill } from "../shared/api.js";
+import { RUN_MODE_ORDER } from "./run-mode-controls.js";
 
 interface ActiveSlashCommand {
   start: number;
@@ -11,6 +14,7 @@ export type SlashCommandSuggestion =
   | { kind: "goal" }
   | { kind: "compact" }
   | { kind: "init" }
+  | { kind: RunMode }
   | { kind: "skill"; skill: InstalledSkill };
 
 function activeSlashCommand(prompt: string): ActiveSlashCommand | undefined {
@@ -93,10 +97,14 @@ export function slashCommandSuggestionsForPrompt(
     command.start === 0 &&
     !command.skillPrefixed &&
     "init".startsWith(command.query);
+  const modeSuggestions = RUN_MODE_ORDER.filter(
+    (mode) => !command.skillPrefixed && mode.startsWith(command.query),
+  ).map((kind): SlashCommandSuggestion => ({ kind }));
   return [
     ...(goalVisible ? ([{ kind: "goal" }] as const) : []),
     ...(compactVisible ? ([{ kind: "compact" }] as const) : []),
     ...(initVisible ? ([{ kind: "init" }] as const) : []),
+    ...modeSuggestions,
     ...skillSuggestionsForPrompt(prompt, skills).map(
       (skill): SlashCommandSuggestion => ({ kind: "skill", skill }),
     ),
