@@ -25,8 +25,16 @@ type WorkspaceTabAction =
 
 interface WorkspaceTabsModule {
   agentTeamWorkspaceTab(teamId: string, title: string): WorkspaceTab;
-  childAgentWorkspaceTab(agentId: string, label: string): WorkspaceTab;
+  childAgentWorkspaceTab(
+    agentId: string,
+    label: string,
+    teamId?: string,
+  ): WorkspaceTab;
   closesLastWorkspaceTab(state: WorkspaceTabsState, tabId: string): boolean;
+  reconcileAgentTeamWorkspaceTab(
+    state: WorkspaceTabsState,
+    tab: WorkspaceTab,
+  ): WorkspaceTabsState;
   reduceWorkspaceTabs(
     state: WorkspaceTabsState,
     action: WorkspaceTabAction,
@@ -50,6 +58,7 @@ async function loadWorkspaceTabs(): Promise<WorkspaceTabsModule> {
     await vi.importActual<WorkspaceTabsModule>(workspaceTabsModule);
 
   expect(module.childAgentWorkspaceTab).toBeTypeOf("function");
+  expect(module.reconcileAgentTeamWorkspaceTab).toBeTypeOf("function");
   expect(module.reduceWorkspaceTabs).toBeTypeOf("function");
   return module;
 }
@@ -256,5 +265,50 @@ describe("workspace tab state", () => {
     });
     expect(withTeam.tabs).toEqual([existing.tabs[0], teamTab]);
     expect(withTeam.activeTabId).toBe("terminal-1");
+  });
+
+  it("replaces stopped team pages when a continued task starts a new team", async () => {
+    const {
+      agentTeamWorkspaceTab,
+      childAgentWorkspaceTab,
+      reconcileAgentTeamWorkspaceTab,
+      reduceWorkspaceTabs: reduce,
+    } = await loadWorkspaceTabs();
+    const terminalTab: WorkspaceTab = {
+      id: "terminal-1",
+      kind: "terminal",
+      title: "Terminal",
+    };
+    const withTerminal = reduce(emptyState(), {
+      type: "open",
+      tab: terminalTab,
+    });
+    const stoppedTeamTab = agentTeamWorkspaceTab("team-stopped", "Agent team");
+    const withStoppedTeam = reconcileAgentTeamWorkspaceTab(
+      withTerminal,
+      stoppedTeamTab,
+    );
+    const stoppedChildTab = childAgentWorkspaceTab(
+      "agent-stopped",
+      "Stopped agent",
+      "team-stopped",
+    );
+    const withStoppedChild = reduce(withStoppedTeam, {
+      type: "open",
+      tab: stoppedChildTab,
+    });
+    const continuedTeamTab = agentTeamWorkspaceTab(
+      "team-continued",
+      "Agent team",
+    );
+    const continued = reconcileAgentTeamWorkspaceTab(
+      withStoppedChild,
+      continuedTeamTab,
+    );
+
+    expect(stoppedChildTab.agentTeamId).toBe("team-stopped");
+    expect(withStoppedTeam.activeTabId).toBe(terminalTab.id);
+    expect(continued.tabs).toEqual([terminalTab, continuedTeamTab]);
+    expect(continued.activeTabId).toBe(continuedTeamTab.id);
   });
 });

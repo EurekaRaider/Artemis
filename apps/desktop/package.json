@@ -10,10 +10,11 @@
     "build": "npm run build:electron && vite build",
     "build:electron": "node scripts/build-electron.mjs",
     "dev": "npm run build:electron && concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && cross-env ARTEMIS_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
-    "package:mac": "node scripts/package-mac-lite.mjs arm64",
+    "package:mac": "node scripts/package-mac-lite.mjs all",
     "package:mac:arm64": "node scripts/package-mac-lite.mjs arm64",
+    "package:mac:x64": "node scripts/package-mac-lite.mjs x64",
     "package:win": "node scripts/package-windows-lite.mjs",
-    "release:mac": "node scripts/validate-release-env.mjs mac && npm run verify:bundled-plugins && npm run build && electron-builder --config scripts/release-builder.config.cjs --mac dmg zip --arm64 --publish never && node scripts/finalize-release.mjs",
+    "release:mac": "node scripts/package-mac-lite.mjs all --release",
     "release:win": "node scripts/validate-release-env.mjs win && node scripts/package-windows-lite.mjs --release && cross-env ARTEMIS_REQUIRE_SIGNATURE=1 npm run verify:win-native && node scripts/finalize-release.mjs --windows-zip",
     "verify:mac-native": "node scripts/verify-macos-native.mjs",
     "verify:win-native": "node scripts/verify-windows-native.mjs",
@@ -94,13 +95,15 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ]

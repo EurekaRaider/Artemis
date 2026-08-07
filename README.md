@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS arm64" src="https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-111111?logo=apple&logoColor=white" />
-  <img alt="625 passing tests" src="https://img.shields.io/badge/Tests-625_passing-2EA44F" />
+  <img alt="636 passing tests" src="https://img.shields.io/badge/Tests-636_passing-2EA44F" />
   <img alt="Maximum 16 active agents" src="https://img.shields.io/badge/Agents-max_16-F5A524" />
 </p>
 
@@ -236,8 +236,10 @@ The right workspace keeps repository work beside the conversation:
   files.
 - **Files** browses the project tree with file-type icons, syntax highlighting
   and local editing.
-- **Child Agent tabs** expose the status and output of real parallel Pi
-  sessions without hiding them behind the parent timeline.
+- **Agent Team and Child Agent tabs** expose the status and output of real
+  parallel Pi sessions without hiding them behind the parent timeline. When a
+  continued task starts a new team, its workbench replaces the stopped team's
+  team and child tabs while preserving unrelated workspace tabs.
 
 ## Plan, Execute, Review and Office work
 
@@ -363,11 +365,12 @@ flowchart LR
   or local-file access.
 - **Plan and Review** reject writes before an executor or filesystem call and
   do not expose Pi Bash, MCP or executable extensions.
-- **macOS** Lite engineering packages target Apple Silicon arm64 only. Local
-  checks cover architecture, the ad-hoc engineering signature and packaged
-  resources; Developer ID signing, notarization, stapling, PTY/Seatbelt and
-  update/rollback release acceptance remain separate native gates. No macOS
-  x64 artifact is generated, so cross-architecture completion is not claimed.
+- **macOS** Lite engineering packages generate separate Apple Silicon arm64 and
+  Intel x64 artifacts. Local checks cover archive integrity, architecture, the
+  ad-hoc engineering signature and packaged resources; the x64 result is a
+  static build validation only. Intel-native launch, Developer ID signing,
+  notarization, stapling, PTY/Seatbelt and update/rollback release acceptance
+  remain separate native gates.
 
 ## Terminal
 
@@ -735,11 +738,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **625 passing tests** (4 skipped):
+The current full test run contains **636 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       51 |       19 |         60 |     495 |   **625** |
+|       51 |       19 |         60 |     506 |   **636** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -769,6 +772,7 @@ The current `1.1.19` engineering build produces:
 | ------------------------- | ---------------------------------------------------------------- |
 | Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.19.zip`            |
 | macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.19.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.19.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and
@@ -793,9 +797,9 @@ The verification command must finish with `1 passed`. If packaging reports
 `npm ci --include=dev` from the repository root and do not install TypeScript
 globally as a workaround.
 
-### macOS Apple Silicon arm64
+### macOS Apple Silicon arm64 and Intel x64
 
-Use an M-series Mac with Xcode 26 or later selected:
+Use a Mac with Xcode 26 or later selected:
 
 ```bash
 node -p "process.platform + ' ' + process.arch"
@@ -804,10 +808,13 @@ xcodebuild -version
 npm run package:mac
 ```
 
-The first command must print `darwin arm64`. Packaging creates the arm64 DMG and
-ZIP listed above. Engineering packages are ad-hoc signed for manual testing;
-public distribution still requires Developer ID signing, notarization and
-stapling through the release gate.
+The first command must print `darwin` and the build host architecture. The
+default command builds the separate arm64 and x64 DMG/ZIP pairs listed above.
+Use `npm run package:mac:arm64` or `npm run package:mac:x64` when only one
+architecture is needed. Engineering packages are ad-hoc signed; the x64 output
+is statically checked but not Intel-native runtime accepted. Public distribution
+still requires Developer ID signing, notarization and stapling through the
+release gate.
 
 ### Windows x64 ZIP
 
@@ -874,9 +881,10 @@ downloads require Authenticode signing and the real Windows gate. See Microsoft'
 - The four Lite plugins are packaged from
   `apps/desktop/resources/bundled-artifact-plugins` and work offline after
   installation from the Resource Center.
-- The current macOS release scope is Apple Silicon arm64 only; it does not claim
-  macOS x64 or cross-architecture completion. Windows release acceptance
-  requires the extracted-ZIP native gate on Windows x64.
+- The macOS engineering profile generates separate arm64 and x64 artifacts.
+  The x64 package has static build and architecture validation only; Intel-native
+  runtime and cross-architecture release completion are not claimed. Windows
+  release acceptance requires the extracted-ZIP native gate on Windows x64.
 - `release:mac` retains signing, notarization and recovery checks. `release:win`
   requires a real Windows x64 host, valid Authenticode and extracted-ZIP smoke
   validation before producing a manual-distribution checksum manifest.
@@ -887,7 +895,7 @@ downloads require Authenticode signing and the real Windows gate. See Microsoft'
 | --------------------- | ------------------------------------------------------------------- | ------------------------------------------------- |
 | **Windows 11 x64**    | Desktop-user PTY/MCP; AppContainer extensions; native ZIP packaging | Real Windows x64 release gate required            |
 | **macOS 14+ arm64**   | Seatbelt, hardened runtime, DMG/ZIP and release gates               | Engineering artifact checked; public gate pending |
-| macOS x64             | No artifact generated by the Lite release profile                   | Not claimed                                       |
+| macOS x64             | Separate DMG/ZIP engineering artifacts                              | Static artifact check only; Intel gate pending    |
 | Windows ARM64 / Linux | Outside the initial Beta scope                                      | —                                                 |
 
 ## Project status

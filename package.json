@@ -21,6 +21,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "package:mac": "npm run package:mac -w @artemis/desktop",
+    "package:mac:arm64": "npm run package:mac:arm64 -w @artemis/desktop",
+    "package:mac:x64": "npm run package:mac:x64 -w @artemis/desktop",
     "package:win": "npm run package:win -w @artemis/desktop",
     "verify:screenshot-matrix": "npm run build:core && npm run verify:screenshot-matrix -w @artemis/desktop",
     "test": "npm run build:core && npm run test -w @artemis/protocol && npm run test -w @artemis/platform && npm run test -w @artemis/agent-host && npm run test -w @artemis/desktop",

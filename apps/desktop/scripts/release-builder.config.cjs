@@ -30,7 +30,9 @@ module.exports = {
   generateUpdatesFilesForAllChannels: true,
   win: {
     ...packageJson.build.win,
-    publisherName: process.env.ARTEMIS_WINDOWS_PUBLISHER,
+    ...(process.env.ARTEMIS_WINDOWS_PUBLISHER
+      ? { publisherName: process.env.ARTEMIS_WINDOWS_PUBLISHER }
+      : {}),
     verifyUpdateCodeSignature: true,
   },
   mac: {

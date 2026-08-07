@@ -117,6 +117,7 @@ import {
   childAgentWorkspaceTab,
   closesLastWorkspaceTab,
   emptyWorkspaceTabs,
+  reconcileAgentTeamWorkspaceTab,
   reduceWorkspaceTabs,
   type WorkspaceTab,
   type WorkspaceTabAction,
@@ -2019,7 +2020,7 @@ export function App() {
       setWorkspaceTabMenuOpen(false);
       dispatchWorkspaceTab({
         type: "open",
-        tab: childAgentWorkspaceTab(child.agentId, child.label),
+        tab: childAgentWorkspaceTab(child.agentId, child.label, child.teamId),
       });
     },
     [dispatchWorkspaceTab],
@@ -2048,7 +2049,11 @@ export function App() {
           setWorkspaceDockOpen(true);
           dispatchWorkspaceTab({
             type: "open",
-            tab: childAgentWorkspaceTab(result.agentId, child.label),
+            tab: childAgentWorkspaceTab(
+              result.agentId,
+              child.label,
+              child.teamId,
+            ),
           });
         }
       } catch (error) {
@@ -2307,15 +2312,12 @@ export function App() {
         knownAgentTeamTabs.current.add(teamStatus.teamId);
         setWorkspaceTabsByThread((current) => ({
           ...current,
-          [event.threadId]: reduceWorkspaceTabs(
+          [event.threadId]: reconcileAgentTeamWorkspaceTab(
             current[event.threadId] ?? emptyWorkspaceTabs(),
-            {
-              type: "ensure",
-              tab: agentTeamWorkspaceTab(
-                teamStatus.teamId,
-                copy[localeRef.current].agentTeam,
-              ),
-            },
+            agentTeamWorkspaceTab(
+              teamStatus.teamId,
+              copy[localeRef.current].agentTeam,
+            ),
           ),
         }));
         if (activeThreadIdRef.current === event.threadId) {
@@ -2536,12 +2538,9 @@ export function App() {
     knownAgentTeamTabs.current.add(latestAgentTeam.teamId);
     setWorkspaceTabsByThread((current) => ({
       ...current,
-      [activeThreadId]: reduceWorkspaceTabs(
+      [activeThreadId]: reconcileAgentTeamWorkspaceTab(
         current[activeThreadId] ?? emptyWorkspaceTabs(),
-        {
-          type: "ensure",
-          tab: agentTeamWorkspaceTab(latestAgentTeam.teamId, t.agentTeam),
-        },
+        agentTeamWorkspaceTab(latestAgentTeam.teamId, t.agentTeam),
       ),
     }));
     if (

@@ -48,12 +48,14 @@ export function closesLastWorkspaceTab(
 export function childAgentWorkspaceTab(
   agentId: string,
   label: string,
+  agentTeamId?: string,
 ): WorkspaceTab {
   return {
     id: `child-agent:${agentId}`,
     kind: "child-agent",
     title: label,
     childAgentId: agentId,
+    ...(agentTeamId ? { agentTeamId } : {}),
   };
 }
 
@@ -66,6 +68,32 @@ export function agentTeamWorkspaceTab(
     kind: "agent-team",
     title,
     agentTeamId: teamId,
+  };
+}
+
+export function reconcileAgentTeamWorkspaceTab(
+  state: WorkspaceTabsState,
+  tab: WorkspaceTab,
+): WorkspaceTabsState {
+  const replacesPreviousTeam = state.tabs.some(
+    (existing) =>
+      (existing.kind === "agent-team" || existing.kind === "child-agent") &&
+      existing.agentTeamId !== undefined &&
+      existing.agentTeamId !== tab.agentTeamId,
+  );
+  if (!replacesPreviousTeam) {
+    return reduceWorkspaceTabs(state, { type: "ensure", tab });
+  }
+
+  return {
+    tabs: [
+      ...state.tabs.filter(
+        (existing) =>
+          existing.kind !== "agent-team" && existing.kind !== "child-agent",
+      ),
+      tab,
+    ],
+    activeTabId: tab.id,
   };
 }
 

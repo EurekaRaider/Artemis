@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -77,10 +78,10 @@ const agentProcessSource = readFileSync(
   fileURLToPath(new URL("../src/main/agent-process.ts", import.meta.url)),
   "utf8",
 );
-const macPackageScriptSource = readFileSync(
-  fileURLToPath(new URL("../scripts/package-mac-lite.mjs", import.meta.url)),
-  "utf8",
+const macPackageScriptPath = fileURLToPath(
+  new URL("../scripts/package-mac-lite.mjs", import.meta.url),
 );
+const macPackageScriptSource = readFileSync(macPackageScriptPath, "utf8");
 const windowsPackageScriptSource = readFileSync(
   fileURLToPath(
     new URL("../scripts/package-windows-lite.mjs", import.meta.url),
@@ -90,6 +91,12 @@ const windowsPackageScriptSource = readFileSync(
 const engineeringBuilderSource = readFileSync(
   fileURLToPath(
     new URL("../scripts/engineering-builder.config.cjs", import.meta.url),
+  ),
+  "utf8",
+);
+const releaseBuilderSource = readFileSync(
+  fileURLToPath(
+    new URL("../scripts/release-builder.config.cjs", import.meta.url),
   ),
   "utf8",
 );
@@ -135,9 +142,18 @@ const desktopPackage = JSON.parse(
   scripts: Record<string, string>;
   build: {
     extraResources: Array<{ from: string; to: string }>;
-    mac: { icon?: string };
+    mac: {
+      icon?: string;
+      target: Array<{ target: string; arch: string[] }>;
+    };
   };
 };
+const rootPackage = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL("../../../package.json", import.meta.url)),
+    "utf8",
+  ),
+) as { scripts: Record<string, string> };
 const appIconSource = readFileSync(
   fileURLToPath(new URL("../build/icon.png", import.meta.url)),
 );
@@ -2094,18 +2110,59 @@ describe("renderer layout contract", () => {
   });
 
   it("packages four runtime-free Lite artifact plugins on macOS and Windows", () => {
+    expect(rootPackage.scripts["package:mac"]).toBe(
+      "npm run package:mac -w @artemis/desktop",
+    );
+    expect(rootPackage.scripts["package:mac:arm64"]).toBe(
+      "npm run package:mac:arm64 -w @artemis/desktop",
+    );
+    expect(rootPackage.scripts["package:mac:x64"]).toBe(
+      "npm run package:mac:x64 -w @artemis/desktop",
+    );
     expect(desktopPackage.scripts["package:mac"]).toBe(
-      "node scripts/package-mac-lite.mjs arm64",
+      "node scripts/package-mac-lite.mjs all",
     );
     expect(desktopPackage.scripts["package:mac:arm64"]).toBe(
       "node scripts/package-mac-lite.mjs arm64",
     );
-    expect(desktopPackage.scripts["package:mac:x64"]).toBeUndefined();
+    expect(desktopPackage.scripts["package:mac:x64"]).toBe(
+      "node scripts/package-mac-lite.mjs x64",
+    );
     for (const target of desktopPackage.build.mac.target) {
-      expect(target.arch).toEqual(["arm64"]);
+      expect(target.arch).toEqual(["arm64", "x64"]);
     }
+    expect(desktopPackage.scripts["release:mac"]).toBe(
+      "node scripts/package-mac-lite.mjs all --release",
+    );
     expect(macPackageScriptSource).toContain(
-      'throw new Error("The Lite macOS package target is arm64 only.")',
+      '"scripts/release-builder.config.cjs"',
+    );
+    expect(macPackageScriptSource).toContain(
+      '["scripts/validate-release-env.mjs", "mac"]',
+    );
+    expect(macPackageScriptSource).toContain(
+      '["scripts/finalize-release.mjs"]',
+    );
+    expect(releaseBuilderSource).toContain(
+      "...(process.env.ARTEMIS_WINDOWS_PUBLISHER",
+    );
+    expect(releaseBuilderSource).toContain(
+      "? { publisherName: process.env.ARTEMIS_WINDOWS_PUBLISHER }",
+    );
+    const invalidArchitecture = spawnSync(
+      process.execPath,
+      [macPackageScriptPath, "universal"],
+      { encoding: "utf8" },
+    );
+    expect(invalidArchitecture.status).not.toBe(0);
+    expect(invalidArchitecture.stderr).toContain(
+      "Unsupported macOS package architecture: universal. Expected all, arm64 or x64.",
+    );
+    expect(macPackageScriptSource).toContain(
+      'const packageName = "@napi-rs/canvas-darwin-x64"',
+    );
+    expect(macPackageScriptSource).toContain(
+      "await cleanupStagedDependencies()",
     );
     expect(desktopPackage.scripts["package:win"]).toBe(
       "node scripts/package-windows-lite.mjs",

@@ -20,7 +20,7 @@ describe("agent-team workbench", () => {
   it("opens a non-stealing right-dock team tab from the first persisted event", () => {
     expect(appSource).toContain('event.payload.type === "agent-team.status"');
     expect(appSource).toContain("agentTeamWorkspaceTab(");
-    expect(appSource).toContain('type: "ensure"');
+    expect(appSource).toContain("reconcileAgentTeamWorkspaceTab(");
     expect(appSource).toContain('tab.kind === "agent-team"');
     expect(appSource).toContain("<AgentTeamPanel");
   });
