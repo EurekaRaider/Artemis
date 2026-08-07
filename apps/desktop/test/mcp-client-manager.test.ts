@@ -1,0 +1,743 @@
+import { readFileSync } from "node:fs";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
+
+import * as mcpClientManagerModule from "../src/main/mcp-client-manager.js";
+import {
+  McpClientManager,
+  type McpConnection,
+  type McpExecutionScope,
+} from "../src/main/mcp-client-manager.js";
+import type { McpServerConfig } from "../src/main/mcp-config-store.js";
+
+interface ResolvedWindowsStdioCommand {
+  executable: string;
+  args: string[];
+}
+
+type ResolveWindowsStdioCommand = (
+  command: string,
+  args: string[],
+  resolveExecutable?: (command: string) => string,
+  resolveCommandShim?: (
+    shimPath: string,
+    args: string[],
+  ) => ResolvedWindowsStdioCommand | undefined,
+) => ResolvedWindowsStdioCommand;
+
+type ResolveCachedNpxCommand = (
+  args: string[],
+  cacheDirectory: string,
+  nodeExecutable: string,
+) => Promise<ResolvedWindowsStdioCommand | undefined>;
+
+const resolveWindowsStdioCommand = (
+  mcpClientManagerModule as typeof mcpClientManagerModule & {
+    resolveWindowsStdioCommand?: ResolveWindowsStdioCommand;
+  }
+).resolveWindowsStdioCommand;
+const resolveCachedNpxCommand = (
+  mcpClientManagerModule as typeof mcpClientManagerModule & {
+    resolveCachedNpxCommand?: ResolveCachedNpxCommand;
+  }
+).resolveCachedNpxCommand;
+const mcpClientManagerSource = readFileSync(
+  new URL("../src/main/mcp-client-manager.ts", import.meta.url),
+  "utf8",
+);
+const mainProcessSource = readFileSync(
+  new URL("../src/main/main.ts", import.meta.url),
+  "utf8",
+);
+const protocolHostMessagesSource = readFileSync(
+  new URL("../../../packages/protocol/src/host-messages.ts", import.meta.url),
+  "utf8",
+);
+const agentRuntimeSource = readFileSync(
+  new URL("../../../packages/agent-host/src/runtime.ts", import.meta.url),
+  "utf8",
+);
+
+const config: McpServerConfig = {
+  id: "test-server",
+  name: "Test server",
+  transport: "streamable-http",
+  enabled: true,
+  url: "https://example.test/mcp",
+};
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+describe("McpClientManager", () => {
+  it.each([
+    {
+      command: "npx",
+      shim: "C:\\Users\\test\\AppData\\Roaming\\npm\\npx.cmd",
+      node: "C:\\Program Files\\nodejs\\node.exe",
+      script: "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js",
+      args: ["-y", "@upstash/context7-mcp@latest"],
+    },
+    {
+      command: "codegraph",
+      shim: "C:\\Users\\test\\AppData\\Roaming\\npm\\codegraph.cmd",
+      node: "C:\\Program Files\\nodejs\\node.exe",
+      script:
+        "C:\\Users\\test\\AppData\\Roaming\\npm\\node_modules\\@colbymchenry\\codegraph\\npm-shim.js",
+      args: ["serve", "--mcp"],
+    },
+  ])(
+    "resolves the Windows $command npm shim to node without a command shell",
+    ({ command, shim, node, script, args }) => {
+      expect(resolveWindowsStdioCommand).toBeTypeOf("function");
+      if (!resolveWindowsStdioCommand) return;
+
+      expect(
+        resolveWindowsStdioCommand(
+          command,
+          args,
+          () => shim,
+          (_shimPath, shimArgs) => ({
+            executable: node,
+            args: [script, ...shimArgs],
+          }),
+        ),
+      ).toEqual({
+        executable: node,
+        args: [script, ...args],
+      });
+    },
+  );
+
+  it("keeps an absolute Windows .exe command and arguments unchanged", () => {
+    const executable = "C:\\Program Files\\nodejs\\node.exe";
+    const args = ["server.mjs", "--stdio"];
+
+    expect(resolveWindowsStdioCommand).toBeTypeOf("function");
+    if (!resolveWindowsStdioCommand) return;
+
+    expect(
+      resolveWindowsStdioCommand(executable, args, () => {
+        throw new Error("absolute executables do not require PATH lookup");
+      }),
+    ).toEqual({ executable, args });
+  });
+
+  it("resolves a cached npx package bin directly with its remaining arguments", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-npx-cache-"));
+    try {
+      const packageDirectory = join(
+        directory,
+        "_npx",
+        "cache-key",
+        "node_modules",
+        "@scope",
+        "server",
+      );
+      const entryPath = join(packageDirectory, "dist", "index.js");
+      await mkdir(dirname(entryPath), { recursive: true });
+      await writeFile(
+        join(packageDirectory, "package.json"),
+        JSON.stringify({
+          name: "@scope/server",
+          bin: { server: "dist/index.js" },
+        }),
+        "utf8",
+      );
+      await writeFile(entryPath, "", "utf8");
+
+      expect(resolveCachedNpxCommand).toBeTypeOf("function");
+      if (!resolveCachedNpxCommand) return;
+      await expect(
+        resolveCachedNpxCommand(
+          ["-y", "@scope/server@latest", "--api-key", "test"],
+          directory,
+          "C:\\runtime\\node.exe",
+        ),
+      ).resolves.toEqual({
+        executable: "C:\\runtime\\node.exe",
+        args: [entryPath, "--api-key", "test"],
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("parses npm-generated npx and package shims into direct node launches", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-npm-shims-"));
+    try {
+      const nodePath = join(directory, "node.exe");
+      const npxPath = join(directory, "npx.cmd");
+      const npxScript = join(
+        directory,
+        "node_modules",
+        "npm",
+        "bin",
+        "npx-cli.js",
+      );
+      const packagePath = join(directory, "codegraph.cmd");
+      const packageScript = join(
+        directory,
+        "node_modules",
+        "@scope",
+        "codegraph",
+        "npm-shim.js",
+      );
+      const bundledNode = join(
+        dirname(packageScript),
+        "node_modules",
+        "@scope",
+        "codegraph-win32-x64",
+        "node.exe",
+      );
+      const bundledEntry = join(
+        dirname(packageScript),
+        "node_modules",
+        "@scope",
+        "codegraph-win32-x64",
+        "lib",
+        "dist",
+        "bin",
+        "codegraph.js",
+      );
+      await mkdir(dirname(npxScript), { recursive: true });
+      await mkdir(dirname(packageScript), { recursive: true });
+      await mkdir(dirname(bundledEntry), { recursive: true });
+      await Promise.all([
+        writeFile(nodePath, "", "utf8"),
+        writeFile(npxPath, "@ECHO OFF\r\n", "utf8"),
+        writeFile(npxScript, "", "utf8"),
+        writeFile(
+          join(dirname(packageScript), "package.json"),
+          JSON.stringify({ name: "@scope/codegraph" }),
+          "utf8",
+        ),
+        writeFile(
+          packagePath,
+          '"%_prog%" "%dp0%\\node_modules\\@scope\\codegraph\\npm-shim.js" %*\r\n',
+          "utf8",
+        ),
+        writeFile(packageScript, "", "utf8"),
+        writeFile(bundledNode, "", "utf8"),
+        writeFile(bundledEntry, "", "utf8"),
+      ]);
+
+      expect(
+        resolveWindowsStdioCommand("npx", ["-y", "pkg"], () => npxPath),
+      ).toEqual({
+        executable: nodePath,
+        args: [npxScript, "-y", "pkg"],
+      });
+      expect(
+        resolveWindowsStdioCommand(
+          "codegraph",
+          ["serve", "--mcp"],
+          () => packagePath,
+        ),
+      ).toEqual({
+        executable: bundledNode,
+        args: ["--liftoff-only", bundledEntry, "serve", "--mcp"],
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it.runIf(process.platform !== "win32")(
+    "finds stdio MCP executables in the user-local bin when the GUI PATH omits it",
+    async () => {
+      const directory = await mkdtemp(
+        join(tmpdir(), "artemis-posix-mcp-path-"),
+      );
+      const homePath = join(directory, "home");
+      const binPath = join(homePath, ".local", "bin");
+      const workspacePath = join(directory, "workspace");
+      const entryPath = join(directory, "server.mjs");
+      await Promise.all([
+        mkdir(binPath, { recursive: true }),
+        mkdir(workspacePath, { recursive: true }),
+      ]);
+      await symlink(process.execPath, join(binPath, "codegraph"));
+      await writeFile(
+        entryPath,
+        `import { createInterface } from "node:readline";
+
+const send = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
+const lines = createInterface({ input: process.stdin });
+lines.on("line", (line) => {
+  const message = JSON.parse(line);
+  if (!("id" in message)) return;
+  if (message.method === "initialize") {
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        protocolVersion: message.params.protocolVersion,
+        capabilities: { tools: {} },
+        serverInfo: { name: "fixture", version: "1.0.0" },
+      },
+    });
+    return;
+  }
+  if (message.method === "tools/list") {
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        tools: [
+          {
+            name: "codegraph_explore",
+            inputSchema: { type: "object", properties: {} },
+          },
+        ],
+      },
+    });
+  }
+});
+`,
+        "utf8",
+      );
+      vi.stubEnv("HOME", homePath);
+      vi.stubEnv("PATH", "/usr/bin:/bin");
+      const manager = new McpClientManager(process.platform, undefined);
+
+      try {
+        const status = await manager.connect({
+          id: "codegraph",
+          name: "CodeGraph",
+          transport: "stdio",
+          enabled: true,
+          command: "codegraph",
+          args: [entryPath],
+          env: {},
+          envVars: [],
+          workspacePath,
+          allowNetwork: true,
+        });
+        expect(status.state, status.error).toBe("connected");
+        expect(status.tools.map((tool) => tool.toolName)).toEqual([
+          "codegraph_explore",
+        ]);
+      } finally {
+        await manager.dispose();
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("launches every local stdio server directly as the desktop user", () => {
+    expect(mcpClientManagerSource).toContain("buildDesktopUserLaunch(command)");
+    expect(mcpClientManagerSource).not.toContain(
+      "buildWindowsAppContainerLaunch",
+    );
+    expect(mcpClientManagerSource).not.toContain("buildSeatbeltLaunch");
+    expect(mcpClientManagerSource).not.toContain("resolveMcpSandboxPolicy");
+    expect(mcpClientManagerSource).not.toContain("localFullAccess");
+  });
+
+  it("carries and validates the task workspace before an approved MCP call", () => {
+    const protocolMcpRequest = protocolHostMessagesSource.slice(
+      protocolHostMessagesSource.indexOf('kind: "mcp.call"'),
+      protocolHostMessagesSource.indexOf('kind: "extension.call"'),
+    );
+    const runtimeMcpRequest = agentRuntimeSource.slice(
+      agentRuntimeSource.indexOf('kind: "mcp.call"'),
+      agentRuntimeSource.indexOf("readOnly: tool.readOnly"),
+    );
+    const brokerHandler = mainProcessSource.slice(
+      mainProcessSource.indexOf("async function handleMcpBrokerRequest"),
+      mainProcessSource.indexOf("async function handleExtensionBrokerRequest"),
+    );
+    const approvedExecution = mainProcessSource.slice(
+      mainProcessSource.indexOf("async function executeApprovedMcp"),
+      mainProcessSource.indexOf("async function executeApprovedExtension"),
+    );
+
+    expect(protocolMcpRequest).toContain("workspacePath: string;");
+    expect(runtimeMcpRequest).toContain("workspacePath: request.workspacePath");
+    expect(brokerHandler).toContain("resolveThreadWorkspace(thread)");
+    expect(brokerHandler).toContain(
+      "MCP workspace does not match the task project.",
+    );
+    expect(approvedExecution).toMatch(
+      /mcpClientManager\.call\([\s\S]*?request\.workspacePath[\s\S]*?request\.mode/u,
+    );
+  });
+
+  it("discovers tools and maps OpenCode-style server-qualified Pi names", async () => {
+    const namespacedConfig = { ...config, id: "test.server" };
+    const client: McpConnection = {
+      listTools: async () => ({
+        tools: [
+          {
+            name: "read/file",
+            description: "Read",
+            inputSchema: { type: "object", properties: {} },
+            annotations: { readOnlyHint: true },
+          },
+        ],
+      }),
+      callTool: async () => ({
+        content: [{ type: "text", text: "result" }],
+      }),
+      close: vi.fn(async () => {}),
+    };
+    const manager = new McpClientManager(
+      "win32",
+      "C:\\helper.ps1",
+      async () => client,
+    );
+
+    const status = await manager.connect(namespacedConfig, "token");
+    expect(status.state).toBe("connected");
+    expect(status.tools[0]).toMatchObject({
+      serverId: "test.server",
+      toolName: "read/file",
+      readOnly: true,
+    });
+    expect(status.tools[0]?.piName).toBe("test_server_read_file");
+    expect(await manager.call("test.server", "read/file", {})).toEqual({
+      output: "result",
+      isError: false,
+    });
+  });
+
+  it("reuses a task-scoped stdio connection for calls in the same project", async () => {
+    const scopes: Array<McpExecutionScope | undefined> = [];
+    const close = vi.fn(async () => {});
+    const manager = new McpClientManager(
+      "win32",
+      "C:\\helper.ps1",
+      async (_config, _authentication, scope) => {
+        scopes.push(scope);
+        return {
+          listTools: async () => ({
+            tools: [
+              {
+                name: "status",
+                inputSchema: { type: "object", properties: {} },
+              },
+            ],
+          }),
+          callTool: async () => ({
+            content: [
+              {
+                type: "text",
+                text: scope?.workspacePath ?? "runtime",
+              },
+            ],
+          }),
+          close,
+        };
+      },
+    );
+    const stdioConfig: McpServerConfig = {
+      id: "codegraph",
+      name: "CodeGraph",
+      transport: "stdio",
+      enabled: true,
+      command: "codegraph",
+      args: ["serve", "--mcp"],
+      env: {},
+      envVars: [],
+      workspacePath: "C:\\runtime\\codegraph",
+      allowNetwork: true,
+    };
+
+    expect((await manager.connect(stdioConfig)).state).toBe("connected");
+    await expect(
+      manager.call("codegraph", "status", {}, "D:\\Git\\PEAQ_PRB", "execute"),
+    ).resolves.toEqual({
+      output: resolve("D:\\Git\\PEAQ_PRB"),
+      isError: false,
+    });
+    await manager.call(
+      "codegraph",
+      "status",
+      {},
+      "D:\\Git\\PEAQ_PRB",
+      "execute",
+    );
+
+    expect(scopes).toEqual([
+      undefined,
+      {
+        workspacePath: resolve("D:\\Git\\PEAQ_PRB"),
+        mode: "execute",
+      },
+    ]);
+    await manager.dispose();
+    expect(close).toHaveBeenCalledTimes(2);
+  });
+
+  it.runIf(process.platform === "win32")(
+    "runs a real npx-style .cmd MCP shim with desktop-user permissions",
+    async () => {
+      const testDirectory = dirname(fileURLToPath(import.meta.url));
+      const projectRoot = resolve(testDirectory, "..", "..", "..");
+      const workspacePath = await mkdtemp(
+        join(tmpdir(), "artemis-mcp-appcontainer-"),
+      );
+      const taskWorkspacePath = await mkdtemp(
+        join(tmpdir(), "artemis-mcp-task-"),
+      );
+      const shimPath = join(workspacePath, "npx.cmd");
+      const entryPath = join(
+        workspacePath,
+        "node_modules",
+        "npm",
+        "bin",
+        "npx-cli.js",
+      );
+      await mkdir(dirname(entryPath), { recursive: true });
+      await writeFile(
+        entryPath,
+        `import { rm, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { createInterface } from "node:readline";
+
+const send = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
+const lines = createInterface({ input: process.stdin });
+lines.on("line", async (line) => {
+  const message = JSON.parse(line);
+  if (!("id" in message)) return;
+  if (message.method === "initialize") {
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        protocolVersion: message.params.protocolVersion,
+        capabilities: { tools: {} },
+        serverInfo: { name: "fixture", version: "1.0.0" },
+      },
+    });
+    return;
+  }
+  if (message.method === "tools/list") {
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        tools: [
+          {
+            name: "echo",
+            inputSchema: {
+              type: "object",
+              properties: { value: { type: "string" } },
+              required: ["value"],
+            },
+          },
+          {
+            name: "security_probe",
+            inputSchema: { type: "object", properties: {} },
+          },
+        ],
+      },
+    });
+    return;
+  }
+  if (message.method !== "tools/call") return;
+  if (message.params.name === "echo") {
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        content: [
+          {
+            type: "text",
+            text: "MCP_ECHO:" + message.params.arguments.value,
+          },
+        ],
+      },
+    });
+    return;
+  }
+  const marker = process.pid + "-" + Date.now();
+  const requestedWorkspace = message.params.arguments.workspacePath;
+  const insidePath = resolve(
+    typeof requestedWorkspace === "string" ? requestedWorkspace : process.cwd(),
+    ".inside-" + marker,
+  );
+  const outsidePath = resolve(
+    process.env.USERPROFILE ?? "C:\\\\Users\\\\Public",
+    ".outside-" + marker,
+  );
+  let insideWrite = false;
+  let outsideWrite = false;
+  let networkAccess = false;
+  try {
+    await writeFile(insidePath, "inside", "utf8");
+    insideWrite = true;
+  } finally {
+    await rm(insidePath, { force: true }).catch(() => {});
+  }
+  try {
+    await writeFile(outsidePath, "outside", "utf8");
+    outsideWrite = true;
+  } catch {
+    outsideWrite = false;
+  } finally {
+    await rm(outsidePath, { force: true }).catch(() => {});
+  }
+  try {
+    const response = await fetch("https://example.com", {
+      signal: AbortSignal.timeout(2_000),
+    });
+    networkAccess = response.ok;
+  } catch {
+    networkAccess = false;
+  }
+  send({
+    jsonrpc: "2.0",
+    id: message.id,
+    result: {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ insideWrite, outsideWrite, networkAccess }),
+        },
+      ],
+    },
+  });
+});
+`,
+        "utf8",
+      );
+      await writeFile(shimPath, "@ECHO off\r\n", "utf8");
+      const manager = new McpClientManager(
+        "win32",
+        resolve(
+          projectRoot,
+          "apps",
+          "desktop",
+          "resources",
+          "windows-sandbox.ps1",
+        ),
+      );
+      try {
+        const status = await manager.connect({
+          id: "integration-fixture",
+          name: "Integration fixture",
+          transport: "stdio",
+          enabled: true,
+          command: shimPath,
+          args: [],
+          env: {},
+          envVars: [],
+          workspacePath,
+          allowNetwork: true,
+        });
+        expect(status.state, status.error).toBe("connected");
+        expect(
+          await manager.call("integration-fixture", "echo", {
+            value: "OK",
+          }),
+        ).toEqual({ output: "MCP_ECHO:OK", isError: false });
+        const securityProbe = await manager.call(
+          "integration-fixture",
+          "security_probe",
+          {},
+        );
+        expect(JSON.parse(securityProbe.output)).toEqual({
+          insideWrite: true,
+          outsideWrite: true,
+          networkAccess: true,
+        });
+        const taskProbe = await manager.call(
+          "integration-fixture",
+          "security_probe",
+          { workspacePath: taskWorkspacePath },
+          taskWorkspacePath,
+          "execute",
+        );
+        expect(JSON.parse(taskProbe.output)).toEqual({
+          insideWrite: true,
+          outsideWrite: true,
+          networkAccess: true,
+        });
+      } finally {
+        await manager.dispose();
+        await rm(workspacePath, { recursive: true, force: true });
+        await rm(taskWorkspacePath, { recursive: true, force: true });
+      }
+    },
+    30_000,
+  );
+
+  it("does not expose a failed connection as active", async () => {
+    const manager = new McpClientManager("darwin", undefined, async () => {
+      throw new Error("connection failed");
+    });
+
+    expect((await manager.connect(config)).state).toBe("failed");
+    await expect(manager.call("test-server", "anything", {})).rejects.toThrow(
+      "not connected",
+    );
+  });
+
+  it("reports the stdio command and captured stderr when launch closes generically", async () => {
+    const launchError = Object.assign(
+      new Error("MCP error -32000: Connection closed"),
+      {
+        stderr: "'npx' is not recognized as an internal or external command.",
+      },
+    );
+    const manager = new McpClientManager(
+      "win32",
+      "C:\\helper.ps1",
+      async () => {
+        throw launchError;
+      },
+    );
+
+    const status = await manager.connect({
+      id: "context7",
+      name: "Context7",
+      transport: "stdio",
+      enabled: true,
+      command: "npx",
+      args: [
+        "-y",
+        "@upstash/context7-mcp@latest",
+        "--api-key",
+        "ctx7sk-secret",
+      ],
+      env: {},
+      envVars: [],
+      workspacePath: "C:\\repo",
+      allowNetwork: true,
+    });
+
+    expect(status.state).toBe("failed");
+    expect(status.error).toContain('stdio MCP "context7"');
+    expect(status.error).toContain("npx -y @upstash/context7-mcp@latest");
+    expect(status.error).toContain(
+      "'npx' is not recognized as an internal or external command.",
+    );
+    expect(status.error).toContain('--api-key "<redacted>"');
+    expect(status.error).not.toContain("ctx7sk-secret");
+    expect(status.error).not.toBe("MCP error -32000: Connection closed");
+  });
+
+  it("reports OAuth authorization as required without leaking transport errors", async () => {
+    const manager = new McpClientManager("darwin", undefined, async () => {
+      throw new UnauthorizedError("authorization URL contains private details");
+    });
+
+    const status = await manager.connect(config, {
+      oauthProvider: {} as OAuthClientProvider,
+    });
+    expect(status).toMatchObject({
+      state: "authorization-required",
+      tools: [],
+    });
+    expect(status.error).toBeUndefined();
+  });
+});

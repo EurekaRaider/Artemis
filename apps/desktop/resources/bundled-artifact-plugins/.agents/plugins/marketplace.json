@@ -1,0 +1,52 @@
+{
+  "name": "artemis-bundled-artifacts",
+  "interface": {
+    "displayName": "Bundled plugins"
+  },
+  "plugins": [
+    {
+      "name": "documents",
+      "source": {
+        "source": "local",
+        "path": "./plugins/documents"
+      },
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "pdf",
+      "source": {
+        "source": "local",
+        "path": "./plugins/pdf"
+      },
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "presentations",
+      "source": {
+        "source": "local",
+        "path": "./plugins/presentations"
+      },
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "spreadsheets",
+      "source": {
+        "source": "local",
+        "path": "./plugins/spreadsheets"
+      },
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -1,0 +1,655 @@
+import { z } from "zod";
+
+export const PROTOCOL_VERSION = 2 as const;
+
+export const runModeSchema = z.enum(["execute", "plan", "review"]);
+export type RunMode = z.infer<typeof runModeSchema>;
+
+export const approvalPolicySchema = z.enum([
+  "ask",
+  "agent",
+  "full-access",
+  "custom",
+]);
+export type ApprovalPolicy = z.infer<typeof approvalPolicySchema>;
+
+export const appLanguageSchema = z.enum(["system", "en", "zh-CN"]);
+export type AppLanguage = z.infer<typeof appLanguageSchema>;
+
+export const appThemeSchema = z.enum(["system", "light", "dark"]);
+export type AppTheme = z.infer<typeof appThemeSchema>;
+
+export const contextWindowSchema = z.number().int().min(1_024).max(10_000_000);
+
+const providerModelSchema = z.object({
+  id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(160)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/u),
+  name: z.string().trim().min(1).max(160),
+  reasoning: z.boolean(),
+  input: z
+    .array(z.enum(["text", "image"]))
+    .min(1)
+    .max(2)
+    .refine((input) => input.includes("text"), {
+      message: "Provider models must accept text input",
+    }),
+  contextWindow: contextWindowSchema,
+  maxTokens: z.number().int().min(1).max(1_000_000),
+});
+export type ProviderModel = z.infer<typeof providerModelSchema>;
+
+export const providerConnectionSchema = z.object({
+  id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .regex(/^[a-z0-9][a-z0-9._-]*$/u),
+  name: z.string().trim().min(1).max(80),
+  baseUrl: z
+    .string()
+    .trim()
+    .url()
+    .refine((value) => {
+      const url = new URL(value);
+      return (
+        (url.protocol === "http:" || url.protocol === "https:") &&
+        !url.username &&
+        !url.password
+      );
+    }, "Provider Base URL must use HTTP(S) without embedded credentials"),
+  api: z.enum(["openai-completions", "openai-responses"]).optional(),
+  models: z.array(providerModelSchema).min(1).max(32),
+});
+export type ProviderConnection = z.infer<typeof providerConnectionSchema>;
+
+export const promptImageSchema = z.object({
+  name: z.string().trim().min(1).max(255),
+  mimeType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]),
+  data: z
+    .string()
+    .min(1)
+    .max(14_000_000)
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/u),
+});
+export type PromptImage = z.infer<typeof promptImageSchema>;
+export const MAX_PROMPT_IMAGES = 4;
+export const promptImagesSchema = z
+  .array(promptImageSchema)
+  .max(MAX_PROMPT_IMAGES);
+
+export const promptFileSchema = z.object({
+  type: z.literal("file"),
+  name: z.string().trim().min(1).max(255),
+  mimeType: z
+    .string()
+    .trim()
+    .min(1)
+    .max(120)
+    .regex(/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/u),
+  content: z.string().max(200_000),
+});
+export type PromptFile = z.infer<typeof promptFileSchema>;
+export const promptAttachmentSchema = z.union([
+  promptImageSchema,
+  promptFileSchema,
+]);
+export type PromptAttachment = z.infer<typeof promptAttachmentSchema>;
+export const MAX_PROMPT_ATTACHMENTS = 10;
+export const promptAttachmentsSchema = z
+  .array(promptAttachmentSchema)
+  .max(MAX_PROMPT_ATTACHMENTS)
+  .superRefine((attachments, context) => {
+    const imageCount = attachments.filter(
+      (attachment) => !("type" in attachment),
+    ).length;
+    if (imageCount > MAX_PROMPT_IMAGES) {
+      context.addIssue({
+        code: "custom",
+        message: `Attach no more than ${MAX_PROMPT_IMAGES} images.`,
+      });
+    }
+    const fileCharacters = attachments.reduce(
+      (total, attachment) =>
+        total + ("type" in attachment ? attachment.content.length : 0),
+      0,
+    );
+    if (fileCharacters > 400_000) {
+      context.addIssue({
+        code: "custom",
+        message: "Attached file contents exceed the 400,000 character limit.",
+      });
+    }
+  });
+
+export const thinkingLevelSchema = z.enum([
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
+export type ThinkingLevel = z.infer<typeof thinkingLevelSchema>;
+
+export const workspaceTargetSchema = z.enum([
+  "local",
+  "managed-worktree",
+  "permanent-worktree",
+]);
+export type WorkspaceTarget = z.infer<typeof workspaceTargetSchema>;
+
+export const reviewScopeSchema = z.enum([
+  "last-turn",
+  "unstaged",
+  "staged",
+  "branch",
+]);
+export type ReviewScope = z.infer<typeof reviewScopeSchema>;
+
+export const reviewActionSchema = z.enum(["stage", "unstage", "revert"]);
+export type ReviewAction = z.infer<typeof reviewActionSchema>;
+
+export const approvalScopeSchema = z.enum(["once", "session", "project"]);
+export type ApprovalScope = z.infer<typeof approvalScopeSchema>;
+
+export const riskLevelSchema = z.enum(["low", "medium", "high", "critical"]);
+export type RiskLevel = z.infer<typeof riskLevelSchema>;
+
+export const modelApprovalDecisionSchema = z.object({
+  approved: z.boolean(),
+  reason: z.string().trim().min(1).max(500),
+});
+export type ModelApprovalDecision = z.infer<typeof modelApprovalDecisionSchema>;
+
+export const userMessagePayloadSchema = z.object({
+  type: z.literal("user.message"),
+  messageId: z.string().min(1),
+  text: z.string(),
+});
+
+export const turnStartedPayloadSchema = z.object({
+  type: z.literal("turn.started"),
+  mode: runModeSchema,
+  model: z.string().optional(),
+});
+
+export const messageDeltaPayloadSchema = z.object({
+  type: z.literal("message.part.delta"),
+  partId: z.string().min(1),
+  partType: z.enum(["text", "thinking"]),
+  delta: z.string(),
+});
+
+export const toolStartedPayloadSchema = z.object({
+  type: z.literal("tool.started"),
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1),
+  input: z.unknown().optional(),
+});
+export type ToolStartedPayload = z.infer<typeof toolStartedPayloadSchema>;
+
+export const toolUpdatedPayloadSchema = z.object({
+  type: z.literal("tool.updated"),
+  toolCallId: z.string().min(1),
+  output: z.string(),
+});
+
+export const toolCompletedPayloadSchema = z.object({
+  type: z.literal("tool.completed"),
+  toolCallId: z.string().min(1),
+  output: z.string().optional(),
+  isError: z.boolean(),
+});
+
+export const approvalRequestedPayloadSchema = z.object({
+  type: z.literal("approval.requested"),
+  approvalId: z.string().min(1),
+  nonce: z.string().min(16),
+  summary: z.string().min(1),
+  command: z.string().optional(),
+  paths: z.array(z.string()).default([]),
+  network: z.array(z.string()).default([]),
+  risk: riskLevelSchema,
+  allowedScopes: z.array(approvalScopeSchema).min(1),
+  source: z.enum(["user", "model", "policy", "automation"]).optional(),
+  modelRecommendation: z.enum(["approve", "deny"]).optional(),
+  modelReason: z.string().trim().min(1).max(500).optional(),
+  actorAgentId: z.string().min(1).optional(),
+});
+export type ApprovalRequestedPayload = z.infer<
+  typeof approvalRequestedPayloadSchema
+>;
+
+export const approvalResolvedPayloadSchema = z.object({
+  type: z.literal("approval.resolved"),
+  approvalId: z.string().min(1),
+  nonce: z.string().min(16),
+  approved: z.boolean(),
+  scope: approvalScopeSchema,
+  source: z.enum(["user", "model", "policy", "automation"]).optional(),
+});
+
+export const userInputOptionSchema = z.object({
+  label: z.string().trim().min(1).max(80),
+  description: z.string().trim().min(1).max(240),
+  recommended: z.boolean(),
+});
+export type UserInputOption = z.infer<typeof userInputOptionSchema>;
+
+const userInputOptionsSchema = z
+  .array(userInputOptionSchema)
+  .min(2)
+  .max(3)
+  .superRefine((options, context) => {
+    if (options.filter((option) => option.recommended).length !== 1) {
+      context.addIssue({
+        code: "custom",
+        message: "Exactly one user-input option must be recommended",
+      });
+    }
+    const labels = new Set(options.map((option) => option.label));
+    if (labels.size !== options.length) {
+      context.addIssue({
+        code: "custom",
+        message: "User-input option labels must be unique",
+      });
+    }
+  });
+
+export const userInputRequestedPayloadSchema = z.object({
+  type: z.literal("user-input.requested"),
+  requestId: z.string().min(1),
+  nonce: z.string().min(16),
+  header: z.string().trim().min(1).max(12),
+  question: z.string().trim().min(1).max(1_000),
+  options: userInputOptionsSchema,
+  expiresAt: z.string().datetime({ offset: true }),
+});
+export type UserInputRequestedPayload = z.infer<
+  typeof userInputRequestedPayloadSchema
+>;
+
+export const userInputResolvedPayloadSchema = z.object({
+  type: z.literal("user-input.resolved"),
+  requestId: z.string().min(1),
+  nonce: z.string().min(16),
+  answer: z.string().max(2_000),
+  selectedOption: z.number().int().min(0).max(2).optional(),
+  source: z.enum(["user", "timeout", "cancelled"]),
+});
+export type UserInputResolvedPayload = z.infer<
+  typeof userInputResolvedPayloadSchema
+>;
+
+export const fileChangedPayloadSchema = z.object({
+  type: z.literal("file.changed"),
+  path: z.string().min(1),
+  operation: z.enum(["create", "update", "delete"]),
+});
+
+export const terminalOutputPayloadSchema = z.object({
+  type: z.literal("terminal.output"),
+  terminalId: z.string().min(1),
+  data: z.string(),
+});
+
+export const childAgentPayloadSchema = z.object({
+  type: z.literal("child-agent.status"),
+  agentId: z.string().min(1),
+  label: z.string().min(1),
+  teamId: z.string().min(1).optional(),
+  role: z.string().trim().min(1).max(120).optional(),
+  dependsOnAgentIds: z.array(z.string().min(1)).max(4).optional(),
+  writePaths: z.array(z.string().min(1).max(1_024)).max(32).optional(),
+  required: z.boolean().optional(),
+  coordinationStatus: z
+    .enum(["waiting-dependency", "working", "blocked", "ready-for-integration"])
+    .optional(),
+  task: z
+    .string()
+    .max(32 * 1024)
+    .optional(),
+  status: z.enum([
+    "queued",
+    "running",
+    "blocked",
+    "cancelling",
+    "completed",
+    "failed",
+    "cancelled",
+  ]),
+  health: z.enum(["healthy", "suspect", "stalled"]).optional(),
+  startedAt: z.string().datetime().optional(),
+  updatedAt: z.string().datetime().optional(),
+  lastActivityAt: z.string().datetime().optional(),
+  currentTool: z.string().min(1).optional(),
+  currentToolStartedAt: z.string().datetime().optional(),
+  attempt: z.number().int().positive().optional(),
+  activity: z
+    .string()
+    .max(64 * 1024)
+    .optional(),
+  activityDelta: z
+    .string()
+    .max(8 * 1024)
+    .optional(),
+  output: z
+    .string()
+    .max(64 * 1024)
+    .optional(),
+  error: z
+    .string()
+    .max(4 * 1024)
+    .optional(),
+});
+export type ChildAgentPayload = z.infer<typeof childAgentPayloadSchema>;
+
+export const agentTeamStatusPayloadSchema = z.object({
+  type: z.literal("agent-team.status"),
+  teamId: z.string().min(1),
+  mission: z.string().trim().min(1).max(2_000),
+  status: z.enum([
+    "forming",
+    "running",
+    "blocked",
+    "integrating",
+    "completed",
+    "aborted",
+  ]),
+  memberAgentIds: z.array(z.string().min(1)).max(4),
+  requiredAgentIds: z.array(z.string().min(1)).max(4),
+  maxMembers: z.number().int().min(2).max(4),
+  updatedAt: z.string().datetime(),
+  error: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4 * 1024)
+    .optional(),
+});
+export type AgentTeamStatusPayload = z.infer<
+  typeof agentTeamStatusPayloadSchema
+>;
+
+export const agentTeamMessagePayloadSchema = z.object({
+  type: z.literal("agent-team.message"),
+  teamId: z.string().min(1),
+  messageId: z.string().min(1),
+  sequence: z.number().int().positive(),
+  fromAgentId: z.string().min(1),
+  recipient: z.string().min(1),
+  kind: z.enum(["finding", "request", "blocker", "handoff"]),
+  content: z
+    .string()
+    .trim()
+    .min(1)
+    .max(8 * 1024),
+  createdAt: z.string().datetime(),
+});
+export type AgentTeamMessagePayload = z.infer<
+  typeof agentTeamMessagePayloadSchema
+>;
+
+export const contextUsagePayloadSchema = z.object({
+  type: z.literal("context.usage"),
+  tokens: z.number().int().nonnegative().nullable(),
+  contextWindow: contextWindowSchema,
+  compacting: z.boolean(),
+  estimated: z.boolean().optional(),
+});
+export type ContextUsagePayload = z.infer<typeof contextUsagePayloadSchema>;
+
+export const assistantUsagePayloadSchema = z.object({
+  type: z.literal("assistant.usage"),
+  inputTokens: z.number().int().nonnegative(),
+  outputTokens: z.number().int().nonnegative(),
+  cacheReadTokens: z.number().int().nonnegative(),
+  cacheWriteTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+});
+export type AssistantUsagePayload = z.infer<typeof assistantUsagePayloadSchema>;
+
+export const queueUpdatedPayloadSchema = z.object({
+  type: z.literal("queue.updated"),
+  steering: z.array(z.string()),
+  followUp: z.array(z.string()),
+});
+export type QueueUpdatedPayload = z.infer<typeof queueUpdatedPayloadSchema>;
+
+export const turnCompletedPayloadSchema = z.object({
+  type: z.literal("turn.completed"),
+  reason: z.enum(["completed", "cancelled"]),
+});
+
+export const turnFailedPayloadSchema = z.object({
+  type: z.literal("turn.failed"),
+  message: z.string().min(1),
+  code: z.string().optional(),
+});
+
+export const agentPayloadSchema = z.discriminatedUnion("type", [
+  userMessagePayloadSchema,
+  turnStartedPayloadSchema,
+  messageDeltaPayloadSchema,
+  toolStartedPayloadSchema,
+  toolUpdatedPayloadSchema,
+  toolCompletedPayloadSchema,
+  approvalRequestedPayloadSchema,
+  approvalResolvedPayloadSchema,
+  userInputRequestedPayloadSchema,
+  userInputResolvedPayloadSchema,
+  fileChangedPayloadSchema,
+  terminalOutputPayloadSchema,
+  childAgentPayloadSchema,
+  agentTeamStatusPayloadSchema,
+  agentTeamMessagePayloadSchema,
+  contextUsagePayloadSchema,
+  assistantUsagePayloadSchema,
+  queueUpdatedPayloadSchema,
+  turnCompletedPayloadSchema,
+  turnFailedPayloadSchema,
+]);
+export type AgentPayload = z.infer<typeof agentPayloadSchema>;
+
+export const agentEventSchema = z.object({
+  protocolVersion: z.literal(PROTOCOL_VERSION),
+  eventId: z.string().min(1),
+  threadId: z.string().min(1),
+  turnId: z.string().optional(),
+  seq: z.number().int().nonnegative(),
+  timestamp: z.string().datetime({ offset: true }),
+  payload: agentPayloadSchema,
+});
+export type AgentEvent = z.infer<typeof agentEventSchema>;
+
+export const projectSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  path: z.string().min(1),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true }),
+});
+export type Project = z.infer<typeof projectSchema>;
+
+export const threadSchema = z.object({
+  id: z.string().min(1),
+  projectId: z.string().min(1),
+  title: z.string().min(1),
+  goal: z.string().trim().min(1).max(2_000).optional(),
+  mode: runModeSchema,
+  target: workspaceTargetSchema,
+  status: z.enum(["idle", "running", "waiting-approval", "failed"]),
+  sessionFile: z.string().optional(),
+  pinned: z.boolean(),
+  archived: z.boolean(),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true }),
+});
+export type Thread = z.infer<typeof threadSchema>;
+
+export const taskWorktreeSchema = z.object({
+  id: z.string().min(1),
+  threadId: z.string().min(1),
+  projectId: z.string().min(1),
+  path: z.string().min(1),
+  target: z.enum(["managed-worktree", "permanent-worktree"]),
+  head: z.string().min(1),
+  branch: z.string().min(1).optional(),
+  status: z.enum(["active", "removed", "missing"]),
+  recoveryPath: z.string().min(1).optional(),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true }),
+});
+export type TaskWorktree = z.infer<typeof taskWorktreeSchema>;
+
+export interface AppSnapshot {
+  projects: Project[];
+  threads: Thread[];
+  worktrees: TaskWorktree[];
+  events: Record<string, AgentEvent[]>;
+  locale: "en" | "zh-CN";
+  platform: "win32" | "darwin" | "other";
+  sandbox: {
+    available: boolean;
+    implementation: string;
+  };
+}
+
+export const threadCommandSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("thread.create"),
+    projectId: z.string().min(1),
+    mode: runModeSchema,
+    target: workspaceTargetSchema,
+  }),
+  z.object({
+    type: z.literal("thread.archive"),
+    threadId: z.string().min(1),
+    archived: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("thread.delete"),
+    threadId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("thread.rename"),
+    threadId: z.string().min(1),
+    title: z.string().trim().min(1).max(160),
+  }),
+  z.object({
+    type: z.literal("thread.goal"),
+    threadId: z.string().min(1),
+    goal: z.string().trim().min(1).max(2_000).nullable(),
+  }),
+  z.object({
+    type: z.literal("thread.fork"),
+    threadId: z.string().min(1),
+    entryId: z.string().min(1).optional(),
+  }),
+  z.object({
+    type: z.literal("thread.compact"),
+    threadId: z.string().min(1),
+    instructions: z.string().trim().min(1).max(4_000).optional(),
+  }),
+  z.object({ type: z.literal("turn.cancel"), threadId: z.string().min(1) }),
+  z.object({
+    type: z.enum(["turn.queue.clear", "turn.queue.steer"]),
+    threadId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("turn.steer"),
+    threadId: z.string().min(1),
+    text: z.string().trim().min(1),
+    attachments: promptAttachmentsSchema.optional(),
+  }),
+  z.object({
+    type: z.literal("turn.follow-up"),
+    threadId: z.string().min(1),
+    text: z.string().trim().min(1),
+    attachments: promptAttachmentsSchema.optional(),
+  }),
+]);
+export type ThreadCommand = z.infer<typeof threadCommandSchema>;
+
+export const reviewQuerySchema = z.object({
+  threadId: z.string().min(1),
+  scope: reviewScopeSchema,
+  baseRef: z.string().trim().min(1).max(200).optional(),
+});
+export type ReviewQuery = z.infer<typeof reviewQuerySchema>;
+
+export const reviewMutationInputSchema = reviewQuerySchema.extend({
+  action: reviewActionSchema,
+  target: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("file"),
+      id: z.string().regex(/^[a-f0-9]{64}$/),
+    }),
+    z.object({
+      kind: z.literal("hunk"),
+      id: z.string().regex(/^[a-f0-9]{64}$/),
+    }),
+  ]),
+});
+export type ReviewMutationInput = z.infer<typeof reviewMutationInputSchema>;
+
+export const worktreeCommandSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("worktree.branchize"),
+    threadId: z.string().min(1),
+    branchName: z.string().trim().min(1).max(200),
+  }),
+  z.object({
+    type: z.literal("worktree.cleanup"),
+    threadId: z.string().min(1),
+    force: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("worktree.handoff"),
+    threadId: z.string().min(1),
+    destination: z.enum(["local", "managed-worktree"]),
+  }),
+]);
+export type WorktreeCommand = z.infer<typeof worktreeCommandSchema>;
+
+export interface TurnStartCommand {
+  threadId: string;
+  text: string;
+  mode: RunMode;
+  attachments?: PromptAttachment[];
+}
+
+export const approvalResolutionSchema = z.object({
+  approvalId: z.string().min(1),
+  nonce: z.string().min(16),
+  approved: z.boolean(),
+  scope: approvalScopeSchema,
+  source: z.enum(["user", "model", "policy", "automation"]).optional(),
+});
+export type ApprovalResolution = z.infer<typeof approvalResolutionSchema>;
+
+export const userInputResolutionSchema = z
+  .object({
+    requestId: z.string().min(1),
+    nonce: z.string().min(16),
+    selectedOption: z.number().int().min(0).max(2).optional(),
+    customAnswer: z.string().trim().min(1).max(2_000).optional(),
+  })
+  .superRefine((resolution, context) => {
+    if (
+      (resolution.selectedOption === undefined) ===
+      (resolution.customAnswer === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose one offered option or provide one custom answer",
+      });
+    }
+  });
+export type UserInputResolution = z.infer<typeof userInputResolutionSchema>;

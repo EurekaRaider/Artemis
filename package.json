@@ -1,0 +1,35 @@
+{
+  "name": "artemis",
+  "version": "0.1.9",
+  "private": true,
+  "description": "A local-first cross-platform desktop coding agent powered by Pi.",
+  "type": "module",
+  "workspaces": [
+    "packages/protocol",
+    "packages/platform",
+    "packages/agent-host",
+    "apps/desktop"
+  ],
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  },
+  "scripts": {
+    "build": "npm run build:core && npm run build -w @artemis/desktop",
+    "build:core": "npm run build -w @artemis/protocol && npm run build -w @artemis/platform && npm run build -w @artemis/agent-host",
+    "dev": "npm run build:core && npm run dev -w @artemis/desktop",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "package:mac": "npm run package:mac -w @artemis/desktop",
+    "package:win": "npm run package:win -w @artemis/desktop",
+    "verify:screenshot-matrix": "npm run build:core && npm run verify:screenshot-matrix -w @artemis/desktop",
+    "test": "npm run build:core && npm run test -w @artemis/protocol && npm run test -w @artemis/platform && npm run test -w @artemis/agent-host && npm run test -w @artemis/desktop",
+    "typecheck": "npm run build:core && npm run typecheck -w @artemis/desktop"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "prettier": "3.9.6",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}

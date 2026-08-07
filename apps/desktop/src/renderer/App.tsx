@@ -1,0 +1,7336 @@
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ClipboardEvent as ReactClipboardEvent,
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type SetStateAction,
+  type UIEvent as ReactUIEvent,
+} from "react";
+import {
+  MAX_PROMPT_ATTACHMENTS,
+  MAX_PROMPT_IMAGES,
+  reduceAgentEventBatch,
+  reduceAgentEvents,
+  type AgentEvent,
+  type AgentTeamMessageState,
+  type AgentTeamState,
+  type ApprovalPolicy,
+  type ApprovalState,
+  type ChildAgentState,
+  type PromptAttachment,
+  type PromptImage,
+  type Project,
+  type RunMode,
+  type ThinkingLevel,
+  type Thread,
+  type ThreadViewState,
+  type ToolState,
+  type UserInputResolution,
+  type UserInputState,
+} from "@artemis/protocol";
+
+import type {
+  DesktopSnapshot,
+  InstalledCodexPlugin,
+  InstalledSkill,
+  ReviewAction,
+  ReviewComment,
+  ReviewDiff,
+  ReviewScope,
+  SettingsSnapshot,
+  WorkspaceFileLink,
+} from "../shared/api.js";
+import artemisIcon from "../../build/icon.png";
+import { ArchivePage } from "./ArchivePage.js";
+import { MarkdownContent } from "./MarkdownContent.js";
+import { CodexSelect } from "./CodexSelect.js";
+import { ComposerContextBar } from "./ComposerContextBar.js";
+import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
+import { TaskPlanProgress } from "./TaskPlanProgress.js";
+import { HighlightedCodeLine } from "./WorkspaceFileEditor.js";
+import {
+  WorkspaceFileIcon,
+  WorkspaceFilesPanel,
+} from "./WorkspaceFilesPanel.js";
+import {
+  MarkdownReaderPanel,
+  WorkspaceBrowserPanel,
+} from "./WorkspacePreviewPanel.js";
+import { filePresentation } from "./workspace-file-presentation.js";
+import {
+  deriveRunPresentation,
+  formatRunDuration,
+} from "./run-presentation.js";
+import {
+  formatBashTranscript,
+  formatToolInput,
+  formatToolOutput,
+  summarizeToolDetail,
+  summarizeToolGroup,
+  toolActivityKind,
+  toolActivityPath,
+  type ToolActivityKind,
+} from "./tool-presentation.js";
+import {
+  groupTimelineActivities,
+  latestVisibleToolGroupKey,
+} from "./tool-activity-groups.js";
+import {
+  isSkillCommandPrompt,
+  promptWithoutSelectedSkills,
+  promptWithSelectedSkills,
+  replaceActiveSlashCommand,
+  selectedSkillNamesForPrompt,
+  slashCommandSuggestionsForPrompt,
+} from "./skill-commands.js";
+import {
+  addPromptHistoryEntry,
+  navigatePromptHistory,
+  type PromptHistoryNavigation,
+} from "./prompt-history.js";
+import { deriveTaskPlan } from "./task-plan.js";
+import {
+  clearComposerDraft,
+  composerDraftFor,
+  conversationDraftKey,
+  moveComposerDraft,
+  updateComposerDraft,
+  type ComposerDraft,
+  type ComposerDrafts,
+} from "./composer-drafts.js";
+import {
+  isWorkspaceDraftThread,
+  sortProjectThreads,
+} from "./thread-list-order.js";
+import { moveUserInputOptionFocus } from "./user-input-navigation.js";
+import {
+  agentTeamWorkspaceTab,
+  childAgentWorkspaceTab,
+  closesLastWorkspaceTab,
+  emptyWorkspaceTabs,
+  reduceWorkspaceTabs,
+  type WorkspaceTab,
+  type WorkspaceTabAction,
+  type WorkspaceTabKind,
+  type WorkspaceTabsState,
+} from "./workspace-tabs.js";
+
+type Locale = "en" | "zh-CN";
+type ModelPickerSection = "model" | "thinking";
+type ActiveView =
+  "workspace" | "archive" | "resources" | "token-usage" | "automations";
+type SettingsEntryTab = "general" | "maintenance";
+type ConfirmationTone = "default" | "danger";
+
+interface ConfirmationState {
+  message: string;
+  tone: ConfirmationTone;
+}
+
+interface FileLinkContextMenuState {
+  file: WorkspaceFileLink;
+  threadId: string;
+  x: number;
+  y: number;
+}
+
+interface WorkspaceTabOpenOptions {
+  forceNew?: boolean;
+  path?: string;
+  reuseKind?: boolean;
+  revision?: string;
+}
+
+const PROJECT_THREAD_PREVIEW_LIMIT = 5;
+const MODEL_PICKER_THINKING_LEVELS: ThinkingLevel[] = [
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+];
+
+function modelIdentity(providerId: string, modelId: string): string {
+  return `${providerId}\u0000${modelId}`;
+}
+
+const loadAutomationPage = () => import("./AutomationPage.js");
+const loadResourceCenter = () => import("./ResourceCenter.js");
+const loadSettingsPanel = () => import("./SettingsPanel.js");
+const loadTerminalPanel = () => import("./TerminalPanel.js");
+const loadTokenUsagePage = () => import("./TokenUsagePage.js");
+const AutomationPage = lazy(() =>
+  loadAutomationPage().then((module) => ({ default: module.AutomationPage })),
+);
+const ResourceCenter = lazy(() =>
+  loadResourceCenter().then((module) => ({ default: module.ResourceCenter })),
+);
+const SettingsPanel = lazy(() =>
+  loadSettingsPanel().then((module) => ({ default: module.SettingsPanel })),
+);
+const TerminalPanel = lazy(() =>
+  loadTerminalPanel().then((module) => ({ default: module.TerminalPanel })),
+);
+const TokenUsagePage = lazy(() =>
+  loadTokenUsagePage().then((module) => ({ default: module.TokenUsagePage })),
+);
+
+const copy = {
+  en: {
+    appName: "Artemis",
+    projects: "Projects",
+    automations: "Automations",
+    tasks: "Tasks",
+    newTask: "New task",
+    openProject: "Open project",
+    removeProject: "Remove from sidebar",
+    removeProjectConfirm:
+      "Remove this project from the sidebar? Files and task history will not be deleted.",
+    moreProjectActions: "More project actions",
+    stopTasksBeforeRemove: "Stop active tasks before removing this project",
+    search: "Search tasks",
+    noTasks: "No tasks yet",
+    activeTasks: "Active tasks",
+    archivedTasks: "Archived tasks",
+    showArchived: "Show archived",
+    showActive: "Show active",
+    renameTask: "Rename",
+    forkTask: "Fork",
+    archiveTask: "Archive",
+    restoreTask: "Restore",
+    deleteTask: "Delete conversation",
+    deleteTaskConfirm:
+      "Delete this conversation and its local history? This cannot be undone.",
+    confirmationTitle: "Confirm action",
+    confirmationDangerTitle: "This action cannot be undone",
+    confirmationCancel: "Cancel",
+    confirmationAccept: "Confirm",
+    showMoreTasks: "Show more",
+    showFewerTasks: "Show less",
+    expandProjectHistory: "Expand conversation history",
+    collapseProjectHistory: "Collapse conversation history",
+    moreActions: "More task actions",
+    taskNamePrompt: "Task name",
+    archiveConfirm: "Archive this task?",
+    emptyTitle: "Build with Artemis",
+    emptyBody:
+      "Open a local project to start a Pi-powered coding or work task. Your workspace stays on this computer.",
+    prompt: "Ask Artemis to work, plan, review, or build…",
+    send: "Send",
+    stop: "Stop",
+    execute: "Execute",
+    plan: "Plan",
+    review: "Review",
+    local: "Local",
+    taskMode: "Task mode",
+    reviewPanel: "Review",
+    agentTeam: "Agent team",
+    terminal: "Terminal",
+    browser: "Browser",
+    browserAddress: "Enter a URL",
+    browserBack: "Back",
+    browserForward: "Forward",
+    browserGo: "Go",
+    markdownReader: "Markdown",
+    files: "Files",
+    addTab: "Add tab",
+    closeTab: "Close tab",
+    editFile: "Edit file",
+    saveFile: "Save",
+    saved: "Saved",
+    saving: "Saving…",
+    unsaved: "Unsaved",
+    noHtmlPreview: "No HTML file has been generated for this task.",
+    noMarkdownPreview: "No Markdown file has been changed for this task.",
+    filterFiles: "Filter files…",
+    openFileFromTree: "Choose a file from the workspace tree.",
+    binaryFile: "Binary files cannot be previewed.",
+    fileLinkMenu: "File actions",
+    openLinkedFile: "Open in reader",
+    revealLinkedFile: "Show in folder",
+    runLinkedFile: "Run file",
+    runLinkedFileStarted: "Started",
+    richText: "Rich text",
+    sourceText: "Source",
+    refreshPreview: "Refresh",
+    changedFiles: "Changed files",
+    noChanges: "No workspace changes",
+    changesAppearHere: "Changes in this project will appear here.",
+    noMatchingFiles: "No matching files",
+    comparison: "Comparison",
+    lastTurn: "Last turn",
+    unstaged: "Unstaged",
+    staged: "Staged",
+    branch: "Branch",
+    baseRef: "Base ref",
+    stage: "Stage",
+    unstage: "Unstage",
+    revert: "Revert",
+    revertConfirm:
+      "Revert this change? Artemis will create a recovery copy first.",
+    recoverySaved: "Recovery copy saved",
+    additions: "additions",
+    deletions: "deletions",
+    addComment: "Add inline comment",
+    commentPlaceholder: "Write a Review comment…",
+    saveComment: "Save comment",
+    cancelComment: "Cancel",
+    deleteComment: "Delete comment",
+    approveOnce: "Approve once",
+    approveSession: "Approve for task",
+    approveProject: "Approve for project",
+    deny: "Deny",
+    recommended: "Recommended",
+    otherAnswer: "Other…",
+    otherAnswerDetail: "Type an answer that is not listed above",
+    customAnswer: "Type another answer",
+    submitAnswer: "Submit",
+    navigateChoices: "Move",
+    selectChoice: "Select",
+    answered: "Selected",
+    timedOut: "No response for 5 minutes; used the model recommendation",
+    timeoutHint: "The recommended option is used automatically after 5 minutes",
+    inputCancelled: "Cancelled",
+    cancelCurrentTask: "Cancel the current task",
+    skip: "Skip",
+    skipAndCancelTask: "Skip and cancel the current task",
+    modelReason: "Model decision",
+    agentActor: "Requested by",
+    thinking: "Reasoning",
+    running: "Thinking",
+    waiting: "Needs approval",
+    waitingInput: "Waiting for your choice",
+    completed: "Completed",
+    failed: "Failed",
+    ready: "Ready",
+    elapsed: "Elapsed",
+    model: "Pi auto",
+    modelPicker: "Model and reasoning",
+    modelPickerModel: "Model",
+    modelSwitchFailed: "The model setting could not be changed.",
+    steer: "Steer",
+    followUp: "Follow-up",
+    queuedMessage: "Queued message",
+    queueSteer: "Steer",
+    queueSteerHint: "Steer this queued message into the active turn",
+    queueDelete: "Delete queued message",
+    queueEdit: "Edit queued message",
+    sandboxUnavailable: "Native command sandbox is not installed",
+    sandboxDetail:
+      "Pi bash and the Terminal use your desktop permissions. Sandboxed MCP and extension execution remain locked.",
+    terminalLocked: "Terminal locked until the native executor is available.",
+    refreshDiff: "Refresh",
+    commandMenu: "Command menu",
+    addAttachments: "Add files or images",
+    removeAttachment: "Remove attachment",
+    removeSelectedSkill: "Remove loaded Skill",
+    attachmentLimit: "You can attach up to 10 files, including 4 images.",
+    inspectAttachments: "Inspect the attached file(s).",
+    dropAttachments: "Drop files to attach",
+    dropAttachmentsDetail:
+      "Images, text, code, PDF, Word, Excel, or PowerPoint",
+    approvalPolicy: "Approval permissions",
+    askApproval: "Request approval",
+    askApprovalDetail:
+      "Always ask before non-MCP external changes or network access",
+    agentApproval: "Approve for me",
+    agentApprovalDetail:
+      "The model auto-approves suitable commands and changes; you decide when it does not",
+    fullAccess: "Full access",
+    fullAccessDetail:
+      "Auto-approve supported operations within the native sandbox",
+    fullAccessUnavailable: "Requires the native command sandbox",
+    customApproval: "Custom",
+    customApprovalDetail:
+      "Use saved approvals; sandboxed MCP calls run automatically",
+    openFolder: "Open folder",
+    leftSidebar: "Left sidebar",
+    rightSidebar: "Right sidebar",
+    toggleReview: "Toggle review",
+    toggleTerminal: "Toggle terminal",
+    noProject: "Open a project first.",
+    taskError: "The task could not be started.",
+    turnError: "The task failed.",
+    settings: "Settings",
+    currentVersion: "Current version",
+    archiveLibrary: "Archive",
+    resourceCenter: "MCP & Skills",
+    tokenUsage: "Token usage",
+    goal: "Goal",
+    goalSet: "Persistent goal saved",
+    goalCleared: "Persistent goal cleared",
+    noGoal: "This task has no persistent goal.",
+    goalCommand: "/goal",
+    goalCommandDetail: "Set a persistent task goal",
+    compactCommand: "/compact",
+    compactCommandDetail: "Summarize older context now",
+    contextCompacting: "Compacting context",
+    contextCompacted: "Compact completed",
+    compactRequiresTask: "Open an existing task before compacting context.",
+    compactWhileRunning: "Wait for the active turn before compacting context.",
+    compactFailed: "Context could not be compacted.",
+    initCommand: "/init",
+    initCommandDetail: "Create a project-level AGENTS.md file",
+    installedSkills: "Installed Skills",
+    installedPlugins: "Installed Plugins",
+    loadingSkills: "Loading installed Skills…",
+    noInstalledSkills: "No enabled Skills are installed.",
+    noMatchingSkills: "No installed Skills match this command.",
+    selectedSkill: "Loaded Skill",
+    archivedReadOnly: "Archived conversation",
+    archivedReadOnlyDetail:
+      "This conversation is read-only while archived. Restore it to continue.",
+  },
+  "zh-CN": {
+    appName: "Artemis",
+    projects: "项目",
+    automations: "定时任务",
+    tasks: "任务",
+    newTask: "新任务",
+    openProject: "打开项目",
+    removeProject: "从侧栏移除",
+    removeProjectConfirm: "从侧栏移除这个项目？不会删除磁盘文件和任务历史。",
+    moreProjectActions: "更多项目操作",
+    stopTasksBeforeRemove: "请先停止项目中正在执行的任务",
+    search: "搜索任务",
+    noTasks: "还没有任务",
+    activeTasks: "当前任务",
+    archivedTasks: "已归档任务",
+    showArchived: "查看已归档",
+    showActive: "查看当前任务",
+    renameTask: "重命名",
+    forkTask: "分叉",
+    archiveTask: "归档",
+    restoreTask: "恢复",
+    deleteTask: "删除对话",
+    deleteTaskConfirm: "删除这个对话及其本地历史？此操作无法撤销。",
+    confirmationTitle: "确认操作",
+    confirmationDangerTitle: "此操作无法撤销",
+    confirmationCancel: "取消",
+    confirmationAccept: "确认",
+    showMoreTasks: "展开显示",
+    showFewerTasks: "收起显示",
+    expandProjectHistory: "展开对话记录",
+    collapseProjectHistory: "折叠对话记录",
+    moreActions: "更多任务操作",
+    taskNamePrompt: "任务名称",
+    archiveConfirm: "归档这个任务？",
+    emptyTitle: "使用 Artemis 开始构建",
+    emptyBody:
+      "打开本地项目即可创建由 Pi 驱动的编码或办公任务。工作区数据保留在这台电脑上。",
+    prompt: "让 Artemis 工作、规划、审查或实现…",
+    send: "发送",
+    stop: "停止",
+    execute: "执行",
+    plan: "计划",
+    review: "审查",
+    local: "本地",
+    taskMode: "任务模式",
+    reviewPanel: "审查",
+    agentTeam: "Agent 团队",
+    terminal: "终端",
+    browser: "浏览器",
+    browserAddress: "输入网址",
+    browserBack: "后退",
+    browserForward: "前进",
+    browserGo: "打开",
+    markdownReader: "Markdown 阅读器",
+    files: "文件",
+    addTab: "添加选项卡",
+    closeTab: "关闭选项卡",
+    editFile: "编辑文件",
+    saveFile: "保存",
+    saved: "已保存",
+    saving: "正在保存…",
+    unsaved: "未保存",
+    noHtmlPreview: "此任务尚未生成 HTML 文件。",
+    noMarkdownPreview: "此任务尚未修改 Markdown 文件。",
+    filterFiles: "筛选文件…",
+    openFileFromTree: "从工作区目录树中选择文件。",
+    binaryFile: "二进制文件无法预览。",
+    fileLinkMenu: "文件操作",
+    openLinkedFile: "在阅读器中打开",
+    revealLinkedFile: "打开文件目录",
+    runLinkedFile: "直接执行",
+    runLinkedFileStarted: "已启动",
+    richText: "富文本",
+    sourceText: "原始文本",
+    refreshPreview: "刷新",
+    changedFiles: "已改文件",
+    noChanges: "工作区没有改动",
+    changesAppearHere: "此项目中的改动将显示在这里。",
+    noMatchingFiles: "没有匹配的文件",
+    comparison: "比较范围",
+    lastTurn: "上轮修改",
+    unstaged: "未暂存",
+    staged: "已暂存",
+    branch: "分支比较",
+    baseRef: "基准引用",
+    stage: "暂存",
+    unstage: "取消暂存",
+    revert: "还原",
+    revertConfirm: "确认还原这项改动？Artemis 会先创建恢复副本。",
+    recoverySaved: "恢复副本已保存",
+    additions: "新增",
+    deletions: "删除",
+    addComment: "添加行内评论",
+    commentPlaceholder: "输入审查评论…",
+    saveComment: "保存评论",
+    cancelComment: "取消",
+    deleteComment: "删除评论",
+    approveOnce: "仅批准本次",
+    approveSession: "本任务内批准",
+    approveProject: "本项目内批准",
+    deny: "拒绝",
+    recommended: "模型推荐",
+    otherAnswer: "其他…",
+    otherAnswerDetail: "输入一个不在以上列表中的答案",
+    customAnswer: "输入其他答案",
+    submitAnswer: "提交",
+    navigateChoices: "移动",
+    selectChoice: "选择",
+    answered: "已选择",
+    timedOut: "5 分钟未选择，已采用模型推荐项",
+    timeoutHint: "5 分钟内未选择将自动采用模型推荐项",
+    inputCancelled: "已取消",
+    cancelCurrentTask: "取消当前任务",
+    skip: "跳过",
+    skipAndCancelTask: "跳过并取消当前任务",
+    modelReason: "模型判断",
+    agentActor: "发起成员",
+    thinking: "推理",
+    running: "思考中",
+    waiting: "等待批准",
+    waitingInput: "等待你选择",
+    completed: "已完成",
+    failed: "失败",
+    ready: "就绪",
+    elapsed: "用时",
+    model: "Pi 自动选择",
+    modelPicker: "模型与推理强度",
+    modelPickerModel: "模型",
+    modelSwitchFailed: "无法切换模型设置。",
+    steer: "引导当前执行",
+    followUp: "完成后继续",
+    queuedMessage: "排队消息",
+    queueSteer: "引导",
+    queueSteerHint: "将此排队消息引导到当前执行",
+    queueDelete: "删除排队消息",
+    queueEdit: "编辑排队消息",
+    sandboxUnavailable: "尚未安装原生命令沙箱",
+    sandboxDetail:
+      "Pi bash 与终端使用当前桌面用户权限；MCP 与扩展的沙箱执行保持锁定。",
+    terminalLocked: "原生执行器可用前，终端保持锁定。",
+    refreshDiff: "刷新",
+    commandMenu: "命令菜单",
+    addAttachments: "添加文件或图片",
+    removeAttachment: "移除附件",
+    removeSelectedSkill: "移除已加载 Skill",
+    attachmentLimit: "最多添加 10 个文件，其中图片不超过 4 张。",
+    inspectAttachments: "请查看已附加的文件。",
+    dropAttachments: "松开即可添加文件",
+    dropAttachmentsDetail:
+      "支持图片、文本、代码、PDF、Word、Excel 和 PowerPoint",
+    approvalPolicy: "审批权限",
+    askApproval: "请求批准",
+    askApprovalDetail: "非 MCP 的外部更改或网络访问前始终询问",
+    agentApproval: "替我审批",
+    agentApprovalDetail: "由模型批准合适的命令和更改；模型不批准时交给你选择",
+    fullAccess: "完全访问权限",
+    fullAccessDetail: "在原生沙箱边界内自动批准支持的操作",
+    fullAccessUnavailable: "需要先安装原生命令沙箱",
+    customApproval: "自定义",
+    customApprovalDetail: "使用已保存的批准；沙箱内 MCP 自动调用",
+    openFolder: "打开文件夹",
+    leftSidebar: "左侧边栏",
+    rightSidebar: "右侧边栏",
+    toggleReview: "切换审查面板",
+    toggleTerminal: "切换终端",
+    noProject: "请先打开一个项目。",
+    taskError: "任务无法启动。",
+    turnError: "任务执行失败。",
+    settings: "设置",
+    currentVersion: "当前版本",
+    archiveLibrary: "归档",
+    resourceCenter: "MCP 与 Skills",
+    tokenUsage: "Token 用量",
+    goal: "目标",
+    goalSet: "持久目标已保存",
+    goalCleared: "持久目标已清除",
+    noGoal: "当前任务没有持久目标。",
+    goalCommand: "/goal",
+    goalCommandDetail: "设置任务级持久目标",
+    compactCommand: "/compact",
+    compactCommandDetail: "立即压缩较早的上下文",
+    contextCompacting: "正在压缩上下文",
+    contextCompacted: "Compact 已完成",
+    compactRequiresTask: "请先打开已有任务，再压缩上下文。",
+    compactWhileRunning: "请等待当前任务执行结束后再压缩上下文。",
+    compactFailed: "上下文压缩失败。",
+    initCommand: "/init",
+    initCommandDetail: "创建包含项目说明的 AGENTS.md 文件",
+    installedSkills: "已安装的 Skills",
+    installedPlugins: "已安装的插件",
+    loadingSkills: "正在加载已安装的 Skills…",
+    noInstalledSkills: "尚未安装并启用任何 Skill。",
+    noMatchingSkills: "没有匹配此命令的已安装 Skill。",
+    selectedSkill: "已加载 Skill",
+    archivedReadOnly: "已归档对话",
+    archivedReadOnlyDetail: "归档状态下只能阅读；恢复后才能继续对话。",
+  },
+} satisfies Record<Locale, Record<string, string>>;
+
+function Icon({ children, size = 18 }: { children: ReactNode; size?: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="icon"
+      fill="none"
+      height={size}
+      viewBox="0 0 24 24"
+      width={size}
+    >
+      {children}
+    </svg>
+  );
+}
+
+function ArtemisMark() {
+  return (
+    <div className="artemis-mark" aria-label="Artemis">
+      <img alt="" aria-hidden="true" src={artemisIcon} />
+    </div>
+  );
+}
+
+function FolderIcon({ open = false }: { open?: boolean }) {
+  return (
+    <Icon>
+      {open ? (
+        <>
+          <path
+            d="M3.5 10V6.5h6l2 2h6.8a1.7 1.7 0 0 1 1.7 1.7v.3"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.6"
+          />
+          <path
+            d="m4.7 18.5 2.4-8h13.4l-2.2 7.2a1.2 1.2 0 0 1-1.2.8H4.7Z"
+            stroke="currentColor"
+            strokeLinejoin="round"
+            strokeWidth="1.6"
+          />
+        </>
+      ) : (
+        <path
+          d="M3.5 6.5h6l2 2h9v9.2a1.8 1.8 0 0 1-1.8 1.8H5.3a1.8 1.8 0 0 1-1.8-1.8V6.5Z"
+          stroke="currentColor"
+          strokeLinejoin="round"
+          strokeWidth="1.6"
+        />
+      )}
+    </Icon>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <Icon>
+      <path
+        d="M12 5v14M5 12h14"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </Icon>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <Icon size={16}>
+      <path
+        d="m7 7 10 10M17 7 7 17"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.7"
+      />
+    </Icon>
+  );
+}
+
+function SteerIcon() {
+  return (
+    <Icon size={18}>
+      <path
+        d="M5 5.5v5a4 4 0 0 0 4 4h9m-3.5-3.5 3.5 3.5-3.5 3.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+    </Icon>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <Icon size={18}>
+      <path
+        d="M5.5 7.5h13m-8.5-3h4l.7 2h-5.4l.7-2Zm-3 3 .7 12h8.6l.7-12M10 10.5v6m4-6v6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </Icon>
+  );
+}
+
+function EllipsisIcon() {
+  return (
+    <Icon size={18}>
+      <circle cx="6" cy="12" fill="currentColor" r="1.25" />
+      <circle cx="12" cy="12" fill="currentColor" r="1.25" />
+      <circle cx="18" cy="12" fill="currentColor" r="1.25" />
+    </Icon>
+  );
+}
+
+function FileIcon() {
+  return (
+    <Icon size={24}>
+      <path
+        d="M6 3.5h8l4 4v13H6v-17Zm8 0v4h4M9 12h6m-6 4h6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </Icon>
+  );
+}
+
+function isPromptImage(
+  attachment: PromptAttachment,
+): attachment is PromptImage {
+  return !("type" in attachment);
+}
+
+function SearchIcon() {
+  return (
+    <Icon size={16}>
+      <circle
+        cx="10.7"
+        cy="10.7"
+        r="6.2"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path
+        d="m15.4 15.4 4.1 4.1"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.6"
+      />
+    </Icon>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <Icon size={16}>
+      <path
+        d="M19 8a7.5 7.5 0 1 0 .3 7.5M19 4.5V8h-3.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+    </Icon>
+  );
+}
+
+function ReviewEmptyIcon() {
+  return (
+    <Icon size={46}>
+      <path
+        d="M7 3.5h7l4 4v13H7v-17Zm7 0v4h4"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M9.5 12h5M12 9.5v5m-2.5 3h5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.4"
+      />
+    </Icon>
+  );
+}
+
+function ArchiveIcon() {
+  return (
+    <Icon>
+      <path
+        d="M4 8h16v11H4V8Zm-1-4h18v4H3V4Zm6 8h6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.55"
+      />
+    </Icon>
+  );
+}
+
+function ResourceIcon() {
+  return (
+    <Icon>
+      <path
+        d="M8 3v5m8-5v5M6 8h12v2.5a6 6 0 0 1-12 0V8Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M12 16.5V21m-2.5 0h5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </Icon>
+  );
+}
+
+function TokenUsageIcon() {
+  return (
+    <Icon>
+      <path
+        d="M5 19V11h3v8H5Zm5.5 0V5h3v14h-3Zm5.5 0V8h3v11h-3Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </Icon>
+  );
+}
+
+function AutomationIcon() {
+  return (
+    <Icon>
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M12 7v5l3 2M8 3.5V2m8 1.5V2"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.5"
+      />
+    </Icon>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <Icon size={17}>
+      <path
+        d="M9.7 3.4h4.6l.5 2a7.2 7.2 0 0 1 1.5.9l2-.6 2.3 4-1.5 1.5v1.7l1.5 1.5-2.3 4-2-.6a7.2 7.2 0 0 1-1.5.9l-.5 2H9.7l-.5-2a7.2 7.2 0 0 1-1.5-.9l-2 .6-2.3-4 1.5-1.5v-1.7L3.4 9.7l2.3-4 2 .6a7.2 7.2 0 0 1 1.5-.9l.5-2Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.45"
+      />
+      <circle
+        cx="12"
+        cy="12"
+        r="2.6"
+        stroke="currentColor"
+        strokeWidth="1.45"
+      />
+    </Icon>
+  );
+}
+
+function ReviewIcon() {
+  return (
+    <Icon>
+      <path
+        d="M7 4.5h10M7 9h10M7 13.5h6M5 3v18M19 3v18"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.5"
+      />
+    </Icon>
+  );
+}
+
+function LeftSidebarIcon() {
+  return (
+    <Icon>
+      <rect
+        height="16"
+        rx="3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        width="18"
+        x="3"
+        y="4"
+      />
+      <path d="M9 4v16" stroke="currentColor" strokeWidth="1.6" />
+    </Icon>
+  );
+}
+
+function RightSidebarIcon() {
+  return (
+    <Icon>
+      <rect
+        height="16"
+        rx="3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        width="18"
+        x="3"
+        y="4"
+      />
+      <path d="M15 4v16" stroke="currentColor" strokeWidth="1.6" />
+    </Icon>
+  );
+}
+
+function TerminalIcon() {
+  return (
+    <Icon>
+      <path
+        d="m5 7 4.5 5L5 17m7 0h7"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+    </Icon>
+  );
+}
+
+function ToolActivityIcon({ kind }: { kind: ToolActivityKind }) {
+  if (kind === "bash") return <TerminalIcon />;
+  if (kind === "search") return <SearchIcon />;
+  if (kind === "generic") return <ResourceIcon />;
+  if (kind === "write") {
+    return (
+      <Icon size={18}>
+        <path
+          d="m4.5 19.5 1-4 9.8-9.8a2 2 0 0 1 2.8 2.8l-9.8 9.8-3.8 1.2Zm9.4-12.4 3 3M5.5 15.5l2.8 2.8"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.55"
+        />
+      </Icon>
+    );
+  }
+  return (
+    <Icon size={18}>
+      <path
+        d="M4.5 5.3c2.8-.9 5.3-.5 7.5 1.2v12c-2.2-1.7-4.7-2.1-7.5-1.2v-12Zm15 0c-2.8-.9-5.3-.5-7.5 1.2v12c2.2-1.7 4.7-2.1 7.5-1.2v-12Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.45"
+      />
+    </Icon>
+  );
+}
+
+function BrowserIcon() {
+  return (
+    <Icon>
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M4.5 12h15M12 4c2 2.2 3 4.9 3 8s-1 5.8-3 8c-2-2.2-3-4.9-3-8s1-5.8 3-8Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+    </Icon>
+  );
+}
+
+function MarkdownIcon() {
+  return (
+    <Icon>
+      <path
+        d="M5 4.5h11l3 3V20H5V4.5Zm11 0V8h3M8 15v-4l2 2 2-2v4m3-4v4m-1.5-1.5L15 15l1.5-1.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.4"
+      />
+    </Icon>
+  );
+}
+
+function FilesIcon() {
+  return (
+    <Icon>
+      <path
+        d="M3.5 7.5h6l2-2h3l2 2h4v11h-17v-11Zm3-3h6l2 2"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </Icon>
+  );
+}
+
+const CHILD_AGENT_MARK_COLORS = [
+  "#4f86ff",
+  "#1fc9ae",
+  "#f2a93b",
+  "#f2667e",
+  "#8cc84b",
+  "#ff7652",
+  "#35b9db",
+  "#b36fea",
+  "#e08b3f",
+  "#42c98b",
+  "#e85db4",
+  "#7f7aff",
+] as const;
+
+function childAgentMarkHash(identity: string): number {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < identity.length; index += 1) {
+    hash ^= identity.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619) >>> 0;
+  }
+  return hash;
+}
+
+function ChildAgentIcon({
+  className,
+  identity = "agent-team",
+}: {
+  className?: string;
+  identity?: string | undefined;
+}) {
+  const hash = childAgentMarkHash(identity);
+  const color = CHILD_AGENT_MARK_COLORS[hash % CHILD_AGENT_MARK_COLORS.length];
+  const shape = (hash >>> 8) % 8;
+  const glyph = (() => {
+    switch (shape) {
+      case 0:
+        return (
+          <>
+            <path
+              d="M10 1.5 17.4 5.75v8.5L10 18.5l-7.4-4.25v-8.5Z"
+              opacity="0.32"
+            />
+            <path
+              d="M6.4 10h7.2M10 6.4v7.2"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="1.8"
+            />
+          </>
+        );
+      case 1:
+        return (
+          <>
+            <path d="M10 1.35 18.65 10 10 18.65 1.35 10Z" opacity="0.32" />
+            <circle cx="10" cy="10" r="2.7" />
+            <circle cx="10" cy="5.2" r="0.9" />
+            <circle cx="14.8" cy="10" r="0.9" />
+          </>
+        );
+      case 2:
+        return (
+          <>
+            <circle cx="10" cy="10" r="8.35" opacity="0.32" />
+            <ellipse
+              cx="10"
+              cy="10"
+              fill="none"
+              rx="5.2"
+              ry="2.9"
+              stroke="currentColor"
+              strokeWidth="1.45"
+              transform="rotate(-28 10 10)"
+            />
+            <circle cx="10" cy="10" r="1.8" />
+          </>
+        );
+      case 3:
+        return (
+          <>
+            <path
+              d="M10 1.45 17 4.25v5.1c0 4.35-2.75 7.45-7 9.2-4.25-1.75-7-4.85-7-9.2v-5.1Z"
+              opacity="0.32"
+            />
+            <path d="m10.8 4.9-4.1 6h3l-.5 4.2 4.1-6h-3Z" />
+          </>
+        );
+      case 4:
+        return (
+          <>
+            <rect
+              height="16.5"
+              opacity="0.32"
+              rx="4.2"
+              width="16.5"
+              x="1.75"
+              y="1.75"
+            />
+            <path d="M5.4 5.4h3.2v3.2H5.4zm6 0h3.2v3.2h-3.2zm-6 6h3.2v3.2H5.4zm6 0h3.2v3.2h-3.2z" />
+          </>
+        );
+      case 5:
+        return (
+          <>
+            <path d="M10 1.4 18.65 17H1.35Z" opacity="0.32" />
+            <path
+              d="m10 6.15 4.05 7.1h-8.1Z"
+              fill="none"
+              stroke="currentColor"
+              strokeLinejoin="round"
+              strokeWidth="1.65"
+            />
+          </>
+        );
+      case 6:
+        return (
+          <>
+            <rect height="17" opacity="0.32" rx="6" width="12" x="4" y="1.5" />
+            <path
+              d="M7.05 7.1c1.55-2.05 4.35-2.05 5.9 0M7.05 12.9c1.55 2.05 4.35 2.05 5.9 0"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="1.7"
+            />
+            <circle cx="10" cy="10" r="1.45" />
+          </>
+        );
+      default:
+        return (
+          <>
+            <path
+              d="m10 1.35 2.1 3.15 3.7-.3-.3 3.7L18.65 10l-3.15 2.1.3 3.7-3.7-.3L10 18.65 7.9 15.5l-3.7.3.3-3.7L1.35 10 4.5 7.9l-.3-3.7 3.7.3Z"
+              opacity="0.32"
+            />
+            <circle
+              cx="10"
+              cy="10"
+              fill="none"
+              r="3.25"
+              stroke="currentColor"
+              strokeWidth="1.45"
+            />
+            <circle cx="10" cy="10" r="1.15" />
+          </>
+        );
+    }
+  })();
+
+  return (
+    <svg
+      aria-hidden="true"
+      className={["child-agent-mark", className].filter(Boolean).join(" ")}
+      focusable="false"
+      style={{ color }}
+      viewBox="0 0 20 20"
+    >
+      {glyph}
+    </svg>
+  );
+}
+
+function WorkspaceTabIcon({
+  identity,
+  kind,
+  path,
+}: {
+  identity?: string | undefined;
+  kind: WorkspaceTabKind;
+  path?: string | undefined;
+}) {
+  if (kind === "review") return <ReviewIcon />;
+  if (kind === "terminal") return <TerminalIcon />;
+  if (kind === "browser") return <BrowserIcon />;
+  if (kind === "markdown") return <MarkdownIcon />;
+  if (kind === "agent-team" || kind === "child-agent") {
+    return <ChildAgentIcon identity={identity ?? kind} />;
+  }
+  if (kind === "file") {
+    return path ? (
+      <WorkspaceFileIcon
+        path={path}
+        presentation={filePresentation(path)}
+        symlink={false}
+      />
+    ) : (
+      <FilesIcon />
+    );
+  }
+  return <FilesIcon />;
+}
+
+function ModeIcon() {
+  return (
+    <Icon>
+      <path
+        d="M7 4.5h10a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="m8.5 9 2.5 3-2.5 3m5-6h2"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </Icon>
+  );
+}
+
+function ModelIcon() {
+  return (
+    <Icon size={18}>
+      <path
+        d="M12 5a3 3 0 0 0-5.99.2A4 4 0 0 0 3.6 11a4 4 0 0 0 .55 6.4A4 4 0 0 0 12 18V5Zm0 0a3 3 0 0 1 5.99.2A4 4 0 0 1 20.4 11a4 4 0 0 1-.55 6.4A4 4 0 0 1 12 18m-3-8.5A4.5 4.5 0 0 0 12 13m3-3.5A4.5 4.5 0 0 1 12 13"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.45"
+      />
+    </Icon>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <Icon size={14}>
+      <path
+        d="m7 9 5 5 5-5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </Icon>
+  );
+}
+
+function ApprovalIcon({ warning = false }: { warning?: boolean }) {
+  return (
+    <Icon size={19}>
+      <path
+        d="M12 3.4 20 7v5.7c0 4-3.1 6.7-8 8-4.9-1.3-8-4-8-8V7l8-3.6Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      {warning ? (
+        <path
+          d="M12 8v5m0 3v.1"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeWidth="1.7"
+        />
+      ) : (
+        <path
+          d="m8.6 12.2 2.1 2.1 4.7-5"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="1.7"
+        />
+      )}
+    </Icon>
+  );
+}
+
+function statusLabel(state: ThreadViewState | undefined, locale: Locale) {
+  const t = copy[locale];
+  switch (state?.status) {
+    case "running":
+      return t.running;
+    case "waiting-approval":
+      return t.waiting;
+    case "waiting-user-input":
+      return t.waitingInput;
+    case "failed":
+      return t.failed;
+    default:
+      return t.ready;
+  }
+}
+
+function thinkingLevelLabel(level: ThinkingLevel, locale: Locale): string {
+  const labels: Record<Locale, Record<ThinkingLevel, string>> = {
+    en: {
+      off: "Off",
+      minimal: "Minimal",
+      low: "Low",
+      medium: "Medium",
+      high: "High",
+      xhigh: "Extra high",
+      max: "Max",
+    },
+    "zh-CN": {
+      off: "关闭",
+      minimal: "最低",
+      low: "低",
+      medium: "中",
+      high: "高",
+      xhigh: "极高",
+      max: "最高",
+    },
+  };
+  return labels[locale][level];
+}
+
+function updateThreadStatus(
+  thread: Thread,
+  event: AgentEvent,
+): Thread["status"] {
+  switch (event.payload.type) {
+    case "turn.started":
+      return "running";
+    case "approval.requested":
+    case "user-input.requested":
+      return "waiting-approval";
+    case "turn.completed":
+      return "idle";
+    case "turn.failed":
+      return "failed";
+    default:
+      return thread.status;
+  }
+}
+
+function mergeThreadEvents(
+  history: AgentEvent[],
+  liveEvents: AgentEvent[],
+): AgentEvent[] {
+  if (history.length === 0) return liveEvents;
+  if (liveEvents.length === 0) return history;
+  const byId = new Map<string, AgentEvent>();
+  for (const event of history) byId.set(event.eventId, event);
+  for (const event of liveEvents) byId.set(event.eventId, event);
+  return [...byId.values()].sort((left, right) => left.seq - right.seq);
+}
+
+function eventChangesThread(event: AgentEvent): boolean {
+  return [
+    "turn.started",
+    "approval.requested",
+    "turn.completed",
+    "turn.failed",
+  ].includes(event.payload.type);
+}
+
+function preserveLoadedEvents(
+  refreshed: DesktopSnapshot,
+  current: DesktopSnapshot | undefined,
+): DesktopSnapshot {
+  const visibleThreads = new Set(refreshed.threads.map((thread) => thread.id));
+  return {
+    ...refreshed,
+    events: Object.fromEntries(
+      Object.entries(current?.events ?? {}).filter(([threadId]) =>
+        visibleThreads.has(threadId),
+      ),
+    ),
+  };
+}
+
+function visibleThreadTitle(title: string): string {
+  return (
+    promptWithoutSelectedSkills(title) ||
+    selectedSkillNamesForPrompt(title).join(", ") ||
+    title
+  );
+}
+
+export function App() {
+  const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
+  const [activeProjectId, setActiveProjectId] = useState<string>();
+  const [activeThreadId, setActiveThreadId] = useState<string>();
+  const [composerDrafts, setComposerDrafts] = useState<ComposerDrafts>({});
+  const [promptSubmittedAtByThread, setPromptSubmittedAtByThread] = useState<
+    Record<string, number>
+  >({});
+  const [promptHistory, setPromptHistory] = useState<string[]>([]);
+  const [installedSkills, setInstalledSkills] = useState<InstalledSkill[]>([]);
+  const [installedPlugins, setInstalledPlugins] = useState<
+    InstalledCodexPlugin[]
+  >([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillsError, setSkillsError] = useState<string>();
+  const [skillMenuDismissed, setSkillMenuDismissed] = useState(false);
+  const [activeSlashSuggestion, setActiveSlashSuggestion] = useState(0);
+  const [attachmentDragActive, setAttachmentDragActive] = useState(false);
+  const [approvalPolicy, setApprovalPolicy] = useState<ApprovalPolicy>("agent");
+  const [runtimeSettings, setRuntimeSettings] = useState<SettingsSnapshot>();
+  const [approvalMenuOpen, setApprovalMenuOpen] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [modelPickerSection, setModelPickerSection] =
+    useState<ModelPickerSection>("model");
+  const [mode, setMode] = useState<RunMode>("execute");
+  const [query, setQuery] = useState("");
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [activeView, setActiveView] = useState<ActiveView>("workspace");
+  const [projectMenuId, setProjectMenuId] = useState<string>();
+  const [threadMenuId, setThreadMenuId] = useState<string>();
+  const [threadRename, setThreadRename] = useState<{
+    threadId: string;
+    title: string;
+  }>();
+  const [workspaceTabsByThread, setWorkspaceTabsByThread] = useState<
+    Record<string, WorkspaceTabsState>
+  >({});
+  const [workspaceDockOpen, setWorkspaceDockOpen] = useState(false);
+  const [workspaceTabMenuOpen, setWorkspaceTabMenuOpen] = useState(false);
+  const [fileLinkContextMenu, setFileLinkContextMenu] =
+    useState<FileLinkContextMenuState>();
+  const workspaceTabSerial = useRef(0);
+  const knownAgentTeamTabs = useRef(new Set<string>());
+  const workspaceThreadCreation =
+    useRef<Promise<string | undefined>>(undefined);
+  const [reviewScope, setReviewScope] = useState<ReviewScope>("branch");
+  const [reviewBaseRef, setReviewBaseRef] = useState("");
+  const [reviewFileQuery, setReviewFileQuery] = useState("");
+  const [selectedReviewFileId, setSelectedReviewFileId] = useState<string>();
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [clockMs, setClockMs] = useState(() => Date.now());
+  const [childAgentControlPending, setChildAgentControlPending] = useState<
+    string | undefined
+  >();
+  const [agentTeamControlPending, setAgentTeamControlPending] = useState(false);
+  const [reviewDiff, setReviewDiff] = useState<ReviewDiff | undefined>({
+    scope: "branch",
+    text: "",
+    available: true,
+    files: [],
+  });
+  const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
+
+  const openSettings = (tab: SettingsEntryTab = "general") => {
+    setSettingsTab(tab);
+    setSettingsOpen(true);
+  };
+  const [commentLineId, setCommentLineId] = useState<string>();
+  const [commentBody, setCommentBody] = useState("");
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+  const [confirmation, setConfirmation] = useState<ConfirmationState>();
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<
+    string | { error: true; message: string }
+  >();
+  const timelineScroll = useRef<HTMLDivElement>(null);
+  const timelinePinned = useRef(true);
+  const loadedEventThreads = useRef(new Set<string>());
+  const loadingEventThreads = useRef(new Set<string>());
+  const pendingAgentEvents = useRef<AgentEvent[]>([]);
+  const pendingAgentFrame = useRef<number | undefined>(undefined);
+  const promptInput = useRef<HTMLTextAreaElement>(null);
+  const previousPendingUserInputId = useRef<string | undefined>(undefined);
+  const modelPickerRoot = useRef<HTMLDivElement>(null);
+  const slashCommandMenu = useRef<HTMLDivElement>(null);
+  const confirmationCancelButton = useRef<HTMLButtonElement>(null);
+  const confirmationResolver = useRef<
+    ((confirmed: boolean) => void) | undefined
+  >(undefined);
+  const promptHistoryNavigation = useRef<PromptHistoryNavigation>({
+    index: -1,
+    draft: "",
+  });
+  const reviewRequestId = useRef(0);
+  const reviewDiffCache = useRef(new Map<string, ReviewDiff>());
+  const reviewDiffInFlight = useRef(new Map<string, Promise<ReviewDiff>>());
+  const reviewDiffVersion = useRef(new Map<string, number>());
+  const [reviewTransitionPending, startReviewTransition] = useTransition();
+  const threadStateCache = useRef(
+    new Map<
+      string,
+      {
+        eventCount: number;
+        lastEventId?: string;
+        mode: RunMode;
+        state: ThreadViewState;
+      }
+    >(),
+  );
+
+  const locale: Locale = snapshot?.locale ?? "en";
+  const t = copy[locale];
+  const username = snapshot?.userName ?? t.local;
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
+  const activeThreadIdRef = useRef(activeThreadId);
+  activeThreadIdRef.current = activeThreadId;
+  const activeComposerDraftKey = conversationDraftKey(
+    activeProjectId,
+    activeThreadId,
+  );
+  const activeComposerDraft = composerDraftFor(
+    composerDrafts,
+    activeComposerDraftKey,
+  );
+  const {
+    attachments,
+    prompt,
+    selectedSkillNames: selectedComposerSkillNames,
+  } = activeComposerDraft;
+  const updateActiveComposerDraft = useCallback(
+    (update: (current: ComposerDraft) => ComposerDraft) => {
+      setComposerDrafts((current) =>
+        updateComposerDraft(current, activeComposerDraftKey, update),
+      );
+    },
+    [activeComposerDraftKey],
+  );
+  const setPrompt = useCallback(
+    (action: SetStateAction<string>) => {
+      updateActiveComposerDraft((current) => ({
+        ...current,
+        prompt: typeof action === "function" ? action(current.prompt) : action,
+      }));
+    },
+    [updateActiveComposerDraft],
+  );
+  const setSelectedComposerSkillNames = useCallback(
+    (action: SetStateAction<string[]>) => {
+      updateActiveComposerDraft((current) => ({
+        ...current,
+        selectedSkillNames:
+          typeof action === "function"
+            ? action(current.selectedSkillNames)
+            : action,
+      }));
+    },
+    [updateActiveComposerDraft],
+  );
+  const setAttachments = useCallback(
+    (action: SetStateAction<PromptAttachment[]>) => {
+      updateActiveComposerDraft((current) => ({
+        ...current,
+        attachments:
+          typeof action === "function" ? action(current.attachments) : action,
+      }));
+    },
+    [updateActiveComposerDraft],
+  );
+
+  useEffect(() => {
+    promptHistoryNavigation.current = { index: -1, draft: prompt };
+    setSkillMenuDismissed(false);
+  }, [activeComposerDraftKey]);
+
+  const beginNewConversation = useCallback(
+    (projectId = activeProjectId) => {
+      if (!projectId) {
+        setToast(t.noProject);
+        return;
+      }
+      setActiveView("workspace");
+      setActiveProjectId(projectId);
+      setActiveThreadId(undefined);
+      setMode("execute");
+      setComposerDrafts((current) =>
+        clearComposerDraft(current, conversationDraftKey(projectId, undefined)),
+      );
+      promptHistoryNavigation.current = { index: -1, draft: "" };
+      setSkillMenuDismissed(false);
+      setWorkspaceDockOpen(false);
+      setProjectMenuId(undefined);
+      setThreadMenuId(undefined);
+      window.requestAnimationFrame(() => promptInput.current?.focus());
+    },
+    [activeProjectId, t.noProject],
+  );
+
+  const discardNewConversationDraft = useCallback(() => {
+    if (activeThreadId) return;
+    setComposerDrafts((current) =>
+      clearComposerDraft(
+        current,
+        conversationDraftKey(activeProjectId, undefined),
+      ),
+    );
+    promptHistoryNavigation.current = { index: -1, draft: "" };
+    setSkillMenuDismissed(false);
+  }, [activeProjectId, activeThreadId]);
+
+  const toggleProjectHistory = useCallback((projectId: string) => {
+    setCollapsedProjectIds((current) => {
+      const next = new Set(current);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  }, []);
+
+  const requestConfirmation = useCallback(
+    (message: string, tone: ConfirmationTone = "default") =>
+      new Promise<boolean>((resolve) => {
+        confirmationResolver.current?.(false);
+        confirmationResolver.current = resolve;
+        setConfirmation({ message, tone });
+      }),
+    [],
+  );
+
+  const resolveConfirmation = useCallback((confirmed: boolean) => {
+    const resolve = confirmationResolver.current;
+    confirmationResolver.current = undefined;
+    setConfirmation(undefined);
+    resolve?.(confirmed);
+  }, []);
+
+  useEffect(() => {
+    if (!confirmation) return;
+    confirmationCancelButton.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      resolveConfirmation(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [confirmation, resolveConfirmation]);
+
+  useEffect(
+    () => () => {
+      confirmationResolver.current?.(false);
+      confirmationResolver.current = undefined;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!modelPickerOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!modelPickerRoot.current?.contains(event.target as Node)) {
+        setModelPickerOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [modelPickerOpen]);
+  const skillCommandMenuOpen =
+    !skillMenuDismissed && isSkillCommandPrompt(prompt);
+  const installedPluginBySkillName = useMemo(() => {
+    const plugins = new Map<string, InstalledCodexPlugin>();
+    for (const plugin of installedPlugins) {
+      for (const skillName of plugin.skillNames) {
+        plugins.set(skillName, plugin);
+      }
+    }
+    return plugins;
+  }, [installedPlugins]);
+  const unavailablePluginSkillNames = useMemo(
+    () =>
+      new Set(
+        installedPlugins
+          .filter((plugin) => !plugin.installable)
+          .flatMap((plugin) => plugin.skillNames),
+      ),
+    [installedPlugins],
+  );
+  const slashCommandSuggestions = useMemo(() => {
+    const selectedNames = new Set(selectedComposerSkillNames);
+    const suggestions = slashCommandSuggestionsForPrompt(
+      prompt,
+      installedSkills.filter(
+        (skill) =>
+          !selectedNames.has(skill.name) &&
+          !unavailablePluginSkillNames.has(skill.name),
+      ),
+    );
+    return [
+      ...suggestions.filter(
+        (suggestion) =>
+          suggestion.kind !== "skill" &&
+          selectedComposerSkillNames.length === 0,
+      ),
+      ...suggestions.filter(
+        (suggestion) =>
+          suggestion.kind === "skill" &&
+          installedPluginBySkillName.has(suggestion.skill.name),
+      ),
+      ...suggestions.filter(
+        (suggestion) =>
+          suggestion.kind === "skill" &&
+          !installedPluginBySkillName.has(suggestion.skill.name),
+      ),
+    ];
+  }, [
+    installedPluginBySkillName,
+    installedSkills,
+    prompt,
+    selectedComposerSkillNames,
+    unavailablePluginSkillNames,
+  ]);
+  const goalSuggestionIndex = slashCommandSuggestions.findIndex(
+    (suggestion) => suggestion.kind === "goal",
+  );
+  const compactSuggestionIndex = slashCommandSuggestions.findIndex(
+    (suggestion) => suggestion.kind === "compact",
+  );
+  const initSuggestionIndex = slashCommandSuggestions.findIndex(
+    (suggestion) => suggestion.kind === "init",
+  );
+  const skillSuggestions = slashCommandSuggestions.flatMap(
+    (suggestion, index) =>
+      suggestion.kind === "skill" ? [{ index, skill: suggestion.skill }] : [],
+  );
+  const pluginSkillSuggestions = skillSuggestions.flatMap(
+    ({ index, skill }) => {
+      const plugin = installedPluginBySkillName.get(skill.name);
+      return plugin ? [{ index, plugin, skill }] : [];
+    },
+  );
+  const standaloneSkillSuggestions = skillSuggestions.filter(
+    ({ skill }) => !installedPluginBySkillName.has(skill.name),
+  );
+  const selectedSkills = useMemo(
+    () =>
+      selectedComposerSkillNames.flatMap((name) => {
+        const skill = installedSkills.find(
+          (candidate) => candidate.enabled && candidate.name === name,
+        );
+        return skill ? [skill] : [];
+      }),
+    [installedSkills, selectedComposerSkillNames],
+  );
+  const createThread = useCallback(
+    async (projectId = activeProjectId, preserveDraft = false) => {
+      if (!projectId) {
+        setToast(t.noProject);
+        return undefined;
+      }
+      try {
+        const reusableWorkspaceDraft = snapshot?.threads.find(
+          (thread) =>
+            thread.projectId === projectId && isWorkspaceDraftThread(thread),
+        );
+        const thread =
+          reusableWorkspaceDraft ??
+          (await window.artemis.createThread({
+            projectId,
+            mode,
+            target: "local",
+          }));
+        if (!thread) return undefined;
+        loadedEventThreads.current.add(thread.id);
+        if (!reusableWorkspaceDraft) {
+          const refreshed = await window.artemis.getSnapshot();
+          setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        }
+        if (preserveDraft) {
+          setComposerDrafts((current) =>
+            moveComposerDraft(
+              current,
+              conversationDraftKey(projectId, undefined),
+              conversationDraftKey(projectId, thread.id),
+            ),
+          );
+        }
+        setActiveView("workspace");
+        setActiveProjectId(projectId);
+        setActiveThreadId(thread.id);
+        return thread;
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return undefined;
+      }
+    },
+    [activeProjectId, mode, snapshot?.threads, t.noProject, t.taskError],
+  );
+
+  const ensureWorkspaceThread = useCallback(() => {
+    if (activeThreadId) return Promise.resolve(activeThreadId);
+    if (workspaceThreadCreation.current) {
+      return workspaceThreadCreation.current;
+    }
+    const pending = createThread(activeProjectId, true)
+      .then((thread) => thread?.id)
+      .finally(() => {
+        if (workspaceThreadCreation.current === pending) {
+          workspaceThreadCreation.current = undefined;
+        }
+      });
+    workspaceThreadCreation.current = pending;
+    return pending;
+  }, [activeProjectId, activeThreadId, createThread]);
+
+  const workspaceTabs = activeThreadId
+    ? (workspaceTabsByThread[activeThreadId] ?? emptyWorkspaceTabs())
+    : emptyWorkspaceTabs();
+  const activeWorkspaceTab = workspaceTabs.tabs.find(
+    (tab) => tab.id === workspaceTabs.activeTabId,
+  );
+
+  const workspaceTabBaseTitle = useCallback(
+    (kind: WorkspaceTabKind) => {
+      if (kind === "review") return t.reviewPanel;
+      if (kind === "terminal") return t.terminal;
+      if (kind === "browser") return t.browser;
+      if (kind === "markdown") return t.markdownReader;
+      if (kind === "agent-team") return t.agentTeam;
+      return t.files;
+    },
+    [t],
+  );
+
+  const dispatchWorkspaceTab = useCallback(
+    (action: WorkspaceTabAction) => {
+      if (!activeThreadId) return;
+      setWorkspaceTabsByThread((current) => ({
+        ...current,
+        [activeThreadId]: reduceWorkspaceTabs(
+          current[activeThreadId] ?? emptyWorkspaceTabs(),
+          action,
+        ),
+      }));
+    },
+    [activeThreadId],
+  );
+
+  const closeWorkspaceTab = useCallback(
+    (tabId: string) => {
+      const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
+      dispatchWorkspaceTab({ type: "close", tabId });
+      if (closesLastTab) {
+        setWorkspaceDockOpen(false);
+      }
+    },
+    [dispatchWorkspaceTab, workspaceTabs],
+  );
+
+  const openWorkspaceTabForThread = useCallback(
+    (
+      threadId: string,
+      kind: WorkspaceTabKind,
+      options: WorkspaceTabOpenOptions = {},
+    ) => {
+      setWorkspaceTabsByThread((current) => {
+        const state = current[threadId] ?? emptyWorkspaceTabs();
+        const existing = options.forceNew
+          ? undefined
+          : state.tabs.find(
+              (tab) =>
+                tab.kind === kind &&
+                (options.reuseKind ||
+                  !options.path ||
+                  tab.path === options.path),
+            );
+        const pathTitle = options.path?.replaceAll("\\", "/").split("/").at(-1);
+        if (existing) {
+          const updated = reduceWorkspaceTabs(state, {
+            type: "update",
+            tabId: existing.id,
+            updates: {
+              ...(pathTitle ? { title: pathTitle } : {}),
+              ...(options.path ? { path: options.path } : {}),
+              ...(options.revision ? { revision: options.revision } : {}),
+            },
+          });
+          return {
+            ...current,
+            [threadId]: reduceWorkspaceTabs(updated, {
+              type: "activate",
+              tabId: existing.id,
+            }),
+          };
+        }
+
+        const index = state.tabs.filter((tab) => tab.kind === kind).length + 1;
+        const baseTitle = workspaceTabBaseTitle(kind);
+        const tab: WorkspaceTab = {
+          id: `${threadId}-${kind}-${++workspaceTabSerial.current}`,
+          kind,
+          title: pathTitle ?? (index > 1 ? `${baseTitle} ${index}` : baseTitle),
+          ...(options.path ? { path: options.path } : {}),
+          ...(options.revision ? { revision: options.revision } : {}),
+        };
+        return {
+          ...current,
+          [threadId]: reduceWorkspaceTabs(state, {
+            type: "open",
+            tab,
+          }),
+        };
+      });
+    },
+    [workspaceTabBaseTitle],
+  );
+
+  const openWorkspaceTab = useCallback(
+    (kind: WorkspaceTabKind, options: WorkspaceTabOpenOptions = {}) => {
+      setWorkspaceDockOpen(true);
+      setWorkspaceTabMenuOpen(false);
+      if (activeThreadId) {
+        openWorkspaceTabForThread(activeThreadId, kind, options);
+        return;
+      }
+      void ensureWorkspaceThread().then((threadId) => {
+        if (threadId) openWorkspaceTabForThread(threadId, kind, options);
+      });
+    },
+    [activeThreadId, ensureWorkspaceThread, openWorkspaceTabForThread],
+  );
+
+  const openResolvedWorkspaceFile = useCallback(
+    (file: WorkspaceFileLink) => {
+      openWorkspaceTab(file.viewer, { path: file.path });
+    },
+    [openWorkspaceTab],
+  );
+
+  const openConversationFileLink = useCallback(
+    async (href: string) => {
+      const threadId = activeThreadId;
+      if (!threadId) return;
+      try {
+        const file = await window.artemis.inspectWorkspaceFileLink(
+          threadId,
+          href,
+        );
+        if (activeThreadIdRef.current !== threadId) return;
+        openResolvedWorkspaceFile(file);
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [activeThreadId, openResolvedWorkspaceFile],
+  );
+
+  const openConversationFileLinkMenu = useCallback(
+    async (href: string, position: { x: number; y: number }) => {
+      const threadId = activeThreadId;
+      if (!threadId) return;
+      setFileLinkContextMenu(undefined);
+      try {
+        const file = await window.artemis.inspectWorkspaceFileLink(
+          threadId,
+          href,
+        );
+        if (activeThreadIdRef.current !== threadId) return;
+        const menuWidth = 208;
+        const menuHeight = file.executable ? 122 : 84;
+        setFileLinkContextMenu({
+          file,
+          threadId,
+          x: Math.max(
+            8,
+            Math.min(position.x, window.innerWidth - menuWidth - 8),
+          ),
+          y: Math.max(
+            8,
+            Math.min(position.y, window.innerHeight - menuHeight - 8),
+          ),
+        });
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [activeThreadId],
+  );
+
+  const revealConversationFile = useCallback(
+    async (menu: FileLinkContextMenuState) => {
+      setFileLinkContextMenu(undefined);
+      try {
+        await window.artemis.revealWorkspaceFile(menu.threadId, menu.file.path);
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [],
+  );
+
+  const runConversationFile = useCallback(
+    async (menu: FileLinkContextMenuState) => {
+      setFileLinkContextMenu(undefined);
+      try {
+        await window.artemis.runWorkspaceFile(menu.threadId, menu.file.path);
+        setToast(`${t.runLinkedFileStarted}: ${menu.file.path}`);
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [t.runLinkedFileStarted],
+  );
+
+  useEffect(() => {
+    setFileLinkContextMenu(undefined);
+  }, [activeThreadId]);
+
+  useEffect(() => {
+    if (!fileLinkContextMenu) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFileLinkContextMenu(undefined);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [fileLinkContextMenu]);
+
+  const openChildAgentPanel = useCallback(
+    (child: ChildAgentState) => {
+      setWorkspaceDockOpen(true);
+      setWorkspaceTabMenuOpen(false);
+      dispatchWorkspaceTab({
+        type: "open",
+        tab: childAgentWorkspaceTab(child.agentId, child.label),
+      });
+    },
+    [dispatchWorkspaceTab],
+  );
+
+  const controlChildAgent = useCallback(
+    async (child: ChildAgentState, action: "steer" | "cancel" | "retry") => {
+      if (!activeThreadId) return;
+      const pendingKey = `${child.agentId}:${action}`;
+      setChildAgentControlPending(pendingKey);
+      try {
+        const result = await window.artemis.controlChildAgent({
+          threadId: activeThreadId,
+          agentId: child.agentId,
+          action,
+          ...(action === "steer"
+            ? {
+                message:
+                  localeRef.current === "zh-CN"
+                    ? "请立即汇报当前状态、阻塞点和下一步；如原方案不可行，请改用其他办法。"
+                    : "Report your current status, blocker, and next step now. If the current approach is not viable, use another one.",
+              }
+            : {}),
+        });
+        if (action === "retry") {
+          setWorkspaceDockOpen(true);
+          dispatchWorkspaceTab({
+            type: "open",
+            tab: childAgentWorkspaceTab(result.agentId, child.label),
+          });
+        }
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setChildAgentControlPending(undefined);
+      }
+    },
+    [activeThreadId, dispatchWorkspaceTab],
+  );
+
+  const stopAgentTeam = useCallback(
+    async (team: AgentTeamState) => {
+      if (!activeThreadId) return;
+      setAgentTeamControlPending(true);
+      try {
+        await window.artemis.controlAgentTeam({
+          threadId: activeThreadId,
+          teamId: team.teamId,
+          action: "cancel",
+        });
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setAgentTeamControlPending(false);
+      }
+    },
+    [activeThreadId],
+  );
+
+  const openReviewPanel = useCallback(
+    () => openWorkspaceTab("review"),
+    [openWorkspaceTab],
+  );
+  const openTerminalPanel = useCallback(
+    () => openWorkspaceTab("terminal"),
+    [openWorkspaceTab],
+  );
+  const openBrowserPanel = useCallback(
+    () => openWorkspaceTab("browser"),
+    [openWorkspaceTab],
+  );
+  const openFilesPanel = useCallback(
+    () => openWorkspaceTab("file"),
+    [openWorkspaceTab],
+  );
+  const openAutomationThread = useCallback(
+    async (threadId: string) => {
+      const refreshed = await window.artemis.getSnapshot();
+      setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+      const thread = refreshed.threads.find(
+        (candidate) => candidate.id === threadId,
+      );
+      if (!thread) return;
+      discardNewConversationDraft();
+      setActiveProjectId(thread.projectId);
+      setActiveThreadId(thread.id);
+      setMode(thread.mode);
+      setActiveView("workspace");
+    },
+    [discardNewConversationDraft],
+  );
+  const toggleRightSidebar = useCallback(() => {
+    setWorkspaceDockOpen((open) => !open);
+    setWorkspaceTabMenuOpen(false);
+  }, []);
+  const toggleReviewPanel = useCallback(() => {
+    if (workspaceDockOpen && activeWorkspaceTab?.kind === "review") {
+      setWorkspaceDockOpen(false);
+    } else {
+      openReviewPanel();
+    }
+  }, [activeWorkspaceTab?.kind, openReviewPanel, workspaceDockOpen]);
+  const toggleTerminalPanel = useCallback(() => {
+    if (workspaceDockOpen && activeWorkspaceTab?.kind === "terminal") {
+      setWorkspaceDockOpen(false);
+    } else {
+      openTerminalPanel();
+    }
+  }, [activeWorkspaceTab?.kind, openTerminalPanel, workspaceDockOpen]);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  useEffect(() => {
+    const theme = runtimeSettings?.theme ?? "system";
+    if (theme === "system") {
+      delete document.documentElement.dataset.theme;
+    } else {
+      document.documentElement.dataset.theme = theme;
+    }
+  }, [runtimeSettings?.theme]);
+
+  useEffect(() => {
+    if (!skillCommandMenuOpen) return;
+    let mounted = true;
+    setSkillsLoading(true);
+    setSkillsError(undefined);
+    void Promise.all([
+      window.artemis.listInstalledSkills(),
+      window.artemis.listCodexPlugins().catch(() => []),
+    ])
+      .then(([skills, plugins]) => {
+        if (!mounted) return;
+        setInstalledSkills(skills);
+        setInstalledPlugins(plugins);
+      })
+      .catch((error) => {
+        if (mounted) {
+          setSkillsError(
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      })
+      .finally(() => {
+        if (mounted) setSkillsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [skillCommandMenuOpen]);
+
+  useEffect(() => {
+    setActiveSlashSuggestion(0);
+  }, [prompt, slashCommandSuggestions.length]);
+
+  useLayoutEffect(() => {
+    if (!skillCommandMenuOpen) return;
+    const menu = slashCommandMenu.current;
+    const option = menu?.querySelector<HTMLElement>(
+      `#skill-command-option-${activeSlashSuggestion}`,
+    );
+    if (!menu || !option) return;
+    const optionTop = option.offsetTop;
+    const optionBottom = optionTop + option.offsetHeight;
+    if (optionTop < menu.scrollTop) {
+      menu.scrollTop = Math.max(0, optionTop - 6);
+    } else if (optionBottom > menu.scrollTop + menu.clientHeight) {
+      menu.scrollTop = optionBottom - menu.clientHeight + 6;
+    }
+  }, [
+    activeSlashSuggestion,
+    skillCommandMenuOpen,
+    slashCommandSuggestions.length,
+  ]);
+
+  useEffect(() => {
+    let mounted = true;
+    void window.artemis.getSnapshot().then((value) => {
+      if (!mounted) return;
+      setSnapshot(value);
+      const project = value.projects[0];
+      setActiveProjectId(project?.id);
+      setActiveThreadId(undefined);
+      setMode("execute");
+    });
+    void window.artemis
+      .getSettings()
+      .then((value) => {
+        if (mounted) {
+          setApprovalPolicy(value.approvalPolicy);
+          setRuntimeSettings(value);
+        }
+      })
+      .catch((error) => {
+        if (mounted) {
+          setToast(error instanceof Error ? error.message : String(error));
+        }
+      });
+    void window.artemis
+      .getPromptHistory()
+      .then((history) => {
+        if (mounted) {
+          setPromptHistory((current) =>
+            [
+              ...current,
+              ...history.filter((prompt) => !current.includes(prompt)),
+            ].slice(0, 100),
+          );
+        }
+      })
+      .catch((error) => {
+        if (mounted) {
+          setToast(error instanceof Error ? error.message : String(error));
+        }
+      });
+    const flushAgentEvents = () => {
+      pendingAgentFrame.current = undefined;
+      const batch = pendingAgentEvents.current.splice(0);
+      if (batch.length === 0) return;
+      setSnapshot((current) => {
+        if (!current) return current;
+        const grouped = new Map<string, AgentEvent[]>();
+        for (const event of batch) {
+          const events = grouped.get(event.threadId) ?? [];
+          events.push(event);
+          grouped.set(event.threadId, events);
+        }
+        const events = { ...current.events };
+        for (const [threadId, incoming] of grouped) {
+          const existing = events[threadId] ?? [];
+          const appended = [...existing];
+          let lastSeq = appended.at(-1)?.seq ?? -1;
+          for (const event of incoming) {
+            if (
+              event.seq <= lastSeq &&
+              appended.some((candidate) => candidate.eventId === event.eventId)
+            ) {
+              continue;
+            }
+            appended.push(event);
+            lastSeq = Math.max(lastSeq, event.seq);
+          }
+          events[threadId] = appended;
+        }
+        const threadEvents = batch.filter(eventChangesThread);
+        return {
+          ...current,
+          events,
+          threads:
+            threadEvents.length === 0
+              ? current.threads
+              : current.threads.map((thread) => {
+                  const updates = threadEvents.filter(
+                    (event) => event.threadId === thread.id,
+                  );
+                  if (updates.length === 0) return thread;
+                  return updates.reduce(
+                    (updated, event) => ({
+                      ...updated,
+                      status: updateThreadStatus(updated, event),
+                      mode:
+                        event.payload.type === "turn.started"
+                          ? event.payload.mode
+                          : updated.mode,
+                    }),
+                    thread,
+                  );
+                }),
+        };
+      });
+    };
+    const unsubscribe = window.artemis.onAgentEvent((event) => {
+      if (
+        event.payload.type === "agent-team.status" &&
+        !knownAgentTeamTabs.current.has(event.payload.teamId)
+      ) {
+        const teamStatus = event.payload;
+        knownAgentTeamTabs.current.add(teamStatus.teamId);
+        setWorkspaceTabsByThread((current) => ({
+          ...current,
+          [event.threadId]: reduceWorkspaceTabs(
+            current[event.threadId] ?? emptyWorkspaceTabs(),
+            {
+              type: "ensure",
+              tab: agentTeamWorkspaceTab(
+                teamStatus.teamId,
+                copy[localeRef.current].agentTeam,
+              ),
+            },
+          ),
+        }));
+        if (activeThreadIdRef.current === event.threadId) {
+          setWorkspaceDockOpen(true);
+        }
+      }
+      if (event.payload.type === "turn.failed") {
+        setToast({
+          error: true,
+          message: `${copy[localeRef.current].turnError} ${event.payload.message}`,
+        });
+      }
+      pendingAgentEvents.current.push(event);
+      if (pendingAgentFrame.current === undefined) {
+        pendingAgentFrame.current =
+          window.requestAnimationFrame(flushAgentEvents);
+      }
+    });
+    return () => {
+      mounted = false;
+      unsubscribe();
+      if (pendingAgentFrame.current !== undefined) {
+        window.cancelAnimationFrame(pendingAgentFrame.current);
+        pendingAgentFrame.current = undefined;
+      }
+      pendingAgentEvents.current = [];
+    };
+  }, []);
+
+  useEffect(
+    () =>
+      window.artemis.onAutomationThreadOpen((threadId) => {
+        void openAutomationThread(threadId);
+      }),
+    [openAutomationThread],
+  );
+
+  useEffect(
+    () =>
+      window.artemis.onAutomationEvent((event) => {
+        if (
+          event.payload.type !== "automation-run.upserted" ||
+          !event.payload.run.threadId
+        ) {
+          return;
+        }
+        void window.artemis.getSnapshot().then((refreshed) => {
+          setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        });
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    if (!snapshot) return;
+
+    const readyTimer = setTimeout(() => {
+      window.artemis.rendererReady();
+    }, 0);
+    return () => clearTimeout(readyTimer);
+  }, [snapshot]);
+
+  useEffect(() => {
+    if (!snapshot) return;
+    const panelTimer = window.setTimeout(() => {
+      void Promise.all([loadResourceCenter(), loadSettingsPanel()]).catch(
+        () => undefined,
+      );
+    }, 250);
+    const idleCallback = window.requestIdleCallback(
+      () => {
+        void loadTerminalPanel().catch(() => undefined);
+      },
+      {
+        timeout: 2_000,
+      },
+    );
+    return () => {
+      window.clearTimeout(panelTimer);
+      window.cancelIdleCallback(idleCallback);
+    };
+  }, [Boolean(snapshot)]);
+
+  const projects = snapshot?.projects ?? [];
+  const activeProject = projects.find(
+    (project) => project.id === activeProjectId,
+  );
+  const activeThread = (snapshot?.threads ?? []).find(
+    (thread) => thread.id === activeThreadId,
+  );
+  const filteredReviewFiles = useMemo(() => {
+    const normalizedQuery = reviewFileQuery.trim().toLowerCase();
+    if (!normalizedQuery) return reviewDiff?.files ?? [];
+    return (reviewDiff?.files ?? []).filter((file) =>
+      file.path.toLowerCase().includes(normalizedQuery),
+    );
+  }, [reviewDiff, reviewFileQuery]);
+  const selectedReviewFile = useMemo(
+    () =>
+      reviewDiff?.files.find((file) => file.id === selectedReviewFileId) ??
+      reviewDiff?.files[0],
+    [reviewDiff, selectedReviewFileId],
+  );
+  useEffect(() => {
+    if (
+      !activeThreadId ||
+      loadedEventThreads.current.has(activeThreadId) ||
+      loadingEventThreads.current.has(activeThreadId)
+    ) {
+      return;
+    }
+    const threadId = activeThreadId;
+    let mounted = true;
+    loadingEventThreads.current.add(threadId);
+    void window.artemis
+      .getThreadEvents(threadId)
+      .then((history) => {
+        if (!mounted) return;
+        loadedEventThreads.current.add(threadId);
+        setSnapshot((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            events: {
+              ...current.events,
+              [threadId]: mergeThreadEvents(
+                history,
+                current.events[threadId] ?? [],
+              ),
+            },
+          };
+        });
+      })
+      .catch((error) => {
+        if (mounted) {
+          setToast(error instanceof Error ? error.message : String(error));
+        }
+      })
+      .finally(() => {
+        loadingEventThreads.current.delete(threadId);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [activeThreadId]);
+  const activeEvents = activeThread
+    ? (snapshot?.events[activeThread.id] ?? [])
+    : [];
+  const latestHtmlChange = useMemo(() => {
+    for (let index = activeEvents.length - 1; index >= 0; index -= 1) {
+      const event = activeEvents[index];
+      if (
+        event?.payload.type === "file.changed" &&
+        /\.html?$/iu.test(event.payload.path)
+      ) {
+        return { eventId: event.eventId, path: event.payload.path };
+      }
+    }
+    return undefined;
+  }, [activeEvents]);
+  const latestMarkdownChange = useMemo(() => {
+    for (let index = activeEvents.length - 1; index >= 0; index -= 1) {
+      const event = activeEvents[index];
+      if (
+        event?.payload.type === "file.changed" &&
+        /\.(?:md|markdown)$/iu.test(event.payload.path)
+      ) {
+        return { eventId: event.eventId, path: event.payload.path };
+      }
+    }
+    return undefined;
+  }, [activeEvents]);
+  const threadState = useMemo(() => {
+    if (!activeThread) return undefined;
+    const cached = threadStateCache.current.get(activeThread.id);
+    const prefixMatches =
+      cached &&
+      cached.mode === activeThread.mode &&
+      cached.eventCount <= activeEvents.length &&
+      (cached.eventCount === 0 ||
+        activeEvents[cached.eventCount - 1]?.eventId === cached.lastEventId);
+    const state = prefixMatches
+      ? reduceAgentEventBatch(
+          cached.state,
+          activeEvents.slice(cached.eventCount),
+        )
+      : reduceAgentEvents(activeThread.id, activeEvents, activeThread.mode);
+    threadStateCache.current.delete(activeThread.id);
+    threadStateCache.current.set(activeThread.id, {
+      eventCount: activeEvents.length,
+      ...(activeEvents.at(-1)
+        ? { lastEventId: activeEvents.at(-1)!.eventId }
+        : {}),
+      mode: activeThread.mode,
+      state,
+    });
+    if (threadStateCache.current.size > 8) {
+      const oldestThreadId = threadStateCache.current.keys().next().value;
+      if (oldestThreadId) threadStateCache.current.delete(oldestThreadId);
+    }
+    return state;
+  }, [activeEvents, activeThread?.id, activeThread?.mode]);
+  const latestAgentTeam = useMemo(
+    () =>
+      Object.values(threadState?.agentTeams ?? {})
+        .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt))
+        .at(-1),
+    [threadState?.agentTeams],
+  );
+  useEffect(() => {
+    if (
+      !activeThreadId ||
+      !latestAgentTeam ||
+      knownAgentTeamTabs.current.has(latestAgentTeam.teamId)
+    ) {
+      return;
+    }
+    knownAgentTeamTabs.current.add(latestAgentTeam.teamId);
+    setWorkspaceTabsByThread((current) => ({
+      ...current,
+      [activeThreadId]: reduceWorkspaceTabs(
+        current[activeThreadId] ?? emptyWorkspaceTabs(),
+        {
+          type: "ensure",
+          tab: agentTeamWorkspaceTab(latestAgentTeam.teamId, t.agentTeam),
+        },
+      ),
+    }));
+    if (
+      latestAgentTeam.status !== "completed" &&
+      latestAgentTeam.status !== "aborted"
+    ) {
+      setWorkspaceDockOpen(true);
+    }
+  }, [activeThreadId, latestAgentTeam, t.agentTeam]);
+  const activePendingUserInputId = threadState?.order
+    .filter((entry) => entry.startsWith("input:"))
+    .map((entry) => entry.slice("input:".length))
+    .find((id) => threadState.userInputs[id]?.status === "pending");
+  const activePendingUserInput = activePendingUserInputId
+    ? threadState?.userInputs[activePendingUserInputId]
+    : undefined;
+  useEffect(() => {
+    const previousId = previousPendingUserInputId.current;
+    previousPendingUserInputId.current = activePendingUserInputId;
+    if (!previousId || activePendingUserInputId) return;
+    const frame = window.requestAnimationFrame(() => {
+      promptInput.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activePendingUserInputId]);
+  const turnActive =
+    threadState?.status === "running" ||
+    threadState?.status === "waiting-approval" ||
+    threadState?.status === "waiting-user-input";
+  const projectBranchActionsDisabled =
+    turnActive ||
+    (snapshot?.threads ?? []).some(
+      (thread) =>
+        thread.projectId === activeProjectId &&
+        thread.target === "local" &&
+        (thread.status === "running" || thread.status === "waiting-approval"),
+    );
+  const latestTimelineEntryIsCompaction =
+    threadState?.order.at(-1)?.startsWith("compaction:") ?? false;
+  const queuedMessage = (threadState?.queue.followUp ?? []).join("\n\n");
+  const canSteerQueuedMessage = (threadState?.queue.followUp.length ?? 0) > 0;
+  const approvalChangeLocked =
+    busy ||
+    (snapshot?.threads.some(
+      (thread) =>
+        thread.status === "running" || thread.status === "waiting-approval",
+    ) ??
+      false);
+  const approvalPolicyLabel = {
+    ask: t.askApproval,
+    agent: t.agentApproval,
+    "full-access": t.fullAccess,
+    custom: t.customApproval,
+  }[approvalPolicy];
+  const activeModel = runtimeSettings?.selection
+    ? runtimeSettings.models.find(
+        (model) =>
+          model.providerId === runtimeSettings.selection?.providerId &&
+          model.modelId === runtimeSettings.selection.modelId,
+      )
+    : undefined;
+  const activeProvider = runtimeSettings?.selection
+    ? runtimeSettings.providers.find(
+        (provider) => provider.id === runtimeSettings.selection?.providerId,
+      )
+    : undefined;
+  const activeProviderModel = activeProvider?.models.find(
+    (model) => model.id === runtimeSettings?.selection?.modelId,
+  );
+  const activeModelLabel =
+    activeModel?.name ??
+    activeProviderModel?.name ??
+    runtimeSettings?.selection?.modelId ??
+    t.model;
+  const activeModelSupportsReasoning =
+    activeModel?.reasoning ?? activeProviderModel?.reasoning ?? false;
+  const activeThinkingLevel =
+    runtimeSettings?.selection &&
+    activeModelSupportsReasoning &&
+    runtimeSettings.selection.thinkingLevel !== "off"
+      ? thinkingLevelLabel(runtimeSettings.selection.thinkingLevel, locale)
+      : undefined;
+  const switchableModels = useMemo(() => {
+    if (!runtimeSettings) return [];
+    const addedModels = new Set(
+      runtimeSettings.addedModels.map((model) =>
+        modelIdentity(model.providerId, model.modelId),
+      ),
+    );
+    const customProviders = new Set(
+      runtimeSettings.providers.map((provider) => provider.id),
+    );
+    const selectedModelIdentity = runtimeSettings.selection
+      ? modelIdentity(
+          runtimeSettings.selection.providerId,
+          runtimeSettings.selection.modelId,
+        )
+      : undefined;
+    return runtimeSettings.models
+      .filter((model) => {
+        const identity = modelIdentity(model.providerId, model.modelId);
+        return (
+          addedModels.has(identity) ||
+          customProviders.has(model.providerId) ||
+          identity === selectedModelIdentity
+        );
+      })
+      .sort(
+        (left, right) =>
+          left.name.localeCompare(right.name, locale) ||
+          left.providerId.localeCompare(right.providerId, locale),
+      );
+  }, [locale, runtimeSettings]);
+  const modelPickerThinkingLevels = activeModelSupportsReasoning
+    ? MODEL_PICKER_THINKING_LEVELS
+    : [];
+
+  const switchComposerModel = useCallback(
+    async (model: SettingsSnapshot["models"][number]) => {
+      if (!runtimeSettings || turnActive || busy) return;
+      setModelPickerOpen(false);
+      setBusy(true);
+      try {
+        const updated = await window.artemis.setModelSelection({
+          providerId: model.providerId,
+          modelId: model.modelId,
+          thinkingLevel: model.reasoning
+            ? runtimeSettings.selection?.thinkingLevel === "off"
+              ? "medium"
+              : (runtimeSettings.selection?.thinkingLevel ?? "medium")
+            : "off",
+        });
+        setRuntimeSettings(updated);
+      } catch (error) {
+        setToast(
+          `${t.modelSwitchFailed} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, runtimeSettings, t.modelSwitchFailed, turnActive],
+  );
+
+  const switchComposerThinking = useCallback(
+    async (thinkingLevel: ThinkingLevel) => {
+      if (!runtimeSettings?.selection || turnActive || busy) return;
+      setModelPickerOpen(false);
+      setBusy(true);
+      try {
+        const updated = await window.artemis.setModelSelection({
+          ...runtimeSettings.selection,
+          thinkingLevel,
+        });
+        setRuntimeSettings(updated);
+      } catch (error) {
+        setToast(
+          `${t.modelSwitchFailed} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, runtimeSettings, t.modelSwitchFailed, turnActive],
+  );
+  const runPresentation = useMemo(
+    () => deriveRunPresentation(activeEvents, clockMs),
+    [activeEvents, clockMs],
+  );
+  const taskPlan = useMemo(() => deriveTaskPlan(activeEvents), [activeEvents]);
+
+  const openHtmlFromFiles = useCallback(
+    (path: string) => {
+      openWorkspaceTab("browser", { path });
+    },
+    [openWorkspaceTab],
+  );
+
+  useEffect(() => {
+    if (!turnActive) return;
+    setClockMs(Date.now());
+    const timer = window.setInterval(() => setClockMs(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [turnActive]);
+
+  useEffect(() => {
+    document.body.classList.toggle("sidebar-collapsed", !sidebarOpen);
+    return () => document.body.classList.remove("sidebar-collapsed");
+  }, [sidebarOpen]);
+
+  useEffect(() => {
+    timelinePinned.current = true;
+    const frame = window.requestAnimationFrame(() => {
+      const container = timelineScroll.current;
+      if (container) container.scrollTop = container.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeThreadId]);
+
+  useEffect(() => {
+    if (!timelinePinned.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const container = timelineScroll.current;
+      if (container) container.scrollTop = container.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [threadState?.lastSeq]);
+
+  const reviewDiffCacheKey = useCallback(
+    (threadId: string, scope: ReviewScope) => {
+      const baseRef = scope === "branch" ? reviewBaseRef.trim() : "";
+      const version = reviewDiffVersion.current.get(threadId) ?? 0;
+      return `${threadId}\u0000${scope}\u0000${baseRef}\u0000${threadState?.lastSeq ?? 0}\u0000${version}`;
+    },
+    [reviewBaseRef, threadState?.lastSeq],
+  );
+
+  const loadCachedReviewDiff = useCallback(
+    (threadId: string, scope: ReviewScope, force = false) => {
+      const cacheKey = reviewDiffCacheKey(threadId, scope);
+      const cached = reviewDiffCache.current.get(cacheKey);
+      if (!force && cached) return Promise.resolve(cached);
+      const inFlight = reviewDiffInFlight.current.get(cacheKey);
+      if (inFlight) return inFlight;
+
+      const request = window.artemis
+        .getReviewDiff({
+          threadId,
+          scope,
+          ...(scope === "branch" && reviewBaseRef.trim()
+            ? { baseRef: reviewBaseRef.trim() }
+            : {}),
+        })
+        .then((diff) => {
+          reviewDiffCache.current.set(cacheKey, diff);
+          if (reviewDiffCache.current.size > 16) {
+            const oldestKey = reviewDiffCache.current.keys().next().value;
+            if (oldestKey) reviewDiffCache.current.delete(oldestKey);
+          }
+          return diff;
+        })
+        .finally(() => {
+          reviewDiffInFlight.current.delete(cacheKey);
+        });
+      reviewDiffInFlight.current.set(cacheKey, request);
+      return request;
+    },
+    [reviewBaseRef, reviewDiffCacheKey],
+  );
+
+  const invalidateReviewDiffCache = useCallback((threadId: string) => {
+    reviewDiffVersion.current.set(
+      threadId,
+      (reviewDiffVersion.current.get(threadId) ?? 0) + 1,
+    );
+    const prefix = `${threadId}\u0000`;
+    for (const key of reviewDiffCache.current.keys()) {
+      if (key.startsWith(prefix)) reviewDiffCache.current.delete(key);
+    }
+  }, []);
+
+  const prefetchReviewDiffs = useCallback(
+    async (force = false) => {
+      if (!activeThreadId) return;
+      const eagerScopes: ReviewScope[] = ["unstaged", "staged"];
+      await Promise.all(
+        eagerScopes.map((scope) =>
+          loadCachedReviewDiff(activeThreadId, scope, force).catch(
+            () => undefined,
+          ),
+        ),
+      );
+    },
+    [activeThreadId, loadCachedReviewDiff],
+  );
+
+  const refreshDiff = useCallback(
+    async (force = false) => {
+      const requestId = ++reviewRequestId.current;
+      if (!activeThreadId) {
+        setReviewDiff({
+          available: true,
+          scope: reviewScope,
+          text: "",
+          files: [],
+        });
+        setReviewComments([]);
+        return;
+      }
+
+      void window.artemis
+        .listReviewComments(activeThreadId)
+        .then((comments) => {
+          if (requestId !== reviewRequestId.current) return;
+          setReviewComments(comments);
+        })
+        .catch((error) => {
+          if (requestId !== reviewRequestId.current) return;
+          setToast(error instanceof Error ? error.message : String(error));
+        });
+
+      try {
+        const diff = await loadCachedReviewDiff(
+          activeThreadId,
+          reviewScope,
+          force,
+        );
+        if (requestId !== reviewRequestId.current) return;
+        startReviewTransition(() => {
+          setReviewDiff(diff);
+        });
+      } catch (error) {
+        if (requestId !== reviewRequestId.current) return;
+        setReviewDiff({
+          available: false,
+          scope: reviewScope,
+          text: "",
+          files: [],
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [activeThreadId, loadCachedReviewDiff, reviewScope],
+  );
+
+  const selectReviewScope = (scope: ReviewScope) => {
+    if (scope === reviewScope) return;
+    reviewRequestId.current += 1;
+    setReviewScope(scope);
+    const cached = activeThreadId
+      ? reviewDiffCache.current.get(reviewDiffCacheKey(activeThreadId, scope))
+      : undefined;
+    setReviewDiff(cached);
+    setSelectedReviewFileId(undefined);
+    setCommentLineId(undefined);
+    setCommentBody("");
+  };
+
+  useEffect(() => {
+    if (workspaceDockOpen && activeWorkspaceTab?.kind === "review") {
+      void prefetchReviewDiffs();
+      void refreshDiff();
+    }
+  }, [
+    activeWorkspaceTab?.kind,
+    prefetchReviewDiffs,
+    refreshDiff,
+    threadState?.changedFiles.length,
+    workspaceDockOpen,
+  ]);
+
+  const mutateReview = useCallback(
+    async (
+      action: ReviewAction,
+      target: { kind: "file" | "hunk"; id: string },
+    ) => {
+      if (!activeThreadId || reviewBusy) return;
+      if (
+        action === "revert" &&
+        !(await requestConfirmation(t.revertConfirm, "danger"))
+      )
+        return;
+      setReviewBusy(true);
+      try {
+        const result = await window.artemis.mutateReviewDiff({
+          threadId: activeThreadId,
+          scope: reviewScope,
+          action,
+          target:
+            target.kind === "file"
+              ? { kind: "file", id: target.id }
+              : { kind: "hunk", id: target.id },
+          ...(reviewScope === "branch" && reviewBaseRef.trim()
+            ? { baseRef: reviewBaseRef.trim() }
+            : {}),
+        });
+        if (result.recoveryPath) {
+          setToast(`${t.recoverySaved}: ${result.recoveryPath}`);
+        }
+        invalidateReviewDiffCache(activeThreadId);
+        await Promise.all([refreshDiff(true), prefetchReviewDiffs(true)]);
+      } catch (error) {
+        setToast(error instanceof Error ? error.message : String(error));
+      } finally {
+        setReviewBusy(false);
+      }
+    },
+    [
+      activeThreadId,
+      invalidateReviewDiffCache,
+      prefetchReviewDiffs,
+      refreshDiff,
+      requestConfirmation,
+      reviewBaseRef,
+      reviewBusy,
+      reviewScope,
+      t.recoverySaved,
+      t.revertConfirm,
+    ],
+  );
+
+  const saveReviewComment = useCallback(
+    async (lineId: string) => {
+      if (!activeThreadId || !commentBody.trim() || reviewBusy) return;
+      setReviewBusy(true);
+      try {
+        const comment = await window.artemis.addReviewComment({
+          threadId: activeThreadId,
+          scope: reviewScope,
+          lineId,
+          body: commentBody.trim(),
+          ...(reviewScope === "branch" && reviewBaseRef.trim()
+            ? { baseRef: reviewBaseRef.trim() }
+            : {}),
+        });
+        setReviewComments((current) => [...current, comment]);
+        setCommentLineId(undefined);
+        setCommentBody("");
+      } catch (error) {
+        setToast(error instanceof Error ? error.message : String(error));
+      } finally {
+        setReviewBusy(false);
+      }
+    },
+    [activeThreadId, commentBody, reviewBaseRef, reviewBusy, reviewScope],
+  );
+
+  const deleteReviewComment = useCallback(
+    async (comment: ReviewComment) => {
+      if (!activeThreadId || reviewBusy) return;
+      setReviewBusy(true);
+      try {
+        await window.artemis.deleteReviewComment(activeThreadId, comment.id);
+        setReviewComments((current) =>
+          current.filter((candidate) => candidate.id !== comment.id),
+        );
+      } catch (error) {
+        setToast(error instanceof Error ? error.message : String(error));
+      } finally {
+        setReviewBusy(false);
+      }
+    },
+    [activeThreadId, reviewBusy],
+  );
+
+  const openProject = useCallback(async () => {
+    const project = await window.artemis.openProject();
+    if (!project) return;
+    setSnapshot((current) => {
+      if (!current) return current;
+      const exists = current.projects.some((item) => item.id === project.id);
+      return {
+        ...current,
+        projects: exists ? current.projects : [project, ...current.projects],
+      };
+    });
+    beginNewConversation(project.id);
+  }, [beginNewConversation]);
+
+  const removeProject = useCallback(
+    async (project: Project) => {
+      if (!(await requestConfirmation(t.removeProjectConfirm))) return;
+      try {
+        await window.artemis.removeProject(project.id);
+        const refreshed = await window.artemis.getSnapshot();
+        setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        setProjectMenuId(undefined);
+        if (activeProjectId !== project.id) return;
+
+        const nextProject = refreshed.projects[0];
+        const nextThread = refreshed.threads.find(
+          (thread) => thread.projectId === nextProject?.id && !thread.archived,
+        );
+        setActiveProjectId(nextProject?.id);
+        setActiveThreadId(nextThread?.id);
+        setActiveView("workspace");
+        if (nextThread) {
+          setMode(nextThread.mode);
+        } else {
+          setMode("execute");
+        }
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [activeProjectId, requestConfirmation, t.removeProjectConfirm, t.taskError],
+  );
+
+  const beginRenameThread = useCallback((thread: Thread) => {
+    setThreadRename({ threadId: thread.id, title: thread.title });
+    setThreadMenuId(undefined);
+  }, []);
+
+  const renameThread = useCallback(
+    async (thread: Thread, draft: string) => {
+      const title = draft.trim();
+      setThreadRename(undefined);
+      if (!title || title === thread.title) return;
+      try {
+        const updated = await window.artemis.renameThread(thread.id, title);
+        setSnapshot((current) =>
+          current
+            ? {
+                ...current,
+                threads: current.threads.map((item) =>
+                  item.id === updated.id ? updated : item,
+                ),
+              }
+            : current,
+        );
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [t.taskError],
+  );
+
+  const deleteThread = useCallback(
+    async (thread: Thread) => {
+      if (!(await requestConfirmation(t.deleteTaskConfirm, "danger"))) return;
+      const siblingThreads = (snapshot?.threads ?? []).filter(
+        (item) => item.projectId === thread.projectId && !item.archived,
+      );
+      const deletedIndex = siblingThreads.findIndex(
+        (item) => item.id === thread.id,
+      );
+      try {
+        await window.artemis.deleteThread(thread.id);
+        const refreshed = await window.artemis.getSnapshot();
+        const remainingThreads = refreshed.threads
+          .filter((item) => item.id !== thread.id)
+          .filter(
+            (item) => item.projectId === thread.projectId && !item.archived,
+          );
+        const nextThread =
+          remainingThreads[Math.min(deletedIndex, remainingThreads.length - 1)];
+        loadedEventThreads.current.delete(thread.id);
+        loadingEventThreads.current.delete(thread.id);
+        threadStateCache.current.delete(thread.id);
+        setComposerDrafts((current) =>
+          clearComposerDraft(
+            current,
+            conversationDraftKey(thread.projectId, thread.id),
+          ),
+        );
+        setPromptSubmittedAtByThread((current) => {
+          if (!(thread.id in current)) return current;
+          const next = { ...current };
+          delete next[thread.id];
+          return next;
+        });
+        setWorkspaceTabsByThread((current) => {
+          const next = { ...current };
+          delete next[thread.id];
+          return next;
+        });
+        setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        if (activeThreadId === thread.id) {
+          setActiveThreadId(nextThread?.id);
+          setMode(nextThread?.mode ?? "execute");
+          setWorkspaceDockOpen(false);
+          window.requestAnimationFrame(() => promptInput.current?.focus());
+        }
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setThreadMenuId(undefined);
+      }
+    },
+    [
+      activeThreadId,
+      requestConfirmation,
+      snapshot?.threads,
+      t.deleteTaskConfirm,
+      t.taskError,
+    ],
+  );
+
+  const setThreadArchived = useCallback(
+    async (thread: Thread, archived: boolean) => {
+      if (archived && !(await requestConfirmation(t.archiveConfirm))) return;
+      try {
+        const updated = await window.artemis.archiveThread(thread.id, archived);
+        const refreshed = await window.artemis.getSnapshot();
+        setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        if (archived) {
+          if (activeThreadId === thread.id) {
+            const nextThread = refreshed.threads.find(
+              (candidate) =>
+                candidate.projectId === thread.projectId &&
+                !candidate.archived &&
+                candidate.id !== thread.id,
+            );
+            setActiveThreadId(nextThread?.id);
+            if (nextThread) {
+              setMode(nextThread.mode);
+            }
+          }
+          setActiveView("workspace");
+        } else {
+          setActiveView("workspace");
+          setActiveProjectId(updated.projectId);
+          setActiveThreadId(updated.id);
+          setMode(updated.mode);
+          window.requestAnimationFrame(() => promptInput.current?.focus());
+        }
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setThreadMenuId(undefined);
+      }
+    },
+    [activeThreadId, requestConfirmation, t.archiveConfirm, t.taskError],
+  );
+
+  const forkThread = useCallback(
+    async (thread: Thread) => {
+      try {
+        const forked = await window.artemis.forkThread(thread.id);
+        setSnapshot((current) =>
+          current
+            ? {
+                ...current,
+                threads: [forked.thread, ...current.threads],
+                worktrees: forked.worktree
+                  ? [forked.worktree, ...current.worktrees]
+                  : current.worktrees,
+                events: {
+                  ...current.events,
+                  [forked.thread.id]: forked.events,
+                },
+              }
+            : current,
+        );
+        setActiveView("workspace");
+        setActiveProjectId(forked.thread.projectId);
+        setActiveThreadId(forked.thread.id);
+        setMode(forked.thread.mode);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setThreadMenuId(undefined);
+      }
+    },
+    [t.taskError],
+  );
+
+  const resolveApprovalRequest = useCallback(
+    async (
+      approval: ApprovalState,
+      approved: boolean,
+      scope: "once" | "session" | "project",
+    ) => {
+      try {
+        await window.artemis.resolveApproval({
+          approvalId: approval.approvalId,
+          nonce: approval.nonce,
+          approved,
+          scope,
+        });
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [t.taskError],
+  );
+
+  const resolveUserInputRequest = useCallback(
+    async (resolution: UserInputResolution) => {
+      try {
+        await window.artemis.resolveUserInput(resolution);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+        throw error;
+      }
+    },
+    [t.taskError],
+  );
+
+  const cancelActiveTurn = useCallback(async (): Promise<boolean> => {
+    if (!activeThreadId) return false;
+    try {
+      await window.artemis.cancelTurn(activeThreadId);
+      return true;
+    } catch (error) {
+      setToast(
+        `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
+  }, [activeThreadId, t.taskError]);
+
+  const addPromptAttachments = useCallback(
+    (selected: PromptAttachment[]) => {
+      const next = [...attachments];
+      let imageCount = next.filter(isPromptImage).length;
+      let limited = false;
+      for (const attachment of selected) {
+        if (
+          next.length >= MAX_PROMPT_ATTACHMENTS ||
+          (isPromptImage(attachment) && imageCount >= MAX_PROMPT_IMAGES)
+        ) {
+          limited = true;
+          continue;
+        }
+        next.push(attachment);
+        if (isPromptImage(attachment)) {
+          imageCount += 1;
+        }
+      }
+      setAttachments(next);
+      if (limited) {
+        setToast(t.attachmentLimit);
+      }
+    },
+    [attachments, setAttachments, t.attachmentLimit],
+  );
+
+  const selectPromptAttachments = useCallback(async () => {
+    if (attachments.length >= MAX_PROMPT_ATTACHMENTS) {
+      setToast(t.attachmentLimit);
+      return;
+    }
+    try {
+      const selected = await window.artemis.selectPromptAttachments();
+      if (selected?.length) {
+        addPromptAttachments(selected);
+      }
+    } catch (error) {
+      setToast(
+        `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }, [
+    addPromptAttachments,
+    attachments.length,
+    t.attachmentLimit,
+    t.taskError,
+  ]);
+
+  const handleAttachmentDragEnter = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setAttachmentDragActive(true);
+    },
+    [],
+  );
+
+  const handleAttachmentDragOver = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+      setAttachmentDragActive(true);
+    },
+    [],
+  );
+
+  const handleAttachmentDragLeave = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      const relatedTarget = event.relatedTarget;
+      if (
+        relatedTarget instanceof Node &&
+        event.currentTarget.contains(relatedTarget)
+      ) {
+        return;
+      }
+      setAttachmentDragActive(false);
+    },
+    [],
+  );
+
+  const handleAttachmentDrop = useCallback(
+    async (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setAttachmentDragActive(false);
+      const files = Array.from(event.dataTransfer.files);
+      if (files.length === 0) return;
+      try {
+        addPromptAttachments(await window.artemis.readPromptAttachments(files));
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [addPromptAttachments, t.taskError],
+  );
+
+  const handleAttachmentPaste = useCallback(
+    async (event: ReactClipboardEvent<HTMLTextAreaElement>) => {
+      const files = Array.from(event.clipboardData.files);
+      if (files.length === 0) return;
+      event.preventDefault();
+      try {
+        addPromptAttachments(await window.artemis.readPromptAttachments(files));
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [addPromptAttachments, t.taskError],
+  );
+
+  const changeApprovalPolicy = useCallback(
+    async (policy: ApprovalPolicy) => {
+      if (approvalChangeLocked) return;
+      setApprovalMenuOpen(false);
+      try {
+        const settings = await window.artemis.setApprovalPolicy(policy);
+        setApprovalPolicy(settings.approvalPolicy);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [approvalChangeLocked, t.taskError],
+  );
+
+  const updateThreadInSnapshot = useCallback((updated: Thread) => {
+    setSnapshot((current) =>
+      current
+        ? {
+            ...current,
+            threads: current.threads.map((thread) =>
+              thread.id === updated.id ? updated : thread,
+            ),
+          }
+        : current,
+    );
+  }, []);
+
+  const selectComposerCommand = useCallback(
+    (value: string) => {
+      setPrompt((current) => {
+        const next = replaceActiveSlashCommand(current, value);
+        promptHistoryNavigation.current = { index: -1, draft: next };
+        return next;
+      });
+      setSkillMenuDismissed(true);
+      window.requestAnimationFrame(() => promptInput.current?.focus());
+    },
+    [setPrompt],
+  );
+
+  const selectSkillCommand = useCallback(
+    (skill: InstalledSkill) => {
+      setSelectedComposerSkillNames((current) =>
+        current.includes(skill.name) ? current : [...current, skill.name],
+      );
+      setPrompt((current) => {
+        const next = replaceActiveSlashCommand(current, "").trimEnd();
+        promptHistoryNavigation.current = { index: -1, draft: next };
+        return next;
+      });
+      setSkillMenuDismissed(true);
+      window.requestAnimationFrame(() => promptInput.current?.focus());
+    },
+    [setPrompt, setSelectedComposerSkillNames],
+  );
+
+  const removeSelectedSkill = useCallback(
+    (skillName: string) => {
+      setSelectedComposerSkillNames((current) =>
+        current.filter((name) => name !== skillName),
+      );
+      window.requestAnimationFrame(() => promptInput.current?.focus());
+    },
+    [setSelectedComposerSkillNames],
+  );
+
+  const clearSubmittedPrompt = useCallback(
+    (submittedPrompt: string) => {
+      setPromptHistory((current) =>
+        addPromptHistoryEntry(current, submittedPrompt),
+      );
+      promptHistoryNavigation.current = { index: -1, draft: "" };
+      setPrompt("");
+      setSelectedComposerSkillNames([]);
+    },
+    [setPrompt, setSelectedComposerSkillNames],
+  );
+
+  const recordPromptSubmission = useCallback(
+    (threadId: string, submittedAt: number) => {
+      setPromptSubmittedAtByThread((current) => ({
+        ...current,
+        [threadId]: submittedAt,
+      }));
+    },
+    [],
+  );
+
+  const sendPrompt = useCallback(async () => {
+    const rawPrompt = prompt.trim();
+    const compactMatch = rawPrompt.match(/^\/compact(?:\s+([\s\S]*))?$/iu);
+    const compactInstructions = compactMatch?.[1]?.trim() || undefined;
+    if (compactMatch && !activeThread) {
+      setToast(t.compactRequiresTask);
+      clearSubmittedPrompt(rawPrompt);
+      return;
+    }
+    if (compactMatch && turnActive) {
+      setToast(t.compactWhileRunning);
+      return;
+    }
+    const goalMatch = rawPrompt.match(/^\/goal(?:\s+([\s\S]*))?$/iu);
+    const goalArgument = goalMatch?.[1]?.trim();
+    if (goalMatch && !goalArgument) {
+      setToast(
+        activeThread?.goal ? `${t.goal}: ${activeThread.goal}` : t.noGoal,
+      );
+      clearSubmittedPrompt(rawPrompt);
+      return;
+    }
+
+    const clearingGoal = goalArgument?.toLocaleLowerCase() === "clear";
+    if (goalMatch && clearingGoal && !activeThread) {
+      setToast(t.noGoal);
+      clearSubmittedPrompt(rawPrompt);
+      return;
+    }
+
+    const visibleText =
+      goalMatch && goalArgument && !clearingGoal
+        ? goalArgument
+        : rawPrompt || (attachments.length ? t.inspectAttachments : "");
+    const text = goalMatch
+      ? visibleText
+      : promptWithSelectedSkills(visibleText, selectedSkills);
+    if (!text || busy) return;
+    const pendingAttachments = attachments;
+    const submittedAt = Date.now();
+    let createdThread: Thread | undefined;
+    setBusy(true);
+    try {
+      if (compactMatch && activeThread) {
+        clearSubmittedPrompt(rawPrompt);
+        await window.artemis.compactThread(
+          activeThread.id,
+          compactInstructions,
+        );
+        return;
+      }
+      if (goalMatch && clearingGoal && activeThread) {
+        const updated = await window.artemis.setThreadGoal(
+          activeThread.id,
+          null,
+        );
+        updateThreadInSnapshot(updated);
+        clearSubmittedPrompt(rawPrompt);
+        setToast(t.goalCleared);
+        return;
+      }
+
+      const thread = activeThread ?? (await createThread());
+      if (!thread) return;
+      if (!activeThread) createdThread = thread;
+      let currentThread = thread;
+      if (goalMatch && goalArgument) {
+        currentThread = await window.artemis.setThreadGoal(
+          thread.id,
+          goalArgument,
+        );
+        updateThreadInSnapshot(currentThread);
+        setToast(t.goalSet);
+      }
+
+      if (activeThread && turnActive) {
+        await window.artemis.followUpTurn({
+          threadId: currentThread.id,
+          text,
+          ...(pendingAttachments.length
+            ? { attachments: pendingAttachments }
+            : {}),
+        });
+        recordPromptSubmission(currentThread.id, submittedAt);
+        clearSubmittedPrompt(rawPrompt);
+        setAttachments([]);
+        return;
+      }
+      const result = await window.artemis.startTurn({
+        threadId: currentThread.id,
+        text,
+        mode,
+        ...(pendingAttachments.length
+          ? { attachments: pendingAttachments }
+          : {}),
+      });
+      recordPromptSubmission(currentThread.id, submittedAt);
+      updateThreadInSnapshot(result.thread);
+      clearSubmittedPrompt(rawPrompt);
+      setAttachments([]);
+    } catch (error) {
+      if (createdThread) {
+        const createdDraftKey = conversationDraftKey(
+          createdThread.projectId,
+          createdThread.id,
+        );
+        setComposerDrafts((current) =>
+          updateComposerDraft(
+            clearComposerDraft(current, activeComposerDraftKey),
+            createdDraftKey,
+            () => activeComposerDraft,
+          ),
+        );
+      }
+      setToast(
+        `${compactMatch ? t.compactFailed : t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    activeThread,
+    activeComposerDraft,
+    activeComposerDraftKey,
+    attachments,
+    busy,
+    clearSubmittedPrompt,
+    createThread,
+    mode,
+    prompt,
+    recordPromptSubmission,
+    selectedSkills,
+    t.compactFailed,
+    t.compactRequiresTask,
+    t.compactWhileRunning,
+    t.goal,
+    t.goalCleared,
+    t.goalSet,
+    t.inspectAttachments,
+    t.noGoal,
+    t.taskError,
+    turnActive,
+    updateThreadInSnapshot,
+  ]);
+
+  const deleteQueuedMessage = useCallback(async () => {
+    if (!activeThread || busy) return;
+    setBusy(true);
+    try {
+      await window.artemis.clearTurnQueue(activeThread.id);
+    } catch (error) {
+      setToast(
+        `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [activeThread, busy, t.taskError]);
+
+  const editQueuedMessage = useCallback(async () => {
+    if (!activeThread || busy) return;
+    setBusy(true);
+    try {
+      const queue = await window.artemis.clearTurnQueue(activeThread.id);
+      setPrompt((current) => {
+        const restored = [...queue.steering, ...queue.followUp].join("\n\n");
+        if (!restored) return current;
+        return current.trim() ? `${restored}\n\n${current}` : restored;
+      });
+      setSkillMenuDismissed(true);
+      window.requestAnimationFrame(() => promptInput.current?.focus());
+    } catch (error) {
+      setToast(
+        `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [activeThread, busy, setPrompt, t.taskError]);
+
+  const steerQueuedMessage = useCallback(async () => {
+    if (!activeThread || busy) return;
+    setBusy(true);
+    try {
+      await window.artemis.steerTurnQueue(activeThread.id);
+    } catch (error) {
+      setToast(
+        `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [activeThread, busy, t.taskError]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const modifier = event.ctrlKey || event.metaKey;
+      if (event.key === "Escape") {
+        setApprovalMenuOpen(false);
+        setModelPickerOpen(false);
+      } else if (modifier && (event.key === "k" || event.key === "K")) {
+        event.preventDefault();
+        setCommandMenuOpen((open) => !open);
+      } else if (modifier && event.altKey && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        toggleReviewPanel();
+      } else if (modifier && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        setSidebarOpen((open) => !open);
+      } else if (modifier && event.key.toLowerCase() === "j") {
+        event.preventDefault();
+        toggleTerminalPanel();
+      } else if (modifier && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        beginNewConversation();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [beginNewConversation, toggleReviewPanel, toggleTerminalPanel]);
+
+  if (!snapshot) {
+    return (
+      <main className="loading-shell">
+        <ArtemisMark />
+        <span>Artemis</span>
+      </main>
+    );
+  }
+
+  return (
+    <main
+      className="app-shell"
+      data-platform={snapshot.platform}
+      data-renderer-ready="true"
+    >
+      <aside className="activity-bar">
+        <ArtemisMark />
+        <button
+          className={
+            activeView === "workspace"
+              ? "activity-button active"
+              : "activity-button"
+          }
+          aria-label={t.projects}
+          aria-expanded={sidebarOpen}
+          onClick={() => {
+            if (activeView === "workspace") {
+              setSidebarOpen((open) => !open);
+            } else {
+              setActiveView("workspace");
+              setSidebarOpen(true);
+            }
+          }}
+          title={t.projects}
+        >
+          <FolderIcon />
+        </button>
+        <button
+          aria-label={t.resourceCenter}
+          className={
+            activeView === "resources"
+              ? "activity-button active"
+              : "activity-button"
+          }
+          onClick={() => setActiveView("resources")}
+          title={t.resourceCenter}
+        >
+          <ResourceIcon />
+        </button>
+        <button
+          className={
+            activeView === "token-usage"
+              ? "activity-button active"
+              : "activity-button"
+          }
+          onClick={() => setActiveView("token-usage")}
+          aria-label={t.tokenUsage}
+          title={t.tokenUsage}
+        >
+          <TokenUsageIcon />
+        </button>
+        <button
+          aria-label={t.automations}
+          className={
+            activeView === "automations"
+              ? "activity-button active"
+              : "activity-button"
+          }
+          onClick={() => setActiveView("automations")}
+          title={t.automations}
+        >
+          <AutomationIcon />
+        </button>
+        <button
+          aria-label={t.archiveLibrary}
+          className={
+            activeView === "archive"
+              ? "activity-button active"
+              : "activity-button"
+          }
+          onClick={() => setActiveView("archive")}
+          title={t.archiveLibrary}
+        >
+          <ArchiveIcon />
+        </button>
+        <div className="activity-spacer" />
+        <button
+          aria-label={t.settings}
+          className="activity-button"
+          onClick={() => openSettings()}
+          title={t.settings}
+        >
+          <SettingsIcon />
+        </button>
+        <button
+          className="activity-button"
+          aria-label={t.commandMenu}
+          title={`${t.commandMenu} (Ctrl+K)`}
+          onClick={() => setCommandMenuOpen(true)}
+        >
+          <Icon>
+            <path
+              d="M5 7h14M5 12h14M5 17h14"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="1.6"
+            />
+          </Icon>
+        </button>
+      </aside>
+
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <span>{t.projects}</span>
+          <div className="sidebar-header-actions">
+            <label
+              className={query ? "sidebar-search has-query" : "sidebar-search"}
+            >
+              <SearchIcon />
+              <input
+                aria-label={t.search}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t.search}
+                value={query}
+              />
+            </label>
+            <button
+              className="icon-button"
+              onClick={() => void openProject()}
+              title={t.openProject}
+            >
+              <PlusIcon />
+            </button>
+          </div>
+        </div>
+        <div className="project-tree">
+          {projects.map((project) => {
+            const hasActiveTask = snapshot.threads.some(
+              (thread) =>
+                thread.projectId === project.id &&
+                (thread.status === "running" ||
+                  thread.status === "waiting-approval"),
+            );
+            const matchesProject = project.name
+              .toLowerCase()
+              .includes(query.trim().toLowerCase());
+            const projectThreads = sortProjectThreads(
+              snapshot.threads
+                .filter(
+                  (thread) =>
+                    thread.projectId === project.id && !thread.archived,
+                )
+                .filter((thread) => !isWorkspaceDraftThread(thread))
+                .filter(
+                  (thread) =>
+                    matchesProject ||
+                    thread.title
+                      .toLowerCase()
+                      .includes(query.trim().toLowerCase()),
+                ),
+              snapshot.events,
+              promptSubmittedAtByThread,
+            );
+            const expanded = expandedProjectIds.has(project.id);
+            const projectOpen = !collapsedProjectIds.has(project.id);
+            const visibleThreads = expanded
+              ? projectThreads
+              : projectThreads.slice(0, PROJECT_THREAD_PREVIEW_LIMIT);
+            return (
+              <section className="project-group" key={project.id}>
+                <div
+                  className={`project-row ${project.id === activeProjectId ? "active" : ""}`}
+                >
+                  <button
+                    aria-controls={`project-thread-list-${project.id}`}
+                    aria-expanded={projectOpen}
+                    aria-label={
+                      projectOpen
+                        ? t.collapseProjectHistory
+                        : t.expandProjectHistory
+                    }
+                    className="project-toggle"
+                    onClick={() => toggleProjectHistory(project.id)}
+                    title={
+                      projectOpen
+                        ? t.collapseProjectHistory
+                        : t.expandProjectHistory
+                    }
+                    type="button"
+                  >
+                    <FolderIcon open={projectOpen} />
+                  </button>
+                  <button
+                    aria-controls={`project-thread-list-${project.id}`}
+                    aria-expanded={projectOpen}
+                    className="project-select"
+                    onClick={() => toggleProjectHistory(project.id)}
+                    title={project.path}
+                  >
+                    <span className="project-title">{project.name}</span>
+                  </button>
+                  <button
+                    aria-label={`${t.newTask}: ${project.name}`}
+                    className="project-new-thread"
+                    onClick={() => beginNewConversation(project.id)}
+                    title={t.newTask}
+                  >
+                    <PlusIcon />
+                  </button>
+                  <button
+                    aria-label={t.moreProjectActions}
+                    className="project-action"
+                    onClick={() =>
+                      setProjectMenuId((current) =>
+                        current === project.id ? undefined : project.id,
+                      )
+                    }
+                    title={t.moreProjectActions}
+                  >
+                    ···
+                  </button>
+                  {projectMenuId === project.id && (
+                    <div className="project-menu">
+                      <button
+                        className="danger"
+                        disabled={hasActiveTask}
+                        onClick={() => void removeProject(project)}
+                        title={
+                          hasActiveTask
+                            ? t.stopTasksBeforeRemove
+                            : t.removeProject
+                        }
+                      >
+                        {t.removeProject}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {projectOpen && (
+                  <div
+                    className="project-thread-list"
+                    id={`project-thread-list-${project.id}`}
+                  >
+                    {visibleThreads.map((thread) => (
+                      <div
+                        className={`project-thread-row ${thread.id === activeThreadId ? "selected" : ""}`}
+                        key={thread.id}
+                      >
+                        {threadRename?.threadId === thread.id ? (
+                          <form
+                            className="thread-rename-form"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void renameThread(thread, threadRename.title);
+                            }}
+                          >
+                            <input
+                              aria-label={t.taskNamePrompt}
+                              autoFocus
+                              className="thread-rename-input"
+                              onBlur={(event) =>
+                                void renameThread(
+                                  thread,
+                                  event.currentTarget.value,
+                                )
+                              }
+                              onChange={(event) =>
+                                setThreadRename((current) =>
+                                  current?.threadId === thread.id
+                                    ? { ...current, title: event.target.value }
+                                    : current,
+                                )
+                              }
+                              onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  setThreadRename(undefined);
+                                }
+                              }}
+                              value={threadRename.title}
+                            />
+                          </form>
+                        ) : (
+                          <>
+                            <button
+                              className="thread-select"
+                              onClick={() => {
+                                discardNewConversationDraft();
+                                setActiveView("workspace");
+                                setActiveProjectId(project.id);
+                                setActiveThreadId(thread.id);
+                                setMode(thread.mode);
+                                setThreadMenuId(undefined);
+                              }}
+                            >
+                              {thread.status !== "idle" && (
+                                <span
+                                  className={`status-dot ${thread.status}`}
+                                />
+                              )}
+                              <span className="thread-title">
+                                {visibleThreadTitle(thread.title)}
+                              </span>
+                            </button>
+                            <button
+                              aria-label={t.moreActions}
+                              className="thread-action"
+                              onClick={() =>
+                                setThreadMenuId((current) =>
+                                  current === thread.id ? undefined : thread.id,
+                                )
+                              }
+                              title={t.moreActions}
+                            >
+                              ···
+                            </button>
+                            {threadMenuId === thread.id && (
+                              <div className="thread-menu">
+                                <button
+                                  onClick={() => beginRenameThread(thread)}
+                                >
+                                  {t.renameTask}
+                                </button>
+                                <button
+                                  disabled={
+                                    thread.status === "running" ||
+                                    thread.status === "waiting-approval"
+                                  }
+                                  onClick={() => void forkThread(thread)}
+                                >
+                                  {t.forkTask}
+                                </button>
+                                <button
+                                  disabled={
+                                    thread.status === "running" ||
+                                    thread.status === "waiting-approval"
+                                  }
+                                  onClick={() =>
+                                    void setThreadArchived(thread, true)
+                                  }
+                                >
+                                  {t.archiveTask}
+                                </button>
+                                <button
+                                  className="danger"
+                                  disabled={
+                                    thread.status === "running" ||
+                                    thread.status === "waiting-approval"
+                                  }
+                                  onClick={() => void deleteThread(thread)}
+                                >
+                                  {t.deleteTask}
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ))}
+                    {projectThreads.length > PROJECT_THREAD_PREVIEW_LIMIT && (
+                      <button
+                        className="project-expand-toggle"
+                        onClick={() =>
+                          setExpandedProjectIds((current) => {
+                            const next = new Set(current);
+                            if (next.has(project.id)) next.delete(project.id);
+                            else next.add(project.id);
+                            return next;
+                          })
+                        }
+                        type="button"
+                      >
+                        {expanded ? t.showFewerTasks : t.showMoreTasks}
+                      </button>
+                    )}
+                    {query.trim() && projectThreads.length === 0 && (
+                      <span className="project-no-matches">{t.noTasks}</span>
+                    )}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+          {projects.length === 0 && (
+            <span className="empty-list">{t.noProject}</span>
+          )}
+        </div>
+        <div className="sidebar-footer">
+          <span className="local-indicator" title={username}>
+            <span className="status-dot idle" />
+            <span className="local-user-name">{username}</span>
+          </span>
+          {runtimeSettings?.update.currentVersion && (
+            <button
+              aria-label={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+              className="app-version"
+              onClick={() => openSettings("maintenance")}
+              title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+              type="button"
+            >
+              v{runtimeSettings.update.currentVersion}
+            </button>
+          )}
+        </div>
+      </aside>
+
+      <section className="workspace">
+        {activeView === "token-usage" ? (
+          <Suspense fallback={<div className="view-loading">…</div>}>
+            <TokenUsagePage locale={locale} username={username} />
+          </Suspense>
+        ) : activeView === "automations" ? (
+          <Suspense fallback={<div className="view-loading">…</div>}>
+            <AutomationPage
+              locale={locale}
+              onConfirm={requestConfirmation}
+              onOpenThread={(threadId) => void openAutomationThread(threadId)}
+              projects={projects}
+            />
+          </Suspense>
+        ) : activeView === "archive" ? (
+          <ArchivePage
+            locale={locale}
+            onOpen={(thread) => {
+              discardNewConversationDraft();
+              setActiveProjectId(thread.projectId);
+              setActiveThreadId(thread.id);
+              setMode(thread.mode);
+              setActiveView("workspace");
+            }}
+            onDelete={(thread) => void deleteThread(thread)}
+            onRestore={(thread) => void setThreadArchived(thread, false)}
+            projects={projects}
+            threads={snapshot.threads}
+          />
+        ) : activeView === "resources" ? (
+          <Suspense fallback={<div className="view-loading">…</div>}>
+            <ResourceCenter
+              locale={locale}
+              onConfirm={requestConfirmation}
+              onSettingsChange={(value) => {
+                setRuntimeSettings(value);
+                setApprovalPolicy(value.approvalPolicy);
+                setSnapshot((current) =>
+                  current
+                    ? {
+                        ...current,
+                        locale: value.resolvedLocale,
+                      }
+                    : current,
+                );
+              }}
+              {...(runtimeSettings ? { settings: runtimeSettings } : {})}
+            />
+          </Suspense>
+        ) : (
+          <>
+            <header className="workspace-header">
+              <div className="workspace-header-leading">
+                <button
+                  aria-expanded={sidebarOpen}
+                  aria-label={t.leftSidebar}
+                  className="left-sidebar-toggle"
+                  onClick={() => setSidebarOpen((open) => !open)}
+                  title={t.leftSidebar}
+                >
+                  <LeftSidebarIcon />
+                </button>
+                <div className="workspace-heading">
+                  <strong>{activeProject?.name ?? t.appName}</strong>
+                  {activeThread && (
+                    <>
+                      <span className="header-separator">/</span>
+                      <span className="workspace-thread-title">
+                        {activeThread.title}
+                      </span>
+                      {activeThread.goal && (
+                        <span className="goal-pill" title={activeThread.goal}>
+                          <span aria-hidden="true">◎</span>
+                          {t.goal}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="header-actions">
+                <span className="status-pill">
+                  <span
+                    className={`status-dot ${runPresentation.status === "completed" ? "idle" : runPresentation.status}`}
+                  />
+                  {runPresentation.status === "completed"
+                    ? t.completed
+                    : statusLabel(threadState, locale)}
+                  {runPresentation.status !== "idle" && (
+                    <time
+                      dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
+                    >
+                      {formatRunDuration(runPresentation.elapsedMs)}
+                    </time>
+                  )}
+                </span>
+                {!activeThread?.archived && (
+                  <button
+                    aria-expanded={workspaceDockOpen}
+                    aria-label={t.rightSidebar}
+                    className="right-sidebar-toggle"
+                    onClick={toggleRightSidebar}
+                    title={t.rightSidebar}
+                  >
+                    <RightSidebarIcon />
+                  </button>
+                )}
+              </div>
+            </header>
+
+            <div className="workspace-content">
+              <section className="conversation">
+                <div
+                  className="timeline-scroll"
+                  onScroll={(event) => {
+                    const container = event.currentTarget;
+                    timelinePinned.current =
+                      container.scrollHeight -
+                        container.scrollTop -
+                        container.clientHeight <
+                      80;
+                  }}
+                  ref={timelineScroll}
+                >
+                  {!activeProject ? (
+                    <EmptyState
+                      body={t.emptyBody}
+                      button={t.openProject}
+                      onOpen={openProject}
+                      title={t.emptyTitle}
+                    />
+                  ) : !activeThread ||
+                    (!activeThread.archived &&
+                      loadedEventThreads.current.has(activeThread.id) &&
+                      activeEvents.length === 0 &&
+                      !busy) ? (
+                    <div className="conversation-empty-state">
+                      <ArtemisMark />
+                      <h1
+                        aria-label={`What should we build in ${activeProject.name}?`}
+                      >
+                        What should we build in{" "}
+                        <span className="conversation-project-name">
+                          {activeProject.name}
+                        </span>
+                        ?
+                      </h1>
+                    </div>
+                  ) : (
+                    <Timeline
+                      installedPlugins={installedPlugins}
+                      installedSkills={installedSkills}
+                      locale={locale}
+                      onFileLink={openConversationFileLink}
+                      onFileLinkContextMenu={openConversationFileLinkMenu}
+                      onOpenChildAgent={openChildAgentPanel}
+                      onResolve={(approval, approved, scope) =>
+                        void resolveApprovalRequest(approval, approved, scope)
+                      }
+                      onResolveUserInput={resolveUserInputRequest}
+                      state={threadState!}
+                    />
+                  )}
+                  {activeThread &&
+                    runPresentation.status !== "idle" &&
+                    !latestTimelineEntryIsCompaction && (
+                      <div
+                        aria-live="polite"
+                        className={`turn-status ${runPresentation.status}`}
+                        role="status"
+                      >
+                        <span
+                          className={`status-dot ${runPresentation.status === "completed" ? "idle" : runPresentation.status}`}
+                        />
+                        <span>
+                          {runPresentation.status === "running"
+                            ? t.running
+                            : runPresentation.status === "waiting-approval"
+                              ? t.waiting
+                              : runPresentation.status === "waiting-user-input"
+                                ? t.waitingInput
+                                : runPresentation.status === "failed"
+                                  ? t.failed
+                                  : t.completed}
+                        </span>
+                        <time
+                          dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
+                          title={t.elapsed}
+                        >
+                          {formatRunDuration(runPresentation.elapsedMs)}
+                        </time>
+                      </div>
+                    )}
+                </div>
+
+                {activeProject && activeThread?.archived && (
+                  <div className="archived-readonly" role="status">
+                    <ArchiveIcon />
+                    <span>
+                      <strong>{t.archivedReadOnly}</strong>
+                      <small>{t.archivedReadOnlyDetail}</small>
+                    </span>
+                    <button
+                      onClick={() =>
+                        void setThreadArchived(activeThread, false)
+                      }
+                    >
+                      {t.restoreTask}
+                    </button>
+                  </div>
+                )}
+
+                {activeProject && !activeThread?.archived && (
+                  <div className="composer-wrap">
+                    {taskPlan && (
+                      <TaskPlanProgress locale={locale} plan={taskPlan} />
+                    )}
+                    {activePendingUserInput ? (
+                      <div className="pending-user-input-composer">
+                        <UserInputCard
+                          active
+                          input={activePendingUserInput}
+                          locale={locale}
+                          onCancel={cancelActiveTurn}
+                          onResolve={resolveUserInputRequest}
+                          placement="composer"
+                        />
+                        <div
+                          aria-label={t.modelPicker}
+                          className="pending-user-input-model"
+                          role="status"
+                        >
+                          <ModelIcon />
+                          <span>
+                            <strong>{activeModelLabel}</strong>
+                            {activeThinkingLevel && (
+                              <small>{activeThinkingLevel}</small>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <ComposerContextBar
+                          activeProject={activeProject}
+                          branchActionsDisabled={projectBranchActionsDisabled}
+                          locale={locale}
+                          mode={mode}
+                          onClearProject={() => {
+                            discardNewConversationDraft();
+                            setActiveProjectId(undefined);
+                            setActiveThreadId(undefined);
+                            setMode("execute");
+                            setWorkspaceDockOpen(false);
+                          }}
+                          onError={(message) =>
+                            setToast({ error: true, message })
+                          }
+                          onModeChange={setMode}
+                          onOpenProject={openProject}
+                          onSelectProject={(project) => {
+                            discardNewConversationDraft();
+                            beginNewConversation(project.id);
+                          }}
+                          projects={projects}
+                        />
+                        {!snapshot.sandbox.available && (
+                          <div className="sandbox-notice">
+                            <Icon size={16}>
+                              <path
+                                d="M12 3.5 20 7v5.8c0 4.1-3.1 6.8-8 8.2-4.9-1.4-8-4.1-8-8.2V7l8-3.5Z"
+                                stroke="currentColor"
+                                strokeLinejoin="round"
+                                strokeWidth="1.5"
+                              />
+                              <path
+                                d="M12 8v5m0 3v.1"
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeWidth="1.5"
+                              />
+                            </Icon>
+                            <span>
+                              <strong>{t.sandboxUnavailable}</strong>
+                              <small>{t.sandboxDetail}</small>
+                            </span>
+                          </div>
+                        )}
+                        {queuedMessage && (
+                          <div
+                            aria-label={t.queuedMessage}
+                            className="queued-message-bar"
+                            role="status"
+                          >
+                            <span
+                              className="queued-message-content"
+                              title={queuedMessage}
+                            >
+                              <SteerIcon />
+                              <span>{queuedMessage}</span>
+                            </span>
+                            <div className="queued-message-actions">
+                              {canSteerQueuedMessage && (
+                                <button
+                                  aria-label={t.queueSteerHint}
+                                  className="queued-message-steer"
+                                  disabled={busy}
+                                  onClick={() => void steerQueuedMessage()}
+                                  title={t.queueSteerHint}
+                                  type="button"
+                                >
+                                  <SteerIcon />
+                                  <span>{t.queueSteer}</span>
+                                </button>
+                              )}
+                              <button
+                                aria-label={t.queueDelete}
+                                className="queued-message-delete"
+                                disabled={busy}
+                                onClick={() => void deleteQueuedMessage()}
+                                title={t.queueDelete}
+                                type="button"
+                              >
+                                <TrashIcon />
+                              </button>
+                              <button
+                                aria-label={t.queueEdit}
+                                className="queued-message-edit"
+                                disabled={busy}
+                                onClick={() => void editQueuedMessage()}
+                                title={t.queueEdit}
+                                type="button"
+                              >
+                                <EllipsisIcon />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        <div
+                          className="composer"
+                          onDragEnter={handleAttachmentDragEnter}
+                          onDragLeave={handleAttachmentDragLeave}
+                          onDragOver={handleAttachmentDragOver}
+                          onDrop={handleAttachmentDrop}
+                        >
+                          {attachmentDragActive && (
+                            <div className="composer-drop-overlay">
+                              <PlusIcon />
+                              <strong>{t.dropAttachments}</strong>
+                              <small>{t.dropAttachmentsDetail}</small>
+                            </div>
+                          )}
+                          {skillCommandMenuOpen && (
+                            <div
+                              aria-label={t.installedSkills}
+                              className="slash-command-menu"
+                              id="skill-command-menu"
+                              ref={slashCommandMenu}
+                              role="listbox"
+                            >
+                              {goalSuggestionIndex >= 0 && (
+                                <button
+                                  aria-selected={
+                                    goalSuggestionIndex ===
+                                    activeSlashSuggestion
+                                  }
+                                  className={`slash-command-suggestion${goalSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                  id={`skill-command-option-${goalSuggestionIndex}`}
+                                  onClick={() =>
+                                    selectComposerCommand("/goal ")
+                                  }
+                                  role="option"
+                                  tabIndex={-1}
+                                >
+                                  <span className="slash-command-icon">◎</span>
+                                  <span>
+                                    <strong>{t.goalCommand}</strong>
+                                    <small>{t.goalCommandDetail}</small>
+                                  </span>
+                                </button>
+                              )}
+                              {compactSuggestionIndex >= 0 && (
+                                <button
+                                  aria-selected={
+                                    compactSuggestionIndex ===
+                                    activeSlashSuggestion
+                                  }
+                                  className={`slash-command-suggestion${compactSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                  id={`skill-command-option-${compactSuggestionIndex}`}
+                                  onClick={() =>
+                                    selectComposerCommand("/compact")
+                                  }
+                                  role="option"
+                                  tabIndex={-1}
+                                >
+                                  <span className="slash-command-icon">
+                                    <Icon size={18}>
+                                      <path
+                                        d="M8 3v5H3m13-5v5h5M8 21v-5H3m13 5v-5h5"
+                                        stroke="currentColor"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="1.5"
+                                      />
+                                    </Icon>
+                                  </span>
+                                  <span>
+                                    <strong>{t.compactCommand}</strong>
+                                    <small>{t.compactCommandDetail}</small>
+                                  </span>
+                                </button>
+                              )}
+                              {initSuggestionIndex >= 0 && (
+                                <button
+                                  aria-selected={
+                                    initSuggestionIndex ===
+                                    activeSlashSuggestion
+                                  }
+                                  className={`slash-command-suggestion${initSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                  id={`skill-command-option-${initSuggestionIndex}`}
+                                  onClick={() => selectComposerCommand("/init")}
+                                  role="option"
+                                  tabIndex={-1}
+                                >
+                                  <span className="slash-command-icon">
+                                    <Icon size={18}>
+                                      <path
+                                        d="M6.5 3.5h7l4 4v13h-11v-17Zm7 0v4h4M9 12h6m-6 4h6"
+                                        stroke="currentColor"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="1.5"
+                                      />
+                                    </Icon>
+                                  </span>
+                                  <span>
+                                    <strong>{t.initCommand}</strong>
+                                    <small>{t.initCommandDetail}</small>
+                                  </span>
+                                </button>
+                              )}
+                              {skillsLoading ? (
+                                <div className="slash-command-status">
+                                  {t.loadingSkills}
+                                </div>
+                              ) : skillsError ? (
+                                <div className="slash-command-status error">
+                                  {skillsError}
+                                </div>
+                              ) : skillSuggestions.length > 0 ? (
+                                <>
+                                  {pluginSkillSuggestions.length > 0 && (
+                                    <div className="slash-command-heading">
+                                      {t.installedPlugins}
+                                    </div>
+                                  )}
+                                  {pluginSkillSuggestions.map(
+                                    ({ index, plugin, skill }) => (
+                                      <button
+                                        aria-selected={
+                                          index === activeSlashSuggestion
+                                        }
+                                        className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                        id={`skill-command-option-${index}`}
+                                        key={skill.id}
+                                        onClick={() =>
+                                          selectSkillCommand(skill)
+                                        }
+                                        role="option"
+                                        tabIndex={-1}
+                                      >
+                                        <span className="slash-command-icon plugin-icon">
+                                          {plugin.iconDataUrl ? (
+                                            <img
+                                              alt=""
+                                              draggable={false}
+                                              src={plugin.iconDataUrl}
+                                            />
+                                          ) : (
+                                            <ResourceIcon />
+                                          )}
+                                        </span>
+                                        <span>
+                                          <strong>{skill.name}</strong>
+                                          <small title={skill.description}>
+                                            {plugin.displayName} ·{" "}
+                                            {skill.description}
+                                          </small>
+                                        </span>
+                                      </button>
+                                    ),
+                                  )}
+                                  {standaloneSkillSuggestions.length > 0 && (
+                                    <div className="slash-command-heading">
+                                      {t.installedSkills}
+                                    </div>
+                                  )}
+                                  {standaloneSkillSuggestions.map(
+                                    ({ index, skill }) => (
+                                      <button
+                                        aria-selected={
+                                          index === activeSlashSuggestion
+                                        }
+                                        className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                        id={`skill-command-option-${index}`}
+                                        key={skill.id}
+                                        onClick={() =>
+                                          selectSkillCommand(skill)
+                                        }
+                                        role="option"
+                                        tabIndex={-1}
+                                      >
+                                        <span className="slash-command-icon">
+                                          ✦
+                                        </span>
+                                        <span>
+                                          <strong>{skill.name}</strong>
+                                          <small>{skill.description}</small>
+                                        </span>
+                                      </button>
+                                    ),
+                                  )}
+                                </>
+                              ) : (
+                                <div className="slash-command-status">
+                                  {installedSkills.some(
+                                    (skill) => skill.enabled,
+                                  )
+                                    ? t.noMatchingSkills
+                                    : t.noInstalledSkills}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {!skillCommandMenuOpen &&
+                            selectedSkills.map((skill) => {
+                              const plugin = installedPluginBySkillName.get(
+                                skill.name,
+                              );
+                              return (
+                                <div
+                                  className="composer-selected-skill"
+                                  key={skill.id}
+                                >
+                                  <span
+                                    className={`slash-command-icon${plugin ? " plugin-icon" : ""}`}
+                                  >
+                                    {plugin?.iconDataUrl ? (
+                                      <img
+                                        alt=""
+                                        draggable={false}
+                                        src={plugin.iconDataUrl}
+                                      />
+                                    ) : plugin ? (
+                                      <ResourceIcon />
+                                    ) : (
+                                      "✦"
+                                    )}
+                                  </span>
+                                  <span className="composer-selected-skill-copy">
+                                    <small>{t.selectedSkill}</small>
+                                    <strong>{skill.name}</strong>
+                                  </span>
+                                  <button
+                                    aria-label={`${t.removeSelectedSkill}: ${skill.name}`}
+                                    className="composer-selected-skill-remove"
+                                    onClick={() =>
+                                      removeSelectedSkill(skill.name)
+                                    }
+                                    title={t.removeSelectedSkill}
+                                    type="button"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          {attachments.length > 0 && (
+                            <div className="composer-attachments">
+                              {attachments.map((attachment, index) => (
+                                <figure
+                                  className="composer-attachment"
+                                  key={`${attachment.name}-${index}`}
+                                >
+                                  {isPromptImage(attachment) ? (
+                                    <img
+                                      alt={attachment.name}
+                                      src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                                    />
+                                  ) : (
+                                    <div
+                                      aria-label={attachment.mimeType}
+                                      className="composer-file-preview"
+                                    >
+                                      <FileIcon />
+                                      <span>
+                                        {attachment.name
+                                          .split(".")
+                                          .pop()
+                                          ?.slice(0, 8)
+                                          .toLocaleUpperCase() || "FILE"}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <button
+                                    aria-label={`${t.removeAttachment}: ${attachment.name}`}
+                                    onClick={() =>
+                                      setAttachments((current) =>
+                                        current.filter(
+                                          (_candidate, candidateIndex) =>
+                                            candidateIndex !== index,
+                                        ),
+                                      )
+                                    }
+                                    title={t.removeAttachment}
+                                  >
+                                    ×
+                                  </button>
+                                  <figcaption title={attachment.name}>
+                                    {attachment.name}
+                                  </figcaption>
+                                </figure>
+                              ))}
+                            </div>
+                          )}
+                          <textarea
+                            aria-activedescendant={
+                              skillCommandMenuOpen &&
+                              slashCommandSuggestions.length > 0
+                                ? `skill-command-option-${activeSlashSuggestion}`
+                                : undefined
+                            }
+                            aria-autocomplete="list"
+                            aria-controls={
+                              skillCommandMenuOpen
+                                ? "skill-command-menu"
+                                : undefined
+                            }
+                            aria-expanded={skillCommandMenuOpen}
+                            aria-label={t.prompt}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setPrompt(value);
+                              setSkillMenuDismissed(false);
+                              promptHistoryNavigation.current = {
+                                index: -1,
+                                draft: value,
+                              };
+                            }}
+                            onKeyDown={(event) => {
+                              if (
+                                skillCommandMenuOpen &&
+                                slashCommandSuggestions.length > 0 &&
+                                !event.nativeEvent.isComposing
+                              ) {
+                                if (event.key === "ArrowDown") {
+                                  event.preventDefault();
+                                  setActiveSlashSuggestion(
+                                    (current) =>
+                                      (current + 1) %
+                                      slashCommandSuggestions.length,
+                                  );
+                                  return;
+                                }
+                                if (event.key === "ArrowUp") {
+                                  event.preventDefault();
+                                  setActiveSlashSuggestion(
+                                    (current) =>
+                                      (current -
+                                        1 +
+                                        slashCommandSuggestions.length) %
+                                      slashCommandSuggestions.length,
+                                  );
+                                  return;
+                                }
+                                if (event.key === "Enter" && !event.shiftKey) {
+                                  event.preventDefault();
+                                  const suggestion =
+                                    slashCommandSuggestions[
+                                      activeSlashSuggestion
+                                    ];
+                                  if (suggestion?.kind === "goal") {
+                                    selectComposerCommand("/goal ");
+                                  } else if (suggestion?.kind === "compact") {
+                                    selectComposerCommand("/compact");
+                                  } else if (suggestion?.kind === "init") {
+                                    selectComposerCommand("/init");
+                                  } else if (suggestion?.kind === "skill") {
+                                    selectSkillCommand(suggestion.skill);
+                                  }
+                                  return;
+                                }
+                              }
+                              if (
+                                skillCommandMenuOpen &&
+                                event.key === "Escape"
+                              ) {
+                                event.preventDefault();
+                                setSkillMenuDismissed(true);
+                                return;
+                              }
+                              if (
+                                !skillCommandMenuOpen &&
+                                !event.nativeEvent.isComposing &&
+                                (event.key === "ArrowUp" ||
+                                  event.key === "ArrowDown")
+                              ) {
+                                const navigation = navigatePromptHistory(
+                                  promptHistory,
+                                  prompt,
+                                  promptHistoryNavigation.current,
+                                  event.key === "ArrowUp" ? "previous" : "next",
+                                );
+                                if (navigation) {
+                                  event.preventDefault();
+                                  promptHistoryNavigation.current = navigation;
+                                  setPrompt(navigation.value);
+                                  setSkillMenuDismissed(true);
+                                  window.requestAnimationFrame(() => {
+                                    promptInput.current?.setSelectionRange(
+                                      navigation.value.length,
+                                      navigation.value.length,
+                                    );
+                                  });
+                                  return;
+                                }
+                              }
+                              if (
+                                event.key === "Enter" &&
+                                !event.shiftKey &&
+                                !event.nativeEvent.isComposing
+                              ) {
+                                event.preventDefault();
+                                void sendPrompt();
+                              }
+                            }}
+                            onPaste={handleAttachmentPaste}
+                            placeholder={t.prompt}
+                            ref={promptInput}
+                            rows={3}
+                            value={prompt}
+                          />
+                          <div className="composer-toolbar">
+                            <div className="composer-leading">
+                              <button
+                                aria-label={t.addAttachments}
+                                className="composer-icon-button"
+                                onClick={() => void selectPromptAttachments()}
+                                title={t.addAttachments}
+                              >
+                                <PlusIcon />
+                              </button>
+                              <div className="approval-policy-control">
+                                <button
+                                  aria-expanded={approvalMenuOpen}
+                                  aria-haspopup="menu"
+                                  className="approval-policy-trigger"
+                                  disabled={approvalChangeLocked}
+                                  onClick={() => {
+                                    setModelPickerOpen(false);
+                                    setApprovalMenuOpen((current) => !current);
+                                  }}
+                                  title={t.approvalPolicy}
+                                >
+                                  <ApprovalIcon
+                                    warning={approvalPolicy === "full-access"}
+                                  />
+                                  <span>{approvalPolicyLabel}</span>
+                                  <ChevronIcon />
+                                </button>
+                                {approvalMenuOpen && (
+                                  <div
+                                    aria-label={t.approvalPolicy}
+                                    className="approval-policy-menu"
+                                    role="menu"
+                                  >
+                                    <strong className="approval-policy-heading">
+                                      {t.approvalPolicy}
+                                    </strong>
+                                    <button
+                                      aria-checked={approvalPolicy === "ask"}
+                                      className={
+                                        approvalPolicy === "ask"
+                                          ? "selected"
+                                          : ""
+                                      }
+                                      disabled={approvalChangeLocked}
+                                      onClick={() =>
+                                        void changeApprovalPolicy("ask")
+                                      }
+                                      role="menuitemradio"
+                                    >
+                                      <ApprovalIcon />
+                                      <span>
+                                        <strong>{t.askApproval}</strong>
+                                        <small>{t.askApprovalDetail}</small>
+                                      </span>
+                                      <b aria-hidden="true">
+                                        {approvalPolicy === "ask" ? "✓" : ""}
+                                      </b>
+                                    </button>
+                                    <button
+                                      aria-checked={approvalPolicy === "agent"}
+                                      className={
+                                        approvalPolicy === "agent"
+                                          ? "selected"
+                                          : ""
+                                      }
+                                      disabled={approvalChangeLocked}
+                                      onClick={() =>
+                                        void changeApprovalPolicy("agent")
+                                      }
+                                      role="menuitemradio"
+                                    >
+                                      <ApprovalIcon />
+                                      <span>
+                                        <strong>{t.agentApproval}</strong>
+                                        <small>{t.agentApprovalDetail}</small>
+                                      </span>
+                                      <b aria-hidden="true">
+                                        {approvalPolicy === "agent" ? "✓" : ""}
+                                      </b>
+                                    </button>
+                                    <button
+                                      aria-checked={
+                                        approvalPolicy === "full-access"
+                                      }
+                                      className={`danger ${
+                                        approvalPolicy === "full-access"
+                                          ? "selected"
+                                          : ""
+                                      }`}
+                                      disabled={
+                                        approvalChangeLocked ||
+                                        !snapshot.sandbox.available
+                                      }
+                                      onClick={() =>
+                                        void changeApprovalPolicy("full-access")
+                                      }
+                                      role="menuitemradio"
+                                    >
+                                      <ApprovalIcon warning />
+                                      <span>
+                                        <strong>{t.fullAccess}</strong>
+                                        <small>
+                                          {snapshot.sandbox.available
+                                            ? t.fullAccessDetail
+                                            : t.fullAccessUnavailable}
+                                        </small>
+                                      </span>
+                                      <b aria-hidden="true">
+                                        {approvalPolicy === "full-access"
+                                          ? "✓"
+                                          : ""}
+                                      </b>
+                                    </button>
+                                    <button
+                                      aria-checked={approvalPolicy === "custom"}
+                                      className={
+                                        approvalPolicy === "custom"
+                                          ? "selected"
+                                          : ""
+                                      }
+                                      disabled={approvalChangeLocked}
+                                      onClick={() =>
+                                        void changeApprovalPolicy("custom")
+                                      }
+                                      role="menuitemradio"
+                                    >
+                                      <ModeIcon />
+                                      <span>
+                                        <strong>{t.customApproval}</strong>
+                                        <small>{t.customApprovalDetail}</small>
+                                      </span>
+                                      <b aria-hidden="true">
+                                        {approvalPolicy === "custom" ? "✓" : ""}
+                                      </b>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="composer-trailing">
+                              <ContextUsageIndicator
+                                contextWindow={
+                                  runtimeSettings?.contextWindow ??
+                                  activeModel?.contextWindow
+                                }
+                                locale={locale}
+                                usage={threadState?.contextUsage}
+                              />
+                              <div
+                                className="model-picker-control"
+                                ref={modelPickerRoot}
+                              >
+                                <button
+                                  aria-expanded={modelPickerOpen}
+                                  aria-haspopup="menu"
+                                  aria-label={t.modelPicker}
+                                  className="model-button"
+                                  disabled={
+                                    busy ||
+                                    turnActive ||
+                                    switchableModels.length === 0
+                                  }
+                                  onClick={() => {
+                                    setApprovalMenuOpen(false);
+                                    setModelPickerSection("model");
+                                    setModelPickerOpen((current) => !current);
+                                  }}
+                                  title={t.modelPicker}
+                                  type="button"
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className="model-compact-icon"
+                                  >
+                                    <ModelIcon />
+                                  </span>
+                                  <span className="model-information">
+                                    <strong>{activeModelLabel}</strong>
+                                    {activeThinkingLevel && (
+                                      <small>{activeThinkingLevel}</small>
+                                    )}
+                                  </span>
+                                  <ChevronIcon />
+                                </button>
+                                {modelPickerOpen && (
+                                  <div
+                                    aria-label={t.modelPicker}
+                                    className="model-picker-menu"
+                                    role="menu"
+                                  >
+                                    <div className="model-picker-navigation">
+                                      <button
+                                        className={
+                                          modelPickerSection === "model"
+                                            ? "selected"
+                                            : ""
+                                        }
+                                        onClick={() =>
+                                          setModelPickerSection("model")
+                                        }
+                                        onMouseEnter={() =>
+                                          setModelPickerSection("model")
+                                        }
+                                        role="menuitem"
+                                        type="button"
+                                      >
+                                        <strong>{t.modelPickerModel}</strong>
+                                        <span>{activeModelLabel}</span>
+                                        <i aria-hidden="true">
+                                          <ChevronIcon />
+                                        </i>
+                                      </button>
+                                      <button
+                                        className={
+                                          modelPickerSection === "thinking"
+                                            ? "selected"
+                                            : ""
+                                        }
+                                        disabled={
+                                          !runtimeSettings?.selection ||
+                                          !activeModelSupportsReasoning
+                                        }
+                                        onClick={() =>
+                                          setModelPickerSection("thinking")
+                                        }
+                                        onMouseEnter={() =>
+                                          setModelPickerSection("thinking")
+                                        }
+                                        role="menuitem"
+                                        type="button"
+                                      >
+                                        <strong>{t.thinking}</strong>
+                                        <span>
+                                          {activeThinkingLevel ?? "—"}
+                                        </span>
+                                        <i aria-hidden="true">
+                                          <ChevronIcon />
+                                        </i>
+                                      </button>
+                                    </div>
+                                    <div
+                                      aria-label={
+                                        modelPickerSection === "model"
+                                          ? t.modelPickerModel
+                                          : t.thinking
+                                      }
+                                      className="model-picker-options"
+                                      role="menu"
+                                    >
+                                      {modelPickerSection === "thinking" && (
+                                        <div className="model-picker-options-heading">
+                                          {t.thinking}
+                                        </div>
+                                      )}
+                                      {modelPickerSection === "model"
+                                        ? switchableModels.map((model) => {
+                                            const selected =
+                                              model.providerId ===
+                                                runtimeSettings?.selection
+                                                  ?.providerId &&
+                                              model.modelId ===
+                                                runtimeSettings.selection
+                                                  .modelId;
+                                            return (
+                                              <button
+                                                aria-checked={selected}
+                                                className={
+                                                  selected ? "selected" : ""
+                                                }
+                                                key={modelIdentity(
+                                                  model.providerId,
+                                                  model.modelId,
+                                                )}
+                                                onClick={() =>
+                                                  void switchComposerModel(
+                                                    model,
+                                                  )
+                                                }
+                                                role="menuitemradio"
+                                                type="button"
+                                              >
+                                                <span>
+                                                  <strong>{model.name}</strong>
+                                                </span>
+                                                <b aria-hidden="true">
+                                                  {selected ? "✓" : ""}
+                                                </b>
+                                              </button>
+                                            );
+                                          })
+                                        : modelPickerThinkingLevels.map(
+                                            (level) => {
+                                              const selected =
+                                                level ===
+                                                runtimeSettings?.selection
+                                                  ?.thinkingLevel;
+                                              return (
+                                                <button
+                                                  aria-checked={selected}
+                                                  className={
+                                                    selected ? "selected" : ""
+                                                  }
+                                                  key={level}
+                                                  onClick={() =>
+                                                    void switchComposerThinking(
+                                                      level,
+                                                    )
+                                                  }
+                                                  role="menuitemradio"
+                                                  type="button"
+                                                >
+                                                  <span>
+                                                    <strong>
+                                                      {thinkingLevelLabel(
+                                                        level,
+                                                        locale,
+                                                      )}
+                                                    </strong>
+                                                  </span>
+                                                  <b aria-hidden="true">
+                                                    {selected ? "✓" : ""}
+                                                  </b>
+                                                </button>
+                                              );
+                                            },
+                                          )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              {turnActive ? (
+                                <div className="run-actions">
+                                  <button
+                                    className="send-button"
+                                    disabled={
+                                      (!prompt.trim() &&
+                                        attachments.length === 0 &&
+                                        selectedSkills.length === 0) ||
+                                      busy
+                                    }
+                                    onClick={() => void sendPrompt()}
+                                    title={t.followUp}
+                                  >
+                                    <Icon size={17}>
+                                      <path
+                                        d="m6 12 6-6 6 6m-6-6v12"
+                                        stroke="currentColor"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="1.8"
+                                      />
+                                    </Icon>
+                                  </button>
+                                  <button
+                                    className="send-button stop"
+                                    onClick={() => void cancelActiveTurn()}
+                                    title={t.stop}
+                                  >
+                                    <span />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  className="send-button"
+                                  disabled={
+                                    (!prompt.trim() &&
+                                      attachments.length === 0 &&
+                                      selectedSkills.length === 0) ||
+                                    busy
+                                  }
+                                  onClick={() => void sendPrompt()}
+                                  title={t.send}
+                                >
+                                  <Icon size={17}>
+                                    <path
+                                      d="m6 12 6-6 6 6m-6-6v12"
+                                      stroke="currentColor"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="1.8"
+                                    />
+                                  </Icon>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {!activeThread?.archived && (
+                <aside
+                  aria-hidden={!workspaceDockOpen}
+                  aria-label={t.rightSidebar}
+                  className="workspace-tool-dock"
+                  data-open={workspaceDockOpen}
+                >
+                  <div className="workspace-tab-bar" role="tablist">
+                    <div className="workspace-tab-scroll">
+                      {workspaceTabs.tabs.map((tab) => (
+                        <div
+                          className={
+                            workspaceTabs.activeTabId === tab.id
+                              ? "workspace-tab active"
+                              : "workspace-tab"
+                          }
+                          key={tab.id}
+                        >
+                          <button
+                            aria-selected={workspaceTabs.activeTabId === tab.id}
+                            className="workspace-tab-select"
+                            onClick={() =>
+                              dispatchWorkspaceTab({
+                                type: "activate",
+                                tabId: tab.id,
+                              })
+                            }
+                            role="tab"
+                            title={tab.path ?? tab.title}
+                          >
+                            <WorkspaceTabIcon
+                              identity={tab.childAgentId ?? tab.agentTeamId}
+                              kind={tab.kind}
+                              path={tab.path}
+                            />
+                            <span>{tab.title}</span>
+                          </button>
+                          <button
+                            aria-label={`${t.closeTab}: ${tab.title}`}
+                            className="workspace-tab-close"
+                            onClick={() => closeWorkspaceTab(tab.id)}
+                            title={t.closeTab}
+                          >
+                            <CloseIcon />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="workspace-tab-add-wrap">
+                      <button
+                        aria-expanded={workspaceTabMenuOpen}
+                        aria-label={t.addTab}
+                        className="workspace-tab-add"
+                        onClick={() => setWorkspaceTabMenuOpen((open) => !open)}
+                        title={t.addTab}
+                      >
+                        <PlusIcon />
+                      </button>
+                      {workspaceTabMenuOpen && (
+                        <div className="workspace-tab-menu">
+                          {(
+                            [
+                              ["review", t.reviewPanel, <ReviewIcon />],
+                              ["terminal", t.terminal, <TerminalIcon />],
+                              ["browser", t.browser, <BrowserIcon />],
+                              ["file", t.files, <FilesIcon />],
+                            ] as const
+                          ).map(([kind, label, icon]) => (
+                            <button
+                              key={kind}
+                              onClick={() =>
+                                openWorkspaceTab(kind, { forceNew: true })
+                              }
+                            >
+                              {icon}
+                              <span>{label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="workspace-tab-content">
+                    {workspaceTabs.tabs.length === 0 && (
+                      <div className="right-sidebar-launcher">
+                        <div className="right-sidebar-launcher-actions">
+                          <button
+                            className="right-sidebar-launcher-item"
+                            onClick={openReviewPanel}
+                          >
+                            <ReviewIcon />
+                            <span>{t.reviewPanel}</span>
+                            <kbd>Ctrl+Alt+B</kbd>
+                          </button>
+                          <button
+                            className="right-sidebar-launcher-item"
+                            onClick={openTerminalPanel}
+                          >
+                            <TerminalIcon />
+                            <span>{t.terminal}</span>
+                            <kbd>Ctrl+J</kbd>
+                          </button>
+                          <button
+                            className="right-sidebar-launcher-item"
+                            onClick={openBrowserPanel}
+                          >
+                            <BrowserIcon />
+                            <span>{t.browser}</span>
+                          </button>
+                          <button
+                            className="right-sidebar-launcher-item"
+                            onClick={openFilesPanel}
+                          >
+                            <FilesIcon />
+                            <span>{t.files}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {workspaceTabs.tabs.map((tab) => (
+                      <div
+                        className={
+                          workspaceTabs.activeTabId === tab.id
+                            ? "workspace-tab-pane active"
+                            : "workspace-tab-pane"
+                        }
+                        hidden={workspaceTabs.activeTabId !== tab.id}
+                        key={tab.id}
+                        role="tabpanel"
+                      >
+                        {tab.kind === "review" && (
+                          <section
+                            aria-busy={reviewTransitionPending || !reviewDiff}
+                            className="review-panel"
+                          >
+                            <header className="review-comparison-toolbar">
+                              <div className="review-comparison-primary">
+                                <div className="review-scope-select">
+                                  <CodexSelect<ReviewScope>
+                                    ariaLabel={t.comparison}
+                                    onChange={selectReviewScope}
+                                    options={[
+                                      {
+                                        value: "unstaged",
+                                        label: t.unstaged,
+                                      },
+                                      { value: "staged", label: t.staged },
+                                      {
+                                        value: "last-turn",
+                                        label: t.lastTurn,
+                                      },
+                                      { value: "branch", label: t.branch },
+                                    ]}
+                                    value={reviewScope}
+                                  />
+                                </div>
+                                <button
+                                  aria-label={t.refreshDiff}
+                                  className="review-toolbar-action"
+                                  onClick={() => void refreshDiff(true)}
+                                  title={t.refreshDiff}
+                                  type="button"
+                                >
+                                  <RefreshIcon />
+                                </button>
+                              </div>
+                              <div className="review-comparison-route">
+                                {reviewScope === "branch" ? (
+                                  <>
+                                    <label className="base-ref-field">
+                                      <span>{t.baseRef}</span>
+                                      <input
+                                        aria-label={t.baseRef}
+                                        onChange={(event) =>
+                                          setReviewBaseRef(event.target.value)
+                                        }
+                                        placeholder={
+                                          reviewDiff?.baseRef ?? "main"
+                                        }
+                                        value={reviewBaseRef}
+                                      />
+                                    </label>
+                                    <span aria-hidden="true">→</span>
+                                    <strong>HEAD</strong>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>HEAD</span>
+                                    <span aria-hidden="true">→</span>
+                                    <strong>
+                                      {reviewScope === "unstaged"
+                                        ? t.unstaged
+                                        : reviewScope === "staged"
+                                          ? t.staged
+                                          : t.lastTurn}
+                                    </strong>
+                                  </>
+                                )}
+                              </div>
+                            </header>
+                            <div className="review-workspace">
+                              <main className="review-diff-reader">
+                                {!reviewDiff && (
+                                  <div className="review-empty">…</div>
+                                )}
+                                {reviewDiff?.available &&
+                                  !reviewDiff.files.length && (
+                                    <div className="review-empty">
+                                      <div className="review-empty-illustration">
+                                        <ReviewEmptyIcon />
+                                      </div>
+                                      <strong>{t.noChanges}</strong>
+                                      <p>{t.changesAppearHere}</p>
+                                    </div>
+                                  )}
+                                {reviewDiff && !reviewDiff.available && (
+                                  <div className="review-empty error">
+                                    {reviewDiff.message ?? ""}
+                                  </div>
+                                )}
+                                {reviewDiff?.available &&
+                                  selectedReviewFile && (
+                                    <div
+                                      className="review-file"
+                                      key={selectedReviewFile.id}
+                                    >
+                                      <div className="changed-file review-diff-file-header">
+                                        <span className="file-status">
+                                          {selectedReviewFile.status === "added"
+                                            ? "A"
+                                            : selectedReviewFile.status ===
+                                                "deleted"
+                                              ? "D"
+                                              : "M"}
+                                        </span>
+                                        <span className="review-file-path">
+                                          {selectedReviewFile.path}
+                                        </span>
+                                        <span className="review-file-stats">
+                                          <span className="addition">
+                                            +{selectedReviewFile.additions}
+                                          </span>
+                                          <span className="deletion">
+                                            −{selectedReviewFile.deletions}
+                                          </span>
+                                        </span>
+                                        <span className="review-actions">
+                                          {reviewScope === "unstaged" && (
+                                            <>
+                                              <button
+                                                className="review-action"
+                                                disabled={
+                                                  reviewBusy || turnActive
+                                                }
+                                                onClick={() =>
+                                                  void mutateReview("stage", {
+                                                    kind: "file",
+                                                    id: selectedReviewFile.id,
+                                                  })
+                                                }
+                                              >
+                                                {t.stage}
+                                              </button>
+                                              <button
+                                                className="review-action danger"
+                                                disabled={
+                                                  reviewBusy || turnActive
+                                                }
+                                                onClick={() =>
+                                                  void mutateReview("revert", {
+                                                    kind: "file",
+                                                    id: selectedReviewFile.id,
+                                                  })
+                                                }
+                                              >
+                                                {t.revert}
+                                              </button>
+                                            </>
+                                          )}
+                                          {reviewScope === "staged" && (
+                                            <button
+                                              className="review-action"
+                                              disabled={
+                                                reviewBusy || turnActive
+                                              }
+                                              onClick={() =>
+                                                void mutateReview("unstage", {
+                                                  kind: "file",
+                                                  id: selectedReviewFile.id,
+                                                })
+                                              }
+                                            >
+                                              {t.unstage}
+                                            </button>
+                                          )}
+                                        </span>
+                                      </div>
+                                      {selectedReviewFile.hunks.map((hunk) => (
+                                        <div
+                                          className="review-hunk-block"
+                                          key={hunk.id}
+                                        >
+                                          <div className="review-hunk">
+                                            <code title={hunk.header}>
+                                              {hunk.header}
+                                            </code>
+                                            <span className="review-file-stats">
+                                              <span className="addition">
+                                                +{hunk.additions}
+                                              </span>
+                                              <span className="deletion">
+                                                −{hunk.deletions}
+                                              </span>
+                                            </span>
+                                            <span className="review-actions">
+                                              {reviewScope === "unstaged" && (
+                                                <>
+                                                  <button
+                                                    className="review-action"
+                                                    disabled={
+                                                      reviewBusy || turnActive
+                                                    }
+                                                    onClick={() =>
+                                                      void mutateReview(
+                                                        "stage",
+                                                        {
+                                                          kind: "hunk",
+                                                          id: hunk.id,
+                                                        },
+                                                      )
+                                                    }
+                                                  >
+                                                    {t.stage}
+                                                  </button>
+                                                  <button
+                                                    className="review-action danger"
+                                                    disabled={
+                                                      reviewBusy || turnActive
+                                                    }
+                                                    onClick={() =>
+                                                      void mutateReview(
+                                                        "revert",
+                                                        {
+                                                          kind: "hunk",
+                                                          id: hunk.id,
+                                                        },
+                                                      )
+                                                    }
+                                                  >
+                                                    {t.revert}
+                                                  </button>
+                                                </>
+                                              )}
+                                              {reviewScope === "staged" && (
+                                                <button
+                                                  className="review-action"
+                                                  disabled={
+                                                    reviewBusy || turnActive
+                                                  }
+                                                  onClick={() =>
+                                                    void mutateReview(
+                                                      "unstage",
+                                                      {
+                                                        kind: "hunk",
+                                                        id: hunk.id,
+                                                      },
+                                                    )
+                                                  }
+                                                >
+                                                  {t.unstage}
+                                                </button>
+                                              )}
+                                            </span>
+                                          </div>
+                                          <div className="review-lines">
+                                            {hunk.lines.map((line) => {
+                                              const comments =
+                                                reviewComments.filter(
+                                                  (comment) =>
+                                                    comment.scope ===
+                                                      reviewScope &&
+                                                    comment.lineId === line.id,
+                                                );
+                                              return (
+                                                <div
+                                                  className="review-line-group"
+                                                  key={line.id}
+                                                >
+                                                  <div
+                                                    className={`review-line ${line.kind}`}
+                                                    data-line-id={line.id}
+                                                  >
+                                                    <button
+                                                      aria-label={t.addComment}
+                                                      className="review-comment-trigger"
+                                                      onClick={() => {
+                                                        setCommentLineId(
+                                                          line.id,
+                                                        );
+                                                        setCommentBody("");
+                                                      }}
+                                                      title={t.addComment}
+                                                    >
+                                                      +
+                                                    </button>
+                                                    <span className="review-line-number">
+                                                      {line.oldLine ?? ""}
+                                                    </span>
+                                                    <span className="review-line-number">
+                                                      {line.newLine ?? ""}
+                                                    </span>
+                                                    <code>
+                                                      <HighlightedCodeLine
+                                                        content={
+                                                          line.text || " "
+                                                        }
+                                                        path={
+                                                          selectedReviewFile.path
+                                                        }
+                                                      />
+                                                    </code>
+                                                  </div>
+                                                  {comments.map((comment) => (
+                                                    <div
+                                                      className="review-comment"
+                                                      key={comment.id}
+                                                    >
+                                                      <p>{comment.body}</p>
+                                                      <button
+                                                        aria-label={
+                                                          t.deleteComment
+                                                        }
+                                                        className="text-button danger"
+                                                        disabled={reviewBusy}
+                                                        onClick={() =>
+                                                          void deleteReviewComment(
+                                                            comment,
+                                                          )
+                                                        }
+                                                      >
+                                                        {t.deleteComment}
+                                                      </button>
+                                                    </div>
+                                                  ))}
+                                                  {commentLineId ===
+                                                    line.id && (
+                                                    <div className="review-comment-editor">
+                                                      <textarea
+                                                        aria-label={
+                                                          t.commentPlaceholder
+                                                        }
+                                                        autoFocus
+                                                        onChange={(event) =>
+                                                          setCommentBody(
+                                                            event.target.value,
+                                                          )
+                                                        }
+                                                        placeholder={
+                                                          t.commentPlaceholder
+                                                        }
+                                                        value={commentBody}
+                                                      />
+                                                      <span>
+                                                        <button
+                                                          className="text-button"
+                                                          onClick={() => {
+                                                            setCommentLineId(
+                                                              undefined,
+                                                            );
+                                                            setCommentBody("");
+                                                          }}
+                                                        >
+                                                          {t.cancelComment}
+                                                        </button>
+                                                        <button
+                                                          className="primary-button compact"
+                                                          disabled={
+                                                            reviewBusy ||
+                                                            !commentBody.trim()
+                                                          }
+                                                          onClick={() =>
+                                                            void saveReviewComment(
+                                                              line.id,
+                                                            )
+                                                          }
+                                                        >
+                                                          {t.saveComment}
+                                                        </button>
+                                                      </span>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                              </main>
+                              <aside
+                                aria-label={t.changedFiles}
+                                className="review-file-sidebar"
+                              >
+                                <label className="review-file-filter">
+                                  <SearchIcon />
+                                  <input
+                                    aria-label={t.filterFiles}
+                                    onChange={(event) =>
+                                      setReviewFileQuery(event.target.value)
+                                    }
+                                    placeholder={t.filterFiles}
+                                    value={reviewFileQuery}
+                                  />
+                                </label>
+                                <div className="file-summary">
+                                  <span>{t.changedFiles}</span>
+                                  <strong>
+                                    {reviewDiff?.files.length ?? 0}
+                                  </strong>
+                                </div>
+                                <div className="review-file-list">
+                                  {filteredReviewFiles.map((file) => (
+                                    <button
+                                      aria-pressed={
+                                        selectedReviewFile?.id === file.id
+                                      }
+                                      className={
+                                        selectedReviewFile?.id === file.id
+                                          ? "review-file-entry selected"
+                                          : "review-file-entry"
+                                      }
+                                      key={file.id}
+                                      onClick={() =>
+                                        setSelectedReviewFileId(file.id)
+                                      }
+                                      title={file.path}
+                                      type="button"
+                                    >
+                                      <span className="file-status">
+                                        {file.status === "added"
+                                          ? "A"
+                                          : file.status === "deleted"
+                                            ? "D"
+                                            : "M"}
+                                      </span>
+                                      <span className="review-file-path">
+                                        {file.path}
+                                      </span>
+                                      <span className="review-file-stats">
+                                        <span className="addition">
+                                          +{file.additions}
+                                        </span>
+                                        <span className="deletion">
+                                          −{file.deletions}
+                                        </span>
+                                      </span>
+                                    </button>
+                                  ))}
+                                  {Boolean(
+                                    reviewDiff?.files.length &&
+                                    !filteredReviewFiles.length,
+                                  ) && (
+                                    <div className="review-file-list-empty">
+                                      {t.noMatchingFiles}
+                                    </div>
+                                  )}
+                                </div>
+                              </aside>
+                            </div>
+                          </section>
+                        )}
+                        {tab.kind === "terminal" && (
+                          <Suspense
+                            fallback={
+                              <section className="terminal-panel view-loading">
+                                …
+                              </section>
+                            }
+                          >
+                            <TerminalPanel
+                              threadId={activeThread?.id}
+                              title={tab.title}
+                              emptyMessage={t.terminalLocked}
+                              theme={runtimeSettings?.theme ?? "system"}
+                            />
+                          </Suspense>
+                        )}
+                        {tab.kind === "browser" && (
+                          <WorkspaceBrowserPanel
+                            addressPlaceholder={t.browserAddress}
+                            backLabel={t.browserBack}
+                            emptyMessage={t.noHtmlPreview}
+                            forwardLabel={t.browserForward}
+                            goLabel={t.browserGo}
+                            path={tab.path ?? latestHtmlChange?.path}
+                            refreshLabel={t.refreshPreview}
+                            revision={tab.revision ?? latestHtmlChange?.eventId}
+                            threadId={activeThreadId}
+                            title={tab.title}
+                          />
+                        )}
+                        {tab.kind === "markdown" && (
+                          <MarkdownReaderPanel
+                            editLabel={t.editFile}
+                            emptyMessage={t.noMarkdownPreview}
+                            path={tab.path ?? latestMarkdownChange?.path}
+                            refreshLabel={t.refreshPreview}
+                            revision={
+                              tab.revision ?? latestMarkdownChange?.eventId
+                            }
+                            richLabel={t.richText}
+                            saveLabel={t.saveFile}
+                            savedLabel={t.saved}
+                            savingLabel={t.saving}
+                            sourceLabel={t.sourceText}
+                            threadId={activeThreadId}
+                            title={tab.title}
+                            unsavedLabel={t.unsaved}
+                          />
+                        )}
+                        {tab.kind === "file" && (
+                          <WorkspaceFilesPanel
+                            binaryMessage={t.binaryFile}
+                            editFileLabel={t.editFile}
+                            filterPlaceholder={t.filterFiles}
+                            onFileSelected={(path) =>
+                              dispatchWorkspaceTab({
+                                type: "update",
+                                tabId: tab.id,
+                                updates: {
+                                  path,
+                                  title:
+                                    path
+                                      .replaceAll("\\", "/")
+                                      .split("/")
+                                      .at(-1) ?? t.files,
+                                },
+                              })
+                            }
+                            onOpenHtml={openHtmlFromFiles}
+                            openFileMessage={t.openFileFromTree}
+                            refreshLabel={t.refreshPreview}
+                            richLabel={t.richText}
+                            saveLabel={t.saveFile}
+                            savedLabel={t.saved}
+                            selectedPath={tab.path}
+                            savingLabel={t.saving}
+                            sourceLabel={t.sourceText}
+                            threadId={activeThreadId}
+                            title={tab.title}
+                            unsavedLabel={t.unsaved}
+                          />
+                        )}
+                        {tab.kind === "agent-team" && (
+                          <AgentTeamPanel
+                            active={workspaceTabs.activeTabId === tab.id}
+                            controlPending={agentTeamControlPending}
+                            locale={locale}
+                            members={Object.values(
+                              threadState?.childAgents ?? {},
+                            ).filter(
+                              (child) => child.teamId === tab.agentTeamId,
+                            )}
+                            messages={(threadState?.agentTeamMessageOrder ?? [])
+                              .map(
+                                (messageId) =>
+                                  threadState?.agentTeamMessages[messageId],
+                              )
+                              .filter(
+                                (message): message is AgentTeamMessageState =>
+                                  Boolean(
+                                    message &&
+                                    message.teamId === tab.agentTeamId,
+                                  ),
+                              )}
+                            onOpenChildAgent={openChildAgentPanel}
+                            onStop={(team) => void stopAgentTeam(team)}
+                            runtimeAvailable={turnActive}
+                            team={
+                              tab.agentTeamId
+                                ? threadState?.agentTeams[tab.agentTeamId]
+                                : undefined
+                            }
+                          />
+                        )}
+                        {tab.kind === "child-agent" && (
+                          <ChildAgentPanel
+                            active={workspaceTabs.activeTabId === tab.id}
+                            child={
+                              tab.childAgentId
+                                ? threadState?.childAgents[tab.childAgentId]
+                                : undefined
+                            }
+                            clockMs={clockMs}
+                            locale={locale}
+                            onControl={(child, action) =>
+                              void controlChildAgent(child, action)
+                            }
+                            pendingAction={childAgentControlPending}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </aside>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+
+      {commandMenuOpen && (
+        <div
+          className="command-backdrop"
+          onMouseDown={() => setCommandMenuOpen(false)}
+        >
+          <div
+            className="command-menu"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="command-search">
+              <SearchIcon />
+              <span>{t.commandMenu}</span>
+              <kbd>Esc</kbd>
+            </div>
+            <button
+              onClick={() => {
+                setCommandMenuOpen(false);
+                void openProject();
+              }}
+            >
+              <FolderIcon />
+              <span>{t.openFolder}</span>
+              <kbd>Ctrl O</kbd>
+            </button>
+            <button
+              onClick={() => {
+                setCommandMenuOpen(false);
+                setActiveView("workspace");
+                setPrompt("/goal ");
+              }}
+            >
+              <span className="command-goal-icon">◎</span>
+              <span>{t.goalCommandDetail}</span>
+              <kbd>/goal</kbd>
+            </button>
+            <button
+              onClick={() => {
+                setCommandMenuOpen(false);
+                toggleReviewPanel();
+              }}
+            >
+              <ReviewIcon />
+              <span>{t.toggleReview}</span>
+              <kbd>Ctrl Alt B</kbd>
+            </button>
+            <button
+              onClick={() => {
+                setCommandMenuOpen(false);
+                toggleTerminalPanel();
+              }}
+            >
+              <TerminalIcon />
+              <span>{t.toggleTerminal}</span>
+              <kbd>Ctrl J</kbd>
+            </button>
+          </div>
+        </div>
+      )}
+      {settingsOpen && (
+        <Suspense
+          fallback={
+            <div className="settings-backdrop">
+              <div className="settings-panel settings-loading">…</div>
+            </div>
+          }
+        >
+          <SettingsPanel
+            initialTab={settingsTab}
+            locale={locale}
+            onClose={() => setSettingsOpen(false)}
+            onSettingsChange={(value) => {
+              setRuntimeSettings(value);
+              setApprovalPolicy(value.approvalPolicy);
+              setSnapshot((current) =>
+                current
+                  ? {
+                      ...current,
+                      locale: value.resolvedLocale,
+                    }
+                  : current,
+              );
+            }}
+          />
+        </Suspense>
+      )}
+
+      {confirmation && (
+        <div
+          className="confirmation-backdrop"
+          onMouseDown={() => resolveConfirmation(false)}
+        >
+          <section
+            aria-describedby="confirmation-message"
+            aria-labelledby="confirmation-title"
+            aria-modal={true}
+            className={`confirmation-dialog ${confirmation.tone}`}
+            onMouseDown={(event) => event.stopPropagation()}
+            role="alertdialog"
+          >
+            <div className="confirmation-icon" aria-hidden="true">
+              !
+            </div>
+            <div className="confirmation-copy">
+              <h2 id="confirmation-title">
+                {confirmation.tone === "danger"
+                  ? t.confirmationDangerTitle
+                  : t.confirmationTitle}
+              </h2>
+              <p id="confirmation-message">{confirmation.message}</p>
+            </div>
+            <div className="confirmation-actions">
+              <button
+                className="secondary-button"
+                onClick={() => resolveConfirmation(false)}
+                ref={confirmationCancelButton}
+              >
+                {t.confirmationCancel}
+              </button>
+              <button
+                className={
+                  confirmation.tone === "danger"
+                    ? "primary-button danger"
+                    : "primary-button"
+                }
+                onClick={() => resolveConfirmation(true)}
+              >
+                {t.confirmationAccept}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {fileLinkContextMenu && (
+        <div
+          className="file-link-context-backdrop"
+          onContextMenu={(event) => {
+            event.preventDefault();
+            setFileLinkContextMenu(undefined);
+          }}
+          onMouseDown={() => setFileLinkContextMenu(undefined)}
+        >
+          <div
+            aria-label={t.fileLinkMenu}
+            className="file-link-context-menu"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="menu"
+            style={{
+              left: `${fileLinkContextMenu.x}px`,
+              top: `${fileLinkContextMenu.y}px`,
+            }}
+            title={fileLinkContextMenu.file.path}
+          >
+            <button
+              autoFocus
+              onClick={() => {
+                const menu = fileLinkContextMenu;
+                setFileLinkContextMenu(undefined);
+                if (activeThreadIdRef.current === menu.threadId) {
+                  openResolvedWorkspaceFile(menu.file);
+                }
+              }}
+              role="menuitem"
+            >
+              {t.openLinkedFile}
+            </button>
+            <button
+              onClick={() => void revealConversationFile(fileLinkContextMenu)}
+              role="menuitem"
+            >
+              {t.revealLinkedFile}
+            </button>
+            {fileLinkContextMenu.file.executable && (
+              <button
+                className="run"
+                onClick={() => void runConversationFile(fileLinkContextMenu)}
+                role="menuitem"
+              >
+                {t.runLinkedFile}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <button
+          className={typeof toast === "string" ? "toast" : "toast error"}
+          onClick={() => setToast(undefined)}
+          role={typeof toast === "string" ? undefined : "alert"}
+        >
+          {typeof toast === "string" ? toast : toast.message}
+        </button>
+      )}
+    </main>
+  );
+}
+
+function EmptyState({
+  title,
+  body,
+  button,
+  onOpen,
+  children,
+}: {
+  title: string;
+  body: string;
+  button: string;
+  onOpen: () => void | Promise<unknown>;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="empty-state">
+      <ArtemisMark />
+      <h1>{title}</h1>
+      <p>{body}</p>
+      {children}
+      <button className="primary-button" onClick={() => void onOpen()}>
+        <FolderIcon />
+        {button}
+      </button>
+    </div>
+  );
+}
+
+function AgentTeamPanel({
+  active,
+  controlPending,
+  locale,
+  members,
+  messages,
+  onOpenChildAgent,
+  onStop,
+  runtimeAvailable,
+  team,
+}: {
+  active: boolean;
+  controlPending: boolean;
+  locale: Locale;
+  members: ChildAgentState[];
+  messages: AgentTeamMessageState[];
+  onOpenChildAgent: (child: ChildAgentState) => void;
+  onStop: (team: AgentTeamState) => void;
+  runtimeAvailable: boolean;
+  team: AgentTeamState | undefined;
+}) {
+  const messageList = useRef<HTMLDivElement>(null);
+  const labels =
+    locale === "zh-CN"
+      ? {
+          title: "Agent 团队",
+          members: "成员与任务",
+          collaboration: "协作记录",
+          noMessages: "团队消息会在这里按顺序出现。",
+          unavailable: "团队记录尚未加载或当前不可用。",
+          history: "历史只读",
+          stop: "停止团队",
+        }
+      : {
+          title: "Agent team",
+          members: "Members and tasks",
+          collaboration: "Collaboration log",
+          noMessages: "Team messages will appear here in sequence.",
+          unavailable: "The team record is not loaded or is unavailable.",
+          history: "Read-only history",
+          stop: "Stop team",
+        };
+  const teamStatusLabels =
+    locale === "zh-CN"
+      ? {
+          forming: "正在组队",
+          running: "协作中",
+          blocked: "存在阻塞",
+          integrating: "等待主 Agent 集成",
+          completed: "已完成",
+          aborted: "已中止",
+        }
+      : {
+          forming: "Forming",
+          running: "Collaborating",
+          blocked: "Blocked",
+          integrating: "Awaiting parent integration",
+          completed: "Completed",
+          aborted: "Aborted",
+        };
+  const messageKindLabels =
+    locale === "zh-CN"
+      ? {
+          finding: "发现",
+          request: "请求",
+          blocker: "阻塞",
+          handoff: "交接",
+        }
+      : {
+          finding: "Finding",
+          request: "Request",
+          blocker: "Blocker",
+          handoff: "Handoff",
+        };
+  const teamRunning =
+    team &&
+    (team.status === "forming" ||
+      team.status === "running" ||
+      team.status === "blocked" ||
+      team.status === "integrating");
+  const agentName = (agentId: string) =>
+    agentId === "parent"
+      ? locale === "zh-CN"
+        ? "主 Agent"
+        : "Parent agent"
+      : agentId === "all"
+        ? locale === "zh-CN"
+          ? "全体成员"
+          : "Everyone"
+        : (members.find((member) => member.agentId === agentId)?.label ??
+          agentId);
+
+  useLayoutEffect(() => {
+    if (!active || !messageList.current) return;
+    messageList.current.scrollTop = messageList.current.scrollHeight;
+  }, [active, messages.length]);
+
+  if (!team) {
+    return (
+      <section className="agent-team-panel unavailable">
+        <div className="agent-team-empty">
+          <ChildAgentIcon
+            className="agent-team-empty-icon"
+            identity="agent-team"
+          />
+          <strong>{labels.title}</strong>
+          <p>{labels.unavailable}</p>
+          <span aria-hidden="true" className="agent-team-skeleton">
+            <i />
+            <i />
+            <i />
+          </span>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className={`agent-team-panel ${team.status}`}>
+      <header className="agent-team-header">
+        <div>
+          <span className="agent-team-eyebrow">{labels.title}</span>
+          <strong>{team.mission}</strong>
+          <small>
+            {teamStatusLabels[team.status]}
+            {!runtimeAvailable && teamRunning ? ` · ${labels.history}` : ""}
+          </small>
+        </div>
+        {teamRunning && runtimeAvailable && (
+          <button
+            className="secondary-button compact danger"
+            disabled={controlPending}
+            onClick={() => onStop(team)}
+            type="button"
+          >
+            {labels.stop}
+          </button>
+        )}
+      </header>
+      {team.error && <p className="agent-team-error">{team.error}</p>}
+      <div className="agent-team-grid">
+        <aside className="agent-team-members">
+          <h3>{labels.members}</h3>
+          <div className="agent-team-member-list">
+            {members.map((member) => (
+              <button
+                className={`agent-team-member ${member.status}`}
+                key={member.agentId}
+                onClick={() => onOpenChildAgent(member)}
+                type="button"
+              >
+                <ChildAgentIcon
+                  className="agent-team-member-icon"
+                  identity={member.agentId}
+                />
+                <strong>{member.label}</strong>
+              </button>
+            ))}
+          </div>
+        </aside>
+        <section className="agent-team-collaboration">
+          <h3>{labels.collaboration}</h3>
+          <div className="agent-team-message-list" ref={messageList}>
+            {messages.length === 0 ? (
+              <p className="agent-team-message-empty">{labels.noMessages}</p>
+            ) : (
+              messages.map((message) => (
+                <article
+                  className={`agent-team-message ${message.kind}`}
+                  key={message.messageId}
+                >
+                  <header>
+                    <strong>
+                      {agentName(message.fromAgentId)} →{" "}
+                      {agentName(message.recipient)}
+                    </strong>
+                    <span>{messageKindLabels[message.kind]}</span>
+                    <time>
+                      {new Date(message.createdAt).toLocaleTimeString(
+                        locale === "zh-CN" ? "zh-CN" : "en-US",
+                        { hour: "2-digit", minute: "2-digit" },
+                      )}
+                    </time>
+                  </header>
+                  <p>{message.content}</p>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function ChildAgentPanel({
+  active,
+  child,
+  clockMs,
+  locale,
+  onControl,
+  pendingAction,
+}: {
+  active: boolean;
+  child: ChildAgentState | undefined;
+  clockMs: number;
+  locale: Locale;
+  onControl: (
+    child: ChildAgentState,
+    action: "steer" | "cancel" | "retry",
+  ) => void;
+  pendingAction: string | undefined;
+}) {
+  const CHILD_AGENT_SCROLL_THRESHOLD = 64;
+  const childAgentScrollContainer = useRef<HTMLDivElement>(null);
+  const childAgentFollowOutput = useRef(true);
+  const labels =
+    locale === "zh-CN"
+      ? {
+          queued: "等待开始",
+          running: "已开始工作",
+          blocked: "被依赖阻塞",
+          cancelling: "正在停止",
+          completed: "已完成",
+          failed: "失败",
+          cancelled: "已停止",
+          waiting: "等待子智能体输出…",
+          unavailable: "此子智能体的输出当前不可用。",
+          task: "任务",
+          elapsed: "运行时长",
+          lastActivity: "最后活动",
+          currentTool: "当前工具",
+          suspect: "疑似卡住",
+          nudge: "催办",
+          stop: "停止此子代理",
+          retry: "重试",
+          justNow: "刚刚",
+        }
+      : {
+          queued: "Waiting to start",
+          running: "Started working",
+          blocked: "Blocked by dependency",
+          cancelling: "Stopping",
+          completed: "Completed",
+          failed: "Failed",
+          cancelled: "Stopped",
+          waiting: "Waiting for subagent output…",
+          unavailable: "This subagent output is currently unavailable.",
+          task: "Task",
+          elapsed: "Runtime",
+          lastActivity: "Last activity",
+          currentTool: "Current tool",
+          suspect: "Possibly stuck",
+          nudge: "Nudge",
+          stop: "Stop subagent",
+          retry: "Retry",
+          justNow: "just now",
+        };
+  const content = child?.error ?? child?.output ?? child?.activity;
+  const running = child?.status === "queued" || child?.status === "running";
+  const lastActivityMs = child?.lastActivityAt
+    ? Date.parse(child.lastActivityAt)
+    : undefined;
+  const silentMilliseconds = lastActivityMs
+    ? Math.max(0, clockMs - lastActivityMs)
+    : 0;
+  const health =
+    child?.health === "stalled" || child?.health === "suspect"
+      ? child.health
+      : running && silentMilliseconds >= 60_000
+        ? "suspect"
+        : "healthy";
+  const startedMilliseconds = child?.startedAt
+    ? Date.parse(child.startedAt)
+    : child?.updatedAt
+      ? Date.parse(child.updatedAt)
+      : clockMs;
+  const elapsedMilliseconds = Math.max(0, clockMs - startedMilliseconds);
+  const lastActivityLabel =
+    silentMilliseconds < 1_000
+      ? labels.justNow
+      : locale === "zh-CN"
+        ? `${formatRunDuration(silentMilliseconds)}前`
+        : `${formatRunDuration(silentMilliseconds)} ago`;
+  const currentToolElapsed = child?.currentToolStartedAt
+    ? Math.max(0, clockMs - Date.parse(child.currentToolStartedAt))
+    : undefined;
+  const controlPending = child
+    ? pendingAction?.startsWith(`${child.agentId}:`)
+    : false;
+  const handleChildAgentScroll = (event: ReactUIEvent<HTMLElement>) => {
+    const { clientHeight, scrollHeight, scrollTop } = event.currentTarget;
+    childAgentFollowOutput.current =
+      scrollHeight - scrollTop - clientHeight <= CHILD_AGENT_SCROLL_THRESHOLD;
+  };
+
+  useLayoutEffect(() => {
+    if (!active || !childAgentFollowOutput.current) return;
+    const container = childAgentScrollContainer.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+  }, [active, content, child?.status]);
+
+  return (
+    <section
+      aria-live="polite"
+      className={`child-agent-panel ${child?.status ?? "unavailable"} ${health}`}
+    >
+      <header className="child-agent-panel-header">
+        <ChildAgentIcon
+          className="child-agent-panel-icon"
+          identity={child?.agentId}
+        />
+        <span>
+          <strong>
+            {child?.label ?? (locale === "zh-CN" ? "子智能体" : "Subagent")}
+          </strong>
+          {child && (
+            <small>
+              {labels[child.status]}
+              {health !== "healthy" ? ` · ${labels.suspect}` : ""}
+            </small>
+          )}
+        </span>
+        {child && (
+          <div className="child-agent-panel-actions">
+            {running && (
+              <button
+                className="secondary-button compact"
+                disabled={controlPending}
+                onClick={() => onControl(child, "steer")}
+                type="button"
+              >
+                {labels.nudge}
+              </button>
+            )}
+            {(running || child.status === "cancelling") && (
+              <button
+                className="secondary-button compact danger"
+                disabled={controlPending || child.status === "cancelling"}
+                onClick={() => onControl(child, "cancel")}
+                type="button"
+              >
+                {labels.stop}
+              </button>
+            )}
+            {(child.status === "completed" ||
+              child.status === "failed" ||
+              child.status === "blocked" ||
+              child.status === "cancelled") && (
+              <button
+                className="secondary-button compact"
+                disabled={controlPending}
+                onClick={() => onControl(child, "retry")}
+                type="button"
+              >
+                {labels.retry}
+              </button>
+            )}
+          </div>
+        )}
+      </header>
+      {child && (
+        <div className="child-agent-panel-runtime-bar">
+          <dl className="child-agent-panel-runtime">
+            <div>
+              <dt>{labels.elapsed}</dt>
+              <dd>{formatRunDuration(elapsedMilliseconds)}</dd>
+            </div>
+            <div>
+              <dt>{labels.lastActivity}</dt>
+              <dd>{lastActivityLabel}</dd>
+            </div>
+            <div>
+              <dt>{labels.currentTool}</dt>
+              <dd>
+                {child.currentTool ?? "—"}
+                {child.currentTool && currentToolElapsed !== undefined
+                  ? ` · ${formatRunDuration(currentToolElapsed)}`
+                  : ""}
+              </dd>
+            </div>
+            {health !== "healthy" && (
+              <div className="child-agent-panel-health">
+                <dt>{labels.suspect}</dt>
+                <dd>{labels.suspect}</dd>
+              </div>
+            )}
+          </dl>
+        </div>
+      )}
+      <div
+        className="child-agent-panel-body"
+        onScroll={handleChildAgentScroll}
+        ref={childAgentScrollContainer}
+      >
+        <div className="child-agent-panel-body-inner">
+          {!child ? (
+            <p className="child-agent-panel-empty">{labels.unavailable}</p>
+          ) : (
+            <>
+              {child.task && (
+                <section className="child-agent-panel-task">
+                  <span>{labels.task}</span>
+                  <p>{child.task}</p>
+                </section>
+              )}
+              {content ? (
+                <MarkdownContent
+                  className={
+                    child.error
+                      ? "child-agent-panel-output error"
+                      : "child-agent-panel-output"
+                  }
+                  text={content}
+                />
+              ) : (
+                <p className="child-agent-panel-empty">{labels.waiting}</p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function UserInputCard({
+  input,
+  active,
+  locale,
+  onCancel,
+  onResolve,
+  placement = "timeline",
+}: {
+  input: UserInputState;
+  active: boolean;
+  locale: Locale;
+  onCancel?: () => Promise<boolean>;
+  onResolve: (resolution: UserInputResolution) => Promise<void>;
+  placement?: "composer" | "timeline";
+}) {
+  const t = copy[locale];
+  const recommendedOptionIndex = Math.max(
+    0,
+    input.options.findIndex((option) => option.recommended),
+  );
+  const otherOptionIndex = input.options.length;
+  const optionCount = input.options.length + 1;
+  const [showOther, setShowOther] = useState(false);
+  const [otherAnswer, setOtherAnswer] = useState("");
+  const [resolving, setResolving] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [activeOptionIndex, setActiveOptionIndex] = useState(
+    recommendedOptionIndex,
+  );
+  const optionButtons = useRef<Array<HTMLButtonElement | null>>([]);
+  const interactionBusy = resolving || cancelling;
+
+  useLayoutEffect(() => {
+    if (!active || input.status !== "pending") return;
+    setActiveOptionIndex(recommendedOptionIndex);
+    const frame = window.requestAnimationFrame(() => {
+      optionButtons.current[recommendedOptionIndex]?.focus({
+        preventScroll: true,
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [active, input.requestId, input.status, recommendedOptionIndex]);
+
+  if (input.status === "pending" && !active) return null;
+
+  const resolve = async (
+    choice: Pick<UserInputResolution, "selectedOption" | "customAnswer">,
+  ) => {
+    if (interactionBusy) return;
+    setResolving(true);
+    try {
+      await onResolve({
+        requestId: input.requestId,
+        nonce: input.nonce,
+        ...choice,
+      });
+    } catch {
+      setResolving(false);
+    }
+  };
+
+  const cancel = async () => {
+    if (!onCancel || interactionBusy) return;
+    setCancelling(true);
+    const cancelled = await onCancel();
+    if (!cancelled) setCancelling(false);
+  };
+
+  const closeOther = () => {
+    setShowOther(false);
+    window.requestAnimationFrame(() => {
+      optionButtons.current[otherOptionIndex]?.focus({ preventScroll: true });
+    });
+  };
+
+  const handleOptionKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+  ) => {
+    const key = event.key;
+    if (
+      key !== "ArrowDown" &&
+      key !== "ArrowUp" &&
+      key !== "Home" &&
+      key !== "End"
+    ) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const nextIndex = moveUserInputOptionFocus(
+      activeOptionIndex,
+      optionCount,
+      key,
+    );
+    if (nextIndex < 0) return;
+    setActiveOptionIndex(nextIndex);
+    optionButtons.current[nextIndex]?.focus();
+  };
+
+  return (
+    <article
+      className={`user-input-card ${input.status} ${placement}-placement`}
+    >
+      <header>
+        <span aria-hidden="true" className="user-input-mark">
+          <Icon size={18}>
+            <path
+              d="M9.2 9.1a2.9 2.9 0 1 1 4.4 2.5c-1 .6-1.6 1.1-1.6 2.2"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="1.7"
+            />
+            <path
+              d="M12 17.5h.01"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="2.2"
+            />
+          </Icon>
+        </span>
+        <div className="user-input-heading">
+          <small className="user-input-eyebrow">{input.header}</small>
+          <strong className="user-input-question">{input.question}</strong>
+        </div>
+        {input.status === "pending" && placement === "composer" && (
+          <button
+            aria-label={t.cancelCurrentTask}
+            className="user-input-cancel"
+            disabled={interactionBusy}
+            onClick={() => void cancel()}
+            title={t.cancelCurrentTask}
+            type="button"
+          >
+            <Icon size={18}>
+              <path
+                d="m7 7 10 10M17 7 7 17"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="1.6"
+              />
+            </Icon>
+          </button>
+        )}
+      </header>
+      {input.status === "pending" ? (
+        <>
+          <div className="user-input-options-scroll">
+            <div
+              aria-label={input.question}
+              className="user-input-options"
+              role="listbox"
+            >
+              {input.options.map((option, index) => (
+                <button
+                  aria-keyshortcuts="ArrowUp ArrowDown Home End Enter"
+                  aria-selected={activeOptionIndex === index}
+                  className={`user-input-option${option.recommended ? " recommended" : ""}${activeOptionIndex === index ? " active" : ""}`}
+                  disabled={interactionBusy}
+                  key={option.label}
+                  onClick={() => void resolve({ selectedOption: index })}
+                  onFocus={() => setActiveOptionIndex(index)}
+                  onKeyDown={handleOptionKeyDown}
+                  onMouseEnter={() => setActiveOptionIndex(index)}
+                  ref={(button) => {
+                    optionButtons.current[index] = button;
+                  }}
+                  role="option"
+                  tabIndex={activeOptionIndex === index ? 0 : -1}
+                  type="button"
+                >
+                  <span aria-hidden="true" className="user-input-option-index">
+                    {index + 1}
+                  </span>
+                  <span className="user-input-option-copy">
+                    <span className="user-input-option-title">
+                      <strong>{option.label}</strong>
+                      {option.recommended && (
+                        <small className="recommendation-badge">
+                          {t.recommended}
+                        </small>
+                      )}
+                    </span>
+                    <small>{option.description}</small>
+                  </span>
+                  <span aria-hidden="true" className="user-input-option-enter">
+                    <Icon size={17}>
+                      <path
+                        d="m9 5 7 7-7 7"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="1.7"
+                      />
+                    </Icon>
+                  </span>
+                </button>
+              ))}
+              {!showOther && (
+                <button
+                  aria-keyshortcuts="ArrowUp ArrowDown Home End Enter"
+                  aria-selected={activeOptionIndex === otherOptionIndex}
+                  className={`user-input-option other${activeOptionIndex === otherOptionIndex ? " active" : ""}`}
+                  disabled={interactionBusy}
+                  onClick={() => {
+                    setActiveOptionIndex(otherOptionIndex);
+                    setShowOther(true);
+                  }}
+                  onFocus={() => setActiveOptionIndex(otherOptionIndex)}
+                  onKeyDown={handleOptionKeyDown}
+                  onMouseEnter={() => setActiveOptionIndex(otherOptionIndex)}
+                  ref={(button) => {
+                    optionButtons.current[otherOptionIndex] = button;
+                  }}
+                  role="option"
+                  tabIndex={activeOptionIndex === otherOptionIndex ? 0 : -1}
+                  type="button"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="user-input-option-index user-input-other-icon"
+                  >
+                    <Icon size={15}>
+                      <path
+                        d="m5 16 1-3L15.5 3.5a1.8 1.8 0 0 1 2.6 2.6L8.5 15.5 5 16Z"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="1.5"
+                      />
+                    </Icon>
+                  </span>
+                  <span className="user-input-option-copy">
+                    <span className="user-input-option-title">
+                      <strong>{t.otherAnswer}</strong>
+                    </span>
+                    <small>{t.otherAnswerDetail}</small>
+                  </span>
+                  <span aria-hidden="true" className="user-input-option-enter">
+                    <Icon size={17}>
+                      <path
+                        d="m9 5 7 7-7 7"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="1.7"
+                      />
+                    </Icon>
+                  </span>
+                </button>
+              )}
+            </div>
+            {showOther && (
+              <form
+                className="user-input-other-inline"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const customAnswer = otherAnswer.trim();
+                  if (customAnswer) void resolve({ customAnswer });
+                }}
+              >
+                <span aria-hidden="true" className="user-input-other-edit-icon">
+                  <Icon size={16}>
+                    <path
+                      d="m5 16 1-3L15.5 3.5a1.8 1.8 0 0 1 2.6 2.6L8.5 15.5 5 16Z"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="1.5"
+                    />
+                  </Icon>
+                </span>
+                <input
+                  aria-label={t.customAnswer}
+                  autoFocus
+                  disabled={interactionBusy}
+                  maxLength={2_000}
+                  onChange={(event) => setOtherAnswer(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Escape") return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closeOther();
+                  }}
+                  placeholder={t.customAnswer}
+                  value={otherAnswer}
+                />
+                <button
+                  aria-label={t.submitAnswer}
+                  className="user-input-other-submit"
+                  disabled={interactionBusy || !otherAnswer.trim()}
+                  title={t.submitAnswer}
+                  type="submit"
+                >
+                  <Icon size={16}>
+                    <path
+                      d="m6 12 6-6 6 6m-6-6v12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="1.7"
+                    />
+                  </Icon>
+                </button>
+              </form>
+            )}
+          </div>
+          <footer className="user-input-footer">
+            <time className="user-input-timeout" dateTime={input.expiresAt}>
+              {t.timeoutHint}
+            </time>
+            {placement === "composer" && (
+              <button
+                aria-label={t.skipAndCancelTask}
+                className="user-input-skip"
+                disabled={interactionBusy}
+                onClick={() => void cancel()}
+                title={t.skipAndCancelTask}
+                type="button"
+              >
+                {t.skip}
+              </button>
+            )}
+          </footer>
+        </>
+      ) : (
+        <div className="user-input-result">
+          <span>
+            {input.status === "timed-out"
+              ? t.timedOut
+              : input.status === "cancelled"
+                ? t.inputCancelled
+                : t.answered}
+          </span>
+          {input.answer && <strong>{input.answer}</strong>}
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ToolActivityGroupCard({
+  active,
+  locale,
+  onFileLink,
+  tools,
+}: {
+  active: boolean;
+  locale: Locale;
+  onFileLink: (href: string) => void;
+  tools: readonly ToolState[];
+}) {
+  const [open, setOpen] = useState(false);
+  const status = tools.some((tool) => tool.status === "running")
+    ? "running"
+    : tools.some((tool) => tool.status === "failed")
+      ? "failed"
+      : "completed";
+  const visualStatus = active && status === "completed" ? "running" : status;
+  const representative =
+    [...tools].reverse().find((tool) => tool.status === "running") ??
+    [...tools]
+      .reverse()
+      .find((tool) => toolActivityKind(tool.name, tool.input) === "search") ??
+    tools.at(-1);
+  const kind = representative
+    ? toolActivityKind(representative.name, representative.input)
+    : "generic";
+  const summary = summarizeToolGroup(tools, locale);
+  const statusLabel =
+    locale === "zh-CN"
+      ? { running: "正在运行", completed: "已完成", failed: "失败" }[status]
+      : { running: "Running", completed: "Completed", failed: "Failed" }[
+          status
+        ];
+  const bashTranscript =
+    kind === "bash" ? formatBashTranscript(tools) : undefined;
+  const fileActivity = kind === "read" || kind === "write" || kind === "search";
+
+  return (
+    <section className={`tool-card ${visualStatus}${open ? " open" : ""}`}>
+      <div className="tool-summary-row">
+        <span aria-hidden="true" className="tool-activity-icon">
+          <ToolActivityIcon kind={kind} />
+        </span>
+        <span className="tool-summary-label" title={summary}>
+          {summary}
+        </span>
+        <button
+          aria-expanded={open}
+          aria-label={`${open ? "Collapse" : "Expand"}: ${summary}, ${statusLabel}`}
+          className="tool-disclosure"
+          onClick={() => setOpen((value) => !value)}
+          type="button"
+        >
+          <svg viewBox="0 0 16 16">
+            <path d="m6 3.5 4.5 4.5L6 12.5" />
+          </svg>
+        </button>
+      </div>
+      {open && fileActivity && (
+        <ol className="tool-activity-list">
+          {tools.map((tool) => {
+            const itemKind = toolActivityKind(tool.name, tool.input);
+            const detail = summarizeToolDetail(tool, locale);
+            const path = toolActivityPath(tool.input);
+            const prefix =
+              path && detail.endsWith(path)
+                ? detail.slice(0, -path.length)
+                : detail;
+            return (
+              <li className={tool.status} key={tool.id}>
+                <span aria-hidden="true" className="tool-item-icon">
+                  <ToolActivityIcon kind={itemKind} />
+                </span>
+                <span className="tool-item-label">
+                  {prefix}
+                  {path && detail.endsWith(path) && (
+                    <button
+                      className="tool-file-link"
+                      onClick={() => onFileLink(path)}
+                      type="button"
+                    >
+                      {path}
+                    </button>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {open && kind === "bash" && bashTranscript && (
+        <pre aria-live="polite" className="bash-transcript" role="log">
+          {bashTranscript}
+        </pre>
+      )}
+      {open && !fileActivity && kind !== "bash" && (
+        <div className="tool-details">
+          {tools.map((tool) => {
+            const input = formatToolInput(tool.name, tool.input);
+            const output = formatToolOutput(tool.name, tool.output);
+            if (!input && !output) return null;
+            return (
+              <section key={tool.id}>
+                <span>{summarizeToolDetail(tool, locale)}</span>
+                {input && <pre>{input}</pre>}
+                {output && <pre>{output}</pre>}
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Timeline({
+  installedPlugins,
+  installedSkills,
+  state,
+  locale,
+  onFileLink,
+  onFileLinkContextMenu,
+  onOpenChildAgent,
+  onResolve,
+  onResolveUserInput,
+}: {
+  installedPlugins: readonly InstalledCodexPlugin[];
+  installedSkills: readonly InstalledSkill[];
+  state: ThreadViewState;
+  locale: Locale;
+  onFileLink: (href: string) => void;
+  onFileLinkContextMenu: (
+    href: string,
+    position: { x: number; y: number },
+  ) => void;
+  onOpenChildAgent: (child: ChildAgentState) => void;
+  onResolve: (
+    approval: ApprovalState,
+    approved: boolean,
+    scope: "once" | "session" | "project",
+  ) => void;
+  onResolveUserInput: (resolution: UserInputResolution) => Promise<void>;
+}) {
+  const t = copy[locale];
+  const timelineEntries = groupTimelineActivities(state.order, state.tools);
+  const activeToolGroupKey =
+    state.status === "running" && state.queue.steering.length === 0
+      ? latestVisibleToolGroupKey(timelineEntries, state.messageParts)
+      : undefined;
+  const childStatusLabels =
+    locale === "zh-CN"
+      ? {
+          queued: "等待开始",
+          running: "已开始工作",
+          blocked: "被阻塞",
+          cancelling: "正在停止",
+          completed: "已完成",
+          failed: "失败",
+          cancelled: "已停止",
+        }
+      : {
+          queued: "Waiting to start",
+          running: "Started working",
+          blocked: "Blocked",
+          cancelling: "Stopping",
+          completed: "Completed",
+          failed: "Failed",
+          cancelled: "Stopped",
+        };
+  return (
+    <div className="timeline">
+      {timelineEntries.map((timelineEntry) => {
+        if (timelineEntry.kind === "tool-group") {
+          const tools = timelineEntry.toolIds.flatMap((toolId) => {
+            const tool = state.tools[toolId];
+            return tool ? [tool] : [];
+          });
+          return tools.length > 0 ? (
+            <ToolActivityGroupCard
+              active={timelineEntry.key === activeToolGroupKey}
+              key={timelineEntry.key}
+              locale={locale}
+              onFileLink={onFileLink}
+              tools={tools}
+            />
+          ) : null;
+        }
+        const entry = timelineEntry.entry;
+        const separator = entry.indexOf(":");
+        const kind = entry.slice(0, separator);
+        const id = entry.slice(separator + 1);
+        if (separator < 0 || !id) return null;
+        if (kind === "user") {
+          const message = state.userMessages[id];
+          if (!message) return null;
+          const skillNames = selectedSkillNamesForPrompt(message.text);
+          const visibleText = promptWithoutSelectedSkills(message.text);
+          return (
+            <article className="user-message" key={entry}>
+              {skillNames.length > 0 && (
+                <div className="user-message-capabilities">
+                  {skillNames.map((name) => {
+                    const skill = installedSkills.find(
+                      (candidate) => candidate.name === name,
+                    );
+                    const plugin = installedPlugins.find((candidate) =>
+                      candidate.skillNames.includes(name),
+                    );
+                    return (
+                      <span className="user-message-capability" key={name}>
+                        <span
+                          className={`user-message-capability-icon${plugin ? " plugin-icon" : ""}`}
+                        >
+                          {plugin?.iconDataUrl ? (
+                            <img
+                              alt=""
+                              draggable={false}
+                              src={plugin.iconDataUrl}
+                            />
+                          ) : plugin ? (
+                            <ResourceIcon />
+                          ) : (
+                            "✦"
+                          )}
+                        </span>
+                        <strong>{skill?.name ?? name}</strong>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              {visibleText && (
+                <div className="user-message-text">{visibleText}</div>
+              )}
+            </article>
+          );
+        }
+        if (kind === "compaction") {
+          const compaction = state.contextCompactions[id];
+          if (!compaction) return null;
+          return (
+            <article
+              aria-live="polite"
+              className={`turn-status compaction-status ${compaction.status}`}
+              key={entry}
+              role="status"
+            >
+              <span
+                className={`status-dot ${compaction.status === "completed" ? "idle" : "running"}`}
+              />
+              <span>
+                {compaction.status === "running"
+                  ? t.contextCompacting
+                  : t.contextCompacted}
+              </span>
+            </article>
+          );
+        }
+        if (kind === "part") {
+          const part = state.messageParts[id];
+          if (!part) return null;
+          if (part.type === "thinking") return null;
+          return (
+            <article className="assistant-message" key={entry}>
+              <MarkdownContent
+                onFileLink={onFileLink}
+                onFileLinkContextMenu={onFileLinkContextMenu}
+                text={part.text}
+              />
+            </article>
+          );
+        }
+        if (kind === "input") {
+          const input = state.userInputs[id];
+          if (!input || input.status === "pending") return null;
+          return (
+            <UserInputCard
+              active={false}
+              input={input}
+              key={entry}
+              locale={locale}
+              onResolve={onResolveUserInput}
+            />
+          );
+        }
+        if (kind === "approval") {
+          const approval = state.approvals[id];
+          return approval ? (
+            <article className={`approval-card ${approval.status}`} key={entry}>
+              <header>
+                <span className="approval-shield">!</span>
+                <div>
+                  <strong>{approval.summary}</strong>
+                  <small>{approval.command ?? approval.paths.join(", ")}</small>
+                  {approval.actorAgentId && (
+                    <small>
+                      {t.agentActor}:{" "}
+                      {state.childAgents[approval.actorAgentId]?.label ??
+                        approval.actorAgentId}
+                    </small>
+                  )}
+                </div>
+              </header>
+              {approval.modelReason && (
+                <p className="approval-model-reason">
+                  <span>{t.modelReason}</span>
+                  {approval.modelReason}
+                </p>
+              )}
+              {approval.status === "pending" && (
+                <div className="approval-actions">
+                  <button
+                    className="secondary-button"
+                    onClick={() => onResolve(approval, false, "once")}
+                  >
+                    {t.deny}
+                    {approval.modelRecommendation === "deny" && (
+                      <small className="recommendation-badge">
+                        {t.recommended}
+                      </small>
+                    )}
+                  </button>
+                  {approval.allowedScopes.includes("project") && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => onResolve(approval, true, "project")}
+                    >
+                      {t.approveProject}
+                    </button>
+                  )}
+                  {approval.allowedScopes.includes("session") && (
+                    <button
+                      className="secondary-button"
+                      onClick={() => onResolve(approval, true, "session")}
+                    >
+                      {t.approveSession}
+                    </button>
+                  )}
+                  {approval.allowedScopes.includes("once") && (
+                    <button
+                      className="primary-button compact"
+                      onClick={() => onResolve(approval, true, "once")}
+                    >
+                      {t.approveOnce}
+                      {approval.modelRecommendation === "approve" && (
+                        <small className="recommendation-badge">
+                          {t.recommended}
+                        </small>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+            </article>
+          ) : null;
+        }
+        if (kind === "child") {
+          const child = state.childAgents[id];
+          return child ? (
+            <button
+              aria-label={`${child.label}, ${childStatusLabels[child.status]}`}
+              className={`child-agent-card ${child.status} ${child.health ?? "healthy"}`}
+              key={entry}
+              onClick={() => onOpenChildAgent(child)}
+              type="button"
+            >
+              <span className="child-agent-pill">
+                <ChildAgentIcon
+                  className="child-agent-icon"
+                  identity={child.agentId}
+                />
+                <strong>{child.label}</strong>
+              </span>
+              <span className="child-agent-status">
+                {childStatusLabels[child.status]}
+              </span>
+              <span aria-hidden="true" className="child-agent-open-icon">
+                <Icon size={14}>
+                  <path
+                    d="m9 6 6 6-6 6"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="1.7"
+                  />
+                </Icon>
+              </span>
+            </button>
+          ) : null;
+        }
+        return null;
+      })}
+      {state.queue.steering.map((message, index) => (
+        <article
+          className="user-message steering-message"
+          key={`steering:${index}:${message}`}
+        >
+          {message}
+        </article>
+      ))}
+      {state.error && <div className="error-card">{state.error}</div>}
+    </div>
+  );
+}

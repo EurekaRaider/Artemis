@@ -1,0 +1,13 @@
+{
+  "name": "pdf",
+  "version": "1.0.1",
+  "description": "Runtime-free basic PDF workflows using Artemis's normalized Office document service.",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "PDF",
+    "shortDescription": "Basic text PDF reading and writing without Codex runtime.",
+    "category": "Productivity",
+    "brandColor": "#DC2626",
+    "logo": "./assets/icon.png"
+  }
+}

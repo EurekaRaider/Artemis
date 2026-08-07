@@ -1,0 +1,13 @@
+{
+  "name": "documents",
+  "version": "1.0.1",
+  "description": "Runtime-free basic Word document workflows using Artemis's normalized Office document service.",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Documents",
+    "shortDescription": "Basic normalized Word document reading and writing without Codex runtime.",
+    "category": "Productivity",
+    "brandColor": "#2563EB",
+    "logo": "./assets/icon.png"
+  }
+}

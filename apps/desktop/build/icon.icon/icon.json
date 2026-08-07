@@ -1,0 +1,32 @@
+{
+  "fill": "automatic",
+  "groups": [
+    {
+      "layers": [
+        {
+          "glass": false,
+          "image-name": "ArtemisForeground-v2.png",
+          "name": "Artemis Crescent"
+        },
+        {
+          "glass": false,
+          "image-name": "ArtemisBackground.png",
+          "name": "Artemis Background"
+        }
+      ],
+      "name": "Artemis",
+      "shadow": {
+        "kind": "none",
+        "opacity": 0.5
+      },
+      "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": ["macOS"]
+  }
+}

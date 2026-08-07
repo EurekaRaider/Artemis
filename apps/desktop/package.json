@@ -1,0 +1,120 @@
+{
+  "name": "@artemis/desktop",
+  "version": "0.1.9",
+  "private": true,
+  "type": "module",
+  "description": "Artemis desktop application",
+  "author": "Artemis contributors",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "build": "npm run build:electron && vite build",
+    "build:electron": "node scripts/build-electron.mjs",
+    "dev": "npm run build:electron && concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && cross-env ARTEMIS_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "package:mac": "node scripts/package-mac-lite.mjs arm64",
+    "package:mac:arm64": "node scripts/package-mac-lite.mjs arm64",
+    "package:win": "node scripts/package-windows-lite.mjs",
+    "release:mac": "node scripts/validate-release-env.mjs mac && npm run verify:bundled-plugins && npm run build && electron-builder --config scripts/release-builder.config.cjs --mac dmg zip --arm64 --publish never && node scripts/finalize-release.mjs",
+    "release:win": "node scripts/validate-release-env.mjs win && node scripts/package-windows-lite.mjs --release && cross-env ARTEMIS_REQUIRE_SIGNATURE=1 npm run verify:win-native && node scripts/finalize-release.mjs --windows-zip",
+    "verify:mac-native": "node scripts/verify-macos-native.mjs",
+    "verify:win-native": "node scripts/verify-windows-native.mjs",
+    "verify:bundled-plugins": "vitest run --no-file-parallelism test/codex-plugin-service.test.ts -t \"exposes all four Lite plugins from packaged resources without a runtime\"",
+    "verify:screenshot-matrix": "npm run build && node scripts/capture-screenshot-matrix.mjs",
+    "test": "vitest run --no-file-parallelism",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.83.0",
+    "@js-temporal/polyfill": "^0.5.1",
+    "@artemis/agent-host": "0.1.9",
+    "@artemis/platform": "0.1.9",
+    "@artemis/protocol": "0.1.9",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@office-kit/xlsx": "^0.9.0",
+    "@sinclair/typebox": "0.34.52",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "docx": "^9.7.1",
+    "dompurify": "3.4.12",
+    "electron-updater": "^6.8.9",
+    "json5": "^2.2.3",
+    "marked": "18.0.5",
+    "node-pty": "^1.1.0",
+    "officeparser": "^7.5.0",
+    "pdf-lib": "^1.17.1",
+    "pptxgenjs": "^4.0.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "seti-file-icons": "0.0.8",
+    "smol-toml": "^1.7.1",
+    "tar": "7.5.22",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.4",
+    "concurrently": "10.0.4",
+    "cross-env": "10.1.0",
+    "electron": "43.2.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.1",
+    "vite": "8.1.5",
+    "wait-on": "9.1.0"
+  },
+  "build": {
+    "appId": "com.artemis.desktop",
+    "productName": "Artemis",
+    "asar": true,
+    "afterPack": "scripts/apply-package-permissions.cjs",
+    "npmRebuild": false,
+    "asarUnpack": [
+      "node_modules/@earendil-works/**",
+      "node_modules/node-pty/**"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "dist-renderer/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "artifactName": "Artemis-macOS-${arch}-${version}.${ext}",
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.icon",
+      "hardenedRuntime": true,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "artifactName": "Artemis-Windows-${arch}-${version}.${ext}",
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}

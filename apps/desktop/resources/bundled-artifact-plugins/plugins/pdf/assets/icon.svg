@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="28" fill="#dc2626" />
+  <path
+    d="M37 23h37l17 17v65H37z"
+    fill="none"
+    stroke="#fff"
+    stroke-linejoin="round"
+    stroke-width="7"
+  />
+  <path
+    d="M74 23v18h17"
+    fill="none"
+    stroke="#fff"
+    stroke-linejoin="round"
+    stroke-width="7"
+  />
+  <text
+    x="64"
+    y="84"
+    fill="#fff"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="25"
+    font-weight="700"
+    text-anchor="middle"
+  >
+    PDF
+  </text>
+</svg>

@@ -1,0 +1,13 @@
+{
+  "name": "spreadsheets",
+  "version": "1.0.1",
+  "description": "Runtime-free basic Excel workflows using Artemis's normalized Office document service.",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Spreadsheets",
+    "shortDescription": "Basic normalized Excel reading and writing without Codex runtime.",
+    "category": "Productivity",
+    "brandColor": "#16A34A",
+    "logo": "./assets/icon.png"
+  }
+}
