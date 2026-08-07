@@ -33,7 +33,18 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 
 ![Artemis desktop workspace](docs/images/artemis-workspace-dark.png)
 
-## Built for local agent work
+<p align="center">
+  <strong>Local-first</strong>&nbsp;&nbsp;·&nbsp;&nbsp;
+  <strong>Replay-safe</strong>&nbsp;&nbsp;·&nbsp;&nbsp;
+  <strong>Explicit trust</strong>&nbsp;&nbsp;·&nbsp;&nbsp;
+  <strong>Pi-powered</strong>
+</p>
+
+<br />
+
+## 01 / System overview
+
+### Built for local agent work
 
 Artemis is an independent desktop coding Agent for real repositories. Pi
 runs the single agent loop; Electron owns lifecycle, policy and persistence;
@@ -44,7 +55,7 @@ credentials are protected with operating-system encryption.
 <table>
   <tr>
     <td width="50%" valign="top">
-      <h3>Responsive by design</h3>
+      <h3>Fast across long-running work</h3>
       <p><strong>Long-running task history does not have to make the workspace feel long-running.</strong></p>
       <ul>
         <li>Task events are loaded on demand, merged replay-safely, reduced incrementally and cached for recently viewed tasks.</li>
@@ -54,7 +65,7 @@ credentials are protected with operating-system encryption.
       </ul>
     </td>
     <td width="50%" valign="top">
-      <h3>🛡️ Explicit trust by design</h3>
+      <h3>Explicit boundaries by design</h3>
       <p><strong>Read-only modes, user-authorized integrations and extension trust have distinct boundaries.</strong></p>
       <ul>
         <li>Plan and Review deny writes before an executor or filesystem call runs and do not expose Bash, MCP or executable extensions.</li>
@@ -66,17 +77,48 @@ credentials are protected with operating-system encryption.
   </tr>
 </table>
 
-|                          |                                                                                                                                                                                                                                                                                                                         |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Agent workspace**      | Persistent projects and Local tasks, collapsible per-project conversation history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals. |
-| **Workspace tools**      | Review, Terminal, Browser, Markdown, Files and child-Agent tabs; editable files with syntax highlighting; rich/source Markdown; locale-aware external browsing without Node, preload or local-file access; explicit opening of Agent-created HTML.                                                                      |
-| **Guarded modes**        | Plan for read-only planning, Execute for implementation, general work and Office tasks, and Review for read-only inspection. Plan and Review reject writes before execution.                                                                                                                                            |
-| **Git workflow**         | Last-turn, unstaged, staged and base/branch diffs; tracked, untracked and binary changes; inline comments; file/hunk stage and unstage; recoverable revert; stale diff-identifier rejection and race-safe scope switching.                                                                                              |
-| **Reusable context**     | Persistent goals, editable global `AGENTS.md`, selective project-first memory, `/goal`, `/init`, multiple `/skill` selections and category-based import of global instructions, Skills and MCP from Codex, OpenCode and Claude without copying models or credentials.                                                   |
-| **Models and resources** | Pi model catalog, thinking/context controls, custom OpenAI-compatible Chat Completions and Responses providers, encrypted credentials, Skills, full-permission MCP stdio/HTTP with OAuth 2.1 + PKCE, and trusted Pi extensions.                                                                                         |
-| **Operations**           | Local automations, daily/weekly/cumulative Token insights, fork-safe usage accounting, OS user identity, bilingual/system-language UI, themes, diagnostics export, update recovery and native packaging gates.                                                                                                          |
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>01</strong>&nbsp;&nbsp;/&nbsp;&nbsp;AGENT WORKSPACE</p>
+      <p>Persistent projects and Local tasks, collapsible per-project conversation history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>02</strong>&nbsp;&nbsp;/&nbsp;&nbsp;WORKSPACE TOOLS</p>
+      <p>Review, Terminal, Browser, Markdown, Files and child-Agent tabs; editable files with syntax highlighting; rich/source Markdown; locale-aware external browsing without Node, preload or local-file access; explicit opening of Agent-created HTML.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>03</strong>&nbsp;&nbsp;/&nbsp;&nbsp;GUARDED MODES</p>
+      <p>Plan for read-only planning, Execute for implementation, general work and Office tasks, and Review for read-only inspection. Plan and Review reject writes before execution.</p>
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>04</strong>&nbsp;&nbsp;/&nbsp;&nbsp;GIT WORKFLOW</p>
+      <p>Last-turn, unstaged, staged and base/branch diffs; tracked, untracked and binary changes; inline comments; file/hunk stage and unstage; recoverable revert; stale diff-identifier rejection and race-safe scope switching.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>05</strong>&nbsp;&nbsp;/&nbsp;&nbsp;REUSABLE CONTEXT</p>
+      <p>Persistent goals, editable global <code>AGENTS.md</code>, selective project-first memory, <code>/goal</code>, <code>/init</code>, multiple <code>/skill</code> selections and category-based import of global instructions, Skills and MCP from Codex, OpenCode and Claude without copying models or credentials.</p>
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>06</strong>&nbsp;&nbsp;/&nbsp;&nbsp;MODELS &amp; RESOURCES</p>
+      <p>Pi model catalog, thinking/context controls, custom OpenAI-compatible Chat Completions and Responses providers, encrypted credentials, Skills, full-permission MCP stdio/HTTP with OAuth 2.1 + PKCE, and trusted Pi extensions.</p>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <p><strong>07</strong>&nbsp;&nbsp;/&nbsp;&nbsp;OPERATIONS</p>
+      <p>Local automations, daily/weekly/cumulative Token insights, fork-safe usage accounting, OS user identity, bilingual/system-language UI, themes, diagnostics export, update recovery and native packaging gates.</p>
+    </td>
+  </tr>
+</table>
 
-## Product preview
+<br />
+
+### Product preview
 
 <table>
   <tr>
@@ -94,30 +136,35 @@ sidebar and responsive workspace canvas in English and Simplified Chinese at
 100%, 125% and 150% zoom. Each image has a companion automated accessibility
 audit; the current manifest reports zero audited issues for all six variants.
 
-## Plugin marketplace and capability center
+### Plugin marketplace and capability center
 
 Artemis brings plugins, Connectors, MCP servers and Skills into one
 searchable capability center. A plugin can contribute one or more Skills,
 Connector definitions and MCP configurations while keeping installation,
 enablement and removal visible to the user.
 
-- **Marketplace discovery** — browse bundled, manually added and local sources,
-  search cached results immediately, refresh explicitly, or add a Git
-  marketplace by URL or `owner/repository` shorthand. External marketplaces
-  are never subscribed to or fetched by default. Refresh downloads a bounded
-  GitHub archive over HTTPS through the system network stack; it does not invoke
-  or require a local `git.exe`/`git` installation.
-- **Local and bundled capabilities** — inspect a local plugin bundle, trust a
-  hash-pinned executable extension, and install the bundled Documents, PDF,
-  Spreadsheets and Presentations Lite plugins without installing Codex or an
-  external document toolchain.
-- **Unified management** — manage Plugins, Connectors, MCP and standalone
-  Skills from separate tabs with real icons, status, enable/disable controls,
-  updates and uninstall actions. Unavailable entries and Connectors without a
-  usable endpoint are not offered for installation.
-- **First-class MCP setup** — add or edit stdio and HTTP MCP servers from a
-  dedicated page with arguments, environment values, variable passthrough,
-  working directory and encrypted OAuth or bearer credentials where supported.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>DISCOVER</strong>&nbsp;&nbsp;/&nbsp;&nbsp;Marketplace discovery</p>
+      <p>Browse bundled, manually added and local sources, search cached results immediately, refresh explicitly, or add a Git marketplace by URL or <code>owner/repository</code> shorthand. External marketplaces are never subscribed to or fetched by default. Refresh downloads a bounded GitHub archive over HTTPS through the system network stack; it does not invoke or require a local <code>git.exe</code>/<code>git</code> installation.</p>
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>INSTALL</strong>&nbsp;&nbsp;/&nbsp;&nbsp;Local and bundled capabilities</p>
+      <p>Inspect a local plugin bundle, trust a hash-pinned executable extension, and install the bundled Documents, PDF, Spreadsheets and Presentations Lite plugins without installing Codex or an external document toolchain.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>CONTROL</strong>&nbsp;&nbsp;/&nbsp;&nbsp;Unified management</p>
+      <p>Manage Plugins, Connectors, MCP and standalone Skills from separate tabs with real icons, status, enable/disable controls, updates and uninstall actions. Unavailable entries and Connectors without a usable endpoint are not offered for installation.</p>
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>CONNECT</strong>&nbsp;&nbsp;/&nbsp;&nbsp;First-class MCP setup</p>
+      <p>Add or edit stdio and HTTP MCP servers from a dedicated page with arguments, environment values, variable passthrough, working directory and encrypted OAuth or bearer credentials where supported.</p>
+    </td>
+  </tr>
+</table>
 
 <p align="center">
   <img src="docs/images/plugin-marketplace.jpg" alt="Artemis plugin marketplace with installed capabilities, search, categories and install controls" />
@@ -135,16 +182,18 @@ enablement and removal visible to the user.
   </tr>
 </table>
 
-## Quick start
+<br />
 
-### Requirements
+## 02 / Boot sequence
 
-- Node.js 24+
-- npm 11+
-- Git
-- Windows 11 x64 or macOS 14+ on Apple Silicon
+### Quick start
 
-### Run from source
+#### Requirements
+
+> [!IMPORTANT]
+> **Runtime baseline** — Node.js 24+ · npm 11+ · Git · Windows 11 x64 or macOS 14+ on Apple Silicon
+
+#### Run from source
 
 ```powershell
 npm install
@@ -158,10 +207,17 @@ flat Agent-team decomposition for complex or long-horizon tasks. Existing Pi
 OAuth credentials can be imported explicitly; Artemis does not silently copy
 them.
 
-## Desktop workspace and task lifecycle
+<br />
+
+## 03 / Workspace runtime
+
+### Desktop workspace and task lifecycle
 
 Artemis turns each repository into a persistent project with one or more
 tasks. Interactive tasks run against the repository's local checkout.
+
+<details open>
+<summary><strong>01 · Projects and persistent conversations</strong></summary>
 
 - **Project and task management** — add a repository with the native picker;
   expand or collapse each project's conversation history, preview five tasks
@@ -183,6 +239,12 @@ tasks. Interactive tasks run against the repository's local checkout.
   SQLite WAL stores the desktop projection. Restarted Agent Hosts reopen prior
   user/assistant context instead of starting a visually restored but empty
   session.
+
+</details>
+
+<details>
+<summary><strong>02 · Live turns, composer and progress</strong></summary>
+
 - **Continuation controls** — resume, true Pi fork, queued prompts, live
   steering, follow-up turns and active-turn cancellation are wired to the live
   Agent session.
@@ -200,6 +262,12 @@ tasks. Interactive tasks run against the repository's local checkout.
   left-to-right highlight sweep as Thinking, followed by the completion state.
   Usage Insights adds daily, weekly and cumulative Token totals with a calendar
   heatmap and avoids double-counting forked history.
+
+</details>
+
+<details>
+<summary><strong>03 · Recovery, responsiveness and automations</strong></summary>
+
 - **Restart recovery** — persisted events are versioned and replayed through an
   idempotent reducer. Event history is fetched only when a task is opened and
   live deltas are merged without duplication.
@@ -215,39 +283,36 @@ tasks. Interactive tasks run against the repository's local checkout.
   downtime to only the latest missed occurrence when Artemis starts
   again.
 
-The Renderer is sandboxed and has no Node integration. It reaches the desktop
-only through a typed, validated preload API.
+</details>
 
-Automations run only while the desktop app is open; Artemis does not
-install an operating-system service or wake a stopped app. Plan and Review keep
-their write-denial policy. Execute automations require an explicit native
-warning confirmation because their brokered approvals are granted
-automatically and built-in Pi `bash` runs with the desktop user's permissions.
-Changing the prompt, mode, target, project, or schedule revokes that
-authorization and disables the automation until it is confirmed again.
+> [!NOTE]
+> The Renderer is sandboxed and has no Node integration. It reaches the desktop only through a typed, validated preload API.
 
-## Workspace tools
+> [!WARNING]
+> Automations run only while the desktop app is open; Artemis does not install an operating-system service or wake a stopped app. Plan and Review keep their write-denial policy. Execute automations require an explicit native warning confirmation because their brokered approvals are granted automatically and built-in Pi `bash` runs with the desktop user's permissions. Changing the prompt, mode, target, project, or schedule revokes that authorization and disables the automation until it is confirmed again.
+
+### Workspace tools
 
 The right workspace keeps repository work beside the conversation:
 
-- **Review** presents live Git scopes, file/hunk actions and inline comments.
-- **Terminal** provides a real desktop-user PTY in the Local checkout.
-- **Browser** loads HTTP and HTTPS pages with JavaScript, cookies and web
-  storage while keeping Node integration, preload APIs and local-file access
-  disabled. External requests follow the selected English or Simplified Chinese
-  locale through `Accept-Language`; switching locale reloads remote pages while
-  leaving workspace HTML unchanged. Agent-created HTML opens only from explicit
-  links.
-- **Markdown** switches between source and rich rendering for local Markdown
-  files.
-- **Files** browses the project tree with file-type icons, syntax highlighting
-  and local editing.
-- **Agent Team and Child Agent tabs** expose the status and output of real
-  parallel Pi sessions without hiding them behind the parent timeline. When a
-  continued task starts a new team, its workbench replaces the stopped team's
-  team and child tabs while preserving unrelated workspace tabs.
+<table>
+  <tr>
+    <td width="50%" valign="top"><p><strong>REVIEW</strong></p><p>Live Git scopes, file/hunk actions and inline comments.</p></td>
+    <td width="50%" valign="top"><p><strong>TERMINAL</strong></p><p>A real desktop-user PTY in the Local checkout.</p></td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top"><p><strong>BROWSER</strong></p><p>HTTP and HTTPS pages with JavaScript, cookies and web storage while keeping Node integration, preload APIs and local-file access disabled. External requests follow the selected English or Simplified Chinese locale through <code>Accept-Language</code>; switching locale reloads remote pages while leaving workspace HTML unchanged. Agent-created HTML opens only from explicit links.</p></td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><p><strong>MARKDOWN</strong></p><p>Source and rich rendering for local Markdown files.</p></td>
+    <td width="50%" valign="top"><p><strong>FILES</strong></p><p>Project-tree browsing with file-type icons, syntax highlighting and local editing.</p></td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top"><p><strong>AGENT TEAM / CHILD AGENTS</strong></p><p>Status and output from real parallel Pi sessions without hiding them behind the parent timeline. When a continued task starts a new team, its workbench replaces the stopped team's team and child tabs while preserving unrelated workspace tabs.</p></td>
+  </tr>
+</table>
 
-## Plan, Execute, Review and Office work
+### Plan, Execute, Review and Office work
 
 The formal protocol and persistence enum is `execute | plan | review`. Every UI
 selector presents **Plan → Execute → Review**, while new tasks default to
@@ -281,26 +346,19 @@ values for new data. Legacy write-capable automations are disabled during
 migration, any previous unattended authorization is revoked, and fresh user
 authorization is required before they can run unattended again.
 
-## Experiential memory and instructions
+### Experiential memory and instructions
 
 Artemis can reuse durable, verified experience without turning old text
 into a higher-priority instruction.
 
-- **Project memory** lives at `<project>/.artemis/MEMORY.md` with a
-  512 KiB limit.
-- **Global memory** lives at `~/.pi/agent/MEMORY.md` with a 128 KiB limit and is
-  reserved for explicitly cross-project workflows.
-- **Selective recall** tokenizes the current request, gives project headings
-  and keywords the strongest weight, applies a stricter global threshold and
-  injects only bounded relevant entries.
-- **Instruction isolation** marks recalled text as prior experience that cannot
-  override the current request or system policy.
-- **Controlled saving** exposes `save_memory` only to the active Execute
-  turn. Plan, Review, inactive turns, mismatched workspaces and unjustified
-  global writes are rejected by the broker.
-- **Integrity** validates entry size and keywords, skips duplicate headings or
-  content, rejects symlinked memory files/directories and uses an atomic
-  temporary-file rename with private file permissions.
+| Layer                     | Contract                                                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Project memory**        | Lives at `<project>/.artemis/MEMORY.md` with a 512 KiB limit.                                                                                                                              |
+| **Global memory**         | Lives at `~/.pi/agent/MEMORY.md` with a 128 KiB limit and is reserved for explicitly cross-project workflows.                                                                              |
+| **Selective recall**      | Tokenizes the current request, gives project headings and keywords the strongest weight, applies a stricter global threshold and injects only bounded relevant entries.                    |
+| **Instruction isolation** | Marks recalled text as prior experience that cannot override the current request or system policy.                                                                                         |
+| **Controlled saving**     | Exposes `save_memory` only to the active Execute turn. Plan, Review, inactive turns, mismatched workspaces and unjustified global writes are rejected by the broker.                       |
+| **Integrity**             | Validates entry size and keywords, skips duplicate headings or content, rejects symlinked memory files/directories and uses an atomic temporary-file rename with private file permissions. |
 
 Project memory complements two existing context layers: the task's persistent
 goal and the editable global `AGENTS.md` instructions. Settings can also scan
@@ -308,7 +366,7 @@ Codex, OpenCode and Claude configuration, preview detected sources, and import
 selected global instruction, Skill and MCP categories. Model settings and
 credentials are never imported.
 
-## Git Review
+### Git Review
 
 The Review panel is a live Git workspace rather than a static diff viewer:
 
@@ -323,7 +381,11 @@ The Review panel is a live Git workspace rather than a static diff viewer:
 - switch Review scopes without allowing a slower stale response to replace the
   current selection.
 
-## Execution permissions and trust boundary
+<br />
+
+## 04 / Trust fabric
+
+### Execution permissions and trust boundary
 
 Artemis replaces default Pi shell/write tools with brokered host tools. A
 requested operation first passes through the active mode policy. The next
@@ -343,43 +405,29 @@ flowchart LR
     Trust --> OptIn["Extension-only full local access"]
 ```
 
-- **Brokered execution tools** carry an explicit model approval decision. In
-  **Approve for me** mode, model-approved Bash, workspace, Office and trusted
-  extension operations continue automatically; other operations fall back to
-  a human approval card that shows the model's recommendation and reason.
-  Exact-target approval memory remains available in Custom mode.
-- **Workflow choices** use one structured question at a time with two or three
-  options, a custom-answer path and one model recommendation. They support
-  keyboard navigation; if no answer arrives within five minutes, the
-  recommended option is recorded and used automatically.
-- **Replay protection** uses host-generated nonces; cancellation revokes
-  outstanding approvals and workflow choices. Unresolved interactions recover
-  safely after restart.
-- **Pi Bash** is available only in Execute. After brokered model or user
-  approval, it intentionally inherits the current desktop user's full
-  filesystem and network permissions.
-- **Integrated Terminal** is opened by the user and inherits the current
-  desktop user's filesystem and network permissions without automatic
-  administrator elevation.
-- **MCP** tools are auto-approved. Enabled local stdio servers intentionally
-  inherit the current desktop user's full filesystem and network permissions;
-  enabling an MCP server is therefore the trust decision.
-- **Extensions** remain disabled until project and content-hash trust are
-  explicit. They run in AppContainer on Windows or Seatbelt on macOS by
-  default; the **Full local access** setting opts extensions alone into
-  desktop-user permissions.
-- **Browser** has normal HTTP/HTTPS access but no Node integration, preload API
-  or local-file access.
-- **Plan and Review** reject writes before an executor or filesystem call and
-  do not expose Pi Bash, MCP or executable extensions.
-- **macOS** Lite engineering packages generate separate Apple Silicon arm64 and
-  Intel x64 artifacts. Local checks cover archive integrity, architecture, the
-  ad-hoc engineering signature and packaged resources; the x64 result is a
-  static build validation only. Intel-native launch, Developer ID signing,
-  notarization, stapling, PTY/Seatbelt and update/rollback release acceptance
-  remain separate native gates.
+#### Interaction control
 
-## Terminal
+| Control                      | Behavior                                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Brokered execution tools** | Carry an explicit model approval decision. In **Approve for me** mode, model-approved Bash, workspace, Office and trusted extension operations continue automatically; other operations fall back to a human approval card that shows the model's recommendation and reason. Exact-target approval memory remains available in Custom mode. |
+| **Workflow choices**         | Use one structured question at a time with two or three options, a custom-answer path and one model recommendation. They support keyboard navigation; if no answer arrives within five minutes, the recommended option is recorded and used automatically.                                                                                  |
+| **Replay protection**        | Uses host-generated nonces; cancellation revokes outstanding approvals and workflow choices. Unresolved interactions recover safely after restart.                                                                                                                                                                                          |
+
+#### Execution surfaces
+
+| Surface                 | Effective boundary                                                                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Pi Bash**             | Available only in Execute. After brokered model or user approval, it intentionally inherits the current desktop user's full filesystem and network permissions.                                                                |
+| **Integrated Terminal** | Opened by the user and inherits the current desktop user's filesystem and network permissions without automatic administrator elevation.                                                                                       |
+| **MCP**                 | Tools are auto-approved. Enabled local stdio servers intentionally inherit the current desktop user's full filesystem and network permissions; enabling an MCP server is therefore the trust decision.                         |
+| **Extensions**          | Remain disabled until project and content-hash trust are explicit. They run in AppContainer on Windows or Seatbelt on macOS by default; the **Full local access** setting opts extensions alone into desktop-user permissions. |
+| **Browser**             | Has normal HTTP/HTTPS access but no Node integration, preload API or local-file access.                                                                                                                                        |
+| **Plan and Review**     | Reject writes before an executor or filesystem call and do not expose Pi Bash, MCP or executable extensions.                                                                                                                   |
+
+> [!CAUTION]
+> **macOS validation boundary** — Lite engineering packages generate separate Apple Silicon arm64 and Intel x64 artifacts. Local checks cover archive integrity, architecture, the ad-hoc engineering signature and packaged resources; the x64 result is a static build validation only. Intel-native launch, Developer ID signing, notarization, stapling, PTY/Seatbelt and update/rollback release acceptance remain separate native gates.
+
+### Terminal
 
 The workspace terminal uses xterm in the Renderer and `node-pty` in the main
 process.
@@ -395,7 +443,7 @@ process.
 - ships platform-specific Node-API prebuilds outside asar, with packaging checks
   for the Windows Electron runtime.
 
-## Models, providers and settings
+### Models, providers and settings
 
 Settings follows the desktop's English/Chinese locale and is divided into five
 focused pages:
@@ -412,7 +460,7 @@ The dialog has tab semantics, keyboard focus behavior and Escape-to-close
 support. Model application reports success or failure without silently
 accepting a model that is missing from the live catalog.
 
-### Ultra Mode
+#### Ultra Mode
 
 Ultra Mode is available from the composer model picker for reasoning-capable
 models. It runs the parent and every child at the selected model's highest
@@ -431,9 +479,13 @@ Credentials and authorization material are encrypted with Electron
 `safeStorage`. If OS encryption is unavailable, secret writes fail instead of
 falling back to plaintext.
 
-## Skills, MCP and trusted extensions
+<br />
 
-### Resource Center and Skills
+## 05 / Capability fabric
+
+### Skills, MCP and trusted extensions
+
+#### Resource Center and Skills
 
 The Resource Center separates Plugin, Connector, MCP and Skill catalogs, shows
 installed state, connection/tool counts and enable switches, and exposes source
@@ -448,7 +500,10 @@ links before installation.
   path escapes, duplicate installations, packages over 200 files, individual
   files over 5 MiB or packages over 20 MiB.
 
-### Plugin and Connector compatibility
+#### Plugin and Connector compatibility
+
+<details open>
+<summary><strong>Bundled plugins and portable imports</strong></summary>
 
 The Resource Center's **Plugins** tab can inspect a local directory containing
 `.codex-plugin/plugin.json`, or load a Git marketplace from an HTTPS URL or an
@@ -511,7 +566,10 @@ This compatibility layer does not turn plugins into trusted executable Pi
 extensions and does not relax Plan/Review, Bash, Terminal, MCP or extension
 permission boundaries.
 
-### Manually add the OpenAI plugin marketplace
+</details>
+
+<details>
+<summary><strong>Manually add the OpenAI plugin marketplace</strong></summary>
 
 The OpenAI plugin marketplace is not bundled, subscribed to, selected or
 fetched when Artemis starts. Users who choose to add this external source
@@ -529,7 +587,10 @@ This opt-in source is maintained by OpenAI and is subject to its own terms,
 licenses and availability. Artemis does not redistribute it, and adding
 the source does not imply sponsorship or endorsement by OpenAI.
 
-### Custom Git application marketplaces
+</details>
+
+<details>
+<summary><strong>Build a custom Git application marketplace</strong></summary>
 
 Artemis can subscribe to custom application marketplaces stored in
 public GitHub repositories. Open **Plugins → Add → Git marketplace**, then enter
@@ -629,7 +690,10 @@ Authorize action remains available for retry. A legacy connector declaration
 that contains only a provider-specific ID and no endpoint remains unavailable
 because there is no executable protocol target.
 
-### MCP
+</details>
+
+<details>
+<summary><strong>MCP transport and authorization</strong></summary>
 
 - stdio and Streamable HTTP transports;
 - automatic tool approval after the server has been explicitly enabled;
@@ -640,7 +704,10 @@ because there is no executable protocol target.
 - stable server-qualified tool names, tool discovery, connection state and
   enablement.
 
-### Trusted Pi tool extensions
+</details>
+
+<details>
+<summary><strong>Trusted Pi tool extensions</strong></summary>
 
 - explicit project trust before executable extensions become available;
 - explicit selection and trust for each extension;
@@ -650,12 +717,17 @@ because there is no executable protocol target.
 - optional **Full local access** for extensions only, running them with the
   desktop user's permissions.
 
-## Parallel Agents
+</details>
+
+### Parallel Agents
 
 Artemis implements multi-Agent work as a flat team of real Pi-backed
 sessions. The parent remains responsible for decomposition, conflict-free
 assignment, monitoring, integration and the final response; children cannot
 spawn or control more Agents.
+
+<details open>
+<summary><strong>01 · Scheduling and Ultra Mode</strong></summary>
 
 - **Bounded teams and global scheduling** — a parent can create up to four
   children for complementary tasks. Parent and child sessions share one
@@ -668,6 +740,12 @@ spawn or control more Agents.
   supported thinking level (`max` when available). The parent proactively forms
   a team for complex, long-horizon or meaningfully parallel work while keeping
   simple and strictly sequential tasks single-Agent.
+
+</details>
+
+<details>
+<summary><strong>02 · Task contracts and conflict control</strong></summary>
+
 - **Explicit task contracts** — every child receives a label, role, bounded
   task, required/optional status, dependency IDs and an optional cooperative
   workspace-relative write scope. A child stays queued until its dependencies
@@ -677,6 +755,12 @@ spawn or control more Agents.
   tool read-only. This is a team coordination contract rather than an operating
   system sandbox: approved Pi Bash still has the Execute-mode desktop-user
   permissions described below.
+
+</details>
+
+<details>
+<summary><strong>03 · Collaboration and lifecycle control</strong></summary>
+
 - **Audited collaboration** — parent and children exchange structured finding,
   request, blocker and handoff messages addressed to the parent, the whole team
   or one teammate. The roster exposes dependencies, health, current tool, last
@@ -689,6 +773,12 @@ spawn or control more Agents.
   every close includes a non-empty integration summary. If the parent ends
   without closing the team, Artemis aborts it and reports
   `agent-team-incomplete`, except when the user cancelled the turn.
+
+</details>
+
+<details>
+<summary><strong>04 · Policy inheritance and teardown</strong></summary>
+
 - **Policy inheritance and visibility** — child sessions inherit the parent
   mode. Execute children also inherit enabled MCP configuration and approved
   execution surfaces; Plan and Review children remain read-only. Status and
@@ -697,7 +787,9 @@ spawn or control more Agents.
   child sessions; cancelled work is replaced with a fresh session rather than
   being presented as resumable execution.
 
-## Diagnostics and update recovery
+</details>
+
+### Diagnostics and update recovery
 
 - bounded local diagnostics cover main-process errors, Renderer crashes/hangs
   and Agent Host stderr/exit;
@@ -712,7 +804,11 @@ spawn or control more Agents.
 - signed release commands fail closed when their platform-specific signing,
   feed or recovery requirements are incomplete.
 
-## Architecture
+<br />
+
+## 06 / System design
+
+### Architecture
 
 ```mermaid
 flowchart LR
@@ -739,7 +835,8 @@ flowchart LR
     Main --> Secrets["DPAPI / Keychain<br/>safeStorage"]
 ```
 
-Architecture invariants:
+<details>
+<summary><strong>Inspect architecture invariants</strong></summary>
 
 - Pi is the only agent loop.
 - Raw Pi events stop at `PiAdapter`; UI code consumes only
@@ -758,7 +855,13 @@ Architecture invariants:
   extension **Full local access** setting.
 - Interactive tasks always use the project's Local checkout.
 
-## Build and test matrix
+</details>
+
+<br />
+
+## 07 / Verification &amp; delivery
+
+### Build and test matrix
 
 ```powershell
 npm test
@@ -787,7 +890,7 @@ workspace/outside writes and network access, local stdio MCP with full
 desktop-user access, plus trusted-extension execution with its AppContainer
 boundary retained.
 
-## Lite mode and self-contained packaging
+### Lite mode and self-contained packaging
 
 Lite mode is the default package profile. The repository contains the four
 document plugin manifests and Skills, while the application contains the
@@ -809,7 +912,8 @@ plugin gate. The gate fails unless Documents, PDF, Presentations and
 Spreadsheets are all visible, installable, Connector-free and backed by their
 Lite Skills.
 
-### Common fresh-checkout setup
+<details open>
+<summary><strong>Common fresh-checkout setup</strong></summary>
 
 Install Node.js 24 or later for the build host and npm 11 or later. From the
 repository root:
@@ -827,7 +931,10 @@ The verification command must finish with `1 passed`. If packaging reports
 `npm ci --include=dev` from the repository root and do not install TypeScript
 globally as a workaround.
 
-### macOS Apple Silicon arm64 and Intel x64
+</details>
+
+<details>
+<summary><strong>macOS · Apple Silicon arm64 and Intel x64</strong></summary>
 
 Use a Mac with Xcode 26 or later selected:
 
@@ -846,7 +953,10 @@ is statically checked but not Intel-native runtime accepted. Public distribution
 still requires Developer ID signing, notarization and stapling through the
 release gate.
 
-### Windows x64 ZIP
+</details>
+
+<details>
+<summary><strong>Windows · x64 ZIP</strong></summary>
 
 Windows is distributed only as a standard ZIP. There is no installer or
 self-extracting portable executable. `package:win` can run on either macOS or a
@@ -904,7 +1014,10 @@ SmartScreen or company policy may still block `Artemis.exe`; public
 downloads require Authenticode signing and the real Windows gate. See Microsoft's
 [Smart App Control guidance](https://learn.microsoft.com/en-us/windows/apps/develop/smart-app-control/overview).
 
-### Packaging guarantees
+</details>
+
+<details>
+<summary><strong>Packaging guarantees</strong></summary>
 
 - Package scripts do not read target-specific document dependencies from the
   developer's home directory.
@@ -919,7 +1032,9 @@ downloads require Authenticode signing and the real Windows gate. See Microsoft'
   requires a real Windows x64 host, valid Authenticode and extracted-ZIP smoke
   validation before producing a manual-distribution checksum manifest.
 
-## Platform support
+</details>
+
+### Platform support
 
 | Target                | Implementation                                                      | Native acceptance                                 |
 | --------------------- | ------------------------------------------------------------------- | ------------------------------------------------- |
@@ -928,10 +1043,12 @@ downloads require Authenticode signing and the real Windows gate. See Microsoft'
 | macOS x64             | Separate DMG/ZIP engineering artifacts                              | Static artifact check only; Intel gate pending    |
 | Windows ARM64 / Linux | Outside the initial Beta scope                                      | —                                                 |
 
-## Project status
+### Project status
 
-Artemis is an **engineering preview**, not a signed public Beta. The main
-remaining gates are:
+> [!WARNING]
+> Artemis is an **engineering preview**, not a signed public Beta.
+
+The main remaining gates are:
 
 1. Windows Authenticode and real extracted-ZIP validation on Windows x64;
 2. macOS Developer ID signing, notarization, stapling and native release gates;
@@ -939,16 +1056,15 @@ remaining gates are:
 4. controlled real-provider turn/resume/fork smoke tests;
 5. dependency-audit resolution without forced unrelated downgrades.
 
-## Documentation
+### Documentation
 
-- [P0 acceptance matrix](docs/p0-acceptance-matrix.md)
-- [Implementation status](docs/implementation-status.md)
-- [Architecture notes](docs/architecture.md)
-- [Observable parity specification](docs/parity-spec.md)
-- [Security policy](SECURITY.md)
-- [Engineering guidance](AGENTS.md)
+| Product and acceptance                                 | Engineering and security                   |
+| ------------------------------------------------------ | ------------------------------------------ |
+| [P0 acceptance matrix](docs/p0-acceptance-matrix.md)   | [Architecture notes](docs/architecture.md) |
+| [Implementation status](docs/implementation-status.md) | [Security policy](SECURITY.md)             |
+| [Observable parity specification](docs/parity-spec.md) | [Engineering guidance](AGENTS.md)          |
 
-## Independent product boundary
+### Independent product boundary
 
 Artemis implements publicly observable desktop workflows with independent
 branding, an independent event protocol and the MIT-licensed Pi SDK. Its four
