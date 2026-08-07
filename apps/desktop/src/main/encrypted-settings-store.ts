@@ -53,6 +53,7 @@ interface PersistedSettings {
   providers?: Record<string, ProviderConnection>;
   disabledSkillFiles?: string[];
   agentConcurrency?: AgentConcurrencyPreference;
+  workspaceDockWidth?: number;
 }
 
 export interface CredentialSummary {
@@ -66,6 +67,9 @@ const EMPTY_SETTINGS: PersistedSettings = {
   credentials: {},
   providers: {},
 };
+
+export const WORKSPACE_DOCK_WIDTH_MIN = 320;
+export const WORKSPACE_DOCK_WIDTH_MAX = 1_080;
 
 function validateProviderId(providerId: string): string {
   const normalized = providerId.trim();
@@ -91,6 +95,19 @@ function validateAddedModel(
     modelId: validateModelId(input.modelId),
     contextWindow: contextWindowSchema.parse(input.contextWindow),
   };
+}
+
+function validateWorkspaceDockWidth(width: number): number {
+  if (
+    !Number.isInteger(width) ||
+    width < WORKSPACE_DOCK_WIDTH_MIN ||
+    width > WORKSPACE_DOCK_WIDTH_MAX
+  ) {
+    throw new Error(
+      `Workspace dock width must be an integer from ${WORKSPACE_DOCK_WIDTH_MIN} to ${WORKSPACE_DOCK_WIDTH_MAX}`,
+    );
+  }
+  return width;
 }
 
 export function parseRuntimeCredential(value: unknown): RuntimeCredential {
@@ -241,6 +258,18 @@ export class EncryptedSettingsStore {
     return structuredClone((await this.load()).addedModels ?? []);
   }
 
+  async workspaceDockWidth(): Promise<number | undefined> {
+    return (await this.load()).workspaceDockWidth;
+  }
+
+  async setWorkspaceDockWidth(width: number): Promise<number> {
+    const validated = validateWorkspaceDockWidth(width);
+    const settings = await this.load();
+    settings.workspaceDockWidth = validated;
+    await this.save(settings);
+    return validated;
+  }
+
   async addModel(
     modelInput: AddedModelConfiguration,
     apiKey?: string,
@@ -276,6 +305,76 @@ export class EncryptedSettingsStore {
       settings.credentials[model.providerId] = encryptedCredential;
     }
     await this.save(settings);
+  }
+
+  async removeModel(
+    modelInput: Pick<AddedModelConfiguration, "providerId" | "modelId">,
+    options: {
+      deleteCredential: boolean;
+      replacement?: {
+        selection: ModelSelection;
+        contextWindow: number;
+      };
+    },
+  ): Promise<boolean> {
+    const providerId = validateProviderId(modelInput.providerId);
+    const modelId = validateModelId(modelInput.modelId);
+    const replacement = options.replacement
+      ? {
+          selection: {
+            ...structuredClone(options.replacement.selection),
+            providerId: validateProviderId(
+              options.replacement.selection.providerId,
+            ),
+            modelId: validateModelId(options.replacement.selection.modelId),
+          },
+          contextWindow: contextWindowSchema.parse(
+            options.replacement.contextWindow,
+          ),
+        }
+      : undefined;
+    if (
+      replacement?.selection.providerId === providerId &&
+      replacement.selection.modelId === modelId
+    ) {
+      throw new Error("Replacement model cannot be the deleted model");
+    }
+
+    const settings = await this.load();
+    const exists = (settings.addedModels ?? []).some(
+      (model) => model.providerId === providerId && model.modelId === modelId,
+    );
+    if (!exists) return false;
+
+    settings.addedModels = (settings.addedModels ?? []).filter(
+      (model) => model.providerId !== providerId || model.modelId !== modelId,
+    );
+    const selectionRemainsAvailable = Boolean(
+      settings.providers?.[providerId]?.models.some(
+        (model) => model.id === modelId,
+      ),
+    );
+    if (
+      !selectionRemainsAvailable &&
+      settings.model?.providerId === providerId &&
+      settings.model.modelId === modelId
+    ) {
+      if (replacement) {
+        settings.model = replacement.selection;
+        settings.contextWindow = replacement.contextWindow;
+      } else {
+        delete settings.model;
+        delete settings.contextWindow;
+      }
+    }
+    const providerStillUsesCredential =
+      Boolean(settings.providers?.[providerId]) ||
+      settings.addedModels.some((model) => model.providerId === providerId);
+    if (options.deleteCredential && !providerStillUsesCredential) {
+      delete settings.credentials[providerId];
+    }
+    await this.save(settings);
+    return true;
   }
 
   async saveProviderConnection(
@@ -478,6 +577,15 @@ export class EncryptedSettingsStore {
           typeof parsed.localFullAccess !== "boolean") ||
         (parsed.contextWindow !== undefined &&
           !contextWindowSchema.safeParse(parsed.contextWindow).success) ||
+        (parsed.workspaceDockWidth !== undefined &&
+          (() => {
+            try {
+              validateWorkspaceDockWidth(parsed.workspaceDockWidth);
+              return false;
+            } catch {
+              return true;
+            }
+          })()) ||
         (parsed.addedModels !== undefined &&
           (!Array.isArray(parsed.addedModels) ||
             !parsed.addedModels.every((model) => {

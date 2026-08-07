@@ -1,9 +1,11 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
   type ReactNode,
 } from "react";
@@ -217,6 +219,29 @@ function CheckIcon() {
   );
 }
 
+interface ContextMenuLayout extends CSSProperties {
+  left: number;
+  maxHeight: number;
+  width: number;
+}
+
+export function contextMenuLayout(
+  rootWidth: number,
+  anchorOffset: number,
+  spaceAbove: number,
+): ContextMenuLayout {
+  const width = Math.floor(Math.min(350, Math.max(0, rootWidth)));
+  const leftWithinRoot = Math.min(
+    Math.max(0, anchorOffset),
+    Math.max(0, rootWidth - width),
+  );
+  return {
+    left: Math.round(leftWithinRoot - anchorOffset),
+    maxHeight: Math.max(160, Math.floor(spaceAbove - 16)),
+    width,
+  };
+}
+
 export function ComposerContextBar({
   activeProject,
   branchActionsDisabled,
@@ -231,6 +256,8 @@ export function ComposerContextBar({
 }: ComposerContextBarProps) {
   const t = labels[locale];
   const rootRef = useRef<HTMLDivElement>(null);
+  const projectControlRef = useRef<HTMLDivElement>(null);
+  const branchControlRef = useRef<HTMLDivElement>(null);
   const projectSearchRef = useRef<HTMLInputElement>(null);
   const branchSearchRef = useRef<HTMLInputElement>(null);
   const branchRequest = useRef(0);
@@ -245,6 +272,7 @@ export function ComposerContextBar({
   const [branchError, setBranchError] = useState<string>();
   const [creatingBranch, setCreatingBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
+  const [menuLayout, setMenuLayout] = useState<ContextMenuLayout>();
 
   const loadGitInfo = useCallback(async () => {
     const request = ++branchRequest.current;
@@ -276,13 +304,63 @@ export function ComposerContextBar({
     };
   }, [loadGitInfo]);
 
-  useEffect(() => {
-    if (projectMenuOpen) projectSearchRef.current?.focus();
-  }, [projectMenuOpen]);
+  const updateMenuLayout = useCallback(() => {
+    const root = rootRef.current;
+    const anchor = projectMenuOpen
+      ? projectControlRef.current
+      : branchMenuOpen
+        ? branchControlRef.current
+        : undefined;
+    if (!root || !anchor) return;
+    const rootRect = root.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+    const next = contextMenuLayout(
+      rootRect.width,
+      anchorRect.left - rootRect.left,
+      rootRect.top,
+    );
+    setMenuLayout((current) =>
+      current?.left === next.left &&
+      current.maxHeight === next.maxHeight &&
+      current.width === next.width
+        ? current
+        : next,
+    );
+  }, [branchMenuOpen, projectMenuOpen]);
+
+  useLayoutEffect(() => {
+    if (!projectMenuOpen && !branchMenuOpen) {
+      setMenuLayout(undefined);
+      const conversation =
+        rootRef.current?.closest<HTMLElement>(".conversation");
+      if (conversation) conversation.scrollLeft = 0;
+      return;
+    }
+    updateMenuLayout();
+    const root = rootRef.current;
+    const observer =
+      root && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(updateMenuLayout)
+        : undefined;
+    if (root) observer?.observe(root);
+    window.addEventListener("resize", updateMenuLayout);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateMenuLayout);
+    };
+  }, [branchMenuOpen, projectMenuOpen, updateMenuLayout]);
 
   useEffect(() => {
-    if (branchMenuOpen && !creatingBranch) branchSearchRef.current?.focus();
-  }, [branchMenuOpen, creatingBranch]);
+    if (projectMenuOpen && menuLayout) {
+      projectSearchRef.current?.focus({ preventScroll: true });
+    }
+  }, [menuLayout, projectMenuOpen]);
+
+  useEffect(() => {
+    if (branchMenuOpen && !creatingBranch && menuLayout) {
+      branchSearchRef.current?.focus({ preventScroll: true });
+    }
+  }, [branchMenuOpen, creatingBranch, menuLayout]);
 
   useEffect(() => {
     if (!projectMenuOpen && !branchMenuOpen) return;
@@ -381,7 +459,7 @@ export function ComposerContextBar({
 
   return (
     <div className="composer-context" ref={rootRef}>
-      <div className="composer-context-control">
+      <div className="composer-context-control" ref={projectControlRef}>
         <button
           aria-expanded={projectMenuOpen}
           aria-haspopup="menu"
@@ -401,6 +479,7 @@ export function ComposerContextBar({
             aria-label={t.projectMenu}
             className="composer-context-menu project-context-menu"
             role="menu"
+            style={menuLayout}
           >
             <label className="composer-context-search">
               <SearchIcon />
@@ -482,7 +561,7 @@ export function ComposerContextBar({
           <span />
         </span>
       ) : (gitInfo?.managed && branchLabel) || gitError ? (
-        <div className="composer-context-control">
+        <div className="composer-context-control" ref={branchControlRef}>
           <button
             aria-expanded={branchMenuOpen}
             aria-haspopup="menu"
@@ -504,6 +583,7 @@ export function ComposerContextBar({
               aria-label={t.branchMenu}
               className="composer-context-menu branch-context-menu"
               role="menu"
+              style={menuLayout}
             >
               {creatingBranch ? (
                 <form className="branch-create-form" onSubmit={createBranch}>

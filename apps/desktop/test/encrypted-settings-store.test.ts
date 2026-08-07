@@ -41,6 +41,27 @@ async function createStore() {
 }
 
 describe("EncryptedSettingsStore", () => {
+  it("persists a validated workspace dock width", async () => {
+    const { filePath, store } = await createStore();
+    await expect(store.workspaceDockWidth()).resolves.toBeUndefined();
+    await expect(store.setWorkspaceDockWidth(720)).resolves.toBe(720);
+
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.workspaceDockWidth()).resolves.toBe(720);
+    await expect(reopened.setWorkspaceDockWidth(319)).rejects.toThrow(
+      "320 to 1080",
+    );
+    await expect(reopened.setWorkspaceDockWidth(1_081)).rejects.toThrow(
+      "320 to 1080",
+    );
+    await expect(reopened.setWorkspaceDockWidth(640.5)).rejects.toThrow(
+      "integer",
+    );
+  });
+
   it("persists validated agent concurrency preferences and defaults to automatic", async () => {
     const { filePath, store } = await createStore();
     await expect(store.agentConcurrencyPreference()).resolves.toEqual({
@@ -220,6 +241,91 @@ describe("EncryptedSettingsStore", () => {
       credentials: {
         moonshotai: { type: "api_key", key: "moonshot-secret" },
       },
+    });
+  });
+
+  it("removes added models and deletes a provider credential only with the last model", async () => {
+    const { store } = await createStore();
+    await store.addModel(
+      { providerId: "openai", modelId: "gpt-5", contextWindow: 128_000 },
+      "shared-secret",
+    );
+    await store.addModel({
+      providerId: "openai",
+      modelId: "gpt-5-mini",
+      contextWindow: 64_000,
+    });
+
+    await expect(
+      store.removeModel(
+        { providerId: "openai", modelId: "gpt-5" },
+        { deleteCredential: true },
+      ),
+    ).resolves.toBe(true);
+    await expect(store.credentialSummaries()).resolves.toEqual([
+      { providerId: "openai", type: "api_key" },
+    ]);
+
+    await expect(
+      store.removeModel(
+        { providerId: "openai", modelId: "gpt-5-mini" },
+        { deleteCredential: true },
+      ),
+    ).resolves.toBe(true);
+    await expect(store.addedModels()).resolves.toEqual([]);
+    await expect(store.credentialSummaries()).resolves.toEqual([]);
+    await expect(
+      store.removeModel(
+        { providerId: "openai", modelId: "gpt-5-mini" },
+        { deleteCredential: true },
+      ),
+    ).resolves.toBe(false);
+  });
+
+  it("keeps a custom provider credential and active selection when its added marker is removed", async () => {
+    const { store } = await createStore();
+    const provider: ProviderConnection = {
+      id: "local-proxy",
+      name: "Local proxy",
+      baseUrl: "http://127.0.0.1:11434/v1",
+      models: [
+        {
+          id: "local-model",
+          name: "Local model",
+          reasoning: false,
+          input: ["text"],
+          contextWindow: 128_000,
+          maxTokens: 32_000,
+        },
+      ],
+    };
+    await store.saveProviderConnection(provider, "local-secret");
+    await store.addModel({
+      providerId: provider.id,
+      modelId: provider.models[0]!.id,
+      contextWindow: provider.models[0]!.contextWindow,
+    });
+    await store.setModel(
+      {
+        providerId: provider.id,
+        modelId: provider.models[0]!.id,
+        thinkingLevel: "off",
+      },
+      provider.models[0]!.contextWindow,
+    );
+
+    await store.removeModel(
+      { providerId: provider.id, modelId: provider.models[0]!.id },
+      { deleteCredential: true },
+    );
+
+    await expect(store.addedModels()).resolves.toEqual([]);
+    await expect(store.credentialSummaries()).resolves.toEqual([
+      { providerId: provider.id, type: "api_key" },
+    ]);
+    await expect(store.modelSelection()).resolves.toMatchObject({
+      providerId: provider.id,
+      modelId: provider.models[0]!.id,
     });
   });
 

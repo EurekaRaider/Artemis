@@ -9,8 +9,10 @@ import {
   useState,
   useTransition,
   type ClipboardEvent as ReactClipboardEvent,
+  type CSSProperties,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type SetStateAction,
   type UIEvent as ReactUIEvent,
@@ -124,6 +126,14 @@ import {
   type WorkspaceTabKind,
   type WorkspaceTabsState,
 } from "./workspace-tabs.js";
+import {
+  clampWorkspaceDockWidth,
+  workspaceDockWidthBounds,
+} from "./workspace-dock-layout.js";
+import {
+  reduceTurnFailureNotices,
+  type TurnFailureNotices,
+} from "./turn-failure-notices.js";
 
 type Locale = "en" | "zh-CN";
 type ModelPickerSection = "model" | "thinking";
@@ -142,6 +152,12 @@ interface FileLinkContextMenuState {
   threadId: string;
   x: number;
   y: number;
+}
+
+interface WorkspaceDockDrag {
+  pointerId: number;
+  startWidth: number;
+  startX: number;
 }
 
 interface WorkspaceTabOpenOptions {
@@ -246,6 +262,8 @@ const copy = {
     files: "Files",
     addTab: "Add tab",
     closeTab: "Close tab",
+    resizeRightSidebar: "Resize right sidebar",
+    dismissTurnError: "Dismiss task error",
     editFile: "Edit file",
     saveFile: "Save",
     saved: "Saved",
@@ -449,6 +467,8 @@ const copy = {
     files: "文件",
     addTab: "添加选项卡",
     closeTab: "关闭选项卡",
+    resizeRightSidebar: "调整右侧边栏宽度",
+    dismissTurnError: "关闭任务错误",
     editFile: "编辑文件",
     saveFile: "保存",
     saved: "已保存",
@@ -1410,10 +1430,17 @@ export function App() {
     Record<string, WorkspaceTabsState>
   >({});
   const [workspaceDockOpen, setWorkspaceDockOpen] = useState(false);
+  const [workspaceDockWidth, setWorkspaceDockWidth] = useState<number>();
+  const [workspaceDockResizing, setWorkspaceDockResizing] = useState(false);
   const [workspaceTabMenuOpen, setWorkspaceTabMenuOpen] = useState(false);
   const [fileLinkContextMenu, setFileLinkContextMenu] =
     useState<FileLinkContextMenuState>();
   const workspaceTabSerial = useRef(0);
+  const workspaceContent = useRef<HTMLDivElement>(null);
+  const workspaceDock = useRef<HTMLElement>(null);
+  const workspaceDockDrag = useRef<WorkspaceDockDrag | undefined>(undefined);
+  const workspaceDockWidthRef = useRef<number | undefined>(undefined);
+  const workspaceDockPersistence = useRef<Promise<void>>(Promise.resolve());
   const knownAgentTeamTabs = useRef(new Set<string>());
   const workspaceThreadCreation =
     useRef<Promise<string | undefined>>(undefined);
@@ -1450,6 +1477,8 @@ export function App() {
   const [toast, setToast] = useState<
     string | { error: true; message: string }
   >();
+  const [turnFailureNotices, setTurnFailureNotices] =
+    useState<TurnFailureNotices>({});
   const timelineScroll = useRef<HTMLDivElement>(null);
   const timelinePinned = useRef(true);
   const loadedEventThreads = useRef(new Set<string>());
@@ -1492,6 +1521,7 @@ export function App() {
   localeRef.current = locale;
   const activeThreadIdRef = useRef(activeThreadId);
   activeThreadIdRef.current = activeThreadId;
+  workspaceDockWidthRef.current = workspaceDockWidth;
   const activeComposerDraftKey = conversationDraftKey(
     activeProjectId,
     activeThreadId,
@@ -2122,6 +2152,119 @@ export function App() {
     },
     [discardNewConversationDraft],
   );
+  const currentWorkspaceDockBounds = useCallback(
+    () =>
+      workspaceDockWidthBounds(
+        workspaceContent.current?.clientWidth ?? window.innerWidth,
+        window.innerWidth,
+      ),
+    [],
+  );
+  const persistWorkspaceDockWidth = useCallback((width: number) => {
+    workspaceDockPersistence.current = workspaceDockPersistence.current.then(
+      async () => {
+        try {
+          const persisted = await window.artemis.setWorkspaceDockWidth(width);
+          setWorkspaceDockWidth(persisted);
+          setRuntimeSettings((current) =>
+            current ? { ...current, workspaceDockWidth: persisted } : current,
+          );
+        } catch (error) {
+          setToast({
+            error: true,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    );
+    return workspaceDockPersistence.current;
+  }, []);
+  const workspaceDockWidthForPointer = useCallback(
+    (clientX: number) => {
+      const drag = workspaceDockDrag.current;
+      if (!drag) return workspaceDockWidthRef.current;
+      return clampWorkspaceDockWidth(
+        drag.startWidth + drag.startX - clientX,
+        currentWorkspaceDockBounds(),
+      );
+    },
+    [currentWorkspaceDockBounds],
+  );
+  const beginWorkspaceDockResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0 || !workspaceDockOpen) return;
+      event.preventDefault();
+      const startWidth = workspaceDock.current?.getBoundingClientRect().width;
+      if (!startWidth) return;
+      workspaceDockDrag.current = {
+        pointerId: event.pointerId,
+        startWidth,
+        startX: event.clientX,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setWorkspaceDockWidth(Math.round(startWidth));
+      setWorkspaceDockResizing(true);
+    },
+    [workspaceDockOpen],
+  );
+  const moveWorkspaceDockResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (workspaceDockDrag.current?.pointerId !== event.pointerId) return;
+      const width = workspaceDockWidthForPointer(event.clientX);
+      if (width !== undefined) setWorkspaceDockWidth(width);
+    },
+    [workspaceDockWidthForPointer],
+  );
+  const finishWorkspaceDockResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (workspaceDockDrag.current?.pointerId !== event.pointerId) return;
+      const width = workspaceDockWidthForPointer(event.clientX);
+      workspaceDockDrag.current = undefined;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      setWorkspaceDockResizing(false);
+      if (width !== undefined) {
+        setWorkspaceDockWidth(width);
+        void persistWorkspaceDockWidth(width);
+      }
+    },
+    [persistWorkspaceDockWidth, workspaceDockWidthForPointer],
+  );
+  const cancelWorkspaceDockResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (workspaceDockDrag.current?.pointerId !== event.pointerId) return;
+      const width = Math.round(
+        workspaceDockWidthRef.current ?? workspaceDockDrag.current.startWidth,
+      );
+      workspaceDockDrag.current = undefined;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      setWorkspaceDockResizing(false);
+      setWorkspaceDockWidth(width);
+      void persistWorkspaceDockWidth(width);
+    },
+    [persistWorkspaceDockWidth],
+  );
+  const resizeWorkspaceDockFromKeyboard = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      const currentWidth =
+        workspaceDock.current?.getBoundingClientRect().width ??
+        workspaceDockWidthRef.current ??
+        currentWorkspaceDockBounds().min;
+      const step = event.shiftKey ? 64 : 24;
+      const width = clampWorkspaceDockWidth(
+        currentWidth + (event.key === "ArrowLeft" ? step : -step),
+        currentWorkspaceDockBounds(),
+      );
+      setWorkspaceDockWidth(width);
+      void persistWorkspaceDockWidth(width);
+    },
+    [currentWorkspaceDockBounds, persistWorkspaceDockWidth],
+  );
   const toggleRightSidebar = useCallback(() => {
     setWorkspaceDockOpen((open) => !open);
     setWorkspaceTabMenuOpen(false);
@@ -2153,6 +2296,24 @@ export function App() {
       document.documentElement.dataset.theme = theme;
     }
   }, [runtimeSettings?.theme]);
+
+  useEffect(() => {
+    if (
+      runtimeSettings?.workspaceDockWidth !== undefined &&
+      !workspaceDockResizing
+    ) {
+      setWorkspaceDockWidth(runtimeSettings.workspaceDockWidth);
+    }
+  }, [runtimeSettings?.workspaceDockWidth, workspaceDockResizing]);
+
+  useLayoutEffect(() => {
+    if (!workspaceDockOpen || workspaceDockWidth !== undefined) return;
+    const frame = window.requestAnimationFrame(() => {
+      const measured = workspaceDock.current?.getBoundingClientRect().width;
+      if (measured) setWorkspaceDockWidth(Math.round(measured));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [workspaceDockOpen, workspaceDockWidth]);
 
   useEffect(() => {
     if (!skillCommandMenuOpen) return;
@@ -2324,11 +2485,23 @@ export function App() {
           setWorkspaceDockOpen(true);
         }
       }
+      if (event.payload.type === "turn.started") {
+        setTurnFailureNotices((current) =>
+          reduceTurnFailureNotices(current, {
+            type: "started",
+            threadId: event.threadId,
+          }),
+        );
+      }
       if (event.payload.type === "turn.failed") {
-        setToast({
-          error: true,
-          message: `${copy[localeRef.current].turnError} ${event.payload.message}`,
-        });
+        const message = `${copy[localeRef.current].turnError} ${event.payload.message}`;
+        setTurnFailureNotices((current) =>
+          reduceTurnFailureNotices(current, {
+            type: "failed",
+            threadId: event.threadId,
+            message,
+          }),
+        );
       }
       pendingAgentEvents.current.push(event);
       if (pendingAgentFrame.current === undefined) {
@@ -2407,6 +2580,17 @@ export function App() {
   );
   const activeThread = (snapshot?.threads ?? []).find(
     (thread) => thread.id === activeThreadId,
+  );
+  const activeTurnFailure = activeThreadId
+    ? turnFailureNotices[activeThreadId]
+    : undefined;
+  const dockWidthBounds = workspaceDockWidthBounds(
+    workspaceContent.current?.clientWidth ?? window.innerWidth,
+    window.innerWidth,
+  );
+  const dockWidthNow = clampWorkspaceDockWidth(
+    workspaceDockWidth ?? dockWidthBounds.min,
+    dockWidthBounds,
   );
   const filteredReviewFiles = useMemo(() => {
     const normalizedQuery = reviewFileQuery.trim().toLowerCase();
@@ -4192,7 +4376,11 @@ export function App() {
               </div>
             </header>
 
-            <div className="workspace-content">
+            <div
+              className="workspace-content"
+              data-resizing={workspaceDockResizing || undefined}
+              ref={workspaceContent}
+            >
               <section className="conversation">
                 <div
                   className="timeline-scroll"
@@ -4276,6 +4464,28 @@ export function App() {
                       </div>
                     )}
                 </div>
+
+                {activeTurnFailure && (
+                  <div className="turn-error-banner" role="alert">
+                    <span>{activeTurnFailure}</span>
+                    <button
+                      aria-label={t.dismissTurnError}
+                      onClick={() =>
+                        activeThreadId &&
+                        setTurnFailureNotices((current) =>
+                          reduceTurnFailureNotices(current, {
+                            type: "dismiss",
+                            threadId: activeThreadId,
+                          }),
+                        )
+                      }
+                      title={t.dismissTurnError}
+                      type="button"
+                    >
+                      <CloseIcon />
+                    </button>
+                  </div>
+                )}
 
                 {activeProject && activeThread?.archived && (
                   <div className="archived-readonly" role="status">
@@ -5219,711 +5429,769 @@ export function App() {
               </section>
 
               {!activeThread?.archived && (
-                <aside
-                  aria-hidden={!workspaceDockOpen}
-                  aria-label={t.rightSidebar}
-                  className="workspace-tool-dock"
-                  data-open={workspaceDockOpen}
-                >
-                  <div className="workspace-tab-bar" role="tablist">
-                    <div className="workspace-tab-scroll">
+                <>
+                  <div
+                    aria-controls="workspace-tool-dock"
+                    aria-hidden={!workspaceDockOpen}
+                    aria-label={t.resizeRightSidebar}
+                    aria-orientation="vertical"
+                    aria-valuemax={dockWidthBounds.max}
+                    aria-valuemin={dockWidthBounds.min}
+                    aria-valuenow={dockWidthNow}
+                    className="workspace-dock-resizer"
+                    data-open={workspaceDockOpen}
+                    onKeyDown={resizeWorkspaceDockFromKeyboard}
+                    onPointerCancel={cancelWorkspaceDockResize}
+                    onPointerDown={beginWorkspaceDockResize}
+                    onPointerMove={moveWorkspaceDockResize}
+                    onPointerUp={finishWorkspaceDockResize}
+                    role="separator"
+                    tabIndex={workspaceDockOpen ? 0 : -1}
+                  />
+                  <aside
+                    aria-hidden={!workspaceDockOpen}
+                    aria-label={t.rightSidebar}
+                    className="workspace-tool-dock"
+                    data-open={workspaceDockOpen}
+                    id="workspace-tool-dock"
+                    ref={workspaceDock}
+                    style={
+                      workspaceDockWidth === undefined
+                        ? undefined
+                        : ({
+                            "--workspace-dock-width": `${workspaceDockWidth}px`,
+                          } as CSSProperties)
+                    }
+                  >
+                    <div className="workspace-tab-bar" role="tablist">
+                      <div className="workspace-tab-scroll">
+                        {workspaceTabs.tabs.map((tab) => (
+                          <div
+                            className={
+                              workspaceTabs.activeTabId === tab.id
+                                ? "workspace-tab active"
+                                : "workspace-tab"
+                            }
+                            key={tab.id}
+                          >
+                            <button
+                              aria-selected={
+                                workspaceTabs.activeTabId === tab.id
+                              }
+                              className="workspace-tab-select"
+                              onClick={() =>
+                                dispatchWorkspaceTab({
+                                  type: "activate",
+                                  tabId: tab.id,
+                                })
+                              }
+                              role="tab"
+                              title={tab.path ?? tab.title}
+                            >
+                              <WorkspaceTabIcon
+                                identity={tab.childAgentId ?? tab.agentTeamId}
+                                kind={tab.kind}
+                                path={tab.path}
+                              />
+                              <span>{tab.title}</span>
+                            </button>
+                            <button
+                              aria-label={`${t.closeTab}: ${tab.title}`}
+                              className="workspace-tab-close"
+                              onClick={() => closeWorkspaceTab(tab.id)}
+                              title={t.closeTab}
+                            >
+                              <CloseIcon />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="workspace-tab-add-wrap">
+                        <button
+                          aria-expanded={workspaceTabMenuOpen}
+                          aria-label={t.addTab}
+                          className="workspace-tab-add"
+                          onClick={() =>
+                            setWorkspaceTabMenuOpen((open) => !open)
+                          }
+                          title={t.addTab}
+                        >
+                          <PlusIcon />
+                        </button>
+                        {workspaceTabMenuOpen && (
+                          <div className="workspace-tab-menu">
+                            {(
+                              [
+                                ["review", t.reviewPanel, <ReviewIcon />],
+                                ["terminal", t.terminal, <TerminalIcon />],
+                                ["browser", t.browser, <BrowserIcon />],
+                                ["file", t.files, <FilesIcon />],
+                              ] as const
+                            ).map(([kind, label, icon]) => (
+                              <button
+                                key={kind}
+                                onClick={() =>
+                                  openWorkspaceTab(kind, { forceNew: true })
+                                }
+                              >
+                                {icon}
+                                <span>{label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="workspace-tab-content">
+                      {workspaceTabs.tabs.length === 0 && (
+                        <div className="right-sidebar-launcher">
+                          <div className="right-sidebar-launcher-actions">
+                            <button
+                              className="right-sidebar-launcher-item"
+                              onClick={openReviewPanel}
+                            >
+                              <ReviewIcon />
+                              <span>{t.reviewPanel}</span>
+                              <kbd>Ctrl+Alt+B</kbd>
+                            </button>
+                            <button
+                              className="right-sidebar-launcher-item"
+                              onClick={openTerminalPanel}
+                            >
+                              <TerminalIcon />
+                              <span>{t.terminal}</span>
+                              <kbd>Ctrl+J</kbd>
+                            </button>
+                            <button
+                              className="right-sidebar-launcher-item"
+                              onClick={openBrowserPanel}
+                            >
+                              <BrowserIcon />
+                              <span>{t.browser}</span>
+                            </button>
+                            <button
+                              className="right-sidebar-launcher-item"
+                              onClick={openFilesPanel}
+                            >
+                              <FilesIcon />
+                              <span>{t.files}</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       {workspaceTabs.tabs.map((tab) => (
                         <div
                           className={
                             workspaceTabs.activeTabId === tab.id
-                              ? "workspace-tab active"
-                              : "workspace-tab"
+                              ? "workspace-tab-pane active"
+                              : "workspace-tab-pane"
                           }
+                          hidden={workspaceTabs.activeTabId !== tab.id}
                           key={tab.id}
+                          role="tabpanel"
                         >
-                          <button
-                            aria-selected={workspaceTabs.activeTabId === tab.id}
-                            className="workspace-tab-select"
-                            onClick={() =>
-                              dispatchWorkspaceTab({
-                                type: "activate",
-                                tabId: tab.id,
-                              })
-                            }
-                            role="tab"
-                            title={tab.path ?? tab.title}
-                          >
-                            <WorkspaceTabIcon
-                              identity={tab.childAgentId ?? tab.agentTeamId}
-                              kind={tab.kind}
-                              path={tab.path}
-                            />
-                            <span>{tab.title}</span>
-                          </button>
-                          <button
-                            aria-label={`${t.closeTab}: ${tab.title}`}
-                            className="workspace-tab-close"
-                            onClick={() => closeWorkspaceTab(tab.id)}
-                            title={t.closeTab}
-                          >
-                            <CloseIcon />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="workspace-tab-add-wrap">
-                      <button
-                        aria-expanded={workspaceTabMenuOpen}
-                        aria-label={t.addTab}
-                        className="workspace-tab-add"
-                        onClick={() => setWorkspaceTabMenuOpen((open) => !open)}
-                        title={t.addTab}
-                      >
-                        <PlusIcon />
-                      </button>
-                      {workspaceTabMenuOpen && (
-                        <div className="workspace-tab-menu">
-                          {(
-                            [
-                              ["review", t.reviewPanel, <ReviewIcon />],
-                              ["terminal", t.terminal, <TerminalIcon />],
-                              ["browser", t.browser, <BrowserIcon />],
-                              ["file", t.files, <FilesIcon />],
-                            ] as const
-                          ).map(([kind, label, icon]) => (
-                            <button
-                              key={kind}
-                              onClick={() =>
-                                openWorkspaceTab(kind, { forceNew: true })
-                              }
+                          {tab.kind === "review" && (
+                            <section
+                              aria-busy={reviewTransitionPending || !reviewDiff}
+                              className="review-panel"
                             >
-                              {icon}
-                              <span>{label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="workspace-tab-content">
-                    {workspaceTabs.tabs.length === 0 && (
-                      <div className="right-sidebar-launcher">
-                        <div className="right-sidebar-launcher-actions">
-                          <button
-                            className="right-sidebar-launcher-item"
-                            onClick={openReviewPanel}
-                          >
-                            <ReviewIcon />
-                            <span>{t.reviewPanel}</span>
-                            <kbd>Ctrl+Alt+B</kbd>
-                          </button>
-                          <button
-                            className="right-sidebar-launcher-item"
-                            onClick={openTerminalPanel}
-                          >
-                            <TerminalIcon />
-                            <span>{t.terminal}</span>
-                            <kbd>Ctrl+J</kbd>
-                          </button>
-                          <button
-                            className="right-sidebar-launcher-item"
-                            onClick={openBrowserPanel}
-                          >
-                            <BrowserIcon />
-                            <span>{t.browser}</span>
-                          </button>
-                          <button
-                            className="right-sidebar-launcher-item"
-                            onClick={openFilesPanel}
-                          >
-                            <FilesIcon />
-                            <span>{t.files}</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {workspaceTabs.tabs.map((tab) => (
-                      <div
-                        className={
-                          workspaceTabs.activeTabId === tab.id
-                            ? "workspace-tab-pane active"
-                            : "workspace-tab-pane"
-                        }
-                        hidden={workspaceTabs.activeTabId !== tab.id}
-                        key={tab.id}
-                        role="tabpanel"
-                      >
-                        {tab.kind === "review" && (
-                          <section
-                            aria-busy={reviewTransitionPending || !reviewDiff}
-                            className="review-panel"
-                          >
-                            <header className="review-comparison-toolbar">
-                              <div className="review-comparison-primary">
-                                <div className="review-scope-select">
-                                  <CodexSelect<ReviewScope>
-                                    ariaLabel={t.comparison}
-                                    onChange={selectReviewScope}
-                                    options={[
-                                      {
-                                        value: "unstaged",
-                                        label: t.unstaged,
-                                      },
-                                      { value: "staged", label: t.staged },
-                                      {
-                                        value: "last-turn",
-                                        label: t.lastTurn,
-                                      },
-                                      { value: "branch", label: t.branch },
-                                    ]}
-                                    value={reviewScope}
-                                  />
+                              <header className="review-comparison-toolbar">
+                                <div className="review-comparison-primary">
+                                  <div className="review-scope-select">
+                                    <CodexSelect<ReviewScope>
+                                      ariaLabel={t.comparison}
+                                      onChange={selectReviewScope}
+                                      options={[
+                                        {
+                                          value: "unstaged",
+                                          label: t.unstaged,
+                                        },
+                                        { value: "staged", label: t.staged },
+                                        {
+                                          value: "last-turn",
+                                          label: t.lastTurn,
+                                        },
+                                        { value: "branch", label: t.branch },
+                                      ]}
+                                      value={reviewScope}
+                                    />
+                                  </div>
+                                  <button
+                                    aria-label={t.refreshDiff}
+                                    className="review-toolbar-action"
+                                    onClick={() => void refreshDiff(true)}
+                                    title={t.refreshDiff}
+                                    type="button"
+                                  >
+                                    <RefreshIcon />
+                                  </button>
                                 </div>
-                                <button
-                                  aria-label={t.refreshDiff}
-                                  className="review-toolbar-action"
-                                  onClick={() => void refreshDiff(true)}
-                                  title={t.refreshDiff}
-                                  type="button"
-                                >
-                                  <RefreshIcon />
-                                </button>
-                              </div>
-                              <div className="review-comparison-route">
-                                {reviewScope === "branch" ? (
-                                  <>
-                                    <label className="base-ref-field">
-                                      <span>{t.baseRef}</span>
-                                      <input
-                                        aria-label={t.baseRef}
-                                        onChange={(event) =>
-                                          setReviewBaseRef(event.target.value)
-                                        }
-                                        placeholder={
-                                          reviewDiff?.baseRef ?? "main"
-                                        }
-                                        value={reviewBaseRef}
-                                      />
-                                    </label>
-                                    <span aria-hidden="true">→</span>
-                                    <strong>HEAD</strong>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span>HEAD</span>
-                                    <span aria-hidden="true">→</span>
-                                    <strong>
-                                      {reviewScope === "unstaged"
-                                        ? t.unstaged
-                                        : reviewScope === "staged"
-                                          ? t.staged
-                                          : t.lastTurn}
-                                    </strong>
-                                  </>
-                                )}
-                              </div>
-                            </header>
-                            <div className="review-workspace">
-                              <main className="review-diff-reader">
-                                {!reviewDiff && (
-                                  <div className="review-empty">…</div>
-                                )}
-                                {reviewDiff?.available &&
-                                  !reviewDiff.files.length && (
-                                    <div className="review-empty">
-                                      <div className="review-empty-illustration">
-                                        <ReviewEmptyIcon />
+                                <div className="review-comparison-route">
+                                  {reviewScope === "branch" ? (
+                                    <>
+                                      <label className="base-ref-field">
+                                        <span>{t.baseRef}</span>
+                                        <input
+                                          aria-label={t.baseRef}
+                                          onChange={(event) =>
+                                            setReviewBaseRef(event.target.value)
+                                          }
+                                          placeholder={
+                                            reviewDiff?.baseRef ?? "main"
+                                          }
+                                          value={reviewBaseRef}
+                                        />
+                                      </label>
+                                      <span aria-hidden="true">→</span>
+                                      <strong>HEAD</strong>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>HEAD</span>
+                                      <span aria-hidden="true">→</span>
+                                      <strong>
+                                        {reviewScope === "unstaged"
+                                          ? t.unstaged
+                                          : reviewScope === "staged"
+                                            ? t.staged
+                                            : t.lastTurn}
+                                      </strong>
+                                    </>
+                                  )}
+                                </div>
+                              </header>
+                              <div className="review-workspace">
+                                <main className="review-diff-reader">
+                                  {!reviewDiff && (
+                                    <div className="review-empty">…</div>
+                                  )}
+                                  {reviewDiff?.available &&
+                                    !reviewDiff.files.length && (
+                                      <div className="review-empty">
+                                        <div className="review-empty-illustration">
+                                          <ReviewEmptyIcon />
+                                        </div>
+                                        <strong>{t.noChanges}</strong>
+                                        <p>{t.changesAppearHere}</p>
                                       </div>
-                                      <strong>{t.noChanges}</strong>
-                                      <p>{t.changesAppearHere}</p>
+                                    )}
+                                  {reviewDiff && !reviewDiff.available && (
+                                    <div className="review-empty error">
+                                      {reviewDiff.message ?? ""}
                                     </div>
                                   )}
-                                {reviewDiff && !reviewDiff.available && (
-                                  <div className="review-empty error">
-                                    {reviewDiff.message ?? ""}
-                                  </div>
-                                )}
-                                {reviewDiff?.available &&
-                                  selectedReviewFile && (
-                                    <div
-                                      className="review-file"
-                                      key={selectedReviewFile.id}
-                                    >
-                                      <div className="changed-file review-diff-file-header">
-                                        <span className="file-status">
-                                          {selectedReviewFile.status === "added"
-                                            ? "A"
-                                            : selectedReviewFile.status ===
-                                                "deleted"
-                                              ? "D"
-                                              : "M"}
-                                        </span>
-                                        <span className="review-file-path">
-                                          {selectedReviewFile.path}
-                                        </span>
-                                        <span className="review-file-stats">
-                                          <span className="addition">
-                                            +{selectedReviewFile.additions}
+                                  {reviewDiff?.available &&
+                                    selectedReviewFile && (
+                                      <div
+                                        className="review-file"
+                                        key={selectedReviewFile.id}
+                                      >
+                                        <div className="changed-file review-diff-file-header">
+                                          <span className="file-status">
+                                            {selectedReviewFile.status ===
+                                            "added"
+                                              ? "A"
+                                              : selectedReviewFile.status ===
+                                                  "deleted"
+                                                ? "D"
+                                                : "M"}
                                           </span>
-                                          <span className="deletion">
-                                            −{selectedReviewFile.deletions}
+                                          <span className="review-file-path">
+                                            {selectedReviewFile.path}
                                           </span>
-                                        </span>
-                                        <span className="review-actions">
-                                          {reviewScope === "unstaged" && (
-                                            <>
-                                              <button
-                                                className="review-action"
-                                                disabled={
-                                                  reviewBusy || turnActive
-                                                }
-                                                onClick={() =>
-                                                  void mutateReview("stage", {
-                                                    kind: "file",
-                                                    id: selectedReviewFile.id,
-                                                  })
-                                                }
-                                              >
-                                                {t.stage}
-                                              </button>
-                                              <button
-                                                className="review-action danger"
-                                                disabled={
-                                                  reviewBusy || turnActive
-                                                }
-                                                onClick={() =>
-                                                  void mutateReview("revert", {
-                                                    kind: "file",
-                                                    id: selectedReviewFile.id,
-                                                  })
-                                                }
-                                              >
-                                                {t.revert}
-                                              </button>
-                                            </>
-                                          )}
-                                          {reviewScope === "staged" && (
-                                            <button
-                                              className="review-action"
-                                              disabled={
-                                                reviewBusy || turnActive
-                                              }
-                                              onClick={() =>
-                                                void mutateReview("unstage", {
-                                                  kind: "file",
-                                                  id: selectedReviewFile.id,
-                                                })
-                                              }
-                                            >
-                                              {t.unstage}
-                                            </button>
-                                          )}
-                                        </span>
-                                      </div>
-                                      {selectedReviewFile.hunks.map((hunk) => (
-                                        <div
-                                          className="review-hunk-block"
-                                          key={hunk.id}
-                                        >
-                                          <div className="review-hunk">
-                                            <code title={hunk.header}>
-                                              {hunk.header}
-                                            </code>
-                                            <span className="review-file-stats">
-                                              <span className="addition">
-                                                +{hunk.additions}
-                                              </span>
-                                              <span className="deletion">
-                                                −{hunk.deletions}
-                                              </span>
+                                          <span className="review-file-stats">
+                                            <span className="addition">
+                                              +{selectedReviewFile.additions}
                                             </span>
-                                            <span className="review-actions">
-                                              {reviewScope === "unstaged" && (
-                                                <>
-                                                  <button
-                                                    className="review-action"
-                                                    disabled={
-                                                      reviewBusy || turnActive
-                                                    }
-                                                    onClick={() =>
-                                                      void mutateReview(
-                                                        "stage",
-                                                        {
-                                                          kind: "hunk",
-                                                          id: hunk.id,
-                                                        },
-                                                      )
-                                                    }
-                                                  >
-                                                    {t.stage}
-                                                  </button>
-                                                  <button
-                                                    className="review-action danger"
-                                                    disabled={
-                                                      reviewBusy || turnActive
-                                                    }
-                                                    onClick={() =>
-                                                      void mutateReview(
-                                                        "revert",
-                                                        {
-                                                          kind: "hunk",
-                                                          id: hunk.id,
-                                                        },
-                                                      )
-                                                    }
-                                                  >
-                                                    {t.revert}
-                                                  </button>
-                                                </>
-                                              )}
-                                              {reviewScope === "staged" && (
+                                            <span className="deletion">
+                                              −{selectedReviewFile.deletions}
+                                            </span>
+                                          </span>
+                                          <span className="review-actions">
+                                            {reviewScope === "unstaged" && (
+                                              <>
                                                 <button
                                                   className="review-action"
                                                   disabled={
                                                     reviewBusy || turnActive
                                                   }
                                                   onClick={() =>
+                                                    void mutateReview("stage", {
+                                                      kind: "file",
+                                                      id: selectedReviewFile.id,
+                                                    })
+                                                  }
+                                                >
+                                                  {t.stage}
+                                                </button>
+                                                <button
+                                                  className="review-action danger"
+                                                  disabled={
+                                                    reviewBusy || turnActive
+                                                  }
+                                                  onClick={() =>
                                                     void mutateReview(
-                                                      "unstage",
+                                                      "revert",
                                                       {
-                                                        kind: "hunk",
-                                                        id: hunk.id,
+                                                        kind: "file",
+                                                        id: selectedReviewFile.id,
                                                       },
                                                     )
                                                   }
                                                 >
-                                                  {t.unstage}
+                                                  {t.revert}
                                                 </button>
-                                              )}
-                                            </span>
-                                          </div>
-                                          <div className="review-lines">
-                                            {hunk.lines.map((line) => {
-                                              const comments =
-                                                reviewComments.filter(
-                                                  (comment) =>
-                                                    comment.scope ===
-                                                      reviewScope &&
-                                                    comment.lineId === line.id,
-                                                );
-                                              return (
-                                                <div
-                                                  className="review-line-group"
-                                                  key={line.id}
-                                                >
-                                                  <div
-                                                    className={`review-line ${line.kind}`}
-                                                    data-line-id={line.id}
-                                                  >
-                                                    <button
-                                                      aria-label={t.addComment}
-                                                      className="review-comment-trigger"
-                                                      onClick={() => {
-                                                        setCommentLineId(
-                                                          line.id,
-                                                        );
-                                                        setCommentBody("");
-                                                      }}
-                                                      title={t.addComment}
-                                                    >
-                                                      +
-                                                    </button>
-                                                    <span className="review-line-number">
-                                                      {line.oldLine ?? ""}
-                                                    </span>
-                                                    <span className="review-line-number">
-                                                      {line.newLine ?? ""}
-                                                    </span>
-                                                    <code>
-                                                      <HighlightedCodeLine
-                                                        content={
-                                                          line.text || " "
-                                                        }
-                                                        path={
-                                                          selectedReviewFile.path
-                                                        }
-                                                      />
-                                                    </code>
-                                                  </div>
-                                                  {comments.map((comment) => (
-                                                    <div
-                                                      className="review-comment"
-                                                      key={comment.id}
-                                                    >
-                                                      <p>{comment.body}</p>
+                                              </>
+                                            )}
+                                            {reviewScope === "staged" && (
+                                              <button
+                                                className="review-action"
+                                                disabled={
+                                                  reviewBusy || turnActive
+                                                }
+                                                onClick={() =>
+                                                  void mutateReview("unstage", {
+                                                    kind: "file",
+                                                    id: selectedReviewFile.id,
+                                                  })
+                                                }
+                                              >
+                                                {t.unstage}
+                                              </button>
+                                            )}
+                                          </span>
+                                        </div>
+                                        {selectedReviewFile.hunks.map(
+                                          (hunk) => (
+                                            <div
+                                              className="review-hunk-block"
+                                              key={hunk.id}
+                                            >
+                                              <div className="review-hunk">
+                                                <code title={hunk.header}>
+                                                  {hunk.header}
+                                                </code>
+                                                <span className="review-file-stats">
+                                                  <span className="addition">
+                                                    +{hunk.additions}
+                                                  </span>
+                                                  <span className="deletion">
+                                                    −{hunk.deletions}
+                                                  </span>
+                                                </span>
+                                                <span className="review-actions">
+                                                  {reviewScope ===
+                                                    "unstaged" && (
+                                                    <>
                                                       <button
-                                                        aria-label={
-                                                          t.deleteComment
+                                                        className="review-action"
+                                                        disabled={
+                                                          reviewBusy ||
+                                                          turnActive
                                                         }
-                                                        className="text-button danger"
-                                                        disabled={reviewBusy}
                                                         onClick={() =>
-                                                          void deleteReviewComment(
-                                                            comment,
+                                                          void mutateReview(
+                                                            "stage",
+                                                            {
+                                                              kind: "hunk",
+                                                              id: hunk.id,
+                                                            },
                                                           )
                                                         }
                                                       >
-                                                        {t.deleteComment}
+                                                        {t.stage}
                                                       </button>
-                                                    </div>
-                                                  ))}
-                                                  {commentLineId ===
-                                                    line.id && (
-                                                    <div className="review-comment-editor">
-                                                      <textarea
-                                                        aria-label={
-                                                          t.commentPlaceholder
+                                                      <button
+                                                        className="review-action danger"
+                                                        disabled={
+                                                          reviewBusy ||
+                                                          turnActive
                                                         }
-                                                        autoFocus
-                                                        onChange={(event) =>
-                                                          setCommentBody(
-                                                            event.target.value,
+                                                        onClick={() =>
+                                                          void mutateReview(
+                                                            "revert",
+                                                            {
+                                                              kind: "hunk",
+                                                              id: hunk.id,
+                                                            },
                                                           )
                                                         }
-                                                        placeholder={
-                                                          t.commentPlaceholder
-                                                        }
-                                                        value={commentBody}
-                                                      />
-                                                      <span>
+                                                      >
+                                                        {t.revert}
+                                                      </button>
+                                                    </>
+                                                  )}
+                                                  {reviewScope === "staged" && (
+                                                    <button
+                                                      className="review-action"
+                                                      disabled={
+                                                        reviewBusy || turnActive
+                                                      }
+                                                      onClick={() =>
+                                                        void mutateReview(
+                                                          "unstage",
+                                                          {
+                                                            kind: "hunk",
+                                                            id: hunk.id,
+                                                          },
+                                                        )
+                                                      }
+                                                    >
+                                                      {t.unstage}
+                                                    </button>
+                                                  )}
+                                                </span>
+                                              </div>
+                                              <div className="review-lines">
+                                                {hunk.lines.map((line) => {
+                                                  const comments =
+                                                    reviewComments.filter(
+                                                      (comment) =>
+                                                        comment.scope ===
+                                                          reviewScope &&
+                                                        comment.lineId ===
+                                                          line.id,
+                                                    );
+                                                  return (
+                                                    <div
+                                                      className="review-line-group"
+                                                      key={line.id}
+                                                    >
+                                                      <div
+                                                        className={`review-line ${line.kind}`}
+                                                        data-line-id={line.id}
+                                                      >
                                                         <button
-                                                          className="text-button"
+                                                          aria-label={
+                                                            t.addComment
+                                                          }
+                                                          className="review-comment-trigger"
                                                           onClick={() => {
                                                             setCommentLineId(
-                                                              undefined,
+                                                              line.id,
                                                             );
                                                             setCommentBody("");
                                                           }}
+                                                          title={t.addComment}
                                                         >
-                                                          {t.cancelComment}
+                                                          +
                                                         </button>
-                                                        <button
-                                                          className="primary-button compact"
-                                                          disabled={
-                                                            reviewBusy ||
-                                                            !commentBody.trim()
-                                                          }
-                                                          onClick={() =>
-                                                            void saveReviewComment(
-                                                              line.id,
-                                                            )
-                                                          }
-                                                        >
-                                                          {t.saveComment}
-                                                        </button>
-                                                      </span>
+                                                        <span className="review-line-number">
+                                                          {line.oldLine ?? ""}
+                                                        </span>
+                                                        <span className="review-line-number">
+                                                          {line.newLine ?? ""}
+                                                        </span>
+                                                        <code>
+                                                          <HighlightedCodeLine
+                                                            content={
+                                                              line.text || " "
+                                                            }
+                                                            path={
+                                                              selectedReviewFile.path
+                                                            }
+                                                          />
+                                                        </code>
+                                                      </div>
+                                                      {comments.map(
+                                                        (comment) => (
+                                                          <div
+                                                            className="review-comment"
+                                                            key={comment.id}
+                                                          >
+                                                            <p>
+                                                              {comment.body}
+                                                            </p>
+                                                            <button
+                                                              aria-label={
+                                                                t.deleteComment
+                                                              }
+                                                              className="text-button danger"
+                                                              disabled={
+                                                                reviewBusy
+                                                              }
+                                                              onClick={() =>
+                                                                void deleteReviewComment(
+                                                                  comment,
+                                                                )
+                                                              }
+                                                            >
+                                                              {t.deleteComment}
+                                                            </button>
+                                                          </div>
+                                                        ),
+                                                      )}
+                                                      {commentLineId ===
+                                                        line.id && (
+                                                        <div className="review-comment-editor">
+                                                          <textarea
+                                                            aria-label={
+                                                              t.commentPlaceholder
+                                                            }
+                                                            autoFocus
+                                                            onChange={(event) =>
+                                                              setCommentBody(
+                                                                event.target
+                                                                  .value,
+                                                              )
+                                                            }
+                                                            placeholder={
+                                                              t.commentPlaceholder
+                                                            }
+                                                            value={commentBody}
+                                                          />
+                                                          <span>
+                                                            <button
+                                                              className="text-button"
+                                                              onClick={() => {
+                                                                setCommentLineId(
+                                                                  undefined,
+                                                                );
+                                                                setCommentBody(
+                                                                  "",
+                                                                );
+                                                              }}
+                                                            >
+                                                              {t.cancelComment}
+                                                            </button>
+                                                            <button
+                                                              className="primary-button compact"
+                                                              disabled={
+                                                                reviewBusy ||
+                                                                !commentBody.trim()
+                                                              }
+                                                              onClick={() =>
+                                                                void saveReviewComment(
+                                                                  line.id,
+                                                                )
+                                                              }
+                                                            >
+                                                              {t.saveComment}
+                                                            </button>
+                                                          </span>
+                                                        </div>
+                                                      )}
                                                     </div>
-                                                  )}
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                              </main>
-                              <aside
-                                aria-label={t.changedFiles}
-                                className="review-file-sidebar"
-                              >
-                                <label className="review-file-filter">
-                                  <SearchIcon />
-                                  <input
-                                    aria-label={t.filterFiles}
-                                    onChange={(event) =>
-                                      setReviewFileQuery(event.target.value)
-                                    }
-                                    placeholder={t.filterFiles}
-                                    value={reviewFileQuery}
-                                  />
-                                </label>
-                                <div className="file-summary">
-                                  <span>{t.changedFiles}</span>
-                                  <strong>
-                                    {reviewDiff?.files.length ?? 0}
-                                  </strong>
-                                </div>
-                                <div className="review-file-list">
-                                  {filteredReviewFiles.map((file) => (
-                                    <button
-                                      aria-pressed={
-                                        selectedReviewFile?.id === file.id
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          ),
+                                        )}
+                                      </div>
+                                    )}
+                                </main>
+                                <aside
+                                  aria-label={t.changedFiles}
+                                  className="review-file-sidebar"
+                                >
+                                  <label className="review-file-filter">
+                                    <SearchIcon />
+                                    <input
+                                      aria-label={t.filterFiles}
+                                      onChange={(event) =>
+                                        setReviewFileQuery(event.target.value)
                                       }
-                                      className={
-                                        selectedReviewFile?.id === file.id
-                                          ? "review-file-entry selected"
-                                          : "review-file-entry"
-                                      }
-                                      key={file.id}
-                                      onClick={() =>
-                                        setSelectedReviewFileId(file.id)
-                                      }
-                                      title={file.path}
-                                      type="button"
-                                    >
-                                      <span className="file-status">
-                                        {file.status === "added"
-                                          ? "A"
-                                          : file.status === "deleted"
-                                            ? "D"
-                                            : "M"}
-                                      </span>
-                                      <span className="review-file-path">
-                                        {file.path}
-                                      </span>
-                                      <span className="review-file-stats">
-                                        <span className="addition">
-                                          +{file.additions}
+                                      placeholder={t.filterFiles}
+                                      value={reviewFileQuery}
+                                    />
+                                  </label>
+                                  <div className="file-summary">
+                                    <span>{t.changedFiles}</span>
+                                    <strong>
+                                      {reviewDiff?.files.length ?? 0}
+                                    </strong>
+                                  </div>
+                                  <div className="review-file-list">
+                                    {filteredReviewFiles.map((file) => (
+                                      <button
+                                        aria-pressed={
+                                          selectedReviewFile?.id === file.id
+                                        }
+                                        className={
+                                          selectedReviewFile?.id === file.id
+                                            ? "review-file-entry selected"
+                                            : "review-file-entry"
+                                        }
+                                        key={file.id}
+                                        onClick={() =>
+                                          setSelectedReviewFileId(file.id)
+                                        }
+                                        title={file.path}
+                                        type="button"
+                                      >
+                                        <span className="file-status">
+                                          {file.status === "added"
+                                            ? "A"
+                                            : file.status === "deleted"
+                                              ? "D"
+                                              : "M"}
                                         </span>
-                                        <span className="deletion">
-                                          −{file.deletions}
+                                        <span className="review-file-path">
+                                          {file.path}
                                         </span>
-                                      </span>
-                                    </button>
-                                  ))}
-                                  {Boolean(
-                                    reviewDiff?.files.length &&
-                                    !filteredReviewFiles.length,
-                                  ) && (
-                                    <div className="review-file-list-empty">
-                                      {t.noMatchingFiles}
-                                    </div>
-                                  )}
-                                </div>
-                              </aside>
-                            </div>
-                          </section>
-                        )}
-                        {tab.kind === "terminal" && (
-                          <Suspense
-                            fallback={
-                              <section className="terminal-panel view-loading">
-                                …
-                              </section>
-                            }
-                          >
-                            <TerminalPanel
-                              threadId={activeThread?.id}
+                                        <span className="review-file-stats">
+                                          <span className="addition">
+                                            +{file.additions}
+                                          </span>
+                                          <span className="deletion">
+                                            −{file.deletions}
+                                          </span>
+                                        </span>
+                                      </button>
+                                    ))}
+                                    {Boolean(
+                                      reviewDiff?.files.length &&
+                                      !filteredReviewFiles.length,
+                                    ) && (
+                                      <div className="review-file-list-empty">
+                                        {t.noMatchingFiles}
+                                      </div>
+                                    )}
+                                  </div>
+                                </aside>
+                              </div>
+                            </section>
+                          )}
+                          {tab.kind === "terminal" && (
+                            <Suspense
+                              fallback={
+                                <section className="terminal-panel view-loading">
+                                  …
+                                </section>
+                              }
+                            >
+                              <TerminalPanel
+                                threadId={activeThread?.id}
+                                title={tab.title}
+                                emptyMessage={t.terminalLocked}
+                                theme={runtimeSettings?.theme ?? "system"}
+                              />
+                            </Suspense>
+                          )}
+                          {tab.kind === "browser" && (
+                            <WorkspaceBrowserPanel
+                              addressPlaceholder={t.browserAddress}
+                              backLabel={t.browserBack}
+                              emptyMessage={t.noHtmlPreview}
+                              forwardLabel={t.browserForward}
+                              goLabel={t.browserGo}
+                              path={tab.path ?? latestHtmlChange?.path}
+                              refreshLabel={t.refreshPreview}
+                              revision={
+                                tab.revision ?? latestHtmlChange?.eventId
+                              }
+                              threadId={activeThreadId}
                               title={tab.title}
-                              emptyMessage={t.terminalLocked}
-                              theme={runtimeSettings?.theme ?? "system"}
                             />
-                          </Suspense>
-                        )}
-                        {tab.kind === "browser" && (
-                          <WorkspaceBrowserPanel
-                            addressPlaceholder={t.browserAddress}
-                            backLabel={t.browserBack}
-                            emptyMessage={t.noHtmlPreview}
-                            forwardLabel={t.browserForward}
-                            goLabel={t.browserGo}
-                            path={tab.path ?? latestHtmlChange?.path}
-                            refreshLabel={t.refreshPreview}
-                            revision={tab.revision ?? latestHtmlChange?.eventId}
-                            threadId={activeThreadId}
-                            title={tab.title}
-                          />
-                        )}
-                        {tab.kind === "markdown" && (
-                          <MarkdownReaderPanel
-                            editLabel={t.editFile}
-                            emptyMessage={t.noMarkdownPreview}
-                            path={tab.path ?? latestMarkdownChange?.path}
-                            refreshLabel={t.refreshPreview}
-                            revision={
-                              tab.revision ?? latestMarkdownChange?.eventId
-                            }
-                            richLabel={t.richText}
-                            saveLabel={t.saveFile}
-                            savedLabel={t.saved}
-                            savingLabel={t.saving}
-                            sourceLabel={t.sourceText}
-                            threadId={activeThreadId}
-                            title={tab.title}
-                            unsavedLabel={t.unsaved}
-                          />
-                        )}
-                        {tab.kind === "file" && (
-                          <WorkspaceFilesPanel
-                            binaryMessage={t.binaryFile}
-                            editFileLabel={t.editFile}
-                            filterPlaceholder={t.filterFiles}
-                            onFileSelected={(path) =>
-                              dispatchWorkspaceTab({
-                                type: "update",
-                                tabId: tab.id,
-                                updates: {
-                                  path,
-                                  title:
-                                    path
-                                      .replaceAll("\\", "/")
-                                      .split("/")
-                                      .at(-1) ?? t.files,
-                                },
-                              })
-                            }
-                            onOpenHtml={openHtmlFromFiles}
-                            openFileMessage={t.openFileFromTree}
-                            refreshLabel={t.refreshPreview}
-                            richLabel={t.richText}
-                            saveLabel={t.saveFile}
-                            savedLabel={t.saved}
-                            selectedPath={tab.path}
-                            savingLabel={t.saving}
-                            sourceLabel={t.sourceText}
-                            threadId={activeThreadId}
-                            title={tab.title}
-                            unsavedLabel={t.unsaved}
-                          />
-                        )}
-                        {tab.kind === "agent-team" && (
-                          <AgentTeamPanel
-                            active={workspaceTabs.activeTabId === tab.id}
-                            controlPending={agentTeamControlPending}
-                            locale={locale}
-                            members={Object.values(
-                              threadState?.childAgents ?? {},
-                            ).filter(
-                              (child) => child.teamId === tab.agentTeamId,
-                            )}
-                            messages={(threadState?.agentTeamMessageOrder ?? [])
-                              .map(
-                                (messageId) =>
-                                  threadState?.agentTeamMessages[messageId],
-                              )
-                              .filter(
-                                (message): message is AgentTeamMessageState =>
-                                  Boolean(
-                                    message &&
-                                    message.teamId === tab.agentTeamId,
-                                  ),
+                          )}
+                          {tab.kind === "markdown" && (
+                            <MarkdownReaderPanel
+                              editLabel={t.editFile}
+                              emptyMessage={t.noMarkdownPreview}
+                              path={tab.path ?? latestMarkdownChange?.path}
+                              refreshLabel={t.refreshPreview}
+                              revision={
+                                tab.revision ?? latestMarkdownChange?.eventId
+                              }
+                              richLabel={t.richText}
+                              saveLabel={t.saveFile}
+                              savedLabel={t.saved}
+                              savingLabel={t.saving}
+                              sourceLabel={t.sourceText}
+                              threadId={activeThreadId}
+                              title={tab.title}
+                              unsavedLabel={t.unsaved}
+                            />
+                          )}
+                          {tab.kind === "file" && (
+                            <WorkspaceFilesPanel
+                              binaryMessage={t.binaryFile}
+                              editFileLabel={t.editFile}
+                              filterPlaceholder={t.filterFiles}
+                              onFileSelected={(path) =>
+                                dispatchWorkspaceTab({
+                                  type: "update",
+                                  tabId: tab.id,
+                                  updates: {
+                                    path,
+                                    title:
+                                      path
+                                        .replaceAll("\\", "/")
+                                        .split("/")
+                                        .at(-1) ?? t.files,
+                                  },
+                                })
+                              }
+                              onOpenHtml={openHtmlFromFiles}
+                              openFileMessage={t.openFileFromTree}
+                              refreshLabel={t.refreshPreview}
+                              richLabel={t.richText}
+                              saveLabel={t.saveFile}
+                              savedLabel={t.saved}
+                              selectedPath={tab.path}
+                              savingLabel={t.saving}
+                              sourceLabel={t.sourceText}
+                              threadId={activeThreadId}
+                              title={tab.title}
+                              unsavedLabel={t.unsaved}
+                            />
+                          )}
+                          {tab.kind === "agent-team" && (
+                            <AgentTeamPanel
+                              active={workspaceTabs.activeTabId === tab.id}
+                              controlPending={agentTeamControlPending}
+                              locale={locale}
+                              members={Object.values(
+                                threadState?.childAgents ?? {},
+                              ).filter(
+                                (child) => child.teamId === tab.agentTeamId,
                               )}
-                            onOpenChildAgent={openChildAgentPanel}
-                            onStop={(team) => void stopAgentTeam(team)}
-                            runtimeAvailable={turnActive}
-                            team={
-                              tab.agentTeamId
-                                ? threadState?.agentTeams[tab.agentTeamId]
-                                : undefined
-                            }
-                          />
-                        )}
-                        {tab.kind === "child-agent" && (
-                          <ChildAgentPanel
-                            active={workspaceTabs.activeTabId === tab.id}
-                            child={
-                              tab.childAgentId
-                                ? threadState?.childAgents[tab.childAgentId]
-                                : undefined
-                            }
-                            clockMs={clockMs}
-                            locale={locale}
-                            onControl={(child, action) =>
-                              void controlChildAgent(child, action)
-                            }
-                            pendingAction={childAgentControlPending}
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </aside>
+                              messages={(
+                                threadState?.agentTeamMessageOrder ?? []
+                              )
+                                .map(
+                                  (messageId) =>
+                                    threadState?.agentTeamMessages[messageId],
+                                )
+                                .filter(
+                                  (message): message is AgentTeamMessageState =>
+                                    Boolean(
+                                      message &&
+                                      message.teamId === tab.agentTeamId,
+                                    ),
+                                )}
+                              onOpenChildAgent={openChildAgentPanel}
+                              onStop={(team) => void stopAgentTeam(team)}
+                              runtimeAvailable={turnActive}
+                              team={
+                                tab.agentTeamId
+                                  ? threadState?.agentTeams[tab.agentTeamId]
+                                  : undefined
+                              }
+                            />
+                          )}
+                          {tab.kind === "child-agent" && (
+                            <ChildAgentPanel
+                              active={workspaceTabs.activeTabId === tab.id}
+                              child={
+                                tab.childAgentId
+                                  ? threadState?.childAgents[tab.childAgentId]
+                                  : undefined
+                              }
+                              clockMs={clockMs}
+                              locale={locale}
+                              onControl={(child, action) =>
+                                void controlChildAgent(child, action)
+                              }
+                              pendingAction={childAgentControlPending}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
+                </>
               )}
             </div>
           </>

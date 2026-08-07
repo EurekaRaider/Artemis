@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -80,6 +81,20 @@ function SelectChevron() {
   );
 }
 
+function scrollOptionIntoListbox(
+  listbox: HTMLDivElement | null,
+  option: HTMLDivElement | null | undefined,
+) {
+  if (!listbox || !option) return;
+  const listboxRect = listbox.getBoundingClientRect();
+  const optionRect = option.getBoundingClientRect();
+  if (optionRect.top < listboxRect.top) {
+    listbox.scrollTop -= listboxRect.top - optionRect.top;
+  } else if (optionRect.bottom > listboxRect.bottom) {
+    listbox.scrollTop += optionRect.bottom - listboxRect.bottom;
+  }
+}
+
 export function CodexSelect<Value extends string>({
   ariaLabel,
   disabled = false,
@@ -121,12 +136,24 @@ export function CodexSelect<Value extends string>({
     optionRefs.current = [];
   }, [searchQuery, visibleSelectedIndex]);
 
+  useLayoutEffect(() => {
+    if (open) return;
+    const conversation = root.current?.closest<HTMLElement>(".conversation");
+    if (conversation) {
+      conversation.scrollLeft = 0;
+      conversation.scrollTop = 0;
+    }
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const frame = window.requestAnimationFrame(() => {
-      if (searchPlaceholder) searchInput.current?.focus();
-      else menu.current?.focus();
-      optionRefs.current[activeIndex]?.scrollIntoView({ block: "nearest" });
+      if (searchPlaceholder) {
+        searchInput.current?.focus({ preventScroll: true });
+      } else {
+        menu.current?.focus({ preventScroll: true });
+      }
+      scrollOptionIntoListbox(menu.current, optionRefs.current[activeIndex]);
     });
     const closeOutside = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) {
@@ -149,7 +176,9 @@ export function CodexSelect<Value extends string>({
 
   function closeAndFocus() {
     setOpen(false);
-    window.requestAnimationFrame(() => trigger.current?.focus());
+    window.requestAnimationFrame(() =>
+      trigger.current?.focus({ preventScroll: true }),
+    );
   }
 
   function choose(option: CodexSelectOption<Value>) {

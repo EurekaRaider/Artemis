@@ -288,6 +288,7 @@ export interface SettingsSnapshot {
   trustedExtensions: TrustedExtensionStatus[];
   update: ReleaseUpdateStatus;
   agentConcurrency: AgentConcurrencyStatus;
+  workspaceDockWidth?: number;
   selection?: ModelSelection;
 }
 
@@ -704,6 +705,10 @@ export interface ArtemisApi {
     model: AddedModelConfiguration,
     apiKey?: string,
   ): Promise<SettingsSnapshot>;
+  removeModel(
+    model: Pick<AddedModelConfiguration, "providerId" | "modelId">,
+  ): Promise<SettingsSnapshot>;
+  setWorkspaceDockWidth(width: number): Promise<number>;
   saveApiKey(providerId: string, apiKey: string): Promise<SettingsSnapshot>;
   saveProviderConnection(
     provider: ProviderConnection,
@@ -884,7 +889,9 @@ export const IPC = {
   settingsLocalFullAccessSet: "artemis:settings-local-full-access-set",
   settingsAgentConcurrencySet: "artemis:settings-agent-concurrency-set",
   settingsModelAdd: "artemis:settings-model-add",
+  settingsModelDelete: "artemis:settings-model-delete",
   settingsModelSet: "artemis:settings-model-set",
+  settingsWorkspaceDockWidthSet: "artemis:settings-workspace-dock-width-set",
   settingsApiKeySave: "artemis:settings-api-key-save",
   settingsProviderSave: "artemis:settings-provider-save",
   settingsProviderDelete: "artemis:settings-provider-delete",

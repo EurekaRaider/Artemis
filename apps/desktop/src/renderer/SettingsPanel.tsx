@@ -6,6 +6,7 @@ import type {
 } from "@artemis/protocol";
 
 import type {
+  AddedModelConfiguration,
   ConfigurationImportCategory,
   ConfigurationImportPreview,
   ConfigurationImportSource,
@@ -42,6 +43,12 @@ const labels = {
     modelSaveFailed: "Model could not be added",
     modelSavedDetail:
       "The model and any entered API key were saved. It is now available from the conversation model picker.",
+    addedModels: "Added models",
+    noAddedModels: "No models have been added",
+    removeModel: "Remove model",
+    removeModelConfirm: "Remove {model} from the conversation model picker?",
+    removeModelCredentialConfirm:
+      "This is the last added model for {provider}. Its saved API key will also be deleted.",
     confirm: "OK",
     language: "Language",
     languageSystem: "Use system language",
@@ -78,7 +85,6 @@ const labels = {
     delete: "Delete",
     encrypted: "Protected by OS encryption",
     unavailable: "OS encryption unavailable — credentials are read-only",
-    noCredentials: "No stored credentials",
     imported: "credentials imported",
     loading: "Loading settings…",
     mcp: "MCP servers",
@@ -197,6 +203,12 @@ const labels = {
     modelSaveFailed: "模型添加失败",
     modelSavedDetail:
       "模型及本次填写的 API Key 已保存，现在可以从对话框的模型菜单中切换。",
+    addedModels: "已添加模型",
+    noAddedModels: "尚未添加模型",
+    removeModel: "删除模型",
+    removeModelConfirm: "从对话模型菜单中删除 {model}？",
+    removeModelCredentialConfirm:
+      "这是 {provider} 最后一个已添加模型，删除时也会清理已保存的 API Key。",
     confirm: "确定",
     language: "语言",
     languageSystem: "跟随系统",
@@ -233,7 +245,6 @@ const labels = {
     delete: "删除",
     encrypted: "由操作系统加密保护",
     unavailable: "操作系统加密不可用——凭据只读",
-    noCredentials: "尚未保存凭据",
     imported: "项凭据已导入",
     loading: "正在加载设置…",
     mcp: "MCP 服务器",
@@ -381,6 +392,8 @@ export function SettingsPanel({
     kind: "success" | "failure";
     detail: string;
   }>();
+  const [modelDeleteTarget, setModelDeleteTarget] =
+    useState<AddedModelConfiguration>();
   const [globalAgentsContent, setGlobalAgentsContent] = useState("");
   const [agentConcurrencyLimit, setAgentConcurrencyLimit] = useState("");
   const [importPreview, setImportPreview] =
@@ -582,6 +595,35 @@ export function SettingsPanel({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function removeModel() {
+    if (!modelDeleteTarget) return;
+    await run(async () => {
+      const updated = await window.artemis.removeModel({
+        providerId: modelDeleteTarget.providerId,
+        modelId: modelDeleteTarget.modelId,
+      });
+      setSettings(updated);
+      onSettingsChange(updated);
+      setModelDeleteTarget(undefined);
+      const selected = updated.selection
+        ? updated.models.find(
+            (model) =>
+              model.providerId === updated.selection?.providerId &&
+              model.modelId === updated.selection.modelId,
+          )
+        : updated.models[0];
+      if (selected) {
+        setSelectedModel(modelKey(selected.providerId, selected.modelId));
+        setContextWindow(
+          String(Math.min(updated.contextWindow, selected.contextWindow)),
+        );
+      } else {
+        setSelectedModel("");
+        setContextWindow(String(updated.contextWindow));
+      }
+    });
   }
 
   async function setLanguage(language: AppLanguage) {
@@ -964,35 +1006,50 @@ export function SettingsPanel({
                     >
                       {t.saveModel}
                     </button>
-                    <div className="credential-list">
-                      {settings.credentials.map((credential) => (
-                        <div
-                          className="credential-row"
-                          key={credential.providerId}
-                        >
-                          <span>
-                            {credential.providerId} · {credential.type}
-                          </span>
-                          <button
-                            className="text-button danger"
-                            disabled={busy}
-                            onClick={() =>
-                              void run(async () => {
-                                setSettings(
-                                  await window.artemis.deleteCredential(
-                                    credential.providerId,
-                                  ),
-                                );
-                              })
-                            }
+                    <div
+                      aria-label={t.addedModels}
+                      className="added-model-list"
+                    >
+                      <strong>{t.addedModels}</strong>
+                      {settings.addedModels.map((model) => {
+                        const catalogModel = models.find(
+                          (candidate) =>
+                            candidate.providerId === model.providerId &&
+                            candidate.modelId === model.modelId,
+                        );
+                        return (
+                          <div
+                            className="added-model-row"
+                            key={modelKey(model.providerId, model.modelId)}
                           >
-                            {t.delete}
-                          </button>
-                        </div>
-                      ))}
-                      {!settings.credentials.length && (
+                            <span>
+                              <strong>
+                                {catalogModel?.name ?? model.modelId}
+                              </strong>
+                              <small>
+                                {model.providerId} · {model.modelId} ·{" "}
+                                {model.contextWindow.toLocaleString(locale)}{" "}
+                                token
+                              </small>
+                            </span>
+                            <button
+                              aria-label={`${t.removeModel}: ${catalogModel?.name ?? model.modelId}`}
+                              className="text-button danger"
+                              disabled={busy}
+                              onClick={() => {
+                                setMessage("");
+                                setModelDeleteTarget(model);
+                              }}
+                              type="button"
+                            >
+                              {t.delete}
+                            </button>
+                          </div>
+                        );
+                      })}
+                      {settings.addedModels.length === 0 && (
                         <span className="settings-empty">
-                          {t.noCredentials}
+                          {t.noAddedModels}
                         </span>
                       )}
                     </div>
@@ -1630,6 +1687,72 @@ export function SettingsPanel({
             <button onClick={() => setModelApplyResult(undefined)}>
               {t.confirm}
             </button>
+          </section>
+        </div>
+      )}
+      {modelDeleteTarget && settings && (
+        <div
+          className="model-delete-dialog-backdrop"
+          onMouseDown={(event) => {
+            event.stopPropagation();
+            if (!busy && event.target === event.currentTarget) {
+              setModelDeleteTarget(undefined);
+            }
+          }}
+        >
+          <section
+            aria-labelledby="model-delete-title"
+            aria-modal="true"
+            className="model-delete-dialog"
+            role="alertdialog"
+          >
+            <strong id="model-delete-title">{t.removeModel}</strong>
+            <p>
+              {t.removeModelConfirm.replace(
+                "{model}",
+                models.find(
+                  (model) =>
+                    model.providerId === modelDeleteTarget.providerId &&
+                    model.modelId === modelDeleteTarget.modelId,
+                )?.name ?? modelDeleteTarget.modelId,
+              )}
+            </p>
+            {!settings.providers.some(
+              (provider) => provider.id === modelDeleteTarget.providerId,
+            ) &&
+              settings.addedModels.filter(
+                (model) => model.providerId === modelDeleteTarget.providerId,
+              ).length === 1 &&
+              settings.credentials.some(
+                (credential) =>
+                  credential.providerId === modelDeleteTarget.providerId,
+              ) && (
+                <p className="warning">
+                  {t.removeModelCredentialConfirm.replace(
+                    "{provider}",
+                    modelDeleteTarget.providerId,
+                  )}
+                </p>
+              )}
+            {message && <span className="error">{message}</span>}
+            <div className="model-delete-dialog-actions">
+              <button
+                className="secondary-button"
+                disabled={busy}
+                onClick={() => setModelDeleteTarget(undefined)}
+                type="button"
+              >
+                {t.cancelEdit}
+              </button>
+              <button
+                className="primary-button danger"
+                disabled={busy}
+                onClick={() => void removeModel()}
+                type="button"
+              >
+                {t.delete}
+              </button>
+            </div>
           </section>
         </div>
       )}

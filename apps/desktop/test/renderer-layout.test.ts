@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { contextMenuLayout } from "../src/renderer/ComposerContextBar.js";
+
 const appSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/App.tsx", import.meta.url)),
   "utf8",
@@ -28,6 +30,10 @@ const settingsSource = readFileSync(
 );
 const resourceCenterSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/ResourceCenter.tsx", import.meta.url)),
+  "utf8",
+);
+const resourceIconsSource = readFileSync(
+  fileURLToPath(new URL("../src/renderer/resource-icons.tsx", import.meta.url)),
   "utf8",
 );
 const mcpServerEditorSource = readFileSync(
@@ -457,7 +463,51 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("selectPromptAttachments()");
     expect(appSource).toContain('className="composer-attachments"');
     expect(cssRule(".composer-context")).toMatch(/\bdisplay:\s*flex/u);
+    expect(cssRule(".composer-context-trigger")).toMatch(
+      /\bmax-width:\s*100%[\s\S]*\boverflow:\s*hidden[\s\S]*\bwidth:\s*100%/u,
+    );
+    expect(cssRule(".composer-context-picker")).toMatch(
+      /\bflex:\s*0\s+0\s+auto/u,
+    );
+    expect(cssRule(".composer-context-picker .codex-select-menu")).toMatch(
+      /\bleft:\s*auto[\s\S]*\bright:\s*0/u,
+    );
+    expect(cssRule(".composer-context-menu")).toMatch(
+      /\bdisplay:\s*flex[\s\S]*\bwidth:\s*min\(350px,\s*calc\(100cqi\s*-\s*64px\)\)/u,
+    );
+    expect(cssRule(".composer-wrap")).toMatch(/\bz-index:\s*20/u);
+    expect(composerContextSource).toContain(
+      "new ResizeObserver(updateMenuLayout)",
+    );
+    expect(composerContextSource).toContain("focus({ preventScroll: true })");
+    expect(composerContextSource).toContain("conversation.scrollLeft = 0");
     expect(cssRule(".composer")).toMatch(/\bborder-radius:\s*18px/u);
+  });
+
+  it("keeps context menus inside the resized conversation", () => {
+    expect(contextMenuLayout(260, 0, 500)).toEqual({
+      left: 0,
+      maxHeight: 484,
+      width: 260,
+    });
+    expect(contextMenuLayout(260, 120, 500)).toEqual({
+      left: -120,
+      maxHeight: 484,
+      width: 260,
+    });
+    expect(contextMenuLayout(500, 400, 500)).toEqual({
+      left: -250,
+      maxHeight: 484,
+      width: 350,
+    });
+  });
+
+  it("keeps the task mode select from scrolling the conversation", () => {
+    expect(codexSelectSource).toContain("focus({ preventScroll: true })");
+    expect(codexSelectSource).toContain("scrollOptionIntoListbox(");
+    expect(codexSelectSource).not.toContain(".scrollIntoView(");
+    expect(codexSelectSource).toContain("conversation.scrollLeft = 0");
+    expect(codexSelectSource).toContain("conversation.scrollTop = 0");
   });
 
   it("keeps fixed composer controls and the trailing send action visible in a narrow workspace", () => {
@@ -998,7 +1048,12 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('changeApprovalPolicy("full-access")');
     expect(appSource).toContain('changeApprovalPolicy("custom")');
     expect(appSource).toContain("window.artemis.setApprovalPolicy(policy)");
-    expect(cssRule(".approval-policy-menu")).toMatch(/\bposition:\s*absolute/u);
+    expect(cssRule(".approval-policy-control")).toMatch(
+      /\bposition:\s*static/u,
+    );
+    expect(cssRule(".approval-policy-menu")).toMatch(
+      /\bbox-sizing:\s*border-box[\s\S]*\bleft:\s*12px[\s\S]*\boverflow-y:\s*auto[\s\S]*\bposition:\s*absolute[\s\S]*\bwidth:\s*min\(410px,\s*calc\(100%\s*-\s*24px\)\)/u,
+    );
   });
 
   it("shows the selected model name in the composer with catalog-free fallbacks", () => {
@@ -1070,6 +1125,12 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain("contextWindowHint");
     expect(stylesSource).toContain(
       ".context-usage-indicator:hover .context-usage-popover",
+    );
+    expect(cssRule(".context-usage-indicator")).toMatch(
+      /\bposition:\s*static/u,
+    );
+    expect(cssRule(".context-usage-popover")).toMatch(
+      /\bbox-sizing:\s*border-box[\s\S]*\bright:\s*12px[\s\S]*\bwhite-space:\s*normal[\s\S]*\bwidth:\s*min\(320px,\s*calc\(100%\s*-\s*24px\)\)/u,
     );
   });
 
@@ -1176,6 +1237,10 @@ describe("renderer layout contract", () => {
     );
     const modelAddHandler = mainProcessSource.slice(
       mainProcessSource.indexOf("IPC.settingsModelAdd"),
+      mainProcessSource.indexOf("IPC.settingsModelDelete"),
+    );
+    const modelDeleteHandler = mainProcessSource.slice(
+      mainProcessSource.indexOf("IPC.settingsModelDelete"),
       mainProcessSource.indexOf("IPC.settingsModelSet"),
     );
     const modelSwitchHandler = mainProcessSource.slice(
@@ -1194,18 +1259,28 @@ describe("renderer layout contract", () => {
     expect(
       generalTabSource.match(/className="settings-primary-action"/gu) ?? [],
     ).toHaveLength(1);
-    expect(generalTabSource).toContain("settings.credentials.map");
+    expect(generalTabSource).not.toContain("settings.credentials.map");
+    expect(generalTabSource).not.toContain("window.artemis.deleteCredential");
+    expect(generalTabSource).toContain("settings.addedModels.map");
+    expect(generalTabSource).toContain("setModelDeleteTarget(model)");
     expect(generalTabSource).toContain("importPiCredentials");
     expect(addModelSource).toContain("keyApiKey.trim() || undefined");
     expect(apiSource).toMatch(
       /addModel\(\s*model: AddedModelConfiguration,\s*apiKey\?: string,/u,
     );
     expect(preloadSource).toContain("addModel: (model, apiKey)");
+    expect(apiSource).toContain("removeModel(");
+    expect(preloadSource).toContain("removeModel: (model)");
     expect(modelAddHandler).toContain("apiKeyInput?: string");
     expect(modelAddHandler).toContain(
       "configuration.credentials[selectedModel.providerId]",
     );
     expect(modelAddHandler).toContain("await settingsStore.addModel(");
+    expect(modelDeleteHandler).toContain("activeTurns.size > 0");
+    expect(modelDeleteHandler).toContain("await settingsStore.removeModel(");
+    expect(modelDeleteHandler).toContain(
+      "delete configuration.credentials[target.providerId]",
+    );
     expect(modelSwitchHandler).not.toContain("apiKeyInput");
     expect(modelSwitchHandler).toContain(
       "await settingsStore.setModel(effectiveSelection, contextWindow)",
@@ -1267,16 +1342,16 @@ describe("renderer layout contract", () => {
     expect(stylesSource).toContain("content-visibility: auto");
   });
 
-  it("raises an accessible error toast when a live turn fails", () => {
+  it("raises an accessible in-flow error banner when a live turn fails", () => {
     expect(appSource).toContain('if (event.payload.type === "turn.failed")');
-    expect(appSource).toContain("error: true");
-    expect(appSource).toContain(
-      'role={typeof toast === "string" ? undefined : "alert"}',
-    );
-    expect(cssRule(".toast.error")).toMatch(
+    expect(appSource).toContain("reduceTurnFailureNotices(current");
+    expect(appSource).toContain('className="turn-error-banner"');
+    expect(appSource).toContain('className="turn-error-banner" role="alert"');
+    expect(appSource).toContain("t.dismissTurnError");
+    expect(cssRule(".turn-error-banner")).toMatch(
       /\bborder-color:\s*color-mix\(in srgb, var\(--danger\)/u,
     );
-    expect(cssRule(".toast.error")).toMatch(/\bcolor:\s*var\(--danger\)/u);
+    expect(cssRule(".turn-error-banner")).not.toMatch(/\bposition:\s*fixed/u);
   });
 
   it("switches between system, light, and dark themes immediately", () => {
@@ -1429,11 +1504,11 @@ describe("renderer layout contract", () => {
     for (const preservedAction of [
       'mutateReview("stage"',
       'mutateReview("unstage"',
-      'mutateReview("revert"',
       "saveReviewComment(",
     ]) {
       expect(reviewSource).toContain(preservedAction);
     }
+    expect(reviewSource).toMatch(/mutateReview\(\s*"revert"/u);
 
     const workspace = cssRule(".review-workspace");
     const fileSidebar = cssRule(".review-file-sidebar");
@@ -1455,7 +1530,7 @@ describe("renderer layout contract", () => {
   it("opens a tabbed workspace launcher before mounting Review or Terminal", () => {
     const launcher = cssRule(".right-sidebar-launcher");
     const launcherItem = cssRule(".right-sidebar-launcher-item");
-    const dock = cssRule(".workspace-tool-dock");
+    const resizer = cssRule(".workspace-dock-resizer");
     const launcherStart = appSource.indexOf(
       '<div className="right-sidebar-launcher">',
     );
@@ -1485,7 +1560,7 @@ describe("renderer layout contract", () => {
     expect(launcherSource).not.toContain("{t.markdownReader}");
     expect(appSource).not.toContain("const [reviewOpen");
     expect(appSource).not.toContain("const [terminalOpen");
-    expect(dock).toMatch(/\bborder-left:/u);
+    expect(resizer).toMatch(/\bcursor:\s*col-resize/u);
     expect(launcher).toMatch(/\bmin-width:/u);
     expect(launcherItem).toMatch(/\bgrid-template-columns:/u);
   });
@@ -1627,11 +1702,13 @@ describe("renderer layout contract", () => {
     const terminalIndex = appSource.indexOf("<TerminalPanel");
     const terminalPanel = cssRule(".terminal-panel");
     const dock = cssRule(".workspace-tool-dock");
+    const resizer = cssRule(".workspace-dock-resizer");
 
     expect(workspaceContentIndex).toBeGreaterThan(-1);
     expect(reviewIndex).toBeGreaterThan(workspaceContentIndex);
     expect(terminalIndex).toBeGreaterThan(workspaceContentIndex);
-    expect(dock).toMatch(/\bborder-left:/u);
+    expect(resizer).toMatch(/\bcursor:\s*col-resize/u);
+    expect(resizer).toMatch(/\btouch-action:\s*none/u);
     expect(terminalPanel).toMatch(/\bmin-width:/u);
     expect(terminalPanel).toMatch(/\bheight:\s*100%/u);
     expect(terminalPanel).not.toMatch(/\bheight:\s*190px/u);
@@ -1643,6 +1720,7 @@ describe("renderer layout contract", () => {
     const sidebar = cssRule(".sidebar");
     const collapsedSidebar = cssRule("body.sidebar-collapsed .sidebar");
     const dock = cssRule(".workspace-tool-dock");
+    const resizer = cssRule(".workspace-dock-resizer");
     const closedDock = cssRule('.workspace-tool-dock[data-open="false"]');
     const reducedMotion = cssAtRule(
       /@media\s*\(prefers-reduced-motion:\s*reduce\)/u,
@@ -1658,6 +1736,12 @@ describe("renderer layout contract", () => {
     );
     expect(appSource).toContain("data-open={workspaceDockOpen}");
     expect(appSource).toContain("aria-hidden={!workspaceDockOpen}");
+    expect(appSource).toContain('role="separator"');
+    expect(appSource).toContain('aria-orientation="vertical"');
+    expect(appSource).toContain("onPointerDown={beginWorkspaceDockResize}");
+    expect(appSource).toContain("onKeyDown={resizeWorkspaceDockFromKeyboard}");
+    expect(apiSource).toContain("setWorkspaceDockWidth(width: number)");
+    expect(preloadSource).toContain("setWorkspaceDockWidth: (width)");
 
     expect(shell).toMatch(/--project-sidebar-width:\s*252px/u);
     expect(shell).toMatch(/transition:\s*grid-template-columns\s+240ms/u);
@@ -1666,15 +1750,20 @@ describe("renderer layout contract", () => {
     expect(collapsedSidebar).toMatch(/\bopacity:\s*0/u);
     expect(collapsedSidebar).toMatch(/\btransform:\s*translateX\(-/u);
 
-    expect(dock).toMatch(/\bflex:\s*0\s+1\s+62%/u);
-    expect(dock).toMatch(/\bwidth:\s*clamp\(440px,\s*62%,\s*1080px\)/u);
+    expect(dock).toMatch(
+      /\bflex:\s*0\s+1\s+var\(--workspace-dock-width,\s*62%\)/u,
+    );
+    expect(dock).toMatch(/\bwidth:\s*var\(--workspace-dock-width/u);
+    expect(dock).toMatch(/calc\(100%\s*-\s*327px\)/u);
     expect(dock).toMatch(/transition:/u);
+    expect(resizer).toMatch(/\bflex:\s*0\s+0\s+7px/u);
     expect(closedDock).toMatch(/\bflex-basis:\s*0/u);
     expect(closedDock).toMatch(/\bopacity:\s*0/u);
     expect(closedDock).toMatch(/\btransform:\s*translateX\(/u);
 
     expect(reducedMotion).toContain(".app-shell");
     expect(reducedMotion).toContain(".sidebar");
+    expect(reducedMotion).toContain(".workspace-dock-resizer");
     expect(reducedMotion).toContain(".workspace-tool-dock");
     expect(reducedMotion).toMatch(/transition:\s*none/u);
   });
@@ -2088,7 +2177,19 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain("Boolean(conflict)");
     expect(resourceCenterSource).toContain("data-tooltip={item.name}");
     expect(resourceCenterSource).toContain(
-      '"node-repl" | "codegraph" | "superpowers"',
+      'resourceIconName(skill.name, "skill")',
+    );
+    expect(resourceCenterSource).toContain(
+      "onError={() => setImageFailed(true)}",
+    );
+    expect(resourceCenterSource).toContain(
+      "data-icon={semanticVisible ? semanticIcon : undefined}",
+    );
+    expect(resourceIconsSource).toContain("MagicWandIcon");
+    expect(resourceIconsSource).toContain("PlugsConnectedIcon");
+    expect(resourceIconsSource).toContain('weight="duotone"');
+    expect(stylesSource).toContain(
+      ".resource-avatar[data-icon] .resource-semantic-icon path[opacity]",
     );
     expect(resourceCenterSource).toContain("plugin.iconDataUrl");
     expect(stylesSource).toContain(".resource-installed-icon-button::after");

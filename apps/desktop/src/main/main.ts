@@ -806,6 +806,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     selectedModel?.contextWindow ??
     models[0]?.contextWindow ??
     128_000;
+  const workspaceDockWidth = await settingsStore.workspaceDockWidth();
   return {
     encryptionAvailable: settingsStore.encryptionAvailable,
     language: await settingsStore.languagePreference(),
@@ -828,6 +829,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
       rollbackAvailable: false,
     },
     agentConcurrency: await agentConcurrencyStatus(),
+    ...(workspaceDockWidth === undefined ? {} : { workspaceDockWidth }),
     ...(selection ? { selection } : {}),
   };
 }
@@ -3235,6 +3237,15 @@ function registerIpc(): void {
 
   ipcMain.handle(IPC.settingsGet, () => getSettingsSnapshot());
   ipcMain.handle(
+    IPC.settingsWorkspaceDockWidthSet,
+    async (_event, width: number): Promise<number> => {
+      if (!settingsStore) {
+        throw new Error("Agent settings are not ready.");
+      }
+      return settingsStore.setWorkspaceDockWidth(width);
+    },
+  );
+  ipcMain.handle(
     IPC.settingsLanguageSet,
     async (_event, value: AppLanguage): Promise<SettingsSnapshot> => {
       if (!settingsStore) {
@@ -3450,6 +3461,125 @@ function registerIpc(): void {
         },
         apiKey,
       );
+      return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
+    IPC.settingsModelDelete,
+    async (
+      _event,
+      modelInput: Pick<AddedModelConfiguration, "providerId" | "modelId">,
+    ): Promise<SettingsSnapshot> => {
+      if (!settingsStore) {
+        throw new Error("Agent settings are not ready.");
+      }
+      if (
+        !modelInput ||
+        typeof modelInput.providerId !== "string" ||
+        typeof modelInput.modelId !== "string"
+      ) {
+        throw new Error("Model configuration is invalid.");
+      }
+      const snapshot = await getSettingsSnapshot();
+      const target = snapshot.addedModels.find(
+        (model) =>
+          model.providerId === modelInput.providerId &&
+          model.modelId === modelInput.modelId,
+      );
+      if (!target) return snapshot;
+
+      const deletesActiveModel =
+        snapshot.selection?.providerId === target.providerId &&
+        snapshot.selection.modelId === target.modelId;
+      const remainingAddedModels = snapshot.addedModels.filter(
+        (model) =>
+          model.providerId !== target.providerId ||
+          model.modelId !== target.modelId,
+      );
+      const customProviderExists = snapshot.providers.some(
+        (provider) => provider.id === target.providerId,
+      );
+      const removesActiveSelection =
+        deletesActiveModel && !customProviderExists;
+      if (removesActiveSelection && activeTurns.size > 0) {
+        throw new Error("Stop the active turn before deleting its model.");
+      }
+      const deleteCredential =
+        !customProviderExists &&
+        !remainingAddedModels.some(
+          (model) => model.providerId === target.providerId,
+        );
+      const configuration = await settingsStore.runtimeConfiguration();
+      let replacement:
+        { selection: ModelSelection; contextWindow: number } | undefined;
+
+      if (removesActiveSelection) {
+        const fallbackProvider = snapshot.providers.find(
+          (provider) => provider.models.length > 0,
+        );
+        const fallbackProviderModel = fallbackProvider?.models[0];
+        if (fallbackProvider && fallbackProviderModel) {
+          replacement = {
+            selection: {
+              providerId: fallbackProvider.id,
+              modelId: fallbackProviderModel.id,
+              thinkingLevel: fallbackProviderModel.reasoning ? "medium" : "off",
+            },
+            contextWindow: fallbackProviderModel.contextWindow,
+          };
+        } else {
+          const fallbackAddedModel = remainingAddedModels.find((candidate) =>
+            snapshot.models.some(
+              (model) =>
+                model.providerId === candidate.providerId &&
+                model.modelId === candidate.modelId &&
+                (model.configured ||
+                  Boolean(configuration.credentials[model.providerId])),
+            ),
+          );
+          const fallbackCatalogModel = fallbackAddedModel
+            ? snapshot.models.find(
+                (model) =>
+                  model.providerId === fallbackAddedModel.providerId &&
+                  model.modelId === fallbackAddedModel.modelId,
+              )
+            : undefined;
+          if (fallbackAddedModel && fallbackCatalogModel) {
+            replacement = {
+              selection: {
+                providerId: fallbackAddedModel.providerId,
+                modelId: fallbackAddedModel.modelId,
+                thinkingLevel: fallbackCatalogModel.reasoning
+                  ? "medium"
+                  : "off",
+              },
+              contextWindow: Math.min(
+                fallbackAddedModel.contextWindow,
+                fallbackCatalogModel.contextWindow,
+              ),
+            };
+          }
+        }
+
+        if (replacement) {
+          configuration.selection = replacement.selection;
+          configuration.contextWindow = replacement.contextWindow;
+        } else {
+          delete configuration.selection;
+          delete configuration.contextWindow;
+          await resetAgentThreadsForToolChange();
+        }
+      }
+      if (deleteCredential) {
+        delete configuration.credentials[target.providerId];
+      }
+      if (removesActiveSelection || deleteCredential) {
+        await applyAgentRuntime(configuration);
+      }
+      await settingsStore.removeModel(target, {
+        deleteCredential,
+        ...(replacement ? { replacement } : {}),
+      });
       return getSettingsSnapshot();
     },
   );

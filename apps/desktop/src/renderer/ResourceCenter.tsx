@@ -23,6 +23,13 @@ import type {
   SkillCatalogItem,
 } from "../shared/api.js";
 import { McpServerEditor } from "./McpServerEditor.js";
+import {
+  resourceIconName,
+  resourceIconPalette,
+  SemanticResourceIcon,
+  type ResourceIconKind,
+  type ResourceIconName,
+} from "./resource-icons.js";
 
 interface ResourceCenterProps {
   locale: "en" | "zh-CN";
@@ -32,8 +39,7 @@ interface ResourceCenterProps {
 }
 
 type ManagementTab = "plugins" | "connectors" | "mcp" | "skills";
-type ResourceKind = ManagementTab | "plugin" | "skill";
-type ResourceIconKey = "node-repl" | "codegraph" | "superpowers";
+type ResourceKind = ResourceIconKind;
 
 let installedSkillsCache: InstalledSkill[] | undefined;
 let installedPluginsCache: InstalledCodexPlugin[] | undefined;
@@ -301,30 +307,7 @@ const labels = {
 } as const;
 
 function CatalogIcon({ kind }: { kind: ResourceKind }) {
-  const normalized =
-    kind === "plugin" ? "plugins" : kind === "skill" ? "skills" : kind;
-  return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-      {normalized === "mcp" ? (
-        <>
-          <circle cx="6" cy="12" r="2.5" />
-          <circle cx="18" cy="7" r="2.5" />
-          <circle cx="18" cy="17" r="2.5" />
-          <path d="m8.4 11.2 7.2-3M8.4 12.8l7.2 3" />
-        </>
-      ) : normalized === "skills" ? (
-        <>
-          <path d="M12 3.8 14 8l4.6.7-3.3 3.2.8 4.6-4.1-2.2-4.1 2.2.8-4.6-3.3-3.2L10 8z" />
-          <path d="M5 19.2h14" />
-        </>
-      ) : (
-        <>
-          <path d="M8 3v5M16 3v5M6 8h12v2.5a6 6 0 0 1-12 0V8Z" />
-          <path d="M12 16.5V21M9.5 21h5" />
-        </>
-      )}
-    </svg>
-  );
+  return <SemanticResourceIcon icon={resourceIconName("", kind)} />;
 }
 
 function SearchIcon() {
@@ -380,47 +363,6 @@ function BackIcon() {
   );
 }
 
-function initials(name: string): string {
-  const parts = name
-    .trim()
-    .split(/[\s._-]+/u)
-    .filter(Boolean);
-  return (
-    parts.length > 1
-      ? `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`
-      : name.slice(0, 2)
-  ).toUpperCase();
-}
-
-function ProductIcon({ icon }: { icon: ResourceIconKey }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className="resource-product-icon"
-      viewBox="0 0 24 24"
-    >
-      {icon === "node-repl" ? (
-        <>
-          <path d="M5.2 5.2h13.6v13.6H5.2z" />
-          <path d="m8.1 9.1 2.8 2.9-2.8 2.9M12.8 15h3.2" />
-        </>
-      ) : icon === "codegraph" ? (
-        <>
-          <circle cx="6" cy="12" r="2.2" />
-          <circle cx="17.5" cy="6.5" r="2.2" />
-          <circle cx="17.5" cy="17.5" r="2.2" />
-          <path d="m8 11 7.4-3.5M8 13l7.4 3.5" />
-        </>
-      ) : (
-        <>
-          <path d="m12 3.6 2.1 4.5 4.9.7-3.5 3.5.8 5-4.3-2.4-4.3 2.4.8-5L5 8.8l4.9-.7z" />
-          <path d="M5.2 19.2h13.6" />
-        </>
-      )}
-    </svg>
-  );
-}
-
 function ResourceAvatar({
   brandColor,
   iconKey,
@@ -429,24 +371,44 @@ function ResourceAvatar({
   name,
 }: {
   brandColor?: string | undefined;
-  iconKey?: ResourceIconKey | undefined;
+  iconKey?: ResourceIconName | undefined;
   iconDataUrl?: string | undefined;
   kind: ResourceKind;
   name: string;
 }) {
-  const style = brandColor
-    ? ({ "--resource-brand": brandColor } as CSSProperties)
-    : undefined;
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [iconDataUrl]);
+  const semanticIcon = iconKey ?? resourceIconName(name, kind);
+  const semanticVisible = !iconDataUrl || imageFailed;
+  const palette = resourceIconPalette(semanticIcon);
+  const style = {
+    ...(brandColor ? { "--resource-brand": brandColor } : {}),
+    ...(semanticVisible
+      ? {
+          "--resource-icon-bg": palette.background,
+          "--resource-icon-surface": palette.surface,
+          "--resource-icon-fg": palette.foreground,
+          "--resource-icon-accent": palette.accent,
+          "--resource-icon-border": palette.border,
+        }
+      : {}),
+  } as CSSProperties;
   return (
-    <span className="resource-avatar" data-kind={kind} style={style}>
-      {iconDataUrl ? (
-        <img alt="" draggable={false} src={iconDataUrl} />
-      ) : iconKey ? (
-        <ProductIcon icon={iconKey} />
-      ) : kind === "plugin" || kind === "plugins" ? (
-        <strong aria-hidden="true">{initials(name)}</strong>
+    <span
+      className="resource-avatar"
+      data-icon={semanticVisible ? semanticIcon : undefined}
+      data-kind={kind}
+      style={style}
+    >
+      {iconDataUrl && !imageFailed ? (
+        <img
+          alt=""
+          draggable={false}
+          onError={() => setImageFailed(true)}
+          src={iconDataUrl}
+        />
       ) : (
-        <CatalogIcon kind={kind} />
+        <SemanticResourceIcon icon={semanticIcon} />
       )}
     </span>
   );
@@ -1339,16 +1301,6 @@ export function ResourceCenter({
     );
   }
 
-  function fallbackIcon(name: string): ResourceIconKey | undefined {
-    const normalized = name.toLowerCase().replaceAll(/[^a-z0-9]+/gu, "-");
-    if (normalized.includes("codegraph")) return "codegraph";
-    if (normalized.includes("node-repl") || normalized.includes("noderepl")) {
-      return "node-repl";
-    }
-    if (normalized.includes("superpowers")) return "superpowers";
-    return undefined;
-  }
-
   const marketplaceBySourceId = new Map(
     (marketplaceState?.marketplaces ?? []).map((entry) => [
       entry.sourceId,
@@ -1439,7 +1391,7 @@ export function ResourceCenter({
     return {
       brandColor: visual?.brandColor,
       iconDataUrl: visual?.iconDataUrl,
-      iconKey: visual?.iconDataUrl ? undefined : fallbackIcon(skill.name),
+      iconKey: resourceIconName(skill.name, "skill"),
     };
   }
 
@@ -1457,9 +1409,10 @@ export function ResourceCenter({
     return {
       brandColor: visual?.brandColor,
       iconDataUrl: visual?.iconDataUrl,
-      iconKey: visual?.iconDataUrl
-        ? undefined
-        : fallbackIcon(`${server.config.id} ${server.config.name}`),
+      iconKey: resourceIconName(
+        `${server.config.id} ${server.config.name}`,
+        server.config.resourceKind === "connector" ? "connectors" : "mcp",
+      ),
     };
   }
 
@@ -1620,7 +1573,7 @@ export function ResourceCenter({
     kind: "plugin" | "skill" | "mcp" | "connectors";
     iconDataUrl?: string | undefined;
     brandColor?: string | undefined;
-    iconKey?: ResourceIconKey | undefined;
+    iconKey?: ResourceIconName | undefined;
   }> = [
     ...installedPlugins.map((plugin) => {
       const visual = visualForPlugin(plugin);
