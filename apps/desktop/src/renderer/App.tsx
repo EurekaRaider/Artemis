@@ -6076,6 +6076,7 @@ export function App() {
                               emptyMessage={t.noHtmlPreview}
                               forwardLabel={t.browserForward}
                               goLabel={t.browserGo}
+                              locale={locale}
                               path={tab.path ?? latestHtmlChange?.path}
                               refreshLabel={t.refreshPreview}
                               revision={

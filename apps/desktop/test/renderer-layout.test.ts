@@ -46,6 +46,10 @@ const apiSource = readFileSync(
   fileURLToPath(new URL("../src/shared/api.ts", import.meta.url)),
   "utf8",
 );
+const browserLocaleSource = readFileSync(
+  fileURLToPath(new URL("../src/shared/browser-locale.ts", import.meta.url)),
+  "utf8",
+);
 const preloadSource = readFileSync(
   fileURLToPath(new URL("../src/preload/preload.ts", import.meta.url)),
   "utf8",
@@ -1631,6 +1635,16 @@ describe("renderer layout contract", () => {
     ).toContain("openWorkspaceTab(file.viewer, { path: file.path });");
     expect(workspacePreviewSource).toContain("<webview");
     expect(workspacePreviewSource).toContain("normalizeBrowserAddress");
+    expect(workspacePreviewSource).toContain(
+      "shouldReloadBrowserForLocaleChange",
+    );
+    expect(workspacePreviewSource).toContain("reloadIgnoringCache()");
+    expect(workspacePreviewSource).toContain(
+      "partition={BROWSER_SESSION_PARTITION}",
+    );
+    expect(appSource).toMatch(
+      /<WorkspaceBrowserPanel[\s\S]*?locale=\{locale\}[\s\S]*?\/>/u,
+    );
     expect(workspacePreviewSource).toContain('"did-navigate"');
     expect(workspacePreviewSource).not.toContain("<iframe");
     expect(workspacePreviewSource).not.toContain("connect-src 'none'");
@@ -1644,6 +1658,12 @@ describe("renderer layout contract", () => {
       "webPreferences.contextIsolation = true",
     );
     expect(mainProcessSource).toContain("webPreferences.sandbox = true");
+    expect(mainProcessSource).toContain("configureBrowserLocaleSession();");
+    expect(mainProcessSource).toMatch(
+      /electronSession\.fromPartition\(\s*BROWSER_SESSION_PARTITION,?\s*\)/u,
+    );
+    expect(mainProcessSource).toContain('urls: ["http://*/*", "https://*/*"]');
+    expect(browserLocaleSource).toContain("withBrowserAcceptLanguage");
     expect(apiSource).toContain("readWorkspaceTextFile(");
     expect(preloadSource).toContain("IPC.workspaceTextFileRead");
     expect(mainProcessSource).toContain("IPC.workspaceTextFileRead");

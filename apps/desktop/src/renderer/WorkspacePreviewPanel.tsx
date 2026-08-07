@@ -8,6 +8,11 @@ import {
 } from "react";
 
 import type { WorkspaceTextFile } from "../shared/api.js";
+import {
+  BROWSER_SESSION_PARTITION,
+  shouldReloadBrowserForLocaleChange,
+  type BrowserLocale,
+} from "../shared/browser-locale.js";
 import { normalizeBrowserAddress } from "./browser-navigation.js";
 import { MarkdownContent } from "./MarkdownContent.js";
 
@@ -35,6 +40,7 @@ interface BrowserPanelProps extends WorkspacePreviewProps {
   backLabel: string;
   forwardLabel: string;
   goLabel: string;
+  locale: BrowserLocale;
 }
 
 function useWorkspaceTextFile({
@@ -88,6 +94,7 @@ function useWorkspaceTextFile({
 
 export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
   const webviewRef = useRef<Electron.WebviewTag>(null);
+  const previousLocaleRef = useRef(props.locale);
   const workspaceDocumentRef = useRef<
     { label: string; url: string } | undefined
   >(undefined);
@@ -166,6 +173,25 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
     }
   }, [workspaceDocument]);
 
+  useEffect(() => {
+    const previousLocale = previousLocaleRef.current;
+    previousLocaleRef.current = props.locale;
+
+    const webview = webviewRef.current;
+    if (
+      !webview ||
+      !shouldReloadBrowserForLocaleChange(
+        previousLocale,
+        props.locale,
+        webview.getURL(),
+      )
+    ) {
+      return;
+    }
+    setNavigationError(undefined);
+    webview.reloadIgnoringCache();
+  }, [props.locale]);
+
   const navigate = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const webview = webviewRef.current;
@@ -238,7 +264,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
       )}
       <webview
         className="browser-frame"
-        partition="persist:artemis-browser"
+        partition={BROWSER_SESSION_PARTITION}
         ref={webviewRef}
         src={browserSource}
         title={`${props.title}: ${file?.path ?? ""}`}

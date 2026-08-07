@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS arm64" src="https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-111111?logo=apple&logoColor=white" />
-  <img alt="639 passing tests" src="https://img.shields.io/badge/Tests-639_passing-2EA44F" />
+  <img alt="690 passing tests" src="https://img.shields.io/badge/Tests-690_passing-2EA44F" />
   <img alt="Maximum 16 active agents" src="https://img.shields.io/badge/Agents-max_16-F5A524" />
 </p>
 
@@ -69,7 +69,7 @@ credentials are protected with operating-system encryption.
 |                          |                                                                                                                                                                                                                                                                                                                         |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Agent workspace**      | Persistent projects and Local tasks, collapsible per-project conversation history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals. |
-| **Workspace tools**      | Review, Terminal, Browser, Markdown, Files and child-Agent tabs; editable files with syntax highlighting; rich/source Markdown; full web browsing without Node, preload or local-file access; automatic display of Agent-created HTML.                                                                                  |
+| **Workspace tools**      | Review, Terminal, Browser, Markdown, Files and child-Agent tabs; editable files with syntax highlighting; rich/source Markdown; locale-aware external browsing without Node, preload or local-file access; explicit opening of Agent-created HTML.                                                                      |
 | **Guarded modes**        | Plan for read-only planning, Execute for implementation, general work and Office tasks, and Review for read-only inspection. Plan and Review reject writes before execution.                                                                                                                                            |
 | **Git workflow**         | Last-turn, unstaged, staged and base/branch diffs; tracked, untracked and binary changes; inline comments; file/hunk stage and unstage; recoverable revert; stale diff-identifier rejection and race-safe scope switching.                                                                                              |
 | **Reusable context**     | Persistent goals, editable global `AGENTS.md`, selective project-first memory, `/goal`, `/init`, multiple `/skill` selections and category-based import of global instructions, Skills and MCP from Codex, OpenCode and Claude without copying models or credentials.                                                   |
@@ -205,7 +205,8 @@ tasks. Interactive tasks run against the repository's local checkout.
   cached for the most recent tasks and kept out of unrelated snapshot refreshes.
 - **User identity and localization** — the desktop uses the operating-system
   username and avatar where available, follows the selected English or
-  Simplified Chinese locale, and supports light, dark and system themes.
+  Simplified Chinese locale, advertises that locale to external Browser pages,
+  and supports light, dark and system themes.
 - **Local automations** — create one-time, daily, weekday, or weekly schedules
   with a timezone, run immediately, inspect persisted run history and receive
   completion notifications. Runs use the normal Pi task path and coalesce
@@ -231,7 +232,10 @@ The right workspace keeps repository work beside the conversation:
 - **Terminal** provides a real desktop-user PTY in the Local checkout.
 - **Browser** loads HTTP and HTTPS pages with JavaScript, cookies and web
   storage while keeping Node integration, preload APIs and local-file access
-  disabled. Agent-created HTML can open here automatically.
+  disabled. External requests follow the selected English or Simplified Chinese
+  locale through `Accept-Language`; switching locale reloads remote pages while
+  leaving workspace HTML unchanged. Agent-created HTML opens only from explicit
+  links.
 - **Markdown** switches between source and rich rendering for local Markdown
   files.
 - **Files** browses the project tree with file-type icons, syntax highlighting
@@ -739,11 +743,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **639 passing tests** (4 skipped):
+The current full test run contains **690 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       51 |       19 |         60 |     509 |   **639** |
+|       51 |       19 |         60 |     560 |   **690** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -767,13 +771,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The current `1.1.20` engineering build produces:
+The `1.1.21` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.20.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.20.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.20.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.21.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.21.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.21.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and

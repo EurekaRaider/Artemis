@@ -25,6 +25,7 @@ import {
   net,
   Notification,
   safeStorage,
+  session as electronSession,
   shell,
   type WebContents,
 } from "electron";
@@ -234,6 +235,10 @@ import {
   type WorkspaceImageFile,
   type WorkspaceTextFile,
 } from "../shared/api.js";
+import {
+  BROWSER_SESSION_PARTITION,
+  withBrowserAcceptLanguage,
+} from "../shared/browser-locale.js";
 
 const { autoUpdater } = electronUpdater;
 const smokeMode = Boolean(process.env.ARTEMIS_SMOKE_SCREENSHOT);
@@ -491,6 +496,23 @@ function currentLocale(): "en" | "zh-CN" {
     return languagePreference;
   }
   return app.getLocale().toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+}
+
+function configureBrowserLocaleSession(): void {
+  const browserSession = electronSession.fromPartition(
+    BROWSER_SESSION_PARTITION,
+  );
+  browserSession.webRequest.onBeforeSendHeaders(
+    { urls: ["http://*/*", "https://*/*"] },
+    (details, callback) => {
+      callback({
+        requestHeaders: withBrowserAcceptLanguage(
+          details.requestHeaders,
+          currentLocale(),
+        ),
+      });
+    },
+  );
 }
 
 function currentPlatform(): "win32" | "darwin" | "other" {
@@ -6548,6 +6570,7 @@ app
     nativeTheme.on("updated", syncWindowBackgroundColors);
     applyNativeTheme(await settingsStore.themePreference());
     languagePreference = await settingsStore.languagePreference();
+    configureBrowserLocaleSession();
     seedSmokeUserInputFixture();
     mcpConfigStore = new McpConfigStore(
       join(app.getPath("userData"), "mcp.json"),
