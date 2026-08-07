@@ -78,7 +78,7 @@ describe("Windows ZIP package access", () => {
       calls += 1;
     };
 
-    for (const applicationVersion of ["0.1.8", "0.1.9"]) {
+    for (const applicationVersion of ["0.1.9", "1.1.19"]) {
       await ensureWindowsPackageAccess({
         applicationRoot,
         applicationVersion,

@@ -770,7 +770,7 @@ summary:focus-visible {
   background: var(--codex-workspace-bg);
   border-left: 1px solid var(--border);
   border-top: 1px solid var(--border);
-  border-top-left-radius: 18px;
+  border-top-left-radius: 0;
   display: flex;
   flex-direction: column;
   height: 100%;

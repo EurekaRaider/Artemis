@@ -274,7 +274,7 @@ describe("Codex conversation shell contract", () => {
       );
     }
     expect(cssDeclarations(".workspace")).toMatch(
-      /\bborder-top-left-radius:\s*(?:1[0-9]|[2-9]\d)px/u,
+      /\bborder-top-left-radius:\s*0/u,
     );
     expect(cssDeclarations(".conversation-empty-state")).toMatch(
       /\bfont-family:\s*var\(--ui-font\)/u,
