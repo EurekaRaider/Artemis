@@ -6,7 +6,10 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { DiagnosticBundleService } from "../src/main/diagnostic-bundle.js";
+import {
+  DiagnosticBundleService,
+  parseContextOverflowTokens,
+} from "../src/main/diagnostic-bundle.js";
 
 const gunzipAsync = promisify(gunzip);
 const temporaryDirectories: string[] = [];
@@ -20,7 +23,18 @@ afterEach(async () => {
 });
 
 describe("DiagnosticBundleService", () => {
-  it("loads version 1 event diagnostics before exporting version 2", async () => {
+  it("extracts provider limit and requested tokens from overflow errors", () => {
+    expect(
+      parseContextOverflowTokens(
+        "Invalid request: Your request exceeded model token limit: 1048576 (requested: 1327739)",
+      ),
+    ).toEqual({
+      providerLimitTokens: 1_048_576,
+      providerRequestedTokens: 1_327_739,
+    });
+  });
+
+  it("loads version 1 event diagnostics before exporting version 3", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-diagnostics-"));
     temporaryDirectories.push(directory);
     const statePath = join(directory, "events.json");
@@ -68,7 +82,7 @@ describe("DiagnosticBundleService", () => {
       events: Array<{ message: string }>;
       turnLatency: unknown[];
     };
-    expect(bundle.version).toBe(2);
+    expect(bundle.version).toBe(3);
     expect(bundle.events[0]?.message).toBe("legacy event");
     expect(bundle.turnLatency).toEqual([]);
   });
@@ -110,6 +124,19 @@ describe("DiagnosticBundleService", () => {
       eventCount: 12,
       contextTokens: 4_096,
       cacheReadTokens: 2_048,
+      providerInputTokens: 3_500,
+      currentEstimatedTokens: 4_096,
+      displayedContextTokens: 4_096,
+      contextSource: "local-estimate",
+      providerLimitTokens: 1_048_576,
+      providerRequestedTokens: 1_327_739,
+      contextFootprint: {
+        imageBytes: 1_400_000,
+        imageCount: 1,
+        largestToolResultBytes: 1_950_000,
+        textBytes: 550_000,
+        toolSchemaBytes: 90_000,
+      },
       stagesMs: {
         localPreModel: 42,
         workspaceResolve: 3,
@@ -167,7 +194,7 @@ describe("DiagnosticBundleService", () => {
       events: Array<{ message: string; stack?: string }>;
       turnLatency: Array<{ stagesMs: { localPreModel: number } }>;
     };
-    expect(bundle.version).toBe(2);
+    expect(bundle.version).toBe(3);
     expect(bundle.application).toMatchObject({
       version: "1.2.3",
       locale: "zh-CN",
@@ -185,6 +212,19 @@ describe("DiagnosticBundleService", () => {
       expect.objectContaining({
         providerId: "openai",
         cacheReadTokens: 2_048,
+        providerInputTokens: 3_500,
+        currentEstimatedTokens: 4_096,
+        displayedContextTokens: 4_096,
+        contextSource: "local-estimate",
+        providerLimitTokens: 1_048_576,
+        providerRequestedTokens: 1_327_739,
+        contextFootprint: {
+          imageBytes: 1_400_000,
+          imageCount: 1,
+          largestToolResultBytes: 1_950_000,
+          textBytes: 550_000,
+          toolSchemaBytes: 90_000,
+        },
         stagesMs: expect.objectContaining({
           localPreModel: 42,
           workspaceResolve: 3,

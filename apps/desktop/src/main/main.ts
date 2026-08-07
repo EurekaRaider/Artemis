@@ -136,6 +136,7 @@ import {
 import { AppStore } from "./store.js";
 import {
   DiagnosticBundleService,
+  parseContextOverflowTokens,
   type TurnLatencySample,
 } from "./diagnostic-bundle.js";
 import { EncryptedSettingsStore } from "./encrypted-settings-store.js";
@@ -331,6 +332,13 @@ interface TurnLatencyTrace {
   eventCount: number;
   contextTokens?: number;
   cacheReadTokens?: number;
+  providerInputTokens?: number;
+  currentEstimatedTokens?: number;
+  displayedContextTokens?: number;
+  contextSource?: TurnLatencySample["contextSource"];
+  providerLimitTokens?: number;
+  providerRequestedTokens?: number;
+  contextFootprint?: TurnLatencySample["contextFootprint"];
 }
 
 const turnLatencyTraces = new Map<string, TurnLatencyTrace>();
@@ -562,6 +570,27 @@ function finalizeTurnLatency(trace: TurnLatencyTrace): void {
     ...(trace.cacheReadTokens === undefined
       ? {}
       : { cacheReadTokens: trace.cacheReadTokens }),
+    ...(trace.providerInputTokens === undefined
+      ? {}
+      : { providerInputTokens: trace.providerInputTokens }),
+    ...(trace.currentEstimatedTokens === undefined
+      ? {}
+      : { currentEstimatedTokens: trace.currentEstimatedTokens }),
+    ...(trace.displayedContextTokens === undefined
+      ? {}
+      : { displayedContextTokens: trace.displayedContextTokens }),
+    ...(trace.contextSource === undefined
+      ? {}
+      : { contextSource: trace.contextSource }),
+    ...(trace.providerLimitTokens === undefined
+      ? {}
+      : { providerLimitTokens: trace.providerLimitTokens }),
+    ...(trace.providerRequestedTokens === undefined
+      ? {}
+      : { providerRequestedTokens: trace.providerRequestedTokens }),
+    ...(trace.contextFootprint === undefined
+      ? {}
+      : { contextFootprint: trace.contextFootprint }),
     stagesMs,
   };
   diagnosticBundleService?.recordTurnLatency(sample);
@@ -597,14 +626,33 @@ function observeTurnPayload(
   } else if (payload.type === "tool.started") {
     trace.firstActivityAt ??= now;
   } else if (payload.type === "context.usage") {
-    if (payload.tokens !== null) trace.contextTokens = payload.tokens;
+    if (payload.tokens !== null) {
+      trace.contextTokens = payload.tokens;
+      trace.currentEstimatedTokens = payload.tokens;
+      trace.displayedContextTokens = payload.tokens;
+    }
+    if (payload.source !== undefined) trace.contextSource = payload.source;
+    if (payload.providerInputTokens !== undefined) {
+      trace.providerInputTokens = payload.providerInputTokens;
+    }
+    if (payload.footprint !== undefined) {
+      trace.contextFootprint = payload.footprint;
+    }
   } else if (payload.type === "assistant.usage") {
     trace.contextTokens ??= payload.inputTokens;
+    trace.providerInputTokens = payload.inputTokens;
     trace.cacheReadTokens = payload.cacheReadTokens;
   } else if (
     payload.type === "turn.completed" ||
     payload.type === "turn.failed"
   ) {
+    if (payload.type === "turn.failed") {
+      const overflow = parseContextOverflowTokens(payload.message);
+      if (overflow) {
+        trace.providerLimitTokens = overflow.providerLimitTokens;
+        trace.providerRequestedTokens = overflow.providerRequestedTokens;
+      }
+    }
     trace.completedAt = now;
     trace.outcome = payload.type === "turn.completed" ? "completed" : "failed";
     setTimeout(() => {

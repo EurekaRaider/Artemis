@@ -411,11 +411,25 @@ function applyAgentEvent(
         state.contextUsage?.estimated === true &&
         state.contextUsage.tokens !== null;
       const estimated = preserveEstimate ? true : payload.estimated;
+      const previous = preserveEstimate ? state.contextUsage : undefined;
       state.contextUsage = {
-        tokens: preserveEstimate ? state.contextUsage!.tokens : payload.tokens,
+        tokens: preserveEstimate ? previous!.tokens : payload.tokens,
         contextWindow: payload.contextWindow,
         compacting: payload.compacting,
         ...(estimated === undefined ? {} : { estimated }),
+        ...((payload.source ?? previous?.source) === undefined
+          ? {}
+          : { source: payload.source ?? previous?.source }),
+        ...((payload.providerInputTokens ?? previous?.providerInputTokens) ===
+        undefined
+          ? {}
+          : {
+              providerInputTokens:
+                payload.providerInputTokens ?? previous?.providerInputTokens,
+            }),
+        ...((payload.footprint ?? previous?.footprint) === undefined
+          ? {}
+          : { footprint: payload.footprint ?? previous?.footprint }),
       };
       if (payload.compacting && !wasCompacting) {
         state.contextCompactions[event.eventId] = {

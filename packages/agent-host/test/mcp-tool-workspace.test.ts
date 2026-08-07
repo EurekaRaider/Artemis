@@ -157,4 +157,143 @@ describe("MCP task workspace propagation", () => {
 
     host.dispose();
   });
+
+  it("keeps brokered MCP images as Pi image content", async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), "artemis-mcp-image-content-"),
+    );
+    cleanupPaths.push(workspacePath);
+    const imageData = Buffer.from("image-bytes").toString("base64");
+    const host = new ArtemisAgentHost(
+      {
+        async request() {
+          return {
+            approved: true,
+            data: {
+              content: [
+                { type: "text", text: "Rendered preview" },
+                { type: "image", data: imageData, mimeType: "image/png" },
+              ],
+              isError: false,
+              metrics: {
+                imageBytes: 11,
+                imageCount: 1,
+                omittedContentCount: 0,
+                textBytes: 16,
+              },
+            },
+          };
+        },
+      },
+      { emit() {} },
+    );
+    await host.configure({
+      credentials: {},
+      mcpTools: [
+        {
+          serverId: "renderer",
+          serverName: "Renderer",
+          transport: "stdio",
+          piName: "renderer_render",
+          toolName: "render",
+          description: "Render a preview",
+          inputSchema: { type: "object", properties: {} },
+          readOnly: true,
+        },
+      ],
+    });
+    await host.openThread({
+      threadId: "mcp-image-thread",
+      workspacePath,
+      target: "local",
+    });
+    const thread = (
+      host as unknown as { threads: Map<string, InspectableThread> }
+    ).threads.get("mcp-image-thread");
+    if (thread) {
+      thread.currentTurnId = "turn-1";
+      thread.currentMode = "execute";
+    }
+    const tool = thread?.executeTools.find(
+      (candidate) => candidate.name === "renderer_render",
+    );
+
+    await expect(tool?.execute("mcp-call", {})).resolves.toMatchObject({
+      content: [
+        { type: "text", text: "Rendered preview" },
+        { type: "image", data: imageData, mimeType: "image/png" },
+      ],
+    });
+
+    host.dispose();
+  });
+
+  it("truncates oversized MCP text using a model-relative context budget", async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), "artemis-mcp-text-budget-"),
+    );
+    cleanupPaths.push(workspacePath);
+    const oversized = `${"x".repeat(600 * 1024)}TAIL_SENTINEL`;
+    const host = new ArtemisAgentHost(
+      {
+        async request() {
+          return {
+            approved: true,
+            data: {
+              content: [{ type: "text", text: oversized }],
+              isError: false,
+              metrics: {
+                imageBytes: 0,
+                imageCount: 0,
+                omittedContentCount: 0,
+                textBytes: Buffer.byteLength(oversized),
+              },
+            },
+          };
+        },
+      },
+      { emit() {} },
+    );
+    await host.configure({
+      credentials: {},
+      mcpTools: [
+        {
+          serverId: "large",
+          serverName: "Large",
+          transport: "stdio",
+          piName: "large_read",
+          toolName: "read",
+          description: "Return large text",
+          inputSchema: { type: "object", properties: {} },
+          readOnly: true,
+        },
+      ],
+    });
+    await host.openThread({
+      threadId: "mcp-large-thread",
+      workspacePath,
+      target: "local",
+    });
+    const thread = (
+      host as unknown as { threads: Map<string, InspectableThread> }
+    ).threads.get("mcp-large-thread");
+    if (thread) {
+      thread.currentTurnId = "turn-1";
+      thread.currentMode = "execute";
+    }
+    const tool = thread?.executeTools.find(
+      (candidate) => candidate.name === "large_read",
+    );
+    const result = (await tool?.execute("mcp-call", {})) as {
+      content: Array<{ type: string; text?: string }>;
+    };
+    const text =
+      result.content.find((item) => item.type === "text")?.text ?? "";
+
+    expect(Buffer.byteLength(text)).toBeLessThan(oversized.length);
+    expect(text).toContain("MCP output truncated by Artemis");
+    expect(text).toContain("TAIL_SENTINEL");
+
+    host.dispose();
+  });
 });

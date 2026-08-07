@@ -93,6 +93,15 @@ describe("context usage updates", () => {
       tokens: 96_000,
       contextWindow: 128_000,
       compacting: false,
+      estimated: true,
+      source: "local-estimate",
+      footprint: {
+        imageBytes: 0,
+        imageCount: 0,
+        largestToolResultBytes: 0,
+        textBytes: 0,
+        toolSchemaBytes: 2,
+      },
     });
 
     handleContextUsageEvent(hosted, {
@@ -105,6 +114,14 @@ describe("context usage updates", () => {
       contextWindow: 128_000,
       compacting: false,
       estimated: true,
+      source: "compaction-estimate",
+      footprint: {
+        imageBytes: 0,
+        imageCount: 0,
+        largestToolResultBytes: 0,
+        textBytes: 0,
+        toolSchemaBytes: 2,
+      },
     });
   });
 });

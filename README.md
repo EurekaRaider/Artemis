@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS arm64" src="https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-111111?logo=apple&logoColor=white" />
-  <img alt="731 passing tests" src="https://img.shields.io/badge/Tests-731_passing-2EA44F" />
+  <img alt="737 passing tests" src="https://img.shields.io/badge/Tests-737_passing-2EA44F" />
   <img alt="Maximum 16 active agents" src="https://img.shields.io/badge/Agents-max_16-F5A524" />
 </p>
 
@@ -261,11 +261,12 @@ tasks. Interactive tasks run against the repository's local checkout.
   order.
 - **Progress and context** — `update_plan` produces visible multi-step progress
   only while its turn remains active; run timing and context-window usage remain
-  visible. Manual and automatic
-  context compaction immediately add an in-progress timeline row with the same
-  left-to-right highlight sweep as Thinking, followed by the completion state.
-  Usage Insights adds daily, weekly and cumulative Token totals with a calendar
-  heatmap and avoids double-counting forked history.
+  visible. The context indicator distinguishes the current local estimate from
+  the last provider-measured input and refreshes after tool results. Manual and
+  automatic context compaction immediately add an in-progress timeline row with
+  the same left-to-right highlight sweep as Thinking, followed by the completion
+  state. Usage Insights adds daily, weekly and cumulative Token totals with a
+  calendar heatmap and avoids double-counting forked history.
 
 </details>
 
@@ -711,6 +712,9 @@ because there is no executable protocol target.
 - encrypted bearer tokens;
 - OAuth 2.1 authorization code + PKCE with exact loopback state validation;
 - encrypted dynamic-client and token persistence;
+- structured MCP text and image blocks preserved through Pi without converting
+  image Base64 into model-visible JSON text; context-aware oversized text
+  protection retains an annotated beginning and end;
 - stable server-qualified tool names, tool discovery, connection state and
   enablement.
 
@@ -881,11 +885,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **731 passing tests** (4 skipped):
+The current full test run contains **737 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       55 |       19 |         70 |     587 |   **731** |
+|       55 |       19 |         72 |     591 |   **737** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -909,13 +913,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.1.23` packaging configuration produces:
+The `1.1.24` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.23.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.23.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.23.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.24.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.24.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.24.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and

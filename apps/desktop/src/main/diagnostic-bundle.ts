@@ -37,6 +37,19 @@ export interface TurnLatencySample {
   eventCount: number;
   contextTokens?: number;
   cacheReadTokens?: number;
+  providerInputTokens?: number;
+  currentEstimatedTokens?: number;
+  displayedContextTokens?: number;
+  contextSource?: "provider" | "local-estimate" | "compaction-estimate";
+  providerLimitTokens?: number;
+  providerRequestedTokens?: number;
+  contextFootprint?: {
+    textBytes: number;
+    imageBytes: number;
+    imageCount: number;
+    toolSchemaBytes: number;
+    largestToolResultBytes: number;
+  };
   stagesMs: {
     submitToMain?: number;
     localPreModel?: number;
@@ -65,7 +78,7 @@ export interface DiagnosticBundleContext {
 }
 
 interface PersistedDiagnostics {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   events: DiagnosticEvent[];
   turnLatency?: TurnLatencySample[];
 }
@@ -106,6 +119,25 @@ function metric(value: number | undefined): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.max(0, value)
     : undefined;
+}
+
+export function parseContextOverflowTokens(
+  message: string,
+):
+  { providerLimitTokens: number; providerRequestedTokens: number } | undefined {
+  const match = message.match(
+    /exceeded\s+(?:the\s+)?model\s+token\s+limit\s*:\s*(\d+)\s*\(requested\s*:\s*(\d+)\)/iu,
+  );
+  if (!match) return undefined;
+  const providerLimitTokens = Number(match[1]);
+  const providerRequestedTokens = Number(match[2]);
+  if (
+    !Number.isSafeInteger(providerLimitTokens) ||
+    !Number.isSafeInteger(providerRequestedTokens)
+  ) {
+    return undefined;
+  }
+  return { providerLimitTokens, providerRequestedTokens };
 }
 
 const LATENCY_STAGE_NAMES = [
@@ -179,7 +211,7 @@ export class DiagnosticBundleService {
   ): Promise<void> {
     const payload = {
       format: "artemis-diagnostics",
-      version: 2,
+      version: 3,
       generatedAt: new Date().toISOString(),
       application: {
         version: boundedText(redact(context.appVersion, []), 128),
@@ -214,7 +246,10 @@ export class DiagnosticBundleService {
       const parsed = JSON.parse(
         readFileSync(this.statePath, "utf8"),
       ) as PersistedDiagnostics;
-      if (![1, 2].includes(parsed.version) || !Array.isArray(parsed.events)) {
+      if (
+        ![1, 2, 3].includes(parsed.version) ||
+        !Array.isArray(parsed.events)
+      ) {
         return { events: [], turnLatency: [] };
       }
       const events = parsed.events
@@ -255,6 +290,28 @@ export class DiagnosticBundleService {
     }
     const contextTokens = metric(sample.contextTokens);
     const cacheReadTokens = metric(sample.cacheReadTokens);
+    const providerInputTokens = metric(sample.providerInputTokens);
+    const currentEstimatedTokens = metric(sample.currentEstimatedTokens);
+    const displayedContextTokens = metric(sample.displayedContextTokens);
+    const providerLimitTokens = metric(sample.providerLimitTokens);
+    const providerRequestedTokens = metric(sample.providerRequestedTokens);
+    const contextSource = [
+      "provider",
+      "local-estimate",
+      "compaction-estimate",
+    ].includes(sample.contextSource ?? "")
+      ? sample.contextSource
+      : undefined;
+    const contextFootprint = sample.contextFootprint
+      ? {
+          textBytes: metric(sample.contextFootprint.textBytes) ?? 0,
+          imageBytes: metric(sample.contextFootprint.imageBytes) ?? 0,
+          imageCount: metric(sample.contextFootprint.imageCount) ?? 0,
+          toolSchemaBytes: metric(sample.contextFootprint.toolSchemaBytes) ?? 0,
+          largestToolResultBytes:
+            metric(sample.contextFootprint.largestToolResultBytes) ?? 0,
+        }
+      : undefined;
     return {
       timestamp: Number.isFinite(Date.parse(sample.timestamp))
         ? new Date(sample.timestamp).toISOString()
@@ -293,6 +350,19 @@ export class DiagnosticBundleService {
       eventCount: metric(sample.eventCount) ?? 0,
       ...(contextTokens === undefined ? {} : { contextTokens }),
       ...(cacheReadTokens === undefined ? {} : { cacheReadTokens }),
+      ...(providerInputTokens === undefined ? {} : { providerInputTokens }),
+      ...(currentEstimatedTokens === undefined
+        ? {}
+        : { currentEstimatedTokens }),
+      ...(displayedContextTokens === undefined
+        ? {}
+        : { displayedContextTokens }),
+      ...(contextSource === undefined ? {} : { contextSource }),
+      ...(providerLimitTokens === undefined ? {} : { providerLimitTokens }),
+      ...(providerRequestedTokens === undefined
+        ? {}
+        : { providerRequestedTokens }),
+      ...(contextFootprint === undefined ? {} : { contextFootprint }),
       stagesMs,
     };
   }
@@ -303,7 +373,7 @@ export class DiagnosticBundleService {
     writeFileSync(
       temporaryPath,
       `${JSON.stringify({
-        version: 2,
+        version: 3,
         events: this.events,
         turnLatency: this.turnLatency,
       })}\n`,

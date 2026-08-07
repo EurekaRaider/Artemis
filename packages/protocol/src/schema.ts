@@ -410,6 +410,19 @@ export const contextUsagePayloadSchema = z.object({
   contextWindow: contextWindowSchema,
   compacting: z.boolean(),
   estimated: z.boolean().optional(),
+  source: z
+    .enum(["provider", "local-estimate", "compaction-estimate"])
+    .optional(),
+  providerInputTokens: z.number().int().nonnegative().optional(),
+  footprint: z
+    .object({
+      textBytes: z.number().int().nonnegative(),
+      imageBytes: z.number().int().nonnegative(),
+      imageCount: z.number().int().nonnegative(),
+      toolSchemaBytes: z.number().int().nonnegative(),
+      largestToolResultBytes: z.number().int().nonnegative(),
+    })
+    .optional(),
 });
 export type ContextUsagePayload = z.infer<typeof contextUsagePayloadSchema>;
 

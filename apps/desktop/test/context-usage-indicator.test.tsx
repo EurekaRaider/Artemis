@@ -58,6 +58,27 @@ describe("ContextUsageIndicator", () => {
     expect(html).not.toContain("0% 已用");
   });
 
+  it("distinguishes the current estimate from the last provider measurement", () => {
+    const html = renderToStaticMarkup(
+      <ContextUsageIndicator
+        contextWindow={1_048_576}
+        locale="zh-CN"
+        usage={{
+          tokens: 571_764,
+          contextWindow: 1_048_576,
+          compacting: false,
+          estimated: true,
+          source: "local-estimate",
+          providerInputTokens: 84_766,
+        }}
+      />,
+    );
+
+    expect(html).toContain("约 55% 已用");
+    expect(html).toContain("当前估算约 572k token，共 1m");
+    expect(html).toContain("上次模型实测输入 85k token");
+  });
+
   it("labels unknown usage without drawing it as zero percent", () => {
     const html = renderToStaticMarkup(
       <ContextUsageIndicator

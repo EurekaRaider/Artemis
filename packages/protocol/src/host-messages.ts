@@ -47,6 +47,30 @@ export interface McpRuntimeTool {
   readOnly: boolean;
 }
 
+export type McpToolResultContent =
+  | {
+      type: "text";
+      text: string;
+    }
+  | {
+      type: "image";
+      data: string;
+      mimeType: string;
+    };
+
+export interface McpToolResultMetrics {
+  textBytes: number;
+  imageBytes: number;
+  imageCount: number;
+  omittedContentCount: number;
+}
+
+export interface McpToolCallResult {
+  content: McpToolResultContent[];
+  isError: boolean;
+  metrics: McpToolResultMetrics;
+}
+
 export interface ExtensionRuntimeTool {
   extensionId: string;
   extensionName: string;

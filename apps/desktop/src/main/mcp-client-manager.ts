@@ -17,7 +17,12 @@ import { pathToFileURL } from "node:url";
 
 import { buildDesktopUserLaunch } from "@artemis/platform";
 import type { SandboxCommand, SandboxLaunch } from "@artemis/platform";
-import type { McpRuntimeTool, RunMode } from "@artemis/protocol";
+import type {
+  McpRuntimeTool,
+  McpToolCallResult,
+  McpToolResultContent,
+  RunMode,
+} from "@artemis/protocol";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   UnauthorizedError,
@@ -536,29 +541,104 @@ function piToolName(serverId: string, toolName: string): string {
   return `${safeToolSegment(serverId)}_${safeToolSegment(toolName)}`;
 }
 
-function formatMcpResult(result: McpCallResult): {
-  output: string;
-  isError: boolean;
-} {
-  const output = (result.content ?? [])
-    .map((item) => {
-      if (
-        item &&
-        typeof item === "object" &&
-        "type" in item &&
-        item.type === "text" &&
-        "text" in item &&
-        typeof item.text === "string"
-      ) {
-        return item.text;
+const MAX_MCP_RESULT_TRANSFER_BYTES = 2 * 1024 * 1024;
+const IMAGE_MIME_TYPE = /^image\/[a-z0-9.+-]{1,64}$/iu;
+
+function contentType(item: unknown): string {
+  if (
+    item &&
+    typeof item === "object" &&
+    "type" in item &&
+    typeof item.type === "string" &&
+    item.type.trim()
+  ) {
+    return item.type.trim().slice(0, 64);
+  }
+  return "unknown";
+}
+
+function normalizeImageData(value: string):
+  | {
+      data: string;
+      decodedBytes: number;
+    }
+  | undefined {
+  const data = value.replaceAll(/\s/gu, "");
+  if (!data || data.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/u.test(data)) {
+    return undefined;
+  }
+  const decoded = Buffer.from(data, "base64");
+  if (decoded.toString("base64") !== data) return undefined;
+  return { data, decodedBytes: decoded.byteLength };
+}
+
+function formatMcpResult(result: McpCallResult): McpToolCallResult {
+  const content: McpToolResultContent[] = [];
+  let transferBytes = 0;
+  let textBytes = 0;
+  let imageBytes = 0;
+  let imageCount = 0;
+  let omittedContentCount = 0;
+  const addText = (text: string) => {
+    const bytes = Buffer.byteLength(text, "utf8");
+    transferBytes += bytes;
+    textBytes += bytes;
+    content.push({ type: "text", text });
+  };
+
+  for (const item of result.content ?? []) {
+    if (
+      item &&
+      typeof item === "object" &&
+      "type" in item &&
+      item.type === "text" &&
+      "text" in item &&
+      typeof item.text === "string"
+    ) {
+      addText(item.text);
+      continue;
+    }
+    if (
+      item &&
+      typeof item === "object" &&
+      "type" in item &&
+      item.type === "image" &&
+      "data" in item &&
+      typeof item.data === "string" &&
+      "mimeType" in item &&
+      typeof item.mimeType === "string" &&
+      IMAGE_MIME_TYPE.test(item.mimeType)
+    ) {
+      const image = normalizeImageData(item.data);
+      if (image) {
+        transferBytes += Buffer.byteLength(image.data, "ascii");
+        imageBytes += image.decodedBytes;
+        imageCount += 1;
+        content.push({
+          type: "image",
+          data: image.data,
+          mimeType: item.mimeType.toLowerCase(),
+        });
+        continue;
       }
-      return JSON.stringify(item);
-    })
-    .join("\n");
-  if (Buffer.byteLength(output, "utf8") > 2 * 1024 * 1024) {
+    }
+    omittedContentCount += 1;
+    addText(`[Unsupported MCP content omitted: ${contentType(item)}]`);
+  }
+
+  if (transferBytes > MAX_MCP_RESULT_TRANSFER_BYTES) {
     throw new Error("MCP tool output exceeds 2 MiB");
   }
-  return { output, isError: Boolean(result.isError) };
+  return {
+    content,
+    isError: Boolean(result.isError),
+    metrics: {
+      textBytes,
+      imageBytes,
+      imageCount,
+      omittedContentCount,
+    },
+  };
 }
 
 export class McpClientManager {
@@ -576,7 +656,7 @@ export class McpClientManager {
     ) => {
       let client = new Client({
         name: "Artemis",
-        version: "1.1.23",
+        version: "1.1.24",
       });
       if (config.transport === "stdio") {
         const commandArguments =
@@ -728,7 +808,7 @@ export class McpClientManager {
           }
           client = new Client({
             name: "Artemis",
-            version: "1.1.23",
+            version: "1.1.24",
           });
           command = {
             ...command,
@@ -777,7 +857,7 @@ export class McpClientManager {
           }
           client = new Client({
             name: "Artemis",
-            version: "1.1.23",
+            version: "1.1.24",
           });
           transport = createTransport();
           await client.connect(transport as Parameters<Client["connect"]>[0]);
@@ -976,7 +1056,7 @@ export class McpClientManager {
     argumentsValue: Record<string, unknown>,
     workspacePath?: string,
     mode: Extract<RunMode, "execute"> = "execute",
-  ): Promise<{ output: string; isError: boolean }> {
+  ): Promise<McpToolCallResult> {
     const active = this.active.get(serverId);
     if (!active) {
       throw new Error("MCP server is not connected");

@@ -377,6 +377,15 @@ describe("provider and language schemas", () => {
         contextWindow: 258_000,
         compacting: false,
         estimated: true,
+        source: "local-estimate",
+        providerInputTokens: 61_000,
+        footprint: {
+          imageBytes: 12_000,
+          imageCount: 1,
+          largestToolResultBytes: 48_000,
+          textBytes: 90_000,
+          toolSchemaBytes: 24_000,
+        },
       }).success,
     ).toBe(true);
   });

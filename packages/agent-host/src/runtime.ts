@@ -30,6 +30,8 @@ import {
   type AgentRuntimeConfiguration,
   type BrokerExecutionRequest,
   type ModelApprovalDecision,
+  type McpToolCallResult,
+  type McpToolResultContent,
   type PromptAttachment,
   type PromptImage,
   type RunMode,
@@ -61,6 +63,102 @@ import { expandSkillInvocations } from "./skill-invocations.js";
 import { resolveCodexWorkspaceDependencies } from "./codex-workspace-dependencies.js";
 import { omitReasoningFromSession } from "./reasoning-persistence.js";
 
+const MINIMUM_MCP_TEXT_BUDGET_BYTES = 1024;
+const MAXIMUM_MCP_TEXT_BUDGET_BYTES = 2 * 1024 * 1024;
+const FALLBACK_MCP_CONTEXT_WINDOW = 128 * 1024;
+
+function mcpTextBudgetBytes(
+  contextWindow?: number,
+  currentContextTokens?: number | null,
+): number {
+  const window = contextWindow ?? FALLBACK_MCP_CONTEXT_WINDOW;
+  const current =
+    currentContextTokens ?? Math.floor(FALLBACK_MCP_CONTEXT_WINDOW * 0.5);
+  const reserve = compactionSettingsForContextWindow(window).reserveTokens;
+  const availableTokens = Math.max(0, window - current - reserve);
+  return Math.min(
+    MAXIMUM_MCP_TEXT_BUDGET_BYTES,
+    Math.max(MINIMUM_MCP_TEXT_BUDGET_BYTES, availableTokens * 2),
+  );
+}
+
+function truncateUtf8(value: string, maximumBytes: number): string {
+  const bytes = Buffer.from(value, "utf8");
+  if (bytes.byteLength <= maximumBytes) return value;
+  return bytes
+    .subarray(0, maximumBytes)
+    .toString("utf8")
+    .replace(/\uFFFD$/u, "");
+}
+
+function truncateUtf8Tail(value: string, maximumBytes: number): string {
+  const bytes = Buffer.from(value, "utf8");
+  if (bytes.byteLength <= maximumBytes) return value;
+  return bytes
+    .subarray(bytes.byteLength - maximumBytes)
+    .toString("utf8")
+    .replace(/^\uFFFD/u, "");
+}
+
+function prepareMcpToolContent(
+  content: readonly McpToolResultContent[],
+  contextWindow?: number,
+  currentContextTokens?: number | null,
+): {
+  content: McpToolResultContent[];
+  deliveredTextBytes: number;
+  omittedTextBytes: number;
+  truncated: boolean;
+} {
+  const maximumBytes = mcpTextBudgetBytes(contextWindow, currentContextTokens);
+  const originalText = content
+    .flatMap((block) => (block.type === "text" ? [block.text] : []))
+    .join("\n");
+  const originalTextBytes = Buffer.byteLength(originalText, "utf8");
+  if (originalTextBytes <= maximumBytes) {
+    return {
+      content: content.length > 0 ? [...content] : [{ type: "text", text: "" }],
+      deliveredTextBytes: originalTextBytes,
+      omittedTextBytes: 0,
+      truncated: false,
+    };
+  }
+
+  let omittedTextBytes = originalTextBytes;
+  let notice = "";
+  let head = "";
+  let tail = "";
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    notice = `\n[MCP output truncated by Artemis: ${omittedTextBytes} UTF-8 bytes omitted to protect the remaining model context.]\n`;
+    const bodyBudget = Math.max(
+      0,
+      maximumBytes - Buffer.byteLength(notice, "utf8"),
+    );
+    head = truncateUtf8(originalText, Math.ceil(bodyBudget * 0.6));
+    tail = truncateUtf8Tail(originalText, Math.floor(bodyBudget * 0.4));
+    const nextOmittedTextBytes = Math.max(
+      0,
+      originalTextBytes -
+        Buffer.byteLength(head, "utf8") -
+        Buffer.byteLength(tail, "utf8"),
+    );
+    if (nextOmittedTextBytes === omittedTextBytes) break;
+    omittedTextBytes = nextOmittedTextBytes;
+  }
+  const text = `${head}${notice}${tail}`;
+  const prepared: McpToolResultContent[] = [
+    { type: "text", text },
+    ...content.filter((block) => block.type === "image"),
+  ];
+  const deliveredTextBytes = Buffer.byteLength(text, "utf8");
+  return {
+    content: prepared,
+    deliveredTextBytes,
+    omittedTextBytes,
+    truncated: true,
+  };
+}
+
 type AgentSession = Awaited<ReturnType<typeof createAgentSession>>["session"];
 type AgentSessionEvent = Parameters<
   Parameters<AgentSession["subscribe"]>[0]
@@ -68,6 +166,140 @@ type AgentSessionEvent = Parameters<
 type SessionTool = AgentSession["agent"]["state"]["tools"][number];
 type PromptOptions = NonNullable<Parameters<AgentSession["prompt"]>[1]>;
 type SessionImage = NonNullable<PromptOptions["images"]>[number];
+
+interface ContextFootprint {
+  textBytes: number;
+  imageBytes: number;
+  imageCount: number;
+  toolSchemaBytes: number;
+  largestToolResultBytes: number;
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function base64ByteLength(value: string): number {
+  try {
+    return Buffer.from(value, "base64").byteLength;
+  } catch {
+    return 0;
+  }
+}
+
+function messageFootprint(message: unknown): {
+  textBytes: number;
+  imageBytes: number;
+  imageCount: number;
+} {
+  const candidate = record(message);
+  const content = candidate?.content;
+  const blocks = Array.isArray(content)
+    ? content
+    : typeof content === "string"
+      ? [{ type: "text", text: content }]
+      : [];
+  let textBytes = 0;
+  let imageBytes = 0;
+  let imageCount = 0;
+  for (const value of blocks) {
+    const block = record(value);
+    if (!block) continue;
+    if (block.type === "image" && typeof block.data === "string") {
+      imageBytes += base64ByteLength(block.data);
+      imageCount += 1;
+    } else if (typeof block.text === "string") {
+      textBytes += Buffer.byteLength(block.text, "utf8");
+    } else if (typeof block.thinking === "string") {
+      textBytes += Buffer.byteLength(block.thinking, "utf8");
+    } else if (block.type === "toolCall") {
+      textBytes += Buffer.byteLength(
+        `${typeof block.name === "string" ? block.name : ""}${JSON.stringify(block.arguments ?? {})}`,
+        "utf8",
+      );
+    }
+  }
+  return { textBytes, imageBytes, imageCount };
+}
+
+function contextFootprint(
+  messages: readonly unknown[],
+  tools: readonly SessionTool[],
+): ContextFootprint {
+  let textBytes = 0;
+  let imageBytes = 0;
+  let imageCount = 0;
+  let largestToolResultBytes = 0;
+  for (const message of messages) {
+    const footprint = messageFootprint(message);
+    textBytes += footprint.textBytes;
+    imageBytes += footprint.imageBytes;
+    imageCount += footprint.imageCount;
+    const candidate = record(message);
+    if (candidate?.role === "toolResult") {
+      const metrics = record(record(candidate.details)?.metrics);
+      const originalTextBytes =
+        typeof metrics?.textBytes === "number" && metrics.textBytes >= 0
+          ? metrics.textBytes
+          : footprint.textBytes;
+      const originalImageBytes =
+        typeof metrics?.imageBytes === "number" && metrics.imageBytes >= 0
+          ? metrics.imageBytes
+          : footprint.imageBytes;
+      largestToolResultBytes = Math.max(
+        largestToolResultBytes,
+        originalTextBytes + originalImageBytes,
+      );
+    }
+  }
+  let toolSchemaBytes = 0;
+  try {
+    toolSchemaBytes = Buffer.byteLength(
+      JSON.stringify(
+        tools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+        })),
+      ),
+      "utf8",
+    );
+  } catch {
+    toolSchemaBytes = 0;
+  }
+  return {
+    textBytes,
+    imageBytes,
+    imageCount,
+    toolSchemaBytes,
+    largestToolResultBytes,
+  };
+}
+
+function lastProviderInput(messages: readonly unknown[]):
+  | {
+      index: number;
+      tokens: number;
+    }
+  | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = record(messages[index]);
+    if (
+      message?.role !== "assistant" ||
+      message.stopReason === "aborted" ||
+      message.stopReason === "error"
+    ) {
+      continue;
+    }
+    const usage = record(message.usage);
+    if (typeof usage?.input === "number" && usage.input >= 0) {
+      return { index, tokens: Math.round(usage.input) };
+    }
+  }
+  return undefined;
+}
 
 const modelApprovalParameter = Type.Object(
   {
@@ -613,15 +845,30 @@ export class ArtemisAgentHost {
     if (!contextWindow) {
       return;
     }
+    const messages = hosted.session.messages ?? [];
+    const providerInput = lastProviderInput(messages);
+    const tokens =
+      estimatedTokens === undefined
+        ? (usage?.tokens ?? null)
+        : Math.max(0, Math.round(estimatedTokens));
+    const source =
+      estimatedTokens !== undefined
+        ? "compaction-estimate"
+        : tokens !== null && providerInput?.index === messages.length - 1
+          ? "provider"
+          : "local-estimate";
     this.sink.emit(hosted.threadId, hosted.currentTurnId, {
       type: "context.usage",
-      tokens:
-        estimatedTokens === undefined
-          ? (usage?.tokens ?? null)
-          : Math.max(0, Math.round(estimatedTokens)),
+      tokens,
       contextWindow,
       compacting,
-      ...(estimatedTokens === undefined ? {} : { estimated: true }),
+      source,
+      ...(source === "provider" ? {} : { estimated: true }),
+      ...(providerInput ? { providerInputTokens: providerInput.tokens } : {}),
+      footprint: contextFootprint(
+        messages,
+        hosted.session.agent?.state?.tools ?? [],
+      ),
     });
   }
 
@@ -630,6 +877,11 @@ export class ArtemisAgentHost {
     event: AgentSessionEvent,
   ): void {
     if (event.type === "turn_end") {
+      this.emitContextUsage(hosted, false);
+    } else if (
+      event.type === "message_end" &&
+      event.message.role === "toolResult"
+    ) {
       this.emitContextUsage(hosted, false);
     } else if (event.type === "compaction_start") {
       this.emitContextUsage(hosted, true);
@@ -2295,16 +2547,34 @@ export class ArtemisAgentHost {
             if (!result.approved) {
               throw new Error(result.error ?? "The user denied this MCP call.");
             }
-            const data = result.data as
-              { output?: string; isError?: boolean } | undefined;
+            const data = result.data as McpToolCallResult | undefined;
             if (data?.isError) {
-              throw new Error(data.output ?? "MCP tool returned an error.");
+              const message = data.content
+                .flatMap((block) => (block.type === "text" ? [block.text] : []))
+                .join("\n")
+                .trim();
+              throw new Error(message || "MCP tool returned an error.");
             }
+            const prepared = prepareMcpToolContent(
+              data?.content ?? [],
+              hosted.session.model?.contextWindow,
+              hosted.session.getContextUsage()?.tokens,
+            );
             return {
-              content: [{ type: "text", text: data?.output ?? "" }],
+              content: prepared.content,
               details: {
                 serverId: tool.serverId,
                 toolName: tool.toolName,
+                ...(data?.metrics
+                  ? {
+                      metrics: {
+                        ...data.metrics,
+                        deliveredTextBytes: prepared.deliveredTextBytes,
+                        omittedTextBytes: prepared.omittedTextBytes,
+                        truncated: prepared.truncated,
+                      },
+                    }
+                  : {}),
               },
             };
           },

@@ -404,9 +404,94 @@ lines.on("line", (line) => {
     });
     expect(status.tools[0]?.piName).toBe("test_server_read_file");
     expect(await manager.call("test.server", "read/file", {})).toEqual({
-      output: "result",
+      content: [{ type: "text", text: "result" }],
       isError: false,
+      metrics: {
+        imageBytes: 0,
+        imageCount: 0,
+        omittedContentCount: 0,
+        textBytes: 6,
+      },
     });
+  });
+
+  it("preserves MCP image blocks instead of serializing base64 as text", async () => {
+    const imageData = Buffer.from("image-bytes").toString("base64");
+    const client: McpConnection = {
+      listTools: async () => ({
+        tools: [
+          {
+            name: "render",
+            inputSchema: { type: "object", properties: {} },
+          },
+        ],
+      }),
+      callTool: async () => ({
+        content: [
+          { type: "text", text: "Rendered preview" },
+          { type: "image", data: imageData, mimeType: "image/png" },
+        ],
+      }),
+      close: vi.fn(async () => {}),
+    };
+    const manager = new McpClientManager(
+      "darwin",
+      undefined,
+      async () => client,
+    );
+
+    await manager.connect(config);
+
+    expect(await manager.call(config.id, "render", {})).toEqual({
+      content: [
+        { type: "text", text: "Rendered preview" },
+        { type: "image", data: imageData, mimeType: "image/png" },
+      ],
+      isError: false,
+      metrics: {
+        imageBytes: 11,
+        imageCount: 1,
+        omittedContentCount: 0,
+        textBytes: 16,
+      },
+    });
+  });
+
+  it("omits unsupported MCP binary content without stringifying its payload", async () => {
+    const client: McpConnection = {
+      listTools: async () => ({
+        tools: [
+          {
+            name: "audio",
+            inputSchema: { type: "object", properties: {} },
+          },
+        ],
+      }),
+      callTool: async () => ({
+        content: [
+          {
+            type: "audio",
+            data: "private-binary-payload",
+            mimeType: "audio/wav",
+          },
+        ],
+      }),
+      close: vi.fn(async () => {}),
+    };
+    const manager = new McpClientManager(
+      "darwin",
+      undefined,
+      async () => client,
+    );
+
+    await manager.connect(config);
+    const result = await manager.call(config.id, "audio", {});
+
+    expect(result.content).toEqual([
+      { type: "text", text: "[Unsupported MCP content omitted: audio]" },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("private-binary-payload");
+    expect(result.metrics.omittedContentCount).toBe(1);
   });
 
   it("reuses a task-scoped stdio connection for calls in the same project", async () => {
@@ -455,8 +540,14 @@ lines.on("line", (line) => {
     await expect(
       manager.call("codegraph", "status", {}, "D:\\Git\\PEAQ_PRB", "execute"),
     ).resolves.toEqual({
-      output: resolve("D:\\Git\\PEAQ_PRB"),
+      content: [{ type: "text", text: resolve("D:\\Git\\PEAQ_PRB") }],
       isError: false,
+      metrics: {
+        imageBytes: 0,
+        imageCount: 0,
+        omittedContentCount: 0,
+        textBytes: Buffer.byteLength(resolve("D:\\Git\\PEAQ_PRB"), "utf8"),
+      },
     });
     await manager.call(
       "codegraph",

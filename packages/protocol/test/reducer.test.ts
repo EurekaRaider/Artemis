@@ -388,6 +388,8 @@ describe("reduceAgentEvent", () => {
         contextWindow: 258_000,
         compacting: false,
         estimated: true,
+        source: "compaction-estimate",
+        providerInputTokens: 61_000,
       }),
       event("usage-unknown", 2, {
         type: "context.usage",
@@ -402,6 +404,8 @@ describe("reduceAgentEvent", () => {
       contextWindow: 258_000,
       compacting: false,
       estimated: true,
+      source: "compaction-estimate",
+      providerInputTokens: 61_000,
     });
 
     const reported = reduceAgentEvent(

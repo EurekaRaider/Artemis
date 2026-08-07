@@ -39,6 +39,8 @@ export function ContextUsageIndicator({
           unknownSummary: "上下文用量暂不可用",
           tokens: `已用 ${formatTokens(tokens)} token，共 ${formatTokens(effectiveContextWindow)}`,
           estimatedTokens: `压缩后估算约 ${formatTokens(tokens)} token，共 ${formatTokens(effectiveContextWindow)}`,
+          localEstimatedTokens: `当前估算约 ${formatTokens(tokens)} token，共 ${formatTokens(effectiveContextWindow)}`,
+          providerInput: `上次模型实测输入 ${formatTokens(usage?.providerInputTokens ?? 0)} token`,
           compacting: "正在压缩上下文…",
           unknown: "将在下一次模型响应后重新计算",
         }
@@ -49,6 +51,8 @@ export function ContextUsageIndicator({
           unknownSummary: "Context usage is temporarily unavailable",
           tokens: `${formatTokens(tokens)} tokens used, ${formatTokens(effectiveContextWindow)} total`,
           estimatedTokens: `About ${formatTokens(tokens)} tokens after compaction, ${formatTokens(effectiveContextWindow)} total`,
+          localEstimatedTokens: `Current estimate: about ${formatTokens(tokens)} tokens, ${formatTokens(effectiveContextWindow)} total`,
+          providerInput: `Last provider-measured input: ${formatTokens(usage?.providerInputTokens ?? 0)} tokens`,
           compacting: "Compacting context…",
           unknown: "Usage recalculates after the next model response",
         };
@@ -62,12 +66,18 @@ export function ContextUsageIndicator({
     : !hasTokens
       ? labels.unknown
       : usage?.estimated
-        ? labels.estimatedTokens
+        ? usage.source === "local-estimate"
+          ? labels.localEstimatedTokens
+          : labels.estimatedTokens
         : labels.tokens;
+  const providerDetail =
+    usage?.estimated && typeof usage.providerInputTokens === "number"
+      ? labels.providerInput
+      : undefined;
 
   return (
     <div
-      aria-label={`${labels.title} ${summary}. ${detail}`}
+      aria-label={`${labels.title} ${summary}. ${detail}${providerDetail ? `. ${providerDetail}` : ""}`}
       className="context-usage-indicator"
       role="img"
       tabIndex={0}
@@ -93,6 +103,7 @@ export function ContextUsageIndicator({
         <strong>{labels.title}</strong>
         <span>{summary}</span>
         <span>{detail}</span>
+        {providerDetail && <span>{providerDetail}</span>}
       </div>
     </div>
   );
