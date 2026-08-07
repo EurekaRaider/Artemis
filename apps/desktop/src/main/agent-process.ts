@@ -20,6 +20,15 @@ export interface AgentProcessHandlers {
     turnId: string | undefined,
     payload: Extract<AgentHostMessage, { type: "event" }>["payload"],
   ): void;
+  onEvents?(
+    events: Extract<AgentHostMessage, { type: "events" }>["events"],
+  ): void;
+  onTurnTelemetry?(event: {
+    threadId: string;
+    turnId: string;
+    stage: "host-received";
+    timestamp: number;
+  }): void;
   onBrokerRequest(
     requestId: string,
     request: BrokerExecutionRequest,
@@ -153,6 +162,20 @@ export class AgentProcess {
     }
     if (message.type === "event") {
       this.handlers.onEvent(message.threadId, message.turnId, message.payload);
+      return;
+    }
+    if (message.type === "events") {
+      if (this.handlers.onEvents) {
+        this.handlers.onEvents(message.events);
+      } else {
+        for (const event of message.events) {
+          this.handlers.onEvent(event.threadId, event.turnId, event.payload);
+        }
+      }
+      return;
+    }
+    if (message.type === "turn.telemetry") {
+      this.handlers.onTurnTelemetry?.(message);
       return;
     }
     await this.handlers.onBrokerRequest(message.requestId, message.request);

@@ -42,7 +42,7 @@ describe("PiAdapter", () => {
     ).toEqual([]);
   });
 
-  it("does not emit timeline events for reasoning content", () => {
+  it("emits one content-free thinking activity without reasoning text", () => {
     const adapter = new PiAdapter("turn-1");
 
     expect(
@@ -54,7 +54,7 @@ describe("PiAdapter", () => {
           delta: "private reasoning",
         },
       }),
-    ).toEqual([]);
+    ).toEqual([{ type: "turn.activity", phase: "thinking" }]);
     expect(
       adapter.adapt({
         type: "message_update",

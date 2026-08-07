@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -121,6 +121,28 @@ describe("MemoryStore", () => {
 
     expect(GLOBAL_MEMORY_MAX_BYTES).toBeGreaterThan(0);
     expect(PROJECT_MEMORY_MAX_BYTES).toBeGreaterThan(GLOBAL_MEMORY_MAX_BYTES);
+  });
+
+  it("invalidates cached snapshots after application and external writes", async () => {
+    const { MemoryStore, resolveMemoryPaths } = await loadMemoryStore();
+    const { workspace, home } = await createWorkspace();
+    const path = resolveMemoryPaths(workspace, home).project;
+    const store = new MemoryStore(path);
+
+    await store.append(NINJA_WORKFLOW);
+    const first = (await store.snapshot()).content;
+    expect(first).toContain(NINJA_WORKFLOW.title);
+
+    const external = `${first}\n\n## External update\nKeywords: external, update\n\nChanged outside Artemis.\n`;
+    await writeFile(path, external, "utf8");
+    expect((await store.snapshot()).content).toBe(external);
+
+    await store.append({
+      title: "Application update",
+      keywords: ["application", "update"],
+      content: "Changed through the in-application memory append path.",
+    });
+    expect((await store.snapshot()).content).toContain("## Application update");
   });
 
   it("rejects oversized, malformed-Unicode, and secret-bearing entries without changing memory", async () => {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PROTOCOL_VERSION = 2 as const;
+export const PROTOCOL_VERSION = 3 as const;
 
 export const runModeSchema = z.enum(["execute", "plan", "review"]);
 export type RunMode = z.infer<typeof runModeSchema>;
@@ -178,6 +178,14 @@ export const turnStartedPayloadSchema = z.object({
   mode: runModeSchema,
   model: z.string().optional(),
 });
+
+export const turnActivityPayloadSchema = z.object({
+  type: z.literal("turn.activity"),
+  phase: z.enum(["queued", "requesting-model", "thinking"]),
+  queueDepth: z.number().int().nonnegative().optional(),
+  toolCount: z.number().int().nonnegative().optional(),
+});
+export type TurnActivityPayload = z.infer<typeof turnActivityPayloadSchema>;
 
 export const messageDeltaPayloadSchema = z.object({
   type: z.literal("message.part.delta"),
@@ -436,6 +444,7 @@ export const turnFailedPayloadSchema = z.object({
 export const agentPayloadSchema = z.discriminatedUnion("type", [
   userMessagePayloadSchema,
   turnStartedPayloadSchema,
+  turnActivityPayloadSchema,
   messageDeltaPayloadSchema,
   toolStartedPayloadSchema,
   toolUpdatedPayloadSchema,

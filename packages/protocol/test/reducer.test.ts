@@ -26,6 +26,27 @@ function event(
 }
 
 describe("reduceAgentEvent", () => {
+  it("tracks content-free turn activity until visible work starts", () => {
+    const thinking = reduceAgentEvents("thread-1", [
+      event("start", 1, { type: "turn.started", mode: "execute" }),
+      event("thinking", 2, { type: "turn.activity", phase: "thinking" }),
+    ]);
+
+    expect(thinking.activity).toEqual({ phase: "thinking" });
+    expect(thinking.order).toEqual([]);
+
+    const visible = reduceAgentEvent(
+      thinking,
+      event("text", 3, {
+        type: "message.part.delta",
+        partId: "assistant:text",
+        partType: "text",
+        delta: "Ready",
+      }),
+    );
+    expect(visible.activity).toBeUndefined();
+  });
+
   it("merges text deltas without retaining completed reasoning", () => {
     const state = reduceAgentEvents("thread-1", [
       event("1", 1, {

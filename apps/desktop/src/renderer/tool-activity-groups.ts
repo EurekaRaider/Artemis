@@ -73,3 +73,41 @@ export function groupTimelineActivities(
 
   return entries;
 }
+
+export function appendTimelineActivities(
+  previous: readonly TimelineActivityEntry[],
+  order: readonly string[],
+  tools: Readonly<Record<string, ToolState>>,
+  startIndex: number,
+): TimelineActivityEntry[] {
+  if (startIndex >= order.length) return previous as TimelineActivityEntry[];
+  const entries = [...previous];
+  for (let index = startIndex; index < order.length; index += 1) {
+    const entry = order[index]!;
+    if (!entry.startsWith("tool:")) {
+      entries.push({ kind: "entry", key: entry, entry });
+      continue;
+    }
+    const toolId = entry.slice("tool:".length);
+    const tool = tools[toolId];
+    if (!tool || HIDDEN_TIMELINE_TOOLS.has(tool.name)) continue;
+    const groupKey = toolActivityGroupKey(tool.name, tool.input);
+    const previousEntry = entries.at(-1);
+    if (
+      previousEntry?.kind === "tool-group" &&
+      previousEntry.key.startsWith(`${groupKey}:`)
+    ) {
+      entries[entries.length - 1] = {
+        ...previousEntry,
+        toolIds: [...previousEntry.toolIds, toolId],
+      };
+    } else {
+      entries.push({
+        kind: "tool-group",
+        key: `${groupKey}:${toolId}`,
+        toolIds: [toolId],
+      });
+    }
+  }
+  return entries;
+}

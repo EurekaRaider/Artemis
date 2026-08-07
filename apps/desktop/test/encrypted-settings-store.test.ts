@@ -176,6 +176,37 @@ describe("EncryptedSettingsStore", () => {
     });
   });
 
+  it("persists Ultra Mode separately from the provider thinking level", async () => {
+    const { filePath, store } = await createStore();
+
+    await store.setModel(
+      {
+        providerId: "openai",
+        modelId: "gpt-5.6",
+        thinkingLevel: "max",
+        ultraMode: true,
+      },
+      258_000,
+    );
+
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.modelSelection()).resolves.toEqual({
+      providerId: "openai",
+      modelId: "gpt-5.6",
+      thinkingLevel: "max",
+      ultraMode: true,
+    });
+    await expect(reopened.runtimeConfiguration()).resolves.toMatchObject({
+      selection: {
+        thinkingLevel: "max",
+        ultraMode: true,
+      },
+    });
+  });
+
   it("persists a selected model and its provider API key together", async () => {
     const { filePath, store } = await createStore();
 

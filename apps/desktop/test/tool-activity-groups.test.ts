@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ToolState } from "@artemis/protocol";
 
 import {
+  appendTimelineActivities,
   groupTimelineActivities,
   latestVisibleToolGroupKey,
 } from "../src/renderer/tool-activity-groups.js";
@@ -23,6 +24,33 @@ function tool(
 }
 
 describe("timeline tool activity groups", () => {
+  it("updates grouping from only the newly appended timeline suffix", () => {
+    const tools = {
+      first: tool("first", "read", { path: "one.ts" }),
+      second: tool("second", "read", { path: "two.ts" }),
+    };
+    const initial = groupTimelineActivities(["tool:first"], tools);
+    expect(appendTimelineActivities(initial, ["tool:first"], tools, 1)).toBe(
+      initial,
+    );
+
+    expect(
+      appendTimelineActivities(
+        initial,
+        ["tool:first", "tool:second", "part:answer"],
+        tools,
+        1,
+      ),
+    ).toEqual([
+      {
+        kind: "tool-group",
+        key: "file-exploration:first",
+        toolIds: ["first", "second"],
+      },
+      { kind: "entry", key: "part:answer", entry: "part:answer" },
+    ]);
+  });
+
   it("folds Bash searches and reads into one chronological file-operation group", () => {
     const tools = {
       search: tool("search", "bash", {

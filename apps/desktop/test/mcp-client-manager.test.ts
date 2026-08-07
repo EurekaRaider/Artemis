@@ -682,6 +682,54 @@ lines.on("line", async (line) => {
     );
   });
 
+  it("times out one hanging startup without blocking other MCP servers", async () => {
+    const close = vi.fn(async () => undefined);
+    const manager = new McpClientManager(
+      "darwin",
+      undefined,
+      async (server) => {
+        if (server.id === "hanging") {
+          return new Promise<McpConnection>(() => undefined);
+        }
+        return {
+          listTools: async () => ({ tools: [] }),
+          callTool: async () => ({ content: [] }),
+          close,
+        };
+      },
+      15,
+    );
+
+    const [hanging, healthy] = await Promise.all([
+      manager.connect({ ...config, id: "hanging" }),
+      manager.connect({ ...config, id: "healthy" }),
+    ]);
+
+    expect(hanging).toMatchObject({ state: "failed", tools: [] });
+    expect(hanging.error).toContain("connection timed out after 15 ms");
+    expect(healthy.state).toBe("connected");
+    await manager.dispose();
+  });
+
+  it("times out listTools and closes the partial MCP connection", async () => {
+    const close = vi.fn(async () => undefined);
+    const manager = new McpClientManager(
+      "darwin",
+      undefined,
+      async () => ({
+        listTools: () => new Promise(() => undefined),
+        callTool: async () => ({ content: [] }),
+        close,
+      }),
+      15,
+    );
+
+    const status = await manager.connect(config);
+    expect(status.state).toBe("failed");
+    expect(status.error).toContain("listTools timed out after 15 ms");
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("reports the stdio command and captured stderr when launch closes generically", async () => {
     const launchError = Object.assign(
       new Error("MCP error -32000: Connection closed"),

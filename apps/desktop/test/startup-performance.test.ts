@@ -9,6 +9,7 @@ const source = (relativePath: string) =>
 const mainSource = source("../src/main/main.ts");
 const preloadSource = source("../src/preload/preload.ts");
 const resourceCenterSource = source("../src/renderer/ResourceCenter.tsx");
+const appSource = source("../src/renderer/App.tsx");
 const apiSource = source("../src/shared/api.ts");
 const packageJson = JSON.parse(source("../package.json")) as {
   build: {
@@ -20,6 +21,19 @@ const packageJson = JSON.parse(source("../package.json")) as {
 };
 
 describe("desktop startup latency guardrails", () => {
+  it("shares thread-opening work and warms the selected task in the background", () => {
+    expect(mainSource).toContain(
+      "const openingThreads = new Map<string, Promise<void>>()",
+    );
+    expect(mainSource).toContain("openingThreads.get(thread.id)");
+    expect(mainSource).toContain("openingThreads.set(thread.id, opening)");
+    expect(apiSource).toContain(
+      "prepareThread(threadId: string): Promise<void>",
+    );
+    expect(preloadSource).toContain("IPC.threadPrepare");
+    expect(appSource).toContain("window.artemis.prepareThread(activeThreadId)");
+  });
+
   it("creates the renderer without awaiting Agent runtime warm-up", () => {
     const startup = mainSource.slice(mainSource.indexOf("app\n  .whenReady()"));
     const warmup = startup.indexOf("agentRuntimeReady = applyAgentRuntime();");

@@ -1,4 +1,7 @@
-import { createOpenAI } from "@ai-sdk/openai";
+import {
+  createOpenAI,
+  type OpenAILanguageModelResponsesOptions,
+} from "@ai-sdk/openai";
 import {
   jsonSchema,
   streamText,
@@ -199,6 +202,22 @@ export function streamOpenAIResponsesWithAiSdk(
         ...(headers ? { headers } : {}),
       });
       const tools = toAiSdkTools(context);
+      const cacheRetention = options?.cacheRetention ?? "short";
+      const openaiOptions = {
+        forceReasoning: model.reasoning,
+        ...(model.reasoning
+          ? { reasoningEffort: options?.reasoning ?? "none" }
+          : {}),
+        ...(options?.sessionId && cacheRetention !== "none"
+          ? {
+              promptCacheKey: options.sessionId,
+              promptCacheRetention:
+                cacheRetention === "long"
+                  ? ("24h" as const)
+                  : ("in_memory" as const),
+            }
+          : {}),
+      } satisfies OpenAILanguageModelResponsesOptions;
       const result = streamText({
         model: openai.responses(model.id),
         ...(context.systemPrompt ? { system: context.systemPrompt } : {}),
@@ -217,6 +236,7 @@ export function streamOpenAIResponsesWithAiSdk(
           ? {}
           : { timeout: options.timeoutMs }),
         ...(options?.signal ? { abortSignal: options.signal } : {}),
+        providerOptions: { openai: openaiOptions },
       });
 
       const textBlocks = new Map<

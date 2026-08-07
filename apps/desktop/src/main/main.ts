@@ -38,6 +38,7 @@ import {
 import type {
   AgentEvent,
   AgentConcurrencyRuntimeStatus,
+  AgentHostEvent,
   AgentModelInfo,
   AgentRuntimeCatalog,
   AgentRuntimeConfiguration,
@@ -133,7 +134,10 @@ import {
   restoreWorktreeSnapshot,
 } from "./git-worktree.js";
 import { AppStore } from "./store.js";
-import { DiagnosticBundleService } from "./diagnostic-bundle.js";
+import {
+  DiagnosticBundleService,
+  type TurnLatencySample,
+} from "./diagnostic-bundle.js";
 import { EncryptedSettingsStore } from "./encrypted-settings-store.js";
 import { ConfigurationImportService } from "./configuration-import.js";
 import { GlobalInstructionsStore } from "./global-instructions-store.js";
@@ -287,8 +291,49 @@ let agentCapacityMetricsWarningRecorded = false;
 let automationScheduler: AutomationScheduler | undefined;
 let agentRuntimeReady: Promise<void> = Promise.resolve();
 let optionalCapabilitiesReady: Promise<void> = Promise.resolve();
+let activeRuntimeSelection: ModelSelection | undefined;
+let runtimeToolCount = 0;
+let runtimeMcpToolCount = 0;
+let enabledMcpServerCount = 0;
 const AGENT_RUNTIME_CONFIGURATION_TIMEOUT_MS = 120_000;
 const memoryStores = new Map<string, MemoryStore>();
+
+interface TurnLatencyTrace {
+  turnId: string;
+  mainReceivedAt: number;
+  submittedAt?: number;
+  coldThread: boolean;
+  mode: string;
+  providerId?: string;
+  modelId?: string;
+  thinkingLevel?: string;
+  enabledMcpServers: number;
+  toolCount: number;
+  mcpToolCount: number;
+  optionalStartedAt: number;
+  optionalReadyAt?: number;
+  workspaceStartedAt: number;
+  workspaceEndedAt?: number;
+  threadOpenStartedAt?: number;
+  threadOpenEndedAt?: number;
+  memoryStartedAt?: number;
+  memoryEndedAt?: number;
+  hostDispatchedAt?: number;
+  hostReceivedAt?: number;
+  queuedAt?: number;
+  modelRequestedAt?: number;
+  firstActivityAt?: number;
+  firstTextAt?: number;
+  rendererPaintAt?: number;
+  completedAt?: number;
+  outcome?: "completed" | "failed";
+  queueDepth: number;
+  eventCount: number;
+  contextTokens?: number;
+  cacheReadTokens?: number;
+}
+
+const turnLatencyTraces = new Map<string, TurnLatencyTrace>();
 
 function recordAgentCapacityChange(change: AgentCapacityChange): void {
   const pressure = change.pressureReasons.length
@@ -443,11 +488,130 @@ function memoryStore(path: string, maxBytes: number): MemoryStore {
   return existing;
 }
 const openedThreads = new Set<string>();
+const openingThreads = new Map<string, Promise<void>>();
 const activeTurns = new Map<string, string>();
 const cancellingTurns = new Set<string>();
 const compactingThreads = new Set<string>();
 const pendingApprovals = new PendingApprovalRegistry<PendingApproval>();
 const pendingUserInputs = new PendingUserInputRegistry<PendingUserInput>();
+
+function elapsed(
+  start: number | undefined,
+  end: number | undefined,
+): number | undefined {
+  if (start === undefined || end === undefined) return undefined;
+  return Math.round(Math.max(0, end - start) * 10) / 10;
+}
+
+function finalizeTurnLatency(trace: TurnLatencyTrace): void {
+  if (!trace.completedAt || !trace.outcome) return;
+  const origin = trace.submittedAt ?? trace.mainReceivedAt;
+  const stagesMs: TurnLatencySample["stagesMs"] = {};
+  const addStage = (
+    name: keyof TurnLatencySample["stagesMs"],
+    start: number | undefined,
+    end: number | undefined,
+  ) => {
+    const value = elapsed(start, end);
+    if (value !== undefined) stagesMs[name] = value;
+  };
+  addStage("submitToMain", trace.submittedAt, trace.mainReceivedAt);
+  addStage("localPreModel", trace.mainReceivedAt, trace.hostReceivedAt);
+  addStage(
+    "optionalCapabilities",
+    trace.optionalStartedAt,
+    trace.optionalReadyAt,
+  );
+  addStage(
+    "workspaceResolve",
+    trace.workspaceStartedAt,
+    trace.workspaceEndedAt,
+  );
+  addStage("threadOpen", trace.threadOpenStartedAt, trace.threadOpenEndedAt);
+  addStage("memoryRecall", trace.memoryStartedAt, trace.memoryEndedAt);
+  addStage("hostDispatch", trace.hostDispatchedAt, trace.hostReceivedAt);
+  addStage("queueWait", trace.queuedAt, trace.modelRequestedAt);
+  addStage(
+    "modelToFirstActivity",
+    trace.modelRequestedAt,
+    trace.firstActivityAt,
+  );
+  addStage("modelToFirstText", trace.modelRequestedAt, trace.firstTextAt);
+  addStage("mainToRendererPaint", trace.firstTextAt, trace.rendererPaintAt);
+  addStage("total", origin, trace.completedAt);
+  const sample: TurnLatencySample = {
+    timestamp: new Date().toISOString(),
+    outcome: trace.outcome,
+    coldThread: trace.coldThread,
+    ...(trace.providerId && trace.modelId && trace.thinkingLevel
+      ? {
+          providerId: trace.providerId,
+          modelId: trace.modelId,
+          thinkingLevel: trace.thinkingLevel,
+        }
+      : {}),
+    mode: trace.mode,
+    enabledMcpServers: trace.enabledMcpServers,
+    toolCount: trace.toolCount,
+    mcpToolCount: trace.mcpToolCount,
+    queueDepth: trace.queueDepth,
+    eventCount: trace.eventCount,
+    ...(trace.contextTokens === undefined
+      ? {}
+      : { contextTokens: trace.contextTokens }),
+    ...(trace.cacheReadTokens === undefined
+      ? {}
+      : { cacheReadTokens: trace.cacheReadTokens }),
+    stagesMs,
+  };
+  diagnosticBundleService?.recordTurnLatency(sample);
+  turnLatencyTraces.delete(trace.turnId);
+}
+
+function observeTurnPayload(
+  turnId: string | undefined,
+  payload: AgentPayload,
+): void {
+  if (!turnId) return;
+  const trace = turnLatencyTraces.get(turnId);
+  if (!trace) return;
+  const now = Date.now();
+  trace.eventCount += 1;
+  if (payload.type === "turn.activity") {
+    if (payload.phase === "queued") {
+      trace.queuedAt ??= now;
+      trace.queueDepth = Math.max(trace.queueDepth, payload.queueDepth ?? 0);
+    } else if (payload.phase === "requesting-model") {
+      trace.modelRequestedAt ??= now;
+      trace.queueDepth = Math.max(trace.queueDepth, payload.queueDepth ?? 0);
+      trace.toolCount = payload.toolCount ?? trace.toolCount;
+    } else if (payload.phase === "thinking") {
+      trace.firstActivityAt ??= now;
+    }
+  } else if (
+    payload.type === "message.part.delta" &&
+    payload.partType === "text"
+  ) {
+    trace.firstActivityAt ??= now;
+    trace.firstTextAt ??= now;
+  } else if (payload.type === "tool.started") {
+    trace.firstActivityAt ??= now;
+  } else if (payload.type === "context.usage") {
+    if (payload.tokens !== null) trace.contextTokens = payload.tokens;
+  } else if (payload.type === "assistant.usage") {
+    trace.contextTokens ??= payload.inputTokens;
+    trace.cacheReadTokens = payload.cacheReadTokens;
+  } else if (
+    payload.type === "turn.completed" ||
+    payload.type === "turn.failed"
+  ) {
+    trace.completedAt = now;
+    trace.outcome = payload.type === "turn.completed" ? "completed" : "failed";
+    setTimeout(() => {
+      if (turnLatencyTraces.get(turnId) === trace) finalizeTurnLatency(trace);
+    }, 250);
+  }
+}
 
 function errorDetails(error: unknown): { message: string; stack?: string } {
   if (error instanceof Error) {
@@ -577,6 +741,24 @@ function installedApplicationPath(): string {
     : process.execPath;
 }
 
+function normalizeModelSelection(
+  selection: ModelSelection,
+  supportsReasoning: boolean,
+  highestThinkingLevel: ModelSelection["thinkingLevel"] = "high",
+): ModelSelection {
+  const ultraMode = supportsReasoning && selection.ultraMode === true;
+  return {
+    providerId: selection.providerId,
+    modelId: selection.modelId,
+    thinkingLevel: supportsReasoning
+      ? ultraMode
+        ? highestThinkingLevel
+        : selection.thinkingLevel
+      : "off",
+    ...(ultraMode ? { ultraMode: true } : {}),
+  };
+}
+
 async function applyAgentRuntime(
   configuration?: AgentRuntimeConfiguration,
 ): Promise<void> {
@@ -598,6 +780,15 @@ async function applyAgentRuntime(
     },
     AGENT_RUNTIME_CONFIGURATION_TIMEOUT_MS,
   );
+  activeRuntimeSelection = resolved.selection
+    ? structuredClone(resolved.selection)
+    : undefined;
+  runtimeMcpToolCount = resolved.mcpTools.length;
+  runtimeToolCount =
+    resolved.mcpTools.length + (resolved.extensionTools?.length ?? 0);
+  enabledMcpServerCount = mcpConfigStore
+    ? (await mcpConfigStore.list()).filter((config) => config.enabled).length
+    : 0;
 }
 
 async function mcpBearerToken(
@@ -712,6 +903,7 @@ async function resetAgentThreadsForToolChange(): Promise<void> {
   if (activeTurns.size > 0) {
     throw new Error("Stop active turns before changing Agent tools.");
   }
+  await Promise.allSettled(openingThreads.values());
   for (const threadId of [...openedThreads]) {
     await agentProcess.request({
       type: "thread.close",
@@ -795,6 +987,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
         modelId: model.id,
         name: model.name,
         reasoning: model.reasoning,
+        highestThinkingLevel: model.reasoning ? "high" : "off",
         contextWindow: model.contextWindow,
         configured: true,
       });
@@ -1285,23 +1478,20 @@ async function createPermanentTaskWorktree(
   };
 }
 
-function emitPayload(
+function applyPayloadSideEffects(
   threadId: string,
-  turnId: string | undefined,
   payload: AgentPayload,
-): AgentEvent {
-  if (!store) {
-    throw new Error("Application store is not ready.");
-  }
-  const event = store.appendEvent(randomUUID(), threadId, turnId, payload);
-  mainWindow?.webContents.send(IPC.agentEvent, event);
-
+  threadAlreadyUpdated = false,
+): void {
+  if (!store) throw new Error("Application store is not ready.");
   switch (payload.type) {
     case "turn.started":
-      store.updateThread(threadId, {
-        mode: payload.mode,
-        status: "running",
-      });
+      if (!threadAlreadyUpdated) {
+        store.updateThread(threadId, {
+          mode: payload.mode,
+          status: "running",
+        });
+      }
       publishAutomationRun(
         store.updateAutomationRunForThread(threadId, "running"),
       );
@@ -1348,7 +1538,75 @@ function emitPayload(
       activeTurns.delete(threadId);
       break;
   }
+}
+
+function emitPayload(
+  threadId: string,
+  turnId: string | undefined,
+  payload: AgentPayload,
+): AgentEvent {
+  if (!store) {
+    throw new Error("Application store is not ready.");
+  }
+  observeTurnPayload(turnId, payload);
+  const event = store.appendEvent(randomUUID(), threadId, turnId, payload);
+  mainWindow?.webContents.send(IPC.agentEvent, event);
+  applyPayloadSideEffects(threadId, payload);
   return event;
+}
+
+function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
+  if (!store || events.length === 0) return [];
+  const threadId = events[0]!.threadId;
+  if (events.some((event) => event.threadId !== threadId)) {
+    return events.map((event) =>
+      emitPayload(event.threadId, event.turnId, event.payload),
+    );
+  }
+  for (const event of events) {
+    observeTurnPayload(event.turnId, event.payload);
+  }
+  const persisted = store.appendEvents(
+    threadId,
+    events.map((event) => ({
+      eventId: randomUUID(),
+      ...(event.turnId ? { turnId: event.turnId } : {}),
+      payload: event.payload,
+    })),
+  );
+  mainWindow?.webContents.send(IPC.agentEvents, persisted);
+  for (const event of events) {
+    applyPayloadSideEffects(threadId, event.payload);
+  }
+  return persisted;
+}
+
+function emitInitialTurn(
+  threadId: string,
+  turnId: string,
+  text: string,
+  mode: StartTurnInput["mode"],
+): AgentEvent[] {
+  if (!store) throw new Error("Application store is not ready.");
+  const payloads: AgentPayload[] = [
+    { type: "user.message", messageId: randomUUID(), text },
+    { type: "turn.started", mode },
+  ];
+  for (const payload of payloads) observeTurnPayload(turnId, payload);
+  const result = store.appendEventsAndUpdateThread(
+    threadId,
+    payloads.map((payload) => ({
+      eventId: randomUUID(),
+      turnId,
+      payload,
+    })),
+    { mode, status: "running" },
+  );
+  mainWindow?.webContents.send(IPC.agentEvents, result.events);
+  for (const payload of payloads) {
+    applyPayloadSideEffects(threadId, payload, payload.type === "turn.started");
+  }
+  return result.events;
 }
 
 function publishAutomationEvent(event: AutomationEvent): void {
@@ -1730,28 +1988,48 @@ async function handleShellBrokerRequest(
   });
 }
 
-async function openAgentThread(thread: Thread): Promise<void> {
-  await optionalCapabilitiesReady;
+async function openAgentThread(
+  thread: Thread,
+  resolvedWorkspacePath?: string,
+): Promise<void> {
   if (openedThreads.has(thread.id)) {
     return;
   }
-  if (!store || !agentProcess) {
-    throw new Error("Agent process is not ready.");
+  const existing = openingThreads.get(thread.id);
+  if (existing) {
+    await existing;
+    return;
   }
-  const { workspacePath } = await resolveThreadWorkspace(thread);
-  const requestId = randomUUID();
-  const data = await agentProcess.request<{ sessionFile?: string }>({
-    type: "thread.open",
-    requestId,
-    threadId: thread.id,
-    workspacePath,
-    target: thread.target,
-    ...(thread.sessionFile ? { sessionFile: thread.sessionFile } : {}),
-  });
-  if (data.sessionFile) {
-    store.updateThread(thread.id, { sessionFile: data.sessionFile });
+  const opening = (async () => {
+    await optionalCapabilitiesReady;
+    if (openedThreads.has(thread.id)) return;
+    if (!store || !agentProcess) {
+      throw new Error("Agent process is not ready.");
+    }
+    const workspacePath =
+      resolvedWorkspacePath ??
+      (await resolveThreadWorkspace(thread)).workspacePath;
+    const data = await agentProcess.request<{ sessionFile?: string }>({
+      type: "thread.open",
+      requestId: randomUUID(),
+      threadId: thread.id,
+      workspacePath,
+      target: thread.target,
+      ...(thread.sessionFile ? { sessionFile: thread.sessionFile } : {}),
+    });
+    if (data.sessionFile) {
+      store.updateThread(thread.id, { sessionFile: data.sessionFile });
+    }
+    openedThreads.add(thread.id);
+  })();
+  openingThreads.set(thread.id, opening);
+  try {
+    await opening;
+  } finally {
+    if (openingThreads.get(thread.id) === opening) {
+      openingThreads.delete(thread.id);
+    }
   }
-  openedThreads.add(thread.id);
 }
 
 async function handleBrokerRequest(
@@ -2839,6 +3117,7 @@ async function createTaskThread(
 }
 
 async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
+  const mainReceivedAt = Date.now();
   if (!store || !agentProcess) {
     throw new Error("Agent process is not ready.");
   }
@@ -2867,56 +3146,116 @@ async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
       title: deriveTaskTitle(text, currentLocale()),
     });
   }
-  await openAgentThread(thread);
+  const turnId = randomUUID();
+  const now = Date.now();
+  const trace: TurnLatencyTrace = {
+    turnId,
+    mainReceivedAt,
+    ...(typeof input.submittedAt === "number" &&
+    Number.isFinite(input.submittedAt) &&
+    Math.abs(mainReceivedAt - input.submittedAt) < 5 * 60_000
+      ? { submittedAt: input.submittedAt }
+      : {}),
+    coldThread: !openedThreads.has(thread.id),
+    mode: input.mode,
+    ...(activeRuntimeSelection
+      ? {
+          providerId: activeRuntimeSelection.providerId,
+          modelId: activeRuntimeSelection.modelId,
+          thinkingLevel: activeRuntimeSelection.thinkingLevel,
+        }
+      : {}),
+    enabledMcpServers: enabledMcpServerCount,
+    toolCount: runtimeToolCount,
+    mcpToolCount: runtimeMcpToolCount,
+    optionalStartedAt: now,
+    workspaceStartedAt: now,
+    queueDepth: 0,
+    eventCount: 0,
+  };
+  turnLatencyTraces.set(turnId, trace);
+  void optionalCapabilitiesReady.then(() => {
+    trace.optionalReadyAt ??= Date.now();
+  });
+
+  let context: Awaited<ReturnType<typeof resolveThreadWorkspace>>;
+  try {
+    context = await resolveThreadWorkspace(thread);
+    trace.workspaceEndedAt = Date.now();
+  } catch (error) {
+    trace.workspaceEndedAt = Date.now();
+    trace.completedAt = Date.now();
+    trace.outcome = "failed";
+    finalizeTurnLatency(trace);
+    throw error;
+  }
+  trace.threadOpenStartedAt = Date.now();
+  trace.memoryStartedAt = trace.threadOpenStartedAt;
+  const openPromise = openAgentThread(thread, context.workspacePath).then(
+    () => {
+      trace.threadOpenEndedAt = Date.now();
+    },
+  );
+  const memoryPromise = (async (): Promise<string | undefined> => {
+    try {
+      const projectMemoryPath = join(
+        context.project.path,
+        ".artemis",
+        "MEMORY.md",
+      );
+      const globalMemoryPath = join(
+        app.getPath("home"),
+        ".pi",
+        "agent",
+        "MEMORY.md",
+      );
+      const [projectMemory, globalMemory] = await Promise.all([
+        memoryStore(projectMemoryPath, PROJECT_MEMORY_MAX_BYTES).snapshot(),
+        memoryStore(globalMemoryPath, GLOBAL_MEMORY_MAX_BYTES).snapshot(),
+      ]);
+      return (
+        recallMemoryForTurn({
+          prompt: requestText,
+          projectMemory: projectMemory.content,
+          globalMemory: globalMemory.content,
+          limits: {
+            maxEntries: 3,
+            maxCharacters: 3_500,
+            globalMaxEntries: 1,
+            globalMaxCharacters: 900,
+          },
+        }).context || undefined
+      );
+    } catch (error) {
+      console.warn(
+        `Memory recall skipped: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return undefined;
+    } finally {
+      trace.memoryEndedAt = Date.now();
+    }
+  })();
   let memoryContext: string | undefined;
   try {
-    const context = await resolveThreadWorkspace(thread);
-    const projectMemoryPath = join(
-      context.project.path,
-      ".artemis",
-      "MEMORY.md",
-    );
-    const globalMemoryPath = join(
-      app.getPath("home"),
-      ".pi",
-      "agent",
-      "MEMORY.md",
-    );
-    const projectMemory = (
-      await memoryStore(projectMemoryPath, PROJECT_MEMORY_MAX_BYTES).snapshot()
-    ).content;
-    const globalMemory = (
-      await memoryStore(globalMemoryPath, GLOBAL_MEMORY_MAX_BYTES).snapshot()
-    ).content;
-    memoryContext =
-      recallMemoryForTurn({
-        prompt: requestText,
-        projectMemory,
-        globalMemory,
-        limits: {
-          maxEntries: 3,
-          maxCharacters: 3_500,
-          globalMaxEntries: 1,
-          globalMaxCharacters: 900,
-        },
-      }).context || undefined;
+    [, memoryContext] = await Promise.all([openPromise, memoryPromise]);
   } catch (error) {
-    console.warn(
-      `Memory recall skipped: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    trace.completedAt = Date.now();
+    trace.outcome = "failed";
+    finalizeTurnLatency(trace);
+    throw error;
   }
-  const turnId = randomUUID();
-  emitPayload(thread.id, turnId, {
-    type: "user.message",
-    messageId: randomUUID(),
-    text: requestText,
-  });
-  emitPayload(thread.id, turnId, {
-    type: "turn.started",
-    mode: input.mode,
-  });
+
+  try {
+    emitInitialTurn(thread.id, turnId, requestText, input.mode);
+  } catch (error) {
+    trace.completedAt = Date.now();
+    trace.outcome = "failed";
+    finalizeTurnLatency(trace);
+    throw error;
+  }
   activeTurns.set(thread.id, turnId);
 
+  trace.hostDispatchedAt = Date.now();
   void agentProcess
     .request({
       type: "turn.prompt",
@@ -3618,6 +3957,12 @@ function registerIpc(): void {
       ) {
         throw new Error("Model selection is invalid.");
       }
+      if (
+        selection.ultraMode !== undefined &&
+        typeof selection.ultraMode !== "boolean"
+      ) {
+        throw new Error("Ultra mode setting is invalid.");
+      }
       const snapshot = await getSettingsSnapshot();
       const selectedModel = snapshot.models.find(
         (model) =>
@@ -3669,12 +4014,11 @@ function registerIpc(): void {
       if (!allowedThinking.includes(selection.thinkingLevel)) {
         throw new Error("Thinking level is invalid.");
       }
-      const effectiveSelection = {
-        ...structuredClone(selection),
-        thinkingLevel: selectedModel.reasoning
-          ? selection.thinkingLevel
-          : ("off" as const),
-      };
+      const effectiveSelection = normalizeModelSelection(
+        selection,
+        selectedModel.reasoning,
+        selectedModel.highestThinkingLevel,
+      );
       const configuration = await settingsStore.runtimeConfiguration();
       configuration.selection = effectiveSelection;
       configuration.contextWindow = contextWindow;
@@ -3742,13 +4086,20 @@ function registerIpc(): void {
           )
         : undefined;
       const effectiveProviderModel = selectedProviderModel ?? providerModel;
+      const preserveUltraMode =
+        effectiveProviderModel.reasoning &&
+        Boolean(selectedProviderModel && configuration.selection?.ultraMode);
       const providerSelection: ModelSelection = {
         providerId: provider.id,
         modelId: effectiveProviderModel.id,
         thinkingLevel: effectiveProviderModel.reasoning
-          ? (selectedProviderModel && configuration.selection?.thinkingLevel) ||
-            "medium"
+          ? preserveUltraMode
+            ? "high"
+            : (selectedProviderModel &&
+                configuration.selection?.thinkingLevel) ||
+              "medium"
           : "off",
+        ...(preserveUltraMode ? { ultraMode: true } : {}),
       };
       const providerContextWindow =
         updatesActiveProvider && selectedProviderModel
@@ -5117,6 +5468,14 @@ function registerIpc(): void {
       createTaskThread(input),
   );
 
+  ipcMain.handle(IPC.threadPrepare, async (_event, threadId: string) => {
+    if (!store) throw new Error("Application store is not ready.");
+    const thread = store.getThread(String(threadId ?? ""));
+    if (!thread || thread.archived) return;
+    const context = await resolveThreadWorkspace(thread);
+    await openAgentThread(thread, context.workspacePath);
+  });
+
   ipcMain.handle(
     IPC.threadRename,
     (_event, threadId: string, title: string): Thread => {
@@ -5684,6 +6043,20 @@ function registerIpc(): void {
     (_event, input: StartTurnInput): Promise<StartTurnResult> =>
       startTaskTurn(input),
   );
+
+  ipcMain.on(IPC.turnRendered, (_event, turnId: string, renderedAt: number) => {
+    const trace = turnLatencyTraces.get(String(turnId ?? ""));
+    if (
+      !trace ||
+      trace.rendererPaintAt !== undefined ||
+      typeof renderedAt !== "number" ||
+      !Number.isFinite(renderedAt) ||
+      Math.abs(Date.now() - renderedAt) >= 5 * 60_000
+    ) {
+      return;
+    }
+    trace.rendererPaintAt = renderedAt;
+  });
 
   ipcMain.handle(IPC.turnSteer, (_event, input: QueueTurnInput) =>
     queueTurn("turn.steer", input),
@@ -6687,6 +7060,15 @@ app
       {
         onEvent(threadId, turnId, payload) {
           emitPayload(threadId, turnId, payload);
+        },
+        onEvents(events) {
+          emitPayloadBatch(events);
+        },
+        onTurnTelemetry(event) {
+          const trace = turnLatencyTraces.get(event.turnId);
+          if (trace && event.stage === "host-received") {
+            trace.hostReceivedAt ??= event.timestamp;
+          }
         },
         onBrokerRequest: handleBrokerRequest,
         onStderr(data) {

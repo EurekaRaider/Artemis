@@ -77,23 +77,10 @@ function validateEntry(entry: MemoryEntry): MemoryEntry {
   return { title, content, keywords };
 }
 
-async function readOptional(path: string): Promise<string> {
-  try {
-    const info = await lstat(path);
-    if (!info.isFile() || info.isSymbolicLink()) {
-      throw new Error("Memory path must be a regular file.");
-    }
-    return await readFile(path, "utf8");
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      "code" in error &&
-      (error as NodeJS.ErrnoException).code === "ENOENT"
-    ) {
-      return "";
-    }
-    throw error;
-  }
+interface CachedMemorySnapshot {
+  mtimeMs: number;
+  size: number;
+  content: string;
 }
 
 export function resolveMemoryPaths(
@@ -109,6 +96,7 @@ export function resolveMemoryPaths(
 export class MemoryStore {
   private queue: Promise<unknown> = Promise.resolve();
   private readonly maxBytes: number;
+  private cachedSnapshot: CachedMemorySnapshot | undefined;
 
   constructor(
     private readonly filePath: string,
@@ -118,7 +106,31 @@ export class MemoryStore {
   }
 
   async snapshot(): Promise<{ path: string; content: string }> {
-    return { path: this.filePath, content: await readOptional(this.filePath) };
+    try {
+      const info = await lstat(this.filePath);
+      if (!info.isFile() || info.isSymbolicLink()) {
+        throw new Error("Memory path must be a regular file.");
+      }
+      if (
+        this.cachedSnapshot?.mtimeMs === info.mtimeMs &&
+        this.cachedSnapshot.size === info.size
+      ) {
+        return { path: this.filePath, content: this.cachedSnapshot.content };
+      }
+      const content = await readFile(this.filePath, "utf8");
+      this.cachedSnapshot = { mtimeMs: info.mtimeMs, size: info.size, content };
+      return { path: this.filePath, content };
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        (error as NodeJS.ErrnoException).code === "ENOENT"
+      ) {
+        this.cachedSnapshot = undefined;
+        return { path: this.filePath, content: "" };
+      }
+      throw error;
+    }
   }
 
   append(entry: MemoryEntry): Promise<{ appended: boolean }> {
@@ -129,7 +141,7 @@ export class MemoryStore {
 
   private async appendNow(entry: MemoryEntry): Promise<{ appended: boolean }> {
     const validated = validateEntry(entry);
-    const current = await readOptional(this.filePath);
+    const current = (await this.snapshot()).content;
     const heading = `## ${validated.title}`;
     const duplicateHeading = current
       .split(/\r?\n(?=## )/gu)
@@ -175,6 +187,7 @@ export class MemoryStore {
     try {
       await writeFile(temporaryPath, next, { encoding: "utf8", mode: 0o600 });
       await rename(temporaryPath, this.filePath);
+      this.cachedSnapshot = undefined;
     } finally {
       await rm(temporaryPath, { force: true });
     }

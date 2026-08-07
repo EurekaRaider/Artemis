@@ -2,6 +2,9 @@ interface MemoryEntry {
   heading: string;
   keywords: string[];
   text: string;
+  headingTerms: Set<string>;
+  keywordTerms: Set<string>;
+  bodyTerms: Set<string>;
 }
 
 export interface MemoryRecallResult {
@@ -36,6 +39,8 @@ const COMMON_WORDS = new Set([
   "任务",
   "项目",
 ]);
+const MEMORY_INDEX_CACHE_LIMIT = 4;
+const memoryIndexCache = new Map<string, MemoryEntry[]>();
 
 function terms(value: string): Set<string> {
   const result = new Set<string>();
@@ -73,24 +78,43 @@ function parseEntries(memory: string): MemoryEntry[] {
           .filter(Boolean)
       : [];
     const content = keywordLine ? lines.slice(1).join("\n").trim() : body;
+    const text =
+      `## ${heading}\n${keywordLine ? `${lines[0]}\n\n` : ""}${content}`.trim();
     entries.push({
       heading,
       keywords,
-      text: `## ${heading}\n${keywordLine ? `${lines[0]}\n\n` : ""}${content}`.trim(),
+      text,
+      headingTerms: terms(heading),
+      keywordTerms: terms(keywords.join(" ")),
+      bodyTerms: terms(text),
     });
   }
   return entries;
 }
 
+function indexedEntries(memory: string): MemoryEntry[] {
+  const cached = memoryIndexCache.get(memory);
+  if (cached) {
+    memoryIndexCache.delete(memory);
+    memoryIndexCache.set(memory, cached);
+    return cached;
+  }
+  const entries = parseEntries(memory);
+  memoryIndexCache.set(memory, entries);
+  while (memoryIndexCache.size > MEMORY_INDEX_CACHE_LIMIT) {
+    const oldest = memoryIndexCache.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    memoryIndexCache.delete(oldest);
+  }
+  return entries;
+}
+
 function scoreEntry(entry: MemoryEntry, promptTerms: Set<string>): number {
-  const headingTerms = terms(entry.heading);
-  const keywordTerms = terms(entry.keywords.join(" "));
-  const bodyTerms = terms(entry.text);
   let score = 0;
   for (const term of promptTerms) {
-    if (keywordTerms.has(term)) score += 8;
-    else if (headingTerms.has(term)) score += 6;
-    else if (bodyTerms.has(term)) score += 1;
+    if (entry.keywordTerms.has(term)) score += 8;
+    else if (entry.headingTerms.has(term)) score += 6;
+    else if (entry.bodyTerms.has(term)) score += 1;
   }
   return score;
 }
@@ -104,7 +128,7 @@ function selectEntries(
 ): MemoryEntry[] {
   const selected: MemoryEntry[] = [];
   let characters = 0;
-  const ranked = parseEntries(memory)
+  const ranked = indexedEntries(memory)
     .map((entry, index) => ({
       entry,
       index,

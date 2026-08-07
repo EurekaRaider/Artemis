@@ -39,6 +39,7 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.threadFork, threadId, entryId),
   compactThread: (threadId, instructions) =>
     ipcRenderer.invoke(IPC.threadCompact, threadId, instructions),
+  prepareThread: (threadId) => ipcRenderer.invoke(IPC.threadPrepare, threadId),
   branchizeWorktree: (threadId, branchName) =>
     ipcRenderer.invoke(IPC.worktreeBranchize, threadId, branchName),
   cleanupWorktree: (threadId, force) =>
@@ -48,6 +49,8 @@ const api: ArtemisApi = {
   handoffWorkspace: (threadId, destination) =>
     ipcRenderer.invoke(IPC.worktreeHandoff, threadId, destination),
   startTurn: (input) => ipcRenderer.invoke(IPC.turnStart, input),
+  reportTurnRendered: (turnId, renderedAt) =>
+    ipcRenderer.send(IPC.turnRendered, turnId, renderedAt),
   steerTurn: (input) => ipcRenderer.invoke(IPC.turnSteer, input),
   followUpTurn: (input) => ipcRenderer.invoke(IPC.turnFollowUp, input),
   clearTurnQueue: (threadId) =>
@@ -256,6 +259,12 @@ const api: ArtemisApi = {
     };
     ipcRenderer.on(IPC.agentEvent, handler);
     return () => ipcRenderer.removeListener(IPC.agentEvent, handler);
+  },
+  onAgentEvents(listener) {
+    const handler = (_event: Electron.IpcRendererEvent, value: AgentEvent[]) =>
+      listener(value);
+    ipcRenderer.on(IPC.agentEvents, handler);
+    return () => ipcRenderer.removeListener(IPC.agentEvents, handler);
   },
   onAutomationEvent(listener) {
     const handler = (

@@ -44,6 +44,7 @@ const model = {
   contextWindow: 128_000,
   maxTokens: 32_000,
 } as Model<Api>;
+const reasoningModel = { ...model, reasoning: true } as Model<Api>;
 
 function fullStream(parts: unknown[]) {
   return {
@@ -73,6 +74,73 @@ beforeEach(() => {
 });
 
 describe("streamOpenAIResponsesWithAiSdk", () => {
+  it.each([
+    {
+      name: "off with short retention",
+      options: { sessionId: "session-1", cacheRetention: "short" as const },
+      expected: {
+        forceReasoning: true,
+        reasoningEffort: "none",
+        promptCacheKey: "session-1",
+        promptCacheRetention: "in_memory",
+      },
+    },
+    {
+      name: "low with long retention",
+      options: {
+        reasoning: "low" as const,
+        sessionId: "session-2",
+        cacheRetention: "long" as const,
+      },
+      expected: {
+        forceReasoning: true,
+        reasoningEffort: "low",
+        promptCacheKey: "session-2",
+        promptCacheRetention: "24h",
+      },
+    },
+    {
+      name: "medium with caching disabled",
+      options: {
+        reasoning: "medium" as const,
+        sessionId: "session-3",
+        cacheRetention: "none" as const,
+      },
+      expected: {
+        forceReasoning: true,
+        reasoningEffort: "medium",
+      },
+    },
+  ])(
+    "forwards reasoning and session cache options for $name",
+    async ({ options, expected }) => {
+      sdk.streamText.mockReturnValue({
+        fullStream: fullStream([
+          {
+            type: "finish",
+            finishReason: "stop",
+            rawFinishReason: "completed",
+            totalUsage: usage,
+          },
+        ]),
+      });
+
+      await Array.fromAsync(
+        streamOpenAIResponsesWithAiSdk(
+          reasoningModel,
+          { messages: [{ role: "user", content: "Hello", timestamp: 1 }] },
+          options,
+        ),
+      );
+
+      const request = sdk.streamText.mock.calls[0]![0];
+      expect(request.providerOptions).toEqual({ openai: expected });
+      expect(request.providerOptions.openai).not.toHaveProperty(
+        "previousResponseId",
+      );
+    },
+  );
+
   it("uses OpenCode's AI SDK Responses path and maps text to Pi events", async () => {
     sdk.streamText.mockReturnValue({
       fullStream: fullStream([
@@ -189,13 +257,21 @@ describe("streamOpenAIResponsesWithAiSdk", () => {
     };
 
     const events = await Array.fromAsync(
-      streamOpenAIResponsesWithAiSdk(model, context, {
+      streamOpenAIResponsesWithAiSdk(reasoningModel, context, {
         apiKey: "local-proxy",
+        reasoning: "low",
+        sessionId: "tool-session",
+        cacheRetention: "long",
       }),
     );
     const request = sdk.streamText.mock.calls[0]![0];
 
     expect(request.tools.read).not.toHaveProperty("execute");
+    expect(request.providerOptions.openai).toMatchObject({
+      reasoningEffort: "low",
+      promptCacheKey: "tool-session",
+      promptCacheRetention: "24h",
+    });
     expect(events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: "toolcall_start", contentIndex: 0 }),

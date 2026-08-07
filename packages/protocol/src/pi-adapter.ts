@@ -233,6 +233,7 @@ export class PiAdapter {
   private readonly emittedUsageMessageIds = new Set<string>();
   private sawAssistantMessage = false;
   private sawAssistantContent = false;
+  private emittedThinkingActivity = false;
   private turnFailed = false;
   private readonly toolNames = new Map<string, string>();
   private userMessageCount = 0;
@@ -295,7 +296,11 @@ export class PiAdapter {
         this.sawAssistantMessage = true;
         this.sawAssistantContent ||= delta.length > 0;
         this.activeMessageContent[partType] += delta;
-        if (partType === "thinking") return [];
+        if (partType === "thinking") {
+          if (this.emittedThinkingActivity || delta.length === 0) return [];
+          this.emittedThinkingActivity = true;
+          return [{ type: "turn.activity", phase: "thinking" }];
+        }
         return [
           {
             type: "message.part.delta",

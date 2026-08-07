@@ -8,6 +8,7 @@ import type {
   ContextUsagePayload,
   RunMode,
   ToolStartedPayload,
+  TurnActivityPayload,
   UserInputRequestedPayload,
 } from "./schema.js";
 
@@ -54,6 +55,7 @@ export interface ThreadViewState {
   status:
     "idle" | "running" | "waiting-approval" | "waiting-user-input" | "failed";
   mode: RunMode;
+  activity?: Omit<TurnActivityPayload, "type">;
   order: string[];
   userMessages: Record<string, { id: string; text: string }>;
   messageParts: Record<string, MessagePartState>;
@@ -241,12 +243,26 @@ function applyAgentEvent(
       clearThinkingParts(state, orderedItems);
       state.status = "running";
       state.mode = payload.mode;
+      delete state.activity;
       delete state.error;
+      return;
+    }
+    case "turn.activity": {
+      state.activity = {
+        phase: payload.phase,
+        ...(payload.queueDepth === undefined
+          ? {}
+          : { queueDepth: payload.queueDepth }),
+        ...(payload.toolCount === undefined
+          ? {}
+          : { toolCount: payload.toolCount }),
+      };
       return;
     }
     case "message.part.delta": {
       clearThinkingParts(state, orderedItems);
       if (payload.partType === "thinking") return;
+      delete state.activity;
       const partId = timelinePartId(state, payload.partId);
       const existing = state.messageParts[partId];
       state.messageParts[partId] = {
@@ -259,6 +275,7 @@ function applyAgentEvent(
     }
     case "tool.started": {
       clearThinkingParts(state, orderedItems);
+      delete state.activity;
       const tool = payload as ToolStartedPayload;
       state.tools[tool.toolCallId] = {
         id: tool.toolCallId,
@@ -441,11 +458,13 @@ function applyAgentEvent(
     case "turn.completed": {
       clearThinkingParts(state, orderedItems);
       state.status = "idle";
+      delete state.activity;
       return;
     }
     case "turn.failed": {
       clearThinkingParts(state, orderedItems);
       state.status = "failed";
+      delete state.activity;
       state.error = payload.message;
       return;
     }

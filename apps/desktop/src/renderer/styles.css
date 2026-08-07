@@ -4253,6 +4253,23 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
+.model-picker-options > button.ultra-mode-option {
+  min-height: 50px;
+}
+
+.model-picker-options > button.ultra-mode-option > span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.model-picker-options > button.ultra-mode-option small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: normal;
+}
+
 .model-picker-options > button b {
   font-size: 17px;
   font-weight: 500;
@@ -4507,18 +4524,77 @@ summary:focus-visible {
   padding: 7px 10px 6px;
 }
 
+.workspace-tab-scroll-shell {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
 .workspace-tab-scroll {
+  box-sizing: border-box;
+  height: 38px;
+  min-width: 0;
+  overscroll-behavior-inline: contain;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  width: 100%;
+}
+
+.workspace-tab-scroll-shell[data-overflow="true"] .workspace-tab-scroll {
+  padding-inline: 32px;
+  scroll-padding-inline: 32px;
+}
+
+.workspace-tab-track {
   align-items: center;
   display: flex;
-  flex: 1;
   gap: 5px;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
+  min-width: 100%;
+  width: max-content;
 }
 
 .workspace-tab-scroll::-webkit-scrollbar {
   display: none;
+}
+
+.workspace-tab-scroll-button {
+  align-items: center;
+  background: color-mix(in srgb, var(--codex-workspace-bg) 92%, var(--panel-2));
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  height: 30px;
+  justify-content: center;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  z-index: 1;
+}
+
+.workspace-tab-scroll-button.left {
+  left: 1px;
+}
+
+.workspace-tab-scroll-button.right {
+  right: 1px;
+}
+
+.workspace-tab-scroll-button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.workspace-tab-scroll-button:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.workspace-tab-scroll-button:disabled {
+  cursor: default;
+  opacity: 0.4;
 }
 
 .workspace-tab {

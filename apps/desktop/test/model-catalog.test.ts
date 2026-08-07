@@ -32,6 +32,13 @@ describe("visible model catalog", () => {
     expect(models.some((candidate) => candidate.providerId === "openai")).toBe(
       true,
     );
+    expect(
+      models.find(
+        (candidate) =>
+          candidate.providerId === "openai" &&
+          candidate.modelId === "gpt-5.6-sol",
+      )?.highestThinkingLevel,
+    ).toBe("max");
     expect(models.every((candidate) => candidate.configured === false)).toBe(
       true,
     );

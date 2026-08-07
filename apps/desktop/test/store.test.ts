@@ -19,6 +19,60 @@ afterEach(async () => {
 });
 
 describe("AppStore", () => {
+  it("appends event batches with continuous sequence numbers in one turn transaction", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
+    temporaryDirectories.push(directory);
+    const store = new AppStore(join(directory, "state.sqlite"));
+    const now = "2026-08-07T00:00:00.000Z";
+    store.upsertProject({
+      id: "project-1",
+      name: "Workspace",
+      path: join(directory, "workspace"),
+      createdAt: now,
+      updatedAt: now,
+    });
+    store.createThread({
+      id: "thread-1",
+      projectId: "project-1",
+      title: "Batch",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const result = store.appendEventsAndUpdateThread(
+      "thread-1",
+      [
+        {
+          eventId: "event-1",
+          turnId: "turn-1",
+          payload: {
+            type: "user.message",
+            messageId: "message-1",
+            text: "Hello",
+          },
+        },
+        {
+          eventId: "event-2",
+          turnId: "turn-1",
+          payload: { type: "turn.started", mode: "execute" },
+        },
+      ],
+      { status: "running", mode: "execute" },
+    );
+
+    expect(result.events.map((event) => event.seq)).toEqual([0, 1]);
+    expect(
+      store.getThreadEvents("thread-1").map((event) => event.eventId),
+    ).toEqual(["event-1", "event-2"]);
+    expect(result.thread.status).toBe("running");
+    store.close();
+  });
+
   it("never persists Reasoning text in task timeline events", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
     temporaryDirectories.push(directory);
@@ -295,7 +349,7 @@ describe("AppStore", () => {
     expect(store.getThread("thread-work")?.mode).toBe("execute");
     for (const threadId of ["thread-code", "thread-work"]) {
       expect(store.getThreadEvents(threadId)[0]).toMatchObject({
-        protocolVersion: 2,
+        protocolVersion: 3,
         payload: { type: "turn.started", mode: "execute" },
       });
     }

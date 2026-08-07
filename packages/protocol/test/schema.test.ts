@@ -19,6 +19,18 @@ import {
   worktreeCommandSchema,
 } from "../src/index.js";
 
+describe("turn activity schema", () => {
+  it("retains only non-content progress metadata", () => {
+    expect(
+      agentPayloadSchema.parse({
+        type: "turn.activity",
+        phase: "thinking",
+        reasoning: "private model reasoning",
+      }),
+    ).toEqual({ type: "turn.activity", phase: "thinking" });
+  });
+});
+
 describe("approval schemas", () => {
   it("requires the host nonce on requests and resolutions", () => {
     expect(

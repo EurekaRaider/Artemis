@@ -11,6 +11,7 @@ import {
 } from "@artemis/protocol";
 
 import { expandProjectInitCommand } from "../shared/project-init-command.js";
+import { AgentEventBatcher } from "./agent-event-batcher.js";
 
 interface ParentPort {
   on(event: "message", listener: (event: { data: unknown }) => void): void;
@@ -50,6 +51,10 @@ function send(message: AgentHostMessage): void {
   parentPort!.postMessage(message);
 }
 
+const eventBatcher = new AgentEventBatcher((events) => {
+  send({ type: "events", events });
+});
+
 const broker: AgentBroker = {
   request(request: BrokerExecutionRequest) {
     const requestId = randomUUID();
@@ -64,8 +69,7 @@ const host = new ArtemisAgentHost(
   broker,
   {
     emit(threadId, turnId, payload) {
-      send({
-        type: "event",
+      eventBatcher.push({
         threadId,
         ...(turnId ? { turnId } : {}),
         payload,
@@ -118,6 +122,13 @@ async function handle(command: AgentHostCommand): Promise<void> {
         await host.compact(command.threadId, command.instructions);
         break;
       case "turn.prompt": {
+        send({
+          type: "turn.telemetry",
+          threadId: command.threadId,
+          turnId: command.turnId,
+          stage: "host-received",
+          timestamp: Date.now(),
+        });
         await host.prompt(
           command.threadId,
           command.turnId,
@@ -212,5 +223,6 @@ parentPort.on("message", (event) => {
 
 process.on("SIGTERM", () => {
   host.dispose();
+  eventBatcher.dispose();
   process.exit(0);
 });

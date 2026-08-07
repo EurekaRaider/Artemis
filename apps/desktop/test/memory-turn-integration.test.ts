@@ -57,8 +57,13 @@ describe("memory turn integration contract", () => {
       "async function startTaskTurn",
       "async function queueTurn",
     );
+    const initialTurn = sourceBlock(
+      mainSource,
+      "function emitInitialTurn",
+      "function publishAutomationEvent",
+    );
     const userEvent = sourceBlock(
-      turnStart,
+      initialTurn,
       'type: "user.message"',
       'type: "turn.started"',
     );
@@ -69,11 +74,20 @@ describe("memory turn integration contract", () => {
     );
 
     expect(turnStart).toContain("recallMemoryForTurn");
+    expect(turnStart).toContain(
+      "const [projectMemory, globalMemory] = await Promise.all([",
+    );
+    expect(turnStart).toContain(
+      "[, memoryContext] = await Promise.all([openPromise, memoryPromise])",
+    );
     expect(turnStart.indexOf("projectMemory")).toBeLessThan(
       turnStart.indexOf("globalMemory"),
     );
-    expect(userEvent).toContain("text: requestText");
+    expect(userEvent).toContain("text");
     expect(userEvent).not.toContain("memoryContext");
+    expect(turnStart).toContain(
+      "emitInitialTurn(thread.id, turnId, requestText",
+    );
     expect(agentCommand).toContain("text: requestText");
     expect(agentCommand).toContain("memoryContext");
   });

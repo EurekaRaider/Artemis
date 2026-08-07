@@ -713,6 +713,12 @@ describe("renderer layout contract", () => {
     );
     const timelineStart = appSource.indexOf("function Timeline(");
     const timelineSource = appSource.slice(timelineStart);
+    const userInputStart = appSource.indexOf("function UserInputCard(");
+    const userInputEnd = appSource.indexOf(
+      "function ToolActivityGroupCard(",
+      userInputStart,
+    );
+    const userInputSource = appSource.slice(userInputStart, userInputEnd);
 
     expect(appSource).toContain("activePendingUserInputId");
     expect(appSource).toContain("const activePendingUserInput =");
@@ -734,7 +740,7 @@ describe("renderer layout contract", () => {
     expect(timelineSource).toContain(
       'if (!input || input.status === "pending") return null;',
     );
-    expect(appSource).not.toContain("new ResizeObserver");
+    expect(userInputSource).not.toContain("new ResizeObserver");
     expect(appSource).toContain("moveUserInputOptionFocus(");
     expect(appSource).toContain('role="listbox"');
     expect(appSource).toContain('role="option"');
@@ -1092,6 +1098,19 @@ describe("renderer layout contract", () => {
     expect(modelPickerSource).toMatch(
       /switchComposerThinking\(\s*level,?\s*\)/u,
     );
+    expect(modelPickerSource).toMatch(
+      /switchComposerThinking\(\s*activeModelHighestThinkingLevel,\s*true,?\s*\)/u,
+    );
+    expect(modelPickerSource).toContain("ultra-mode-option");
+    expect(modelPickerSource).toContain("{t.ultraModeQuota}");
+    expect(appSource).toContain('ultraMode: "Ultra Mode"');
+    expect(appSource).toContain('ultraMode: "极致模式"');
+    expect(appSource).toContain('ultraModeQuota: "Uses your quota faster"');
+    expect(appSource).toContain('ultraModeQuota: "更快消耗使用额度"');
+    expect(appSource).toContain(
+      "runtimeSettings?.selection?.ultraMode === true",
+    );
+    expect(appSource).toContain("preserveUltraMode");
     expect(modelPickerSource).toContain(
       'className="model-picker-options-heading"',
     );
@@ -1116,6 +1135,12 @@ describe("renderer layout contract", () => {
     expect(cssRule(".model-picker-options > button")).toMatch(
       /\bmin-height:\s*32px/u,
     );
+    expect(cssRule(".model-picker-options > button.ultra-mode-option")).toMatch(
+      /\bmin-height:\s*50px/u,
+    );
+    expect(
+      cssRule(".model-picker-options > button.ultra-mode-option small"),
+    ).toMatch(/\bwhite-space:\s*normal/u);
   });
 
   it("shows context usage beside the model and configures the context window", () => {
@@ -1289,6 +1314,14 @@ describe("renderer layout contract", () => {
     expect(modelSwitchHandler).toContain(
       "await settingsStore.setModel(effectiveSelection, contextWindow)",
     );
+    expect(modelSwitchHandler).toContain(
+      'typeof selection.ultraMode !== "boolean"',
+    );
+    expect(modelSwitchHandler).toContain(
+      "normalizeModelSelection(\n        selection,\n        selectedModel.reasoning,",
+    );
+    expect(modelSwitchHandler).toContain("selectedModel.highestThinkingLevel");
+    expect(mainProcessSource).toContain("selection.ultraMode === true");
 
     // Custom provider setup keeps its independent, working connection flow.
     expect(providersTabSource).toContain("<h3>{t.customProviders}</h3>");
@@ -1635,6 +1668,8 @@ describe("renderer layout contract", () => {
     ).toContain("openWorkspaceTab(file.viewer, { path: file.path });");
     expect(workspacePreviewSource).toContain("<webview");
     expect(workspacePreviewSource).toContain("normalizeBrowserAddress");
+    expect(workspacePreviewSource).toContain("browserNavigationSnapshot");
+    expect(workspacePreviewSource).toContain('"dom-ready"');
     expect(workspacePreviewSource).toContain(
       "shouldReloadBrowserForLocaleChange",
     );

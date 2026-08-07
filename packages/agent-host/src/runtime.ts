@@ -10,6 +10,7 @@ import {
   defineTool,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
+import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { Type } from "@sinclair/typebox";
 import type { TSchema } from "@sinclair/typebox";
 import { resolveWorkspacePath } from "@artemis/platform";
@@ -378,13 +379,14 @@ export class ArtemisAgentHost {
 
   async configure(configuration: AgentRuntimeConfiguration): Promise<void> {
     this.credentials.replace(configuration.credentials);
-    this.configuration = structuredClone(configuration);
-    const providers = configuration.providers ?? [];
+    const resolvedConfiguration = structuredClone(configuration);
+    const providers = resolvedConfiguration.providers ?? [];
     if (
       providers.length === 0 &&
       this.registeredProviderIds.size === 0 &&
-      !configuration.selection
+      !resolvedConfiguration.selection
     ) {
+      this.configuration = resolvedConfiguration;
       return;
     }
     const modelRuntime = await this.getModelRuntime();
@@ -400,13 +402,14 @@ export class ArtemisAgentHost {
         provider.id,
         toPiProviderConfig(
           provider,
-          Boolean(configuration.credentials[provider.id]),
+          Boolean(resolvedConfiguration.credentials[provider.id]),
         ),
       );
       this.registeredProviderIds.add(provider.id);
     }
-    const selection = configuration.selection;
+    const selection = resolvedConfiguration.selection;
     if (!selection) {
+      this.configuration = resolvedConfiguration;
       return;
     }
     const catalogModel = modelRuntime.getModel(
@@ -418,9 +421,14 @@ export class ArtemisAgentHost {
         `Configured model is unavailable: ${selection.providerId}/${selection.modelId}`,
       );
     }
+    if (selection.ultraMode) {
+      selection.thinkingLevel =
+        getSupportedThinkingLevels(catalogModel).at(-1) ?? "off";
+    }
+    this.configuration = resolvedConfiguration;
     const model = configureModelContextWindow(
       catalogModel,
-      configuration.contextWindow,
+      resolvedConfiguration.contextWindow,
     );
     for (const hosted of this.threads.values()) {
       await hosted.session.setModel(model);
@@ -1160,6 +1168,7 @@ export class ArtemisAgentHost {
         modelId: model.id,
         name: model.name,
         reasoning: model.reasoning,
+        highestThinkingLevel: getSupportedThinkingLevels(model).at(-1) ?? "off",
         contextWindow: model.contextWindow,
         configured: modelRuntime.hasConfiguredAuth(model.provider),
       })),
@@ -2821,14 +2830,37 @@ export class ArtemisAgentHost {
       hosted.resourceLoader.getSkills().skills,
     );
     const images = toSessionImages(attachments);
-    const coordinationInstruction = `Agent-team coordination: delegate only when parallel work materially helps. Use a flat team of two to four complementary members, keep write scopes disjoint, monitor collaboration with wait_team, resolve blockers, integrate the results yourself, and call finish_team before your final answer. If no team is created, continue normally. If the user asks to continue work from an interrupted team, create a fresh replacement team from the prior tasks and handoffs; never claim that cancelled model requests or processes were resumed.${
+    const ultraMode = this.configuration.selection?.ultraMode === true;
+    const coordinationInstruction = `${
+      ultraMode
+        ? "Ultra Mode agent-team coordination: first assess whether the task is complex, long-horizon, cross-subsystem, has multiple independent workstreams, can parallelize investigation, implementation, testing, or builds, or benefits from multiple specialties. When it does, proactively decompose it and start a flat team of two to four complementary members early. Keep write scopes disjoint, monitor collaboration with wait_team, resolve blockers, integrate the results yourself, and call finish_team before your final answer. Keep simple, atomic, strictly sequential tasks, or tasks where coordination would cost more than it helps, with the parent agent only."
+        : "Agent-team coordination: delegate only when parallel work materially helps. Use a flat team of two to four complementary members, keep write scopes disjoint, monitor collaboration with wait_team, resolve blockers, integrate the results yourself, and call finish_team before your final answer. If no team is created, continue normally."
+    } If the user asks to continue work from an interrupted team, create a fresh replacement team from the prior tasks and handoffs; never claim that cancelled model requests or processes were resumed.${
       interruptedTeamContext
         ? `\n\nPrevious interrupted agent-team context:\n${interruptedTeamContext}`
         : ""
     }`;
     try {
-      await this.concurrency.run("parent", () =>
-        images || expandedPrompt.expanded
+      const concurrency = this.concurrency.snapshot;
+      if (
+        concurrency &&
+        (concurrency.active >= concurrency.limit ||
+          concurrency.activeParents >= Math.max(1, concurrency.limit - 1))
+      ) {
+        this.sink.emit(hosted.threadId, turnId, {
+          type: "turn.activity",
+          phase: "queued",
+          queueDepth: concurrency.queued + 1,
+        });
+      }
+      await this.concurrency.run("parent", () => {
+        this.sink.emit(hosted.threadId, turnId, {
+          type: "turn.activity",
+          phase: "requesting-model",
+          queueDepth: this.concurrency.snapshot?.queued ?? 0,
+          toolCount: hosted.session.getActiveToolNames().length,
+        });
+        return images || expandedPrompt.expanded
           ? hosted.session.prompt(
               `${expandedPrompt.text}\n\n${coordinationInstruction}`,
               {
@@ -2840,8 +2872,8 @@ export class ArtemisAgentHost {
             )
           : hosted.session.prompt(
               `${expandedPrompt.text}\n\n${coordinationInstruction}`,
-            ),
-      );
+            );
+      });
     } finally {
       const cancellationKey = `${threadId}\0${turnId}`;
       const cancelledByUser = this.cancelledTurns.has(cancellationKey);

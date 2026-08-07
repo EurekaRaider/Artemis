@@ -59,6 +59,7 @@ export interface StartTurnInput {
   text: string;
   mode: RunMode;
   attachments?: PromptAttachment[];
+  submittedAt?: number;
 }
 
 export interface StartTurnResult {
@@ -614,6 +615,7 @@ export interface ArtemisApi {
   deleteThread(threadId: string): Promise<void>;
   forkThread(threadId: string, entryId?: string): Promise<ForkThreadResult>;
   compactThread(threadId: string, instructions?: string): Promise<void>;
+  prepareThread(threadId: string): Promise<void>;
   branchizeWorktree(
     threadId: string,
     branchName: string,
@@ -630,6 +632,7 @@ export interface ArtemisApi {
     destination: "local" | "managed-worktree",
   ): Promise<HandoffWorkspaceResult>;
   startTurn(input: StartTurnInput): Promise<StartTurnResult>;
+  reportTurnRendered(turnId: string, renderedAt: number): void;
   steerTurn(input: QueueTurnInput): Promise<void>;
   followUpTurn(input: QueueTurnInput): Promise<void>;
   clearTurnQueue(threadId: string): Promise<QueuedTurnMessages>;
@@ -816,6 +819,7 @@ export interface ArtemisApi {
   ): () => void;
   onUpdateStatus(listener: (status: ReleaseUpdateStatus) => void): () => void;
   onAgentEvent(listener: (event: AgentEvent) => void): () => void;
+  onAgentEvents(listener: (events: AgentEvent[]) => void): () => void;
   onAutomationEvent(listener: (event: AutomationEvent) => void): () => void;
   onAutomationThreadOpen(listener: (threadId: string) => void): () => void;
 }
@@ -840,11 +844,13 @@ export const IPC = {
   threadDelete: "artemis:thread-delete",
   threadFork: "artemis:thread-fork",
   threadCompact: "artemis:thread-compact",
+  threadPrepare: "artemis:thread-prepare",
   worktreeBranchize: "artemis:worktree-branchize",
   worktreeCleanup: "artemis:worktree-cleanup",
   worktreeRestoreSnapshot: "artemis:worktree-restore-snapshot",
   worktreeHandoff: "artemis:worktree-handoff",
   turnStart: "artemis:turn-start",
+  turnRendered: "artemis:turn-rendered",
   turnSteer: "artemis:turn-steer",
   turnFollowUp: "artemis:turn-follow-up",
   turnQueueClear: "artemis:turn-queue-clear",
@@ -945,4 +951,5 @@ export const IPC = {
   diagnosticsRendererError: "artemis:diagnostics-renderer-error",
   updateStatus: "artemis:update-status",
   agentEvent: "artemis:agent-event",
+  agentEvents: "artemis:agent-events",
 } as const;

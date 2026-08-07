@@ -152,9 +152,11 @@ npm run dev
 ```
 
 Open **Settings** to select a Pi model and thinking level, set the usable
-context window, and save an API key with operating-system encryption. Existing
-Pi OAuth credentials can be imported explicitly; Artemis does not silently
-copy them.
+context window, and save an API key with operating-system encryption. Ultra
+Mode uses the selected model's highest supported thinking level and prioritizes
+flat Agent-team decomposition for complex or long-horizon tasks. Existing Pi
+OAuth credentials can be imported explicitly; Artemis does not silently copy
+them.
 
 ## Desktop workspace and task lifecycle
 
@@ -410,6 +412,21 @@ The dialog has tab semantics, keyboard focus behavior and Escape-to-close
 support. Model application reports success or failure without silently
 accepting a model that is missing from the live catalog.
 
+### Ultra Mode
+
+Ultra Mode is available from the composer model picker for reasoning-capable
+models. It runs the parent and every child at the selected model's highest
+supported thinking level (`max` when available) and asks the parent to form a
+flat team of two to four complementary Agents early for complex, long-horizon,
+cross-subsystem or meaningfully parallel work. Simple, atomic and strictly
+sequential tasks remain single-Agent so coordination does not become overhead.
+
+Ultra Mode works in Plan, Execute and Review without changing their permission
+boundaries: Plan and Review stay read-only, while Execute keeps the trust model
+described below. The setting follows the selection when switching between
+reasoning models and is called out in the UI because it consumes usage quota
+faster than a standard thinking level.
+
 Credentials and authorization material are encrypted with Electron
 `safeStorage`. If OS encryption is unavailable, secret writes fail instead of
 falling back to plaintext.
@@ -647,6 +664,10 @@ spawn or control more Agents.
   reduce it under pressure; the fallback ceiling is 10. Parent concurrency is
   capped one below the effective global limit so a child cannot deadlock behind
   waiting parents.
+- **Ultra Mode** — the parent and every child use the selected model's highest
+  supported thinking level (`max` when available). The parent proactively forms
+  a team for complex, long-horizon or meaningfully parallel work while keeping
+  simple and strictly sequential tasks single-Agent.
 - **Explicit task contracts** — every child receives a label, role, bounded
   task, required/optional status, dependency IDs and an optional cooperative
   workspace-relative write scope. A child stays queued until its dependencies

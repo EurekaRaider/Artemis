@@ -1,6 +1,6 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { useEffect, useMemo, useRef, type MouseEvent } from "react";
+import { memo, useEffect, useMemo, useRef, type MouseEvent } from "react";
 
 const allowedTags = [
   "a",
@@ -227,7 +227,7 @@ function workspaceFileAnchor(
   return anchor && container.contains(anchor) ? anchor : undefined;
 }
 
-export function MarkdownContent({
+export const MarkdownContent = memo(function MarkdownContent({
   className,
   onFileLink,
   onFileLinkContextMenu,
@@ -331,4 +331,4 @@ export function MarkdownContent({
       ref={contentRoot}
     />
   );
-}
+});

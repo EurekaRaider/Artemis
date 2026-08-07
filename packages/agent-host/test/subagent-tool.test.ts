@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 
 import { ArtemisAgentHost } from "../src/runtime.js";
 
@@ -16,10 +17,12 @@ interface InspectableTool {
 
 interface InspectableThread {
   currentTurnId?: string;
-  currentMode?: "execute";
+  currentMode?: "execute" | "plan" | "review";
   executeTools: InspectableTool[];
   session: {
+    agent: { state: { tools: InspectableTool[] } };
     abort(): Promise<void>;
+    getActiveToolNames(): string[];
     prompt(text: string): Promise<void>;
   };
   team?: { teamId: string };
@@ -36,6 +39,95 @@ afterEach(async () => {
 });
 
 describe("sub-agent control tools", () => {
+  it("uses Ultra coordination in every task mode without relaxing read-only tools", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "artemis-ultra-team-"));
+    cleanupPaths.push(workspace);
+    const host = new ArtemisAgentHost(
+      {
+        async request() {
+          throw new Error("Unexpected broker request");
+        },
+      },
+      { emit() {} },
+    );
+    const sessionFile = SessionManager.create(
+      workspace,
+      join(workspace, "sessions"),
+    ).getSessionFile();
+    await host.openThread({
+      threadId: "thread-ultra",
+      workspacePath: workspace,
+      target: "local",
+      ...(sessionFile ? { sessionFile } : {}),
+    });
+    const internals = host as unknown as {
+      configuration: {
+        credentials: Record<string, never>;
+        selection: {
+          providerId: string;
+          modelId: string;
+          thinkingLevel: "max";
+          ultraMode?: boolean;
+        };
+      };
+      threads: Map<string, InspectableThread>;
+      concurrency: {
+        run<T>(kind: "parent" | "child", task: () => Promise<T>): Promise<T>;
+      };
+    };
+    internals.configuration = {
+      credentials: {},
+      selection: {
+        providerId: "test",
+        modelId: "reasoning-model",
+        thinkingLevel: "max",
+        ultraMode: true,
+      },
+    };
+    internals.concurrency = {
+      run: <T>(_kind: "parent" | "child", task: () => Promise<T>) => task(),
+    };
+    const thread = internals.threads.get("thread-ultra")!;
+    const prompts: string[] = [];
+    thread.session.prompt = async (text: string) => {
+      prompts.push(text);
+    };
+
+    for (const mode of ["execute", "plan", "review"] as const) {
+      await host.prompt(
+        "thread-ultra",
+        `turn-${mode}`,
+        "Handle a complex cross-subsystem task.",
+        mode,
+      );
+      expect(prompts.at(-1)).toContain("Ultra Mode agent-team coordination:");
+      expect(prompts.at(-1)).toContain(
+        "proactively decompose it and start a flat team of two to four",
+      );
+      if (mode !== "execute") {
+        const activeTools = thread.session.agent.state.tools.map(
+          (tool) => tool.name,
+        );
+        expect(activeTools).not.toEqual(
+          expect.arrayContaining(["bash", "write", "office_document"]),
+        );
+      }
+    }
+
+    delete internals.configuration.selection.ultraMode;
+    await host.prompt(
+      "thread-ultra",
+      "turn-standard",
+      "Handle a normal task.",
+      "execute",
+    );
+    expect(prompts.at(-1)).toContain(
+      "Agent-team coordination: delegate only when parallel work materially helps.",
+    );
+    expect(prompts.at(-1)).not.toContain("Ultra Mode agent-team coordination:");
+    host.dispose();
+  });
+
   it("starts delegation asynchronously and exposes status and intervention tools", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "artemis-subagent-"));
     cleanupPaths.push(workspace);
@@ -47,10 +139,15 @@ describe("sub-agent control tools", () => {
       },
       { emit() {} },
     );
+    const sessionFile = SessionManager.create(
+      workspace,
+      join(workspace, "sessions"),
+    ).getSessionFile();
     await host.openThread({
       threadId: "thread-1",
       workspacePath: workspace,
       target: "local",
+      ...(sessionFile ? { sessionFile } : {}),
     });
     const internals = host as unknown as {
       threads: Map<string, InspectableThread>;
@@ -192,10 +289,15 @@ describe("sub-agent control tools", () => {
         },
       },
     );
+    const sessionFile = SessionManager.create(
+      workspace,
+      join(workspace, "sessions"),
+    ).getSessionFile();
     await host.openThread({
       threadId: "thread-cancel",
       workspacePath: workspace,
       target: "local",
+      ...(sessionFile ? { sessionFile } : {}),
     });
     const internals = host as unknown as {
       threads: Map<string, InspectableThread>;

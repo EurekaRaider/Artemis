@@ -16,6 +16,7 @@ import {
   type ReactNode,
   type SetStateAction,
   type UIEvent as ReactUIEvent,
+  type WheelEvent as ReactWheelEvent,
 } from "react";
 import {
   MAX_PROMPT_ATTACHMENTS,
@@ -83,6 +84,7 @@ import {
   type ToolActivityKind,
 } from "./tool-presentation.js";
 import {
+  appendTimelineActivities,
   groupTimelineActivities,
   latestVisibleToolGroupKey,
 } from "./tool-activity-groups.js";
@@ -166,6 +168,20 @@ interface WorkspaceTabOpenOptions {
   reuseKind?: boolean;
   revision?: string;
 }
+
+interface WorkspaceTabScrollState {
+  hasOverflow: boolean;
+  canScrollLeft: boolean;
+  canScrollRight: boolean;
+}
+
+const EMPTY_WORKSPACE_TAB_SCROLL_STATE: WorkspaceTabScrollState = {
+  hasOverflow: false,
+  canScrollLeft: false,
+  canScrollRight: false,
+};
+
+const WORKSPACE_TAB_SCROLL_INSET = 32;
 
 const PROJECT_THREAD_PREVIEW_LIMIT = 5;
 const MODEL_PICKER_THINKING_LEVELS: ThinkingLevel[] = [
@@ -262,6 +278,8 @@ const copy = {
     files: "Files",
     addTab: "Add tab",
     closeTab: "Close tab",
+    scrollTabsLeft: "Scroll tabs left",
+    scrollTabsRight: "Scroll tabs right",
     resizeRightSidebar: "Resize right sidebar",
     dismissTurnError: "Dismiss task error",
     editFile: "Edit file",
@@ -327,6 +345,8 @@ const copy = {
     agentActor: "Requested by",
     thinking: "Reasoning",
     running: "Thinking",
+    queuedForAgent: "Waiting for Agent slot",
+    waitingForModel: "Waiting for model",
     waiting: "Needs approval",
     waitingInput: "Waiting for your choice",
     completed: "Completed",
@@ -336,6 +356,8 @@ const copy = {
     model: "Pi auto",
     modelPicker: "Model and reasoning",
     modelPickerModel: "Model",
+    ultraMode: "Ultra Mode",
+    ultraModeQuota: "Uses your quota faster",
     modelSwitchFailed: "The model setting could not be changed.",
     steer: "Steer",
     followUp: "Follow-up",
@@ -467,6 +489,8 @@ const copy = {
     files: "文件",
     addTab: "添加选项卡",
     closeTab: "关闭选项卡",
+    scrollTabsLeft: "向左滚动选项卡",
+    scrollTabsRight: "向右滚动选项卡",
     resizeRightSidebar: "调整右侧边栏宽度",
     dismissTurnError: "关闭任务错误",
     editFile: "编辑文件",
@@ -531,6 +555,8 @@ const copy = {
     agentActor: "发起成员",
     thinking: "推理",
     running: "思考中",
+    queuedForAgent: "等待 Agent 槽位",
+    waitingForModel: "等待模型",
     waiting: "等待批准",
     waitingInput: "等待你选择",
     completed: "已完成",
@@ -540,6 +566,8 @@ const copy = {
     model: "Pi 自动选择",
     modelPicker: "模型与推理强度",
     modelPickerModel: "模型",
+    ultraMode: "极致模式",
+    ultraModeQuota: "更快消耗使用额度",
     modelSwitchFailed: "无法切换模型设置。",
     steer: "引导当前执行",
     followUp: "完成后继续",
@@ -1255,6 +1283,24 @@ function ChevronIcon() {
   );
 }
 
+function TabScrollIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <Icon size={16}>
+      <path
+        d={
+          direction === "left"
+            ? "m14.5 6.5-5.5 5.5 5.5 5.5"
+            : "m9.5 6.5 5.5 5.5-5.5 5.5"
+        }
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </Icon>
+  );
+}
+
 function ApprovalIcon({ warning = false }: { warning?: boolean }) {
   return (
     <Icon size={19}>
@@ -1288,7 +1334,11 @@ function statusLabel(state: ThreadViewState | undefined, locale: Locale) {
   const t = copy[locale];
   switch (state?.status) {
     case "running":
-      return t.running;
+      return state.activity?.phase === "queued"
+        ? t.queuedForAgent
+        : state.activity?.phase === "requesting-model"
+          ? t.waitingForModel
+          : t.running;
     case "waiting-approval":
       return t.waiting;
     case "waiting-user-input":
@@ -1433,9 +1483,14 @@ export function App() {
   const [workspaceDockWidth, setWorkspaceDockWidth] = useState<number>();
   const [workspaceDockResizing, setWorkspaceDockResizing] = useState(false);
   const [workspaceTabMenuOpen, setWorkspaceTabMenuOpen] = useState(false);
+  const [workspaceTabScrollState, setWorkspaceTabScrollState] =
+    useState<WorkspaceTabScrollState>(EMPTY_WORKSPACE_TAB_SCROLL_STATE);
   const [fileLinkContextMenu, setFileLinkContextMenu] =
     useState<FileLinkContextMenuState>();
   const workspaceTabSerial = useRef(0);
+  const workspaceTabScroll = useRef<HTMLDivElement>(null);
+  const workspaceTabTrack = useRef<HTMLDivElement>(null);
+  const activeWorkspaceTabElement = useRef<HTMLDivElement>(null);
   const workspaceContent = useRef<HTMLDivElement>(null);
   const workspaceDock = useRef<HTMLElement>(null);
   const workspaceDockDrag = useRef<WorkspaceDockDrag | undefined>(undefined);
@@ -1485,6 +1540,7 @@ export function App() {
   const loadingEventThreads = useRef(new Set<string>());
   const pendingAgentEvents = useRef<AgentEvent[]>([]);
   const pendingAgentFrame = useRef<number | undefined>(undefined);
+  const reportedTurnPaints = useRef(new Set<string>());
   const promptInput = useRef<HTMLTextAreaElement>(null);
   const previousPendingUserInputId = useRef<string | undefined>(undefined);
   const modelPickerRoot = useRef<HTMLDivElement>(null);
@@ -1826,6 +1882,116 @@ export function App() {
   const activeWorkspaceTab = workspaceTabs.tabs.find(
     (tab) => tab.id === workspaceTabs.activeTabId,
   );
+
+  const syncWorkspaceTabScrollState = useCallback(() => {
+    const scroll = workspaceTabScroll.current;
+    const track = workspaceTabTrack.current;
+    if (!scroll || !track) return;
+
+    const hasOverflow = track.scrollWidth > scroll.clientWidth + 1;
+    const maxScrollLeft = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
+    const nextState: WorkspaceTabScrollState = {
+      hasOverflow,
+      canScrollLeft: hasOverflow && scroll.scrollLeft > 1,
+      canScrollRight: hasOverflow && scroll.scrollLeft < maxScrollLeft - 1,
+    };
+    setWorkspaceTabScrollState((current) =>
+      current.hasOverflow === nextState.hasOverflow &&
+      current.canScrollLeft === nextState.canScrollLeft &&
+      current.canScrollRight === nextState.canScrollRight
+        ? current
+        : nextState,
+    );
+  }, []);
+
+  const scrollWorkspaceTabs = useCallback((direction: -1 | 1) => {
+    const scroll = workspaceTabScroll.current;
+    if (!scroll) return;
+    scroll.scrollBy({
+      behavior: "smooth",
+      left: direction * Math.max(160, scroll.clientWidth * 0.72),
+    });
+  }, []);
+
+  const handleWorkspaceTabWheel = useCallback(
+    (event: ReactWheelEvent<HTMLDivElement>) => {
+      const scroll = event.currentTarget;
+      const maxScrollLeft = Math.max(
+        0,
+        scroll.scrollWidth - scroll.clientWidth,
+      );
+      if (maxScrollLeft <= 0) return;
+
+      const rawDelta =
+        Math.abs(event.deltaX) > Math.abs(event.deltaY)
+          ? event.deltaX
+          : event.deltaY;
+      const deltaScale =
+        event.deltaMode === 1
+          ? 16
+          : event.deltaMode === 2
+            ? scroll.clientWidth
+            : 1;
+      const nextScrollLeft = Math.max(
+        0,
+        Math.min(maxScrollLeft, scroll.scrollLeft + rawDelta * deltaScale),
+      );
+      if (Math.abs(nextScrollLeft - scroll.scrollLeft) < 0.5) return;
+
+      event.preventDefault();
+      scroll.scrollLeft = nextScrollLeft;
+      syncWorkspaceTabScrollState();
+    },
+    [syncWorkspaceTabScrollState],
+  );
+
+  useLayoutEffect(() => {
+    const scroll = workspaceTabScroll.current;
+    const track = workspaceTabTrack.current;
+    if (!workspaceDockOpen || !scroll || !track) {
+      setWorkspaceTabScrollState((current) =>
+        current.hasOverflow || current.canScrollLeft || current.canScrollRight
+          ? EMPTY_WORKSPACE_TAB_SCROLL_STATE
+          : current,
+      );
+      return;
+    }
+
+    syncWorkspaceTabScrollState();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(syncWorkspaceTabScrollState);
+    observer.observe(scroll);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, [
+    activeThreadId,
+    syncWorkspaceTabScrollState,
+    workspaceDockOpen,
+    workspaceTabScrollState.hasOverflow,
+  ]);
+
+  useLayoutEffect(() => {
+    const scroll = workspaceTabScroll.current;
+    const activeTab = activeWorkspaceTabElement.current;
+    if (!workspaceDockOpen || !scroll || !activeTab) return;
+
+    const scrollBounds = scroll.getBoundingClientRect();
+    const activeBounds = activeTab.getBoundingClientRect();
+    const edgeInset = workspaceTabScrollState.hasOverflow
+      ? WORKSPACE_TAB_SCROLL_INSET
+      : 0;
+    const hiddenLeft = activeBounds.left - (scrollBounds.left + edgeInset);
+    const hiddenRight = activeBounds.right - (scrollBounds.right - edgeInset);
+    const scrollDelta =
+      hiddenLeft < 0 ? hiddenLeft : hiddenRight > 0 ? hiddenRight : 0;
+    if (Math.abs(scrollDelta) > 1) {
+      scroll.scrollBy({ behavior: "smooth", left: scrollDelta });
+    }
+  }, [
+    activeWorkspaceTab?.id,
+    workspaceDockOpen,
+    workspaceTabScrollState.hasOverflow,
+  ]);
 
   const workspaceTabBaseTitle = useCallback(
     (kind: WorkspaceTabKind) => {
@@ -2463,55 +2629,80 @@ export function App() {
                 }),
         };
       });
+      const visibleText = batch.find(
+        (event) =>
+          event.threadId === activeThreadIdRef.current &&
+          event.turnId &&
+          event.payload.type === "message.part.delta" &&
+          event.payload.partType === "text" &&
+          event.payload.delta.length > 0 &&
+          !reportedTurnPaints.current.has(event.turnId),
+      );
+      if (visibleText?.turnId) {
+        const turnId = visibleText.turnId;
+        reportedTurnPaints.current.add(turnId);
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            window.artemis.reportTurnRendered(turnId, Date.now());
+          });
+        });
+      }
     };
-    const unsubscribe = window.artemis.onAgentEvent((event) => {
-      if (
-        event.payload.type === "agent-team.status" &&
-        !knownAgentTeamTabs.current.has(event.payload.teamId)
-      ) {
-        const teamStatus = event.payload;
-        knownAgentTeamTabs.current.add(teamStatus.teamId);
-        setWorkspaceTabsByThread((current) => ({
-          ...current,
-          [event.threadId]: reconcileAgentTeamWorkspaceTab(
-            current[event.threadId] ?? emptyWorkspaceTabs(),
-            agentTeamWorkspaceTab(
-              teamStatus.teamId,
-              copy[localeRef.current].agentTeam,
+    const receiveAgentEvents = (events: AgentEvent[]) => {
+      for (const event of events) {
+        if (
+          event.payload.type === "agent-team.status" &&
+          !knownAgentTeamTabs.current.has(event.payload.teamId)
+        ) {
+          const teamStatus = event.payload;
+          knownAgentTeamTabs.current.add(teamStatus.teamId);
+          setWorkspaceTabsByThread((current) => ({
+            ...current,
+            [event.threadId]: reconcileAgentTeamWorkspaceTab(
+              current[event.threadId] ?? emptyWorkspaceTabs(),
+              agentTeamWorkspaceTab(
+                teamStatus.teamId,
+                copy[localeRef.current].agentTeam,
+              ),
             ),
-          ),
-        }));
-        if (activeThreadIdRef.current === event.threadId) {
-          setWorkspaceDockOpen(true);
+          }));
+          if (activeThreadIdRef.current === event.threadId) {
+            setWorkspaceDockOpen(true);
+          }
+        }
+        if (event.payload.type === "turn.started") {
+          setTurnFailureNotices((current) =>
+            reduceTurnFailureNotices(current, {
+              type: "started",
+              threadId: event.threadId,
+            }),
+          );
+        }
+        if (event.payload.type === "turn.failed") {
+          const message = `${copy[localeRef.current].turnError} ${event.payload.message}`;
+          setTurnFailureNotices((current) =>
+            reduceTurnFailureNotices(current, {
+              type: "failed",
+              threadId: event.threadId,
+              message,
+            }),
+          );
         }
       }
-      if (event.payload.type === "turn.started") {
-        setTurnFailureNotices((current) =>
-          reduceTurnFailureNotices(current, {
-            type: "started",
-            threadId: event.threadId,
-          }),
-        );
-      }
-      if (event.payload.type === "turn.failed") {
-        const message = `${copy[localeRef.current].turnError} ${event.payload.message}`;
-        setTurnFailureNotices((current) =>
-          reduceTurnFailureNotices(current, {
-            type: "failed",
-            threadId: event.threadId,
-            message,
-          }),
-        );
-      }
-      pendingAgentEvents.current.push(event);
+      pendingAgentEvents.current.push(...events);
       if (pendingAgentFrame.current === undefined) {
         pendingAgentFrame.current =
           window.requestAnimationFrame(flushAgentEvents);
       }
+    };
+    const unsubscribe = window.artemis.onAgentEvent((event) => {
+      receiveAgentEvents([event]);
     });
+    const unsubscribeBatch = window.artemis.onAgentEvents(receiveAgentEvents);
     return () => {
       mounted = false;
       unsubscribe();
+      unsubscribeBatch();
       if (pendingAgentFrame.current !== undefined) {
         window.cancelAnimationFrame(pendingAgentFrame.current);
         pendingAgentFrame.current = undefined;
@@ -2605,6 +2796,12 @@ export function App() {
       reviewDiff?.files[0],
     [reviewDiff, selectedReviewFileId],
   );
+  useEffect(() => {
+    if (!activeThreadId) return;
+    void window.artemis.prepareThread(activeThreadId).catch(() => {
+      // Starting the turn reports an actionable error if background warming failed.
+    });
+  }, [activeThreadId]);
   useEffect(() => {
     if (
       !activeThreadId ||
@@ -2801,10 +2998,16 @@ export function App() {
     t.model;
   const activeModelSupportsReasoning =
     activeModel?.reasoning ?? activeProviderModel?.reasoning ?? false;
-  const activeThinkingLevel =
-    runtimeSettings?.selection &&
+  const activeModelHighestThinkingLevel =
+    activeModel?.highestThinkingLevel ?? "high";
+  const activeUltraMode =
     activeModelSupportsReasoning &&
-    runtimeSettings.selection.thinkingLevel !== "off"
+    runtimeSettings?.selection?.ultraMode === true;
+  const activeThinkingLevel = activeUltraMode
+    ? t.ultraMode
+    : runtimeSettings?.selection &&
+        activeModelSupportsReasoning &&
+        runtimeSettings.selection.thinkingLevel !== "off"
       ? thinkingLevelLabel(runtimeSettings.selection.thinkingLevel, locale)
       : undefined;
   const switchableModels = useMemo(() => {
@@ -2848,14 +3051,20 @@ export function App() {
       setModelPickerOpen(false);
       setBusy(true);
       try {
+        const preserveUltraMode =
+          model.reasoning && runtimeSettings.selection?.ultraMode === true;
         const updated = await window.artemis.setModelSelection({
           providerId: model.providerId,
           modelId: model.modelId,
           thinkingLevel: model.reasoning
-            ? runtimeSettings.selection?.thinkingLevel === "off"
-              ? "medium"
-              : (runtimeSettings.selection?.thinkingLevel ?? "medium")
+            ? preserveUltraMode
+              ? (model.highestThinkingLevel ?? "high")
+              : runtimeSettings.selection?.ultraMode === true ||
+                  runtimeSettings.selection?.thinkingLevel === "off"
+                ? "medium"
+                : (runtimeSettings.selection?.thinkingLevel ?? "medium")
             : "off",
+          ...(preserveUltraMode ? { ultraMode: true } : {}),
         });
         setRuntimeSettings(updated);
       } catch (error) {
@@ -2870,7 +3079,7 @@ export function App() {
   );
 
   const switchComposerThinking = useCallback(
-    async (thinkingLevel: ThinkingLevel) => {
+    async (thinkingLevel: ThinkingLevel, ultraMode = false) => {
       if (!runtimeSettings?.selection || turnActive || busy) return;
       setModelPickerOpen(false);
       setBusy(true);
@@ -2878,6 +3087,7 @@ export function App() {
         const updated = await window.artemis.setModelSelection({
           ...runtimeSettings.selection,
           thinkingLevel,
+          ultraMode,
         });
         setRuntimeSettings(updated);
       } catch (error) {
@@ -3731,6 +3941,7 @@ export function App() {
         threadId: currentThread.id,
         text,
         mode,
+        submittedAt,
         ...(pendingAttachments.length
           ? { attachments: pendingAttachments }
           : {}),
@@ -4446,7 +4657,7 @@ export function App() {
                         />
                         <span>
                           {runPresentation.status === "running"
-                            ? t.running
+                            ? statusLabel(threadState, locale)
                             : runPresentation.status === "waiting-approval"
                               ? t.waiting
                               : runPresentation.status === "waiting-user-input"
@@ -5328,9 +5539,11 @@ export function App() {
                                         : modelPickerThinkingLevels.map(
                                             (level) => {
                                               const selected =
-                                                level ===
                                                 runtimeSettings?.selection
-                                                  ?.thinkingLevel;
+                                                  ?.ultraMode !== true &&
+                                                level ===
+                                                  runtimeSettings?.selection
+                                                    ?.thinkingLevel;
                                               return (
                                                 <button
                                                   aria-checked={selected}
@@ -5361,6 +5574,31 @@ export function App() {
                                               );
                                             },
                                           )}
+                                      {modelPickerSection === "thinking" &&
+                                        activeModelSupportsReasoning && (
+                                          <button
+                                            aria-checked={activeUltraMode}
+                                            className={`ultra-mode-option${
+                                              activeUltraMode ? " selected" : ""
+                                            }`}
+                                            onClick={() =>
+                                              void switchComposerThinking(
+                                                activeModelHighestThinkingLevel,
+                                                true,
+                                              )
+                                            }
+                                            role="menuitemradio"
+                                            type="button"
+                                          >
+                                            <span>
+                                              <strong>{t.ultraMode}</strong>
+                                              <small>{t.ultraModeQuota}</small>
+                                            </span>
+                                            <b aria-hidden="true">
+                                              {activeUltraMode ? "✓" : ""}
+                                            </b>
+                                          </button>
+                                        )}
                                     </div>
                                   </div>
                                 )}
@@ -5464,47 +5702,93 @@ export function App() {
                     }
                   >
                     <div className="workspace-tab-bar" role="tablist">
-                      <div className="workspace-tab-scroll">
-                        {workspaceTabs.tabs.map((tab) => (
-                          <div
-                            className={
-                              workspaceTabs.activeTabId === tab.id
-                                ? "workspace-tab active"
-                                : "workspace-tab"
-                            }
-                            key={tab.id}
+                      <div
+                        className="workspace-tab-scroll-shell"
+                        data-overflow={workspaceTabScrollState.hasOverflow}
+                      >
+                        {workspaceTabScrollState.hasOverflow && (
+                          <button
+                            aria-label={t.scrollTabsLeft}
+                            className="workspace-tab-scroll-button left"
+                            disabled={!workspaceTabScrollState.canScrollLeft}
+                            onClick={() => scrollWorkspaceTabs(-1)}
+                            title={t.scrollTabsLeft}
+                            type="button"
                           >
-                            <button
-                              aria-selected={
-                                workspaceTabs.activeTabId === tab.id
-                              }
-                              className="workspace-tab-select"
-                              onClick={() =>
-                                dispatchWorkspaceTab({
-                                  type: "activate",
-                                  tabId: tab.id,
-                                })
-                              }
-                              role="tab"
-                              title={tab.path ?? tab.title}
-                            >
-                              <WorkspaceTabIcon
-                                identity={tab.childAgentId ?? tab.agentTeamId}
-                                kind={tab.kind}
-                                path={tab.path}
-                              />
-                              <span>{tab.title}</span>
-                            </button>
-                            <button
-                              aria-label={`${t.closeTab}: ${tab.title}`}
-                              className="workspace-tab-close"
-                              onClick={() => closeWorkspaceTab(tab.id)}
-                              title={t.closeTab}
-                            >
-                              <CloseIcon />
-                            </button>
+                            <TabScrollIcon direction="left" />
+                          </button>
+                        )}
+                        <div
+                          className="workspace-tab-scroll"
+                          onScroll={syncWorkspaceTabScrollState}
+                          onWheel={handleWorkspaceTabWheel}
+                          ref={workspaceTabScroll}
+                        >
+                          <div
+                            className="workspace-tab-track"
+                            ref={workspaceTabTrack}
+                          >
+                            {workspaceTabs.tabs.map((tab) => (
+                              <div
+                                className={
+                                  workspaceTabs.activeTabId === tab.id
+                                    ? "workspace-tab active"
+                                    : "workspace-tab"
+                                }
+                                key={tab.id}
+                                ref={
+                                  workspaceTabs.activeTabId === tab.id
+                                    ? activeWorkspaceTabElement
+                                    : undefined
+                                }
+                              >
+                                <button
+                                  aria-selected={
+                                    workspaceTabs.activeTabId === tab.id
+                                  }
+                                  className="workspace-tab-select"
+                                  onClick={() =>
+                                    dispatchWorkspaceTab({
+                                      type: "activate",
+                                      tabId: tab.id,
+                                    })
+                                  }
+                                  role="tab"
+                                  title={tab.path ?? tab.title}
+                                >
+                                  <WorkspaceTabIcon
+                                    identity={
+                                      tab.childAgentId ?? tab.agentTeamId
+                                    }
+                                    kind={tab.kind}
+                                    path={tab.path}
+                                  />
+                                  <span>{tab.title}</span>
+                                </button>
+                                <button
+                                  aria-label={`${t.closeTab}: ${tab.title}`}
+                                  className="workspace-tab-close"
+                                  onClick={() => closeWorkspaceTab(tab.id)}
+                                  title={t.closeTab}
+                                >
+                                  <CloseIcon />
+                                </button>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        </div>
+                        {workspaceTabScrollState.hasOverflow && (
+                          <button
+                            aria-label={t.scrollTabsRight}
+                            className="workspace-tab-scroll-button right"
+                            disabled={!workspaceTabScrollState.canScrollRight}
+                            onClick={() => scrollWorkspaceTabs(1)}
+                            title={t.scrollTabsRight}
+                            type="button"
+                          >
+                            <TabScrollIcon direction="right" />
+                          </button>
+                        )}
                       </div>
                       <div className="workspace-tab-add-wrap">
                         <button
@@ -7342,7 +7626,34 @@ function Timeline({
   onResolveUserInput: (resolution: UserInputResolution) => Promise<void>;
 }) {
   const t = copy[locale];
-  const timelineEntries = groupTimelineActivities(state.order, state.tools);
+  const timelineCache = useRef<{
+    entries: ReturnType<typeof groupTimelineActivities>;
+    orderLength: number;
+    lastEntry?: string;
+  }>(undefined);
+  const timelineEntries = useMemo(() => {
+    const cached = timelineCache.current;
+    const prefixMatches =
+      cached &&
+      cached.orderLength <= state.order.length &&
+      (cached.orderLength === 0 ||
+        state.order[cached.orderLength - 1] === cached.lastEntry);
+    const entries = prefixMatches
+      ? appendTimelineActivities(
+          cached.entries,
+          state.order,
+          state.tools,
+          cached.orderLength,
+        )
+      : groupTimelineActivities(state.order, state.tools);
+    const lastEntry = state.order.at(-1);
+    timelineCache.current = {
+      entries,
+      orderLength: state.order.length,
+      ...(lastEntry ? { lastEntry } : {}),
+    };
+    return entries;
+  }, [state.order, state.tools]);
   const activeToolGroupKey =
     state.status === "running" && state.queue.steering.length === 0
       ? latestVisibleToolGroupKey(timelineEntries, state.messageParts)

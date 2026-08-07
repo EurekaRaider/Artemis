@@ -107,7 +107,13 @@ interface AutomationRunRow {
   updated_at: string;
 }
 
-const DATABASE_VERSION = 8;
+const DATABASE_VERSION = 9;
+
+export interface EventAppendInput {
+  eventId: string;
+  turnId?: string;
+  payload: AgentPayload;
+}
 
 export interface ApprovalGrant {
   scope: Exclude<ApprovalScope, "once">;
@@ -404,8 +410,14 @@ export class AppStore {
       .get() as {
       user_version: number;
     };
-    if (databaseVersion.user_version < DATABASE_VERSION) {
+    if (databaseVersion.user_version < 8) {
       this.migrateRunModes();
+    }
+    const migratedVersion = this.database
+      .prepare("PRAGMA user_version")
+      .get() as { user_version: number };
+    if (migratedVersion.user_version < DATABASE_VERSION) {
+      this.migrateEventProtocol();
     }
   }
 
@@ -485,7 +497,7 @@ export class AppStore {
         SET body = json_set(body, '$.protocolVersion', ${PROTOCOL_VERSION})
         WHERE json_extract(body, '$.protocolVersion') < ${PROTOCOL_VERSION};
 
-        PRAGMA user_version = ${DATABASE_VERSION};
+        PRAGMA user_version = 8;
         COMMIT;
       `);
     } catch (error) {
@@ -504,6 +516,26 @@ export class AppStore {
       .all() as unknown[];
     if (violations.length > 0) {
       throw new Error("Run mode migration produced invalid references.");
+    }
+  }
+
+  private migrateEventProtocol(): void {
+    try {
+      this.database.exec(`
+        BEGIN IMMEDIATE;
+        UPDATE events
+        SET body = json_set(body, '$.protocolVersion', ${PROTOCOL_VERSION})
+        WHERE json_extract(body, '$.protocolVersion') < ${PROTOCOL_VERSION};
+        PRAGMA user_version = ${DATABASE_VERSION};
+        COMMIT;
+      `);
+    } catch (error) {
+      try {
+        this.database.exec("ROLLBACK");
+      } catch {
+        // The migration failed before opening its transaction.
+      }
+      throw error;
     }
   }
 
@@ -1355,32 +1387,79 @@ export class AppStore {
     turnId: string | undefined,
     payload: AgentPayload,
   ): AgentEvent {
+    return this.appendEventsCore(threadId, [
+      { eventId, ...(turnId ? { turnId } : {}), payload },
+    ])[0]!;
+  }
+
+  appendEvents(
+    threadId: string,
+    inputs: readonly EventAppendInput[],
+  ): AgentEvent[] {
+    if (inputs.length === 0) return [];
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const events = this.appendEventsCore(threadId, inputs);
+      this.database.exec("COMMIT");
+      return events;
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  appendEventsAndUpdateThread(
+    threadId: string,
+    inputs: readonly EventAppendInput[],
+    changes: Partial<
+      Pick<Thread, "title" | "mode" | "target" | "status" | "sessionFile">
+    > & { goal?: string | null },
+  ): { events: AgentEvent[]; thread: Thread } {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const events = this.appendEventsCore(threadId, inputs);
+      const thread = this.updateThread(threadId, changes);
+      this.database.exec("COMMIT");
+      return { events, thread };
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  private appendEventsCore(
+    threadId: string,
+    inputs: readonly EventAppendInput[],
+  ): AgentEvent[] {
+    if (inputs.length === 0) return [];
     const seqRow = this.database
       .prepare(
         "SELECT COALESCE(MAX(seq), -1) + 1 AS next_seq FROM events WHERE thread_id = ?",
       )
       .get(threadId) as { next_seq: number };
-    const event = agentEventSchema.parse({
-      protocolVersion: PROTOCOL_VERSION,
-      eventId,
-      threadId,
-      ...(turnId ? { turnId } : {}),
-      seq: seqRow.next_seq,
-      timestamp: new Date().toISOString(),
-      payload: persistentAgentPayload(payload),
-    });
-    this.database
-      .prepare(
-        "INSERT INTO events (event_id, thread_id, seq, body, created_at) VALUES (?, ?, ?, ?, ?)",
-      )
-      .run(
+    const insert = this.database.prepare(
+      "INSERT INTO events (event_id, thread_id, seq, body, created_at) VALUES (?, ?, ?, ?, ?)",
+    );
+    const timestamp = new Date().toISOString();
+    return inputs.map((input, index) => {
+      const event = agentEventSchema.parse({
+        protocolVersion: PROTOCOL_VERSION,
+        eventId: input.eventId,
+        threadId,
+        ...(input.turnId ? { turnId: input.turnId } : {}),
+        seq: seqRow.next_seq + index,
+        timestamp,
+        payload: persistentAgentPayload(input.payload),
+      });
+      insert.run(
         event.eventId,
         event.threadId,
         event.seq,
         JSON.stringify(event),
         event.timestamp,
       );
-    return event;
+      return event;
+    });
   }
 
   getThreadEvents(threadId: string): AgentEvent[] {

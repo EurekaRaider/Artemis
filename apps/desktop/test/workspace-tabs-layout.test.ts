@@ -150,6 +150,42 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(cssRule(".workspace-tab-bar")).toMatch(/\bdisplay:\s*flex/u);
   });
 
+  it("adds overflow arrows plus touchpad and mouse-wheel tab scrolling", () => {
+    const tabBarStart = appSource.indexOf('className="workspace-tab-bar"');
+    const tabBarEnd = appSource.indexOf(
+      'className="workspace-tab-content"',
+      tabBarStart,
+    );
+    const tabBarSource = appSource.slice(tabBarStart, tabBarEnd);
+    const scrollRule = cssRule(".workspace-tab-scroll");
+    const scrollTrackRule = cssRule(".workspace-tab-track");
+    const scrollButtonRule = cssRule(".workspace-tab-scroll-button");
+
+    expect(tabBarSource).toContain('className="workspace-tab-scroll-shell"');
+    expect(tabBarSource).toContain("workspaceTabScrollState.hasOverflow");
+    expect(tabBarSource).toContain("scrollWorkspaceTabs(-1)");
+    expect(tabBarSource).toContain("scrollWorkspaceTabs(1)");
+    expect(tabBarSource).toContain("onWheel={handleWorkspaceTabWheel}");
+    expect(tabBarSource).toContain(
+      "disabled={!workspaceTabScrollState.canScrollLeft}",
+    );
+    expect(tabBarSource).toContain(
+      "disabled={!workspaceTabScrollState.canScrollRight}",
+    );
+    expect(appSource).toContain(
+      "new ResizeObserver(syncWorkspaceTabScrollState)",
+    );
+    expect(appSource).toContain("activeWorkspaceTabElement");
+    expect(scrollRule).toMatch(/\boverflow-x:\s*auto/u);
+    expect(scrollTrackRule).toMatch(/\bwidth:\s*max-content/u);
+    expect(scrollButtonRule).toMatch(/\bposition:\s*absolute/u);
+    expect(
+      cssRule(
+        '.workspace-tab-scroll-shell[data-overflow="true"] .workspace-tab-scroll',
+      ),
+    ).toMatch(/\bpadding-inline:\s*32px/u);
+  });
+
   it("collapses only when the user closes the last workspace tab", () => {
     const handlerStart = appSource.indexOf(
       "const closeWorkspaceTab = useCallback(",
@@ -308,7 +344,7 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(appSource).toContain("<WorkspaceFileIcon");
     expect(tabIconSource).toContain("path={path}");
     expect(appSource).toMatch(
-      /<WorkspaceTabIcon[\s\S]{0,160}?kind=\{tab\.kind\}[\s\S]{0,160}?path=\{tab\.path\}/u,
+      /<WorkspaceTabIcon[\s\S]{0,240}?kind=\{tab\.kind\}[\s\S]{0,160}?path=\{tab\.path\}/u,
     );
     expect(tabIconSource).toMatch(
       /kind === "file"[\s\S]*?path\s*\?[\s\S]*?<WorkspaceFileIcon[\s\S]*?:\s*\(?\s*<FilesIcon/u,

@@ -13,7 +13,10 @@ import {
   shouldReloadBrowserForLocaleChange,
   type BrowserLocale,
 } from "../shared/browser-locale.js";
-import { normalizeBrowserAddress } from "./browser-navigation.js";
+import {
+  browserNavigationSnapshot,
+  normalizeBrowserAddress,
+} from "./browser-navigation.js";
 import { MarkdownContent } from "./MarkdownContent.js";
 
 interface WorkspacePreviewProps {
@@ -94,6 +97,7 @@ function useWorkspaceTextFile({
 
 export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
   const webviewRef = useRef<Electron.WebviewTag>(null);
+  const webviewReadyRef = useRef(false);
   const previousLocaleRef = useRef(props.locale);
   const workspaceDocumentRef = useRef<
     { label: string; url: string } | undefined
@@ -103,6 +107,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
   const [canGoForward, setCanGoForward] = useState(false);
   const [navigationError, setNavigationError] = useState<string>();
   const [pageLoading, setPageLoading] = useState(false);
+  const [webviewReady, setWebviewReady] = useState(false);
   const { error, file, loading, refresh } = useWorkspaceTextFile(props);
   const workspaceDocument = useMemo(
     () =>
@@ -122,17 +127,28 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
     const webview = webviewRef.current;
     if (!webview) return;
 
-    const syncNavigation = (url = webview.getURL()) => {
+    const syncNavigation = (url?: string) => {
+      const navigation = browserNavigationSnapshot(
+        webview,
+        webviewReadyRef.current,
+        url,
+      );
+      if (!navigation) return;
       const workspace = workspaceDocumentRef.current;
       setAddress(
-        workspace?.url === url
+        workspace?.url === navigation.url
           ? workspace.label
-          : url === "about:blank"
+          : navigation.url === "about:blank"
             ? ""
-            : url,
+            : navigation.url,
       );
-      setCanGoBack(webview.canGoBack());
-      setCanGoForward(webview.canGoForward());
+      setCanGoBack(navigation.canGoBack);
+      setCanGoForward(navigation.canGoForward);
+    };
+    const handleDomReady = () => {
+      webviewReadyRef.current = true;
+      setWebviewReady(true);
+      syncNavigation();
     };
     const handleNavigate = (event: Electron.DidNavigateEvent) => {
       setNavigationError(undefined);
@@ -152,12 +168,15 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
       }
     };
 
+    webview.addEventListener("dom-ready", handleDomReady);
     webview.addEventListener("did-navigate", handleNavigate);
     webview.addEventListener("did-navigate-in-page", handleNavigateInPage);
     webview.addEventListener("did-start-loading", handleStartLoading);
     webview.addEventListener("did-stop-loading", handleStopLoading);
     webview.addEventListener("did-fail-load", handleFailedLoad);
     return () => {
+      webviewReadyRef.current = false;
+      webview.removeEventListener("dom-ready", handleDomReady);
       webview.removeEventListener("did-navigate", handleNavigate);
       webview.removeEventListener("did-navigate-in-page", handleNavigateInPage);
       webview.removeEventListener("did-start-loading", handleStartLoading);
@@ -178,24 +197,32 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
     previousLocaleRef.current = props.locale;
 
     const webview = webviewRef.current;
+    const navigation = webview
+      ? browserNavigationSnapshot(webview, webviewReadyRef.current)
+      : undefined;
     if (
       !webview ||
+      !navigation ||
       !shouldReloadBrowserForLocaleChange(
         previousLocale,
         props.locale,
-        webview.getURL(),
+        navigation.url,
       )
     ) {
       return;
     }
-    setNavigationError(undefined);
-    webview.reloadIgnoringCache();
+    try {
+      webview.reloadIgnoringCache();
+      setNavigationError(undefined);
+    } catch {
+      // The WebView may detach between reading its state and reloading it.
+    }
   }, [props.locale]);
 
   const navigate = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const webview = webviewRef.current;
-    if (!webview) return;
+    if (!webview || !webviewReadyRef.current) return;
     try {
       const url = normalizeBrowserAddress(address);
       setNavigationError(undefined);
@@ -211,9 +238,21 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
     }
   };
 
+  const runWhenWebviewReady = (
+    action: (webview: Electron.WebviewTag) => void,
+  ) => {
+    const webview = webviewRef.current;
+    if (!webview || !webviewReadyRef.current) return;
+    try {
+      action(webview);
+    } catch {
+      // Navigation controls are inert while the WebView is detaching.
+    }
+  };
+
   const reload = () => {
     refresh();
-    webviewRef.current?.reload();
+    runWhenWebviewReady((webview) => webview.reload());
   };
 
   return (
@@ -222,23 +261,25 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
         <div className="browser-navigation-actions">
           <button
             aria-label={props.backLabel}
-            disabled={!canGoBack}
-            onClick={() => webviewRef.current?.goBack()}
+            disabled={!webviewReady || !canGoBack}
+            onClick={() => runWhenWebviewReady((webview) => webview.goBack())}
             title={props.backLabel}
           >
             ←
           </button>
           <button
             aria-label={props.forwardLabel}
-            disabled={!canGoForward}
-            onClick={() => webviewRef.current?.goForward()}
+            disabled={!webviewReady || !canGoForward}
+            onClick={() =>
+              runWhenWebviewReady((webview) => webview.goForward())
+            }
             title={props.forwardLabel}
           >
             →
           </button>
           <button
             aria-label={props.refreshLabel}
-            disabled={pageLoading && loading}
+            disabled={!webviewReady || (pageLoading && loading)}
             onClick={reload}
             title={props.refreshLabel}
           >
@@ -254,7 +295,11 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
             spellCheck={false}
             value={address}
           />
-          <button className="browser-go-button" type="submit">
+          <button
+            className="browser-go-button"
+            disabled={!webviewReady}
+            type="submit"
+          >
             {props.goLabel}
           </button>
         </form>

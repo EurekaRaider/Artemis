@@ -88,6 +88,7 @@ type ResolveWindowsCommandShim = (
 ) => ResolvedWindowsStdioCommand | undefined;
 
 const MAX_STDIO_STDERR_BYTES = 64 * 1024;
+export const MCP_STARTUP_TIMEOUT_MS = 15_000;
 const SECRET_ARGUMENTS = new Set([
   "--api-key",
   "--bearer-token",
@@ -812,7 +813,66 @@ export class McpClientManager {
         close: () => client.close(),
       };
     },
+    private readonly startupTimeoutMs = MCP_STARTUP_TIMEOUT_MS,
   ) {}
+
+  private withStartupDeadline<T>(
+    promise: Promise<T>,
+    serverId: string,
+    stage: "connection" | "listTools",
+  ): Promise<T> {
+    return new Promise<T>((resolvePromise, rejectPromise) => {
+      const timer = setTimeout(() => {
+        rejectPromise(
+          new Error(
+            `MCP server ${serverId} ${stage} timed out after ${this.startupTimeoutMs} ms.`,
+          ),
+        );
+      }, this.startupTimeoutMs);
+      promise.then(
+        (value) => {
+          clearTimeout(timer);
+          resolvePromise(value);
+        },
+        (error) => {
+          clearTimeout(timer);
+          rejectPromise(error);
+        },
+      );
+    });
+  }
+
+  private async startConnection(
+    config: McpServerConfig,
+    authentication: McpConnectionAuthentication | undefined,
+    scope?: McpExecutionScope,
+  ): Promise<{ client: McpConnection; listed: { tools: McpTool[] } }> {
+    const clientPromise = this.factory(config, authentication, scope);
+    let client: McpConnection;
+    try {
+      client = await this.withStartupDeadline(
+        clientPromise,
+        config.id,
+        "connection",
+      );
+    } catch (error) {
+      void clientPromise
+        .then((lateClient) => lateClient.close())
+        .catch(() => undefined);
+      throw error;
+    }
+    try {
+      const listed = await this.withStartupDeadline(
+        client.listTools(),
+        config.id,
+        "listTools",
+      );
+      return { client, listed };
+    } catch (error) {
+      void client.close().catch(() => undefined);
+      throw error;
+    }
+  }
 
   async connect(
     config: McpServerConfig,
@@ -831,8 +891,10 @@ export class McpClientManager {
       tools: [],
     });
     try {
-      const client = await this.factory(config, resolvedAuthentication);
-      const listed = await client.listTools();
+      const { client, listed } = await this.startConnection(
+        config,
+        resolvedAuthentication,
+      );
       const tools = listed.tools.map((tool) => ({
         serverId: config.id,
         serverName: config.name,
@@ -962,12 +1024,15 @@ export class McpClientManager {
     if (existing) return existing;
 
     const pending = (async () => {
-      const client = await this.factory(active.config, active.authentication, {
-        workspacePath: normalizedWorkspace,
-        mode,
-      });
+      const { client, listed } = await this.startConnection(
+        active.config,
+        active.authentication,
+        {
+          workspacePath: normalizedWorkspace,
+          mode,
+        },
+      );
       try {
-        const listed = await client.listTools();
         const tools = listed.tools.map((tool) => ({
           serverId: active.config.id,
           serverName: active.config.name,

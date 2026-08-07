@@ -1,4 +1,5 @@
 import type { AgentModelInfo } from "@artemis/protocol";
+import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import {
   getBuiltinModels,
   getBuiltinProviders,
@@ -35,6 +36,7 @@ export async function loadBundledModelCatalog(): Promise<AgentModelInfo[]> {
       modelId: model.id,
       name: model.name,
       reasoning: model.reasoning,
+      highestThinkingLevel: getSupportedThinkingLevels(model).at(-1) ?? "off",
       contextWindow: model.contextWindow,
       configured: false,
     })),

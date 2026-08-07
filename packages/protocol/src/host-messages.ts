@@ -33,6 +33,7 @@ export interface ModelSelection {
   providerId: string;
   modelId: string;
   thinkingLevel: ThinkingLevel;
+  ultraMode?: boolean;
 }
 
 export interface McpRuntimeTool {
@@ -75,6 +76,7 @@ export interface AgentModelInfo {
   modelId: string;
   name: string;
   reasoning: boolean;
+  highestThinkingLevel?: ThinkingLevel;
   contextWindow: number;
   configured: boolean;
 }
@@ -284,6 +286,12 @@ export type BrokerExecutionRequest =
       mode: RunMode;
     };
 
+export interface AgentHostEvent {
+  threadId: string;
+  turnId?: string;
+  payload: AgentPayload;
+}
+
 export type AgentHostMessage =
   | {
       type: "response";
@@ -302,6 +310,17 @@ export type AgentHostMessage =
       threadId: string;
       turnId?: string;
       payload: AgentPayload;
+    }
+  | {
+      type: "events";
+      events: AgentHostEvent[];
+    }
+  | {
+      type: "turn.telemetry";
+      threadId: string;
+      turnId: string;
+      stage: "host-received";
+      timestamp: number;
     }
   | {
       type: "broker.request";
