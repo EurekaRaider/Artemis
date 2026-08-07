@@ -60,6 +60,15 @@ function longestStreak(cells: readonly TokenUsageCell[]): number {
   return longest;
 }
 
+function currentStreak(cells: readonly TokenUsageCell[]): number {
+  let streak = 0;
+  for (let index = cells.length - 1; index >= 0; index -= 1) {
+    if (cells[index]!.dailyTokens <= 0) break;
+    streak += 1;
+  }
+  return streak;
+}
+
 function intensity(value: number, maximum: number): number {
   if (value <= 0 || maximum <= 0) return 0;
   return Math.max(1, Math.ceil((value / maximum) * 4));
@@ -75,6 +84,7 @@ export function TokenUsagePage({
   const t = TOKEN_USAGE_COPY[locale];
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [view, setView] = useState<TokenUsageView>("daily");
   const [hovered, setHovered] = useState<TokenUsageCell>();
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -93,7 +103,9 @@ export function TokenUsagePage({
           setEvents((current) => mergeUsageEvents(history, current));
         }
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (mounted) setLoadError(true);
+      })
       .finally(() => {
         if (mounted) setLoading(false);
       });
@@ -126,6 +138,22 @@ export function TokenUsagePage({
   const peakDay = Math.max(0, ...allCells.map((cell) => cell.dailyTokens));
   const peakWeek = Math.max(0, ...allCells.map((cell) => cell.weeklyTokens));
   const activeDays = allCells.filter((cell) => cell.dailyTokens > 0).length;
+  const mostActiveCell = allCells.reduce<TokenUsageCell | undefined>(
+    (peak, cell) =>
+      !peak || cell.dailyTokens > peak.dailyTokens ? cell : peak,
+    undefined,
+  );
+  const usageTotals = events.reduce(
+    (totals, event) => {
+      if (event.payload.type !== "assistant.usage") return totals;
+      totals.input += event.payload.inputTokens;
+      totals.output += event.payload.outputTokens;
+      totals.cacheRead += event.payload.cacheReadTokens;
+      totals.cacheWrite += event.payload.cacheWriteTokens;
+      return totals;
+    },
+    { cacheRead: 0, cacheWrite: 0, input: 0, output: 0 },
+  );
   const number = new Intl.NumberFormat(locale, {
     notation: "compact",
     maximumFractionDigits: 1,
@@ -133,6 +161,10 @@ export function TokenUsagePage({
   const exactNumber = new Intl.NumberFormat(locale);
   const monthFormatter = new Intl.DateTimeFormat(locale, {
     month: "short",
+    timeZone: "UTC",
+  });
+  const detailDateFormatter = new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
     timeZone: "UTC",
   });
   const monthLabels = cells.flatMap((cell, index) => {
@@ -156,15 +188,68 @@ export function TokenUsagePage({
       value: `${exactNumber.format(longestStreak(allCells))} ${t.days}`,
     },
   ];
+  const observations = [
+    {
+      label: t.averageActiveDay,
+      value: number.format(activeDays === 0 ? 0 : totalTokens / activeDays),
+    },
+    {
+      label: t.mostActiveDay,
+      value:
+        mostActiveCell && mostActiveCell.dailyTokens > 0
+          ? detailDateFormatter.format(
+              new Date(`${mostActiveCell.date}T12:00:00.000Z`),
+            )
+          : "—",
+    },
+    {
+      label: t.currentStreak,
+      value: `${exactNumber.format(currentStreak(cells))} ${t.days}`,
+    },
+    {
+      label: t.recordedSpan,
+      value: `${exactNumber.format(activeDays)} ${t.ofDays.replace(
+        "{total}",
+        exactNumber.format(allCells.length),
+      )}`,
+    },
+    {
+      label: t.recordedResponses,
+      value: exactNumber.format(events.length),
+    },
+  ];
+  const composition = [
+    { label: t.inputTokens, tone: "input", value: usageTotals.input },
+    { label: t.outputTokens, tone: "output", value: usageTotals.output },
+    {
+      label: t.cacheReadTokens,
+      tone: "cache-read",
+      value: usageTotals.cacheRead,
+    },
+    {
+      label: t.cacheWriteTokens,
+      tone: "cache-write",
+      value: usageTotals.cacheWrite,
+    },
+  ];
 
   return (
-    <section className="token-usage-page">
+    <section
+      aria-busy={loading}
+      className={`token-usage-page${loading ? " is-loading" : ""}`}
+    >
       <header className="token-usage-profile">
         <div aria-hidden="true" className="token-usage-avatar">
           {userInitials(username)}
         </div>
         <h1>{username}</h1>
-        <p>{t.subtitle}</p>
+        <p title={t.subtitle}>
+          <span className="token-usage-handle">@{username}</span>
+          <span aria-hidden="true" className="token-usage-profile-separator">
+            ·
+          </span>
+          <span className="token-usage-profile-badge">Artemis</span>
+        </p>
       </header>
 
       <section className="token-usage-summary" aria-label={t.title}>
@@ -249,11 +334,51 @@ export function TokenUsagePage({
             </div>
           </div>
         </div>
-        {loading ? (
-          <p className="token-usage-empty">{t.loading}</p>
+        {loadError ? (
+          <p className="token-usage-empty error" role="alert">
+            {t.error}
+          </p>
+        ) : loading ? (
+          <p aria-live="polite" className="token-usage-empty" role="status">
+            {t.loading}
+          </p>
         ) : events.length === 0 ? (
-          <p className="token-usage-empty">{t.empty}</p>
+          <p className="token-usage-empty" role="status">
+            {t.empty}
+          </p>
         ) : null}
+      </section>
+
+      <section className="token-usage-details" aria-label={t.insights}>
+        <div className="token-usage-detail-block">
+          <h2>{t.insights}</h2>
+          <dl className="token-usage-detail-list">
+            {observations.map((item) => (
+              <div className="token-usage-detail-row" key={item.label}>
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        <div className="token-usage-detail-block">
+          <h2>{t.tokenComposition}</h2>
+          <dl className="token-usage-detail-list">
+            {composition.map((item) => (
+              <div className="token-usage-detail-row" key={item.label}>
+                <dt className="token-usage-composition-label">
+                  <span
+                    aria-hidden="true"
+                    className={`token-usage-composition-marker ${item.tone}`}
+                  />
+                  {item.label}
+                </dt>
+                <dd>{number.format(item.value)}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </section>
     </section>
   );

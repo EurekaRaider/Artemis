@@ -99,6 +99,8 @@ describe("token usage activity", () => {
       daily: "Daily",
       weekly: "Weekly",
       cumulative: "Cumulative",
+      insights: "Activity insights",
+      tokenComposition: "Token composition",
     });
     expect(TOKEN_USAGE_COPY["zh-CN"]).toMatchObject({
       title: "Token 用量",
@@ -106,6 +108,8 @@ describe("token usage activity", () => {
       daily: "每日",
       weekly: "每周",
       cumulative: "累计",
+      insights: "活动观察",
+      tokenComposition: "Token 构成",
     });
   });
 });

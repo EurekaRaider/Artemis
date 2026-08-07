@@ -79,6 +79,11 @@ describe("current user profile integration", () => {
     expect(profile).toContain('className="token-usage-avatar"');
     expect(profile).toContain("{userInitials(username)}");
     expect(profile).toContain("<h1>{username}</h1>");
+    expect(profile).toContain('className="token-usage-handle"');
+    expect(profile).toContain("@{username}");
+    expect(profile).toContain('className="token-usage-profile-badge"');
+    expect(pageSource).toContain('className="token-usage-details"');
+    expect(pageSource).toContain("usageTotals.input");
     expect(stylesSource).toMatch(
       /\.token-usage-profile\s*\{(?=[^}]*align-items:\s*center)(?=[^}]*flex-direction:\s*column)(?=[^}]*text-align:\s*center)[^}]*\}/u,
     );
