@@ -45,7 +45,11 @@ function parseSteps(input: unknown): TaskPlanStep[] | undefined {
   return steps;
 }
 
-export function deriveTaskPlan(events: AgentEvent[]): TaskPlan | undefined {
+export function deriveTaskPlan(
+  events: AgentEvent[],
+  turnActive: boolean,
+): TaskPlan | undefined {
+  if (!turnActive) return undefined;
   const latestTurnIndex = events.findLastIndex(
     (event) => event.payload.type === "turn.started",
   );

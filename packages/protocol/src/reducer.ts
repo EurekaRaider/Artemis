@@ -453,6 +453,8 @@ function applyAgentEvent(
       };
       return;
     }
+    case "queue.recovered":
+      return;
     case "terminal.output":
       return;
     case "turn.completed": {

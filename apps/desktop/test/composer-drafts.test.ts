@@ -5,6 +5,7 @@ import {
   composerDraftFor,
   conversationDraftKey,
   moveComposerDraft,
+  restoreComposerMessages,
   updateComposerDraft,
   type ComposerDrafts,
 } from "../src/renderer/composer-drafts.js";
@@ -81,5 +82,22 @@ describe("conversation composer drafts", () => {
       prompt: "keep this draft",
       selectedSkillNames: ["pdf"],
     });
+  });
+
+  it("restores unexecuted queued messages ahead of the existing draft", () => {
+    const key = conversationDraftKey("project-1", "thread-1");
+    const drafts = updateComposerDraft({}, key, (current) => ({
+      ...current,
+      prompt: "new draft text",
+    }));
+
+    const restored = restoreComposerMessages(drafts, key, [
+      "first unexecuted message",
+      "second unexecuted message",
+    ]);
+
+    expect(composerDraftFor(restored, key).prompt).toBe(
+      "first unexecuted message\n\nsecond unexecuted message\n\nnew draft text",
+    );
   });
 });

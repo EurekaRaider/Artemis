@@ -235,6 +235,8 @@ export class PiAdapter {
   private sawAssistantContent = false;
   private emittedThinkingActivity = false;
   private turnFailed = false;
+  private pendingFailureMessage: string | undefined;
+  private turnAborted = false;
   private readonly toolNames = new Map<string, string>();
   private userMessageCount = 0;
 
@@ -356,12 +358,18 @@ export class PiAdapter {
           event.message?.role === "assistant" &&
           event.message.stopReason === "error"
         ) {
-          this.turnFailed = true;
-          payloads.push({
-            type: "turn.failed",
-            message:
-              event.message.errorMessage?.trim() || "The model request failed.",
-          });
+          this.pendingFailureMessage =
+            event.message.errorMessage?.trim() || "The model request failed.";
+          this.turnAborted = false;
+        } else if (
+          event.message?.role === "assistant" &&
+          event.message.stopReason === "aborted"
+        ) {
+          this.pendingFailureMessage = undefined;
+          this.turnAborted = true;
+        } else if (event.message?.role === "assistant") {
+          this.pendingFailureMessage = undefined;
+          this.turnAborted = false;
         }
         if (event.message?.role === "assistant") {
           this.activeMessageId = undefined;
@@ -417,6 +425,13 @@ export class PiAdapter {
         return [];
       case "agent_settled": {
         if (this.turnFailed) {
+          return [];
+        }
+        if (this.pendingFailureMessage) {
+          this.turnFailed = true;
+          return [{ type: "turn.failed", message: this.pendingFailureMessage }];
+        }
+        if (this.turnAborted) {
           return [];
         }
         if (this.sawAssistantMessage && !this.sawAssistantContent) {

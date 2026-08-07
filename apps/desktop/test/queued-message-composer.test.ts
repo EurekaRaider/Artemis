@@ -176,4 +176,15 @@ describe("Codex-style queued message composer", () => {
     );
     expect(timelineSource).toContain("{message}");
   });
+
+  it("restores terminally unexecuted queue messages to the owning draft once", () => {
+    expect(appSource).toContain('event.payload.type === "queue.recovered"');
+    expect(appSource).toContain(
+      "recoveredQueueEventIds.current.has(event.eventId)",
+    );
+    expect(appSource).toContain(
+      "conversationDraftKey(undefined, event.threadId)",
+    );
+    expect(appSource).toContain("restoreComposerMessages(");
+  });
 });

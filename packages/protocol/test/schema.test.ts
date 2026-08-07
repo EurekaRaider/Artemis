@@ -31,6 +31,26 @@ describe("turn activity schema", () => {
   });
 });
 
+describe("queued message recovery schema", () => {
+  it("preserves messages that were not executed before a turn stopped", () => {
+    expect(
+      agentPayloadSchema.parse({
+        type: "queue.recovered",
+        messages: ["Discuss the unrelated follow-up instead"],
+      }),
+    ).toEqual({
+      type: "queue.recovered",
+      messages: ["Discuss the unrelated follow-up instead"],
+    });
+    expect(
+      agentPayloadSchema.safeParse({
+        type: "queue.recovered",
+        messages: [],
+      }).success,
+    ).toBe(false);
+  });
+});
+
 describe("approval schemas", () => {
   it("requires the host nonce on requests and resolutions", () => {
     expect(

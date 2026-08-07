@@ -360,10 +360,24 @@ describe("sub-agent control tools", () => {
       }),
     );
 
+    const unrelatedStarted = preparePrompt();
+    const unrelatedPrompt = host.prompt(
+      "thread-cancel",
+      "turn-2",
+      "Explain how the continue keyword affects loop ordering.",
+      "execute",
+    );
+    await unrelatedStarted;
+    expect(prompts.at(-1)).not.toContain(
+      "Previous interrupted agent-team context:",
+    );
+    releasePrompt();
+    await unrelatedPrompt;
+
     const secondStarted = preparePrompt();
     const secondPrompt = host.prompt(
       "thread-cancel",
-      "turn-2",
+      "turn-3",
       "Continue the interrupted team work.",
       "execute",
     );

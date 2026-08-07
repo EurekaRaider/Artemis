@@ -39,6 +39,19 @@ export function updateComposerDraft(
   };
 }
 
+export function restoreComposerMessages(
+  drafts: ComposerDrafts,
+  key: string,
+  messages: readonly string[],
+): ComposerDrafts {
+  const restored = messages.filter(Boolean).join("\n\n");
+  if (!restored) return drafts;
+  return updateComposerDraft(drafts, key, (current) => ({
+    ...current,
+    prompt: current.prompt ? `${restored}\n\n${current.prompt}` : restored,
+  }));
+}
+
 export function clearComposerDraft(
   drafts: ComposerDrafts,
   key: string,

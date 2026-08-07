@@ -108,6 +108,7 @@ import {
   composerDraftFor,
   conversationDraftKey,
   moveComposerDraft,
+  restoreComposerMessages,
   updateComposerDraft,
   type ComposerDraft,
   type ComposerDrafts,
@@ -1606,6 +1607,7 @@ export function App() {
   const pendingAgentEvents = useRef<AgentEvent[]>([]);
   const pendingAgentFrame = useRef<number | undefined>(undefined);
   const reportedTurnPaints = useRef(new Set<string>());
+  const recoveredQueueEventIds = useRef(new Set<string>());
   const promptInput = useRef<HTMLTextAreaElement>(null);
   const previousPendingUserInputId = useRef<string | undefined>(undefined);
   const modelPickerRoot = useRef<HTMLDivElement>(null);
@@ -2783,6 +2785,20 @@ export function App() {
             }),
           );
         }
+        if (
+          event.payload.type === "queue.recovered" &&
+          !recoveredQueueEventIds.current.has(event.eventId)
+        ) {
+          const recoveredMessages = event.payload.messages;
+          recoveredQueueEventIds.current.add(event.eventId);
+          setComposerDrafts((current) =>
+            restoreComposerMessages(
+              current,
+              conversationDraftKey(undefined, event.threadId),
+              recoveredMessages,
+            ),
+          );
+        }
       }
       pendingAgentEvents.current.push(...events);
       if (pendingAgentFrame.current === undefined) {
@@ -3199,7 +3215,10 @@ export function App() {
     () => deriveRunPresentation(activeEvents, clockMs),
     [activeEvents, clockMs],
   );
-  const taskPlan = useMemo(() => deriveTaskPlan(activeEvents), [activeEvents]);
+  const taskPlan = useMemo(
+    () => deriveTaskPlan(activeEvents, turnActive),
+    [activeEvents, turnActive],
+  );
 
   const openHtmlFromFiles = useCallback(
     (path: string) => {

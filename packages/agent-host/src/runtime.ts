@@ -177,6 +177,7 @@ interface HostedThread {
   currentMission: string | undefined;
   team: AgentTeamExecution | undefined;
   interruptedTeamContext: string | undefined;
+  recoveredQueueMessages: string[];
   deferredTurnCompletion: AgentPayload | undefined;
   launchChildAgent(input: LaunchChildAgentInput): ChildAgentExecution;
   adapter: PiAdapter | undefined;
@@ -265,6 +266,44 @@ export interface ChildAgentSnapshot {
 const CHILD_MIN_SUSPECT_SILENCE_MILLISECONDS = 60_000;
 const CHILD_CONTROL_OBSERVATION_MILLISECONDS = 5_000;
 const TEAM_MAX_MEMBERS = 4;
+
+function requestsInterruptedTeamContinuation(text: string): boolean {
+  const request = text.trim();
+  if (!request || request.length > 500) return false;
+  if (
+    /^(?:continue|resume|retry|restart|carry\s+on|pick\s+up)[.!?]*$/iu.test(
+      request,
+    ) ||
+    /^(?:继续|接着|恢复|重试|续上|续做)[。！？.!?]*$/u.test(request)
+  ) {
+    return true;
+  }
+  const englishContinuation =
+    /\b(?:continue|resume|retry|restart|carry\s+on|pick\s+up)\b/iu.test(
+      request,
+    ) &&
+    /\b(?:previous|prior|interrupted|unfinished|team|task|work|where\s+we\s+left\s+off)\b/iu.test(
+      request,
+    );
+  const chineseContinuation =
+    /继续|接着|恢复|重试|续上|续做/u.test(request) &&
+    /刚才|之前|上次|中断|未完成|团队|任务|工作|做完|完成/u.test(request);
+  return englishContinuation || chineseContinuation;
+}
+
+function terminalAgentStopReason(
+  event: AgentSessionEvent,
+): "error" | "aborted" | undefined {
+  if (event.type !== "agent_end" || event.willRetry) return undefined;
+  for (let index = event.messages.length - 1; index >= 0; index -= 1) {
+    const message = event.messages[index];
+    if (message?.role !== "assistant") continue;
+    return message.stopReason === "error" || message.stopReason === "aborted"
+      ? message.stopReason
+      : undefined;
+  }
+  return undefined;
+}
 
 function isTerminalChildStatus(status: ChildAgentPayload["status"]): boolean {
   return (
@@ -2879,13 +2918,35 @@ export class ArtemisAgentHost {
       currentMission: undefined,
       team: undefined,
       interruptedTeamContext: undefined,
+      recoveredQueueMessages: [],
       deferredTurnCompletion: undefined,
       launchChildAgent,
       adapter: undefined,
       unsubscribe: () => {},
     };
     hosted.unsubscribe = session.subscribe((event) => {
+      if (
+        hosted.currentTurnId &&
+        terminalAgentStopReason(event) &&
+        session.pendingMessageCount > 0
+      ) {
+        const queue = session.clearQueue();
+        hosted.recoveredQueueMessages.push(
+          ...queue.steering,
+          ...queue.followUp,
+        );
+      }
       if (hosted.currentTurnId && hosted.adapter) {
+        if (
+          event.type === "agent_settled" &&
+          hosted.recoveredQueueMessages.length > 0
+        ) {
+          this.sink.emit(hosted.threadId, hosted.currentTurnId, {
+            type: "queue.recovered",
+            messages: hosted.recoveredQueueMessages,
+          });
+          hosted.recoveredQueueMessages = [];
+        }
         for (const payload of hosted.adapter.adapt(event as never)) {
           if (
             payload.type === "turn.completed" &&
@@ -2930,7 +2991,9 @@ export class ArtemisAgentHost {
     if (hosted.team?.status === "aborted") {
       hosted.interruptedTeamContext = this.interruptedTeamSummary(hosted);
     }
-    const interruptedTeamContext = hosted.interruptedTeamContext;
+    const interruptedTeamContext = requestsInterruptedTeamContinuation(text)
+      ? hosted.interruptedTeamContext
+      : undefined;
     hosted.team = undefined;
     hosted.deferredTurnCompletion = undefined;
     hosted.adapter = new PiAdapter(turnId);

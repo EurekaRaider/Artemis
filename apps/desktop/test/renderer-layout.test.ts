@@ -950,7 +950,7 @@ describe("renderer layout contract", () => {
   });
 
   it("shows real task steps with status-specific progress markers", () => {
-    expect(appSource).toContain("deriveTaskPlan(activeEvents)");
+    expect(appSource).toContain("deriveTaskPlan(activeEvents, turnActive)");
     expect(appSource).toContain("<TaskPlanProgress");
     expect(taskPlanSource).toContain(
       "className={`task-step-marker ${status}`}",

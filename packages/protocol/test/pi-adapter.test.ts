@@ -153,13 +153,50 @@ describe("PiAdapter", () => {
           errorMessage: "Unable to connect to the model provider.",
         },
       }),
-    ).toEqual([
+    ).toEqual([]);
+    expect(adapter.adapt({ type: "agent_settled" })).toEqual([
       {
         type: "turn.failed",
         message: "Unable to connect to the model provider.",
       },
     ]);
-    expect(adapter.adapt({ type: "agent_settled" })).toEqual([]);
+  });
+
+  it("does not fail a turn when Pi recovers from a transient model error", () => {
+    const adapter = new PiAdapter("turn-1");
+
+    expect(
+      adapter.adapt({
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "Temporary provider error.",
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      adapter.adapt({
+        type: "message_end",
+        message: {
+          id: "recovered-response",
+          role: "assistant",
+          content: [{ type: "text", text: "Recovered response." }],
+          stopReason: "stop",
+        },
+      }),
+    ).toEqual([
+      {
+        type: "message.part.delta",
+        partId: "recovered-response:text",
+        partType: "text",
+        delta: "Recovered response.",
+      },
+    ]);
+    expect(adapter.adapt({ type: "agent_settled" })).toEqual([
+      { type: "turn.completed", reason: "completed" },
+    ]);
   });
 
   it("fails instead of completing when the provider returns no assistant content", () => {

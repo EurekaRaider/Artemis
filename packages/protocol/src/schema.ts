@@ -430,6 +430,12 @@ export const queueUpdatedPayloadSchema = z.object({
 });
 export type QueueUpdatedPayload = z.infer<typeof queueUpdatedPayloadSchema>;
 
+export const queueRecoveredPayloadSchema = z.object({
+  type: z.literal("queue.recovered"),
+  messages: z.array(z.string().min(1)).min(1),
+});
+export type QueueRecoveredPayload = z.infer<typeof queueRecoveredPayloadSchema>;
+
 export const turnCompletedPayloadSchema = z.object({
   type: z.literal("turn.completed"),
   reason: z.enum(["completed", "cancelled"]),
@@ -461,6 +467,7 @@ export const agentPayloadSchema = z.discriminatedUnion("type", [
   contextUsagePayloadSchema,
   assistantUsagePayloadSchema,
   queueUpdatedPayloadSchema,
+  queueRecoveredPayloadSchema,
   turnCompletedPayloadSchema,
   turnFailedPayloadSchema,
 ]);

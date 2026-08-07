@@ -43,7 +43,7 @@ describe("deriveTaskPlan", () => {
       }),
     ];
 
-    expect(deriveTaskPlan(events)).toEqual({
+    expect(deriveTaskPlan(events, true)).toEqual({
       currentIndex: 1,
       steps: [
         { step: "Inspect selectors", status: "completed" },
@@ -67,7 +67,26 @@ describe("deriveTaskPlan", () => {
       event("3", "turn-2", { type: "turn.started", mode: "review" }),
     ];
 
-    expect(deriveTaskPlan(events)).toBeUndefined();
+    expect(deriveTaskPlan(events, true)).toBeUndefined();
+  });
+
+  it("hides a stale plan as soon as its turn is no longer active", () => {
+    const events = [
+      event("1", "turn-1", { type: "turn.started", mode: "execute" }),
+      event("2", "turn-1", {
+        type: "tool.started",
+        toolCallId: "plan-1",
+        toolName: "update_plan",
+        input: {
+          steps: [
+            { step: "Inspect", status: "completed" },
+            { step: "Build", status: "completed" },
+          ],
+        },
+      }),
+    ];
+
+    expect(deriveTaskPlan(events, false)).toBeUndefined();
   });
 
   it("marks the active step failed when the current turn fails", () => {
@@ -90,7 +109,7 @@ describe("deriveTaskPlan", () => {
       }),
     ];
 
-    expect(deriveTaskPlan(events)).toEqual({
+    expect(deriveTaskPlan(events, true)).toEqual({
       currentIndex: 1,
       steps: [
         { step: "Inspect", status: "completed" },
@@ -120,10 +139,10 @@ describe("deriveTaskPlan", () => {
     } as const;
 
     expect(
-      deriveTaskPlan([...activePlan, event("3", "turn-1", cancelled)]),
+      deriveTaskPlan([...activePlan, event("3", "turn-1", cancelled)], true),
     ).toBeUndefined();
     expect(
-      deriveTaskPlan([...activePlan, event("3", undefined, cancelled)]),
+      deriveTaskPlan([...activePlan, event("3", undefined, cancelled)], true),
     ).toBeUndefined();
   });
 
@@ -159,7 +178,7 @@ describe("deriveTaskPlan", () => {
       }),
     ];
 
-    expect(deriveTaskPlan(events)?.steps).toEqual([
+    expect(deriveTaskPlan(events, true)?.steps).toEqual([
       { step: "Inspect", status: "in_progress" },
     ]);
   });

@@ -13,13 +13,13 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
   <img alt="Cross-platform build" src="https://img.shields.io/badge/Build-cross--platform-2088FF?logo=githubactions&logoColor=white" />
   <a href="https://www.electronjs.org/"><img alt="Electron 43" src="https://img.shields.io/badge/Electron-43-47848F?logo=electron&logoColor=white" /></a>
   <a href="https://react.dev/"><img alt="React 19" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white" /></a>
-  <a href="https://pi.dev/"><img alt="Pi 0.83.0" src="https://img.shields.io/badge/Agent_core-Pi_0.83.0-8257E5" /></a>
+  <a href="https://pi.dev/"><img alt="Pi 0.84.1" src="https://img.shields.io/badge/Agent_core-Pi_0.84.1-8257E5" /></a>
 </p>
 
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS arm64" src="https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-111111?logo=apple&logoColor=white" />
-  <img alt="724 passing tests" src="https://img.shields.io/badge/Tests-724_passing-2EA44F" />
+  <img alt="730 passing tests" src="https://img.shields.io/badge/Tests-730_passing-2EA44F" />
   <img alt="Maximum 16 active agents" src="https://img.shields.io/badge/Agents-max_16-F5A524" />
 </p>
 
@@ -247,7 +247,9 @@ tasks. Interactive tasks run against the repository's local checkout.
 
 - **Continuation controls** — resume, true Pi fork, queued prompts, live
   steering, follow-up turns and active-turn cancellation are wired to the live
-  Agent session.
+  Agent session. Messages left unexecuted after a terminal model failure return
+  to the owning composer, and interrupted Agent-team context is injected only
+  for an explicit continuation request.
 - **Composer and commands** — send text, local files, images, PDF and Office
   attachments through the picker, drag/drop or clipboard; reuse prompt history;
   invoke `/goal`, `/init` and one or more `/skill` selections; switch mode with
@@ -257,8 +259,9 @@ tasks. Interactive tasks run against the repository's local checkout.
   input/output, approval cards with the model's decision, structured workflow
   choices, child-Agent status, errors and completion states in original event
   order.
-- **Progress and context** — `update_plan` produces visible multi-step progress;
-  run timing and context-window usage remain visible. Manual and automatic
+- **Progress and context** — `update_plan` produces visible multi-step progress
+  only while its turn remains active; run timing and context-window usage remain
+  visible. Manual and automatic
   context compaction immediately add an in-progress timeline row with the same
   left-to-right highlight sweep as Thinking, followed by the completion state.
   Usage Insights adds daily, weekly and cumulative Token totals with a calendar

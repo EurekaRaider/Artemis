@@ -24,8 +24,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.83.0",
-    "@earendil-works/pi-coding-agent": "0.83.0",
+    "@earendil-works/pi-ai": "0.84.1",
+    "@earendil-works/pi-coding-agent": "0.84.1",
     "@js-temporal/polyfill": "^0.5.1",
     "@artemis/agent-host": "1.1.22",
     "@artemis/platform": "1.1.22",
