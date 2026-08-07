@@ -18,6 +18,12 @@ import type {
   McpServerConfig,
   SkillCatalogItem,
 } from "../shared/api.js";
+import {
+  SKILL_METADATA_FILE,
+  isSkillInstallerMetadata,
+  readAndMigrateSkillMetadata,
+  type SkillInstallerMetadata,
+} from "./skill-metadata.js";
 
 const MCP_REGISTRY = "https://registry.modelcontextprotocol.io";
 const SKILL_REGISTRY = "https://skills.sh";
@@ -29,14 +35,6 @@ const MAX_SKILL_BYTES = 20 * 1024 * 1024;
 
 type Fetcher = typeof fetch;
 type ProgressReporter = (percent: number) => void;
-
-interface SkillMetadata {
-  version: 1;
-  id: string;
-  source: string;
-  hash?: string;
-  installedAt: string;
-}
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -349,14 +347,7 @@ export class ResourceCatalogService {
             const frontmatter = parseSkillFrontmatter(
               await readFile(join(skillPath, "SKILL.md"), "utf8"),
             );
-            let metadata: SkillMetadata | undefined;
-            try {
-              metadata = JSON.parse(
-                await readFile(join(skillPath, ".artemis-skill.json"), "utf8"),
-              ) as SkillMetadata;
-            } catch {
-              metadata = undefined;
-            }
+            const metadata = await readAndMigrateSkillMetadata(skillPath);
             return {
               id: metadata?.id ?? `local/${entry.name}`,
               name: frontmatter.name,
@@ -537,7 +528,7 @@ export class ResourceCatalogService {
       const frontmatter = parseSkillFrontmatter(
         await readFile(join(temporaryPath, "SKILL.md"), "utf8"),
       );
-      const metadata: SkillMetadata = {
+      const metadata: SkillInstallerMetadata = {
         version: 1,
         id,
         source,
@@ -545,7 +536,7 @@ export class ResourceCatalogService {
         installedAt: new Date().toISOString(),
       };
       await writeFile(
-        join(temporaryPath, ".artemis-skill.json"),
+        join(temporaryPath, SKILL_METADATA_FILE),
         `${JSON.stringify(metadata, undefined, 2)}\n`,
         { encoding: "utf8", mode: 0o600 },
       );
@@ -601,7 +592,7 @@ export class ResourceCatalogService {
         if (!info.isFile()) {
           throw new Error("Local Skill packages can contain only files.");
         }
-        if (relativePath === ".artemis-skill.json") {
+        if (isSkillInstallerMetadata(relativePath)) {
           throw new Error(
             "Local Skill packages cannot provide installer metadata.",
           );
@@ -647,14 +638,14 @@ export class ResourceCatalogService {
         await copyFile(file.source, target);
         onProgress?.(25 + Math.round(((index + 1) / files.length) * 65));
       }
-      const metadata: SkillMetadata = {
+      const metadata: SkillInstallerMetadata = {
         version: 1,
         id: `local/${frontmatter.name}`,
         source: "local",
         installedAt,
       };
       await writeFile(
-        join(temporaryPath, ".artemis-skill.json"),
+        join(temporaryPath, SKILL_METADATA_FILE),
         `${JSON.stringify(metadata, undefined, 2)}\n`,
         { encoding: "utf8", mode: 0o600 },
       );

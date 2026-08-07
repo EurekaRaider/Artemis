@@ -323,6 +323,11 @@ export type AgentHostMessage =
       timestamp: number;
     }
   | {
+      type: "thread.session";
+      threadId: string;
+      sessionFile: string;
+    }
+  | {
       type: "broker.request";
       requestId: string;
       request: BrokerExecutionRequest;

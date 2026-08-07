@@ -36,6 +36,10 @@ import type {
 } from "../shared/api.js";
 import { McpConfigStore, validateMcpServerConfig } from "./mcp-config-store.js";
 import { parseSkillFrontmatter } from "./resource-catalog.js";
+import {
+  SKILL_METADATA_FILE,
+  isSkillInstallerMetadata,
+} from "./skill-metadata.js";
 
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_MARKETPLACE_BYTES = 5 * 1024 * 1024;
@@ -589,7 +593,7 @@ async function collectFiles(
       const relativePath = portableRelative(relative(source, path));
       if (
         options.rejectInstallerMetadata &&
-        relativePath === ".artemis-skill.json"
+        isSkillInstallerMetadata(relativePath)
       ) {
         throw new Error("Plugin Skills cannot provide installer metadata.");
       }
@@ -637,7 +641,7 @@ async function installedSkillMatchesHash(
     });
     return (
       collectedHash(
-        files.filter((file) => file.relativePath !== ".artemis-skill.json"),
+        files.filter((file) => !isSkillInstallerMetadata(file.relativePath)),
       ) === expectedHash
     );
   } catch {
@@ -2644,7 +2648,7 @@ export class CodexPluginService {
         const stage = join(this.options.skillsRoot, `.install-${randomUUID()}`);
         await copyCollectedFiles(stage, skill.files);
         await writeFile(
-          join(stage, ".artemis-skill.json"),
+          join(stage, SKILL_METADATA_FILE),
           `${JSON.stringify(
             {
               version: 1,
@@ -2787,7 +2791,7 @@ export class CodexPluginService {
           maximumFileBytes: MAX_SKILL_FILE_BYTES,
           maximumBytes: MAX_SKILL_BYTES,
         })
-      ).filter((file) => file.relativePath !== ".artemis-skill.json");
+      ).filter((file) => !isSkillInstallerMetadata(file.relativePath));
       if (collectedHash(files) !== skill.hash) {
         throw new Error(`Plugin Skill was modified: ${skill.name}`);
       }

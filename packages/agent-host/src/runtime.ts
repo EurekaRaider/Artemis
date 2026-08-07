@@ -1,6 +1,7 @@
-import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { join, relative } from "node:path";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
 
 import {
   DefaultResourceLoader,
@@ -35,6 +36,7 @@ import {
   type OfficeDocumentResult,
   type WorkspaceTarget,
 } from "@artemis/protocol";
+import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
 import { modeInstruction } from "./mode-instructions.js";
 import { toPiProviderConfig } from "./provider-configuration.js";
@@ -306,6 +308,108 @@ function writePathAllowed(writePaths: string[], path: string): boolean {
   );
 }
 
+function piSessionDirectory(workspacePath: string, agentDir: string): string {
+  const resolvedWorkspace = resolve(workspacePath);
+  const encodedWorkspace = `--${resolvedWorkspace
+    .replace(/^[/\\]/u, "")
+    .replace(/[/\\:]/gu, "-")}--`;
+  return join(agentDir, "sessions", encodedWorkspace);
+}
+
+function replayDraftSessionEntries(
+  entries: SessionEntry[],
+  target: SessionManager,
+): void {
+  const supportedTypes = new Set([
+    "message",
+    "thinking_level_change",
+    "model_change",
+    "custom",
+    "custom_message",
+    "session_info",
+  ]);
+  const unsupported = entries.find((entry) => !supportedTypes.has(entry.type));
+  if (unsupported) {
+    throw new Error(
+      `Cannot persist a draft Pi session containing ${unsupported.type} entries.`,
+    );
+  }
+  for (const entry of entries) {
+    switch (entry.type) {
+      case "message":
+        target.appendMessage(entry.message as never);
+        break;
+      case "thinking_level_change":
+        target.appendThinkingLevelChange(entry.thinkingLevel);
+        break;
+      case "model_change":
+        target.appendModelChange(entry.provider, entry.modelId);
+        break;
+      case "custom":
+        target.appendCustomEntry(entry.customType, entry.data);
+        break;
+      case "custom_message":
+        target.appendCustomMessageEntry(
+          entry.customType,
+          entry.content,
+          entry.display,
+          entry.details,
+        );
+        break;
+      case "session_info":
+        target.appendSessionInfo(entry.name ?? "");
+        break;
+    }
+  }
+}
+
+function createLazySessionManager(
+  workspacePath: string,
+  agentDir: string,
+  onPersist: (sessionFile: string) => void,
+): SessionManager {
+  let active = omitReasoningFromSession(SessionManager.inMemory(workspacePath));
+  const persist = (): string => {
+    if (active.isPersisted()) {
+      const existing = active.getSessionFile();
+      if (!existing) throw new Error("Persisted Pi session has no file.");
+      return existing;
+    }
+    const entries = active.getEntries();
+    const persisted = omitReasoningFromSession(
+      SessionManager.create(
+        workspacePath,
+        piSessionDirectory(workspacePath, agentDir),
+      ),
+    );
+    replayDraftSessionEntries(entries, persisted);
+    active = persisted;
+    const sessionFile = active.getSessionFile();
+    if (!sessionFile) throw new Error("Pi did not create a session path.");
+    return sessionFile;
+  };
+
+  return new Proxy(active, {
+    get(_target, property) {
+      if (property === "appendMessage") {
+        return (
+          message: Parameters<SessionManager["appendMessage"]>[0],
+        ): string => {
+          const sessionFile =
+            !active.isPersisted() && message.role === "assistant"
+              ? persist()
+              : undefined;
+          const entryId = active.appendMessage(message);
+          if (sessionFile) onPersist(sessionFile);
+          return entryId;
+        };
+      }
+      const value = Reflect.get(active, property, active) as unknown;
+      return typeof value === "function" ? value.bind(active) : value;
+    },
+  });
+}
+
 export class ArtemisAgentHost {
   private readonly threads = new Map<string, HostedThread>();
   private readonly credentials = new RuntimeCredentialStore();
@@ -314,6 +418,9 @@ export class ArtemisAgentHost {
   private readonly cancelledTurns = new Set<string>();
   private readonly userInputTails = new Map<string, Promise<void>>();
   private readonly registeredProviderIds = new Set<string>();
+  private readonly agentDir: string;
+  private readonly onSessionFile:
+    ((threadId: string, path: string) => void) | undefined;
   private configuration: AgentRuntimeConfiguration = { credentials: {} };
   private modelRuntimePromise:
     ReturnType<typeof ModelRuntime.create> | undefined;
@@ -321,8 +428,14 @@ export class ArtemisAgentHost {
   constructor(
     private readonly broker: AgentBroker,
     private readonly sink: AgentHostSink,
-    options: { agentConcurrencyLimit?: number } = {},
+    options: {
+      agentConcurrencyLimit?: number;
+      agentDir?: string;
+      onSessionFile?: (threadId: string, path: string) => void;
+    } = {},
   ) {
+    this.agentDir = options.agentDir ?? getAgentDir();
+    this.onSessionFile = options.onSessionFile;
     const limit = options.agentConcurrencyLimit ?? AGENT_CONCURRENCY_FALLBACK;
     this.concurrency = new AgentConcurrencyLimiter(
       limit,
@@ -2345,7 +2458,7 @@ export class ArtemisAgentHost {
               try {
                 const childResourceLoader = new DefaultResourceLoader({
                   cwd: request.workspacePath,
-                  agentDir: getAgentDir(),
+                  agentDir: this.agentDir,
                   noExtensions: true,
                   ...createResourceOverrides(() => this.configuration),
                 });
@@ -2561,11 +2674,15 @@ export class ArtemisAgentHost {
       return child;
     };
 
-    const sessionManager = omitReasoningFromSession(
-      request.sessionFile
-        ? SessionManager.open(request.sessionFile)
-        : SessionManager.create(request.workspacePath),
-    );
+    const sessionManager =
+      request.sessionFile && existsSync(request.sessionFile)
+        ? omitReasoningFromSession(SessionManager.open(request.sessionFile))
+        : createLazySessionManager(
+            request.workspacePath,
+            this.agentDir,
+            (sessionFile) =>
+              this.onSessionFile?.(request.threadId, sessionFile),
+          );
     const modelRuntime = await this.getModelRuntime();
     const selection = this.configuration.selection;
     const catalogModel = selection
@@ -2584,7 +2701,7 @@ export class ArtemisAgentHost {
       : undefined;
     const resourceLoader = new DefaultResourceLoader({
       cwd: request.workspacePath,
-      agentDir: getAgentDir(),
+      agentDir: this.agentDir,
       noExtensions: true,
       ...createResourceOverrides(() => this.configuration),
     });
@@ -3047,7 +3164,7 @@ export class ArtemisAgentHost {
     if (sessionFile) {
       await deletePiSessionTranscript(
         sessionFile,
-        join(getAgentDir(), "sessions"),
+        join(this.agentDir, "sessions"),
       );
     }
   }

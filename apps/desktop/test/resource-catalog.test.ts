@@ -41,6 +41,70 @@ describe("resource catalog", () => {
     });
   });
 
+  it("migrates valid LightningStorm Skill metadata without changing Skill content", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-skills-"));
+    temporaryDirectories.push(directory);
+    const skillDirectory = join(directory, "brainstorming");
+    await mkdir(skillDirectory);
+    const skillBody =
+      "---\nname: brainstorming\ndescription: Explore ideas safely.\n---\n\n# Brainstorming\n";
+    await writeFile(join(skillDirectory, "SKILL.md"), skillBody);
+    const metadata = {
+      version: 1,
+      id: "codex-plugin/superpowers/brainstorming",
+      source: "codex-plugin:superpowers",
+      installedAt: "2026-08-04T04:58:51.462Z",
+    };
+    await writeFile(
+      join(skillDirectory, ".lightningstorm-skill.json"),
+      `${JSON.stringify(metadata, undefined, 2)}\n`,
+    );
+    const service = new ResourceCatalogService(directory);
+
+    await expect(service.listInstalledSkills()).resolves.toEqual([
+      expect.objectContaining({
+        id: metadata.id,
+        source: metadata.source,
+        installedAt: metadata.installedAt,
+      }),
+    ]);
+    await expect(
+      readFile(join(skillDirectory, ".artemis-skill.json"), "utf8"),
+    ).resolves.toContain(metadata.id);
+    await expect(
+      access(join(skillDirectory, ".lightningstorm-skill.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      readFile(join(skillDirectory, "SKILL.md"), "utf8"),
+    ).resolves.toBe(skillBody);
+  });
+
+  it("leaves invalid legacy Skill metadata untouched", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-skills-"));
+    temporaryDirectories.push(directory);
+    const skillDirectory = join(directory, "local-skill");
+    await mkdir(skillDirectory);
+    await writeFile(
+      join(skillDirectory, "SKILL.md"),
+      "---\nname: local-skill\ndescription: Remains local.\n---\n",
+    );
+    await writeFile(
+      join(skillDirectory, ".lightningstorm-skill.json"),
+      '{"version":1,"id":"missing-fields"}\n',
+    );
+    const service = new ResourceCatalogService(directory);
+
+    await expect(service.listInstalledSkills()).resolves.toEqual([
+      expect.objectContaining({ id: "local/local-skill" }),
+    ]);
+    await expect(
+      readFile(join(skillDirectory, ".lightningstorm-skill.json"), "utf8"),
+    ).resolves.toContain("missing-fields");
+    await expect(
+      access(join(skillDirectory, ".artemis-skill.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("maps only fixed streamable HTTP MCP endpoints to one-click installs", () => {
     const items = parseMcpCatalogResponse({
       servers: [

@@ -78,6 +78,9 @@ const host = new ArtemisAgentHost(
   },
   {
     agentConcurrencyLimit: initialAgentConcurrencyLimit(),
+    onSessionFile(threadId, sessionFile) {
+      send({ type: "thread.session", threadId, sessionFile });
+    },
   },
 );
 

@@ -29,6 +29,7 @@ export interface AgentProcessHandlers {
     stage: "host-received";
     timestamp: number;
   }): void;
+  onThreadSession?(threadId: string, sessionFile: string): void;
   onBrokerRequest(
     requestId: string,
     request: BrokerExecutionRequest,
@@ -176,6 +177,10 @@ export class AgentProcess {
     }
     if (message.type === "turn.telemetry") {
       this.handlers.onTurnTelemetry?.(message);
+      return;
+    }
+    if (message.type === "thread.session") {
+      this.handlers.onThreadSession?.(message.threadId, message.sessionFile);
       return;
     }
     await this.handlers.onBrokerRequest(message.requestId, message.request);

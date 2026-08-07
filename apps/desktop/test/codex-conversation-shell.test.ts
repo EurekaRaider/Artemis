@@ -318,7 +318,7 @@ describe("Codex conversation shell contract", () => {
       "async deleteThread(threadId: string, sessionFile?: string)",
     );
     expect(agentRuntimeSource).toMatch(
-      /await deletePiSessionTranscript\(\s*sessionFile,\s*join\(getAgentDir\(\), "sessions"\),?\s*\)/u,
+      /await deletePiSessionTranscript\(\s*sessionFile,\s*join\(this\.agentDir, "sessions"\),?\s*\)/u,
     );
 
     const rendererDelete = sourceBetween(

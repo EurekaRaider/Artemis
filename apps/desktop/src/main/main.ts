@@ -7070,6 +7070,11 @@ app
             trace.hostReceivedAt ??= event.timestamp;
           }
         },
+        onThreadSession(threadId, sessionFile) {
+          if (store?.getThread(threadId)) {
+            store.updateThread(threadId, { sessionFile });
+          }
+        },
         onBrokerRequest: handleBrokerRequest,
         onStderr(data) {
           diagnosticBundleService?.record({
