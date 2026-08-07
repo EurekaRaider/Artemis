@@ -51,7 +51,7 @@ describe("Codex-style child-agent workspace tabs", () => {
     const dockSource = between(
       appSource,
       'className="workspace-tool-dock"',
-      "{commandMenuOpen &&",
+      "{settingsOpen && (",
     );
 
     expect(dockSource).toContain('tab.kind === "child-agent"');

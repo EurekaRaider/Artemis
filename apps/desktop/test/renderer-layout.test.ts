@@ -368,7 +368,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("setSidebarOpen(true)");
   });
 
-  it("puts a small gear settings button directly above the command menu", () => {
+  it("keeps settings as the final activity action without the obsolete command menu", () => {
     const activityBarStart = appSource.indexOf(
       '<aside className="activity-bar">',
     );
@@ -377,9 +377,6 @@ describe("renderer layout contract", () => {
     const settingsLabelIndex = activityBarSource.indexOf(
       "aria-label={t.settings}",
     );
-    const commandMenuLabelIndex = activityBarSource.indexOf(
-      "aria-label={t.commandMenu}",
-    );
     const settingsButtonStart = activityBarSource.lastIndexOf(
       "<button",
       settingsLabelIndex,
@@ -387,10 +384,6 @@ describe("renderer layout contract", () => {
     const settingsButtonEnd =
       activityBarSource.indexOf("</button>", settingsLabelIndex) +
       "</button>".length;
-    const commandMenuButtonStart = activityBarSource.lastIndexOf(
-      "<button",
-      commandMenuLabelIndex,
-    );
     const settingsButtonSource = activityBarSource.slice(
       settingsButtonStart,
       settingsButtonEnd,
@@ -414,11 +407,12 @@ describe("renderer layout contract", () => {
     expect(activityBarStart).toBeGreaterThan(-1);
     expect(activityBarEnd).toBeGreaterThan(activityBarStart);
     expect(settingsLabelIndex).toBeGreaterThan(-1);
-    expect(commandMenuLabelIndex).toBeGreaterThan(settingsLabelIndex);
     expect(settingsButtonSource).toContain("<SettingsIcon />");
-    expect(
-      activityBarSource.slice(settingsButtonEnd, commandMenuButtonStart).trim(),
-    ).toBe("");
+    expect(activityBarSource.slice(settingsButtonEnd).trim()).toBe("");
+    expect(activityBarSource).not.toContain("t.commandMenu");
+    expect(appSource).not.toContain("commandMenuOpen");
+    expect(appSource).not.toContain('className="command-backdrop"');
+    expect(stylesSource).not.toContain(".command-backdrop");
     expect(settingsIconSource).toContain("<Icon size={17}>");
     expect(settingsIconSource).toContain("<path");
     expect(settingsIconSource).toContain("<circle");
@@ -427,6 +421,15 @@ describe("renderer layout contract", () => {
     expect(sidebarFooterSource).not.toContain('className="avatar-button"');
     expect(sidebarFooterSource).not.toContain("setSettingsOpen(true)");
     expect(sidebarFooterSource).not.toMatch(/>\s*TS\s*</u);
+  });
+
+  it("preserves the former command menu actions through their existing entry points", () => {
+    expect(appSource).toContain("onClick={() => void openProject()}");
+    expect(appSource).toContain('selectComposerCommand("/goal ")');
+    expect(appSource).toContain("onClick={openReviewPanel}");
+    expect(appSource).toContain("onClick={openTerminalPanel}");
+    expect(appSource).toContain("toggleReviewPanel();");
+    expect(appSource).toContain("toggleTerminalPanel();");
   });
 
   it("shows the current version in the sidebar footer and opens update settings", () => {
@@ -469,7 +472,7 @@ describe("renderer layout contract", () => {
   it("exposes MCP, Skills, and persistent task goals as first-class navigation", () => {
     expect(appSource).toContain("<ResourceCenter");
     expect(appSource).toContain('activeView === "resources"');
-    expect(appSource).toContain('setPrompt("/goal ")');
+    expect(appSource).toContain('selectComposerCommand("/goal ")');
     expect(appSource).toContain("window.artemis.setThreadGoal");
   });
 

@@ -407,7 +407,6 @@ const copy = {
       "Pi bash and the Terminal use your desktop permissions. Sandboxed MCP and extension execution remain locked.",
     terminalLocked: "Terminal locked until the native executor is available.",
     refreshDiff: "Refresh",
-    commandMenu: "Command menu",
     addAttachments: "Add files or images",
     removeAttachment: "Remove attachment",
     removeSelectedSkill: "Remove loaded Skill",
@@ -627,7 +626,6 @@ const copy = {
       "Pi bash 与终端使用当前桌面用户权限；MCP 与扩展的沙箱执行保持锁定。",
     terminalLocked: "原生执行器可用前，终端保持锁定。",
     refreshDiff: "刷新",
-    commandMenu: "命令菜单",
     addAttachments: "添加文件或图片",
     removeAttachment: "移除附件",
     removeSelectedSkill: "移除已加载 Skill",
@@ -1581,7 +1579,6 @@ export function App() {
   };
   const [commentLineId, setCommentLineId] = useState<string>();
   const [commentBody, setCommentBody] = useState("");
-  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<ConfirmationState>();
   const [busy, setBusy] = useState(false);
   const toastSerial = useRef(0);
@@ -4192,9 +4189,6 @@ export function App() {
       if (event.key === "Escape") {
         setApprovalMenuOpen(false);
         setModelPickerOpen(false);
-      } else if (modifier && (event.key === "k" || event.key === "K")) {
-        event.preventDefault();
-        setCommandMenuOpen((open) => !open);
       } else if (modifier && event.altKey && event.key.toLowerCase() === "b") {
         event.preventDefault();
         toggleReviewPanel();
@@ -4306,21 +4300,6 @@ export function App() {
           title={t.settings}
         >
           <SettingsIcon />
-        </button>
-        <button
-          className="activity-button"
-          aria-label={t.commandMenu}
-          title={`${t.commandMenu} (Ctrl+K)`}
-          onClick={() => setCommandMenuOpen(true)}
-        >
-          <Icon>
-            <path
-              d="M5 7h14M5 12h14M5 17h14"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="1.6"
-            />
-          </Icon>
         </button>
       </aside>
 
@@ -6688,64 +6667,6 @@ export function App() {
         )}
       </section>
 
-      {commandMenuOpen && (
-        <div
-          className="command-backdrop"
-          onMouseDown={() => setCommandMenuOpen(false)}
-        >
-          <div
-            className="command-menu"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="command-search">
-              <SearchIcon />
-              <span>{t.commandMenu}</span>
-              <kbd>Esc</kbd>
-            </div>
-            <button
-              onClick={() => {
-                setCommandMenuOpen(false);
-                void openProject();
-              }}
-            >
-              <FolderIcon />
-              <span>{t.openFolder}</span>
-              <kbd>Ctrl O</kbd>
-            </button>
-            <button
-              onClick={() => {
-                setCommandMenuOpen(false);
-                setActiveView("workspace");
-                setPrompt("/goal ");
-              }}
-            >
-              <span className="command-goal-icon">◎</span>
-              <span>{t.goalCommandDetail}</span>
-              <kbd>/goal</kbd>
-            </button>
-            <button
-              onClick={() => {
-                setCommandMenuOpen(false);
-                toggleReviewPanel();
-              }}
-            >
-              <ReviewIcon />
-              <span>{t.toggleReview}</span>
-              <kbd>Ctrl Alt B</kbd>
-            </button>
-            <button
-              onClick={() => {
-                setCommandMenuOpen(false);
-                toggleTerminalPanel();
-              }}
-            >
-              <TerminalIcon />
-              <span>{t.toggleTerminal}</span>
-              <kbd>Ctrl J</kbd>
-            </button>
-          </div>
-        </div>
-      )}
       {settingsOpen && (
         <Suspense
           fallback={

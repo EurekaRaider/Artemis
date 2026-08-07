@@ -1,6 +1,6 @@
 {
   "name": "@artemis/agent-host",
-  "version": "1.1.22",
+  "version": "1.1.23",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -23,8 +23,8 @@
     "@ai-sdk/openai": "3.0.84",
     "@earendil-works/pi-ai": "0.84.1",
     "@earendil-works/pi-coding-agent": "0.84.1",
-    "@artemis/platform": "1.1.22",
-    "@artemis/protocol": "1.1.22",
+    "@artemis/platform": "1.1.23",
+    "@artemis/protocol": "1.1.23",
     "@sinclair/typebox": "0.34.52",
     "ai": "6.0.168"
   }

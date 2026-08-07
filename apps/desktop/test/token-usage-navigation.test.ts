@@ -11,6 +11,10 @@ const tokenUsagePageSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/TokenUsagePage.tsx", import.meta.url)),
   "utf8",
 );
+const stylesSource = readFileSync(
+  fileURLToPath(new URL("../src/renderer/styles.css", import.meta.url)),
+  "utf8",
+);
 const apiSource = readFileSync(
   fileURLToPath(new URL("../src/shared/api.ts", import.meta.url)),
   "utf8",
@@ -92,5 +96,8 @@ describe("token usage navigation", () => {
     expect(cellSource).toContain("onFocus={() => setHovered(cell)}");
     expect(cellSource).toContain("hovered?.date === cell.date");
     expect(cellSource).toContain('role="tooltip"');
+    expect(stylesSource).toMatch(
+      /\.token-usage-cell:hover,\s*\.token-usage-cell:focus-visible\s*\{(?=[^}]*\btransform:\s*scale\(1\.08\))(?=[^}]*\bz-index:\s*1)[^}]*\}/u,
+    );
   });
 });
