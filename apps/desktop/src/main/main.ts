@@ -37,6 +37,7 @@ import {
 import type {
   AgentEvent,
   AgentConcurrencyRuntimeStatus,
+  AgentModelInfo,
   AgentRuntimeCatalog,
   AgentRuntimeConfiguration,
   AgentPayload,
@@ -133,11 +134,7 @@ import {
 import { AppStore } from "./store.js";
 import { DiagnosticBundleService } from "./diagnostic-bundle.js";
 import { EncryptedSettingsStore } from "./encrypted-settings-store.js";
-import {
-  ConfigurationImportService,
-  type ImportedModelSetting,
-  upgradeImportedProviderProtocol,
-} from "./configuration-import.js";
+import { ConfigurationImportService } from "./configuration-import.js";
 import { GlobalInstructionsStore } from "./global-instructions-store.js";
 import {
   GLOBAL_MEMORY_MAX_BYTES,
@@ -149,7 +146,10 @@ import { McpClientManager } from "./mcp-client-manager.js";
 import type { McpConnectionAuthentication } from "./mcp-client-manager.js";
 import { McpConfigStore } from "./mcp-config-store.js";
 import { importMcpServers } from "./mcp-import.js";
-import { filterVisibleModels } from "./model-catalog.js";
+import {
+  filterVisibleModels,
+  loadBundledModelCatalog,
+} from "./model-catalog.js";
 import {
   SecureMcpOAuthProvider,
   startMcpOAuthCallback,
@@ -715,6 +715,8 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
   ) {
     throw new Error("Agent settings are not ready.");
   }
+  const providers = await settingsStore.providerConnections();
+  const credentials = await settingsStore.credentialSummaries();
   let catalog: AgentRuntimeCatalog = { models: [] };
   if (agentProcess) {
     try {
@@ -735,11 +737,49 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
       });
     }
   }
+  if (catalog.models.length === 0) {
+    try {
+      catalog = {
+        ...catalog,
+        models: await loadBundledModelCatalog(),
+      };
+    } catch (error) {
+      diagnosticBundleService?.record({
+        source: "main",
+        severity: "error",
+        message: `Bundled model catalog could not be loaded: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    }
+  }
   const contract = getPlatformContract();
-  const providers = await settingsStore.providerConnections();
   const addedModels = await settingsStore.addedModels();
+  const configuredProviderIds = new Set(
+    credentials.map((credential) => credential.providerId),
+  );
+  const modelsByKey = new Map<string, AgentModelInfo>();
+  for (const model of catalog.models) {
+    modelsByKey.set(`${model.providerId}\0${model.modelId}`, {
+      ...model,
+      configured:
+        model.configured || configuredProviderIds.has(model.providerId),
+    });
+  }
+  for (const provider of providers) {
+    for (const model of provider.models) {
+      modelsByKey.set(`${provider.id}\0${model.id}`, {
+        providerId: provider.id,
+        modelId: model.id,
+        name: model.name,
+        reasoning: model.reasoning,
+        contextWindow: model.contextWindow,
+        configured: true,
+      });
+    }
+  }
   const models = filterVisibleModels(
-    catalog.models,
+    [...modelsByKey.values()],
     providers.map((provider) => provider.id),
   );
   const persistedSelection = await settingsStore.modelSelection();
@@ -777,7 +817,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     contextWindow,
     models,
     addedModels,
-    credentials: await settingsStore.credentialSummaries(),
+    credentials,
     providers,
     mcpServers: await getMcpServerStatuses(),
     globalAgents: await globalInstructionsStore.snapshot(),
@@ -968,58 +1008,12 @@ function validateConfigurationImportRequest(
     ) ||
     !categories.length ||
     !categories.every((category) =>
-      ["instructions", "skills", "mcp", "model"].includes(category),
+      ["instructions", "skills", "mcp"].includes(category),
     )
   ) {
     throw new Error("Configuration import selection is invalid.");
   }
   return { sources, categories };
-}
-
-async function applyImportedModel(
-  candidates: ImportedModelSetting[],
-  summary: ConfigurationImportResult["summary"],
-): Promise<void> {
-  if (!settingsStore || !agentProcess || !candidates.length) {
-    summary.imported.model = 0;
-    return;
-  }
-  const catalog = await agentProcess.request<AgentRuntimeCatalog>({
-    type: "runtime.catalog",
-    requestId: randomUUID(),
-  });
-  const candidate = candidates.find((model) =>
-    catalog.models.some(
-      (available) =>
-        available.providerId === model.providerId &&
-        available.modelId === model.modelId,
-    ),
-  );
-  for (const model of candidates) {
-    if (model !== candidate) {
-      summary.skipped.push(
-        `${model.source} model ${model.providerId}/${model.modelId} is unavailable or was not the selected import.`,
-      );
-    }
-  }
-  if (!candidate) {
-    summary.imported.model = 0;
-    return;
-  }
-  const model = catalog.models.find(
-    (available) =>
-      available.providerId === candidate.providerId &&
-      available.modelId === candidate.modelId,
-  )!;
-  await settingsStore.setModel(
-    {
-      providerId: candidate.providerId,
-      modelId: candidate.modelId,
-      thinkingLevel: candidate.thinkingLevel ?? "medium",
-    },
-    model.contextWindow,
-  );
-  summary.imported.model = 1;
 }
 
 async function saveMcpConfiguration(
@@ -3805,30 +3799,6 @@ function registerIpc(): void {
       await resetAgentThreadsForToolChange();
       const imported = await configurationImportService.import(request);
 
-      const existingProviders = new Map(
-        (await settingsStore.providerConnections()).map((provider) => [
-          provider.id,
-          provider,
-        ]),
-      );
-      for (const provider of imported.providers) {
-        const existing = existingProviders.get(provider.id);
-        if (existing) {
-          const upgraded = upgradeImportedProviderProtocol(existing, provider);
-          if (upgraded) {
-            await settingsStore.saveProviderConnection(upgraded);
-            existingProviders.set(upgraded.id, upgraded);
-            continue;
-          }
-          imported.summary.skipped.push(
-            `Provider "${provider.id}" already exists.`,
-          );
-          continue;
-        }
-        await settingsStore.saveProviderConnection(provider);
-        existingProviders.set(provider.id, provider);
-      }
-
       await importMcpServers(imported.mcpServers, imported.summary, {
         list: () => activeMcpConfigStore.list(),
         upsert: (server) => activeMcpConfigStore.upsert(server),
@@ -3839,8 +3809,6 @@ function registerIpc(): void {
           ),
       });
 
-      await applyAgentRuntime();
-      await applyImportedModel(imported.models, imported.summary);
       await applyAgentRuntime();
       return {
         settings: await getSettingsSnapshot(),

@@ -3392,14 +3392,48 @@ summary:focus-visible {
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 16px 40px rgb(0 0 0 / 36%);
+  display: flex;
+  flex-direction: column;
   left: -34px;
   max-height: min(320px, 50vh);
   min-width: 154px;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 5px;
   position: absolute;
   top: calc(100% + 7px);
   z-index: 80;
+}
+
+.codex-select-search {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-sizing: border-box;
+  color: var(--text);
+  flex: 0 0 auto;
+  font-size: 12px;
+  height: 34px;
+  margin: 0 0 5px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.codex-select-search:focus {
+  border-color: color-mix(in srgb, var(--muted-2) 72%, var(--border));
+  outline: 2px solid color-mix(in srgb, var(--blue) 36%, transparent);
+  outline-offset: -2px;
+}
+
+.codex-select-listbox {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.codex-select-empty {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 16px 10px;
+  text-align: center;
 }
 
 .codex-select-option {

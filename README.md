@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS arm64" src="https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-111111?logo=apple&logoColor=white" />
-  <img alt="636 passing tests" src="https://img.shields.io/badge/Tests-636_passing-2EA44F" />
+  <img alt="639 passing tests" src="https://img.shields.io/badge/Tests-639_passing-2EA44F" />
   <img alt="Maximum 16 active agents" src="https://img.shields.io/badge/Agents-max_16-F5A524" />
 </p>
 
@@ -72,7 +72,7 @@ credentials are protected with operating-system encryption.
 | **Workspace tools**      | Review, Terminal, Browser, Markdown, Files and child-Agent tabs; editable files with syntax highlighting; rich/source Markdown; full web browsing without Node, preload or local-file access; automatic display of Agent-created HTML.                                                                                  |
 | **Guarded modes**        | Plan for read-only planning, Execute for implementation, general work and Office tasks, and Review for read-only inspection. Plan and Review reject writes before execution.                                                                                                                                            |
 | **Git workflow**         | Last-turn, unstaged, staged and base/branch diffs; tracked, untracked and binary changes; inline comments; file/hunk stage and unstage; recoverable revert; stale diff-identifier rejection and race-safe scope switching.                                                                                              |
-| **Reusable context**     | Persistent goals, editable global `AGENTS.md`, selective project-first memory, `/goal`, `/init`, multiple `/skill` selections and category-based import from Codex, OpenCode and Claude without silently copying credentials.                                                                                           |
+| **Reusable context**     | Persistent goals, editable global `AGENTS.md`, selective project-first memory, `/goal`, `/init`, multiple `/skill` selections and category-based import of global instructions, Skills and MCP from Codex, OpenCode and Claude without copying models or credentials.                                                   |
 | **Models and resources** | Pi model catalog, thinking/context controls, custom OpenAI-compatible Chat Completions and Responses providers, encrypted credentials, Skills, full-permission MCP stdio/HTTP with OAuth 2.1 + PKCE, and trusted Pi extensions.                                                                                         |
 | **Operations**           | Local automations, daily/weekly/cumulative Token insights, fork-safe usage accounting, OS user identity, bilingual/system-language UI, themes, diagnostics export, update recovery and native packaging gates.                                                                                                          |
 
@@ -299,7 +299,8 @@ into a higher-priority instruction.
 Project memory complements two existing context layers: the task's persistent
 goal and the editable global `AGENTS.md` instructions. Settings can also scan
 Codex, OpenCode and Claude configuration, preview detected sources, and import
-selected instruction, Skill, MCP and model categories.
+selected global instruction, Skill and MCP categories. Model settings and
+credentials are never imported.
 
 ## Git Review
 
@@ -738,11 +739,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **636 passing tests** (4 skipped):
+The current full test run contains **639 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       51 |       19 |         60 |     506 |   **636** |
+|       51 |       19 |         60 |     509 |   **639** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office

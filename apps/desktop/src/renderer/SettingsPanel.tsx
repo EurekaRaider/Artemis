@@ -30,6 +30,10 @@ const labels = {
     tabCapabilities: "Execution access",
     tabMaintenance: "Updates & diagnostics",
     model: "Model",
+    modelSearch: "Search by model, Provider, or ID",
+    modelSearchEmpty: "No matching models",
+    modelUnavailable:
+      "The model catalog is unavailable. Restart Artemis or check Updates & diagnostics.",
     contextWindow: "Context length",
     contextWindowHint:
       "Automatically compacts after usage exceeds 90%. Current model limit: {limit} tokens.",
@@ -163,13 +167,12 @@ const labels = {
     concurrencyMemory: "memory",
     configurationImport: "Import existing agent configuration",
     configurationImportHint:
-      "Preview and selectively import global rules, Skills, MCP servers, and model selection. Existing named resources are kept.",
+      "Preview and selectively import global rules, Skills, and MCP servers. Existing named resources are kept.",
     scanImports: "Scan Codex, OpenCode, and Claude Code",
     applyImports: "Import selected",
     importInstructions: "Global rules",
     importSkills: "Skills",
     importMcp: "MCP",
-    importModel: "Model",
     detected: "detected",
     notDetected: "not detected",
     importCompleted: "Import completed",
@@ -183,6 +186,9 @@ const labels = {
     tabCapabilities: "执行权限",
     tabMaintenance: "更新与诊断",
     model: "模型",
+    modelSearch: "搜索模型、Provider 或模型 ID",
+    modelSearchEmpty: "没有匹配的模型",
+    modelUnavailable: "模型目录暂不可用，请重启 Artemis 或查看“更新与诊断”。",
     contextWindow: "上下文长度",
     contextWindowHint:
       "使用量超过 90% 后自动压缩。当前模型上限：{limit} token。",
@@ -310,13 +316,12 @@ const labels = {
     concurrencyMemory: "内存",
     configurationImport: "导入现有 Agent 配置",
     configurationImportHint:
-      "先预览，再选择性导入全局约束、Skills、MCP 与模型设置；同名现有资源不会被覆盖。",
+      "先预览，再选择性导入全局约束、Skills 与 MCP；同名现有资源不会被覆盖。",
     scanImports: "扫描 Codex、OpenCode 与 Claude Code",
     applyImports: "导入所选内容",
     importInstructions: "全局约束",
     importSkills: "Skills",
     importMcp: "MCP",
-    importModel: "模型",
     detected: "已检测到",
     notDetected: "未检测到",
     importCompleted: "导入完成",
@@ -385,7 +390,7 @@ export function SettingsPanel({
   >([]);
   const [importCategories, setImportCategories] = useState<
     ConfigurationImportCategory[]
-  >(["instructions", "skills", "mcp", "model"]);
+  >(["instructions", "skills", "mcp"]);
 
   useEffect(() => {
     let mounted = true;
@@ -872,14 +877,20 @@ export function SettingsPanel({
                           ariaLabel={t.model}
                           disabled={busy || models.length === 0}
                           onChange={selectModel}
+                          noResultsLabel={t.modelSearchEmpty}
                           options={models.map((model) => ({
                             value: modelKey(model.providerId, model.modelId),
                             label: `${model.providerId} · ${model.name}`,
+                            searchText: `${model.providerId} ${model.name} ${model.modelId}`,
                           }))}
+                          searchPlaceholder={t.modelSearch}
                           value={selectedModel}
                         />
                       </div>
                     </div>
+                    {models.length === 0 && (
+                      <p className="settings-empty">{t.modelUnavailable}</p>
+                    )}
                     <div className="settings-field">
                       <span>{t.contextWindow}</span>
                       <input
@@ -895,14 +906,16 @@ export function SettingsPanel({
                         value={contextWindow}
                       />
                     </div>
-                    <p className="settings-security">
-                      {t.contextWindowHint.replace(
-                        "{limit}",
-                        (selectedModelInfo?.contextWindow ?? 0).toLocaleString(
-                          locale,
-                        ),
-                      )}
-                    </p>
+                    {selectedModelInfo && (
+                      <p className="settings-security">
+                        {t.contextWindowHint.replace(
+                          "{limit}",
+                          selectedModelInfo.contextWindow.toLocaleString(
+                            locale,
+                          ),
+                        )}
+                      </p>
+                    )}
                     {!selectedModelUsesCustomProvider && (
                       <>
                         <div className="settings-field">
@@ -1403,7 +1416,6 @@ export function SettingsPanel({
                               ["instructions", t.importInstructions],
                               ["skills", t.importSkills],
                               ["mcp", t.importMcp],
-                              ["model", t.importModel],
                             ] as const
                           ).map(([category, label]) => (
                             <label className="settings-checkbox" key={category}>
@@ -1453,8 +1465,7 @@ export function SettingsPanel({
                                 {t.importInstructions}{" "}
                                 {source.counts.instructions} · {t.importSkills}{" "}
                                 {source.counts.skills} · {t.importMcp}{" "}
-                                {source.counts.mcp} · {t.importModel}{" "}
-                                {source.counts.model}
+                                {source.counts.mcp}
                               </small>
                               {source.paths.map((path) => (
                                 <code key={path}>{path}</code>

@@ -77,7 +77,7 @@ describe("desktop resilience regressions", () => {
     expect(deleteAction).toContain("delete next[thread.id]");
   });
 
-  it("keeps Settings available with an empty model catalog when the agent host is unavailable", () => {
+  it("keeps the bundled model catalog available when the Agent Host is unavailable", () => {
     const settingsSnapshot = sourceBetween(
       mainSource,
       "async function getSettingsSnapshot",
@@ -89,6 +89,7 @@ describe("desktop resilience regressions", () => {
       /(?:let|const)\s+catalog\s*:\s*AgentRuntimeCatalog\s*=\s*\{\s*models:\s*\[\]\s*\}/u,
     );
     expect(settingsSnapshot).toContain('type: "runtime.catalog"');
+    expect(settingsSnapshot).toContain("loadBundledModelCatalog()");
     expect(settingsSnapshot).toMatch(
       /if\s*\(\s*agentProcess\s*\)[\s\S]*?try\s*\{[\s\S]*?runtime\.catalog[\s\S]*?\}\s*catch/u,
     );
@@ -99,15 +100,16 @@ describe("desktop resilience regressions", () => {
       "const providers = await settingsStore.providerConnections()",
     );
     expect(settingsSnapshot).toContain(
+      "const credentials = await settingsStore.credentialSummaries()",
+    );
+    expect(settingsSnapshot).toContain(
       "const persistedSelection = await settingsStore.modelSelection()",
     );
     expect(settingsSnapshot).toContain(
       "catalog.selection ?? persistedSelection",
     );
     expect(settingsSnapshot).toMatch(/\n\s*providers,\n/u);
-    expect(settingsSnapshot).toContain(
-      "credentials: await settingsStore.credentialSummaries()",
-    );
+    expect(settingsSnapshot).toMatch(/\n\s*credentials,\n/u);
     expect(settingsSnapshot).toContain(
       "mcpServers: await getMcpServerStatuses()",
     );

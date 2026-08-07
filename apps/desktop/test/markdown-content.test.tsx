@@ -117,10 +117,10 @@ describe("MarkdownContent", () => {
       'data-workspace-image="docs/images/artemis-workspace-dark.png"',
     );
     expect(html).toContain(
-      'data-workspace-image="artifacts/screenshot-matrix/en-125.png"',
+      'data-workspace-image="docs/images/artemis-workspace-en-125.png"',
     );
     expect(html).toContain(
-      'data-workspace-image="artifacts/screenshot-matrix/zh-CN-150.png"',
+      'data-workspace-image="docs/images/artemis-workspace-zh-CN-150.png"',
     );
     expect(html).toContain(
       'data-workspace-image="docs/images/plugin-marketplace.jpg"',

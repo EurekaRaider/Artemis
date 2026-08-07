@@ -297,14 +297,12 @@ export interface GlobalAgentsSnapshot {
 }
 
 export type ConfigurationImportSource = "codex" | "opencode" | "claude";
-export type ConfigurationImportCategory =
-  "instructions" | "skills" | "mcp" | "model";
+export type ConfigurationImportCategory = "instructions" | "skills" | "mcp";
 
 export interface ConfigurationImportCounts {
   instructions: number;
   skills: number;
   mcp: number;
-  model: number;
 }
 
 export interface ConfigurationImportSourcePreview {

@@ -1,4 +1,8 @@
 import type { AgentModelInfo } from "@artemis/protocol";
+import {
+  getBuiltinModels,
+  getBuiltinProviders,
+} from "@earendil-works/pi-ai/providers/all";
 
 const visibleProviderIds = new Set([
   "anthropic",
@@ -23,6 +27,19 @@ const visibleProviderIds = new Set([
   "xiaomi-token-plan-sgp",
   "groq",
 ]);
+
+export async function loadBundledModelCatalog(): Promise<AgentModelInfo[]> {
+  return getBuiltinProviders().flatMap((providerId) =>
+    getBuiltinModels(providerId).map((model) => ({
+      providerId: model.provider,
+      modelId: model.id,
+      name: model.name,
+      reasoning: model.reasoning,
+      contextWindow: model.contextWindow,
+      configured: false,
+    })),
+  );
+}
 
 export function filterVisibleModels(
   models: AgentModelInfo[],

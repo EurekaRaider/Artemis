@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { AgentModelInfo } from "@artemis/protocol";
 
-import { filterVisibleModels } from "../src/main/model-catalog.js";
+import {
+  filterVisibleModels,
+  loadBundledModelCatalog,
+} from "../src/main/model-catalog.js";
 
 function model(
   providerId: string,
@@ -19,6 +22,21 @@ function model(
 }
 
 describe("visible model catalog", () => {
+  it("loads the bundled Pi catalog without credentials or an Agent Host", async () => {
+    const models = filterVisibleModels(await loadBundledModelCatalog());
+
+    expect(models.length).toBeGreaterThan(0);
+    expect(
+      models.some((candidate) => candidate.providerId === "anthropic"),
+    ).toBe(true);
+    expect(models.some((candidate) => candidate.providerId === "openai")).toBe(
+      true,
+    );
+    expect(models.every((candidate) => candidate.configured === false)).toBe(
+      true,
+    );
+  });
+
   it("keeps mainstream direct model families and compatible inference providers", () => {
     const models = [
       model("anthropic", "claude-sonnet-4"),

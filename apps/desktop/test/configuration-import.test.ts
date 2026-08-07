@@ -4,10 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  ConfigurationImportService,
-  upgradeImportedProviderProtocol,
-} from "../src/main/configuration-import.js";
+import { ConfigurationImportService } from "../src/main/configuration-import.js";
 import { GlobalInstructionsStore } from "../src/main/global-instructions-store.js";
 
 const cleanupPaths: string[] = [];
@@ -218,104 +215,22 @@ describe("ConfigurationImportService", () => {
         expect.objectContaining({
           source: "codex",
           detected: true,
-          counts: { instructions: 1, skills: 1, mcp: 1, model: 1 },
+          counts: { instructions: 1, skills: 1, mcp: 1 },
         }),
         expect.objectContaining({
           source: "opencode",
           detected: true,
-          counts: { instructions: 1, skills: 1, mcp: 1, model: 1 },
+          counts: { instructions: 1, skills: 1, mcp: 1 },
         }),
         expect.objectContaining({
           source: "claude",
           detected: true,
-          counts: { instructions: 1, skills: 1, mcp: 1, model: 1 },
+          counts: { instructions: 1, skills: 1, mcp: 1 },
         }),
       ]),
     );
     expect(serialized).not.toContain("must-not-leak");
-  });
-
-  it("preserves OpenCode's @ai-sdk/openai Responses API choice", async () => {
-    const { homePath, service } = await createService();
-    await write(
-      join(homePath, ".config", "opencode", "opencode.json"),
-      `{
-        model: "pep/muse-spark-1.1",
-        provider: {
-          pep: {
-            npm: "@ai-sdk/openai",
-            name: "PEP Gateway",
-            options: {
-              baseURL: "http://127.0.0.1:11434/v1",
-              apiKey: "must-not-leak",
-            },
-            models: {
-              "muse-spark-1.1": {
-                name: "Muse Spark 1.1",
-              },
-            },
-          },
-        },
-      }`,
-    );
-
-    const imported = await service.import({
-      sources: ["opencode"],
-      categories: ["model"],
-    });
-
-    expect(imported.providers).toEqual([
-      expect.objectContaining({
-        id: "pep",
-        api: "openai-responses",
-        baseUrl: "http://127.0.0.1:11434/v1",
-        models: [
-          expect.objectContaining({
-            id: "muse-spark-1.1",
-            name: "Muse Spark 1.1",
-            contextWindow: 1_000_000,
-            maxTokens: 128_000,
-          }),
-        ],
-      }),
-    ]);
-    expect(JSON.stringify(imported)).not.toContain("must-not-leak");
-  });
-
-  it("upgrades a matching existing provider to the imported API protocol", () => {
-    const existing = {
-      id: "pep",
-      name: "Existing PEP",
-      baseUrl: "http://127.0.0.1:11434/v1/",
-      api: "openai-completions" as const,
-      models: [
-        {
-          id: "muse-spark-1.1",
-          name: "Existing model name",
-          reasoning: false,
-          input: ["text"] as const,
-          contextWindow: 64_000,
-          maxTokens: 8_000,
-        },
-      ],
-    };
-    const imported = {
-      ...existing,
-      name: "Imported PEP",
-      baseUrl: "http://127.0.0.1:11434/v1",
-      api: "openai-responses" as const,
-    };
-
-    expect(upgradeImportedProviderProtocol(existing, imported)).toEqual({
-      ...existing,
-      api: "openai-responses",
-    });
-    expect(
-      upgradeImportedProviderProtocol(existing, {
-        ...imported,
-        baseUrl: "http://127.0.0.1:9999/v1",
-      }),
-    ).toBeUndefined();
+    expect(serialized).not.toContain('"model"');
   });
 
   it("selectively imports files and returns parsed settings without overwriting", async () => {
@@ -340,7 +255,7 @@ describe("ConfigurationImportService", () => {
 
     const first = await service.import({
       sources: ["codex"],
-      categories: ["instructions", "skills", "mcp", "model"],
+      categories: ["instructions", "skills", "mcp"],
     });
     const second = await service.import({
       sources: ["codex"],
@@ -355,14 +270,8 @@ describe("ConfigurationImportService", () => {
         enabled: false,
       }),
     ]);
-    expect(first.models).toEqual([
-      {
-        source: "codex",
-        providerId: "openai",
-        modelId: "gpt-5.6",
-        thinkingLevel: "high",
-      },
-    ]);
+    expect(first).not.toHaveProperty("models");
+    expect(first).not.toHaveProperty("providers");
     expect(await readFile(globalPath, "utf8")).toContain(
       "# Imported Codex rule",
     );

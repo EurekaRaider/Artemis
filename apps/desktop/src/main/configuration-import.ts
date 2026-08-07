@@ -11,7 +11,6 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import JSON5 from "json5";
 import { parse as parseToml } from "smol-toml";
-import type { ProviderConnection, ThinkingLevel } from "@artemis/protocol";
 
 import type {
   ConfigurationImportCategory,
@@ -35,17 +34,8 @@ const IMPORT_SOURCES: ConfigurationImportSource[] = [
 
 type UnknownRecord = Record<string, unknown>;
 
-export interface ImportedModelSetting {
-  source: ConfigurationImportSource;
-  providerId: string;
-  modelId: string;
-  thinkingLevel?: ThinkingLevel;
-}
-
 export interface ConfigurationImportPayload {
   mcpServers: McpServerConfig[];
-  providers: ProviderConnection[];
-  models: ImportedModelSetting[];
   summary: ConfigurationImportSummary;
 }
 
@@ -65,8 +55,6 @@ interface LoadedSource {
   instructions: ImportedInstruction[];
   skills: ImportedSkill[];
   mcpServers: McpServerConfig[];
-  providers: ProviderConnection[];
-  models: ImportedModelSetting[];
   warnings: string[];
 }
 
@@ -98,7 +86,7 @@ function enabled(value: unknown): boolean {
 }
 
 function emptyCounts(): ConfigurationImportCounts {
-  return { instructions: 0, skills: 0, mcp: 0, model: 0 };
+  return { instructions: 0, skills: 0, mcp: 0 };
 }
 
 function safeId(value: string): string {
@@ -126,88 +114,6 @@ function resolveCwd(value: unknown, configPath: string, fallback: string) {
   const cwd = text(value);
   if (!cwd) return fallback;
   return isAbsolute(cwd) ? cwd : resolve(dirname(configPath), cwd);
-}
-
-function thinkingLevel(value: unknown): ThinkingLevel | undefined {
-  if (value === "none") return "off";
-  return ["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(
-    String(value),
-  )
-    ? (value as ThinkingLevel)
-    : undefined;
-}
-
-function positiveInteger(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1_024
-    ? value
-    : fallback;
-}
-
-function normalizedBaseUrl(value: string): string {
-  return value.trim().replace(/\/+$/u, "").toLowerCase();
-}
-
-export function upgradeImportedProviderProtocol(
-  existing: ProviderConnection,
-  imported: ProviderConnection,
-): ProviderConnection | undefined {
-  const existingModelIds = new Set(existing.models.map((model) => model.id));
-  const sameConnection =
-    existing.id === imported.id &&
-    normalizedBaseUrl(existing.baseUrl) ===
-      normalizedBaseUrl(imported.baseUrl) &&
-    imported.models.some((model) => existingModelIds.has(model.id));
-  const existingApi = existing.api ?? "openai-completions";
-  if (!sameConnection || !imported.api || existingApi === imported.api) {
-    return undefined;
-  }
-  return { ...existing, api: imported.api };
-}
-
-function providerConnection(
-  providerId: string,
-  providerValue: unknown,
-  selectedModelId: string,
-): ProviderConnection | undefined {
-  const provider = record(providerValue);
-  if (!provider) return undefined;
-  const options = record(provider.options);
-  const baseUrl =
-    text(provider.base_url) ??
-    text(provider.baseURL) ??
-    text(options?.baseURL) ??
-    text(options?.baseUrl);
-  if (!baseUrl) return undefined;
-  const models = record(provider.models);
-  const configuredModel = record(models?.[selectedModelId]);
-  const limit = record(configuredModel?.limit);
-  const npmProvider = text(configuredModel?.npm) ?? text(provider.npm);
-  return {
-    id: safeId(providerId),
-    name: text(provider.name) ?? providerId,
-    baseUrl,
-    api:
-      npmProvider === "@ai-sdk/openai"
-        ? "openai-responses"
-        : "openai-completions",
-    models: [
-      {
-        id: selectedModelId,
-        name: text(configuredModel?.name) ?? selectedModelId,
-        reasoning: configuredModel?.reasoning === true,
-        input:
-          configuredModel?.attachment === true ? ["text", "image"] : ["text"],
-        contextWindow: positiveInteger(
-          configuredModel?.contextWindow ?? limit?.context,
-          1_000_000,
-        ),
-        maxTokens: positiveInteger(
-          configuredModel?.maxTokens ?? limit?.output,
-          128_000,
-        ),
-      },
-    ],
-  };
 }
 
 async function readOptional(path: string): Promise<string | undefined> {
@@ -374,7 +280,6 @@ export class ConfigurationImportService {
           instructions: loaded.instructions.length,
           skills: loaded.skills.length,
           mcp: loaded.mcpServers.length,
-          model: loaded.models.length,
         },
         warnings: loaded.warnings,
       });
@@ -394,8 +299,6 @@ export class ConfigurationImportService {
     };
     const payload: ConfigurationImportPayload = {
       mcpServers: [],
-      providers: [],
-      models: [],
       summary,
     };
     const loadedSources = [];
@@ -492,11 +395,6 @@ export class ConfigurationImportService {
           }
         }
       }
-      if (categories.has("model")) {
-        payload.providers.push(...loaded.providers);
-        payload.models.push(...loaded.models);
-        summary.imported.model += loaded.models.length;
-      }
     }
     return payload;
   }
@@ -522,26 +420,6 @@ export class ConfigurationImportService {
     loaded.detectedPaths.push(configPath);
     try {
       const config = record(parseToml(configText)) ?? {};
-      const modelId = text(config.model);
-      const providerId = text(config.model_provider) ?? "openai";
-      if (modelId) {
-        loaded.models.push({
-          source: "codex",
-          providerId: safeId(providerId),
-          modelId,
-          ...(thinkingLevel(config.model_reasoning_effort)
-            ? {
-                thinkingLevel: thinkingLevel(config.model_reasoning_effort)!,
-              }
-            : {}),
-        });
-        const provider = providerConnection(
-          providerId,
-          record(config.model_providers)?.[providerId],
-          modelId,
-        );
-        if (provider) loaded.providers.push(provider);
-      }
       const servers = record(config.mcp_servers) ?? {};
       for (const [id, rawValue] of Object.entries(servers)) {
         const value = record(rawValue);
@@ -582,29 +460,6 @@ export class ConfigurationImportService {
     loaded.detectedPaths.push(configPath);
     try {
       const config = record(JSON5.parse(configText)) ?? {};
-      const model = text(config.model);
-      if (model) {
-        const separator = model.indexOf("/");
-        if (separator > 0 && separator < model.length - 1) {
-          const providerId = model.slice(0, separator);
-          const modelId = model.slice(separator + 1);
-          loaded.models.push({
-            source: "opencode",
-            providerId: safeId(providerId),
-            modelId,
-          });
-          const provider = providerConnection(
-            providerId,
-            record(config.provider)?.[providerId],
-            modelId,
-          );
-          if (provider) loaded.providers.push(provider);
-        } else {
-          loaded.warnings.push(
-            "OpenCode model was skipped because it is not provider/model.",
-          );
-        }
-      }
       const servers = record(config.mcp) ?? {};
       for (const [id, rawValue] of Object.entries(servers)) {
         const value = record(rawValue);
@@ -657,14 +512,6 @@ export class ConfigurationImportService {
       loaded.detectedPaths.push(settingsPath);
       try {
         const settings = record(JSON.parse(settingsText)) ?? {};
-        const modelId = text(settings.model);
-        if (modelId) {
-          loaded.models.push({
-            source: "claude",
-            providerId: "anthropic",
-            modelId,
-          });
-        }
         if (text(settings.apiKey)) {
           loaded.warnings.push("Claude Code API keys were not imported.");
         }
@@ -743,8 +590,6 @@ export class ConfigurationImportService {
       instructions,
       skills,
       mcpServers: [],
-      providers: [],
-      models: [],
       warnings: [],
     };
   }

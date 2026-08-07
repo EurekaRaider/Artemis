@@ -832,11 +832,38 @@ describe("renderer layout contract", () => {
 
   it("keeps large custom menus on one keyboard tab stop", () => {
     expect(codexSelectSource).toContain("aria-activedescendant=");
-    expect(codexSelectSource).toContain("tabIndex={0}");
+    expect(codexSelectSource).toContain(
+      "tabIndex={searchPlaceholder ? -1 : 0}",
+    );
     expect(codexSelectSource).toContain('role="option"');
     expect(codexSelectSource).not.toMatch(
       /<button[\s\S]{0,500}?role="option"/u,
     );
+  });
+
+  it("adds fuzzy model search inside the Settings model selector", () => {
+    expect(settingsSource).toContain("searchPlaceholder={t.modelSearch}");
+    expect(settingsSource).toContain("noResultsLabel={t.modelSearchEmpty}");
+    expect(settingsSource).toContain(
+      "searchText: `${model.providerId} ${model.name} ${model.modelId}`",
+    );
+    expect(codexSelectSource).toContain('role="combobox"');
+    expect(codexSelectSource).toContain('type="search"');
+    expect(codexSelectSource).toContain("filterCodexSelectOptions(");
+    expect(cssRule(".codex-select-search")).toMatch(/\bheight:\s*34px/u);
+    expect(cssRule(".codex-select-empty")).toMatch(
+      /\bcolor:\s*var\(--muted\)/u,
+    );
+  });
+
+  it("imports only global instructions, Skills, and MCP configuration", () => {
+    expect(settingsSource).toContain('>(["instructions", "skills", "mcp"]);');
+    expect(settingsSource).not.toContain("importModel:");
+    expect(settingsSource).not.toContain('["model", t.importModel]');
+    expect(mainProcessSource).toContain(
+      '["instructions", "skills", "mcp"].includes(category)',
+    );
+    expect(mainProcessSource).not.toContain("applyImportedModel(");
   });
 
   it("shows real task steps with status-specific progress markers", () => {
