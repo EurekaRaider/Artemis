@@ -19,18 +19,29 @@ function model(
 }
 
 describe("visible model catalog", () => {
-  it("keeps only Claude, OpenAI, DeepSeek, GLM, and Kimi families", () => {
+  it("keeps mainstream direct model families and compatible inference providers", () => {
     const models = [
       model("anthropic", "claude-sonnet-4"),
       model("openai", "gpt-5.2"),
+      model("google", "gemini-2.5-pro"),
+      model("xai", "grok-4"),
       model("deepseek", "deepseek-reasoner"),
       model("zai", "glm-4.5"),
       model("moonshotai", "kimi-k2"),
+      model("mistral", "mistral-large-latest"),
+      model("minimax", "MiniMax-M2.1"),
+      model("minimax-cn", "MiniMax-M2.1"),
+      model("qwen-token-plan", "qwen3-coder-plus"),
+      model("qwen-token-plan-cn", "qwen3-coder-plus"),
+      model("xiaomi", "mimo-v2-pro"),
+      model("xiaomi-token-plan-cn", "mimo-v2-pro"),
+      model("xiaomi-token-plan-ams", "mimo-v2-pro"),
+      model("xiaomi-token-plan-sgp", "mimo-v2-pro"),
+      model("groq", "llama-3.3-70b-versatile"),
       model("amazon-bedrock", "anthropic.claude-sonnet-4", "Claude Sonnet 4"),
       model("google-vertex", "claude-opus-4", "Claude Opus 4"),
       model("openrouter", "openai/gpt-5", "OpenAI GPT-5"),
       model("amazon-bedrock", "us.amazon.nova-pro-v1:0"),
-      model("google", "gemini-2.5-pro"),
       model("ollama", "qwen2.5-coder:7b"),
     ];
 
@@ -41,9 +52,21 @@ describe("visible model catalog", () => {
     ).toEqual([
       "anthropic/claude-sonnet-4",
       "openai/gpt-5.2",
+      "google/gemini-2.5-pro",
+      "xai/grok-4",
       "deepseek/deepseek-reasoner",
       "zai/glm-4.5",
       "moonshotai/kimi-k2",
+      "mistral/mistral-large-latest",
+      "minimax/MiniMax-M2.1",
+      "minimax-cn/MiniMax-M2.1",
+      "qwen-token-plan/qwen3-coder-plus",
+      "qwen-token-plan-cn/qwen3-coder-plus",
+      "xiaomi/mimo-v2-pro",
+      "xiaomi-token-plan-cn/mimo-v2-pro",
+      "xiaomi-token-plan-ams/mimo-v2-pro",
+      "xiaomi-token-plan-sgp/mimo-v2-pro",
+      "groq/llama-3.3-70b-versatile",
     ]);
   });
 
