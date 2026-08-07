@@ -80,8 +80,8 @@ credentials are protected with operating-system encryption.
 
 <table>
   <tr>
-    <td width="50%"><img src="artifacts/screenshot-matrix/en-125.png" alt="Artemis English workspace at 125 percent scale" /></td>
-    <td width="50%"><img src="artifacts/screenshot-matrix/zh-CN-150.png" alt="Artemis Simplified Chinese workspace at 150 percent scale" /></td>
+    <td width="50%"><img src="docs/images/artemis-workspace-en-125.png" alt="Artemis English workspace at 125 percent scale" /></td>
+    <td width="50%"><img src="docs/images/artemis-workspace-zh-CN-150.png" alt="Artemis Simplified Chinese workspace at 150 percent scale" /></td>
   </tr>
   <tr>
     <td align="center"><sub>English · 125% scale · activity bar and project workspace</sub></td>
