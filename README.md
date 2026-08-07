@@ -681,10 +681,14 @@ spawn or control more Agents.
   request, blocker and handoff messages addressed to the parent, the whole team
   or one teammate. The roster exposes dependencies, health, current tool, last
   activity, elapsed time, output and message history.
-- **Lifecycle controls** — the parent can wait, inspect, steer, cancel, retry or
-  change a member's write scope. `finish_team` refuses to close while required
-  work is unresolved and requires an explicit waiver summary for a failed
-  required child.
+- **Lifecycle controls** — `wait_team` and `list_agents` expose team state;
+  `wait_agent`, `get_agent_status`, `steer_agent`, `cancel_agent`, `retry_agent`
+  and `set_agent_write_scope` let the parent intervene. `finish_team` closes
+  only after every required member reaches a terminal state. A failed or
+  cancelled required member must be retried or named in `waived_agent_ids`, and
+  every close includes a non-empty integration summary. If the parent ends
+  without closing the team, Artemis aborts it and reports
+  `agent-team-incomplete`, except when the user cancelled the turn.
 - **Policy inheritance and visibility** — child sessions inherit the parent
   mode. Execute children also inherit enabled MCP configuration and approved
   execution surfaces; Plan and Review children remain read-only. Status and
