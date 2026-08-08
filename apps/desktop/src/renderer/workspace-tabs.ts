@@ -11,8 +11,9 @@ export interface WorkspaceTab {
   id: string;
   kind: WorkspaceTabKind;
   title: string;
-  path?: string;
-  revision?: string;
+  path?: string | undefined;
+  revision?: string | undefined;
+  url?: string | undefined;
   childAgentId?: string;
   agentTeamId?: string;
 }
@@ -30,7 +31,9 @@ export type WorkspaceTabAction =
   | {
       type: "update";
       tabId: string;
-      updates: Partial<Pick<WorkspaceTab, "title" | "path" | "revision">>;
+      updates: Partial<
+        Pick<WorkspaceTab, "title" | "path" | "revision" | "url">
+      >;
     };
 
 export const emptyWorkspaceTabs = (): WorkspaceTabsState => ({

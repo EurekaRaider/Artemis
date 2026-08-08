@@ -1195,8 +1195,35 @@ summary:focus-visible {
 
 .markdown-body a.workspace-file-link {
   cursor: pointer;
+  text-decoration: none;
+}
+
+.markdown-body a[data-external-http] {
+  text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
+}
+
+.markdown-body a.workspace-file-link.with-icon {
+  display: inline;
+  font-family: inherit;
+  white-space: normal;
+}
+
+.workspace-file-link-icon {
+  display: inline-block;
+  height: 1em;
+  margin-right: 0.24em;
+  vertical-align: -0.13em;
+  width: 1em;
+}
+
+.workspace-file-link-icon svg {
+  display: block;
+  fill: currentColor;
+  height: 100%;
+  overflow: visible;
+  width: 100%;
 }
 
 .markdown-body img {

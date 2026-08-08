@@ -71,6 +71,7 @@ const workspaceTabContentSource = source(
 const workspacePresentationSource = source(
   "../src/renderer/workspace-file-presentation.ts",
 );
+const setiFileIconSource = source("../src/renderer/seti-file-icon.ts");
 const workspacePreviewSource = source(
   "../src/renderer/WorkspacePreviewPanel.tsx",
 );
@@ -83,6 +84,7 @@ const fileEditorSources = [
   workspaceEditorSource,
   workspaceMarkdownEditorSource,
   workspacePresentationSource,
+  setiFileIconSource,
 ].join("\n");
 const tabContentSources = [appSource, workspaceTabContentSource].join("\n");
 

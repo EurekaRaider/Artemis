@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getIcon } from "seti-file-icons";
 
 import type {
   WorkspaceDirectoryEntry,
@@ -11,6 +10,9 @@ import {
   filePresentation,
   type WorkspaceFilePresentation,
 } from "./workspace-file-presentation.js";
+import { setiFileIcon } from "./seti-file-icon.js";
+
+export { setiFileIcon } from "./seti-file-icon.js";
 
 interface WorkspaceFilesPanelProps {
   threadId: string | undefined;
@@ -81,22 +83,6 @@ export function WorkspaceFileIcon({
       )}
     </span>
   );
-}
-
-export function setiFileIcon(
-  path: string,
-  presentation: WorkspaceFilePresentation,
-): { color: string; svg: string } {
-  const fileName = path.replaceAll("\\", "/").split("/").at(-1) ?? path;
-  const lookupName =
-    presentation.type === "markdown"
-      ? "file.md"
-      : presentation.type === "json"
-        ? "file.json"
-        : presentation.type === "cmake"
-          ? "Makefile"
-          : fileName;
-  return getIcon(lookupName);
 }
 
 function DirectoryTree({

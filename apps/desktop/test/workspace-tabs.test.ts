@@ -1,13 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 
 type WorkspaceTabKind =
-  "review" | "terminal" | "file" | "markdown" | "child-agent" | "agent-team";
+  | "review"
+  | "terminal"
+  | "browser"
+  | "file"
+  | "markdown"
+  | "child-agent"
+  | "agent-team";
 
 interface WorkspaceTab {
   id: string;
   kind: WorkspaceTabKind;
   title: string;
   path?: string;
+  url?: string;
   childAgentId?: string;
   agentTeamId?: string;
 }

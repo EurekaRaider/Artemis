@@ -55,6 +55,7 @@ import type {
 import artemisIcon from "../../build/icon.png";
 import { ArchivePage } from "./ArchivePage.js";
 import { MarkdownContent } from "./MarkdownContent.js";
+import { normalizeBrowserAddress } from "./browser-navigation.js";
 import { CodexSelect } from "./CodexSelect.js";
 import { ComposerContextBar } from "./ComposerContextBar.js";
 import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
@@ -176,6 +177,7 @@ interface WorkspaceTabOpenOptions {
   path?: string;
   reuseKind?: boolean;
   revision?: string;
+  url?: string;
 }
 
 interface WorkspaceTabScrollState {
@@ -2138,17 +2140,26 @@ export function App() {
               (tab) =>
                 tab.kind === kind &&
                 (options.reuseKind ||
-                  !options.path ||
-                  tab.path === options.path),
+                  (!options.path && !options.url) ||
+                  tab.path === options.path ||
+                  tab.url === options.url),
             );
         const pathTitle = options.path?.replaceAll("\\", "/").split("/").at(-1);
+        const baseTitle = workspaceTabBaseTitle(kind);
         if (existing) {
           const updated = reduceWorkspaceTabs(state, {
             type: "update",
             tabId: existing.id,
             updates: {
-              ...(pathTitle ? { title: pathTitle } : {}),
-              ...(options.path ? { path: options.path } : {}),
+              ...(pathTitle
+                ? { title: pathTitle }
+                : options.url
+                  ? { title: baseTitle }
+                  : {}),
+              ...(options.path ? { path: options.path, url: undefined } : {}),
+              ...(options.url
+                ? { path: undefined, revision: undefined, url: options.url }
+                : {}),
               ...(options.revision ? { revision: options.revision } : {}),
             },
           });
@@ -2162,13 +2173,13 @@ export function App() {
         }
 
         const index = state.tabs.filter((tab) => tab.kind === kind).length + 1;
-        const baseTitle = workspaceTabBaseTitle(kind);
         const tab: WorkspaceTab = {
           id: `${threadId}-${kind}-${++workspaceTabSerial.current}`,
           kind,
           title: pathTitle ?? (index > 1 ? `${baseTitle} ${index}` : baseTitle),
           ...(options.path ? { path: options.path } : {}),
           ...(options.revision ? { revision: options.revision } : {}),
+          ...(options.url ? { url: options.url } : {}),
         };
         return {
           ...current,
@@ -2223,6 +2234,21 @@ export function App() {
       }
     },
     [activeThreadId, openResolvedWorkspaceFile],
+  );
+
+  const openConversationExternalLink = useCallback(
+    (href: string) => {
+      try {
+        const url = normalizeBrowserAddress(href);
+        openWorkspaceTab("browser", { reuseKind: true, url });
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [openWorkspaceTab],
   );
 
   const openConversationFileLinkMenu = useCallback(
@@ -4755,6 +4781,7 @@ export function App() {
                       installedPlugins={installedPlugins}
                       installedSkills={installedSkills}
                       locale={locale}
+                      onExternalLink={openConversationExternalLink}
                       onFileLink={openConversationFileLink}
                       onFileLinkContextMenu={openConversationFileLinkMenu}
                       onOpenChildAgent={openChildAgentPanel}
@@ -6544,8 +6571,13 @@ export function App() {
                               emptyMessage={t.noHtmlPreview}
                               forwardLabel={t.browserForward}
                               goLabel={t.browserGo}
+                              initialUrl={tab.url}
                               locale={locale}
-                              path={tab.path ?? latestHtmlChange?.path}
+                              path={
+                                tab.url
+                                  ? undefined
+                                  : (tab.path ?? latestHtmlChange?.path)
+                              }
                               refreshLabel={t.refreshPreview}
                               revision={
                                 tab.revision ?? latestHtmlChange?.eventId
@@ -7729,6 +7761,7 @@ function Timeline({
   installedSkills,
   state,
   locale,
+  onExternalLink,
   onFileLink,
   onFileLinkContextMenu,
   onOpenChildAgent,
@@ -7739,6 +7772,7 @@ function Timeline({
   installedSkills: readonly InstalledSkill[];
   state: ThreadViewState;
   locale: Locale;
+  onExternalLink: (href: string) => void;
   onFileLink: (href: string) => void;
   onFileLinkContextMenu: (
     href: string,
@@ -7901,6 +7935,8 @@ function Timeline({
           return (
             <article className="assistant-message" key={entry}>
               <MarkdownContent
+                fileLinkIcons
+                onExternalLink={onExternalLink}
                 onFileLink={onFileLink}
                 onFileLinkContextMenu={onFileLinkContextMenu}
                 text={part.text}

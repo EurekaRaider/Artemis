@@ -1,6 +1,15 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { memo, useEffect, useMemo, useRef, type MouseEvent } from "react";
+import {
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type MouseEvent,
+} from "react";
+
+import { workspaceFileLinkIcon } from "./seti-file-icon.js";
 
 const allowedTags = [
   "a",
@@ -22,6 +31,7 @@ const allowedTags = [
   "ol",
   "p",
   "pre",
+  "span",
   "strong",
   "table",
   "tbody",
@@ -124,7 +134,13 @@ function rawHtmlAttribute(value: string, name: string): string | undefined {
     .replaceAll("&amp;", "&");
 }
 
-function linkMarkup(href: string, title: string | null, label: string): string {
+function linkMarkup(
+  href: string,
+  title: string | null,
+  label: string,
+  fileLinkIcons = false,
+  delegateExternalLinks = false,
+): string {
   const externalHref = href.startsWith("//") ? `https:${href}` : href;
   if (
     !isWorkspaceFileHref(href) &&
@@ -136,9 +152,18 @@ function linkMarkup(href: string, title: string | null, label: string): string {
   const escapedHref = escapeAttribute(externalHref);
   const titleAttribute = title ? ` title="${escapeAttribute(title)}"` : "";
   if (isWorkspaceFileHref(href)) {
-    return `<a class="workspace-file-link" data-workspace-file="${escapedHref}" href="#"${titleAttribute}>${label}</a>`;
+    const icon = fileLinkIcons
+      ? '<span aria-hidden="true" class="workspace-file-link-icon"></span>'
+      : "";
+    const className = fileLinkIcons
+      ? "workspace-file-link with-icon"
+      : "workspace-file-link";
+    return `<a class="${className}" data-workspace-file="${escapedHref}" href="#"${titleAttribute}>${icon}${label}</a>`;
   }
   if (/^https?:/iu.test(externalHref)) {
+    if (delegateExternalLinks) {
+      return `<a data-external-http="${escapedHref}" href="${escapedHref}" rel="noopener noreferrer"${titleAttribute}>${label}</a>`;
+    }
     return `<a href="${escapedHref}" rel="noopener noreferrer" target="_blank"${titleAttribute}>${label}</a>`;
   }
   return `<a href="${escapedHref}"${titleAttribute}>${label}</a>`;
@@ -195,7 +220,11 @@ function readerHtmlMarkup(text: string): string {
   return `<p${centeredBlock ? ' class="markdown-align-center"' : ""}>${images.join("\n")}</p>`;
 }
 
-function markdownRenderer(imagesEnabled: boolean) {
+function markdownRenderer(
+  imagesEnabled: boolean,
+  fileLinkIcons: boolean,
+  delegateExternalLinks: boolean,
+) {
   const renderer = new marked.Renderer();
   const headingCounts = new Map<string, number>();
   renderer.html = ({ text }) => (imagesEnabled ? readerHtmlMarkup(text) : "");
@@ -213,7 +242,13 @@ function markdownRenderer(imagesEnabled: boolean) {
   };
   renderer.link = function ({ href, title, tokens }) {
     const label = this.parser.parseInline(tokens);
-    return linkMarkup(href, title ?? null, label);
+    return linkMarkup(
+      href,
+      title ?? null,
+      label,
+      fileLinkIcons,
+      delegateExternalLinks,
+    );
   };
   return renderer;
 }
@@ -227,14 +262,27 @@ function workspaceFileAnchor(
   return anchor && container.contains(anchor) ? anchor : undefined;
 }
 
+function externalHttpAnchor(
+  target: EventTarget | null,
+  container: HTMLElement,
+): HTMLAnchorElement | undefined {
+  const element = target instanceof Element ? target : undefined;
+  const anchor = element?.closest<HTMLAnchorElement>("a[data-external-http]");
+  return anchor && container.contains(anchor) ? anchor : undefined;
+}
+
 export const MarkdownContent = memo(function MarkdownContent({
   className,
+  fileLinkIcons = false,
+  onExternalLink,
   onFileLink,
   onFileLinkContextMenu,
   resolveImage,
   text,
 }: {
   className?: string;
+  fileLinkIcons?: boolean;
+  onExternalLink?: (href: string) => void;
   onFileLink?: (href: string) => void;
   onFileLinkContextMenu?: (
     href: string,
@@ -245,14 +293,21 @@ export const MarkdownContent = memo(function MarkdownContent({
 }) {
   const contentRoot = useRef<HTMLElement>(null);
   const imagesEnabled = Boolean(resolveImage);
+  const delegateExternalLinks = Boolean(onExternalLink);
   const html = useMemo(() => {
-    const renderer = markdownRenderer(imagesEnabled);
+    const renderer = markdownRenderer(
+      imagesEnabled,
+      fileLinkIcons,
+      delegateExternalLinks,
+    );
     const parsed = marked.parse(text, { async: false, renderer });
     return typeof DOMPurify.sanitize === "function"
       ? DOMPurify.sanitize(parsed, {
           ALLOWED_ATTR: [
             "alt",
+            "aria-hidden",
             "class",
+            "data-external-http",
             "data-workspace-file",
             "data-workspace-image",
             "href",
@@ -269,7 +324,25 @@ export const MarkdownContent = memo(function MarkdownContent({
           ALLOWED_TAGS: allowedTags,
         })
       : parsed;
-  }, [imagesEnabled, text]);
+  }, [delegateExternalLinks, fileLinkIcons, imagesEnabled, text]);
+
+  useLayoutEffect(() => {
+    const root = contentRoot.current;
+    if (!root || !fileLinkIcons) return;
+    for (const anchor of root.querySelectorAll<HTMLAnchorElement>(
+      "a.workspace-file-link.with-icon[data-workspace-file]",
+    )) {
+      const href = anchor.dataset.workspaceFile;
+      const iconRoot = anchor.querySelector<HTMLElement>(
+        ".workspace-file-link-icon",
+      );
+      if (!href || !iconRoot) continue;
+      const icon = workspaceFileLinkIcon(href);
+      iconRoot.dataset.setiColor = icon.color;
+      // The SVG is bundled with seti-file-icons; no Markdown input is parsed here.
+      iconRoot.innerHTML = icon.svg;
+    }
+  }, [fileLinkIcons, html]);
 
   useEffect(() => {
     const root = contentRoot.current;
@@ -301,12 +374,23 @@ export const MarkdownContent = memo(function MarkdownContent({
     };
   }, [html, resolveImage]);
 
-  const openFileLink = (event: MouseEvent<HTMLElement>) => {
-    const anchor = workspaceFileAnchor(event.target, event.currentTarget);
-    if (!anchor) return;
+  const openDelegatedLink = (event: MouseEvent<HTMLElement>) => {
+    const fileAnchor = workspaceFileAnchor(event.target, event.currentTarget);
+    if (fileAnchor) {
+      event.preventDefault();
+      const href = fileAnchor.dataset.workspaceFile;
+      if (href) onFileLink?.(href);
+      return;
+    }
+
+    const externalAnchor = externalHttpAnchor(
+      event.target,
+      event.currentTarget,
+    );
+    if (!externalAnchor) return;
     event.preventDefault();
-    const href = anchor.dataset.workspaceFile;
-    if (href) onFileLink?.(href);
+    const href = externalAnchor.dataset.externalHttp;
+    if (href) onExternalLink?.(href);
   };
 
   const openFileLinkMenu = (event: MouseEvent<HTMLElement>) => {
@@ -326,7 +410,7 @@ export const MarkdownContent = memo(function MarkdownContent({
     <article
       className={className ? `${className} markdown-body` : "markdown-body"}
       dangerouslySetInnerHTML={{ __html: html }}
-      onClick={openFileLink}
+      onClick={openDelegatedLink}
       onContextMenu={openFileLinkMenu}
       ref={contentRoot}
     />

@@ -43,6 +43,7 @@ interface BrowserPanelProps extends WorkspacePreviewProps {
   backLabel: string;
   forwardLabel: string;
   goLabel: string;
+  initialUrl?: string | undefined;
   locale: BrowserLocale;
 }
 
@@ -102,7 +103,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
   const workspaceDocumentRef = useRef<
     { label: string; url: string } | undefined
   >(undefined);
-  const [address, setAddress] = useState("");
+  const [address, setAddress] = useState(props.initialUrl ?? "");
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
   const [navigationError, setNavigationError] = useState<string>();
@@ -119,7 +120,8 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
         : undefined,
     [file],
   );
-  const browserSource = workspaceDocument?.url ?? "about:blank";
+  const browserSource =
+    workspaceDocument?.url ?? props.initialUrl ?? "about:blank";
 
   workspaceDocumentRef.current = workspaceDocument;
 
@@ -191,6 +193,12 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
       setNavigationError(undefined);
     }
   }, [workspaceDocument]);
+
+  useEffect(() => {
+    if (!props.initialUrl) return;
+    setAddress(props.initialUrl);
+    setNavigationError(undefined);
+  }, [props.initialUrl]);
 
   useEffect(() => {
     const previousLocale = previousLocaleRef.current;
@@ -312,7 +320,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
         partition={BROWSER_SESSION_PARTITION}
         ref={webviewRef}
         src={browserSource}
-        title={`${props.title}: ${file?.path ?? ""}`}
+        title={`${props.title}: ${file?.path ?? props.initialUrl ?? ""}`}
       />
     </section>
   );

@@ -17,6 +17,10 @@ describe("agent resource overrides", () => {
       "Every file you create for the user must be linked",
     );
     expect(prompts?.at(-1)).toContain("[report.md](reports/report.md)");
+    expect(prompts?.at(-1)).toContain(
+      "[security.md (line 1)](docs/security.md:1)",
+    );
+    expect(prompts?.at(-1)).toContain("The desktop adds the file-type icon");
     expect(prompts?.at(-1)).toContain("Do not use file:// URLs");
     expect(prompts?.at(-1)).toContain(
       "call request_user_input instead of printing questions",

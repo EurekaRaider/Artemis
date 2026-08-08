@@ -8,6 +8,10 @@ import {
   isWorkspaceFileHref,
   MarkdownContent,
 } from "../src/renderer/MarkdownContent.js";
+import {
+  workspaceFileIconPath,
+  workspaceFileLinkIcon,
+} from "../src/renderer/seti-file-icon.js";
 
 describe("MarkdownContent", () => {
   it("renders headings, lists, inline code, and fenced code blocks", () => {
@@ -146,6 +150,7 @@ describe("MarkdownContent", () => {
   it("renders relative and absolute workspace paths as delegated file links", () => {
     const html = renderToStaticMarkup(
       <MarkdownContent
+        fileLinkIcons
         text={[
           "[report](reports/report.md)",
           "[source](apps/main.ts:12:4)",
@@ -159,6 +164,9 @@ describe("MarkdownContent", () => {
     expect(html).toContain('data-workspace-file="reports/report.md"');
     expect(html).toContain('data-workspace-file="apps/main.ts:12:4"');
     expect(html).toContain('data-workspace-file="/tmp/workspace/output.html"');
+    expect(html.match(/class="workspace-file-link-icon"/gu)).toHaveLength(3);
+    expect(html).toContain('class="workspace-file-link with-icon"');
+    expect(html).toContain('aria-hidden="true"');
     expect(html).toMatch(
       /<a(?=[^>]*\bhref="https:\/\/example\.com")(?=[^>]*\btarget="_blank")(?=[^>]*\brel="noopener noreferrer")[^>]*>web<\/a>/u,
     );
@@ -169,6 +177,64 @@ describe("MarkdownContent", () => {
     expect(isWorkspaceFileHref("C:\\repo\\main.ts:9")).toBe(true);
     expect(isWorkspaceFileHref("https://example.com/file.ts")).toBe(false);
     expect(isWorkspaceFileHref("javascript:alert(1)")).toBe(false);
+  });
+
+  it("delegates assistant HTTP links without opening a new system window", () => {
+    const html = renderToStaticMarkup(
+      <MarkdownContent
+        onExternalLink={() => undefined}
+        text="[OpenAI](https://openai.com)"
+      />,
+    );
+
+    expect(html).toMatch(
+      /<a(?=[^>]*\bdata-external-http="https:\/\/openai\.com")(?=[^>]*\bhref="https:\/\/openai\.com")(?=[^>]*\brel="noopener noreferrer")[^>]*>OpenAI<\/a>/u,
+    );
+    expect(html).not.toContain('target="_blank"');
+  });
+
+  it("selects file-type icons from link paths without treating line locations as extensions", () => {
+    expect(workspaceFileIconPath("apps/App.tsx:214")).toBe("apps/App.tsx");
+    expect(workspaceFileIconPath("styles.css#L12C4")).toBe("styles.css");
+    expect(workspaceFileIconPath("file:///tmp/icon.svg#L1")).toBe(
+      "/tmp/icon.svg",
+    );
+
+    const icons = [
+      workspaceFileLinkIcon("apps/App.tsx:214"),
+      workspaceFileLinkIcon("styles.css:1"),
+      workspaceFileLinkIcon("assets/icon.svg#L1"),
+    ];
+    expect(new Set(icons.map((icon) => icon.svg))).toHaveLength(3);
+    expect(icons[0]?.svg).toBe(
+      workspaceFileLinkIcon("components/Button.jsx").svg,
+    );
+  });
+
+  it("uses iconified file links only for assistant timeline messages", () => {
+    const appSource = readFileSync(
+      fileURLToPath(new URL("../src/renderer/App.tsx", import.meta.url)),
+      "utf8",
+    );
+    const stylesSource = readFileSync(
+      fileURLToPath(new URL("../src/renderer/styles.css", import.meta.url)),
+      "utf8",
+    );
+    const assistantMessage = appSource.match(
+      /<article className="assistant-message"[\s\S]*?<\/article>/u,
+    )?.[0];
+
+    expect(assistantMessage).toContain("fileLinkIcons");
+    expect(stylesSource).toMatch(
+      /\.markdown-body a\.workspace-file-link\s*\{[\s\S]*?text-decoration:\s*none;[\s\S]*?\}/u,
+    );
+    expect(stylesSource).toMatch(
+      /\.markdown-body a\.workspace-file-link\.with-icon\s*\{[\s\S]*?display:\s*inline;[\s\S]*?font-family:\s*inherit;[\s\S]*?white-space:\s*normal;[\s\S]*?\}/u,
+    );
+    expect(stylesSource).toMatch(
+      /\.markdown-body a\[data-external-http\][\s\S]*?text-decoration:\s*underline;[\s\S]*?\}/u,
+    );
+    expect(stylesSource).toMatch(/\.workspace-file-link-icon\s*\{[\s\S]*?\}/u);
   });
 
   it("is used for assistant message content in the timeline", () => {
@@ -182,6 +248,8 @@ describe("MarkdownContent", () => {
 
     expect(assistantMessage).toBeDefined();
     expect(assistantMessage).toContain("<MarkdownContent");
+    expect(assistantMessage).toContain("fileLinkIcons");
+    expect(assistantMessage).toContain("onExternalLink={onExternalLink}");
     expect(assistantMessage).toContain("onFileLink={onFileLink}");
     expect(assistantMessage).toContain(
       "onFileLinkContextMenu={onFileLinkContextMenu}",

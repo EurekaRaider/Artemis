@@ -1730,6 +1730,35 @@ describe("renderer layout contract", () => {
     expect(mainProcessSource).toContain("IPC.workspaceTextFileRead");
   });
 
+  it("opens assistant HTTP links in the reusable Artemis Browser tab", () => {
+    const externalLinkStart = appSource.indexOf(
+      "const openConversationExternalLink =",
+    );
+    const externalLinkEnd = appSource.indexOf(
+      "const openConversationFileLinkMenu =",
+      externalLinkStart,
+    );
+    const externalLinkSource = appSource.slice(
+      externalLinkStart,
+      externalLinkEnd,
+    );
+
+    expect(externalLinkStart).toBeGreaterThan(-1);
+    expect(externalLinkEnd).toBeGreaterThan(externalLinkStart);
+    expect(externalLinkSource).toContain("normalizeBrowserAddress(href)");
+    expect(externalLinkSource).toContain('openWorkspaceTab("browser"');
+    expect(externalLinkSource).toContain("reuseKind: true");
+    expect(externalLinkSource).toContain("url");
+    expect(appSource).toContain(
+      "onExternalLink={openConversationExternalLink}",
+    );
+    expect(appSource).toContain("initialUrl={tab.url}");
+    expect(workspacePreviewSource).toContain("initialUrl?: string");
+    expect(workspacePreviewSource).toContain(
+      'workspaceDocument?.url ?? props.initialUrl ?? "about:blank"',
+    );
+  });
+
   it("switches the Markdown reader between rich and source views", () => {
     expect(workspacePreviewSource).toContain("<MarkdownContent");
     expect(workspacePreviewSource).toContain('useState<"rich" | "source">');
