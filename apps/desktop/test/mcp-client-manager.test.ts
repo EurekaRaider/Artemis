@@ -371,6 +371,21 @@ lines.on("line", (line) => {
     );
   });
 
+  it("emits an MCP approval card only after auto-approval is declined", () => {
+    const brokerHandler = mainProcessSource.slice(
+      mainProcessSource.indexOf("async function handleMcpBrokerRequest"),
+      mainProcessSource.indexOf("async function handleExtensionBrokerRequest"),
+    );
+    const autoApproval = brokerHandler.indexOf("shouldAutoApprove(");
+    const approvalCard = brokerHandler.indexOf('type: "approval.requested"');
+    const automaticPath = brokerHandler.slice(autoApproval, approvalCard);
+
+    expect(autoApproval).toBeGreaterThan(-1);
+    expect(approvalCard).toBeGreaterThan(autoApproval);
+    expect(automaticPath).toContain("executeApprovedMcp");
+    expect(automaticPath).toContain("return;");
+  });
+
   it("discovers tools and maps OpenCode-style server-qualified Pi names", async () => {
     const namespacedConfig = { ...config, id: "test.server" };
     const client: McpConnection = {

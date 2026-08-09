@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS arm64 and x64" src="https://img.shields.io/badge/macOS-arm64%20%7C%20x64-111111?logo=apple&logoColor=white" />
-  <img alt="773 passing tests" src="https://img.shields.io/badge/Tests-773_passing-2EA44F" />
+  <img alt="778 passing tests" src="https://img.shields.io/badge/Tests-778_passing-2EA44F" />
   <img alt="Maximum 16 active agents" src="https://img.shields.io/badge/Agents-max_16-F5A524" />
 </p>
 
@@ -435,14 +435,14 @@ flowchart LR
 
 #### Execution surfaces
 
-| Surface                 | Effective boundary                                                                                                                                                                                                             |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Pi Bash**             | Available only in Execute. After brokered model or user approval, it intentionally inherits the current desktop user's full filesystem and network permissions.                                                                |
-| **Integrated Terminal** | Opened by the user and inherits the current desktop user's filesystem and network permissions without automatic administrator elevation.                                                                                       |
-| **MCP**                 | Non-destructive tools are auto-approved after the server is enabled; tools marked destructive require a human approval. Enabled local stdio servers intentionally inherit the current desktop user's full filesystem and network permissions. |
-| **Extensions**          | Remain disabled until project and content-hash trust are explicit. They run in AppContainer on Windows or Seatbelt on macOS by default; the **Full local access** setting opts extensions alone into desktop-user permissions. |
-| **Browser**             | Has normal HTTP/HTTPS access but no Node integration, preload API or local-file access.                                                                                                                                        |
-| **Plan and Review**     | Reject writes before an executor or filesystem call and do not expose Pi Bash, MCP or executable extensions.                                                                                                                   |
+| Surface                 | Effective boundary                                                                                                                                                                                                                                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pi Bash**             | Available only in Execute. After brokered model or user approval, it intentionally inherits the current desktop user's full filesystem and network permissions.                                                                                                                                                               |
+| **Integrated Terminal** | Opened by the user and inherits the current desktop user's filesystem and network permissions without automatic administrator elevation.                                                                                                                                                                                      |
+| **MCP**                 | Non-destructive tools are auto-approved after the server is enabled. Destructive tools require human approval unless an exact trusted-host policy exempts that tool, such as Gmail new-message sending. Enabled local stdio servers intentionally inherit the current desktop user's full filesystem and network permissions. |
+| **Extensions**          | Remain disabled until project and content-hash trust are explicit. They run in AppContainer on Windows or Seatbelt on macOS by default; the **Full local access** setting opts extensions alone into desktop-user permissions.                                                                                                |
+| **Browser**             | Has normal HTTP/HTTPS access but no Node integration, preload API or local-file access.                                                                                                                                                                                                                                       |
+| **Plan and Review**     | Reject writes before an executor or filesystem call and do not expose Pi Bash, MCP or executable extensions.                                                                                                                                                                                                                  |
 
 > [!CAUTION]
 > **macOS validation boundary** — Lite engineering packages generate separate Apple Silicon arm64 and Intel x64 artifacts. Local checks cover archive integrity, architecture, the ad-hoc engineering signature and packaged resources; the x64 result is a static build validation only. Intel-native launch, Developer ID signing, notarization, stapling, PTY/Seatbelt and update/rollback release acceptance remain separate native gates.
@@ -571,8 +571,9 @@ confirmed operation:
 
 - self-contained Skills are copied atomically into Artemis's managed
   Skill root and enabled for new turns;
-- stdio and Streamable HTTP MCP definitions are imported **disabled**, so the
-  user still makes the existing explicit MCP trust decision;
+- stdio and Streamable HTTP MCP definitions are imported **disabled**, except
+  a ready, signed Artemis-hosted Google MCP is enabled after the user confirms
+  installation and has already authorized its grant;
 - a hash-pinned plugin from a signed Git marketplace may declare scoped
   Artemis-hosted Google authorization; unsigned, local and integrity-mismatched
   sources cannot import that host-authenticated MCP configuration;
@@ -735,10 +736,13 @@ grant revokes it and disables MCP configurations that depend on that grant.
 
 Host-provided Google credentials are accepted only for a plugin whose content
 hash matches a signed Git marketplace snapshot and whose signing-key
-fingerprint is already trusted. The MCP server still installs disabled. Once
-enabled, non-destructive tools follow the normal MCP auto-approval path, while
-tools declaring `destructiveHint` require a human approval card that identifies
-the Google account and redacts credential-like fields from the target summary.
+fingerprint is already trusted. A ready Google MCP is enabled automatically
+after confirmed installation. Non-destructive tools follow the normal MCP
+auto-approval path. The current Gmail and Google Workspace destructive tools
+are also auto-approved through exact grant-specific tool-name allowlists while
+retaining their destructive metadata; unknown, future, or cross-grant tool
+names do not inherit that exception. Automatic approvals execute directly
+without rendering an intermediate approval card.
 
 The automated suite covers client validation, encrypted persistence, scope and
 account mismatch rejection, token refresh, revocation, marketplace integrity,
@@ -910,8 +914,8 @@ flowchart LR
 - Pi's built-in `bash` runs with the current desktop user's full permissions in
   Execute after brokered model or user approval. The user-opened
   integrated Terminal and enabled local stdio MCP servers also inherit the
-  current desktop user's filesystem and network permissions; MCP tools are
-  auto-approved after enablement.
+  current desktop user's filesystem and network permissions; non-destructive
+  and exact policy-exempt MCP tools are auto-approved after enablement.
 - Executable Pi extensions require explicit project and content-hash trust,
   default to the platform-native sandbox and alone are affected by the
   extension **Full local access** setting.
@@ -933,11 +937,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **759 passing tests** (4 skipped):
+The current full test run contains **778 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       55 |       19 |         73 |     612 |   **759** |
+|       55 |       19 |         73 |     631 |   **778** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -964,13 +968,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.1.25` packaging configuration produces:
+The `1.1.26` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.25.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.25.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.25.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.26.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.26.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.26.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and

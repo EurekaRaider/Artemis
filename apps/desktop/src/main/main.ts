@@ -169,6 +169,7 @@ import {
   GoogleAccountService,
   loadGoogleOAuthClient,
 } from "./google-account-service.js";
+import { readyInstalledGoogleMcpServers } from "./google-plugin-activation.js";
 import {
   preparePackagedNodePtyRuntime,
   type PreparedNodePtyRuntime,
@@ -971,6 +972,32 @@ async function ensureGoogleMcpReady(config: McpServerConfig): Promise<void> {
     config.hostAuth.grant,
     config.hostAuth.scopes,
   );
+}
+
+async function enableReadyInstalledGoogleMcpServers(
+  serverIds: string[],
+): Promise<void> {
+  if (!mcpConfigStore || !mcpClientManager) return;
+  const before = await mcpConfigStore.list();
+  const result = await readyInstalledGoogleMcpServers(
+    before,
+    serverIds,
+    ensureGoogleMcpReady,
+  );
+  for (const skipped of result.skipped) {
+    diagnosticBundleService?.record({
+      source: "main",
+      severity: "info",
+      message: `Google MCP server ${skipped.id} remained disabled after plugin installation: ${skipped.reason}`,
+    });
+  }
+  if (result.ready.length === 0) return;
+
+  const readyById = new Map(result.ready.map((config) => [config.id, config]));
+  await mcpConfigStore.replaceAll(
+    before.map((config) => readyById.get(config.id) ?? config),
+  );
+  await reconnectEnabledMcpServers(result.ready);
 }
 
 async function disableGoogleGrantConfigs(grant?: GoogleGrantId): Promise<void> {
@@ -2709,6 +2736,10 @@ async function handleMcpBrokerRequest(
         readOnly: request.readOnly,
         destructive: request.destructive,
         network: request.transport === "streamable-http",
+        toolName: request.toolName,
+        ...(mcpConfig?.hostAuth
+          ? { googleGrant: mcpConfig.hostAuth.grant }
+          : {}),
       },
       fullAccessAvailable,
     )
@@ -5138,6 +5169,7 @@ function registerIpc(): void {
         publish(10 + percent * 0.8),
       );
       await enableManagedPluginSkills(installed.plugin.skillNames);
+      await enableReadyInstalledGoogleMcpServers(installed.plugin.mcpServerIds);
       await applyAgentRuntime();
       publish(100);
       return codexPluginMutationResult(installed.warnings);
