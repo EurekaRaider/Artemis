@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
-import { ArtemisAgentHost } from "../src/runtime.js";
+import {
+  ArtemisAgentHost,
+  providerRetryDelayMilliseconds,
+} from "../src/runtime.js";
 
 interface InspectableTool {
   name: string;
@@ -18,12 +21,23 @@ interface InspectableTool {
 interface InspectableThread {
   currentTurnId?: string;
   currentMode?: "execute" | "plan" | "review";
+  childAgents: Map<string, { status: string }>;
   executeTools: InspectableTool[];
   session: {
     agent: { state: { tools: InspectableTool[] } };
     abort(): Promise<void>;
     getActiveToolNames(): string[];
     prompt(text: string): Promise<void>;
+    sendCustomMessage(
+      message: {
+        customType: string;
+        content: string;
+        display: boolean;
+        details?: unknown;
+      },
+      options?: { deliverAs?: "steer" | "followUp" | "nextTurn" },
+    ): Promise<void>;
+    steer(text: string): Promise<void>;
   };
   team?: { teamId: string };
 }
@@ -39,6 +53,112 @@ afterEach(async () => {
 });
 
 describe("sub-agent control tools", () => {
+  it("delivers team handoffs as hidden internal messages", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "artemis-team-handoff-"));
+    cleanupPaths.push(workspace);
+    const host = new ArtemisAgentHost(
+      { request: async () => ({ approved: false }) },
+      { emit() {} },
+    );
+    await host.openThread({
+      threadId: "thread-handoff",
+      workspacePath: workspace,
+      target: "local",
+    });
+    const internals = host as unknown as {
+      threads: Map<string, InspectableThread>;
+      concurrency: {
+        run<T>(kind: "child", task: () => Promise<T>): Promise<T>;
+      };
+    };
+    const thread = internals.threads.get("thread-handoff")!;
+    thread.currentTurnId = "turn-1";
+    thread.currentMode = "execute";
+    internals.concurrency = {
+      run: <T>() => new Promise<T>(() => undefined),
+    };
+    const spawn = thread.executeTools.find(
+      (tool) => tool.name === "spawn_agent",
+    )!;
+    const child = await spawn.execute("spawn-1", {
+      label: "Reviewer",
+      role: "Reviewer",
+      task: "Review the result.",
+    });
+    const delivered: Array<{ message: unknown; options: unknown }> = [];
+    thread.session.sendCustomMessage = async (message, options) => {
+      delivered.push({ message, options });
+    };
+    thread.session.steer = async () => {
+      throw new Error("Internal handoffs must not use user steering.");
+    };
+
+    await host.sendAgentTeamMessage(
+      "thread-handoff",
+      String(child.details?.agentId),
+      "parent",
+      "handoff",
+      "Internal result.",
+    );
+    thread.childAgents.get(String(child.details?.agentId))!.status =
+      "cancelled";
+    await host.cancelChildAgent(
+      "thread-handoff",
+      String(child.details?.agentId),
+      true,
+    );
+    host.retryChildAgent(
+      "thread-handoff",
+      String(child.details?.agentId),
+      true,
+    );
+
+    expect(delivered).toHaveLength(3);
+    expect(delivered[0]).toEqual({
+      message: expect.objectContaining({
+        customType: "artemis-agent-team",
+        content: expect.stringContaining("[agent-team handoff]"),
+        display: false,
+      }),
+      options: { deliverAs: "steer" },
+    });
+    expect(delivered.slice(1)).toEqual(
+      expect.arrayContaining([
+        {
+          message: expect.objectContaining({
+            customType: "artemis-agent-control",
+            content: expect.stringContaining("was stopped by the user"),
+            display: false,
+          }),
+          options: { deliverAs: "steer" },
+        },
+        {
+          message: expect.objectContaining({
+            customType: "artemis-agent-control",
+            content: expect.stringContaining("The user retried sub-agent"),
+            display: false,
+          }),
+          options: { deliverAs: "steer" },
+        },
+      ]),
+    );
+    host.dispose();
+  });
+
+  it("honors explicit Provider rate-limit backoff without inventing retries", () => {
+    expect(
+      providerRetryDelayMilliseconds(
+        Object.assign(new Error("429 rate limit"), { retryAfter: 3 }),
+      ),
+    ).toBe(3_000);
+    expect(
+      providerRetryDelayMilliseconds(new Error("Retry-After: 1.5 seconds")),
+    ).toBe(1_500);
+    expect(
+      providerRetryDelayMilliseconds(new Error("Connection reset")),
+    ).toBeUndefined();
+  });
+
   it("uses Ultra coordination in every task mode without relaxing read-only tools", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "artemis-ultra-team-"));
     cleanupPaths.push(workspace);
@@ -100,9 +220,9 @@ describe("sub-agent control tools", () => {
         "Handle a complex cross-subsystem task.",
         mode,
       );
-      expect(prompts.at(-1)).toContain("Ultra Mode agent-team coordination:");
+      expect(prompts.at(-1)).toContain("Ultra Mode agent-tree coordination:");
       expect(prompts.at(-1)).toContain(
-        "proactively decompose it and start a flat team of two to four",
+        "proactively start three to five complementary direct children",
       );
       if (mode !== "execute") {
         const activeTools = thread.session.agent.state.tools.map(
@@ -122,9 +242,9 @@ describe("sub-agent control tools", () => {
       "execute",
     );
     expect(prompts.at(-1)).toContain(
-      "Agent-team coordination: delegate only when parallel work materially helps.",
+      "Agent-tree coordination: delegate only when parallel work materially helps.",
     );
-    expect(prompts.at(-1)).not.toContain("Ultra Mode agent-team coordination:");
+    expect(prompts.at(-1)).not.toContain("Ultra Mode agent-tree coordination:");
     host.dispose();
   });
 
@@ -207,7 +327,8 @@ describe("sub-agent control tools", () => {
       team: {
         status: "running",
         memberAgentIds: [agentId],
-        maxMembers: 4,
+        maxMembers: 64,
+        maxDepth: 5,
       },
     });
 
@@ -256,12 +377,19 @@ describe("sub-agent control tools", () => {
       required: false,
       write_paths: ["README.md"],
     });
+    for (let index = 5; index <= 8; index += 1) {
+      await spawn.execute(`spawn-${index}`, {
+        label: `Extra reviewer ${index}`,
+        task: "Inspect another independent area.",
+        required: false,
+      });
+    }
     await expect(
-      spawn.execute("spawn-6", {
-        label: "Extra reviewer",
-        task: "This member exceeds the team budget.",
+      spawn.execute("spawn-9", {
+        label: "Ninth direct reviewer",
+        task: "This member exceeds the direct-child budget.",
       }),
-    ).rejects.toThrow("at most 4 members");
+    ).rejects.toThrow("at most 8 direct children");
 
     const finish = thread.executeTools.find(
       (tool) => tool.name === "finish_team",

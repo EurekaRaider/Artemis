@@ -168,10 +168,15 @@ const labels = {
     concurrencyManual: "Manual ceiling",
     concurrencyManualLimit: "Maximum active agents",
     concurrencyApply: "Apply ceiling",
-    concurrencyStartup: "Startup ceiling",
+    concurrencyLogical: "Logical members per task",
+    concurrencyConfigured: "Configured ceiling",
+    concurrencyAutomaticSafe: "Automatic safe ceiling",
     concurrencyEffective: "Effective now",
     concurrencyActive: "Active",
     concurrencyQueued: "Queued",
+    concurrencyWaiting: "Collaboration waiting",
+    concurrencyHighWarning:
+      "High concurrency consumes quota faster and may trigger Provider rate limits. Artemis will still reduce admissions under system pressure.",
     concurrencyHardware: "Detected hardware",
     concurrencyHardwareValue: "{cores} parallel cores · {memory} GiB memory",
     concurrencyThrottled:
@@ -323,10 +328,15 @@ const labels = {
     concurrencyManual: "手动上限",
     concurrencyManualLimit: "最大活动 Agent 数",
     concurrencyApply: "应用上限",
-    concurrencyStartup: "启动上限",
+    concurrencyLogical: "每任务逻辑成员上限",
+    concurrencyConfigured: "配置并发",
+    concurrencyAutomaticSafe: "自动安全上限",
     concurrencyEffective: "当前有效",
     concurrencyActive: "运行中",
     concurrencyQueued: "排队中",
+    concurrencyWaiting: "协作等待",
+    concurrencyHighWarning:
+      "高并发会更快消耗额度并可能触发 Provider 限流；系统压力下 Artemis 仍会自动降载。",
     concurrencyHardware: "检测到的硬件",
     concurrencyHardwareValue: "{cores} 个并行核心 · {memory} GiB 内存",
     concurrencyThrottled: "当前因系统压力临时收紧：{reasons}。",
@@ -435,7 +445,7 @@ export function SettingsPanel({
           String(
             snapshot.agentConcurrency.preference.mode === "manual"
               ? snapshot.agentConcurrency.preference.limit
-              : snapshot.agentConcurrency.startupLimit,
+              : snapshot.agentConcurrency.configuredLimit,
           ),
         );
         const selectedModelAvailable =
@@ -558,7 +568,7 @@ export function SettingsPanel({
   const agentConcurrencyLimitValid =
     Number.isInteger(parsedAgentConcurrencyLimit) &&
     parsedAgentConcurrencyLimit >= 2 &&
-    parsedAgentConcurrencyLimit <= 16;
+    parsedAgentConcurrencyLimit <= (settings?.agentConcurrency.hardLimit ?? 64);
 
   function selectModel(value: string) {
     const [providerId, modelId] = parseModelKey(value);
@@ -665,7 +675,7 @@ export function SettingsPanel({
     await run(async () => {
       const manualLimit = agentConcurrencyLimitValid
         ? parsedAgentConcurrencyLimit
-        : settings.agentConcurrency.startupLimit;
+        : settings.agentConcurrency.configuredLimit;
       const updated = await window.artemis.setAgentConcurrency(
         mode === "auto"
           ? { mode: "auto" }
@@ -676,7 +686,7 @@ export function SettingsPanel({
         String(
           updated.agentConcurrency.preference.mode === "manual"
             ? updated.agentConcurrency.preference.limit
-            : updated.agentConcurrency.startupLimit,
+            : updated.agentConcurrency.configuredLimit,
         ),
       );
       onSettingsChange(updated);
@@ -1392,7 +1402,7 @@ export function SettingsPanel({
                           busy ||
                           !agentConcurrencyLimitValid ||
                           parsedAgentConcurrencyLimit ===
-                            settings.agentConcurrency.startupLimit
+                            settings.agentConcurrency.configuredLimit
                         }
                         onClick={() => void applyAgentConcurrencyLimit()}
                       >
@@ -1401,8 +1411,16 @@ export function SettingsPanel({
                     )}
                     <dl className="agent-concurrency-status">
                       <div>
-                        <dt>{t.concurrencyStartup}</dt>
-                        <dd>{settings.agentConcurrency.startupLimit}</dd>
+                        <dt>{t.concurrencyLogical}</dt>
+                        <dd>{settings.agentConcurrency.logicalLimit}</dd>
+                      </div>
+                      <div>
+                        <dt>{t.concurrencyConfigured}</dt>
+                        <dd>{settings.agentConcurrency.configuredLimit}</dd>
+                      </div>
+                      <div>
+                        <dt>{t.concurrencyAutomaticSafe}</dt>
+                        <dd>{settings.agentConcurrency.automaticSafeLimit}</dd>
                       </div>
                       <div>
                         <dt>{t.concurrencyEffective}</dt>
@@ -1415,6 +1433,10 @@ export function SettingsPanel({
                       <div>
                         <dt>{t.concurrencyQueued}</dt>
                         <dd>{settings.agentConcurrency.queued}</dd>
+                      </div>
+                      <div>
+                        <dt>{t.concurrencyWaiting}</dt>
+                        <dd>{settings.agentConcurrency.waiting}</dd>
                       </div>
                     </dl>
                     <p className="settings-security">
@@ -1445,6 +1467,13 @@ export function SettingsPanel({
                         )}
                       </p>
                     )}
+                    {settings.agentConcurrency.preference.mode === "manual" &&
+                      settings.agentConcurrency.configuredLimit >
+                        settings.agentConcurrency.automaticSafeLimit && (
+                        <p className="settings-security warning">
+                          {t.concurrencyHighWarning}
+                        </p>
+                      )}
                   </section>
                   <section className="settings-section">
                     <h3>{t.globalAgents}</h3>

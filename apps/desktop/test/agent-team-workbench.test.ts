@@ -47,9 +47,9 @@ describe("agent-team workbench", () => {
     );
   });
 
-  it("opens the subagent page directly from an icon-and-name member row", () => {
+  it("opens the subagent page directly from an accessible tree row", () => {
     const memberButton = appSource.match(
-      /<button\s+className=\{`agent-team-member[^>]*>([\s\S]*?)<\/button>/,
+      /<button\s+className="agent-team-member-open"[\s\S]*?<\/button>/,
     )?.[0];
 
     expect(memberButton).toContain("onClick={() => onOpenChildAgent(member)}");
@@ -61,6 +61,10 @@ describe("agent-team workbench", () => {
     expect(memberButton).not.toContain("member.writePaths");
     expect(appSource).not.toContain("labels.openAgent");
     expect(appSource).not.toContain("agent-team-member-details");
+    expect(appSource).toContain("aria-expanded={expanded}");
+    expect(appSource).toContain("childrenByParent");
+    expect(appSource).toContain("memberCounts.total");
+    expect(stylesSource).toContain("content-visibility: auto");
   });
 
   it("assigns stable colors and geometric marks to child agent identities", () => {

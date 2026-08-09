@@ -16,6 +16,20 @@ function delta(value: string): AgentHostEvent {
   };
 }
 
+function childActivity(agentId: string, value: string): AgentHostEvent {
+  return {
+    threadId: "thread-1",
+    turnId: "turn-1",
+    payload: {
+      type: "child-agent.status",
+      agentId,
+      label: agentId,
+      status: "running",
+      activityDelta: value,
+    },
+  };
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -94,5 +108,27 @@ describe("AgentEventBatcher", () => {
         ? deliveries[1][0].payload.delta.length
         : 0,
     ).toBe(512);
+  });
+
+  it("coalesces live child activity by agent into one frame batch", () => {
+    vi.useFakeTimers();
+    const deliveries: AgentHostEvent[][] = [];
+    const batcher = new AgentEventBatcher((events) => deliveries.push(events));
+
+    batcher.push(childActivity("agent-a", "one"));
+    batcher.push(childActivity("agent-b", "two"));
+    batcher.push(childActivity("agent-a", " three"));
+    expect(deliveries).toHaveLength(0);
+    vi.advanceTimersByTime(32);
+
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]).toHaveLength(2);
+    expect(
+      deliveries[0]?.find(
+        (event) =>
+          event.payload.type === "child-agent.status" &&
+          event.payload.agentId === "agent-a",
+      )?.payload,
+    ).toMatchObject({ activityDelta: "one three" });
   });
 });

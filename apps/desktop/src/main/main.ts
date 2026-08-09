@@ -93,6 +93,7 @@ import {
   reclaimableMemoryPercent,
   SystemCpuSampler,
 } from "./agent-capacity-controller.js";
+import { partitionAgentHostEvents } from "./agent-event-routing.js";
 import {
   automationAuthorizationFingerprint,
   automationMayAutoApprove,
@@ -169,7 +170,10 @@ import {
   GoogleAccountService,
   loadGoogleOAuthClient,
 } from "./google-account-service.js";
-import { readyInstalledGoogleMcpServers } from "./google-plugin-activation.js";
+import {
+  installedGoogleMcpServerIdsForGrant,
+  readyInstalledGoogleMcpServers,
+} from "./google-plugin-activation.js";
 import {
   preparePackagedNodePtyRuntime,
   type PreparedNodePtyRuntime,
@@ -1677,25 +1681,31 @@ function emitPayload(
 
 function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
   if (!store || events.length === 0) return [];
-  const threadId = events[0]!.threadId;
-  if (events.some((event) => event.threadId !== threadId)) {
-    return events.map((event) =>
+  const { durable: durableEvents, liveActivities } =
+    partitionAgentHostEvents(events);
+  if (liveActivities.length > 0) {
+    mainWindow?.webContents.send(IPC.agentActivities, liveActivities);
+  }
+  if (durableEvents.length === 0) return [];
+  const threadId = durableEvents[0]!.threadId;
+  if (durableEvents.some((event) => event.threadId !== threadId)) {
+    return durableEvents.map((event) =>
       emitPayload(event.threadId, event.turnId, event.payload),
     );
   }
-  for (const event of events) {
+  for (const event of durableEvents) {
     observeTurnPayload(event.turnId, event.payload);
   }
   const persisted = store.appendEvents(
     threadId,
-    events.map((event) => ({
+    durableEvents.map((event) => ({
       eventId: randomUUID(),
       ...(event.turnId ? { turnId: event.turnId } : {}),
       payload: event.payload,
     })),
   );
   mainWindow?.webContents.send(IPC.agentEvents, persisted);
-  for (const event of events) {
+  for (const event of durableEvents) {
     applyPayloadSideEffects(threadId, event.payload);
   }
   return persisted;
@@ -4964,12 +4974,33 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.googleAccountAuthorizeGrant,
     async (_event, grant: GoogleGrantId) => {
-      if (!googleAccountService)
+      if (
+        !googleAccountService ||
+        !codexPluginService ||
+        !mcpConfigStore ||
+        !mcpClientManager
+      )
         throw new Error("Google account service is not ready.");
-      return googleAccountService.authorize(
+      const installedServerIds = (
+        await codexPluginService.listInstalled()
+      ).flatMap((plugin) => plugin.mcpServerIds);
+      const grantServerIds = installedGoogleMcpServerIdsForGrant(
+        await mcpConfigStore.list(),
+        installedServerIds,
+        grant,
+      );
+      if (grantServerIds.length > 0) {
+        await resetAgentThreadsForToolChange();
+      }
+      const status = await googleAccountService.authorize(
         grant,
         currentLocale().startsWith("zh") ? "zh" : "en",
       );
+      if (grantServerIds.length > 0) {
+        await enableReadyInstalledGoogleMcpServers(grantServerIds);
+        await applyAgentRuntime();
+      }
+      return status;
     },
   );
   ipcMain.handle(
@@ -7381,6 +7412,7 @@ app
     agentCapacityRuntime = {
       active: 0,
       activeParents: 0,
+      waiting: 0,
       queued: 0,
       limit: agentCapacityController.limit,
     };

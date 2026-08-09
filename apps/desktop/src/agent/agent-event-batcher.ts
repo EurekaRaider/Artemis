@@ -9,6 +9,7 @@ interface BufferedDelta {
 }
 
 type MessageDelta = Extract<AgentPayload, { type: "message.part.delta" }>;
+type ChildActivity = Extract<AgentPayload, { type: "child-agent.status" }>;
 
 function isVisibleTextDelta(
   event: AgentHostEvent,
@@ -25,10 +26,27 @@ function deltaKey(event: AgentHostEvent): string {
   return `${event.threadId}\0${event.turnId ?? ""}\0${event.payload.partId}`;
 }
 
+function isChildActivity(
+  event: AgentHostEvent,
+): event is AgentHostEvent & { payload: ChildActivity } {
+  return (
+    event.payload.type === "child-agent.status" &&
+    Boolean(event.payload.activityDelta)
+  );
+}
+
+function childActivityKey(event: AgentHostEvent): string {
+  return event.payload.type === "child-agent.status"
+    ? `${event.threadId}\0${event.payload.agentId}`
+    : "";
+}
+
 export class AgentEventBatcher {
   private readonly visibleParts = new Set<string>();
   private buffered: BufferedDelta | undefined;
+  private readonly childActivities = new Map<string, AgentHostEvent>();
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private childActivityTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private readonly emit: (events: AgentHostEvent[]) => void,
@@ -37,6 +55,31 @@ export class AgentEventBatcher {
   ) {}
 
   push(event: AgentHostEvent): void {
+    if (isChildActivity(event)) {
+      this.flushText();
+      const key = childActivityKey(event);
+      const previous = this.childActivities.get(key);
+      this.childActivities.set(
+        key,
+        previous?.payload.type === "child-agent.status"
+          ? {
+              ...event,
+              payload: {
+                ...event.payload,
+                activityDelta:
+                  `${previous.payload.activityDelta ?? ""}${event.payload.activityDelta ?? ""}`.slice(
+                    -8 * 1024,
+                  ),
+              },
+            }
+          : event,
+      );
+      this.childActivityTimer ??= setTimeout(
+        () => this.flushChildActivities(),
+        this.flushIntervalMs,
+      );
+      return;
+    }
     if (!isVisibleTextDelta(event)) {
       this.flush();
       this.emit([event]);
@@ -85,6 +128,11 @@ export class AgentEventBatcher {
   }
 
   flush(): void {
+    this.flushText();
+    this.flushChildActivities();
+  }
+
+  private flushText(): void {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = undefined;
@@ -92,6 +140,17 @@ export class AgentEventBatcher {
     const buffered = this.buffered;
     this.buffered = undefined;
     if (buffered) this.emit([buffered.event]);
+  }
+
+  private flushChildActivities(): void {
+    if (this.childActivityTimer) {
+      clearTimeout(this.childActivityTimer);
+      this.childActivityTimer = undefined;
+    }
+    if (this.childActivities.size === 0) return;
+    const events = [...this.childActivities.values()];
+    this.childActivities.clear();
+    this.emit(events);
   }
 
   dispose(): void {

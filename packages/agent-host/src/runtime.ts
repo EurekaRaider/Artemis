@@ -21,6 +21,10 @@ import {
   AGENT_CONCURRENCY_FALLBACK,
   AGENT_CONCURRENCY_MAXIMUM,
   AGENT_CONCURRENCY_MINIMUM,
+  AGENT_TEAM_LOGICAL_MAXIMUM,
+  AGENT_TEAM_MAXIMUM_DEPTH,
+  AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN,
+  AGENT_TEAM_SPAWN_BUDGET,
   OFFICE_DOCUMENT_PROTOCOL_VERSION,
   PiAdapter,
   officeDocumentRequestSchema,
@@ -49,6 +53,7 @@ import { deletePiSessionTranscript } from "./session-delete.js";
 import { RuntimeCredentialStore } from "./runtime-credentials.js";
 import {
   AgentConcurrencyLimiter,
+  type AgentConcurrencyLease,
   type AgentConcurrencySnapshot,
 } from "./agent-concurrency.js";
 import {
@@ -556,6 +561,7 @@ interface HostedThread {
   delegatedTools: SessionTool[];
   executeTools: SessionTool[];
   childAgents: Map<string, ChildAgentExecution>;
+  activeLeases: Map<string, AgentConcurrencyLease>;
   currentMission: string | undefined;
   team: AgentTeamExecution | undefined;
   interruptedTeamContext: string | undefined;
@@ -569,6 +575,8 @@ interface HostedThread {
 interface LaunchChildAgentInput {
   turnId: string;
   mode: RunMode;
+  parentAgentId: string;
+  depth: number;
   label: string;
   task: string;
   role: string;
@@ -594,6 +602,8 @@ interface ChildAgentExecution extends LaunchChildAgentInput {
   error?: string;
   pendingSteers: string[];
   longestObservationMilliseconds: number;
+  subtreeIntegrated: boolean;
+  subtreeSummary?: string;
   done: Promise<void>;
   settle(): void;
 }
@@ -608,7 +618,12 @@ interface AgentTeamExecution {
   blockedAgentIds: Set<string>;
   messageSequence: number;
   messages: AgentTeamMessagePayload[];
-  observedMessageSequence: number;
+  memberVersions: Map<string, number>;
+  observers: Map<
+    string,
+    { messageSequence: number; memberVersions: Map<string, number> }
+  >;
+  spawnCount: number;
   updatedAt: number;
   version: number;
   waiters: Set<() => void>;
@@ -625,6 +640,10 @@ export interface AgentTeamSnapshot {
 export interface ChildAgentSnapshot {
   agentId: string;
   label: string;
+  parentAgentId: string;
+  depth: number;
+  subtreeStatus: NonNullable<ChildAgentPayload["subtreeStatus"]>;
+  directChildCount: number;
   task: string;
   role: string;
   dependsOnAgentIds: string[];
@@ -647,7 +666,56 @@ export interface ChildAgentSnapshot {
 
 const CHILD_MIN_SUSPECT_SILENCE_MILLISECONDS = 60_000;
 const CHILD_CONTROL_OBSERVATION_MILLISECONDS = 5_000;
-const TEAM_MAX_MEMBERS = 4;
+const ROOT_AGENT_ID = "parent";
+const PROVIDER_BACKOFF_DEFAULT_MILLISECONDS = 2_000;
+const PROVIDER_BACKOFF_MAX_MILLISECONDS = 5 * 60_000;
+
+function retryAfterHeader(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const candidate = error as {
+    headers?: { get?(name: string): string | null };
+    response?: { headers?: { get?(name: string): string | null } };
+    retryAfter?: string | number;
+  };
+  const direct = candidate.headers?.get?.("retry-after");
+  const response = candidate.response?.headers?.get?.("retry-after");
+  const retryAfter = direct ?? response ?? candidate.retryAfter;
+  return retryAfter === undefined || retryAfter === null
+    ? undefined
+    : String(retryAfter);
+}
+
+export function providerRetryDelayMilliseconds(
+  error: unknown,
+  now = Date.now(),
+): number | undefined {
+  const message = error instanceof Error ? error.message : String(error);
+  const header = retryAfterHeader(error);
+  if (
+    !header &&
+    !/(?:\b429\b|rate.?limit|too many requests|retry-after)/iu.test(message)
+  ) {
+    return undefined;
+  }
+  const messageSeconds = message.match(
+    /retry-after[^\d]{0,12}(\d+(?:\.\d+)?)/iu,
+  )?.[1];
+  const value = header ?? messageSeconds;
+  let delay = PROVIDER_BACKOFF_DEFAULT_MILLISECONDS;
+  if (value) {
+    const seconds = Number(value);
+    if (Number.isFinite(seconds)) {
+      delay = seconds * 1_000;
+    } else {
+      const date = Date.parse(value);
+      if (Number.isFinite(date)) delay = date - now;
+    }
+  }
+  return Math.max(
+    0,
+    Math.min(PROVIDER_BACKOFF_MAX_MILLISECONDS, Math.ceil(delay)),
+  );
+}
 
 function requestsInterruptedTeamContinuation(text: string): boolean {
   const request = text.trim();
@@ -839,6 +907,7 @@ export class ArtemisAgentHost {
   private readonly cancelledTurns = new Set<string>();
   private readonly userInputTails = new Map<string, Promise<void>>();
   private readonly registeredProviderIds = new Set<string>();
+  private readonly providerAdmissionBlockedUntil = new Map<string, number>();
   private readonly agentDir: string;
   private readonly onSessionFile:
     ((threadId: string, path: string) => void) | undefined;
@@ -879,6 +948,52 @@ export class ArtemisAgentHost {
 
   concurrencyStatus(): AgentConcurrencySnapshot {
     return this.concurrency.snapshot;
+  }
+
+  private recordProviderBackoff(providerId: string, error: unknown): void {
+    const delay = providerRetryDelayMilliseconds(error);
+    if (delay === undefined) return;
+    this.providerAdmissionBlockedUntil.set(
+      providerId,
+      Math.max(
+        this.providerAdmissionBlockedUntil.get(providerId) ?? 0,
+        Date.now() + delay,
+      ),
+    );
+  }
+
+  private async waitForProviderAdmission(
+    providerId: string,
+    signal?: AbortSignal,
+    cancelled?: () => boolean,
+  ): Promise<void> {
+    while (true) {
+      if (signal?.aborted || cancelled?.()) {
+        throw signal?.reason ?? new DOMException("Aborted", "AbortError");
+      }
+      const blockedUntil = this.providerAdmissionBlockedUntil.get(providerId);
+      const remaining = (blockedUntil ?? 0) - Date.now();
+      if (remaining <= 0) {
+        if (
+          this.providerAdmissionBlockedUntil.get(providerId) === blockedUntil
+        ) {
+          this.providerAdmissionBlockedUntil.delete(providerId);
+        }
+        return;
+      }
+      await new Promise<void>((resolve, reject) => {
+        const finish = () => {
+          signal?.removeEventListener("abort", abort);
+          resolve();
+        };
+        const timer = setTimeout(finish, Math.min(250, remaining));
+        const abort = () => {
+          clearTimeout(timer);
+          reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
+        };
+        signal?.addEventListener("abort", abort, { once: true });
+      });
+    }
   }
 
   private async serializeUserInput<T>(
@@ -1080,7 +1195,69 @@ export class ArtemisAgentHost {
     });
   }
 
+  private descendantAgents(
+    hosted: HostedThread,
+    agentId: string,
+  ): ChildAgentExecution[] {
+    const descendants: ChildAgentExecution[] = [];
+    const pending = [agentId];
+    while (pending.length > 0) {
+      const parentAgentId = pending.shift()!;
+      for (const child of this.directChildren(hosted, parentAgentId)) {
+        descendants.push(child);
+        pending.push(child.agentId);
+      }
+    }
+    return descendants;
+  }
+
+  private requestSubtreeCancellation(
+    hosted: HostedThread,
+    child: ChildAgentExecution,
+  ): void {
+    for (const descendant of this.descendantAgents(
+      hosted,
+      child.agentId,
+    ).reverse()) {
+      this.requestChildCancellation(hosted, descendant);
+    }
+    this.requestChildCancellation(hosted, child);
+  }
+
+  private directChildren(
+    hosted: HostedThread,
+    agentId: string,
+  ): ChildAgentExecution[] {
+    const currentMembers = new Set(hosted.team?.memberAgentIds ?? []);
+    return [...hosted.childAgents.values()].filter(
+      (candidate) =>
+        candidate.parentAgentId === agentId &&
+        currentMembers.has(candidate.agentId),
+    );
+  }
+
+  private childSubtreeStatus(
+    hosted: HostedThread,
+    child: ChildAgentExecution,
+  ): NonNullable<ChildAgentPayload["subtreeStatus"]> {
+    const directChildren = this.directChildren(hosted, child.agentId);
+    if (directChildren.length === 0) return "leaf";
+    if (child.subtreeIntegrated) return "integrated";
+    if (
+      directChildren.some(
+        (candidate) =>
+          candidate.status === "failed" ||
+          candidate.status === "blocked" ||
+          candidate.status === "cancelled",
+      )
+    ) {
+      return "blocked";
+    }
+    return directChildren.every(isTerminalChildExecution) ? "ready" : "running";
+  }
+
   private childSnapshot(
+    hosted: HostedThread,
     child: ChildAgentExecution,
     observationExpired = false,
   ): ChildAgentSnapshot {
@@ -1098,6 +1275,10 @@ export class ArtemisAgentHost {
     return {
       agentId: child.agentId,
       label: child.label,
+      parentAgentId: child.parentAgentId,
+      depth: child.depth,
+      subtreeStatus: this.childSubtreeStatus(hosted, child),
+      directChildCount: this.directChildren(hosted, child.agentId).length,
       task: child.task,
       role: child.role,
       dependsOnAgentIds: [...child.dependsOnAgentIds],
@@ -1134,12 +1315,16 @@ export class ArtemisAgentHost {
       Pick<ChildAgentPayload, "activityDelta"> | Record<string, never> = {},
   ): void {
     child.updatedAt = Date.now();
-    const snapshot = this.childSnapshot(child);
+    const snapshot = this.childSnapshot(hosted, child);
     this.sink.emit(hosted.threadId, child.turnId, {
       type: "child-agent.status",
       agentId: child.agentId,
       label: child.label,
       ...(hosted.team ? { teamId: hosted.team.teamId } : {}),
+      parentAgentId: child.parentAgentId,
+      depth: child.depth,
+      subtreeStatus: snapshot.subtreeStatus,
+      directChildCount: snapshot.directChildCount,
       role: child.role,
       dependsOnAgentIds: [...child.dependsOnAgentIds],
       writePaths: [...child.writePaths],
@@ -1165,11 +1350,17 @@ export class ArtemisAgentHost {
       ...(snapshot.currentToolStartedAt
         ? { currentToolStartedAt: snapshot.currentToolStartedAt }
         : {}),
-      ...(snapshot.output ? { output: snapshot.output } : {}),
+      ...(snapshot.output && !("activityDelta" in extra)
+        ? { output: snapshot.output }
+        : {}),
       ...(snapshot.error ? { error: snapshot.error } : {}),
       ...extra,
     });
     if (hosted.team?.memberAgentIds.includes(child.agentId)) {
+      hosted.team.memberVersions.set(
+        child.agentId,
+        (hosted.team.memberVersions.get(child.agentId) ?? 0) + 1,
+      );
       this.refreshTeamStatus(hosted);
     }
   }
@@ -1182,7 +1373,12 @@ export class ArtemisAgentHost {
       status: team.status,
       memberAgentIds: [...team.memberAgentIds],
       requiredAgentIds: [...team.requiredAgentIds],
-      maxMembers: TEAM_MAX_MEMBERS,
+      maxMembers: AGENT_TEAM_LOGICAL_MAXIMUM,
+      maxDepth: AGENT_TEAM_MAXIMUM_DEPTH,
+      spawnBudgetRemaining: Math.max(
+        0,
+        AGENT_TEAM_SPAWN_BUDGET - team.spawnCount,
+      ),
       updatedAt: new Date(team.updatedAt).toISOString(),
       ...(team.error ? { error: team.error } : {}),
     };
@@ -1239,15 +1435,16 @@ export class ArtemisAgentHost {
     hosted: HostedThread,
     observationExpired = false,
     messages?: AgentTeamMessagePayload[],
+    memberAgentIds?: string[],
   ): AgentTeamSnapshot {
     const team = hosted.team;
     if (!team) throw new Error("No active agent team is available.");
     return {
       team: this.teamPayload(team),
-      members: team.memberAgentIds
+      members: (memberAgentIds ?? team.memberAgentIds)
         .map((agentId) => hosted.childAgents.get(agentId))
         .filter((child): child is ChildAgentExecution => Boolean(child))
-        .map((child) => this.childSnapshot(child)),
+        .map((child) => this.childSnapshot(hosted, child)),
       messages: messages ?? [...team.messages],
       observationExpired,
     };
@@ -1322,7 +1519,7 @@ export class ArtemisAgentHost {
   childAgentStatus(threadId: string, agentId: string): ChildAgentSnapshot {
     const { hosted, child } = this.requireChildAgent(threadId, agentId);
     this.emitChild(hosted, child);
-    return this.childSnapshot(child);
+    return this.childSnapshot(hosted, child);
   }
 
   async waitForChildAgent(
@@ -1348,7 +1545,7 @@ export class ArtemisAgentHost {
       observationMilliseconds,
     );
     this.emitChild(hosted, child);
-    return this.childSnapshot(child, observationExpired);
+    return this.childSnapshot(hosted, child, observationExpired);
   }
 
   async steerChildAgent(
@@ -1375,12 +1572,18 @@ export class ArtemisAgentHost {
     });
     if (notifyParent && hosted.currentTurnId) {
       void hosted.session
-        .steer(
-          `The user nudged sub-agent ${agentId} (${child.label}). Check its status and adjust the approach if needed.`,
+        .sendCustomMessage(
+          {
+            customType: "artemis-agent-control",
+            content: `The user nudged sub-agent ${agentId} (${child.label}). Check its status and adjust the approach if needed.`,
+            display: false,
+            details: { action: "steer", agentId },
+          },
+          { deliverAs: "steer" },
         )
         .catch(() => undefined);
     }
-    return this.childSnapshot(child);
+    return this.childSnapshot(hosted, child);
   }
 
   async cancelChildAgent(
@@ -1390,17 +1593,23 @@ export class ArtemisAgentHost {
   ): Promise<ChildAgentSnapshot> {
     const { hosted, child } = this.requireChildAgent(threadId, agentId);
     if (!isTerminalChildStatus(child.status)) {
-      this.requestChildCancellation(hosted, child);
+      this.requestSubtreeCancellation(hosted, child);
       await this.observeChild(child, CHILD_CONTROL_OBSERVATION_MILLISECONDS);
     }
     if (notifyParent && hosted.currentTurnId) {
       void hosted.session
-        .steer(
-          `Sub-agent ${agentId} (${child.label}) was stopped by the user. Do not keep waiting for it; continue with another approach.`,
+        .sendCustomMessage(
+          {
+            customType: "artemis-agent-control",
+            content: `Sub-agent ${agentId} (${child.label}) was stopped by the user. Do not keep waiting for it; continue with another approach.`,
+            display: false,
+            details: { action: "cancel", agentId },
+          },
+          { deliverAs: "steer" },
         )
         .catch(() => undefined);
     }
-    return this.childSnapshot(child);
+    return this.childSnapshot(hosted, child);
   }
 
   retryChildAgent(
@@ -1415,6 +1624,25 @@ export class ArtemisAgentHost {
     if (!hosted.currentTurnId || !hosted.currentMode) {
       throw new Error("A sub-agent can be retried only during an active task.");
     }
+    const descendants = this.descendantAgents(hosted, child.agentId);
+    for (const descendant of descendants) {
+      this.requestChildCancellation(hosted, descendant);
+    }
+    const team = hosted.team;
+    if (team && descendants.length > 0) {
+      const discardedIds = new Set(
+        descendants.map((descendant) => descendant.agentId),
+      );
+      team.memberAgentIds = team.memberAgentIds.filter(
+        (memberAgentId) => !discardedIds.has(memberAgentId),
+      );
+      for (const discardedId of discardedIds) {
+        team.requiredAgentIds.delete(discardedId);
+        team.blockedAgentIds.delete(discardedId);
+        team.memberVersions.delete(discardedId);
+      }
+      this.emitTeam(hosted);
+    }
     const retried = hosted.launchChildAgent({
       turnId: hosted.currentTurnId,
       mode: hosted.currentMode,
@@ -1425,16 +1653,28 @@ export class ArtemisAgentHost {
       writePaths: [...child.writePaths],
       required: child.required,
       attempt: child.attempt + 1,
+      parentAgentId: child.parentAgentId,
+      depth: child.depth,
       replacesAgentId: child.agentId,
     });
     if (notifyParent) {
       void hosted.session
-        .steer(
-          `The user retried sub-agent ${agentId} as ${retried.agentId}. Monitor the new attempt instead of the old one.`,
+        .sendCustomMessage(
+          {
+            customType: "artemis-agent-control",
+            content: `The user retried sub-agent ${agentId} as ${retried.agentId}. Monitor the new attempt instead of the old one.`,
+            display: false,
+            details: {
+              action: "retry",
+              agentId,
+              replacementAgentId: retried.agentId,
+            },
+          },
+          { deliverAs: "steer" },
         )
         .catch(() => undefined);
     }
-    return this.childSnapshot(retried);
+    return this.childSnapshot(hosted, retried);
   }
 
   private ensureTeam(hosted: HostedThread): AgentTeamExecution {
@@ -1454,7 +1694,9 @@ export class ArtemisAgentHost {
       blockedAgentIds: new Set(),
       messageSequence: 0,
       messages: [],
-      observedMessageSequence: 0,
+      memberVersions: new Map(),
+      observers: new Map(),
+      spawnCount: 0,
       updatedAt: now,
       version: 0,
       waiters: new Set(),
@@ -1489,6 +1731,15 @@ export class ArtemisAgentHost {
     return normalized;
   }
 
+  private suspendAgentLease<T>(
+    threadId: string,
+    actorAgentId: string,
+    task: () => Promise<T>,
+  ): Promise<T> {
+    const lease = this.threads.get(threadId)?.activeLeases.get(actorAgentId);
+    return lease ? lease.suspend(task) : task();
+  }
+
   listAgentTeam(threadId: string): AgentTeamSnapshot {
     const hosted = this.requireActiveThread(threadId);
     return this.teamSnapshot(hosted);
@@ -1496,6 +1747,7 @@ export class ArtemisAgentHost {
 
   async waitForAgentTeam(
     threadId: string,
+    observerAgentId: string,
     deadlineSeconds: number,
   ): Promise<AgentTeamSnapshot> {
     if (
@@ -1508,17 +1760,36 @@ export class ArtemisAgentHost {
     const hosted = this.requireActiveThread(threadId);
     const team = hosted.team;
     if (!team) throw new Error("No active agent team is available.");
+    const observer = team.observers.get(observerAgentId) ?? {
+      messageSequence: team.messageSequence,
+      memberVersions: new Map(team.memberVersions),
+    };
+    team.observers.set(observerAgentId, observer);
+    const unseenSnapshot = (observationExpired: boolean) => {
+      const memberAgentIds = team.memberAgentIds.filter(
+        (agentId) =>
+          (team.memberVersions.get(agentId) ?? 0) !==
+          (observer.memberVersions.get(agentId) ?? 0),
+      );
+      const messages = team.messages.filter(
+        (message) => message.sequence > observer.messageSequence,
+      );
+      observer.messageSequence = team.messageSequence;
+      observer.memberVersions = new Map(team.memberVersions);
+      return this.teamSnapshot(
+        hosted,
+        observationExpired,
+        messages,
+        memberAgentIds,
+      );
+    };
     if (
       team.status === "blocked" ||
       team.status === "integrating" ||
       team.status === "completed" ||
       team.status === "aborted"
     ) {
-      const messages = team.messages.filter(
-        (message) => message.sequence > team.observedMessageSequence,
-      );
-      team.observedMessageSequence = team.messageSequence;
-      return this.teamSnapshot(hosted, false, messages);
+      return unseenSnapshot(false);
     }
     const startVersion = team.version;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -1534,11 +1805,7 @@ export class ArtemisAgentHost {
       }, deadlineSeconds * 1_000);
     });
     const observedChange = team.version !== startVersion || (await changed);
-    const messages = team.messages.filter(
-      (message) => message.sequence > team.observedMessageSequence,
-    );
-    team.observedMessageSequence = team.messageSequence;
-    return this.teamSnapshot(hosted, !observedChange, messages);
+    return unseenSnapshot(!observedChange);
   }
 
   async sendAgentTeamMessage(
@@ -1557,12 +1824,21 @@ export class ArtemisAgentHost {
     ) {
       throw new Error("The message sender is not a member of this team.");
     }
+    const resolvedRecipient =
+      recipient === "supervisor"
+        ? senderAgentId === ROOT_AGENT_ID
+          ? ROOT_AGENT_ID
+          : (hosted.childAgents.get(senderAgentId)?.parentAgentId ??
+            ROOT_AGENT_ID)
+        : recipient;
     if (
-      recipient !== "parent" &&
-      recipient !== "all" &&
-      !team.memberAgentIds.includes(recipient)
+      resolvedRecipient !== ROOT_AGENT_ID &&
+      resolvedRecipient !== "all" &&
+      !team.memberAgentIds.includes(resolvedRecipient)
     ) {
-      throw new Error(`Agent-team recipient was not found: ${recipient}`);
+      throw new Error(
+        `Agent-team recipient was not found: ${resolvedRecipient}`,
+      );
     }
     const messageText = content.trim();
     if (!messageText) throw new Error("Agent-team message cannot be empty.");
@@ -1573,7 +1849,7 @@ export class ArtemisAgentHost {
       messageId: randomUUID(),
       sequence: ++team.messageSequence,
       fromAgentId: senderAgentId,
-      recipient,
+      recipient: resolvedRecipient,
       kind,
       content: messageText.slice(0, 8 * 1024),
       createdAt,
@@ -1593,15 +1869,15 @@ export class ArtemisAgentHost {
 
     const envelope = `[agent-team ${kind}] ${senderAgentId}: ${message.content}`;
     const targetAgentIds =
-      recipient === "all"
+      resolvedRecipient === "all"
         ? team.memberAgentIds.filter((agentId) => agentId !== senderAgentId)
-        : recipient === "parent"
+        : resolvedRecipient === ROOT_AGENT_ID
           ? []
-          : [recipient];
+          : [resolvedRecipient];
     for (const agentId of targetAgentIds) {
       const target = hosted.childAgents.get(agentId);
       if (!target || isTerminalChildStatus(target.status)) {
-        if (recipient !== "all") {
+        if (resolvedRecipient !== "all") {
           throw new Error(
             `Cannot message a ${target?.status ?? "missing"} agent.`,
           );
@@ -1611,15 +1887,43 @@ export class ArtemisAgentHost {
       if (target.status === "queued" || !target.session) {
         target.pendingSteers.push(envelope);
       } else {
-        await target.session.steer(envelope);
+        await target.session.sendCustomMessage(
+          {
+            customType: "artemis-agent-team",
+            content: envelope,
+            display: false,
+            details: {
+              teamId: team.teamId,
+              messageId: message.messageId,
+              fromAgentId: senderAgentId,
+              recipient: resolvedRecipient,
+              kind,
+            },
+          },
+          { deliverAs: "steer" },
+        );
       }
     }
     if (
       senderAgentId !== "parent" &&
-      (recipient === "parent" || recipient === "all") &&
+      (resolvedRecipient === ROOT_AGENT_ID || resolvedRecipient === "all") &&
       kind !== "finding"
     ) {
-      await hosted.session.steer(envelope);
+      await hosted.session.sendCustomMessage(
+        {
+          customType: "artemis-agent-team",
+          content: envelope,
+          display: false,
+          details: {
+            teamId: team.teamId,
+            messageId: message.messageId,
+            fromAgentId: senderAgentId,
+            recipient: resolvedRecipient,
+            kind,
+          },
+        },
+        { deliverAs: "steer" },
+      );
     }
     return message;
   }
@@ -1637,7 +1941,7 @@ export class ArtemisAgentHost {
     }
     child.writePaths = this.validateTeamWritePaths(hosted, agentId, paths);
     this.emitChild(hosted, child);
-    return this.childSnapshot(child);
+    return this.childSnapshot(hosted, child);
   }
 
   finishAgentTeam(
@@ -1675,20 +1979,120 @@ export class ArtemisAgentHost {
         `Waived agents are not required members: ${unknownWaivers.join(", ")}.`,
       );
     }
+    const unintegratedSubteams = team.memberAgentIds
+      .map((agentId) => hosted.childAgents.get(agentId))
+      .filter((child): child is ChildAgentExecution =>
+        Boolean(
+          child &&
+          this.directChildren(hosted, child.agentId).length > 0 &&
+          !child.subtreeIntegrated,
+        ),
+      );
+    if (unintegratedSubteams.length > 0) {
+      throw new Error(
+        `Nested subteams are not integrated: ${unintegratedSubteams
+          .map((child) => child.agentId)
+          .join(", ")}.`,
+      );
+    }
+    const integrationSummary = summary.trim();
+    if (!integrationSummary) {
+      throw new Error("An agent-team integration summary is required.");
+    }
     team.status = "completed";
     team.blockedAgentIds.clear();
     delete team.error;
     this.emitTeam(hosted);
-    if (summary.trim()) {
-      void this.sendAgentTeamMessage(
-        threadId,
-        "parent",
-        "all",
-        "handoff",
-        summary.trim(),
+    void this.sendAgentTeamMessage(
+      threadId,
+      ROOT_AGENT_ID,
+      "all",
+      "handoff",
+      integrationSummary,
+    );
+    return this.teamSnapshot(hosted);
+  }
+
+  async finishAgentSubteam(
+    threadId: string,
+    actorAgentId: string,
+    waivedAgentIds: string[],
+    summary: string,
+  ): Promise<ChildAgentSnapshot> {
+    const { hosted, child: actor } = this.requireChildAgent(
+      threadId,
+      actorAgentId,
+    );
+    if (isTerminalChildStatus(actor.status)) {
+      throw new Error("A completed agent cannot integrate a subteam.");
+    }
+    const directChildren = this.directChildren(hosted, actorAgentId);
+    if (directChildren.length === 0) {
+      throw new Error("This agent has no direct child agents to integrate.");
+    }
+    const requiredChildren = directChildren.filter(
+      (candidate) => candidate.required,
+    );
+    const unresolved = requiredChildren.filter(
+      (candidate) => !isTerminalChildStatus(candidate.status),
+    );
+    if (unresolved.length > 0) {
+      throw new Error(
+        `Required child agents are still running: ${unresolved
+          .map((candidate) => candidate.agentId)
+          .join(", ")}.`,
       );
     }
-    return this.teamSnapshot(hosted);
+    const waived = new Set(waivedAgentIds);
+    const failed = requiredChildren.filter(
+      (candidate) =>
+        candidate.status !== "completed" && !waived.has(candidate.agentId),
+    );
+    if (failed.length > 0) {
+      throw new Error(
+        `Required child agents need retry or an explicit waiver: ${failed
+          .map((candidate) => candidate.agentId)
+          .join(", ")}.`,
+      );
+    }
+    const requiredIds = new Set(
+      requiredChildren.map((candidate) => candidate.agentId),
+    );
+    const unknownWaivers = [...waived].filter(
+      (agentId) => !requiredIds.has(agentId),
+    );
+    if (unknownWaivers.length > 0) {
+      throw new Error(
+        `Waived agents are not required direct children: ${unknownWaivers.join(", ")}.`,
+      );
+    }
+    const unintegrated = directChildren.filter(
+      (candidate) =>
+        this.directChildren(hosted, candidate.agentId).length > 0 &&
+        !candidate.subtreeIntegrated,
+    );
+    if (unintegrated.length > 0) {
+      throw new Error(
+        `Child subteams are not integrated: ${unintegrated
+          .map((candidate) => candidate.agentId)
+          .join(", ")}.`,
+      );
+    }
+    const integrationSummary = summary.trim();
+    if (!integrationSummary) {
+      throw new Error("A subteam integration summary is required.");
+    }
+    actor.subtreeIntegrated = true;
+    actor.subtreeSummary = integrationSummary.slice(0, 4 * 1024);
+    this.emitChild(hosted, actor);
+    await this.sendAgentTeamMessage(
+      threadId,
+      actorAgentId,
+      "supervisor",
+      "handoff",
+      actor.subtreeSummary,
+    );
+    return this.childSnapshot(hosted, actor);
   }
 
   async cancelAgentTeam(
@@ -1709,8 +2113,15 @@ export class ArtemisAgentHost {
     team.error = "The agent team was stopped before integration completed.";
     this.emitTeam(hosted);
     if (notifyParent) {
-      await hosted.session.steer(
-        "The user stopped the agent team. Continue the current task without waiting for its members.",
+      await hosted.session.sendCustomMessage(
+        {
+          customType: "artemis-agent-control",
+          content:
+            "The user stopped the agent team. Continue the current task without waiting for its members.",
+          display: false,
+          details: { action: "cancel-team", teamId },
+        },
+        { deliverAs: "steer" },
       );
     }
     return this.teamSnapshot(hosted);
@@ -2375,91 +2786,164 @@ export class ArtemisAgentHost {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(snapshot, null, 2),
+          text: JSON.stringify(
+            {
+              team: snapshot.team,
+              members: snapshot.members.map((member) => ({
+                agentId: member.agentId,
+                label: member.label,
+                parentAgentId: member.parentAgentId,
+                depth: member.depth,
+                subtreeStatus: member.subtreeStatus,
+                directChildCount: member.directChildCount,
+                role: member.role,
+                task: member.task.slice(0, 512),
+                dependsOnAgentIds: member.dependsOnAgentIds,
+                required: member.required,
+                coordinationStatus: member.coordinationStatus,
+                status: member.status,
+                health: member.health,
+                attempt: member.attempt,
+                updatedAt: member.updatedAt,
+                ...(member.currentTool
+                  ? { currentTool: member.currentTool }
+                  : {}),
+                ...(member.error ? { error: member.error } : {}),
+              })),
+              messages: snapshot.messages,
+              observationExpired: snapshot.observationExpired,
+            },
+            null,
+            2,
+          ),
         },
       ],
       details: snapshot,
     });
 
-    const spawnAgentTool = defineTool({
-      name: "spawn_agent",
-      label: "Delegate to sub-agent",
-      description:
-        "Start one bounded task in the current flat agent team without blocking the main agent. Use two to four complementary members only when parallel work materially helps. Only the parent may spawn agents; the desktop applies a dynamic global active-agent limit and queues excess work.",
-      parameters: Type.Object(
-        {
-          label: Type.String({
-            minLength: 1,
-            maxLength: 120,
-            description: "Short label shown in the Artemis sub-agent list.",
-          }),
-          role: Type.Optional(
-            Type.String({
+    const createSpawnAgentTool = (senderAgentId: string) =>
+      defineTool({
+        name: "spawn_agent",
+        label: "Delegate to sub-agent",
+        description:
+          "Start one bounded child task without blocking the current agent. Prefer three to five complementary direct children only when parallel work materially helps. Artemis allows 64 current members, five levels, eight direct children per agent, and queues work above the active capacity.",
+        parameters: Type.Object(
+          {
+            label: Type.String({
               minLength: 1,
               maxLength: 120,
-              description: "Specific responsibility within the team.",
+              description: "Short label shown in the Artemis agent tree.",
             }),
-          ),
-          task: Type.String({
-            minLength: 1,
-            maxLength: 32 * 1024,
-            description: "Concrete task for the sub-agent.",
-          }),
-          depends_on_agent_ids: Type.Optional(
-            Type.Array(Type.String({ minLength: 1 }), { maxItems: 4 }),
-          ),
-          write_paths: Type.Optional(
-            Type.Array(Type.String({ minLength: 1, maxLength: 1_024 }), {
-              maxItems: 32,
+            role: Type.Optional(
+              Type.String({
+                minLength: 1,
+                maxLength: 120,
+                description: "Specific responsibility within the team.",
+              }),
+            ),
+            task: Type.String({
+              minLength: 1,
+              maxLength: 32 * 1024,
+              description: "Concrete task for the child agent.",
             }),
-          ),
-          required: Type.Optional(Type.Boolean()),
+            depends_on_agent_ids: Type.Optional(
+              Type.Array(Type.String({ minLength: 1 }), {
+                maxItems: AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN,
+              }),
+            ),
+            write_paths: Type.Optional(
+              Type.Array(Type.String({ minLength: 1, maxLength: 1_024 }), {
+                maxItems: 32,
+              }),
+            ),
+            required: Type.Optional(Type.Boolean()),
+          },
+          { additionalProperties: false },
+        ),
+        execute: async (_toolCallId, params) => {
+          const hosted = this.threads.get(request.threadId);
+          if (!hosted?.currentTurnId || !hosted.currentMode) {
+            throw new Error("No active turn is available for delegation.");
+          }
+          const supervisor =
+            senderAgentId === ROOT_AGENT_ID
+              ? undefined
+              : hosted.childAgents.get(senderAgentId);
+          if (
+            senderAgentId !== ROOT_AGENT_ID &&
+            (!supervisor || isTerminalChildStatus(supervisor.status))
+          ) {
+            throw new Error("Only an active agent may create child agents.");
+          }
+          const depth = (supervisor?.depth ?? 0) + 1;
+          if (depth > AGENT_TEAM_MAXIMUM_DEPTH) {
+            throw new Error(
+              `An agent tree may be at most ${AGENT_TEAM_MAXIMUM_DEPTH} levels deep.`,
+            );
+          }
+          const team = this.ensureTeam(hosted);
+          if (team.spawnCount >= AGENT_TEAM_SPAWN_BUDGET) {
+            throw new Error(
+              `This turn exhausted its ${AGENT_TEAM_SPAWN_BUDGET}-spawn safety budget.`,
+            );
+          }
+          if (team.memberAgentIds.length >= AGENT_TEAM_LOGICAL_MAXIMUM) {
+            throw new Error(
+              `An agent team may contain at most ${AGENT_TEAM_LOGICAL_MAXIMUM} members.`,
+            );
+          }
+          if (
+            this.directChildren(hosted, senderAgentId).length >=
+            AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN
+          ) {
+            throw new Error(
+              `An agent may have at most ${AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN} direct children.`,
+            );
+          }
+          const dependsOnAgentIds = [
+            ...new Set(params.depends_on_agent_ids ?? []),
+          ];
+          for (const dependencyId of dependsOnAgentIds) {
+            const dependency = hosted.childAgents.get(dependencyId);
+            if (!dependency || !team.memberAgentIds.includes(dependencyId)) {
+              throw new Error(
+                `A dependency must already belong to this team: ${dependencyId}.`,
+              );
+            }
+            if (
+              dependency.parentAgentId !== senderAgentId &&
+              !isTerminalChildStatus(dependency.status)
+            ) {
+              throw new Error(
+                "A running dependency must be a direct sibling of the new agent.",
+              );
+            }
+          }
+          const child = launchChildAgent({
+            turnId: hosted.currentTurnId,
+            mode: hosted.currentMode,
+            parentAgentId: senderAgentId,
+            depth,
+            label: params.label.trim(),
+            role: params.role?.trim() || params.label.trim(),
+            task: params.task.trim(),
+            dependsOnAgentIds,
+            writePaths: this.validateTeamWritePaths(
+              hosted,
+              undefined,
+              params.write_paths ?? [],
+            ),
+            required: params.required ?? true,
+            attempt: 1,
+          });
+          if (supervisor) this.emitChild(hosted, supervisor);
+          return childToolResult(
+            this.childSnapshot(hosted, child),
+            "The child is running asynchronously. Wait for it only when you need its result; collaboration waits release your active execution slot.",
+          );
         },
-        { additionalProperties: false },
-      ),
-      execute: async (_toolCallId, params) => {
-        const hosted = this.threads.get(request.threadId);
-        if (!hosted?.currentTurnId || !hosted.currentMode) {
-          throw new Error("No active turn is available for delegation.");
-        }
-        const team = this.ensureTeam(hosted);
-        if (team.memberAgentIds.length >= TEAM_MAX_MEMBERS) {
-          throw new Error(
-            `An agent team may contain at most ${TEAM_MAX_MEMBERS} members.`,
-          );
-        }
-        const dependsOnAgentIds = [
-          ...new Set(params.depends_on_agent_ids ?? []),
-        ];
-        const missingDependency = dependsOnAgentIds.find(
-          (agentId) => !team.memberAgentIds.includes(agentId),
-        );
-        if (missingDependency) {
-          throw new Error(
-            `A dependency must already belong to this team: ${missingDependency}.`,
-          );
-        }
-        const child = launchChildAgent({
-          turnId: hosted.currentTurnId,
-          mode: hosted.currentMode,
-          label: params.label.trim(),
-          role: params.role?.trim() || params.label.trim(),
-          task: params.task.trim(),
-          dependsOnAgentIds,
-          writePaths: this.validateTeamWritePaths(
-            hosted,
-            undefined,
-            params.write_paths ?? [],
-          ),
-          required: params.required ?? true,
-          attempt: 1,
-        });
-        return childToolResult(
-          this.childSnapshot(child),
-          "The sub-agent is running asynchronously. Call wait_agent with a deadline chosen for this task. If it remains healthy, wait again; if it is suspect or failed, steer or cancel it and use another approach.",
-        );
-      },
-    });
+      });
+    const spawnAgentTool = createSpawnAgentTool(ROOT_AGENT_ID);
 
     const listAgentsTool = defineTool({
       name: "list_agents",
@@ -2470,25 +2954,30 @@ export class ArtemisAgentHost {
       execute: async () => teamToolResult(this.listAgentTeam(request.threadId)),
     });
 
-    const waitTeamTool = defineTool({
-      name: "wait_team",
-      label: "Wait for agent team",
-      description:
-        "Observe the team until a coordination message or member status changes. The model-selected deadline is only an observation window and never stops the team.",
-      parameters: Type.Object(
-        {
-          deadline_seconds: Type.Number({ minimum: 1, maximum: 300 }),
-        },
-        { additionalProperties: false },
-      ),
-      execute: async (_toolCallId, params) =>
-        teamToolResult(
-          await this.waitForAgentTeam(
-            request.threadId,
-            params.deadline_seconds,
-          ),
+    const createWaitTeamTool = (actorAgentId: string) =>
+      defineTool({
+        name: "wait_team",
+        label: "Wait for agent team",
+        description:
+          "Observe the team until a coordination message or member status changes. Waiting releases the current agent's active execution slot and never stops the team.",
+        parameters: Type.Object(
+          {
+            deadline_seconds: Type.Number({ minimum: 1, maximum: 300 }),
+          },
+          { additionalProperties: false },
         ),
-    });
+        execute: async (_toolCallId, params) =>
+          teamToolResult(
+            await this.suspendAgentLease(request.threadId, actorAgentId, () =>
+              this.waitForAgentTeam(
+                request.threadId,
+                actorAgentId,
+                params.deadline_seconds,
+              ),
+            ),
+          ),
+      });
+    const waitTeamTool = createWaitTeamTool(ROOT_AGENT_ID);
 
     const createSendMessageTool = (senderAgentId: string) =>
       defineTool({
@@ -2560,7 +3049,9 @@ export class ArtemisAgentHost {
       parameters: Type.Object(
         {
           waived_agent_ids: Type.Optional(
-            Type.Array(Type.String({ minLength: 1 }), { maxItems: 4 }),
+            Type.Array(Type.String({ minLength: 1 }), {
+              maxItems: AGENT_TEAM_LOGICAL_MAXIMUM,
+            }),
           ),
           summary: Type.String({ minLength: 1, maxLength: 4 * 1024 }),
         },
@@ -2576,28 +3067,60 @@ export class ArtemisAgentHost {
         ),
     });
 
-    const waitAgentTool = defineTool({
-      name: "wait_agent",
-      label: "Wait for sub-agent",
-      description:
-        "Observe a sub-agent for a model-selected deadline. Deadline expiry does not stop it. Inspect status, last activity, current tool, and health; wait again only when execution remains normal.",
-      parameters: Type.Object(
-        {
-          agent_id: Type.String({ minLength: 1 }),
-          deadline_seconds: Type.Number({ minimum: 1, maximum: 300 }),
-        },
-        { additionalProperties: false },
-      ),
-      execute: async (_toolCallId, params) =>
-        childToolResult(
-          await this.waitForChildAgent(
-            request.threadId,
-            params.agent_id,
-            params.deadline_seconds,
-          ),
-          "If status is healthy and still running, choose another wait window. If it is suspect, stalled, failed, or cancelling too long, stop it and continue another way.",
+    const createFinishSubteamTool = (actorAgentId: string) =>
+      defineTool({
+        name: "finish_subteam",
+        label: "Finish child-agent subtree",
+        description:
+          "Integrate this agent's direct children before returning to its supervisor. Required children must settle; failures need explicit waivers and every nested child subteam must already be integrated.",
+        parameters: Type.Object(
+          {
+            waived_agent_ids: Type.Optional(
+              Type.Array(Type.String({ minLength: 1 }), {
+                maxItems: AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN,
+              }),
+            ),
+            summary: Type.String({ minLength: 1, maxLength: 4 * 1024 }),
+          },
+          { additionalProperties: false },
         ),
-    });
+        execute: async (_toolCallId, params) =>
+          childToolResult(
+            await this.finishAgentSubteam(
+              request.threadId,
+              actorAgentId,
+              params.waived_agent_ids ?? [],
+              params.summary,
+            ),
+          ),
+      });
+
+    const createWaitAgentTool = (actorAgentId: string) =>
+      defineTool({
+        name: "wait_agent",
+        label: "Wait for sub-agent",
+        description:
+          "Observe a sub-agent for a model-selected deadline. Waiting releases the current agent's active execution slot. Deadline expiry does not stop the sub-agent.",
+        parameters: Type.Object(
+          {
+            agent_id: Type.String({ minLength: 1 }),
+            deadline_seconds: Type.Number({ minimum: 1, maximum: 300 }),
+          },
+          { additionalProperties: false },
+        ),
+        execute: async (_toolCallId, params) =>
+          childToolResult(
+            await this.suspendAgentLease(request.threadId, actorAgentId, () =>
+              this.waitForChildAgent(
+                request.threadId,
+                params.agent_id,
+                params.deadline_seconds,
+              ),
+            ),
+            "If status is healthy and still running, choose another wait window. If it is suspect, stalled, failed, or cancelling too long, stop it and continue another way.",
+          ),
+      });
+    const waitAgentTool = createWaitAgentTool(ROOT_AGENT_ID);
 
     const getAgentStatusTool = defineTool({
       name: "get_agent_status",
@@ -2813,10 +3336,16 @@ export class ArtemisAgentHost {
         output: "",
         pendingSteers: [],
         longestObservationMilliseconds: 0,
+        subtreeIntegrated: false,
         done,
         settle,
       };
       const team = this.ensureTeam(hosted);
+      if (team.spawnCount >= AGENT_TEAM_SPAWN_BUDGET) {
+        throw new Error(
+          `This turn exhausted its ${AGENT_TEAM_SPAWN_BUDGET}-spawn safety budget.`,
+        );
+      }
       if (input.replacesAgentId) {
         const replacedIndex = team.memberAgentIds.indexOf(
           input.replacesAgentId,
@@ -2839,13 +3368,14 @@ export class ArtemisAgentHost {
           this.emitChild(hosted, member);
         }
       } else {
-        if (team.memberAgentIds.length >= TEAM_MAX_MEMBERS) {
+        if (team.memberAgentIds.length >= AGENT_TEAM_LOGICAL_MAXIMUM) {
           throw new Error(
-            `An agent team may contain at most ${TEAM_MAX_MEMBERS} members.`,
+            `An agent team may contain at most ${AGENT_TEAM_LOGICAL_MAXIMUM} members.`,
           );
         }
         team.memberAgentIds.push(agentId);
       }
+      team.spawnCount += 1;
       if (input.required) team.requiredAgentIds.add(agentId);
       delete child.replacesAgentId;
       hosted.childAgents.set(agentId, child);
@@ -2875,7 +3405,8 @@ export class ArtemisAgentHost {
           }
           await this.concurrency.run(
             "child",
-            async () => {
+            async (lease) => {
+              hosted.activeLeases.set(agentId, lease);
               if (
                 controller.signal.aborted ||
                 this.cancelledTurns.has(cancellationKey)
@@ -2892,6 +3423,7 @@ export class ArtemisAgentHost {
               let pendingActivity = "";
               let activityUpdateTimer:
                 ReturnType<typeof setTimeout> | undefined;
+              const childProviderId = this.configuration.selection?.providerId;
               const childAdapter = new PiAdapter(
                 `${input.turnId}:child:${agentId}`,
               );
@@ -2909,7 +3441,7 @@ export class ArtemisAgentHost {
                 activityUpdateTimer = setTimeout(() => {
                   activityUpdateTimer = undefined;
                   emitActivityUpdate();
-                }, 250);
+                }, 1_000);
               };
               const flushActivityUpdate = () => {
                 if (activityUpdateTimer) clearTimeout(activityUpdateTimer);
@@ -2955,6 +3487,10 @@ export class ArtemisAgentHost {
                   }),
                 );
                 const childSendMessageTool = createSendMessageTool(agentId);
+                const childSpawnAgentTool = createSpawnAgentTool(agentId);
+                const childWaitAgentTool = createWaitAgentTool(agentId);
+                const childWaitTeamTool = createWaitTeamTool(agentId);
+                const childFinishSubteamTool = createFinishSubteamTool(agentId);
                 const readOnlyMcpToolNames = new Set(
                   configuredMcpTools
                     .filter((tool) => tool.readOnly)
@@ -2966,7 +3502,7 @@ export class ArtemisAgentHost {
                 const created = await createAgentSession({
                   cwd: request.workspacePath,
                   sessionManager: omitReasoningFromSession(
-                    SessionManager.create(request.workspacePath),
+                    SessionManager.inMemory(request.workspacePath),
                   ),
                   modelRuntime,
                   ...(selectedModel ? { model: selectedModel } : {}),
@@ -2980,8 +3516,12 @@ export class ArtemisAgentHost {
                     childWriteTool,
                     childOfficeDocumentTool,
                     loadWorkspaceDependenciesTool,
+                    childSpawnAgentTool,
                     listAgentsTool,
+                    childWaitAgentTool,
+                    childWaitTeamTool,
                     childSendMessageTool,
+                    childFinishSubteamTool,
                     childBashTools.bashTool,
                     childBashTools.bashWaitTool,
                     childBashTools.bashCancelTool,
@@ -2992,8 +3532,12 @@ export class ArtemisAgentHost {
                     "write",
                     "office_document",
                     "load_workspace_dependencies",
+                    "spawn_agent",
                     "list_agents",
+                    "wait_agent",
+                    "wait_team",
                     "send_message",
+                    "finish_subteam",
                     "bash",
                     "bash_wait",
                     "bash_cancel",
@@ -3006,8 +3550,12 @@ export class ArtemisAgentHost {
                   child.session.agent.state.tools.filter(
                     (tool) =>
                       tool.name === "read" ||
+                      tool.name === "spawn_agent" ||
                       tool.name === "list_agents" ||
+                      tool.name === "wait_agent" ||
+                      tool.name === "wait_team" ||
                       tool.name === "send_message" ||
+                      tool.name === "finish_subteam" ||
                       (input.mode === "execute" &&
                         (tool.name === "bash" ||
                           tool.name === "bash_wait" ||
@@ -3064,9 +3612,29 @@ export class ArtemisAgentHost {
                 const queuedGuidance = child.pendingSteers.length
                   ? `\n\nAdditional guidance received while queued:\n${child.pendingSteers.join("\n")}`
                   : "";
+                if (
+                  childProviderId &&
+                  (this.providerAdmissionBlockedUntil.get(childProviderId) ??
+                    0) > Date.now()
+                ) {
+                  await lease.suspend(() =>
+                    this.waitForProviderAdmission(
+                      childProviderId,
+                      controller.signal,
+                    ),
+                  );
+                }
                 await child.session.prompt(
-                  `${modeInstruction(input.mode)}\n\nYou are ${input.role}, a member of a flat Artemis agent team. Complete only this bounded task:\n${input.task}\n\nYou may inspect the roster with list_agents and communicate through send_message. You cannot create or control other agents. Send user-decision requests to the parent instead of asking the user directly. Your cooperative write scope is ${input.writePaths.length > 0 ? input.writePaths.join(", ") : "empty (workspace write calls are read-only)"}. Shell commands still run with the desktop user's full permissions, so treat the scope as a conflict-control contract and do not modify anything outside it. Finish with a concise handoff to the parent.${queuedGuidance}`,
+                  `${modeInstruction(input.mode)}\n\nYou are ${input.role}, an Artemis child agent at depth ${input.depth} of ${AGENT_TEAM_MAXIMUM_DEPTH}. Complete only this bounded task:\n${input.task}\n\nYour supervisor is ${input.parentAgentId}. Inspect the compact roster with list_agents, wait with wait_agent or wait_team, and communicate through send_message; recipient \"supervisor\" routes to your immediate supervisor while \"parent\" routes to the root agent. You may create up to ${AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN} direct children when the task has independent workstreams and the team still has capacity. If you create children, wait for them, integrate their results with finish_subteam, and only then return your final handoff. Send user-decision requests to your supervisor instead of asking the user directly. Your cooperative write scope is ${input.writePaths.length > 0 ? input.writePaths.join(", ") : "empty (workspace write calls are read-only)"}. Shell commands still run with the desktop user's full permissions, so treat the scope as a conflict-control contract and do not modify anything outside it.${queuedGuidance}`,
                 );
+                if (
+                  this.directChildren(hosted, child.agentId).length > 0 &&
+                  !child.subtreeIntegrated
+                ) {
+                  throw new Error(
+                    "The agent ended before calling finish_subteam for its direct children.",
+                  );
+                }
                 child.status = controller.signal.aborted
                   ? "cancelled"
                   : "completed";
@@ -3082,12 +3650,15 @@ export class ArtemisAgentHost {
                   await this.sendAgentTeamMessage(
                     request.threadId,
                     child.agentId,
-                    "parent",
+                    "supervisor",
                     "handoff",
                     child.output.trim().slice(-8 * 1024),
                   );
                 }
               } catch (error) {
+                if (childProviderId) {
+                  this.recordProviderBackoff(childProviderId, error);
+                }
                 const cancelled =
                   controller.signal.aborted ||
                   this.cancelledTurns.has(cancellationKey);
@@ -3098,6 +3669,15 @@ export class ArtemisAgentHost {
                   ).slice(0, 4 * 1024);
                 }
               } finally {
+                if (child.status === "failed" || child.status === "cancelled") {
+                  for (const descendant of this.descendantAgents(
+                    hosted,
+                    child.agentId,
+                  )) {
+                    this.requestChildCancellation(hosted, descendant);
+                  }
+                }
+                hosted.activeLeases.delete(agentId);
                 flushActivityUpdate();
                 if (activityUpdateTimer) clearTimeout(activityUpdateTimer);
                 unsubscribe();
@@ -3116,6 +3696,7 @@ export class ArtemisAgentHost {
               }
             },
             controller.signal,
+            request.threadId,
           );
         })
         .catch((error: unknown) => {
@@ -3339,6 +3920,7 @@ export class ArtemisAgentHost {
       ],
       executeTools,
       childAgents: new Map(),
+      activeLeases: new Map(),
       currentMission: undefined,
       team: undefined,
       interruptedTeamContext: undefined,
@@ -3437,8 +4019,8 @@ export class ArtemisAgentHost {
     const ultraMode = this.configuration.selection?.ultraMode === true;
     const coordinationInstruction = `${
       ultraMode
-        ? "Ultra Mode agent-team coordination: first assess whether the task is complex, long-horizon, cross-subsystem, has multiple independent workstreams, can parallelize investigation, implementation, testing, or builds, or benefits from multiple specialties. When it does, proactively decompose it and start a flat team of two to four complementary members early. Keep write scopes disjoint, monitor collaboration with wait_team, resolve blockers, integrate the results yourself, and call finish_team before your final answer. Keep simple, atomic, strictly sequential tasks, or tasks where coordination would cost more than it helps, with the parent agent only."
-        : "Agent-team coordination: delegate only when parallel work materially helps. Use a flat team of two to four complementary members, keep write scopes disjoint, monitor collaboration with wait_team, resolve blockers, integrate the results yourself, and call finish_team before your final answer. If no team is created, continue normally."
+        ? `Ultra Mode agent-tree coordination: first assess whether the task is complex, long-horizon, cross-subsystem, has multiple independent workstreams, can parallelize investigation, implementation, testing, or builds, or benefits from multiple specialties. When it does, proactively start three to five complementary direct children early and let them delegate further only when their own tasks divide cleanly. The tree supports ${AGENT_TEAM_LOGICAL_MAXIMUM} current members and ${AGENT_TEAM_MAXIMUM_DEPTH} levels, but capacity is a ceiling rather than a target. Keep write scopes disjoint, monitor collaboration with wait_team, resolve blockers, integrate the results yourself, and call finish_team before your final answer. Keep simple, atomic, strictly sequential tasks, or tasks where coordination would cost more than it helps, with the parent agent only.`
+        : `Agent-tree coordination: delegate only when parallel work materially helps. Prefer three to five complementary direct children and allow deeper delegation only for independent bounded work. The tree supports ${AGENT_TEAM_LOGICAL_MAXIMUM} current members and ${AGENT_TEAM_MAXIMUM_DEPTH} levels, but do not create agents merely to fill capacity. Keep write scopes disjoint, monitor collaboration with wait_team, resolve blockers, integrate the results yourself, and call finish_team before your final answer. If no team is created, continue normally.`
     } If the user asks to continue work from an interrupted team, create a fresh replacement team from the prior tasks and handoffs; never claim that cancelled model requests or processes were resumed.${
       interruptedTeamContext
         ? `\n\nPrevious interrupted agent-team context:\n${interruptedTeamContext}`
@@ -3457,27 +4039,52 @@ export class ArtemisAgentHost {
           queueDepth: concurrency.queued + 1,
         });
       }
-      await this.concurrency.run("parent", () => {
-        this.sink.emit(hosted.threadId, turnId, {
-          type: "turn.activity",
-          phase: "requesting-model",
-          queueDepth: this.concurrency.snapshot?.queued ?? 0,
-          toolCount: hosted.session.getActiveToolNames().length,
-        });
-        return images || expandedPrompt.expanded
-          ? hosted.session.prompt(
-              `${expandedPrompt.text}\n\n${coordinationInstruction}`,
-              {
-                ...(images ? { images } : {}),
-                ...(expandedPrompt.expanded
-                  ? { expandPromptTemplates: false }
-                  : {}),
-              },
-            )
-          : hosted.session.prompt(
-              `${expandedPrompt.text}\n\n${coordinationInstruction}`,
-            );
-      });
+      await this.concurrency.run(
+        "parent",
+        async (lease) => {
+          hosted.activeLeases.set(ROOT_AGENT_ID, lease);
+          const providerId = this.configuration.selection?.providerId;
+          this.sink.emit(hosted.threadId, turnId, {
+            type: "turn.activity",
+            phase: "requesting-model",
+            queueDepth: this.concurrency.snapshot?.queued ?? 0,
+            toolCount: hosted.session.getActiveToolNames().length,
+          });
+          try {
+            if (
+              providerId &&
+              (this.providerAdmissionBlockedUntil.get(providerId) ?? 0) >
+                Date.now()
+            ) {
+              await lease.suspend(() =>
+                this.waitForProviderAdmission(providerId, undefined, () =>
+                  this.cancelledTurns.has(`${threadId}\0${turnId}`),
+                ),
+              );
+            }
+            await (images || expandedPrompt.expanded
+              ? hosted.session.prompt(
+                  `${expandedPrompt.text}\n\n${coordinationInstruction}`,
+                  {
+                    ...(images ? { images } : {}),
+                    ...(expandedPrompt.expanded
+                      ? { expandPromptTemplates: false }
+                      : {}),
+                  },
+                )
+              : hosted.session.prompt(
+                  `${expandedPrompt.text}\n\n${coordinationInstruction}`,
+                ));
+          } catch (error) {
+            if (providerId) this.recordProviderBackoff(providerId, error);
+            throw error;
+          } finally {
+            hosted.activeLeases.delete(ROOT_AGENT_ID);
+          }
+        },
+        undefined,
+        threadId,
+      );
     } finally {
       const cancellationKey = `${threadId}\0${turnId}`;
       const cancelledByUser = this.cancelledTurns.has(cancellationKey);

@@ -303,6 +303,10 @@ describe("child-agent schemas", () => {
         agentId: "child-1",
         label: "Review runtime",
         teamId: "team-1",
+        parentAgentId: "parent",
+        depth: 1,
+        subtreeStatus: "running",
+        directChildCount: 2,
         role: "Runtime reviewer",
         dependsOnAgentIds: [],
         writePaths: ["packages/agent-host"],
@@ -319,10 +323,49 @@ describe("child-agent schemas", () => {
         status: "running",
         memberAgentIds: ["child-1", "child-2"],
         requiredAgentIds: ["child-1"],
-        maxMembers: 4,
+        maxMembers: 64,
+        maxDepth: 5,
+        spawnBudgetRemaining: 126,
         updatedAt: "2026-08-06T00:00:00.000Z",
       }).success,
     ).toBe(true);
+    const members = Array.from({ length: 64 }, (_, index) => `child-${index}`);
+    expect(
+      agentPayloadSchema.safeParse({
+        type: "agent-team.status",
+        teamId: "team-64",
+        mission: "Exercise the logical tree ceiling.",
+        status: "running",
+        memberAgentIds: members,
+        requiredAgentIds: members,
+        maxMembers: 64,
+        maxDepth: 5,
+        spawnBudgetRemaining: 64,
+        updatedAt: "2026-08-09T00:00:00.000Z",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentPayloadSchema.safeParse({
+        type: "agent-team.status",
+        teamId: "team-65",
+        mission: "Exceed the logical tree ceiling.",
+        status: "running",
+        memberAgentIds: [...members, "child-64"],
+        requiredAgentIds: [],
+        maxMembers: 64,
+        updatedAt: "2026-08-09T00:00:00.000Z",
+      }).success,
+    ).toBe(false);
+    expect(
+      agentPayloadSchema.safeParse({
+        type: "child-agent.status",
+        agentId: "child-depth-6",
+        label: "Too deep",
+        parentAgentId: "child-depth-5",
+        depth: 6,
+        status: "queued",
+      }).success,
+    ).toBe(false);
     expect(
       agentPayloadSchema.safeParse({
         type: "agent-team.message",

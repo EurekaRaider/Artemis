@@ -278,6 +278,101 @@ describe("GoogleAccountService", () => {
     );
   });
 
+  it("treats Google's invalid_token revocation response as already disconnected", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-google-revoke-"));
+    temporaryDirectories.push(directory);
+    const storePath = join(directory, "google-account.json");
+    const safeStorage = xorSafeStorage(true);
+    const record = {
+      account: { sub: "google-sub-1", email: "owner@example.com" },
+      grants: {
+        "google-workspace": {
+          refreshToken: "workspace-token",
+          scopes: [...GOOGLE_SCOPES["google-workspace"]],
+        },
+        gmail: {
+          refreshToken: "already-revoked-gmail-token",
+          scopes: [...GOOGLE_SCOPES.gmail],
+        },
+      },
+    };
+    await writeFile(
+      storePath,
+      JSON.stringify({
+        version: 1,
+        encrypted: safeStorage
+          .encryptString(JSON.stringify(record))
+          .toString("base64"),
+      }),
+    );
+    const revokedTokens: string[] = [];
+    const service = new GoogleAccountService(
+      storePath,
+      safeStorage,
+      async () => {},
+      async (_url, init) => {
+        const token = new URLSearchParams(String(init?.body)).get("token")!;
+        revokedTokens.push(token);
+        return token === "already-revoked-gmail-token"
+          ? Response.json({ error: "invalid_token" }, { status: 400 })
+          : new Response(undefined, { status: 200 });
+      },
+      DESKTOP_CLIENT,
+    );
+
+    await expect(service.disconnectAccount()).resolves.toMatchObject({
+      connected: false,
+      grants: {
+        "google-workspace": { authorized: false },
+        gmail: { authorized: false },
+      },
+    });
+    expect(revokedTokens).toEqual([
+      "workspace-token",
+      "already-revoked-gmail-token",
+    ]);
+    await expect(stat(storePath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("still reports non-idempotent Google revocation failures", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-google-revoke-"));
+    temporaryDirectories.push(directory);
+    const storePath = join(directory, "google-account.json");
+    const safeStorage = xorSafeStorage(true);
+    await writeFile(
+      storePath,
+      JSON.stringify({
+        version: 1,
+        encrypted: safeStorage
+          .encryptString(
+            JSON.stringify({
+              account: { sub: "google-sub-1", email: "owner@example.com" },
+              grants: {
+                gmail: {
+                  refreshToken: "gmail-token",
+                  scopes: [...GOOGLE_SCOPES.gmail],
+                },
+              },
+            }),
+          )
+          .toString("base64"),
+      }),
+    );
+    const service = new GoogleAccountService(
+      storePath,
+      safeStorage,
+      async () => {},
+      async () =>
+        Response.json({ error: "temporarily_unavailable" }, { status: 503 }),
+      DESKTOP_CLIENT,
+    );
+
+    await expect(service.disconnectAccount()).rejects.toThrow(
+      /revocation failed.*503/u,
+    );
+    await expect(service.status()).resolves.toMatchObject({ connected: false });
+  });
+
   it("clears only grants Google explicitly reports as invalid", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-google-health-"));
     temporaryDirectories.push(directory);

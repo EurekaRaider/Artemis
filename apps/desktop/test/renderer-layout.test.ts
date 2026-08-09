@@ -2001,6 +2001,52 @@ describe("renderer layout contract", () => {
     expect(mainProcessSource).not.toContain('"com.artemis.google/config"');
   });
 
+  it("refreshes renderer MCP state after Google grant authorization", () => {
+    const authorizeStart = resourceCenterSource.indexOf(
+      "async function authorizeGoogleGrant",
+    );
+    const authorizeEnd = resourceCenterSource.indexOf(
+      "async function disconnectGoogleGrant",
+      authorizeStart,
+    );
+    const authorize = resourceCenterSource.slice(authorizeStart, authorizeEnd);
+    const grant = authorize.indexOf("window.artemis.authorizeGoogleGrant");
+    const settings = authorize.indexOf("window.artemis.getSettings");
+
+    expect(grant).toBeGreaterThan(-1);
+    expect(settings).toBeGreaterThan(grant);
+    expect(authorize).toContain("setMcpServers(next.mcpServers)");
+    expect(authorize).toContain("onSettingsChange(next)");
+  });
+
+  it("refreshes renderer MCP state after disconnecting Google grants", () => {
+    const grantStart = resourceCenterSource.indexOf(
+      "async function disconnectGoogleGrant",
+    );
+    const accountStart = resourceCenterSource.indexOf(
+      "async function disconnectGoogleAccount",
+      grantStart,
+    );
+    const accountEnd = resourceCenterSource.indexOf(
+      "async function removeMarketplace",
+      accountStart,
+    );
+    const grantDisconnect = resourceCenterSource.slice(
+      grantStart,
+      accountStart,
+    );
+    const accountDisconnect = resourceCenterSource.slice(
+      accountStart,
+      accountEnd,
+    );
+
+    for (const disconnect of [grantDisconnect, accountDisconnect]) {
+      expect(disconnect).toContain("window.artemis.getSettings");
+      expect(disconnect).toContain("setMcpServers(next.mcpServers)");
+      expect(disconnect).toContain("onSettingsChange(next)");
+    }
+  });
+
   it("renders disconnected MCP servers with their switches off", () => {
     const mcpStart = resourceCenterSource.indexOf('managementTab === "mcp" &&');
     const mcpEnd = resourceCenterSource.indexOf(

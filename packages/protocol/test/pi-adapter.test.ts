@@ -8,6 +8,43 @@ import {
 } from "../src/index.js";
 
 describe("PiAdapter", () => {
+  it("does not surface legacy internal agent messages as user messages", () => {
+    const adapter = new PiAdapter("turn-1");
+
+    expect(
+      adapter.adapt({
+        type: "message_start",
+        message: { id: "initial", role: "user", content: "Run the task." },
+      }),
+    ).toEqual([]);
+    expect(
+      adapter.adapt({
+        type: "message_start",
+        message: {
+          id: "handoff",
+          role: "user",
+          content: "[agent-team handoff] child-1: Internal result.",
+        },
+      }),
+    ).toEqual([]);
+    expect(
+      adapter.adapt({
+        type: "message_start",
+        message: {
+          id: "user-steer",
+          role: "user",
+          content: "Please also check the tests.",
+        },
+      }),
+    ).toEqual([
+      {
+        type: "user.message",
+        messageId: "user-steer",
+        text: "Please also check the tests.",
+      },
+    ]);
+  });
+
   it("ignores unhandled lifecycle events", () => {
     const adapter = new PiAdapter("turn-1");
     const event = {

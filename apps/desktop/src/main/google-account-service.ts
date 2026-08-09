@@ -353,8 +353,18 @@ export class GoogleAccountService {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ token }).toString(),
     });
-    if (!response.ok)
-      throw new Error(`Google token revocation failed (${response.status}).`);
+    if (response.ok) return;
+    let errorCode: string | undefined;
+    try {
+      const payload = JSON.parse(await response.text()) as unknown;
+      if (isRecord(payload)) errorCode = stringValue(payload.error);
+    } catch {
+      // Google may omit a structured body for non-token revocation failures.
+    }
+    if (response.status === 400 && errorCode === "invalid_token") return;
+    throw new Error(
+      `Google token revocation failed (${response.status})${errorCode ? `: ${errorCode}` : ""}.`,
+    );
   }
 
   private async tokenRequest(

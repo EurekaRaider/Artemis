@@ -1,8 +1,25 @@
-import type { McpServerConfig } from "../shared/api.js";
+import type { GoogleGrantId, McpServerConfig } from "../shared/api.js";
 
 export interface ReadyInstalledGoogleMcpServers {
   ready: McpServerConfig[];
   skipped: Array<{ id: string; reason: string }>;
+}
+
+export function installedGoogleMcpServerIdsForGrant(
+  configs: McpServerConfig[],
+  installedServerIds: string[],
+  grant: GoogleGrantId,
+): string[] {
+  const installed = new Set(installedServerIds);
+  return configs
+    .filter(
+      (config) =>
+        installed.has(config.id) &&
+        !config.enabled &&
+        config.hostAuth?.provider === "google" &&
+        config.hostAuth.grant === grant,
+    )
+    .map((config) => config.id);
 }
 
 export async function readyInstalledGoogleMcpServers(

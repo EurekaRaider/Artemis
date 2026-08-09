@@ -8,7 +8,8 @@ flowchart LR
   P --> M["Electron Main<br/>lifecycle · policy · persistence"]
   M <--> A["Utility process<br/>Pi Agent Host"]
   A --> PI["Pi SDK + PiAdapter<br/>single agent loop"]
-  PI --> C["Flat child sessions<br/>dynamic capacity 2–16"]
+  PI --> C["In-memory child-session tree<br/>64 logical · depth 5 · fanout 8"]
+  C --> Q["Fair active scheduler<br/>auto 2–16 · manual 2–64"]
   A --> B["Mode + approval broker"]
   C --> B
   B --> W["Validated workspace tools"]
@@ -31,7 +32,10 @@ The Pi SDK runs directly inside an Electron Node utility process. It is not a
 CLI/RPC sidecar. A utility-process crash is isolated from the window and main
 process. Pi's SDK remains responsible for model/provider behavior, message
 history, compaction, Skills, prompt templates, project context, and JSONL
-sessions.
+sessions. Root task sessions retain the existing lazy JSONL persistence;
+sub-agents use non-resumable in-memory Pi sessions. SQLite retains versioned
+member/team transitions, messages and bounded final output, while live activity
+deltas are delivered in coalesced IPC batches and omitted from persistence.
 
 ## Protocol
 

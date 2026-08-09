@@ -808,6 +808,9 @@ export function ResourceCenter({
     setMessage(undefined);
     try {
       setGoogleAccount(await window.artemis.authorizeGoogleGrant(grant));
+      const next = await window.artemis.getSettings();
+      setMcpServers(next.mcpServers);
+      onSettingsChange(next);
     } catch (error) {
       setMessage(googleAuthorizationErrorText(error, locale));
     } finally {
@@ -821,6 +824,9 @@ export function ResourceCenter({
     setBusyId(`google:${grant}`);
     try {
       setGoogleAccount(await window.artemis.disconnectGoogleGrant(grant));
+      const next = await window.artemis.getSettings();
+      setMcpServers(next.mcpServers);
+      onSettingsChange(next);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -839,6 +845,9 @@ export function ResourceCenter({
     setBusyId("google-disconnect");
     try {
       setGoogleAccount(await window.artemis.disconnectGoogleAccount());
+      const next = await window.artemis.getSettings();
+      setMcpServers(next.mcpServers);
+      onSettingsChange(next);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {

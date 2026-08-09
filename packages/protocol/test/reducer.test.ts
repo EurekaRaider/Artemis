@@ -26,6 +26,26 @@ function event(
 }
 
 describe("reduceAgentEvent", () => {
+  it("hides legacy internal handoffs that were persisted as user messages", () => {
+    const state = reduceAgentEvents("thread-1", [
+      event("user", 1, {
+        type: "user.message",
+        messageId: "user-1",
+        text: "Run the task.",
+      }),
+      event("legacy-handoff", 2, {
+        type: "user.message",
+        messageId: "legacy-handoff",
+        text: "[agent-team handoff] child-1: Internal result.",
+      }),
+    ]);
+
+    expect(state.order).toEqual(["user:user-1"]);
+    expect(state.userMessages).toEqual({
+      "user-1": { id: "user-1", text: "Run the task." },
+    });
+  });
+
   it("tracks content-free turn activity until visible work starts", () => {
     const thinking = reduceAgentEvents("thread-1", [
       event("start", 1, { type: "turn.started", mode: "execute" }),
@@ -276,6 +296,10 @@ describe("reduceAgentEvent", () => {
     expect(state.order).toEqual(["child:child-1"]);
     expect(state.childAgents["child-1"]).toMatchObject({
       status: "completed",
+      parentAgentId: "parent",
+      depth: 1,
+      subtreeStatus: "leaf",
+      directChildCount: 0,
       task: "Audit the audio processing stages.",
       activity: "Reading bark_filterbank.cpp",
       output: "Found a hot path.",

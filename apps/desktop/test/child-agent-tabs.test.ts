@@ -35,13 +35,14 @@ describe("Codex-style child-agent workspace tabs", () => {
     const childRowSource = between(
       timelineSource,
       'if (kind === "child")',
-      "return null;",
+      "{state.queue.steering.map",
     );
 
     expect(childRowSource).toContain("<button");
     expect(childRowSource).toContain("onClick={() => onOpenChildAgent(child)}");
     expect(childRowSource).not.toContain("<details");
     expect(childRowSource).not.toContain('className="child-agent-details"');
+    expect(childRowSource).toContain('child.parentAgentId !== "parent"');
     expect(appSource).toContain("onOpenChildAgent={openChildAgentPanel}");
     expect(appSource).toContain("setWorkspaceDockOpen(true)");
     expect(workspaceTabsSource).toContain('"child-agent"');

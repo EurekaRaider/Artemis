@@ -12,8 +12,13 @@ import type {
 import type { OfficeDocumentRequest } from "./office.js";
 
 export const AGENT_CONCURRENCY_MINIMUM = 2;
-export const AGENT_CONCURRENCY_MAXIMUM = 16;
+export const AGENT_CONCURRENCY_AUTOMATIC_MAXIMUM = 16;
+export const AGENT_CONCURRENCY_MAXIMUM = 64;
 export const AGENT_CONCURRENCY_FALLBACK = 10;
+export const AGENT_TEAM_LOGICAL_MAXIMUM = 64;
+export const AGENT_TEAM_MAXIMUM_DEPTH = 5;
+export const AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN = 8;
+export const AGENT_TEAM_SPAWN_BUDGET = 128;
 
 export type RuntimeCredential =
   | {
@@ -114,6 +119,7 @@ export interface AgentRuntimeCatalog {
 export interface AgentConcurrencyRuntimeStatus {
   active: number;
   activeParents: number;
+  waiting: number;
   queued: number;
   limit: number;
 }

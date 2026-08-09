@@ -1,4 +1,5 @@
 import type { AgentPayload } from "./schema.js";
+import { isLegacyInternalAgentMessage } from "./internal-messages.js";
 
 interface PiMessage {
   id?: string;
@@ -256,11 +257,12 @@ export class PiAdapter {
     switch (event.type) {
       case "message_start": {
         if (event.message?.role === "user") {
+          const text = messageText(event.message);
+          if (isLegacyInternalAgentMessage(text)) return [];
           this.userMessageCount += 1;
           if (this.userMessageCount === 1) {
             return [];
           }
-          const text = messageText(event.message);
           return text
             ? [
                 {

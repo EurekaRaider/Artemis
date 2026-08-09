@@ -36,7 +36,7 @@ Status values: `PASS`, `PARTIAL`, `TODO`, `BLOCKED`.
 | EXT-001      | Executable extensions disabled by default            | PASS        | PASS        | PASS      | `noExtensions: true`                                 |
 | EXT-002      | Explicit trust enables inventoried extension         | PASS        | PARTIAL     | PARTIAL   | Windows real Pi tool test; macOS host pending        |
 | MCP-001      | MCP connections and OAuth are manageable             | PASS        | PASS        | PASS      | stdio/HTTP, OAuth state, PKCE, encrypted token tests |
-| AGENT-001    | Visible child Agents use bounded concurrency         | PASS        | PASS        | PASS      | Real Pi child sessions; global limit 10 tests        |
+| AGENT-001    | 64-member tree uses bounded active concurrency       | PASS        | PARTIAL     | PARTIAL   | Tree/scheduler tests; native stress pending          |
 | DIAG-001     | Crashes export as a local redacted diagnostic bundle | PASS        | PASS        | PASS      | Bounded persistence, gzip, secret/path redaction     |
 | A11Y-001     | English/Chinese at 100/125/150% pass UI audit        | PASS        | TODO        | TODO      | Six Windows screenshots; 0 issues in each audit      |
 | PKG-001      | Unsigned engineering package builds                  | PASS        | TODO        | TODO      | Windows install/launch/uninstall + screenshot smoke  |

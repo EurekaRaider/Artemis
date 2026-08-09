@@ -1,9 +1,16 @@
 import {
+  AGENT_CONCURRENCY_AUTOMATIC_MAXIMUM,
   AGENT_CONCURRENCY_MAXIMUM,
   AGENT_CONCURRENCY_MINIMUM,
+  AGENT_TEAM_LOGICAL_MAXIMUM,
 } from "@artemis/protocol";
 
-export { AGENT_CONCURRENCY_MAXIMUM, AGENT_CONCURRENCY_MINIMUM };
+export {
+  AGENT_CONCURRENCY_AUTOMATIC_MAXIMUM,
+  AGENT_CONCURRENCY_MAXIMUM,
+  AGENT_CONCURRENCY_MINIMUM,
+  AGENT_TEAM_LOGICAL_MAXIMUM,
+};
 
 export type AgentConcurrencyPreference =
   { mode: "auto" } | { mode: "manual"; limit: number };
@@ -12,11 +19,15 @@ export type AgentConcurrencyPressureReason = "cpu" | "event-loop" | "memory";
 
 export interface AgentConcurrencyStatus {
   preference: AgentConcurrencyPreference;
+  configuredLimit: number;
+  automaticSafeLimit: number;
   startupLimit: number;
   effectiveLimit: number;
   active: number;
+  waiting: number;
   queued: number;
   hardLimit: number;
+  logicalLimit: number;
   throttled: boolean;
   pressureReasons: AgentConcurrencyPressureReason[];
   parallelism: number;

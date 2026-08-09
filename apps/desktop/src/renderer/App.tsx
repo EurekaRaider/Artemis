@@ -25,12 +25,14 @@ import {
   reduceAgentEventBatch,
   reduceAgentEvents,
   type AgentEvent,
+  type AgentHostEvent,
   type AgentTeamMessageState,
   type AgentTeamState,
   type ApprovalPolicy,
   type ApprovalState,
   type AppLocale,
   type ChildAgentState,
+  type ChildAgentPayload,
   type PromptAttachment,
   type PromptImage,
   type Project,
@@ -58,12 +60,22 @@ import { legacyLocale, localeDirection } from "../shared/locales.js";
 import { I18N_RESOURCES, localizedCopy } from "../shared/i18n-resources.js";
 import artemisIcon from "../../build/icon.png";
 import { ArchivePage } from "./ArchivePage.js";
+import {
+  indexAgentTeamTree,
+  visibleAgentTeamMembers,
+} from "./agent-team-tree.js";
+
+interface LiveChildActivity {
+  activity: string;
+  payload: ChildAgentPayload;
+}
 import { MarkdownContent } from "./MarkdownContent.js";
 import { normalizeBrowserAddress } from "./browser-navigation.js";
 import { CodexSelect } from "./CodexSelect.js";
 import { ComposerContextBar } from "./ComposerContextBar.js";
 import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
 import { TaskPlanProgress } from "./TaskPlanProgress.js";
+import { resolveTimelinePinned } from "./timeline-scroll.js";
 import { HighlightedCodeLine } from "./WorkspaceFileEditor.js";
 import {
   WorkspaceFileIcon,
@@ -1599,10 +1611,15 @@ export function App() {
     useState<TurnFailureNotices>({});
   const timelineScroll = useRef<HTMLDivElement>(null);
   const timelinePinned = useRef(true);
+  const timelineScrollIntent = useRef(false);
+  const timelineScrollbarPointerActive = useRef(false);
   const loadedEventThreads = useRef(new Set<string>());
   const loadingEventThreads = useRef(new Set<string>());
   const pendingAgentEvents = useRef<AgentEvent[]>([]);
   const pendingAgentFrame = useRef<number | undefined>(undefined);
+  const [liveChildActivities, setLiveChildActivities] = useState<
+    Record<string, Record<string, LiveChildActivity>>
+  >({});
   const reportedTurnPaints = useRef(new Set<string>());
   const recoveredQueueEventIds = useRef(new Set<string>());
   const promptInput = useRef<HTMLTextAreaElement>(null);
@@ -2766,6 +2783,7 @@ export function App() {
       }
     };
     const receiveAgentEvents = (events: AgentEvent[]) => {
+      const finishedThreadIds = new Set<string>();
       for (const event of events) {
         if (
           event.payload.type === "agent-team.status" &&
@@ -2796,6 +2814,7 @@ export function App() {
           );
         }
         if (event.payload.type === "turn.failed") {
+          finishedThreadIds.add(event.threadId);
           const message = `${appCopy(localeRef.current).turnError} ${event.payload.message}`;
           setTurnFailureNotices((current) =>
             reduceTurnFailureNotices(current, {
@@ -2804,6 +2823,9 @@ export function App() {
               message,
             }),
           );
+        }
+        if (event.payload.type === "turn.completed") {
+          finishedThreadIds.add(event.threadId);
         }
         if (
           event.payload.type === "queue.recovered" &&
@@ -2820,6 +2842,13 @@ export function App() {
           );
         }
       }
+      if (finishedThreadIds.size > 0) {
+        setLiveChildActivities((current) => {
+          const next = { ...current };
+          for (const threadId of finishedThreadIds) delete next[threadId];
+          return next;
+        });
+      }
       pendingAgentEvents.current.push(...events);
       if (pendingAgentFrame.current === undefined) {
         pendingAgentFrame.current =
@@ -2830,10 +2859,39 @@ export function App() {
       receiveAgentEvents([event]);
     });
     const unsubscribeBatch = window.artemis.onAgentEvents(receiveAgentEvents);
+    const unsubscribeActivities = window.artemis.onAgentActivities(
+      (events: AgentHostEvent[]) => {
+        setLiveChildActivities((current) => {
+          const next = { ...current };
+          for (const event of events) {
+            if (
+              event.payload.type !== "child-agent.status" ||
+              !event.payload.activityDelta
+            ) {
+              continue;
+            }
+            const threadActivities = {
+              ...(next[event.threadId] ?? {}),
+            };
+            const previous = threadActivities[event.payload.agentId];
+            threadActivities[event.payload.agentId] = {
+              activity:
+                `${previous?.activity ?? ""}${event.payload.activityDelta}`.slice(
+                  -64 * 1024,
+                ),
+              payload: event.payload,
+            };
+            next[event.threadId] = threadActivities;
+          }
+          return next;
+        });
+      },
+    );
     return () => {
       mounted = false;
       unsubscribe();
       unsubscribeBatch();
+      unsubscribeActivities();
       if (pendingAgentFrame.current !== undefined) {
         window.cancelAnimationFrame(pendingAgentFrame.current);
         pendingAgentFrame.current = undefined;
@@ -3030,8 +3088,40 @@ export function App() {
       const oldestThreadId = threadStateCache.current.keys().next().value;
       if (oldestThreadId) threadStateCache.current.delete(oldestThreadId);
     }
-    return state;
-  }, [activeEvents, activeThread?.id, activeThread?.mode]);
+    const liveActivities = liveChildActivities[activeThread.id];
+    if (!liveActivities) return state;
+    const childAgents = { ...state.childAgents };
+    for (const [agentId, live] of Object.entries(liveActivities)) {
+      const current = childAgents[agentId];
+      if (!current) continue;
+      const merged: ChildAgentState = {
+        ...current,
+        activity: live.activity,
+        ...(live.payload.health ? { health: live.payload.health } : {}),
+        ...(live.payload.lastActivityAt
+          ? { lastActivityAt: live.payload.lastActivityAt }
+          : {}),
+      };
+      if (
+        current.status === "queued" ||
+        current.status === "running" ||
+        current.status === "cancelling"
+      ) {
+        if (live.payload.currentTool) {
+          merged.currentTool = live.payload.currentTool;
+        } else {
+          delete merged.currentTool;
+        }
+        if (live.payload.currentToolStartedAt) {
+          merged.currentToolStartedAt = live.payload.currentToolStartedAt;
+        } else {
+          delete merged.currentToolStartedAt;
+        }
+      }
+      childAgents[agentId] = merged;
+    }
+    return { ...state, childAgents };
+  }, [activeEvents, activeThread?.id, activeThread?.mode, liveChildActivities]);
   const latestAgentTeam = useMemo(
     () =>
       Object.values(threadState?.agentTeams ?? {})
@@ -3267,6 +3357,39 @@ export function App() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [activeThreadId]);
+
+  useLayoutEffect(() => {
+    const container = timelineScroll.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    let frame: number | undefined;
+    const observer = new ResizeObserver(() => {
+      if (!timelinePinned.current) return;
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        frame = undefined;
+        if (timelinePinned.current) {
+          container.scrollTop = container.scrollHeight;
+        }
+      });
+    });
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  useEffect(() => {
+    const finishScrollbarInteraction = () => {
+      timelineScrollbarPointerActive.current = false;
+    };
+    window.addEventListener("pointerup", finishScrollbarInteraction);
+    window.addEventListener("pointercancel", finishScrollbarInteraction);
+    return () => {
+      window.removeEventListener("pointerup", finishScrollbarInteraction);
+      window.removeEventListener("pointercancel", finishScrollbarInteraction);
+    };
+  }, []);
 
   useEffect(() => {
     if (!timelinePinned.current) return;
@@ -4739,13 +4862,39 @@ export function App() {
               <section className="conversation">
                 <div
                   className="timeline-scroll"
+                  onPointerDown={(event) => {
+                    const container = event.currentTarget;
+                    const bounds = container.getBoundingClientRect();
+                    const scrollbarEdge = Math.max(
+                      container.offsetWidth - container.clientWidth,
+                      12,
+                    );
+                    const direction =
+                      window.getComputedStyle(container).direction;
+                    const overScrollbar =
+                      direction === "rtl"
+                        ? event.clientX <= bounds.left + scrollbarEdge
+                        : event.clientX >= bounds.right - scrollbarEdge;
+                    timelineScrollbarPointerActive.current = overScrollbar;
+                  }}
                   onScroll={(event) => {
                     const container = event.currentTarget;
-                    timelinePinned.current =
-                      container.scrollHeight -
-                        container.scrollTop -
-                        container.clientHeight <
-                      80;
+                    timelinePinned.current = resolveTimelinePinned({
+                      clientHeight: container.clientHeight,
+                      pinned: timelinePinned.current,
+                      scrollHeight: container.scrollHeight,
+                      scrollTop: container.scrollTop,
+                      userInitiated:
+                        timelineScrollIntent.current ||
+                        timelineScrollbarPointerActive.current,
+                    });
+                    timelineScrollIntent.current = false;
+                  }}
+                  onWheel={() => {
+                    timelineScrollIntent.current = true;
+                    window.requestAnimationFrame(() => {
+                      timelineScrollIntent.current = false;
+                    });
                   }}
                   ref={timelineScroll}
                 >
@@ -6900,6 +7049,12 @@ function AgentTeamPanel({
         stop: "停止团队",
         parent: "主 Agent",
         everyone: "全体成员",
+        total: "总计",
+        active: "活跃",
+        queued: "排队",
+        waiting: "等待",
+        expand: "展开子树",
+        collapse: "折叠子树",
       },
       en: {
         title: "Agent team",
@@ -6911,6 +7066,12 @@ function AgentTeamPanel({
         stop: "Stop team",
         parent: "Parent agent",
         everyone: "Everyone",
+        total: "Total",
+        active: "Active",
+        queued: "Queued",
+        waiting: "Waiting",
+        expand: "Expand subtree",
+        collapse: "Collapse subtree",
       },
     }[legacyLocale(locale)],
   );
@@ -6960,13 +7121,72 @@ function AgentTeamPanel({
       team.status === "running" ||
       team.status === "blocked" ||
       team.status === "integrating");
+  const teamId = team?.teamId ?? "";
+  const memberAgentIds = team?.memberAgentIds;
+  const { memberById, currentMembers, childrenByParent } = useMemo(
+    () => indexAgentTeamTree(members, memberAgentIds ?? []),
+    [memberAgentIds, members],
+  );
+  const [expandedAgentIds, setExpandedAgentIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const expansionTeamId = useRef(teamId);
+  const manuallyToggledAgentIds = useRef(new Set<string>());
+  useEffect(() => {
+    const defaultExpanded = currentMembers
+      .filter(
+        (member) =>
+          (member.depth ?? 1) === 1 &&
+          (childrenByParent.get(member.agentId)?.length ?? 0) > 0,
+      )
+      .map((member) => member.agentId);
+    if (expansionTeamId.current !== teamId) {
+      expansionTeamId.current = teamId;
+      manuallyToggledAgentIds.current.clear();
+      setExpandedAgentIds(new Set(defaultExpanded));
+      return;
+    }
+    setExpandedAgentIds((current) => {
+      const next = new Set(current);
+      let changed = false;
+      for (const agentId of defaultExpanded) {
+        if (
+          !next.has(agentId) &&
+          !manuallyToggledAgentIds.current.has(agentId)
+        ) {
+          next.add(agentId);
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [childrenByParent, currentMembers, teamId]);
+  const visibleMembers = useMemo(() => {
+    return visibleAgentTeamMembers(childrenByParent, expandedAgentIds);
+  }, [childrenByParent, expandedAgentIds]);
+  const memberCounts = useMemo(
+    () => ({
+      total: currentMembers.length,
+      active: currentMembers.filter(
+        (member) =>
+          member.status === "running" || member.status === "cancelling",
+      ).length,
+      queued: currentMembers.filter((member) => member.status === "queued")
+        .length,
+      waiting: currentMembers.filter(
+        (member) =>
+          member.status === "blocked" ||
+          member.coordinationStatus === "waiting-dependency",
+      ).length,
+    }),
+    [currentMembers],
+  );
   const agentName = (agentId: string) =>
     agentId === "parent"
       ? labels.parent
       : agentId === "all"
         ? labels.everyone
-        : (members.find((member) => member.agentId === agentId)?.label ??
-          agentId);
+        : (memberById.get(agentId)?.label ?? agentId);
 
   useLayoutEffect(() => {
     if (!active || !messageList.current) return;
@@ -7019,21 +7239,83 @@ function AgentTeamPanel({
       <div className="agent-team-grid">
         <aside className="agent-team-members">
           <h3>{labels.members}</h3>
+          <dl className="agent-team-member-counts">
+            <div>
+              <dt>{labels.total}</dt>
+              <dd>{memberCounts.total}</dd>
+            </div>
+            <div>
+              <dt>{labels.active}</dt>
+              <dd>{memberCounts.active}</dd>
+            </div>
+            <div>
+              <dt>{labels.queued}</dt>
+              <dd>{memberCounts.queued}</dd>
+            </div>
+            <div>
+              <dt>{labels.waiting}</dt>
+              <dd>{memberCounts.waiting}</dd>
+            </div>
+          </dl>
           <div className="agent-team-member-list">
-            {members.map((member) => (
-              <button
-                className={`agent-team-member ${member.status}`}
-                key={member.agentId}
-                onClick={() => onOpenChildAgent(member)}
-                type="button"
-              >
-                <ChildAgentIcon
-                  className="agent-team-member-icon"
-                  identity={member.agentId}
-                />
-                <strong>{member.label}</strong>
-              </button>
-            ))}
+            {visibleMembers.map((member) => {
+              const childCount =
+                childrenByParent.get(member.agentId)?.length ?? 0;
+              const expanded = expandedAgentIds.has(member.agentId);
+              return (
+                <div
+                  className={`agent-team-member ${member.status}`}
+                  key={member.agentId}
+                  style={{
+                    paddingLeft: 8 + ((member.depth ?? 1) - 1) * 16,
+                  }}
+                >
+                  {childCount > 0 ? (
+                    <button
+                      aria-expanded={expanded}
+                      aria-label={`${expanded ? labels.collapse : labels.expand}: ${member.label}`}
+                      className="agent-team-member-disclosure"
+                      onClick={() => {
+                        manuallyToggledAgentIds.current.add(member.agentId);
+                        setExpandedAgentIds((current) => {
+                          const next = new Set(current);
+                          if (next.has(member.agentId)) {
+                            next.delete(member.agentId);
+                          } else {
+                            next.add(member.agentId);
+                          }
+                          return next;
+                        });
+                      }}
+                      type="button"
+                    >
+                      <svg viewBox="0 0 16 16">
+                        <path d="m6 3.5 4.5 4.5L6 12.5" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <span className="agent-team-member-disclosure spacer" />
+                  )}
+                  <button
+                    className="agent-team-member-open"
+                    onClick={() => onOpenChildAgent(member)}
+                    type="button"
+                  >
+                    <ChildAgentIcon
+                      className="agent-team-member-icon"
+                      identity={member.agentId}
+                    />
+                    <span>
+                      <strong>{member.label}</strong>
+                      <small>
+                        {member.subtreeStatus ?? "leaf"}
+                        {childCount > 0 ? ` · ${childCount}` : ""}
+                      </small>
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </aside>
         <section className="agent-team-collaboration">
@@ -8065,6 +8347,9 @@ function Timeline({
         }
         if (kind === "child") {
           const child = state.childAgents[id];
+          if (child?.parentAgentId && child.parentAgentId !== "parent") {
+            return null;
+          }
           return child ? (
             <button
               aria-label={`${child.label}, ${childStatusLabels[child.status]}`}

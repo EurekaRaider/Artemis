@@ -19,8 +19,8 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS arm64 and x64" src="https://img.shields.io/badge/macOS-arm64%20%7C%20x64-111111?logo=apple&logoColor=white" />
-  <img alt="778 passing tests" src="https://img.shields.io/badge/Tests-778_passing-2EA44F" />
-  <img alt="Maximum 16 active agents" src="https://img.shields.io/badge/Agents-max_16-F5A524" />
+  <img alt="801 passing tests" src="https://img.shields.io/badge/Tests-801_passing-2EA44F" />
+  <img alt="64 logical agents, automatic active limit 16" src="https://img.shields.io/badge/Agents-64_logical_%7C_16_auto-F5A524" />
 </p>
 
 [Product preview](#product-preview) · [Plugins](#plugin-marketplace-and-capability-center) · [Quick start](#quick-start) · [Workspace](#desktop-workspace-and-task-lifecycle) · [Permissions](#execution-permissions-and-trust-boundary) · [Architecture](#architecture) · [Documentation](#documentation)
@@ -484,10 +484,11 @@ accepting a model that is missing from the live catalog.
 
 Ultra Mode is available from the composer model picker for reasoning-capable
 models. It runs the parent and every child at the selected model's highest
-supported thinking level (`max` when available) and asks the parent to form a
-flat team of two to four complementary Agents early for complex, long-horizon,
-cross-subsystem or meaningfully parallel work. Simple, atomic and strictly
-sequential tasks remain single-Agent so coordination does not become overhead.
+supported thinking level (`max` when available) and asks the parent to start
+three to five complementary Agents early for complex, long-horizon,
+cross-subsystem or meaningfully parallel work. Those Agents may delegate
+bounded independent work further. Simple, atomic and strictly sequential tasks
+remain single-Agent so coordination does not become overhead.
 
 Ultra Mode works in Plan, Execute and Review without changing their permission
 boundaries: Plan and Review stay read-only, while Execute keeps the trust model
@@ -785,21 +786,27 @@ provider policy and packaged GUI acceptance remain external release checks.
 
 ### Parallel Agents
 
-Artemis implements multi-Agent work as a flat team of real Pi-backed
-sessions. The parent remains responsible for decomposition, conflict-free
-assignment, monitoring, integration and the final response; children cannot
-spawn or control more Agents.
+Artemis implements multi-Agent work as a tree of real Pi-backed sessions. The
+root remains responsible for decomposition, conflict-free assignment,
+monitoring, integration and the final response; child Agents may supervise a
+bounded subteam and must integrate it before completing.
 
 <details open>
 <summary><strong>01 · Scheduling and Ultra Mode</strong></summary>
 
-- **Bounded teams and global scheduling** — a parent can create up to four
-  children for complementary tasks. Parent and child sessions share one
-  dependency-aware scheduler with a configurable hard maximum of 16 active
-  Agents. Automatic mode sizes the startup ceiling to the machine and can
-  reduce it under pressure; the fallback ceiling is 10. Parent concurrency is
-  capped one below the effective global limit so a child cannot deadlock behind
-  waiting parents.
+- **Logical tree and active scheduling** — each task can contain up to 64
+  current logical members across five levels, with at most eight direct
+  children per Agent and a 128-creation per-turn safety budget. Parent and child
+  sessions share one dependency-aware, cross-task round-robin scheduler.
+  Automatic mode remains bounded to 2–16 active slots. Manual mode accepts
+  2–64, starts at the automatic safe value and ramps up only while the machine
+  remains healthy; pressure stops new admissions without cancelling running
+  sessions.
+- **Cooperative waits and Provider backoff** — `wait_agent` and `wait_team`
+  release the caller's execution slot and reacquire it before returning, so a
+  two-slot limit can still complete a five-level tree. Explicit 429 or
+  `Retry-After` responses pause new admission for that Provider rather than
+  creating more retry concurrency.
 - **Ultra Mode** — the parent and every child use the selected model's highest
   supported thinking level (`max` when available). The parent proactively forms
   a team for complex, long-horizon or meaningfully parallel work while keeping
@@ -826,16 +833,18 @@ spawn or control more Agents.
 <summary><strong>03 · Collaboration and lifecycle control</strong></summary>
 
 - **Audited collaboration** — parent and children exchange structured finding,
-  request, blocker and handoff messages addressed to the parent, the whole team
-  or one teammate. The roster exposes dependencies, health, current tool, last
-  activity, elapsed time, output and message history.
-- **Lifecycle controls** — `wait_team` and `list_agents` expose team state;
-  `wait_agent`, `get_agent_status`, `steer_agent`, `cancel_agent`, `retry_agent`
-  and `set_agent_write_scope` let the parent intervene. `finish_team` closes
-  only after every required member reaches a terminal state. A failed or
-  cancelled required member must be retried or named in `waived_agent_ids`, and
-  every close includes a non-empty integration summary. If the parent ends
-  without closing the team, Artemis aborts it and reports
+  request, blocker and handoff messages addressed to the root parent, immediate
+  supervisor, whole team or one teammate. `list_agents` returns a compact
+  roster, `wait_team` returns observer-specific changes, and detailed output is
+  fetched on demand with `get_agent_status`.
+- **Lifecycle controls** — `finish_subteam` requires every supervising child to
+  settle, waive failures and integrate its direct children before returning.
+  `wait_agent`, `get_agent_status`, `steer_agent`, `cancel_agent`,
+  `retry_agent` and `set_agent_write_scope` provide intervention; the root uses
+  `finish_team`. Supervisor failure or cancellation cascades to descendants,
+  and retrying a non-leaf discards its old subtree before creating a new
+  execution identity. Every close includes a non-empty integration summary. If
+  the root ends without closing the team, Artemis aborts it and reports
   `agent-team-incomplete`, except when the user cancelled the turn.
 
 </details>
@@ -881,9 +890,9 @@ flowchart LR
     Main <--> Agent["Utility Process<br/>Pi Agent Host"]
 
     Agent --> Pi["Pi SDK + PiAdapter<br/>single agent loop"]
-    Pi --> Team["Flat team coordinator<br/>dependencies · scopes · messages"]
-    Team --> Children["Child Pi sessions<br/>parent-only spawn"]
-    Team --> Capacity["Dynamic global capacity<br/>2–16 · pressure-aware"]
+    Pi --> Team["Tree coordinator<br/>64 logical · depth 5 · fanout 8"]
+    Team --> Children["In-memory child Pi sessions<br/>nested delegation"]
+    Team --> Capacity["Dynamic active capacity<br/>auto 2–16 · manual 2–64"]
     Agent --> Gate["Mode + approval broker"]
     Children --> Gate
     Gate --> Workspace["Validated workspace tools"]
@@ -937,11 +946,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **778 passing tests** (4 skipped):
+The current full test run contains **801 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       55 |       19 |         73 |     631 |   **778** |
+|       57 |       19 |         80 |     645 |   **801** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -968,13 +977,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.1.26` packaging configuration produces:
+The `1.2.26` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.26.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.26.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.26.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.2.26.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.2.26.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.2.26.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and

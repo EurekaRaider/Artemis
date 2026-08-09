@@ -6,6 +6,7 @@ import {
   agentEventSchema,
   automationRunSchema,
   automationSchema,
+  isLegacyInternalAgentMessage,
   type AgentEvent,
   type AgentPayload,
   type AppSnapshot,
@@ -234,6 +235,9 @@ function persistentAgentPayload(payload: AgentPayload): AgentPayload {
     payload.delta
   ) {
     return { ...payload, delta: "" };
+  }
+  if (payload.type === "child-agent.status" && payload.activityDelta) {
+    return { ...payload, activityDelta: undefined };
   }
   return payload;
 }
@@ -1490,19 +1494,38 @@ export class AppStore {
       .prepare(
         `SELECT body FROM events
          WHERE body LIKE ?
+           AND json_extract(body, '$.payload.text') NOT LIKE ?
+           AND json_extract(body, '$.payload.text') NOT LIKE ?
+           AND json_extract(body, '$.payload.text') NOT LIKE ?
+           AND json_extract(body, '$.payload.text') NOT LIKE ?
+           AND json_extract(body, '$.payload.text') NOT LIKE ?
+           AND json_extract(body, '$.payload.text') NOT LIKE ?
+           AND json_extract(body, '$.payload.text') NOT LIKE ?
+           AND json_extract(body, '$.payload.text') != ?
          ORDER BY created_at DESC, rowid DESC
          LIMIT ?`,
       )
-      .all('%"type":"user.message"%', boundedLimit * 4) as unknown as Array<{
-      body: string;
-    }>;
+      .all(
+        '%"type":"user.message"%',
+        "[agent-team finding] %: %",
+        "[agent-team request] %: %",
+        "[agent-team blocker] %: %",
+        "[agent-team handoff] %: %",
+        "The user nudged sub-agent % (%). Check its status and adjust the approach if needed.",
+        "Sub-agent % (%) was stopped by the user. Do not keep waiting for it; continue with another approach.",
+        "The user retried sub-agent % as %. Monitor the new attempt instead of the old one.",
+        "The user stopped the agent team. Continue the current task without waiting for its members.",
+        boundedLimit * 4,
+      ) as unknown as Array<{ body: string }>;
     const history: string[] = [];
     const seen = new Set<string>();
     for (const row of rows) {
       const event = agentEventSchema.parse(JSON.parse(row.body));
       if (event.payload.type !== "user.message") continue;
       const text = event.payload.text.trim();
-      if (!text || seen.has(text)) continue;
+      if (!text || isLegacyInternalAgentMessage(text) || seen.has(text)) {
+        continue;
+      }
       seen.add(text);
       history.push(text);
       if (history.length === boundedLimit) break;

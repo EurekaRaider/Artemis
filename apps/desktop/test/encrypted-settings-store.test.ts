@@ -79,10 +79,13 @@ describe("EncryptedSettingsStore", () => {
     });
     await expect(
       reopened.setAgentConcurrencyPreference({ mode: "manual", limit: 1 }),
-    ).rejects.toThrow("2 to 16");
+    ).rejects.toThrow("2 to 64");
     await expect(
-      reopened.setAgentConcurrencyPreference({ mode: "manual", limit: 17 }),
-    ).rejects.toThrow("2 to 16");
+      reopened.setAgentConcurrencyPreference({ mode: "manual", limit: 64 }),
+    ).resolves.toEqual(undefined);
+    await expect(
+      reopened.setAgentConcurrencyPreference({ mode: "manual", limit: 65 }),
+    ).rejects.toThrow("2 to 64");
   });
 
   it("persists local full access and defaults it to off", async () => {

@@ -28,17 +28,17 @@ describe("AgentConcurrencyLimiter", () => {
       queued: 0,
       limit: 2,
     });
-    expect(host.setConcurrencyLimit(16)).toMatchObject({ limit: 16 });
-    expect(() => host.setConcurrencyLimit(1)).toThrow("2 to 16");
-    expect(() => host.setConcurrencyLimit(17)).toThrow("2 to 16");
+    expect(host.setConcurrencyLimit(64)).toMatchObject({ limit: 64 });
+    expect(() => host.setConcurrencyLimit(1)).toThrow("2 to 64");
+    expect(() => host.setConcurrencyLimit(65)).toThrow("2 to 64");
   });
 
-  it("never runs more than ten child agents", async () => {
-    const limiter = new AgentConcurrencyLimiter(10);
+  it("queues 64 logical members behind a 16-slot automatic ceiling", async () => {
+    const limiter = new AgentConcurrencyLimiter(16);
     const gate = deferred();
     let active = 0;
     let peak = 0;
-    const tasks = Array.from({ length: 25 }, () =>
+    const tasks = Array.from({ length: 64 }, () =>
       limiter.run("child", async () => {
         active += 1;
         peak = Math.max(peak, active);
@@ -49,13 +49,13 @@ describe("AgentConcurrencyLimiter", () => {
 
     await flush();
     expect(limiter.snapshot).toMatchObject({
-      active: 10,
-      queued: 15,
-      limit: 10,
+      active: 16,
+      queued: 48,
+      limit: 16,
     });
     gate.resolve();
     await Promise.all(tasks);
-    expect(peak).toBe(10);
+    expect(peak).toBe(16);
     expect(limiter.snapshot).toMatchObject({ active: 0, queued: 0 });
   });
 
@@ -156,5 +156,81 @@ describe("AgentConcurrencyLimiter", () => {
     await flush();
     expect(peakChildren).toBe(1);
     expect(limiter.snapshot).toMatchObject({ active: 0, queued: 0, limit: 2 });
+  });
+
+  it("releases leases across a five-level delegation chain with a two-slot limit", async () => {
+    const limiter = new AgentConcurrencyLimiter(2, 1);
+    const visited: number[] = [];
+    const delegate = (depth: number): Promise<void> =>
+      limiter.run("child", async (lease) => {
+        visited.push(depth);
+        if (depth < 5) {
+          await lease.suspend(() => delegate(depth + 1));
+        }
+      });
+
+    await limiter.run("parent", (lease) => lease.suspend(() => delegate(1)));
+
+    expect(visited).toEqual([1, 2, 3, 4, 5]);
+    expect(limiter.snapshot).toMatchObject({
+      active: 0,
+      waiting: 0,
+      queued: 0,
+      limit: 2,
+    });
+  });
+
+  it("round-robins queued work across task keys", async () => {
+    const limiter = new AgentConcurrencyLimiter(1, 1);
+    const gate = deferred();
+    const first = limiter.run("child", () => gate.promise, undefined, "seed");
+    const order: string[] = [];
+    const queued = [
+      limiter.run("child", async () => void order.push("a1"), undefined, "a"),
+      limiter.run("child", async () => void order.push("a2"), undefined, "a"),
+      limiter.run("child", async () => void order.push("b1"), undefined, "b"),
+    ];
+
+    await flush();
+    gate.resolve();
+    await first;
+    await Promise.all(queued);
+    expect(order).toEqual(["a1", "b1", "a2"]);
+  });
+
+  it("admits a queued root before filling the last slot with child work", async () => {
+    const limiter = new AgentConcurrencyLimiter(1, 1);
+    const gate = deferred();
+    const activeChild = limiter.run(
+      "child",
+      () => gate.promise,
+      undefined,
+      "a",
+    );
+    const starts: string[] = [];
+    const queuedChild = limiter.run(
+      "child",
+      async () => void starts.push("child"),
+      undefined,
+      "a",
+    );
+    const rootGate = deferred();
+    const root = limiter.run(
+      "parent",
+      async () => {
+        starts.push("root");
+        await rootGate.promise;
+      },
+      undefined,
+      "root",
+    );
+
+    limiter.setLimits(2, 1);
+    await flush();
+    expect(starts).toEqual(["root"]);
+    rootGate.resolve();
+    gate.resolve();
+    await Promise.all([activeChild, queuedChild, root]);
+    expect(starts).toEqual(["root", "child"]);
   });
 });

@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { readyInstalledGoogleMcpServers } from "../src/main/google-plugin-activation.js";
+import {
+  installedGoogleMcpServerIdsForGrant,
+  readyInstalledGoogleMcpServers,
+} from "../src/main/google-plugin-activation.js";
 import type { McpServerConfig } from "../src/shared/api.js";
 
 const mainProcessSource = readFileSync(
@@ -34,6 +37,24 @@ function googleConfig(
 }
 
 describe("Google plugin activation", () => {
+  it("selects only disabled installed MCP servers for the authorized Google grant", () => {
+    const gmail = googleConfig("gmail", "gmail");
+    const enabledGmail = {
+      ...googleConfig("enabled-gmail", "gmail"),
+      enabled: true,
+    };
+    const unmanagedGmail = googleConfig("unmanaged-gmail", "gmail");
+    const workspace = googleConfig("workspace", "google-workspace");
+
+    expect(
+      installedGoogleMcpServerIdsForGrant(
+        [gmail, enabledGmail, unmanagedGmail, workspace],
+        [gmail.id, enabledGmail.id, workspace.id],
+        "gmail",
+      ),
+    ).toEqual([gmail.id]);
+  });
+
   it("enables only newly installed host-authenticated MCP servers that are ready", async () => {
     const gmail = googleConfig("gmail", "gmail");
     const workspace = googleConfig("workspace", "google-workspace");
@@ -91,6 +112,24 @@ describe("Google plugin activation", () => {
     const runtime = installHandler.indexOf("applyAgentRuntime");
 
     expect(activation).toBeGreaterThan(-1);
+    expect(runtime).toBeGreaterThan(activation);
+  });
+
+  it("activates installed Google MCP servers after grant authorization", () => {
+    const authorizeHandler = mainProcessSource.slice(
+      mainProcessSource.indexOf("IPC.googleAccountAuthorizeGrant"),
+      mainProcessSource.indexOf("IPC.googleAccountDisconnectGrant"),
+    );
+    const authorize = authorizeHandler.indexOf(
+      "googleAccountService.authorize",
+    );
+    const activation = authorizeHandler.indexOf(
+      "enableReadyInstalledGoogleMcpServers",
+    );
+    const runtime = authorizeHandler.indexOf("applyAgentRuntime");
+
+    expect(authorize).toBeGreaterThan(-1);
+    expect(activation).toBeGreaterThan(authorize);
     expect(runtime).toBeGreaterThan(activation);
   });
 });

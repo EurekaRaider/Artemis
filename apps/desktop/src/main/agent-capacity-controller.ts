@@ -1,8 +1,10 @@
 import { availableParallelism, cpus } from "node:os";
 
 import {
+  AGENT_CONCURRENCY_AUTOMATIC_MAXIMUM,
   AGENT_CONCURRENCY_MAXIMUM,
   AGENT_CONCURRENCY_MINIMUM,
+  AGENT_TEAM_LOGICAL_MAXIMUM,
   parseAgentConcurrencyPreference,
   type AgentConcurrencyPreference,
   type AgentConcurrencyPressureReason,
@@ -30,6 +32,7 @@ export interface AgentCapacitySample {
 export interface AgentConcurrencyRuntimeSnapshot {
   active: number;
   activeParents: number;
+  waiting: number;
   queued: number;
   limit: number;
 }
@@ -58,7 +61,7 @@ export function deriveAgentConcurrencyLimit(
   );
   return Math.max(
     AGENT_CONCURRENCY_MINIMUM,
-    Math.min(AGENT_CONCURRENCY_MAXIMUM, cpuCapacity, memoryCapacity),
+    Math.min(AGENT_CONCURRENCY_AUTOMATIC_MAXIMUM, cpuCapacity, memoryCapacity),
   );
 }
 
@@ -128,6 +131,8 @@ export function currentAgentCapacityHardware(
 
 export class AgentCapacityController {
   private preference: AgentConcurrencyPreference;
+  private readonly automaticSafeLimit: number;
+  private configuredLimit: number;
   private startupLimit: number;
   private effectiveLimit: number;
   private pressureStreak = 0;
@@ -140,7 +145,9 @@ export class AgentCapacityController {
     private readonly hardware: AgentCapacityHardware,
   ) {
     this.preference = parseAgentConcurrencyPreference(preference);
-    this.startupLimit = this.limitForPreference(this.preference);
+    this.automaticSafeLimit = deriveAgentConcurrencyLimit(this.hardware);
+    this.configuredLimit = this.limitForPreference(this.preference);
+    this.startupLimit = Math.min(this.configuredLimit, this.automaticSafeLimit);
     this.effectiveLimit = this.startupLimit;
   }
 
@@ -150,7 +157,8 @@ export class AgentCapacityController {
 
   setPreference(preference: AgentConcurrencyPreference): AgentCapacityChange {
     this.preference = parseAgentConcurrencyPreference(preference);
-    this.startupLimit = this.limitForPreference(this.preference);
+    this.configuredLimit = this.limitForPreference(this.preference);
+    this.startupLimit = Math.min(this.configuredLimit, this.automaticSafeLimit);
     this.effectiveLimit = this.startupLimit;
     this.pressureStreak = 0;
     this.healthyStreak = 0;
@@ -182,7 +190,9 @@ export class AgentCapacityController {
     }
 
     if (reasons.length) {
-      this.pressureStreak += 1;
+      this.pressureStreak = reasons.includes("event-loop")
+        ? PRESSURE_SAMPLES
+        : this.pressureStreak + 1;
       this.healthyStreak = 0;
       this.pressureReasons = reasons;
       if (
@@ -190,7 +200,16 @@ export class AgentCapacityController {
         this.effectiveLimit > AGENT_CONCURRENCY_MINIMUM
       ) {
         this.pressureStreak = 0;
-        this.effectiveLimit -= 1;
+        this.effectiveLimit =
+          this.effectiveLimit > this.automaticSafeLimit
+            ? Math.max(
+                AGENT_CONCURRENCY_MINIMUM,
+                Math.min(
+                  this.automaticSafeLimit,
+                  Math.floor(this.effectiveLimit * 0.75),
+                ),
+              )
+            : this.effectiveLimit - 1;
         return {
           limit: this.effectiveLimit,
           reason: "pressure",
@@ -215,11 +234,18 @@ export class AgentCapacityController {
     this.healthyStreak += 1;
     if (
       this.healthyStreak >= HEALTHY_SAMPLES &&
-      this.effectiveLimit < this.startupLimit
+      this.effectiveLimit < this.configuredLimit
     ) {
       this.healthyStreak = 0;
-      this.effectiveLimit += 1;
-      if (this.effectiveLimit === this.startupLimit) {
+      this.effectiveLimit = Math.min(
+        this.configuredLimit,
+        this.effectiveLimit +
+          Math.max(
+            1,
+            Math.ceil((this.configuredLimit - this.effectiveLimit) / 4),
+          ),
+      );
+      if (this.effectiveLimit === this.configuredLimit) {
         this.pressureReasons = [];
       }
       return {
@@ -235,12 +261,16 @@ export class AgentCapacityController {
     const effectiveLimit = runtime?.limit ?? this.effectiveLimit;
     return {
       preference: structuredClone(this.preference),
+      configuredLimit: this.configuredLimit,
+      automaticSafeLimit: this.automaticSafeLimit,
       startupLimit: this.startupLimit,
       effectiveLimit,
       active: runtime?.active ?? 0,
+      waiting: runtime?.waiting ?? 0,
       queued: runtime?.queued ?? 0,
       hardLimit: AGENT_CONCURRENCY_MAXIMUM,
-      throttled: effectiveLimit < this.startupLimit,
+      logicalLimit: AGENT_TEAM_LOGICAL_MAXIMUM,
+      throttled: effectiveLimit < this.configuredLimit,
       pressureReasons: [...this.pressureReasons],
       parallelism: this.hardware.parallelism,
       totalMemoryGiB: Number(

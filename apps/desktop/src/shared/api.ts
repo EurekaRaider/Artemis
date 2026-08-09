@@ -1,5 +1,6 @@
 import type {
   AgentEvent,
+  AgentHostEvent,
   AppLanguage,
   AppSnapshot,
   AppTheme,
@@ -870,6 +871,7 @@ export interface ArtemisApi {
   onUpdateStatus(listener: (status: ReleaseUpdateStatus) => void): () => void;
   onAgentEvent(listener: (event: AgentEvent) => void): () => void;
   onAgentEvents(listener: (events: AgentEvent[]) => void): () => void;
+  onAgentActivities(listener: (events: AgentHostEvent[]) => void): () => void;
   onAutomationEvent(listener: (event: AutomationEvent) => void): () => void;
   onAutomationThreadOpen(listener: (threadId: string) => void): () => void;
 }
@@ -1011,4 +1013,5 @@ export const IPC = {
   updateStatus: "artemis:update-status",
   agentEvent: "artemis:agent-event",
   agentEvents: "artemis:agent-events",
+  agentActivities: "artemis:agent-activities",
 } as const;

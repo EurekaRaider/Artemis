@@ -59,9 +59,12 @@
 - Hash-pinned trusted Pi tool extensions with explicit trust/change detection,
   network setting, tool inventory, approval scopes, and one-shot native
   sandbox execution.
-- Visible child Agent status/output in the workspace. Pi-backed child sessions
-  share a global bounded scheduler with at most 10 active Agents; parent
-  concurrency reserves one slot so a child cannot deadlock behind its parent.
+- Visible tree-structured child Agent status/output in the workspace. Each task
+  supports 64 logical members, five levels and eight direct children per Agent.
+  Pi-backed in-memory child sessions share a fair global scheduler: automatic
+  active capacity is 2–16; manual capacity is 2–64 with safe-value startup,
+  gradual recovery and pressure-based admission reduction. Collaboration waits
+  release their slot, including through a five-level chain at limit two.
 - Local crash diagnostics cover main-process failures, Renderer crashes and
   hangs, and Agent Host stderr/exit. The user can export a gzip JSON bundle;
   paths, authorization material and credentials are redacted, and no automatic

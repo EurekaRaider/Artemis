@@ -11,6 +11,7 @@ import type {
   TurnActivityPayload,
   UserInputRequestedPayload,
 } from "./schema.js";
+import { isLegacyInternalAgentMessage } from "./internal-messages.js";
 
 export interface MessagePartState {
   id: string;
@@ -232,6 +233,7 @@ function applyAgentEvent(
   const payload = event.payload;
   switch (payload.type) {
     case "user.message": {
+      if (isLegacyInternalAgentMessage(payload.text)) return;
       state.userMessages[payload.messageId] = {
         id: payload.messageId,
         text: payload.text,
@@ -377,6 +379,13 @@ function applyAgentEvent(
       state.childAgents[payload.agentId] = {
         ...previous,
         ...payload,
+        parentAgentId:
+          payload.parentAgentId ?? previous?.parentAgentId ?? "parent",
+        depth: payload.depth ?? previous?.depth ?? 1,
+        subtreeStatus:
+          payload.subtreeStatus ?? previous?.subtreeStatus ?? "leaf",
+        directChildCount:
+          payload.directChildCount ?? previous?.directChildCount ?? 0,
         ...(activity ? { activity } : {}),
       };
       appendOnce(state.order, orderedItems, `child:${payload.agentId}`);

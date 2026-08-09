@@ -335,8 +335,14 @@ export const childAgentPayloadSchema = z.object({
   agentId: z.string().min(1),
   label: z.string().min(1),
   teamId: z.string().min(1).optional(),
+  parentAgentId: z.string().min(1).optional(),
+  depth: z.number().int().min(1).max(5).optional(),
+  subtreeStatus: z
+    .enum(["leaf", "running", "blocked", "ready", "integrated"])
+    .optional(),
+  directChildCount: z.number().int().min(0).max(8).optional(),
   role: z.string().trim().min(1).max(120).optional(),
-  dependsOnAgentIds: z.array(z.string().min(1)).max(4).optional(),
+  dependsOnAgentIds: z.array(z.string().min(1)).max(8).optional(),
   writePaths: z.array(z.string().min(1).max(1_024)).max(32).optional(),
   required: z.boolean().optional(),
   coordinationStatus: z
@@ -393,9 +399,11 @@ export const agentTeamStatusPayloadSchema = z.object({
     "completed",
     "aborted",
   ]),
-  memberAgentIds: z.array(z.string().min(1)).max(4),
-  requiredAgentIds: z.array(z.string().min(1)).max(4),
-  maxMembers: z.number().int().min(2).max(4),
+  memberAgentIds: z.array(z.string().min(1)).max(64),
+  requiredAgentIds: z.array(z.string().min(1)).max(64),
+  maxMembers: z.number().int().min(2).max(64),
+  maxDepth: z.number().int().min(1).max(5).optional(),
+  spawnBudgetRemaining: z.number().int().min(0).max(128).optional(),
   updatedAt: z.string().datetime(),
   error: z
     .string()

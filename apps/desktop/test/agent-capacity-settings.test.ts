@@ -20,17 +20,28 @@ describe("agent capacity settings surface", () => {
       "settings.agentConcurrency.effectiveLimit",
     );
     expect(settingsSource).toContain("settings.agentConcurrency.queued");
+    expect(settingsSource).toContain("settings.agentConcurrency.waiting");
+    expect(settingsSource).toContain("settings.agentConcurrency.logicalLimit");
+    expect(settingsSource).toContain(
+      "settings.agentConcurrency.configuredLimit",
+    );
+    expect(settingsSource).toContain(
+      "settings.agentConcurrency.automaticSafeLimit",
+    );
+    expect(settingsSource).toContain(
+      "高并发会更快消耗额度并可能触发 Provider 限流；系统压力下 Artemis 仍会自动降载。",
+    );
   });
 
-  it("keeps the single-team member limit separate from global capacity", async () => {
+  it("keeps logical tree capacity separate from active global capacity", async () => {
     const runtimeSource = await readFile(
       join(desktopRoot, "../../packages/agent-host/src/runtime.ts"),
       "utf8",
     );
-    expect(runtimeSource).toContain("const TEAM_MAX_MEMBERS = 4;");
-    expect(runtimeSource).toContain(
-      "the desktop applies a dynamic global active-agent limit and queues excess work",
-    );
+    expect(runtimeSource).toContain("AGENT_TEAM_LOGICAL_MAXIMUM");
+    expect(runtimeSource).toContain("AGENT_TEAM_MAXIMUM_DEPTH");
+    expect(runtimeSource).toContain("AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN");
+    expect(runtimeSource).toContain("queues work above the active capacity");
     expect(runtimeSource).not.toContain("limits all active Pi agents to ten");
   });
 });

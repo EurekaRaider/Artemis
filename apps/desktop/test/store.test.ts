@@ -158,8 +158,25 @@ describe("AppStore", () => {
       messageId: "message-3",
       text: "first prompt",
     });
+    for (let index = 0; index < 12; index += 1) {
+      store.appendEvent(`event-internal-${index}`, "thread-2", "turn-3", {
+        type: "user.message",
+        messageId: `legacy-handoff-${index}`,
+        text: `[agent-team handoff] child-${index}: Internal result.`,
+      });
+    }
+    store.appendEvent("event-internal-stop", "thread-2", "turn-3", {
+      type: "user.message",
+      messageId: "legacy-stop",
+      text: "Sub-agent child-1 (Reviewer) was stopped by the user. Do not keep waiting for it; continue with another approach.",
+    });
+    store.appendEvent("event-internal-retry", "thread-2", "turn-3", {
+      type: "user.message",
+      messageId: "legacy-retry",
+      text: "The user retried sub-agent child-1 as child-2. Monitor the new attempt instead of the old one.",
+    });
 
-    expect(store.listPromptHistory()).toEqual([
+    expect(store.listPromptHistory(2)).toEqual([
       "first prompt",
       "second prompt",
     ]);

@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { AgentEvent, AutomationEvent } from "@artemis/protocol";
+import type {
+  AgentEvent,
+  AgentHostEvent,
+  AutomationEvent,
+} from "@artemis/protocol";
 
 import { IPC, type ArtemisApi } from "../shared/api.js";
 import { readPromptAttachmentsFromFiles } from "./prompt-attachments.js";
@@ -292,6 +296,14 @@ const api: ArtemisApi = {
       listener(value);
     ipcRenderer.on(IPC.agentEvents, handler);
     return () => ipcRenderer.removeListener(IPC.agentEvents, handler);
+  },
+  onAgentActivities(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      value: AgentHostEvent[],
+    ) => listener(value);
+    ipcRenderer.on(IPC.agentActivities, handler);
+    return () => ipcRenderer.removeListener(IPC.agentActivities, handler);
   },
   onAutomationEvent(listener) {
     const handler = (
