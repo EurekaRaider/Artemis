@@ -29,7 +29,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 
 ---
 
-<p align="center"><sub>macOS workspace preview · project composer · dark theme</sub></p>
+<p align="center"><sub>macOS welcome workspace · dark theme</sub></p>
 
 ![Artemis desktop workspace](docs/images/artemis-workspace-dark.png)
 
@@ -126,8 +126,8 @@ credentials are protected with operating-system encryption.
     <td width="50%"><img src="docs/images/artemis-workspace-zh-CN-150.png" alt="Artemis Simplified Chinese workspace at 150 percent scale" /></td>
   </tr>
   <tr>
-    <td align="center"><sub>English · 125% scale · activity bar and project workspace</sub></td>
-    <td align="center"><sub>Simplified Chinese · 150% scale · system-language UI</sub></td>
+    <td align="center"><sub>English · 125% scale · welcome workspace</sub></td>
+    <td align="center"><sub>Simplified Chinese · 150% scale · localized welcome workspace</sub></td>
   </tr>
 </table>
 
@@ -408,12 +408,13 @@ to every local process.
 ```mermaid
 flowchart LR
     Request["Tool or process request"] --> Mode["Plan / Execute / Review policy"]
-    Mode --> Broker["Brokered execution approval"]
-    Mode --> User["Desktop-user execution"]
-    Mode --> Trust["Extension project + hash trust"]
+    Mode -->|"Plan / Review"| Deny["Reject writes and hidden tools"]
+    Mode -->|"Execute"| Broker["Brokered execution approval"]
     Broker --> Workspace["Validated workspace operation"]
     Broker --> Bash["Pi Bash as desktop user"]
-    User --> Full["Terminal · MCP"]
+    Mode -->|"User opens"| Terminal["Desktop-user Terminal"]
+    Mode -->|"User enables"| MCP["Desktop-user MCP"]
+    Mode -->|"Project + hash trust"| Trust["Executable extension"]
     Trust --> Native["AppContainer / Seatbelt"]
     Trust --> OptIn["Extension-only full local access"]
 ```
@@ -832,15 +833,17 @@ flowchart LR
     Preload --> Main["Electron Main<br/>lifecycle · policy · persistence"]
     Main <--> Agent["Utility Process<br/>Pi Agent Host"]
 
-    Agent --> Team["Flat team coordinator<br/>dependencies · scopes · messages"]
-    Team --> Children["Up to 4 child Pi sessions"]
-    Team --> Scheduler["Global scheduler<br/>10 active · 9 parents"]
+    Agent --> Pi["Pi SDK + PiAdapter<br/>single agent loop"]
+    Pi --> Team["Flat team coordinator<br/>dependencies · scopes · messages"]
+    Team --> Children["Child Pi sessions<br/>parent-only spawn"]
+    Team --> Capacity["Dynamic global capacity<br/>2–16 · pressure-aware"]
     Agent --> Gate["Mode + approval broker"]
     Children --> Gate
     Gate --> Workspace["Validated workspace tools"]
     Gate --> UserExec["Approved desktop-user Pi Bash"]
-    Gate --> MCP["Enabled desktop-user MCP"]
+    Agent --> MCP["Enabled desktop-user MCP"]
     Main --> Terminal["Desktop-user PTY"]
+    Main --> Browser["Sandboxed HTTP(S) Browser"]
     Main --> Extension["Trusted extension"]
     Extension --> Native["AppContainer / Seatbelt"]
     Extension --> FullAccess["Optional extension full access"]
