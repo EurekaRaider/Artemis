@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS arm64 and x64" src="https://img.shields.io/badge/macOS-arm64%20%7C%20x64-111111?logo=apple&logoColor=white" />
-  <img alt="759 passing tests" src="https://img.shields.io/badge/Tests-759_passing-2EA44F" />
+  <img alt="773 passing tests" src="https://img.shields.io/badge/Tests-773_passing-2EA44F" />
   <img alt="Maximum 16 active agents" src="https://img.shields.io/badge/Agents-max_16-F5A524" />
 </p>
 
@@ -161,7 +161,7 @@ enablement and removal visible to the user.
     </td>
     <td width="50%" valign="top">
       <p><strong>CONNECT</strong>&nbsp;&nbsp;/&nbsp;&nbsp;First-class MCP setup</p>
-      <p>Add or edit stdio and HTTP MCP servers from a dedicated page with arguments, environment values, variable passthrough, working directory and encrypted OAuth or bearer credentials where supported.</p>
+      <p>Add or edit stdio and HTTP MCP servers from a dedicated page with arguments, environment values, variable passthrough, working directory and encrypted OAuth or bearer credentials where supported. Signed plugin MCP runtimes can request scoped Google Workspace or Gmail authorization without receiving the stored refresh token.</p>
     </td>
   </tr>
 </table>
@@ -206,6 +206,12 @@ Mode uses the selected model's highest supported thinking level and prioritizes
 flat Agent-team decomposition for complex or long-horizon tasks. Existing Pi
 OAuth credentials can be imported explicitly; Artemis does not silently copy
 them.
+
+Google authorization for plugin-hosted MCP runtimes is optional. A source build
+must provide `apps/desktop/resources/google-oauth-client.json` in Google's
+Desktop app client JSON format. The file is ignored by Git and must not be
+committed; without it, the rest of Artemis remains available while the Google
+account action reports that the build has no application-level OAuth client.
 
 <br />
 
@@ -433,7 +439,7 @@ flowchart LR
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Pi Bash**             | Available only in Execute. After brokered model or user approval, it intentionally inherits the current desktop user's full filesystem and network permissions.                                                                |
 | **Integrated Terminal** | Opened by the user and inherits the current desktop user's filesystem and network permissions without automatic administrator elevation.                                                                                       |
-| **MCP**                 | Tools are auto-approved. Enabled local stdio servers intentionally inherit the current desktop user's full filesystem and network permissions; enabling an MCP server is therefore the trust decision.                         |
+| **MCP**                 | Non-destructive tools are auto-approved after the server is enabled; tools marked destructive require a human approval. Enabled local stdio servers intentionally inherit the current desktop user's full filesystem and network permissions. |
 | **Extensions**          | Remain disabled until project and content-hash trust are explicit. They run in AppContainer on Windows or Seatbelt on macOS by default; the **Full local access** setting opts extensions alone into desktop-user permissions. |
 | **Browser**             | Has normal HTTP/HTTPS access but no Node integration, preload API or local-file access.                                                                                                                                        |
 | **Plan and Review**     | Reject writes before an executor or filesystem call and do not expose Pi Bash, MCP or executable extensions.                                                                                                                   |
@@ -567,6 +573,9 @@ confirmed operation:
   Skill root and enabled for new turns;
 - stdio and Streamable HTTP MCP definitions are imported **disabled**, so the
   user still makes the existing explicit MCP trust decision;
+- a hash-pinned plugin from a signed Git marketplace may declare scoped
+  Artemis-hosted Google authorization; unsigned, local and integrity-mismatched
+  sources cannot import that host-authenticated MCP configuration;
 - literal environment values, bearer tokens and other credentials are never
   imported; environment-variable references are preserved by name only;
 - legacy Hooks, Commands, Agents, browser extensions and scheduled-task
@@ -707,10 +716,44 @@ because there is no executable protocol target.
 </details>
 
 <details>
+<summary><strong>Artemis-hosted Google authorization</strong></summary>
+
+The Artemis Plugin Shop can expose a **Google account** action for Gmail and
+Google Workspace plugins. Authorization uses a system-browser OAuth flow with
+an exact loopback callback, PKCE and state validation. Google Workspace and
+Gmail grants are kept separate; Artemis verifies the returned account and the
+complete requested scope set before saving a grant.
+
+Refresh tokens and account records are persisted only through Electron
+`safeStorage`; the application-level OAuth client comes from the build resource
+described above and is never exposed to plugins. If operating-system encryption
+is unavailable, Google authorization and the affected plugins stay disabled.
+For each MCP call, Artemis refreshes a short-lived access token and passes only
+that token and the account email in private MCP metadata. It does not place the
+refresh token in plugin arguments or environment variables. Disconnecting a
+grant revokes it and disables MCP configurations that depend on that grant.
+
+Host-provided Google credentials are accepted only for a plugin whose content
+hash matches a signed Git marketplace snapshot and whose signing-key
+fingerprint is already trusted. The MCP server still installs disabled. Once
+enabled, non-destructive tools follow the normal MCP auto-approval path, while
+tools declaring `destructiveHint` require a human approval card that identifies
+the Google account and redacts credential-like fields from the target summary.
+
+The automated suite covers client validation, encrypted persistence, scope and
+account mismatch rejection, token refresh, revocation, marketplace integrity,
+private metadata injection and destructive-tool approval. Real Google consent,
+provider policy and packaged GUI acceptance remain external release checks.
+
+</details>
+
+<details>
 <summary><strong>MCP transport and authorization</strong></summary>
 
 - stdio and Streamable HTTP transports;
-- automatic tool approval after the server has been explicitly enabled;
+- automatic approval for non-destructive tools after the server has been
+  explicitly enabled, with a human approval required for tools marked
+  destructive;
 - desktop-user filesystem and network permissions for local stdio servers;
 - encrypted bearer tokens;
 - OAuth 2.1 authorization code + PKCE with exact loopback state validation;
