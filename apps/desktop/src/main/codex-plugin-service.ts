@@ -1,4 +1,9 @@
-import { createHash, randomUUID } from "node:crypto";
+import {
+  createHash,
+  createPublicKey,
+  randomUUID,
+  verify as verifySignature,
+} from "node:crypto";
 import {
   chmod,
   copyFile,
@@ -28,11 +33,13 @@ import type {
   CodexPluginMarketplace,
   CodexPluginMarketplaceSource,
   CodexPluginMarketplaceState,
+  CodexPluginMarketplaceTrustPreview,
   CodexPluginMcpPreview,
   CodexPluginPreview,
   CodexPluginSource,
   InstalledCodexPlugin,
   McpServerConfig,
+  GoogleMcpHostAuth,
 } from "../shared/api.js";
 import { McpConfigStore, validateMcpServerConfig } from "./mcp-config-store.js";
 import { parseSkillFrontmatter } from "./resource-catalog.js";
@@ -104,6 +111,7 @@ interface ParsedMcpServer {
   envVars?: string[];
   url?: string;
   auth?: "none" | "bearer" | "oauth";
+  hostAuth?: GoogleMcpHostAuth;
 }
 
 interface ParsedPlugin {
@@ -171,6 +179,21 @@ interface StoredMarketplaceSource {
   marketplaceName: string;
   displayName: string;
   addedAt: string;
+  mode?: "git" | "offline";
+  cachePath?: string;
+  signingKeyFingerprint?: string;
+}
+
+interface VerifiedMarketplaceIntegrity {
+  signingKeyFingerprint: string;
+  pluginHashes: Map<string, string>;
+  packageFiles: Set<string>;
+  sourceUrl?: string;
+}
+
+interface OfflineMarketplaceCandidate {
+  marketplace: CodexPluginMarketplace;
+  integrity: VerifiedMarketplaceIntegrity & { sourceUrl: string };
 }
 
 interface MarketplaceStore {
@@ -297,6 +320,8 @@ function mcpStructuralHash(config: McpServerConfig): string {
       command: config.command,
       args: config.args,
       workspacePath: config.workspacePath,
+      hostAuth: config.hostAuth,
+      ...(config.hostAuth ? { env: config.env, envVars: config.envVars } : {}),
       resourceKind: config.resourceKind,
       connectorId: config.connectorId,
     });
@@ -563,6 +588,7 @@ async function collectFiles(
     maximumFileBytes: number;
     maximumBytes: number;
     rejectInstallerMetadata?: boolean;
+    includeGit?: boolean;
   },
 ): Promise<CollectedFile[]> {
   const source = await canonicalDirectory(root);
@@ -575,7 +601,7 @@ async function collectFiles(
       throw new Error("Plugin package contains too many directories.");
     }
     for (const entry of await readdir(directory, { withFileTypes: true })) {
-      if (entry.name === ".git") continue;
+      if (entry.name === ".git" && !options.includeGit) continue;
       const path = join(directory, entry.name);
       const information = await lstat(path);
       if (information.isSymbolicLink()) {
@@ -627,6 +653,172 @@ function collectedHash(files: CollectedFile[]): string {
     hash.update(file.relativePath).update("\0").update(file.hash).update("\0");
   }
   return hash.digest("hex");
+}
+
+async function verifyMarketplaceIntegrity(
+  root: string,
+  marketplaceFilePath: string,
+): Promise<VerifiedMarketplaceIntegrity | undefined> {
+  const integrityPath = join(root, ".artemis", "integrity.json");
+  if (!(await exists(integrityPath))) return undefined;
+  const marketplaceBytes = await readFile(marketplaceFilePath);
+  const marketplace = record(JSON.parse(marketplaceBytes.toString("utf8")));
+  const integrity = record(
+    await readJson(integrityPath, MAX_MARKETPLACE_BYTES),
+  );
+  const signature = text(integrity?.signature);
+  const publicKeyText = text(integrity?.publicKey);
+  const fingerprint = text(integrity?.signingKeyFingerprint);
+  if (
+    integrity?.schemaVersion !== 1 ||
+    integrity.signatureAlgorithm !== "Ed25519" ||
+    !signature ||
+    !publicKeyText ||
+    !fingerprint ||
+    !/^[a-f0-9]{64}$/u.test(fingerprint) ||
+    integrity.marketplaceName !== marketplace?.name ||
+    integrity.marketplaceHash !==
+      createHash("sha256").update(marketplaceBytes).digest("hex")
+  ) {
+    throw new Error("Marketplace integrity declaration is invalid.");
+  }
+  const publicDer = Buffer.from(publicKeyText, "base64");
+  if (createHash("sha256").update(publicDer).digest("hex") !== fingerprint) {
+    throw new Error("Marketplace signing key fingerprint is invalid.");
+  }
+  const unsigned = { ...integrity };
+  delete unsigned.signature;
+  let validSignature = false;
+  try {
+    validSignature = verifySignature(
+      null,
+      Buffer.from(JSON.stringify(stableValue(unsigned))),
+      createPublicKey({ key: publicDer, format: "der", type: "spki" }),
+      Buffer.from(signature, "base64"),
+    );
+  } catch {
+    validSignature = false;
+  }
+  if (!validSignature) throw new Error("Marketplace signature is invalid.");
+
+  let sourceUrl: string | undefined;
+  const declaredSourceUrl = text(integrity.sourceUrl);
+  if (declaredSourceUrl) {
+    try {
+      sourceUrl = normalizeGithubMarketplaceUrl(declaredSourceUrl);
+    } catch {
+      throw new Error("Marketplace offline source URL is invalid.");
+    }
+  }
+
+  const entries = Array.isArray(marketplace?.plugins)
+    ? marketplace.plugins.map(record).filter(Boolean)
+    : [];
+  const signedPlugins = Array.isArray(integrity.plugins)
+    ? integrity.plugins.map(record).filter(Boolean)
+    : [];
+  if (entries.length === 0 || signedPlugins.length !== entries.length) {
+    throw new Error(
+      "Marketplace signed plugin list does not match its catalog.",
+    );
+  }
+  const byName = new Map(
+    signedPlugins.map((plugin) => [text(plugin?.name), plugin] as const),
+  );
+  const pluginHashes = new Map<string, string>();
+  const packageFiles = new Set([
+    ".agents/plugins/marketplace.json",
+    ".artemis/integrity.json",
+  ]);
+  const canonicalRoot = await realpath(root);
+  for (const entry of entries) {
+    const name = text(entry?.name);
+    const sourceValue = entry?.source;
+    const source = record(sourceValue);
+    const sourcePath =
+      typeof sourceValue === "string"
+        ? text(sourceValue)
+        : source?.source === "local"
+          ? text(source.path)
+          : undefined;
+    const signed = name ? byName.get(name) : undefined;
+    if (!name || !sourcePath || !signed) {
+      throw new Error("Marketplace signed plugin entry is invalid.");
+    }
+    const pluginRoot = await canonicalDirectory(
+      declaredPath(root, sourcePath, "Marketplace plugin"),
+      root,
+    );
+    const pluginRelativeRoot = portableRelative(
+      relative(canonicalRoot, pluginRoot),
+    );
+    const files = await collectFiles(pluginRoot, {
+      maximumFiles: MAX_PLUGIN_FILES,
+      maximumFileBytes: MAX_PLUGIN_FILE_BYTES,
+      maximumBytes: MAX_PLUGIN_BYTES,
+    });
+    const manifest = record(
+      await readJson(
+        join(pluginRoot, ".codex-plugin", "plugin.json"),
+        MAX_MANIFEST_BYTES,
+      ),
+    );
+    const signedFiles = Array.isArray(signed.files)
+      ? signed.files.map(record).filter(Boolean)
+      : [];
+    const exactFiles =
+      signedFiles.length === files.length &&
+      files.every((file, index) => {
+        const expected = signedFiles[index];
+        return (
+          expected?.path === file.relativePath &&
+          expected.size === file.size &&
+          expected.sha256 === file.hash
+        );
+      });
+    const hash = collectedHash(files);
+    if (
+      signed.version !== manifest?.version ||
+      signed.contentHash !== hash ||
+      signed.size !== files.reduce((sum, file) => sum + file.size, 0) ||
+      !exactFiles
+    ) {
+      throw new Error(`Marketplace content signature failed for ${name}.`);
+    }
+    pluginHashes.set(name, hash);
+    for (const file of files) {
+      packageFiles.add(`${pluginRelativeRoot}/${file.relativePath}`);
+    }
+  }
+  return {
+    signingKeyFingerprint: fingerprint,
+    pluginHashes,
+    packageFiles,
+    ...(sourceUrl ? { sourceUrl } : {}),
+  };
+}
+
+async function validateOfflineMarketplacePackage(
+  root: string,
+  integrity: VerifiedMarketplaceIntegrity,
+): Promise<void> {
+  const files = await collectFiles(root, {
+    maximumFiles: MAX_MARKETPLACE_ARCHIVE_ENTRIES,
+    maximumFileBytes: MAX_PLUGIN_FILE_BYTES,
+    maximumBytes: MAX_MARKETPLACE_ARCHIVE_UNPACKED_BYTES,
+    includeGit: true,
+  });
+  const unexpected = files.find(
+    (file) => !integrity.packageFiles.has(file.relativePath),
+  );
+  if (unexpected) {
+    throw new Error(
+      `Offline marketplace package contains an unsigned file: ${unexpected.relativePath}`,
+    );
+  }
+  if (files.length !== integrity.packageFiles.size) {
+    throw new Error("Offline marketplace package is incomplete.");
+  }
 }
 
 async function installedSkillMatchesHash(
@@ -739,6 +931,35 @@ function hasCredentialArgument(args: string[]): boolean {
   );
 }
 
+function parseGoogleHostAuth(
+  server: Record<string, unknown>,
+  name: string,
+  warnings: string[],
+): GoogleMcpHostAuth | undefined {
+  const declaration = record(record(server["x-artemis"])?.auth);
+  if (!declaration) return undefined;
+  const provider = text(declaration.provider);
+  const grant = text(declaration.grant);
+  const scopes = [...new Set(strings(declaration.scopes))];
+  if (
+    provider !== "google" ||
+    (grant !== "google-workspace" && grant !== "gmail") ||
+    scopes.length === 0 ||
+    scopes.length > 20 ||
+    scopes.some(
+      (scope) =>
+        !["openid", "email", "profile"].includes(scope) &&
+        !scope.startsWith("https://www.googleapis.com/auth/"),
+    )
+  ) {
+    warnings.push(
+      `MCP server "${name}" has an invalid Artemis host authentication declaration.`,
+    );
+    return undefined;
+  }
+  return { provider: "google", grant, scopes };
+}
+
 function parseMcpServer(
   name: string,
   input: unknown,
@@ -767,16 +988,19 @@ function parseMcpServer(
       };
     }
     const args = strings(server.args);
-    const unresolved = [command, ...args].some((value) =>
-      hasUnresolvedVariable(
-        value.replace(
-          /\$(?:\{(?:PLUGIN_ROOT|CLAUDE_PLUGIN_ROOT)\}|(?:PLUGIN_ROOT|CLAUDE_PLUGIN_ROOT)\b)/gu,
-          "",
-        ),
-      ),
-    );
+    const commandUsesArtemisNode = command === "${ARTEMIS_NODE}";
+    const removePluginRoot = (value: string) =>
+      value.replace(
+        /\$(?:\{(?:PLUGIN_ROOT|CLAUDE_PLUGIN_ROOT)\}|(?:PLUGIN_ROOT|CLAUDE_PLUGIN_ROOT)\b)/gu,
+        "",
+      );
+    const unresolved =
+      (!commandUsesArtemisNode &&
+        hasUnresolvedVariable(removePluginRoot(command))) ||
+      args.some((value) => hasUnresolvedVariable(removePluginRoot(value)));
     const environment = record(server.env) ?? {};
     const credentialArgument = hasCredentialArgument(args);
+    const hostAuth = parseGoogleHostAuth(server, name, warnings);
     const envVars = new Set(strings(server.env_vars ?? server.envVars));
     const omittedKeys: string[] = [];
     for (const [key, value] of Object.entries(environment)) {
@@ -819,6 +1043,7 @@ function parseMcpServer(
       command,
       args,
       envVars: [...envVars],
+      ...(hostAuth ? { hostAuth, requiresSetup: true } : {}),
     };
   }
 
@@ -965,6 +1190,88 @@ async function downloadResponse(
   }
 }
 
+async function extractMarketplaceArchive(
+  archivePath: string,
+  destination: string,
+  label: string,
+): Promise<void> {
+  const archive = await lstat(archivePath);
+  if (
+    archive.isSymbolicLink() ||
+    !archive.isFile() ||
+    archive.size === 0 ||
+    archive.size > MAX_MARKETPLACE_ARCHIVE_BYTES
+  ) {
+    throw new Error(`${label} archive is invalid or too large.`);
+  }
+  await mkdir(destination, { recursive: true });
+  let archiveRoot: string | undefined;
+  let entryCount = 0;
+  let fileCount = 0;
+  let unpackedBytes = 0;
+  await extractTar({
+    cwd: destination,
+    file: archivePath,
+    noMtime: true,
+    preserveOwner: false,
+    strict: true,
+    strip: 1,
+    unlink: true,
+    filter: (entryPath, entry) => {
+      if (!("type" in entry)) {
+        throw new Error(`${label} archive entry is invalid.`);
+      }
+      if (
+        !entryPath ||
+        entryPath.length > 4_096 ||
+        entryPath.includes("\0") ||
+        entryPath.includes("\\") ||
+        entryPath.startsWith("/") ||
+        /^[A-Za-z]:/u.test(entryPath)
+      ) {
+        throw new Error(`${label} archive contains an unsafe path.`);
+      }
+      const segments = entryPath.split("/").filter(Boolean);
+      if (
+        segments.length === 0 ||
+        segments.some(
+          (segment) =>
+            segment === "." || segment === ".." || segment === ".git",
+        )
+      ) {
+        throw new Error(`${label} archive contains an unsafe path.`);
+      }
+      archiveRoot ??= segments[0];
+      if (segments[0] !== archiveRoot) {
+        throw new Error(`${label} archive has multiple roots.`);
+      }
+      if (entry.type !== "Directory" && entry.type !== "File") {
+        throw new Error(`${label} archive contains links.`);
+      }
+      entryCount += 1;
+      if (entryCount > MAX_MARKETPLACE_ARCHIVE_ENTRIES) {
+        throw new Error(`${label} archive contains too many files.`);
+      }
+      if (entry.type === "File") {
+        fileCount += 1;
+        unpackedBytes += entry.size;
+        if (
+          entry.size > MAX_PLUGIN_FILE_BYTES ||
+          unpackedBytes > MAX_MARKETPLACE_ARCHIVE_UNPACKED_BYTES
+        ) {
+          throw new Error(`${label} archive is too large.`);
+        }
+      }
+      entry.mode =
+        (entry.mode ?? (entry.type === "Directory" ? 0o755 : 0o644)) & 0o777;
+      return true;
+    },
+  });
+  if (!archiveRoot || fileCount === 0) {
+    throw new Error(`${label} archive is empty.`);
+  }
+}
+
 async function defaultDownloadRepository(
   url: string,
   destination: string,
@@ -983,79 +1290,55 @@ async function defaultDownloadRepository(
     signal: AbortSignal.timeout(120_000),
   });
   await downloadResponse(response, archivePath);
-  await mkdir(destination, { recursive: true });
-  let archiveRoot: string | undefined;
-  let entryCount = 0;
-  let fileCount = 0;
-  let unpackedBytes = 0;
   try {
-    await extractTar({
-      cwd: destination,
-      file: archivePath,
-      noMtime: true,
-      preserveOwner: false,
-      strict: true,
-      strip: 1,
-      unlink: true,
-      filter: (entryPath, entry) => {
-        if (!("type" in entry)) {
-          throw new Error("GitHub marketplace archive entry is invalid.");
-        }
-        if (
-          !entryPath ||
-          entryPath.length > 4_096 ||
-          entryPath.includes("\0") ||
-          entryPath.includes("\\") ||
-          entryPath.startsWith("/") ||
-          /^[A-Za-z]:/u.test(entryPath)
-        ) {
-          throw new Error(
-            "GitHub marketplace archive contains an unsafe path.",
-          );
-        }
-        const segments = entryPath.split("/").filter(Boolean);
-        if (
-          segments.length === 0 ||
-          segments.some((segment) => segment === "." || segment === "..")
-        ) {
-          throw new Error(
-            "GitHub marketplace archive contains an unsafe path.",
-          );
-        }
-        archiveRoot ??= segments[0];
-        if (segments[0] !== archiveRoot) {
-          throw new Error("GitHub marketplace archive has multiple roots.");
-        }
-        if (entry.type !== "Directory" && entry.type !== "File") {
-          throw new Error("GitHub marketplace archive contains links.");
-        }
-        entryCount += 1;
-        if (entryCount > MAX_MARKETPLACE_ARCHIVE_ENTRIES) {
-          throw new Error(
-            "GitHub marketplace archive contains too many files.",
-          );
-        }
-        if (entry.type === "File") {
-          fileCount += 1;
-          unpackedBytes += entry.size;
-          if (
-            entry.size > MAX_PLUGIN_FILE_BYTES ||
-            unpackedBytes > MAX_MARKETPLACE_ARCHIVE_UNPACKED_BYTES
-          ) {
-            throw new Error("GitHub marketplace archive is too large.");
-          }
-        }
-        entry.mode =
-          (entry.mode ?? (entry.type === "Directory" ? 0o755 : 0o644)) & 0o777;
-        return true;
-      },
-    });
-    if (!archiveRoot || fileCount === 0) {
-      throw new Error("GitHub marketplace archive is empty.");
-    }
+    await extractMarketplaceArchive(
+      archivePath,
+      destination,
+      "GitHub marketplace",
+    );
   } finally {
     await rm(archivePath, { force: true }).catch(() => undefined);
   }
+}
+
+async function stageOfflineMarketplaceInput(
+  inputPath: string,
+  destination: string,
+): Promise<void> {
+  if (!isAbsolute(inputPath) || !inputPath.trim()) {
+    throw new Error("Offline marketplace path is invalid.");
+  }
+  const information = await lstat(inputPath);
+  if (information.isSymbolicLink()) {
+    throw new Error("Offline marketplace source cannot be a symbolic link.");
+  }
+  if (information.isDirectory()) {
+    const files = await collectFiles(inputPath, {
+      maximumFiles: MAX_MARKETPLACE_ARCHIVE_ENTRIES,
+      maximumFileBytes: MAX_PLUGIN_FILE_BYTES,
+      maximumBytes: MAX_MARKETPLACE_ARCHIVE_UNPACKED_BYTES,
+      includeGit: true,
+    });
+    if (files.length === 0) {
+      throw new Error("Offline marketplace directory is empty.");
+    }
+    await copyCollectedFiles(destination, files);
+    return;
+  }
+  const archiveName = basename(inputPath).toLowerCase();
+  if (
+    !information.isFile() ||
+    (!archiveName.endsWith(".tar.gz") && !archiveName.endsWith(".tgz"))
+  ) {
+    throw new Error(
+      "Offline marketplace must be an extracted directory, .tar.gz, or .tgz package.",
+    );
+  }
+  await extractMarketplaceArchive(
+    inputPath,
+    destination,
+    "Offline marketplace",
+  );
 }
 
 function normalizeMarketplaceUrl(input: string): string {
@@ -1176,8 +1459,16 @@ function validateStoredMarketplaceSource(
   const marketplaceName = text(input?.marketplaceName);
   const displayName = text(input?.displayName);
   const addedAt = text(input?.addedAt);
+  const cachePath = text(input?.cachePath);
+  const signingKeyFingerprint = text(input?.signingKeyFingerprint);
+  const modeInput = text(input?.mode);
+  const mode: "git" | "offline" =
+    modeInput === undefined || modeInput === "git" ? "git" : "offline";
   const url = normalizeGithubMarketplaceUrl(text(input?.url) ?? "");
   if (
+    (modeInput !== undefined &&
+      modeInput !== "git" &&
+      modeInput !== "offline") ||
     !id ||
     id !== marketplaceSourceId(url) ||
     !marketplaceName ||
@@ -1188,7 +1479,19 @@ function validateStoredMarketplaceSource(
   ) {
     throw new Error("Plugin marketplace source is invalid.");
   }
-  return { id, url, marketplaceName, displayName, addedAt };
+  if (signingKeyFingerprint && !/^[a-f0-9]{64}$/u.test(signingKeyFingerprint)) {
+    throw new Error("Plugin marketplace signing key fingerprint is invalid.");
+  }
+  return {
+    id,
+    url,
+    marketplaceName,
+    displayName,
+    addedAt,
+    mode,
+    ...(cachePath ? { cachePath } : {}),
+    ...(signingKeyFingerprint ? { signingKeyFingerprint } : {}),
+  };
 }
 
 function validateStoredPlugin(value: unknown): StoredPlugin {
@@ -1379,6 +1682,7 @@ export class CodexPluginService {
   async addMarketplace(
     inputUrl: string,
     onProgress?: ProgressReporter,
+    expectedSigningKeyFingerprint?: string,
   ): Promise<CodexPluginMarketplaceState> {
     return this.exclusive(async () => {
       const url = normalizeGithubMarketplaceUrl(inputUrl);
@@ -1401,7 +1705,22 @@ export class CodexPluginService {
         true,
         undefined,
         this.isStrictGithubMarketplace(url),
+        expectedSigningKeyFingerprint,
       );
+      const cachePath = this.marketplaceCache(url);
+      const integrity = await verifyMarketplaceIntegrity(
+        cachePath,
+        await this.marketplaceFile(cachePath),
+      );
+      if (
+        integrity?.signingKeyFingerprint !== expectedSigningKeyFingerprint ||
+        (!integrity && expectedSigningKeyFingerprint)
+      ) {
+        await rm(cachePath, { recursive: true, force: true });
+        throw new Error(
+          "Marketplace signing key was not confirmed. Inspect and confirm its trust details before adding it.",
+        );
+      }
       const now = new Date().toISOString();
       const source: StoredMarketplaceSource = {
         id: marketplaceSourceId(url),
@@ -1409,11 +1728,183 @@ export class CodexPluginService {
         marketplaceName: marketplace.marketplaceName,
         displayName: marketplace.name,
         addedAt: now,
+        mode: "git",
+        cachePath,
+        ...(integrity
+          ? { signingKeyFingerprint: integrity.signingKeyFingerprint }
+          : {}),
       };
       store.sources.push(source);
       store.selectedView = source.id;
       await this.saveMarketplaceStore(store);
       return this.marketplaceSnapshot();
+    });
+  }
+
+  async inspectMarketplaceTrust(
+    inputUrl: string,
+  ): Promise<CodexPluginMarketplaceTrustPreview> {
+    return this.exclusive(async () => {
+      const url = normalizeGithubMarketplaceUrl(inputUrl);
+      const stage = join(
+        this.options.marketplacesRoot,
+        `.inspect-${randomUUID()}`,
+      );
+      await mkdir(this.options.marketplacesRoot, { recursive: true });
+      try {
+        await this.cloneRepository(url, stage);
+        const marketplace = await this.readMarketplace(stage, url, {
+          strict: this.isStrictGithubMarketplace(url),
+          validatePluginFiles: this.isStrictGithubMarketplace(url),
+        });
+        const integrity = await verifyMarketplaceIntegrity(
+          stage,
+          await this.marketplaceFile(stage),
+        );
+        return {
+          url,
+          repository: githubMarketplaceRepository(url),
+          marketplaceName: marketplace.marketplaceName,
+          displayName: marketplace.name,
+          signed: Boolean(integrity),
+          ...(integrity
+            ? { signingKeyFingerprint: integrity.signingKeyFingerprint }
+            : {}),
+        };
+      } finally {
+        await rm(stage, { recursive: true, force: true }).catch(
+          () => undefined,
+        );
+      }
+    });
+  }
+
+  async inspectOfflineMarketplace(
+    inputPath: string,
+  ): Promise<CodexPluginMarketplaceTrustPreview> {
+    return this.exclusive(async () => {
+      const stage = join(
+        this.options.marketplacesRoot,
+        `.inspect-offline-${randomUUID()}`,
+      );
+      await mkdir(this.options.marketplacesRoot, { recursive: true });
+      try {
+        await stageOfflineMarketplaceInput(inputPath, stage);
+        const { marketplace, integrity } =
+          await this.readOfflineMarketplaceCandidate(stage);
+        return {
+          url: integrity.sourceUrl,
+          repository: githubMarketplaceRepository(integrity.sourceUrl),
+          marketplaceName: marketplace.marketplaceName,
+          displayName: marketplace.name,
+          signed: true,
+          signingKeyFingerprint: integrity.signingKeyFingerprint,
+        };
+      } finally {
+        await rm(stage, { recursive: true, force: true }).catch(
+          () => undefined,
+        );
+      }
+    });
+  }
+
+  async addOfflineMarketplace(
+    inputPath: string,
+    expectedSigningKeyFingerprint: string,
+    onProgress?: ProgressReporter,
+  ): Promise<CodexPluginMarketplaceState> {
+    return this.exclusive(async () => {
+      const stage = join(
+        this.options.marketplacesRoot,
+        `.import-offline-${randomUUID()}`,
+      );
+      await mkdir(this.options.marketplacesRoot, { recursive: true });
+      onProgress?.(5);
+      let cacheInstalled = false;
+      let oldCacheMoved = false;
+      let cache = "";
+      let backup = "";
+      let previousStore: MarketplaceStore | undefined;
+      let storeSaved = false;
+      try {
+        await stageOfflineMarketplaceInput(inputPath, stage);
+        onProgress?.(40);
+        const { marketplace, integrity } =
+          await this.readOfflineMarketplaceCandidate(stage);
+        if (
+          !expectedSigningKeyFingerprint ||
+          integrity.signingKeyFingerprint !== expectedSigningKeyFingerprint
+        ) {
+          throw new Error(
+            "Offline marketplace signing key was not confirmed. Inspect and confirm the package again.",
+          );
+        }
+        const store = await this.loadMarketplaceStore();
+        previousStore = structuredClone(store);
+        const id = marketplaceSourceId(integrity.sourceUrl);
+        const existing = store.sources.find((source) => source.id === id);
+        if (!existing && store.sources.length >= MAX_USER_MARKETPLACES) {
+          throw new Error(
+            `No more than ${MAX_USER_MARKETPLACES} user plugin marketplaces can be added.`,
+          );
+        }
+        cache = this.marketplaceCache(integrity.sourceUrl);
+        backup = `${cache}.backup-${randomUUID()}`;
+        if (await exists(cache)) {
+          await rename(cache, backup);
+          oldCacheMoved = true;
+        }
+        await rename(stage, cache);
+        cacheInstalled = true;
+        onProgress?.(75);
+        const now = new Date().toISOString();
+        const source: StoredMarketplaceSource = {
+          id,
+          url: integrity.sourceUrl,
+          marketplaceName: marketplace.marketplaceName,
+          displayName: marketplace.name,
+          addedAt: existing?.addedAt ?? now,
+          mode: "offline",
+          cachePath: cache,
+          signingKeyFingerprint: integrity.signingKeyFingerprint,
+        };
+        const nextStore: MarketplaceStore = {
+          version: 1,
+          selectedView: id,
+          sources: existing
+            ? store.sources.map((candidate) =>
+                candidate.id === id ? source : candidate,
+              )
+            : [...store.sources, source],
+        };
+        await this.saveMarketplaceStore(nextStore);
+        storeSaved = true;
+        const result = await this.marketplaceSnapshot();
+        if (oldCacheMoved) {
+          await rm(backup, { recursive: true, force: true }).catch(
+            () => undefined,
+          );
+        }
+        onProgress?.(100);
+        return result;
+      } catch (error) {
+        if (cacheInstalled && cache) {
+          await rm(cache, { recursive: true, force: true }).catch(
+            () => undefined,
+          );
+        }
+        if (oldCacheMoved && cache && backup && (await exists(backup))) {
+          await rename(backup, cache).catch(() => undefined);
+        }
+        if (storeSaved && previousStore) {
+          await this.saveMarketplaceStore(previousStore).catch(() => undefined);
+        }
+        throw error;
+      } finally {
+        await rm(stage, { recursive: true, force: true }).catch(
+          () => undefined,
+        );
+      }
     });
   }
 
@@ -1450,6 +1941,11 @@ export class CodexPluginService {
       const stored = store.sources.find((source) => source.id === sourceId);
       const url = stored?.url;
       if (!url) throw new Error("Plugin marketplace was not found.");
+      if (stored?.mode === "offline") {
+        throw new Error(
+          "Offline marketplaces cannot be refreshed from the network. Import a newer offline package instead.",
+        );
+      }
       let expectedMarketplaceName = stored?.marketplaceName;
       if (!expectedMarketplaceName) {
         const cache = this.marketplaceCache(url);
@@ -1466,6 +1962,7 @@ export class CodexPluginService {
           true,
           expectedMarketplaceName,
           this.isStrictGithubMarketplace(url),
+          stored?.signingKeyFingerprint,
         );
         this.marketplaceRefreshErrors.delete(sourceId);
       } catch (error) {
@@ -1598,12 +2095,20 @@ export class CodexPluginService {
       );
       if (!existing) throw new Error("Installed plugin was not found.");
       if (existing.source.kind === "git") {
-        await this.refreshMarketplace(
-          existing.source.marketplaceUrl,
-          onProgress,
-          existing.source.marketplaceName,
-          this.isStrictGithubMarketplace(existing.source.marketplaceUrl),
+        const gitSource = existing.source;
+        const trustedSource = (await this.loadMarketplaceStore()).sources.find(
+          (source) =>
+            source.url === normalizeMarketplaceUrl(gitSource.marketplaceUrl),
         );
+        if (trustedSource?.mode !== "offline") {
+          await this.refreshMarketplace(
+            gitSource.marketplaceUrl,
+            onProgress,
+            gitSource.marketplaceName,
+            this.isStrictGithubMarketplace(gitSource.marketplaceUrl),
+            trustedSource?.signingKeyFingerprint,
+          );
+        }
       }
       const parsed = await this.resolveSource(existing.source, true);
       this.assertSupportedAppConnectors(parsed);
@@ -1651,6 +2156,62 @@ export class CodexPluginService {
     return plugin ? this.installedPlugin(plugin) : undefined;
   }
 
+  async assertHostAuthTrusted(config: McpServerConfig): Promise<void> {
+    if (!config.hostAuth) return;
+    const store = await this.loadStore();
+    const owner = store.plugins.find((plugin) =>
+      plugin.mcpServers.some((server) => server.id === config.id),
+    );
+    const storedServer = owner?.mcpServers.find(
+      (server) => server.id === config.id,
+    );
+    if (
+      !owner ||
+      !storedServer ||
+      storedServer.structuralHash !== mcpStructuralHash(config) ||
+      owner.source.kind !== "git"
+    ) {
+      throw new Error(
+        "This MCP server is not owned by a trusted signed plugin.",
+      );
+    }
+    const installedFiles = await collectFiles(
+      join(this.options.pluginsRoot, owner.id),
+      {
+        maximumFiles: MAX_PLUGIN_FILES,
+        maximumFileBytes: MAX_PLUGIN_FILE_BYTES,
+        maximumBytes: MAX_PLUGIN_BYTES,
+      },
+    );
+    if (collectedHash(installedFiles) !== owner.contentHash) {
+      throw new Error(
+        "Installed plugin contents changed. Reinstall it before authorizing Google.",
+      );
+    }
+    const url = normalizeMarketplaceUrl(owner.source.marketplaceUrl);
+    const source = (await this.loadMarketplaceStore()).sources.find(
+      (candidate) => candidate.url === url,
+    );
+    if (!source?.signingKeyFingerprint) {
+      throw new Error(
+        "The plugin marketplace is not trusted for host credentials.",
+      );
+    }
+    const cache = this.marketplaceCache(url);
+    const integrity = await verifyMarketplaceIntegrity(
+      cache,
+      await this.marketplaceFile(cache),
+    );
+    if (
+      integrity?.signingKeyFingerprint !== source.signingKeyFingerprint ||
+      integrity.pluginHashes.get(owner.source.pluginName) !== owner.contentHash
+    ) {
+      throw new Error(
+        "The plugin signature or content digest no longer matches.",
+      );
+    }
+  }
+
   private async exclusive<T>(task: () => Promise<T>): Promise<T> {
     const previous = this.operation;
     let release!: () => void;
@@ -1671,19 +2232,25 @@ export class CodexPluginService {
     refresh = false,
     expectedMarketplaceName?: string,
     strict = false,
+    expectedSigningKeyFingerprint?: string,
   ): Promise<CodexPluginMarketplace> {
     const url = normalizeMarketplaceUrl(inputUrl);
     await mkdir(this.options.marketplacesRoot, { recursive: true });
     const cache = this.marketplaceCache(url);
     if (!refresh && (await exists(cache))) {
       onProgress?.(100);
-      return this.readMarketplace(cache, url);
+      return this.readMarketplace(cache, url, {
+        ...(expectedSigningKeyFingerprint
+          ? { expectedSigningKeyFingerprint }
+          : {}),
+      });
     }
     const marketplace = await this.refreshMarketplace(
       url,
       onProgress,
       expectedMarketplaceName,
       strict,
+      expectedSigningKeyFingerprint,
     );
     onProgress?.(100);
     return marketplace;
@@ -1715,13 +2282,18 @@ export class CodexPluginService {
           sourceId: source.id,
           message:
             errorMessage ??
-            "Marketplace is not cached. Refresh it to load plugins.",
+            "Marketplace cache unavailable. Refresh it manually to load plugins.",
         });
         continue;
       }
       try {
         const marketplace = await this.readMarketplace(cache, source.url, {
-          strict: this.isStrictGithubMarketplace(source.url),
+          strict: source.offline || this.isStrictGithubMarketplace(source.url),
+          ...(source.signingKeyFingerprint
+            ? {
+                expectedSigningKeyFingerprint: source.signingKeyFingerprint,
+              }
+            : {}),
         });
         if (
           !source.builtIn &&
@@ -1733,7 +2305,8 @@ export class CodexPluginService {
         }
         marketplaces.push({ sourceId: source.id, marketplace });
       } catch (error) {
-        errorMessage = error instanceof Error ? error.message : String(error);
+        const detail = error instanceof Error ? error.message : String(error);
+        errorMessage = `Marketplace cache unavailable. Refresh it manually. ${detail}`;
       }
       if (errorMessage) {
         errors.push({ sourceId: source.id, message: errorMessage });
@@ -1759,6 +2332,8 @@ export class CodexPluginService {
         repository: "Artemis",
         builtIn: true,
         removable: false,
+        offline: false,
+        refreshable: false,
         order: 0,
       },
       ...store.sources.map((source, index) => ({
@@ -1766,6 +2341,8 @@ export class CodexPluginService {
         repository: githubMarketplaceRepository(source.url),
         builtIn: false,
         removable: true,
+        offline: source.mode === "offline",
+        refreshable: source.mode !== "offline",
         order: index + 1,
       })),
     ];
@@ -1842,6 +2419,8 @@ export class CodexPluginService {
             marketplaceName: plugin.source.marketplaceName,
             displayName,
             addedAt: plugin.installedAt,
+            mode: "git",
+            cachePath: cache,
           });
         } catch {
           // Legacy non-GitHub sources remain installed but are not subscribed.
@@ -1916,6 +2495,7 @@ export class CodexPluginService {
     onProgress?: ProgressReporter,
     expectedMarketplaceName?: string,
     strict = false,
+    expectedSigningKeyFingerprint?: string,
   ): Promise<CodexPluginMarketplace> {
     const normalized = normalizeMarketplaceUrl(url);
     await mkdir(this.options.marketplacesRoot, { recursive: true });
@@ -1930,6 +2510,9 @@ export class CodexPluginService {
       const candidate = await this.readMarketplace(stage, normalized, {
         strict,
         validatePluginFiles: strict,
+        ...(expectedSigningKeyFingerprint
+          ? { expectedSigningKeyFingerprint }
+          : {}),
       });
       if (
         expectedMarketplaceName &&
@@ -1972,6 +2555,28 @@ export class CodexPluginService {
     );
   }
 
+  private async readOfflineMarketplaceCandidate(
+    root: string,
+  ): Promise<OfflineMarketplaceCandidate> {
+    const filePath = await this.marketplaceFile(root);
+    const integrity = await verifyMarketplaceIntegrity(root, filePath);
+    if (!integrity?.sourceUrl) {
+      throw new Error(
+        "Offline marketplace package must be signed and declare its GitHub source URL.",
+      );
+    }
+    await validateOfflineMarketplacePackage(root, integrity);
+    const marketplace = await this.readMarketplace(root, integrity.sourceUrl, {
+      strict: true,
+      validatePluginFiles: true,
+      expectedSigningKeyFingerprint: integrity.signingKeyFingerprint,
+    });
+    return {
+      marketplace,
+      integrity: { ...integrity, sourceUrl: integrity.sourceUrl },
+    };
+  }
+
   private async readMarketplace(
     root: string,
     url: string,
@@ -1981,10 +2586,20 @@ export class CodexPluginService {
       bundledSources?: boolean;
       strict?: boolean;
       validatePluginFiles?: boolean;
+      expectedSigningKeyFingerprint?: string;
     },
   ): Promise<CodexPluginMarketplace> {
     await this.loadStore();
     const filePath = await this.marketplaceFile(root);
+    const integrity = await verifyMarketplaceIntegrity(root, filePath);
+    if (
+      options?.expectedSigningKeyFingerprint &&
+      integrity?.signingKeyFingerprint !== options.expectedSigningKeyFingerprint
+    ) {
+      throw new Error(
+        "Marketplace signing key changed or the signature was removed. Remove the source and explicitly trust it again.",
+      );
+    }
     const input = record(await readJson(filePath, MAX_MARKETPLACE_BYTES));
     const marketplaceName = text(input?.name);
     if (
@@ -2151,11 +2766,8 @@ export class CodexPluginService {
     }
     const cache = this.marketplaceCache(source.marketplaceUrl);
     if (!(await exists(cache))) {
-      await this.refreshMarketplace(
-        source.marketplaceUrl,
-        undefined,
-        source.marketplaceName,
-        this.isStrictGithubMarketplace(source.marketplaceUrl),
+      throw new Error(
+        "Marketplace cache unavailable. Refresh the Git marketplace or re-import the offline package before installing.",
       );
     }
     const root = await this.marketplacePluginRoot(
@@ -2455,18 +3067,20 @@ export class CodexPluginService {
     };
   }
 
-  private buildMcpConfigs(
+  private async buildMcpConfigs(
     parsed: ParsedPlugin,
     pluginDirectory: string,
-  ): McpServerConfig[] {
+  ): Promise<McpServerConfig[]> {
+    const hostAuthTrusted = await this.hostAuthTrusted(parsed);
     const mcpServers = parsed.mcpServers.flatMap((server) => {
       if (!server.importable || server.transport === "unsupported") return [];
+      if (server.hostAuth && !hostAuthTrusted) return [];
       const id = mcpConfigId(parsed.id, server.name);
       if (server.transport === "stdio") {
-        const command = pluginRootSubstitution(
-          server.command!,
-          pluginDirectory,
-        );
+        const usesArtemisNode = server.command === "${ARTEMIS_NODE}";
+        const command = usesArtemisNode
+          ? process.execPath
+          : pluginRootSubstitution(server.command!, pluginDirectory);
         const args = (server.args ?? []).map((argument) =>
           pluginRootSubstitution(argument, pluginDirectory),
         );
@@ -2478,10 +3092,11 @@ export class CodexPluginService {
             enabled: false,
             command,
             args,
-            env: {},
+            env: usesArtemisNode ? { ELECTRON_RUN_AS_NODE: "1" } : {},
             envVars: server.envVars ?? [],
             workspacePath: join(this.options.mcpWorkspaceRoot, id),
             allowNetwork: true,
+            ...(server.hostAuth ? { hostAuth: server.hostAuth } : {}),
           }),
         ];
       }
@@ -2519,17 +3134,45 @@ export class CodexPluginService {
     return [...mcpServers, ...connectors];
   }
 
+  private async hostAuthTrusted(parsed: ParsedPlugin): Promise<boolean> {
+    if (!parsed.mcpServers.some((server) => server.hostAuth)) return true;
+    if (parsed.source.kind !== "git" || !parsed.contentHash) return false;
+    const url = normalizeMarketplaceUrl(parsed.source.marketplaceUrl);
+    const source = (await this.loadMarketplaceStore()).sources.find(
+      (candidate) => candidate.url === url,
+    );
+    if (!source?.signingKeyFingerprint) return false;
+    const cache = this.marketplaceCache(url);
+    const integrity = await verifyMarketplaceIntegrity(
+      cache,
+      await this.marketplaceFile(cache),
+    );
+    return (
+      integrity?.signingKeyFingerprint === source.signingKeyFingerprint &&
+      integrity.pluginHashes.get(parsed.source.pluginName) ===
+        parsed.contentHash
+    );
+  }
+
   private mergeMcpUserSettings(
     next: McpServerConfig,
     current: McpServerConfig | undefined,
   ): McpServerConfig {
     if (!current || current.transport !== next.transport) return next;
     if (next.transport === "stdio" && current.transport === "stdio") {
+      const scopesExpanded = Boolean(
+        next.hostAuth &&
+        (!current.hostAuth ||
+          next.hostAuth.grant !== current.hostAuth.grant ||
+          next.hostAuth.scopes.some(
+            (scope) => !current.hostAuth?.scopes.includes(scope),
+          )),
+      );
       return {
         ...next,
-        enabled: current.enabled,
-        env: structuredClone(current.env),
-        envVars: [...current.envVars],
+        enabled: scopesExpanded ? false : current.enabled,
+        env: structuredClone(next.hostAuth ? next.env : current.env),
+        envVars: [...(next.hostAuth ? next.envVars : current.envVars)],
       };
     }
     if (
@@ -2565,7 +3208,7 @@ export class CodexPluginService {
       parsed,
       pluginDirectory,
       skills,
-      mcpConfigs: this.buildMcpConfigs(parsed, pluginDirectory),
+      mcpConfigs: await this.buildMcpConfigs(parsed, pluginDirectory),
     };
   }
 

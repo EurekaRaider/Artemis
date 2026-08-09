@@ -15,11 +15,21 @@ describe("approval modes", () => {
     }
   });
 
-  it("does not ask per call after a local MCP server is enabled", () => {
+  it("auto-approves reads and reversible MCP writes", () => {
     for (const policy of ["ask", "agent", "custom", "full-access"] as const) {
       for (const operation of [
-        { kind: "mcp.call", readOnly: true, network: false },
-        { kind: "mcp.call", readOnly: false, network: true },
+        {
+          kind: "mcp.call",
+          readOnly: true,
+          destructive: false,
+          network: false,
+        },
+        {
+          kind: "mcp.call",
+          readOnly: false,
+          destructive: false,
+          network: true,
+        },
       ] as const) {
         for (const nativeSandboxAvailable of [false, true]) {
           expect(
@@ -27,6 +37,23 @@ describe("approval modes", () => {
           ).toBe(true);
         }
       }
+    }
+  });
+
+  it("always asks for destructive MCP operations", () => {
+    for (const policy of ["ask", "agent", "custom", "full-access"] as const) {
+      expect(
+        shouldAutoApprove(
+          policy,
+          {
+            kind: "mcp.call",
+            readOnly: false,
+            destructive: true,
+            network: true,
+          },
+          true,
+        ),
+      ).toBe(false);
     }
   });
 

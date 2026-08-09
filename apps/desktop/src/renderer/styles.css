@@ -8632,6 +8632,10 @@ summary:focus-visible {
   background: var(--hover);
 }
 
+.resource-add-plugin-card button.danger {
+  color: var(--danger);
+}
+
 .resource-add-plugin-card button svg {
   height: 17px;
   width: 17px;

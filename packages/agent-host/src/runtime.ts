@@ -2694,6 +2694,7 @@ export class ArtemisAgentHost {
               arguments: parameters as Record<string, unknown>,
               ...(actorAgentId ? { actorAgentId } : {}),
               readOnly: tool.readOnly,
+              destructive: tool.destructive,
               mode: hosted.currentMode ?? "plan",
             });
             if (!result.approved) {

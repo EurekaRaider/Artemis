@@ -3,7 +3,12 @@ import type { ApprovalPolicy } from "@artemis/protocol";
 export type ApprovalOperation =
   | { kind: "workspace.write"; modelApproved: boolean }
   | { kind: "shell.execute"; modelApproved: boolean }
-  | { kind: "mcp.call"; readOnly: boolean; network: boolean }
+  | {
+      kind: "mcp.call";
+      readOnly: boolean;
+      destructive: boolean;
+      network: boolean;
+    }
   | {
       kind: "extension.call";
       allowNetwork: boolean;
@@ -16,7 +21,7 @@ export function shouldAutoApprove(
   fullAccessAvailable: boolean,
 ): boolean {
   if (operation.kind === "mcp.call") {
-    return true;
+    return !operation.destructive;
   }
   if (policy === "full-access") {
     return fullAccessAvailable;

@@ -377,6 +377,23 @@ export interface TrustedExtensionStatus {
 export interface McpResourceMetadata {
   resourceKind?: "mcp" | "connector";
   connectorId?: string;
+  hostAuth?: GoogleMcpHostAuth;
+}
+
+export interface GoogleMcpHostAuth {
+  provider: "google";
+  grant: "google-workspace" | "gmail";
+  scopes: string[];
+}
+
+export type GoogleGrantId = "google-workspace" | "gmail";
+
+export interface GoogleAccountStatus {
+  encryptionAvailable: boolean;
+  clientConfigured: boolean;
+  connected: boolean;
+  email?: string;
+  grants: Record<GoogleGrantId, { authorized: boolean; scopes: string[] }>;
 }
 
 export type McpServerConfig = (
@@ -528,8 +545,25 @@ export interface CodexPluginMarketplaceSource {
   repository: string;
   builtIn: boolean;
   removable: boolean;
+  offline: boolean;
+  refreshable: boolean;
   order: number;
   addedAt?: string;
+  signingKeyFingerprint?: string;
+}
+
+export interface CodexPluginMarketplaceTrustPreview {
+  url: string;
+  repository: string;
+  marketplaceName: string;
+  displayName: string;
+  signed: boolean;
+  signingKeyFingerprint?: string;
+}
+
+export interface CodexPluginOfflineMarketplacePreview {
+  path: string;
+  trust: CodexPluginMarketplaceTrustPreview;
 }
 
 export interface CodexPluginMarketplaceEntry {
@@ -768,7 +802,23 @@ export interface ArtemisApi {
   addCodexPluginMarketplace(
     url: string,
     operationId: string,
+    signingKeyFingerprint?: string,
   ): Promise<CodexPluginMarketplaceState>;
+  inspectCodexPluginMarketplaceTrust(
+    url: string,
+  ): Promise<CodexPluginMarketplaceTrustPreview>;
+  inspectOfflineCodexPluginMarketplace(): Promise<
+    CodexPluginOfflineMarketplacePreview | undefined
+  >;
+  addOfflineCodexPluginMarketplace(
+    path: string,
+    operationId: string,
+    signingKeyFingerprint: string,
+  ): Promise<CodexPluginMarketplaceState>;
+  getGoogleAccountStatus(): Promise<GoogleAccountStatus>;
+  authorizeGoogleGrant(grant: GoogleGrantId): Promise<GoogleAccountStatus>;
+  disconnectGoogleGrant(grant: GoogleGrantId): Promise<GoogleAccountStatus>;
+  disconnectGoogleAccount(): Promise<GoogleAccountStatus>;
   selectCodexPluginMarketplace(
     sourceId: string,
   ): Promise<CodexPluginMarketplaceState>;
@@ -926,6 +976,15 @@ export const IPC = {
   resourcePluginMarketplaceLoad: "artemis:resource-plugin-marketplace-load",
   resourcePluginMarketplaceList: "artemis:resource-plugin-marketplace-list",
   resourcePluginMarketplaceAdd: "artemis:resource-plugin-marketplace-add",
+  resourcePluginMarketplaceTrust: "artemis:resource-plugin-marketplace-trust",
+  resourcePluginMarketplaceInspectOffline:
+    "artemis:resource-plugin-marketplace-inspect-offline",
+  resourcePluginMarketplaceAddOffline:
+    "artemis:resource-plugin-marketplace-add-offline",
+  googleAccountStatus: "artemis:google-account-status",
+  googleAccountAuthorizeGrant: "artemis:google-account-authorize-grant",
+  googleAccountDisconnectGrant: "artemis:google-account-disconnect-grant",
+  googleAccountDisconnect: "artemis:google-account-disconnect",
   resourcePluginMarketplaceSelect: "artemis:resource-plugin-marketplace-select",
   resourcePluginMarketplaceRefresh:
     "artemis:resource-plugin-marketplace-refresh",

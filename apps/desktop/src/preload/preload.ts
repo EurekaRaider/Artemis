@@ -196,8 +196,35 @@ const api: ArtemisApi = {
     ),
   getCodexPluginMarketplaces: (sourceId) =>
     ipcRenderer.invoke(IPC.resourcePluginMarketplaceList, sourceId),
-  addCodexPluginMarketplace: (url, operationId) =>
-    ipcRenderer.invoke(IPC.resourcePluginMarketplaceAdd, url, operationId),
+  addCodexPluginMarketplace: (url, operationId, signingKeyFingerprint) =>
+    ipcRenderer.invoke(
+      IPC.resourcePluginMarketplaceAdd,
+      url,
+      operationId,
+      signingKeyFingerprint,
+    ),
+  inspectCodexPluginMarketplaceTrust: (url) =>
+    ipcRenderer.invoke(IPC.resourcePluginMarketplaceTrust, url),
+  inspectOfflineCodexPluginMarketplace: () =>
+    ipcRenderer.invoke(IPC.resourcePluginMarketplaceInspectOffline),
+  addOfflineCodexPluginMarketplace: (
+    path,
+    operationId,
+    signingKeyFingerprint,
+  ) =>
+    ipcRenderer.invoke(
+      IPC.resourcePluginMarketplaceAddOffline,
+      path,
+      operationId,
+      signingKeyFingerprint,
+    ),
+  getGoogleAccountStatus: () => ipcRenderer.invoke(IPC.googleAccountStatus),
+  authorizeGoogleGrant: (grant) =>
+    ipcRenderer.invoke(IPC.googleAccountAuthorizeGrant, grant),
+  disconnectGoogleGrant: (grant) =>
+    ipcRenderer.invoke(IPC.googleAccountDisconnectGrant, grant),
+  disconnectGoogleAccount: () =>
+    ipcRenderer.invoke(IPC.googleAccountDisconnect),
   selectCodexPluginMarketplace: (sourceId) =>
     ipcRenderer.invoke(IPC.resourcePluginMarketplaceSelect, sourceId),
   refreshCodexPluginMarketplace: (sourceId, operationId) =>

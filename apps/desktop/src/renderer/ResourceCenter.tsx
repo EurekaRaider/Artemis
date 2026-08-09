@@ -14,6 +14,8 @@ import type {
   CodexPluginMarketplaceState,
   CodexPluginMutationResult,
   CodexPluginPreview,
+  GoogleAccountStatus,
+  GoogleGrantId,
   InstalledCodexPlugin,
   InstalledSkill,
   McpCatalogItem,
@@ -55,6 +57,21 @@ function pluginPageText(value: string): string {
     .replace(/\b(?:OpenAI\s+Codex|OpenAI|Codex|ChatGPT)\b/giu, "Artemis")
     .replace(/\s{2,}/gu, " ")
     .trim();
+}
+
+function googleAuthorizationErrorText(
+  error: unknown,
+  locale: AppLocale,
+): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (
+    message.includes("Google did not grant all scopes required by this plugin.")
+  ) {
+    return locale.startsWith("zh")
+      ? "Google 未授予此插件所需的全部权限。请在授权页面允许所有请求的权限后重试。"
+      : "Google did not grant all permissions required by this plugin. Allow every requested permission and try again.";
+  }
+  return message;
 }
 
 async function loadInstalledSkills(): Promise<InstalledSkill[]> {
@@ -102,7 +119,7 @@ const labels = {
     add: "Add",
     addPlugin: "Add plugin",
     addPluginDescription:
-      "Install a plugin marketplace, a local plugin bundle, or a trusted executable extension.",
+      "Install a Git or offline marketplace, a local plugin bundle, or a trusted executable extension.",
     backToPlugins: "Back to plugins",
     localPlugin: "Local plugin bundle",
     executableExtension: "Executable extension",
@@ -123,6 +140,11 @@ const labels = {
     searchSkills: "Search Agent Skills",
     gitMarketplace: "Git marketplace",
     gitMarketplaceHint: "Public GitHub owner/repository or HTTPS URL",
+    offlineMarketplace: "Offline marketplace package",
+    offlineMarketplaceHint:
+      "Import a signed .tar.gz/.tgz package downloaded from GitHub, or its extracted directory. Artemis copies it into its cache and does not access the network.",
+    importOfflineMarketplace: "Import offline marketplace",
+    offline: "Offline",
     loadMarketplace: "Load marketplace",
     openOfficialMarketplace: "Public marketplace",
     publicMarketplace: "Public plugin marketplace",
@@ -219,7 +241,8 @@ const labels = {
     refresh: "刷新当前插件市场",
     add: "添加",
     addPlugin: "添加插件",
-    addPluginDescription: "安装插件市场、本地插件包，或受信任的可执行扩展。",
+    addPluginDescription:
+      "安装 Git 或脱机插件市场、本地插件包，或受信任的可执行扩展。",
     backToPlugins: "返回插件",
     localPlugin: "本地插件包",
     executableExtension: "可执行扩展",
@@ -240,6 +263,11 @@ const labels = {
     searchSkills: "搜索 Agent Skills",
     gitMarketplace: "Git marketplace",
     gitMarketplaceHint: "公开 GitHub owner/repository 或 HTTPS 地址",
+    offlineMarketplace: "脱机插件商店包",
+    offlineMarketplaceHint:
+      "导入从 GitHub 下载的签名 .tar.gz/.tgz 离线包或已解压目录。Artemis 会复制到自身缓存，全程不访问网络。",
+    importOfflineMarketplace: "导入脱机商店",
+    offline: "脱机",
     loadMarketplace: "载入市场",
     openOfficialMarketplace: "公开插件市场",
     publicMarketplace: "公开插件市场",
@@ -467,7 +495,7 @@ export function ResourceCenter({
   onSettingsChange,
 }: ResourceCenterProps) {
   const [mode, setMode] = useState<
-    "marketplace" | "manage" | "add-plugin" | "mcp-editor"
+    "marketplace" | "manage" | "add-plugin" | "mcp-editor" | "google-account"
   >("marketplace");
   const [managementTab, setManagementTab] = useState<ManagementTab>("plugins");
   const [marketplaceQuery, setMarketplaceQuery] = useState("");
@@ -504,6 +532,7 @@ export function ResourceCenter({
   const [busyId, setBusyId] = useState<string>();
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string>();
+  const [googleAccount, setGoogleAccount] = useState<GoogleAccountStatus>();
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   const t = localizedCopy(locale, "resources", labels[legacyLocale(locale)]);
 
@@ -640,6 +669,7 @@ export function ResourceCenter({
       !sourceId ||
       sourceId === "local" ||
       source?.builtIn ||
+      source?.refreshable === false ||
       searching ||
       installProgress
     ) {
@@ -694,10 +724,23 @@ export function ResourceCenter({
     setSearching(true);
     setMessage(undefined);
     try {
+      const trust = await window.artemis.inspectCodexPluginMarketplaceTrust(
+        sourceInput.trim(),
+      );
+      const chinese = locale.startsWith("zh");
+      const trustMessage = trust.signed
+        ? chinese
+          ? `确认添加外部商店 ${trust.repository}\n\nEd25519 密钥指纹：\n${trust.signingKeyFingerprint}\n\n后续刷新将固定使用此密钥。`
+          : `Add external marketplace ${trust.repository}?\n\nEd25519 key fingerprint:\n${trust.signingKeyFingerprint}\n\nFuture refreshes will require this same key.`
+        : chinese
+          ? `确认添加未签名商店 ${trust.repository}？未签名插件不能使用 Artemis 宿主凭据。`
+          : `Add unsigned marketplace ${trust.repository}? Unsigned plugins cannot use Artemis host credentials.`;
+      if (!(await onConfirm(trustMessage))) return;
       applyMarketplaceState(
         await window.artemis.addCodexPluginMarketplace(
           sourceInput.trim(),
           operationId,
+          trust.signingKeyFingerprint,
         ),
       );
       setSourceInput("");
@@ -707,6 +750,99 @@ export function ResourceCenter({
     } finally {
       setSearching(false);
       setInstallProgress(undefined);
+    }
+  }
+
+  async function importOfflineMarketplace(): Promise<void> {
+    if (searching || installProgress) return;
+    setSearching(true);
+    setMessage(undefined);
+    try {
+      const inspected =
+        await window.artemis.inspectOfflineCodexPluginMarketplace();
+      if (!inspected) return;
+      const { trust } = inspected;
+      const chinese = locale.startsWith("zh");
+      const trustMessage = chinese
+        ? `确认导入脱机商店 ${trust.repository}？\n\nEd25519 密钥指纹：\n${trust.signingKeyFingerprint}\n\n商店将复制到 Artemis 缓存；浏览和安装不会访问网络。再次导入同一商店会原子替换其缓存。`
+        : `Import offline marketplace ${trust.repository}?\n\nEd25519 key fingerprint:\n${trust.signingKeyFingerprint}\n\nThe marketplace will be copied into the Artemis cache. Browsing and installation will not access the network. Re-importing the same marketplace atomically replaces its cache.`;
+      if (!(await onConfirm(trustMessage))) return;
+      const operationId = beginInstallation("plugin", trust.displayName);
+      applyMarketplaceState(
+        await window.artemis.addOfflineCodexPluginMarketplace(
+          inspected.path,
+          operationId,
+          trust.signingKeyFingerprint ?? "",
+        ),
+      );
+      setMode("marketplace");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSearching(false);
+      setInstallProgress(undefined);
+    }
+  }
+
+  async function openGoogleAccount(): Promise<void> {
+    setMode("google-account");
+    setMessage(undefined);
+    try {
+      const status = await window.artemis.getGoogleAccountStatus();
+      setGoogleAccount(status);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function authorizeGoogleGrant(grant: GoogleGrantId): Promise<void> {
+    if (googleAccount?.clientConfigured === false) {
+      setMessage(
+        locale.startsWith("zh")
+          ? "此版本的 Artemis 未包含应用级 Google OAuth 客户端，请联系 Artemis 发布者。"
+          : "This Artemis build does not include its application-level Google OAuth client. Contact the Artemis publisher.",
+      );
+      return;
+    }
+    setBusyId(`google:${grant}`);
+    setMessage(undefined);
+    try {
+      setGoogleAccount(await window.artemis.authorizeGoogleGrant(grant));
+    } catch (error) {
+      setMessage(googleAuthorizationErrorText(error, locale));
+    } finally {
+      setBusyId(undefined);
+    }
+  }
+
+  async function disconnectGoogleGrant(grant: GoogleGrantId): Promise<void> {
+    if (!(await onConfirm(`Disconnect the ${grant} Google grant?`, "danger")))
+      return;
+    setBusyId(`google:${grant}`);
+    try {
+      setGoogleAccount(await window.artemis.disconnectGoogleGrant(grant));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusyId(undefined);
+    }
+  }
+
+  async function disconnectGoogleAccount(): Promise<void> {
+    if (
+      !(await onConfirm(
+        "Disconnect the Google account and revoke all grants?",
+        "danger",
+      ))
+    )
+      return;
+    setBusyId("google-disconnect");
+    try {
+      setGoogleAccount(await window.artemis.disconnectGoogleAccount());
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusyId(undefined);
     }
   }
 
@@ -1340,12 +1476,13 @@ export function ResourceCenter({
       duplicate > 1
         ? `${source.displayName} · ${source.repository}`
         : source.displayName;
+    const mode = source.offline ? `${base} · ${t.offline}` : base;
     const stale =
       marketplaceBySourceId.has(source.id) &&
       (marketplaceState?.errors ?? []).some(
         (error) => error.sourceId === source.id,
       );
-    return stale ? `${base} · ${t.marketplaceStale}` : base;
+    return stale ? `${mode} · ${t.marketplaceStale}` : mode;
   }
 
   function marketplaceSourceForPlugin(
@@ -1427,6 +1564,11 @@ export function ResourceCenter({
   }
 
   const selectedMarketplaceView = marketplaceState?.selectedView ?? "bundled";
+  const selectedMarketplaceSource = marketplaceSourceById.get(
+    selectedMarketplaceView,
+  );
+  const isArtemisPluginShop =
+    selectedMarketplaceSource?.marketplaceName === "artemis-plugin-shop";
   const marketplaceFilter = marketplaceQuery.trim().toLowerCase();
   const matchingMarketplacePlugins = (plugins: CodexPluginPreview[]) =>
     plugins
@@ -1787,6 +1929,21 @@ export function ResourceCenter({
             </form>
           </article>
 
+          <article className="resource-add-plugin-card">
+            <div>
+              <strong>{t.offlineMarketplace}</strong>
+              <small>{t.offlineMarketplaceHint}</small>
+            </div>
+            <button
+              disabled={searching || installProgress !== undefined}
+              onClick={() => void importOfflineMarketplace()}
+              type="button"
+            >
+              <CatalogIcon kind="plugin" />
+              {t.importOfflineMarketplace}
+            </button>
+          </article>
+
           {(marketplaceState?.sources ?? []).some(
             (source) => !source.builtIn,
           ) && (
@@ -1908,6 +2065,93 @@ export function ResourceCenter({
     );
   }
 
+  if (mode === "google-account") {
+    const chinese = locale.startsWith("zh");
+    return (
+      <div className="library-page resource-page resource-standalone-page">
+        <header className="resource-page-header resource-management-header">
+          <button
+            aria-label={t.backToMarketplace}
+            className="resource-back-button"
+            onClick={() => setMode("marketplace")}
+            type="button"
+          >
+            <BackIcon />
+          </button>
+          <div>
+            <h1>{chinese ? "Google 账号连接" : "Google account"}</h1>
+            <p>
+              {chinese
+                ? "由 Artemis 保管 OAuth 凭据；插件只在单次调用中收到短期 access token。"
+                : "Artemis holds OAuth credentials; plugins receive only a short-lived access token for one call."}
+            </p>
+          </div>
+        </header>
+
+        {renderProgressAndMessage()}
+        <section className="resource-add-plugin-options">
+          {(["google-workspace", "gmail"] as const).map((grant) => (
+            <article className="resource-add-plugin-card" key={grant}>
+              <div>
+                <strong>
+                  {grant === "gmail" ? "Gmail" : "Google Workspace"}
+                </strong>
+                <small>
+                  {googleAccount?.encryptionAvailable === false
+                    ? chinese
+                      ? "当前系统无法使用安全凭据加密，Google 插件保持禁用。"
+                      : "Secure credential encryption is unavailable; Google plugins remain disabled."
+                    : googleAccount?.grants[grant].authorized
+                      ? chinese
+                        ? "已授权"
+                        : "Authorized"
+                      : chinese
+                        ? "未授权；安装的插件会保持禁用。"
+                        : "Not authorized; the installed plugin remains disabled."}
+                </small>
+              </div>
+              {googleAccount?.grants[grant].authorized ? (
+                <button
+                  className="danger"
+                  disabled={busyId === `google:${grant}`}
+                  onClick={() => void disconnectGoogleGrant(grant)}
+                  type="button"
+                >
+                  {chinese ? "断开" : "Disconnect"}
+                </button>
+              ) : (
+                <button
+                  disabled={
+                    !googleAccount ||
+                    googleAccount.encryptionAvailable === false ||
+                    busyId === `google:${grant}`
+                  }
+                  onClick={() => void authorizeGoogleGrant(grant)}
+                  type="button"
+                >
+                  {chinese ? "浏览器授权" : "Authorize in browser"}
+                </button>
+              )}
+            </article>
+          ))}
+
+          {googleAccount?.connected && (
+            <button
+              className="resource-inline-action danger"
+              disabled={busyId === "google-disconnect"}
+              onClick={() => void disconnectGoogleAccount()}
+              type="button"
+            >
+              {chinese
+                ? "断开 Google 账号并撤销全部授权"
+                : "Disconnect Google account and revoke all grants"}
+            </button>
+          )}
+        </section>
+      </div>
+    );
+  }
+
   if (mode === "marketplace") {
     return (
       <div className="library-page resource-page resource-marketplace-page">
@@ -1923,6 +2167,8 @@ export function ResourceCenter({
               disabled={
                 selectedMarketplaceView === "local" ||
                 marketplaceSourceById.get(selectedMarketplaceView)?.builtIn ||
+                marketplaceSourceById.get(selectedMarketplaceView)
+                  ?.refreshable === false ||
                 searching ||
                 installProgress !== undefined
               }
@@ -2042,6 +2288,26 @@ export function ResourceCenter({
                   ?.repository ?? t.local)}
           </small>
         </div>
+
+        {isArtemisPluginShop && !marketplaceFilter && (
+          <section className="resource-runtime-banner resource-marketplace-account-banner">
+            <div>
+              <strong>
+                {locale.startsWith("zh")
+                  ? "Artemis Plugin Shop 专用 Google 鉴权"
+                  : "Google authentication for Artemis Plugin Shop"}
+              </strong>
+              <small>
+                {locale.startsWith("zh")
+                  ? "仅用于此商店提供的 Gmail 与 Google Workspace 插件。"
+                  : "Used only by the Gmail and Google Workspace plugins from this marketplace."}
+              </small>
+            </div>
+            <button onClick={() => void openGoogleAccount()} type="button">
+              {locale.startsWith("zh") ? "Google 账号" : "Google account"}
+            </button>
+          </section>
+        )}
 
         <p className="catalog-warning">{t.thirdParty}</p>
 

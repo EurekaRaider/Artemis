@@ -1956,6 +1956,51 @@ describe("renderer layout contract", () => {
     );
   });
 
+  it("scopes app-owned Google authorization to the Artemis Plugin Shop tab", () => {
+    expect(resourceCenterSource).toContain(
+      'selectedMarketplaceSource?.marketplaceName === "artemis-plugin-shop"',
+    );
+    expect(resourceCenterSource).toContain(
+      "{isArtemisPluginShop && !marketplaceFilter && (",
+    );
+    expect(resourceCenterSource).toContain(
+      'className="resource-runtime-banner resource-marketplace-account-banner"',
+    );
+    expect(resourceCenterSource).not.toContain("Import client JSON");
+    expect(resourceCenterSource).not.toContain("导入客户端 JSON");
+    expect(resourceCenterSource).not.toContain("importGoogleOAuthClient");
+    expect(resourceCenterSource).toContain(
+      "googleAccount?.grants[grant].authorized ? (",
+    );
+    expect(resourceCenterSource).toContain('"已授权"');
+    expect(resourceCenterSource).toContain('"Authorized"');
+    expect(resourceCenterSource).not.toContain("Workspace 本地边界");
+    expect(resourceCenterSource).not.toContain("Local Workspace boundary");
+    expect(resourceCenterSource).not.toContain("saveGoogleBoundary");
+    expect(resourceCenterSource).not.toContain("setGoogleWorkspaceBoundary");
+    expect(resourceCenterSource).toContain(
+      "此版本的 Artemis 未包含应用级 Google OAuth 客户端",
+    );
+    expect(resourceCenterSource).toContain(
+      "This Artemis build does not include its application-level Google OAuth client.",
+    );
+    expect(resourceCenterSource).toContain(
+      "Google 未授予此插件所需的全部权限。请在授权页面允许所有请求的权限后重试。",
+    );
+    expect(resourceCenterSource).toContain(
+      "Google did not grant all permissions required by this plugin. Allow every requested permission and try again.",
+    );
+    expect(mainProcessSource).toContain(
+      "await loadGoogleOAuthClient(googleOAuthClientPath())",
+    );
+    expect(apiSource).not.toContain("googleAccountImportClient");
+    expect(apiSource).not.toContain("GoogleOAuthClientImportResult");
+    expect(apiSource).not.toContain("GoogleWorkspaceBoundaryInput");
+    expect(apiSource).not.toContain("googleAccountBoundarySet");
+    expect(preloadSource).not.toContain("setGoogleWorkspaceBoundary");
+    expect(mainProcessSource).not.toContain('"com.artemis.google/config"');
+  });
+
   it("renders disconnected MCP servers with their switches off", () => {
     const mcpStart = resourceCenterSource.indexOf('managementTab === "mcp" &&');
     const mcpEnd = resourceCenterSource.indexOf(
@@ -2570,6 +2615,11 @@ describe("renderer layout contract", () => {
     expect(trustButton).toContain("onClick={() => void trustExtension()}");
     expect(resourceCenterSource).toContain('mode === "add-plugin"');
     expect(resourceCenterSource).toContain("{t.gitMarketplace}");
+    expect(resourceCenterSource).toContain("{t.offlineMarketplace}");
+    expect(resourceCenterSource).toContain(
+      "inspectOfflineCodexPluginMarketplace",
+    );
+    expect(resourceCenterSource).toContain("addOfflineCodexPluginMarketplace");
     expect(resourceCenterSource).toContain("{t.localPlugin}");
     expect(settingsSource).not.toContain("window.artemis.trustExtension");
     expect(settingsSource).not.toContain("window.artemis.retrustExtension");

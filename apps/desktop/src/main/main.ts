@@ -166,6 +166,10 @@ import { McpOAuthStore } from "./mcp-oauth-store.js";
 import { ResourceCatalogService } from "./resource-catalog.js";
 import { CodexPluginService } from "./codex-plugin-service.js";
 import {
+  GoogleAccountService,
+  loadGoogleOAuthClient,
+} from "./google-account-service.js";
+import {
   preparePackagedNodePtyRuntime,
   type PreparedNodePtyRuntime,
 } from "./node-pty-runtime.js";
@@ -220,6 +224,7 @@ import {
   type HandoffWorkspaceResult,
   type InstalledSkill,
   type InstalledCodexPlugin,
+  type GoogleGrantId,
   type McpCatalogItem,
   type QueueTurnInput,
   type McpServerConfig,
@@ -283,6 +288,7 @@ let resolvedLocalePreference: AppLocale = "en";
 let mcpConfigStore: McpConfigStore | undefined;
 let mcpClientManager: McpClientManager | undefined;
 let mcpOAuthStore: McpOAuthStore | undefined;
+let googleAccountService: GoogleAccountService | undefined;
 let resourceCatalogService: ResourceCatalogService | undefined;
 let codexPluginService: CodexPluginService | undefined;
 let trustedExtensionStore: TrustedExtensionStore | undefined;
@@ -773,6 +779,12 @@ function bundledArtifactPluginsPath(): string {
     : join(app.getAppPath(), "resources", "bundled-artifact-plugins");
 }
 
+function googleOAuthClientPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, "resources", "google-oauth-client.json")
+    : join(app.getAppPath(), "resources", "google-oauth-client.json");
+}
+
 function codexPrimaryRuntimePath(): string | undefined {
   const configured = process.env.ARTEMIS_CODEX_RUNTIME_ROOT;
   if (configured && isAbsolute(configured)) return configured;
@@ -934,6 +946,7 @@ async function connectMcpServer(
   if (!mcpClientManager) {
     throw new Error("MCP service is not ready.");
   }
+  await ensureGoogleMcpReady(config);
   const status = await mcpClientManager.connect(
     config,
     await mcpAuthentication(config),
@@ -945,6 +958,36 @@ async function connectMcpServer(
     status.state === "authorization-required"
   ) {
     await authorizeMcpServer(config);
+  }
+}
+
+async function ensureGoogleMcpReady(config: McpServerConfig): Promise<void> {
+  if (!config.hostAuth) return;
+  if (!googleAccountService || !codexPluginService) {
+    throw new Error("Google account service is not ready.");
+  }
+  await codexPluginService.assertHostAuthTrusted(config);
+  await googleAccountService.accessContext(
+    config.hostAuth.grant,
+    config.hostAuth.scopes,
+  );
+}
+
+async function disableGoogleGrantConfigs(grant?: GoogleGrantId): Promise<void> {
+  if (!mcpConfigStore || !mcpClientManager) return;
+  const before = await mcpConfigStore.list();
+  const affected = before.filter(
+    (config) => config.hostAuth && (!grant || config.hostAuth.grant === grant),
+  );
+  for (const config of affected) await mcpClientManager.disconnect(config.id);
+  if (affected.length) {
+    const ids = new Set(affected.map((config) => config.id));
+    await mcpConfigStore.replaceAll(
+      before.map((config) =>
+        ids.has(config.id) ? { ...config, enabled: false } : config,
+      ),
+    );
+    await applyAgentRuntime();
   }
 }
 
@@ -2581,7 +2624,8 @@ async function handleMcpBrokerRequest(
   if (
     !advertised ||
     advertised.transport !== request.transport ||
-    advertised.readOnly !== request.readOnly
+    advertised.readOnly !== request.readOnly ||
+    advertised.destructive !== request.destructive
   ) {
     rejectBrokerRequest(
       workerRequestId,
@@ -2595,20 +2639,47 @@ async function handleMcpBrokerRequest(
     "mcp.call",
     `${request.serverId}\0${request.toolName}`,
   );
+  const mcpConfig = (await mcpConfigStore?.list())?.find(
+    (config) => config.id === request.serverId,
+  );
+  const googleEmail = mcpConfig?.hostAuth
+    ? (await googleAccountService?.status())?.email
+    : undefined;
+  const argumentSummary = JSON.stringify(request.arguments, (key, value) =>
+    /token|secret|password|authorization/iu.test(key)
+      ? "[REDACTED]"
+      : typeof value === "string" && value.length > 160
+        ? `${value.slice(0, 160)}…`
+        : value,
+  ).slice(0, 700);
+  const approvalSummary = [
+    `Call ${request.serverName}: ${request.toolName}`,
+    googleEmail ? `Google account: ${googleEmail}` : undefined,
+    request.destructive && argumentSummary
+      ? `Target/change: ${argumentSummary}`
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const networkTargets = mcpConfig?.hostAuth
+    ? ["Google APIs"]
+    : request.transport === "streamable-http"
+      ? [request.serverName]
+      : [];
   const automationResolution = createAutomationApproval(request, {
-    summary: `Call ${request.serverName}: ${request.toolName}`,
-    network:
-      request.transport === "streamable-http" ? [request.serverName] : [],
-    risk: request.transport === "streamable-http" ? "high" : "medium",
+    summary: approvalSummary,
+    network: networkTargets,
+    risk: request.destructive ? "high" : "medium",
   });
-  if (automationResolution) {
+  if (automationResolution && !request.destructive) {
     await executeApprovedMcp(workerRequestId, request, automationResolution);
     return;
   }
   const approvalPolicy = await settingsStore?.approvalPolicy();
   const fullAccessAvailable = getPlatformContract().sandbox.available;
   const rememberedScope =
-    approvalPolicy === "agent" || approvalPolicy === "custom"
+    !request.destructive &&
+    (approvalPolicy === "agent" || approvalPolicy === "custom")
       ? store.findApprovalGrant({
           threadId: thread.id,
           projectId: project.id,
@@ -2636,6 +2707,7 @@ async function handleMcpBrokerRequest(
       {
         kind: "mcp.call",
         readOnly: request.readOnly,
+        destructive: request.destructive,
         network: request.transport === "streamable-http",
       },
       fullAccessAvailable,
@@ -2649,7 +2721,9 @@ async function handleMcpBrokerRequest(
   pendingApprovals.register({
     approvalId: request.approvalId,
     nonce,
-    allowedScopes: ["once", "session", "project"],
+    allowedScopes: request.destructive
+      ? ["once"]
+      : ["once", "session", "project"],
     value: {
       workerRequestId,
       request,
@@ -2661,12 +2735,13 @@ async function handleMcpBrokerRequest(
     type: "approval.requested",
     approvalId: request.approvalId,
     nonce,
-    summary: `Call ${request.serverName}: ${request.toolName}`,
+    summary: approvalSummary,
     paths: [],
-    network:
-      request.transport === "streamable-http" ? [request.serverName] : [],
-    risk: request.transport === "streamable-http" ? "high" : "medium",
-    allowedScopes: ["once", "session", "project"],
+    network: networkTargets,
+    risk: request.destructive ? "high" : "medium",
+    allowedScopes: request.destructive
+      ? ["once"]
+      : ["once", "session", "project"],
   });
 }
 
@@ -2957,12 +3032,31 @@ async function executeApprovedMcp(
     if (request.mode !== "execute") {
       throw new Error(`${request.mode} mode rejects MCP calls.`);
     }
+    const config = (await mcpConfigStore?.list())?.find(
+      (candidate) => candidate.id === request.serverId,
+    );
+    let privateMetadata: Record<string, unknown> | undefined;
+    if (config?.hostAuth) {
+      if (!googleAccountService || !codexPluginService) {
+        throw new Error("Google account service is not ready.");
+      }
+      await codexPluginService.assertHostAuthTrusted(config);
+      const google = await googleAccountService.accessContext(
+        config.hostAuth.grant,
+        config.hostAuth.scopes,
+      );
+      privateMetadata = {
+        "com.artemis.google/access-token": google.accessToken,
+        "com.artemis.google/account-email": google.email,
+      };
+    }
     const result = await mcpClientManager.call(
       request.serverId,
       request.toolName,
       request.arguments,
       request.workspacePath,
       request.mode,
+      privateMetadata,
     );
     agentProcess.post({
       type: "broker.resolve",
@@ -4375,6 +4469,7 @@ function registerIpc(): void {
         (server) => server.id === serverId,
       );
       if (!config) throw new Error("MCP server not found.");
+      if (enabled) await ensureGoogleMcpReady(config);
       return saveMcpConfiguration({ ...config, enabled: Boolean(enabled) });
     },
   );
@@ -4732,11 +4827,69 @@ function registerIpc(): void {
     },
   );
   ipcMain.handle(
+    IPC.resourcePluginMarketplaceTrust,
+    async (_event, urlInput: string) => {
+      if (!codexPluginService) throw new Error("Plugin service is not ready.");
+      return codexPluginService.inspectMarketplaceTrust(
+        String(urlInput ?? "").trim(),
+      );
+    },
+  );
+  ipcMain.handle(IPC.resourcePluginMarketplaceInspectOffline, async (event) => {
+    if (!codexPluginService || !mainWindow) {
+      throw new Error("Plugin service is not ready.");
+    }
+    const selection = await dialog.showOpenDialog(mainWindow, {
+      properties: ["openFile", "openDirectory"],
+      filters: [
+        { name: "Artemis offline marketplace", extensions: ["gz", "tgz"] },
+      ],
+      title: "Select an Artemis offline marketplace package or directory",
+    });
+    restoreResourceDialogFocus(event.sender);
+    const path = selection.filePaths[0];
+    if (selection.canceled || !path) return undefined;
+    return {
+      path,
+      trust: await codexPluginService.inspectOfflineMarketplace(path),
+    };
+  });
+  ipcMain.handle(
+    IPC.resourcePluginMarketplaceAddOffline,
+    async (
+      event,
+      pathInput: string,
+      operationIdInput: string,
+      signingKeyFingerprintInput: string,
+    ): Promise<CodexPluginMarketplaceState> => {
+      if (!codexPluginService) {
+        throw new Error("Plugin service is not ready.");
+      }
+      const path = String(pathInput ?? "").trim();
+      const fingerprint = String(signingKeyFingerprintInput ?? "").trim();
+      const operationId = resourceInstallOperationId(operationIdInput);
+      const resourceId = basename(path) || "offline marketplace";
+      const publish = (percent: number) =>
+        publishResourceInstallProgress(event.sender, {
+          operationId,
+          kind: "plugin",
+          resourceId,
+          percent,
+        });
+      return codexPluginService.addOfflineMarketplace(
+        path,
+        fingerprint,
+        publish,
+      );
+    },
+  );
+  ipcMain.handle(
     IPC.resourcePluginMarketplaceAdd,
     async (
       event,
       urlInput: string,
       operationIdInput: string,
+      signingKeyFingerprintInput?: string,
     ): Promise<CodexPluginMarketplaceState> => {
       if (!codexPluginService) {
         throw new Error("Plugin service is not ready.");
@@ -4751,11 +4904,58 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
-      return codexPluginService.addMarketplace(resourceId, (percent) =>
-        publish(10 + percent * 0.9),
+      const signingKeyFingerprint = String(
+        signingKeyFingerprintInput ?? "",
+      ).trim();
+      return codexPluginService.addMarketplace(
+        resourceId,
+        (percent) => publish(10 + percent * 0.9),
+        signingKeyFingerprint || undefined,
       );
     },
   );
+  ipcMain.handle(IPC.googleAccountStatus, async () => {
+    if (smokeMode && process.env.ARTEMIS_SMOKE_GOOGLE_AUTHORIZED === "1") {
+      return {
+        encryptionAvailable: true,
+        clientConfigured: true,
+        connected: true,
+        grants: {
+          "google-workspace": { authorized: true, scopes: [] },
+          gmail: { authorized: true, scopes: [] },
+        },
+      };
+    }
+    if (!googleAccountService)
+      throw new Error("Google account service is not ready.");
+    return googleAccountService.status();
+  });
+  ipcMain.handle(
+    IPC.googleAccountAuthorizeGrant,
+    async (_event, grant: GoogleGrantId) => {
+      if (!googleAccountService)
+        throw new Error("Google account service is not ready.");
+      return googleAccountService.authorize(
+        grant,
+        currentLocale().startsWith("zh") ? "zh" : "en",
+      );
+    },
+  );
+  ipcMain.handle(
+    IPC.googleAccountDisconnectGrant,
+    async (_event, grant: GoogleGrantId) => {
+      if (!googleAccountService)
+        throw new Error("Google account service is not ready.");
+      await disableGoogleGrantConfigs(grant);
+      return googleAccountService.disconnectGrant(grant);
+    },
+  );
+  ipcMain.handle(IPC.googleAccountDisconnect, async () => {
+    if (!googleAccountService)
+      throw new Error("Google account service is not ready.");
+    await disableGoogleGrantConfigs();
+    return googleAccountService.disconnectAccount();
+  });
   ipcMain.handle(
     IPC.resourcePluginMarketplaceSelect,
     async (
@@ -5043,6 +5243,13 @@ function registerIpc(): void {
       const nextMcp = previousMcp.map((config) =>
         mcpIds.has(config.id) ? { ...config, enabled: enabledInput } : config,
       );
+      if (enabledInput) {
+        for (const config of nextMcp.filter((candidate) =>
+          mcpIds.has(candidate.id),
+        )) {
+          await ensureGoogleMcpReady(config);
+        }
+      }
       await resetAgentThreadsForToolChange();
       await disconnectMcpServers(existing.mcpServerIds);
       try {
@@ -5102,6 +5309,12 @@ function registerIpc(): void {
         const after = await mcpConfigStore.list();
         await cleanupRemovedMcpAuthentication(before, after, scopedIds);
         await enableManagedPluginSkills(existing.skillNames);
+        const ownedGrant = before.find(
+          (config) => scopedIds.has(config.id) && config.hostAuth,
+        )?.hostAuth?.grant;
+        if (ownedGrant) {
+          await googleAccountService?.disconnectGrant(ownedGrant, false);
+        }
         await applyAgentRuntime();
         return codexPluginMutationResult(removed.warnings);
       } catch (error) {
@@ -6761,6 +6974,11 @@ function createMainWindow(): BrowserWindow {
                 if (view === 'add-plugin') {
                   document.querySelector('.resource-add-button')?.click();
                   await wait(500);
+                } else if (view === 'google-account') {
+                  document
+                    .querySelector('.resource-marketplace-account-banner button')
+                    ?.click();
+                  await wait(500);
                 } else if (view === 'add-mcp') {
                   document
                     .querySelector('.resource-installed-overview .resource-icon-button')
@@ -6976,6 +7194,13 @@ app
     mcpOAuthStore = new McpOAuthStore(
       join(app.getPath("userData"), "mcp-oauth.json"),
       safeStorage,
+    );
+    googleAccountService = new GoogleAccountService(
+      join(app.getPath("userData"), "google-account.json"),
+      safeStorage,
+      (url) => shell.openExternal(url),
+      (url, init) => net.fetch(url.toString(), init),
+      await loadGoogleOAuthClient(googleOAuthClientPath()),
     );
     mcpClientManager = new McpClientManager(
       process.platform,

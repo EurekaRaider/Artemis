@@ -37,7 +37,12 @@ interface McpTool {
   name: string;
   description?: string | undefined;
   inputSchema: Record<string, unknown>;
-  annotations?: { readOnlyHint?: boolean | undefined } | undefined;
+  annotations?:
+    | {
+        readOnlyHint?: boolean | undefined;
+        destructiveHint?: boolean | undefined;
+      }
+    | undefined;
 }
 
 interface McpCallResult {
@@ -50,6 +55,7 @@ export interface McpConnection {
   callTool(input: {
     name: string;
     arguments: Record<string, unknown>;
+    _meta?: Record<string, unknown>;
   }): Promise<McpCallResult>;
   close(): Promise<void>;
 }
@@ -878,6 +884,7 @@ export class McpClientManager {
                 : {
                     annotations: {
                       readOnlyHint: tool.annotations.readOnlyHint,
+                      destructiveHint: tool.annotations.destructiveHint,
                     },
                   }),
             })),
@@ -984,6 +991,7 @@ export class McpClientManager {
         description: tool.description ?? `${config.name} MCP tool`,
         inputSchema: tool.inputSchema,
         readOnly: Boolean(tool.annotations?.readOnlyHint),
+        destructive: Boolean(tool.annotations?.destructiveHint),
       }));
       this.active.set(config.id, {
         config,
@@ -1056,6 +1064,7 @@ export class McpClientManager {
     argumentsValue: Record<string, unknown>,
     workspacePath?: string,
     mode: Extract<RunMode, "execute"> = "execute",
+    privateMetadata?: Record<string, unknown>,
   ): Promise<McpToolCallResult> {
     const active = this.active.get(serverId);
     if (!active) {
@@ -1075,6 +1084,7 @@ export class McpClientManager {
       await connection.client.callTool({
         name: toolName,
         arguments: argumentsValue,
+        ...(privateMetadata ? { _meta: privateMetadata } : {}),
       }),
     );
   }
@@ -1122,6 +1132,7 @@ export class McpClientManager {
           description: tool.description ?? `${active.config.name} MCP tool`,
           inputSchema: tool.inputSchema,
           readOnly: Boolean(tool.annotations?.readOnlyHint),
+          destructive: Boolean(tool.annotations?.destructiveHint),
         }));
         return {
           config: active.config,

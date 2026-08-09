@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import type { McpServerConfig } from "../shared/api.js";
+import type { GoogleMcpHostAuth, McpServerConfig } from "../shared/api.js";
 
 export type { McpServerConfig } from "../shared/api.js";
 
@@ -29,6 +29,7 @@ function validateEnvironmentName(value: string): string {
 function validateResourceMetadata(input: McpServerConfig): {
   resourceKind?: "connector";
   connectorId?: string;
+  hostAuth?: GoogleMcpHostAuth;
 } {
   const resourceKind = (input as { resourceKind?: unknown }).resourceKind;
   if (
@@ -38,7 +39,48 @@ function validateResourceMetadata(input: McpServerConfig): {
   ) {
     throw new Error("MCP resource kind is invalid");
   }
-  if (resourceKind !== "connector") return {};
+  const rawHostAuth = (input as { hostAuth?: unknown }).hostAuth;
+  let hostAuth: GoogleMcpHostAuth | undefined;
+  if (rawHostAuth !== undefined) {
+    if (
+      !rawHostAuth ||
+      typeof rawHostAuth !== "object" ||
+      Array.isArray(rawHostAuth)
+    ) {
+      throw new Error("MCP host authentication is invalid");
+    }
+    const value = rawHostAuth as Record<string, unknown>;
+    const scopes = Array.isArray(value.scopes)
+      ? [
+          ...new Set(
+            value.scopes.filter(
+              (scope): scope is string => typeof scope === "string",
+            ),
+          ),
+        ]
+      : [];
+    if (
+      value.provider !== "google" ||
+      (value.grant !== "google-workspace" && value.grant !== "gmail") ||
+      scopes.length === 0 ||
+      scopes.length > 20 ||
+      scopes.some(
+        (scope) =>
+          !["openid", "email", "profile"].includes(scope) &&
+          !scope.startsWith("https://www.googleapis.com/auth/"),
+      )
+    ) {
+      throw new Error("MCP Google host authentication is invalid");
+    }
+    hostAuth = {
+      provider: "google",
+      grant: value.grant,
+      scopes,
+    };
+  }
+  if (resourceKind !== "connector") return hostAuth ? { hostAuth } : {};
+  if (hostAuth)
+    throw new Error("Connector resources cannot use host authentication");
   const connectorId = (input as { connectorId?: unknown }).connectorId;
   if (
     typeof connectorId !== "string" ||
@@ -92,6 +134,9 @@ export function validateMcpServerConfig(
       workspacePath: input.workspacePath.trim(),
       allowNetwork: true,
     };
+  }
+  if (input.hostAuth) {
+    throw new Error("HTTP MCP servers cannot use Artemis host authentication");
   }
   const url = new URL(input.url);
   const loopback =

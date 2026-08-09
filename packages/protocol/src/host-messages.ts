@@ -45,6 +45,7 @@ export interface McpRuntimeTool {
   description: string;
   inputSchema: Record<string, unknown>;
   readOnly: boolean;
+  destructive: boolean;
 }
 
 export type McpToolResultContent =
@@ -293,6 +294,7 @@ export type BrokerExecutionRequest =
       arguments: Record<string, unknown>;
       actorAgentId?: string;
       readOnly: boolean;
+      destructive: boolean;
       mode: RunMode;
     }
   | {

@@ -1,8 +1,16 @@
 import {
+  createHash,
+  createPublicKey,
+  generateKeyPairSync,
+  sign,
+  type KeyObject,
+} from "node:crypto";
+import {
   cp,
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
@@ -167,7 +175,304 @@ async function writeMarketplaceRepository(
   );
 }
 
+async function signMarketplaceRepository(
+  repository: string,
+  privateKey: KeyObject = generateKeyPairSync("ed25519").privateKey,
+  sourceUrl?: string,
+) {
+  const marketplacePath = join(
+    repository,
+    ".agents",
+    "plugins",
+    "marketplace.json",
+  );
+  const marketplaceBytes = await readFile(marketplacePath);
+  const marketplace = JSON.parse(marketplaceBytes.toString("utf8")) as {
+    name: string;
+    plugins: Array<{ name: string; source: { path: string } }>;
+  };
+  const plugins = [];
+  for (const entry of marketplace.plugins) {
+    const pluginRoot = join(repository, entry.source.path);
+    const files: Array<{ path: string; size: number; sha256: string }> = [];
+    const visit = async (directory: string, relativeRoot = "") => {
+      for (const child of await readdir(directory, { withFileTypes: true })) {
+        const relativePath = relativeRoot
+          ? `${relativeRoot}/${child.name}`
+          : child.name;
+        const path = join(directory, child.name);
+        if (child.isDirectory()) await visit(path, relativePath);
+        else {
+          const contents = await readFile(path);
+          files.push({
+            path: relativePath,
+            size: contents.byteLength,
+            sha256: createHash("sha256").update(contents).digest("hex"),
+          });
+        }
+      }
+    };
+    await visit(pluginRoot);
+    files.sort((left, right) => left.path.localeCompare(right.path, "en"));
+    const digest = createHash("sha256");
+    for (const file of files) {
+      digest.update(file.path).update("\0").update(file.sha256).update("\0");
+    }
+    const manifest = JSON.parse(
+      await readFile(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
+    ) as { version: string };
+    plugins.push({
+      name: entry.name,
+      version: manifest.version,
+      contentHash: digest.digest("hex"),
+      size: files.reduce((sum, file) => sum + file.size, 0),
+      files,
+    });
+  }
+  const publicDer = createPublicKey(privateKey).export({
+    format: "der",
+    type: "spki",
+  });
+  const fingerprint = createHash("sha256").update(publicDer).digest("hex");
+  const unsigned = {
+    schemaVersion: 1,
+    marketplaceName: marketplace.name,
+    marketplaceHash: createHash("sha256")
+      .update(marketplaceBytes)
+      .digest("hex"),
+    signatureAlgorithm: "Ed25519",
+    publicKey: publicDer.toString("base64"),
+    signingKeyFingerprint: fingerprint,
+    signedAt: "2026-08-09T00:00:00.000Z",
+    ...(sourceUrl ? { sourceUrl } : {}),
+    plugins,
+  };
+  const canonical = JSON.stringify(stableObject(unsigned));
+  await mkdir(join(repository, ".artemis"), { recursive: true });
+  await writeFile(
+    join(repository, ".artemis", "integrity.json"),
+    `${JSON.stringify({
+      ...unsigned,
+      signature: sign(null, Buffer.from(canonical), privateKey).toString(
+        "base64",
+      ),
+    })}\n`,
+  );
+  return { privateKey, fingerprint };
+}
+
+function stableObject(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableObject);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => [key, stableObject(child)]),
+  );
+}
+
 describe("CodexPluginService", () => {
+  it("pins signed marketplace trust and gates Artemis-hosted Google auth", async () => {
+    const root = await temporaryRoot();
+    const repository = join(root, "repository");
+    await writeMarketplaceRepository(repository, {
+      name: "signed-tools",
+      displayName: "Signed Tools",
+    });
+    await writeFile(
+      join(repository, "plugins", "demo-tools", ".mcp.json"),
+      `${JSON.stringify({
+        mcpServers: {
+          google: {
+            type: "stdio",
+            command: "${ARTEMIS_NODE}",
+            args: ["${PLUGIN_ROOT}/mcp/server.mjs"],
+            "x-artemis": {
+              auth: {
+                provider: "google",
+                grant: "gmail",
+                scopes: [
+                  "openid",
+                  "email",
+                  "profile",
+                  "https://www.googleapis.com/auth/gmail.modify",
+                ],
+              },
+            },
+          },
+        },
+      })}\n`,
+    );
+    const firstKey = await signMarketplaceRepository(repository);
+    const cloneRepository = async (_url: string, destination: string) =>
+      cp(repository, destination, { recursive: true });
+    const { service, mcpStore } = createService(root, { cloneRepository });
+
+    const trust = await service.inspectMarketplaceTrust("acme/signed-tools");
+    expect(trust).toMatchObject({
+      repository: "acme/signed-tools",
+      signed: true,
+      signingKeyFingerprint: firstKey.fingerprint,
+    });
+    const state = await service.addMarketplace(
+      "acme/signed-tools",
+      undefined,
+      firstKey.fingerprint,
+    );
+    expect(state.sources.find((source) => !source.builtIn)).toMatchObject({
+      signingKeyFingerprint: firstKey.fingerprint,
+    });
+    const plugin = state.marketplaces[0]!.marketplace.plugins[0]!;
+    await service.install(plugin.source);
+    const config = (await mcpStore.list()).find((candidate) =>
+      candidate.id.includes("google"),
+    );
+    expect(config).toMatchObject({
+      transport: "stdio",
+      command: process.execPath,
+      enabled: false,
+      env: { ELECTRON_RUN_AS_NODE: "1" },
+      hostAuth: { provider: "google", grant: "gmail" },
+    });
+    await expect(
+      service.assertHostAuthTrusted(config!),
+    ).resolves.toBeUndefined();
+    await expect(
+      service.assertHostAuthTrusted({
+        ...config!,
+        env: {
+          ...(config!.transport === "stdio" ? config!.env : {}),
+          NODE_OPTIONS: "--require=/tmp/untrusted.cjs",
+        },
+      } as McpServerConfig),
+    ).rejects.toThrow(/not owned by a trusted signed plugin/);
+
+    await mcpStore.upsert({ ...config!, enabled: true });
+    const mcpPath = join(repository, "plugins", "demo-tools", ".mcp.json");
+    const expandedMcp = JSON.parse(await readFile(mcpPath, "utf8")) as {
+      mcpServers: { google: { "x-artemis": { auth: { scopes: string[] } } } };
+    };
+    expandedMcp.mcpServers.google["x-artemis"].auth.scopes.push(
+      "https://www.googleapis.com/auth/calendar.readonly",
+    );
+    await writeFile(mcpPath, `${JSON.stringify(expandedMcp)}\n`);
+    await signMarketplaceRepository(repository, firstKey.privateKey);
+    await service.update(plugin.id);
+    expect(
+      (await mcpStore.list()).find((candidate) => candidate.id === config!.id),
+    ).toMatchObject({ enabled: false });
+
+    const secondKey = await signMarketplaceRepository(repository);
+    expect(secondKey.fingerprint).not.toBe(firstKey.fingerprint);
+    const source = state.sources.find((candidate) => !candidate.builtIn)!;
+    await expect(service.refreshMarketplaceSource(source.id)).rejects.toThrow(
+      /signing key changed/,
+    );
+    const preserved = await service.listMarketplaces(source.id);
+    expect(preserved.marketplaces[0]?.marketplace.plugins).toHaveLength(1);
+  });
+
+  it("imports a signed offline marketplace archive and installs only from its cache", async () => {
+    const root = await temporaryRoot();
+    const repository = join(root, "offline-repository");
+    const packageRoot = join(root, "offline-package");
+    const archivePath = join(root, "ArtemisPluginShop-offline.tgz");
+    const sourceUrl = "https://github.com/acme/offline-tools.git";
+    await writeMarketplaceRepository(repository, {
+      name: "offline-tools",
+      displayName: "Offline Tools",
+    });
+    const signed = await signMarketplaceRepository(
+      repository,
+      undefined,
+      sourceUrl,
+    );
+    await cp(repository, packageRoot, { recursive: true });
+    await createTar({ cwd: root, file: archivePath, gzip: true }, [
+      "offline-package",
+    ]);
+    let clones = 0;
+    const createOfflineService = () =>
+      createService(root, {
+        cloneRepository: async () => {
+          clones += 1;
+          throw new Error("offline marketplace must not access GitHub");
+        },
+      }).service;
+    const service = createOfflineService();
+
+    const trust = await service.inspectOfflineMarketplace(archivePath);
+    expect(trust).toMatchObject({
+      url: sourceUrl,
+      repository: "acme/offline-tools",
+      signed: true,
+      signingKeyFingerprint: signed.fingerprint,
+    });
+    const imported = await service.addOfflineMarketplace(
+      archivePath,
+      signed.fingerprint,
+    );
+    const source = imported.sources.find((candidate) => !candidate.builtIn)!;
+    expect(source).toMatchObject({
+      repository: "acme/offline-tools",
+      offline: true,
+      refreshable: false,
+    });
+    expect(clones).toBe(0);
+    await rm(repository, { recursive: true, force: true });
+    await rm(packageRoot, { recursive: true, force: true });
+    await rm(archivePath, { force: true });
+
+    const cached = await service.listMarketplaces(source.id);
+    const plugin = cached.marketplaces[0]!.marketplace.plugins[0]!;
+    const installed = await service.install(plugin.source);
+    expect(installed.plugin.source).toMatchObject({
+      kind: "git",
+      marketplaceUrl: sourceUrl,
+    });
+    await expect(service.update(plugin.id)).resolves.toMatchObject({
+      plugin: { id: plugin.id },
+    });
+    await expect(service.refreshMarketplaceSource(source.id)).rejects.toThrow(
+      /cannot be refreshed from the network/,
+    );
+    expect(clones).toBe(0);
+
+    const reloaded = createOfflineService();
+    expect(
+      (await reloaded.listMarketplaces(source.id)).marketplaces[0]?.marketplace
+        .plugins,
+    ).toHaveLength(1);
+    expect(await reloaded.listInstalled()).toHaveLength(1);
+    expect(clones).toBe(0);
+    expect(
+      await readFile(
+        join(root, "user-data", "codex-plugin-marketplaces.json"),
+        "utf8",
+      ),
+    ).not.toContain(archivePath);
+  });
+
+  it("rejects unsigned extra files in an offline marketplace package", async () => {
+    const root = await temporaryRoot();
+    const repository = join(root, "offline-extra-file");
+    await writeMarketplaceRepository(repository, {
+      name: "offline-extra-file",
+      displayName: "Offline Extra File",
+    });
+    await signMarketplaceRepository(
+      repository,
+      undefined,
+      "https://github.com/acme/offline-extra-file.git",
+    );
+    await writeFile(join(repository, ".artemis", "signing-key.pem"), "secret");
+    const { service } = createService(root);
+
+    await expect(service.inspectOfflineMarketplace(repository)).rejects.toThrow(
+      /unsigned file: \.artemis\/signing-key\.pem/,
+    );
+  });
+
   it("starts with bundled plugins only and requires external marketplaces to be added", async () => {
     const root = await temporaryRoot();
     const cloneRepository = async () => {

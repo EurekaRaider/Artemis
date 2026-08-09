@@ -18,5 +18,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+apps/desktop/resources/google-oauth-client.json
 /smoke-*.png
 /MGSuite-slides-read-bug-report.md
