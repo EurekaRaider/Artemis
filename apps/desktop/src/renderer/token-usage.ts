@@ -1,6 +1,9 @@
-import type { AgentEvent } from "@artemis/protocol";
+import type { AgentEvent, AppLocale } from "@artemis/protocol";
 
-export type TokenUsageLocale = "en" | "zh-CN";
+import { localizedCopy } from "../shared/i18n-resources.js";
+import { legacyLocale } from "../shared/locales.js";
+
+export type TokenUsageLocale = AppLocale;
 export type TokenUsageView = "daily" | "weekly" | "cumulative";
 
 export interface TokenUsageCell {
@@ -69,6 +72,19 @@ export const TOKEN_USAGE_COPY = {
     loading: "正在加载用量…",
     empty: "下一次模型回复后，这里会显示 Token 用量。",
     error: "历史用量暂时无法加载，实时用量仍会继续记录。",
+  },
+} as const;
+
+const TOKEN_USAGE_TOOLTIP_COPY = {
+  en: {
+    daily: "{{date}} used {{value}} Tokens",
+    weekly: "Week containing {{date}} used {{value}} Tokens",
+    cumulative: "Through {{date}}, {{value}} Tokens used",
+  },
+  "zh-CN": {
+    daily: "{{date}}使用了 {{value}} 个 Token",
+    weekly: "{{date}}当周使用了 {{value}} 个 Token",
+    cumulative: "截至{{date}}累计使用 {{value}} 个 Token",
   },
 } as const;
 
@@ -186,22 +202,10 @@ export function formatTokenUsageTooltip(
   const value = new Intl.NumberFormat(locale).format(
     tokenUsageValue(cell, view),
   );
-  if (locale === "zh-CN") {
-    switch (view) {
-      case "daily":
-        return `${date}使用了 ${value} 个 Token`;
-      case "weekly":
-        return `${date}当周使用了 ${value} 个 Token`;
-      case "cumulative":
-        return `截至${date}累计使用 ${value} 个 Token`;
-    }
-  }
-  switch (view) {
-    case "daily":
-      return `${date} used ${value} Tokens`;
-    case "weekly":
-      return `Week containing ${date} used ${value} Tokens`;
-    case "cumulative":
-      return `Through ${date}, ${value} Tokens used`;
-  }
+  const template = localizedCopy(
+    locale,
+    "usage",
+    TOKEN_USAGE_TOOLTIP_COPY[legacyLocale(locale)],
+  )[view];
+  return template.replace("{{date}}", date).replace("{{value}}", value);
 }

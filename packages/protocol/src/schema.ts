@@ -13,7 +13,30 @@ export const approvalPolicySchema = z.enum([
 ]);
 export type ApprovalPolicy = z.infer<typeof approvalPolicySchema>;
 
-export const appLanguageSchema = z.enum(["system", "en", "zh-CN"]);
+export const APP_LOCALES = [
+  "en",
+  "zh-CN",
+  "zh-TW",
+  "ja",
+  "ko",
+  "es",
+  "fr",
+  "de",
+  "pt-BR",
+  "it",
+  "ru",
+  "ar",
+  "hi",
+  "id",
+] as const;
+
+export const appLocaleSchema = z.enum(APP_LOCALES);
+export type AppLocale = z.infer<typeof appLocaleSchema>;
+
+export const appLanguageSchema = z.union([
+  z.literal("system"),
+  appLocaleSchema,
+]);
 export type AppLanguage = z.infer<typeof appLanguageSchema>;
 
 export const appThemeSchema = z.enum(["system", "light", "dark"]);
@@ -555,7 +578,7 @@ export interface AppSnapshot {
   threads: Thread[];
   worktrees: TaskWorktree[];
   events: Record<string, AgentEvent[]>;
-  locale: "en" | "zh-CN";
+  locale: AppLocale;
   platform: "win32" | "darwin" | "other";
   sandbox: {
     available: boolean;

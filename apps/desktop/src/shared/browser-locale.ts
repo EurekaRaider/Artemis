@@ -1,14 +1,13 @@
-export type BrowserLocale = "en" | "zh-CN";
+import type { AppLocale } from "@artemis/protocol";
+
+import { LOCALE_METADATA } from "./locales.js";
+
+export type BrowserLocale = AppLocale;
 
 export const BROWSER_SESSION_PARTITION = "persist:artemis-browser";
 
-const ACCEPT_LANGUAGE_BY_LOCALE: Record<BrowserLocale, string> = {
-  en: "en-US,en;q=0.9",
-  "zh-CN": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
-};
-
 export function browserAcceptLanguage(locale: BrowserLocale): string {
-  return ACCEPT_LANGUAGE_BY_LOCALE[locale];
+  return LOCALE_METADATA[locale].acceptLanguage;
 }
 
 export function withBrowserAcceptLanguage(

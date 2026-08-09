@@ -1,9 +1,14 @@
-const AUTOMATIC_TITLES = new Set([
-  "New task",
-  "Waiting for task",
-  "新任务",
-  "等待任务内容",
-]);
+import type { AppLocale } from "@artemis/protocol";
+
+import { I18N_RESOURCES } from "../shared/i18n-resources.js";
+import { mainText } from "./i18n.js";
+
+const AUTOMATIC_TITLES = new Set(
+  Object.values(I18N_RESOURCES).flatMap(({ main }) => [
+    main.newTask,
+    main.waitingForTask,
+  ]),
+);
 
 const TITLE_LIMIT = 64;
 
@@ -21,12 +26,9 @@ export function isAutomaticTaskTitle(title: string): boolean {
   return AUTOMATIC_TITLES.has(title.trim());
 }
 
-export function deriveTaskTitle(
-  request: string,
-  locale: "en" | "zh-CN",
-): string {
+export function deriveTaskTitle(request: string, locale: AppLocale): string {
   if (/^\s*\/init\s*$/iu.test(request)) {
-    return locale === "zh-CN" ? "初始化项目" : "Initialize project";
+    return mainText(locale, "initializeProject");
   }
 
   const normalized = request
@@ -39,7 +41,7 @@ export function deriveTaskTitle(
     .trim();
 
   if (!normalized) {
-    return locale === "zh-CN" ? "分析附件" : "Inspect attachments";
+    return mainText(locale, "inspectAttachments");
   }
 
   const firstThought =
@@ -47,19 +49,18 @@ export function deriveTaskTitle(
       /(?:[。！？!?;；]|\.\s+|[，,]\s*(?:并(?:且)?|同时|然后)|,\s*(?:and|then)\s+)/iu,
       1,
     )[0] ?? normalized;
-  const withoutBoilerplate =
-    locale === "zh-CN"
-      ? firstThought.replace(
-          /^(?:麻烦|请)?(?:帮我|帮忙)?(?:请)?(?:实现|添加|新增|修复|检查|分析|设计|重构|更新|支持)?/u,
-          (match) =>
-            /(?:实现|添加|新增|修复|检查|分析|设计|重构|更新|支持)/u.test(match)
-              ? match.replace(/^(?:麻烦|请)?(?:帮我|帮忙)?(?:请)?/u, "")
-              : "",
-        )
-      : firstThought.replace(
-          /^(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+)?(?:help\s+(?:me\s+)?(?:to\s+)?)?/iu,
-          "",
-        );
+  const withoutBoilerplate = /\p{Script=Han}/u.test(firstThought)
+    ? firstThought.replace(
+        /^(?:麻烦|请)?(?:帮我|帮忙)?(?:请)?(?:实现|添加|新增|修复|检查|分析|设计|重构|更新|支持)?/u,
+        (match) =>
+          /(?:实现|添加|新增|修复|检查|分析|设计|重构|更新|支持)/u.test(match)
+            ? match.replace(/^(?:麻烦|请)?(?:帮我|帮忙)?(?:请)?/u, "")
+            : "",
+      )
+    : firstThought.replace(
+        /^(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+)?(?:help\s+(?:me\s+)?(?:to\s+)?)?/iu,
+        "",
+      );
   const title = withoutBoilerplate
     .replace(/^[\s:：,，.-]+|[\s:：,，.-]+$/gu, "")
     .trim();
@@ -69,7 +70,7 @@ export function deriveTaskTitle(
       : title;
 
   return trimToCodePoints(
-    displayTitle || (locale === "zh-CN" ? "新建编码任务" : "Coding task"),
+    displayTitle || mainText(locale, "codingTask"),
     TITLE_LIMIT,
   );
 }

@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
-import type { Project, Thread } from "@artemis/protocol";
+import type { AppLocale, Project, Thread } from "@artemis/protocol";
 
 import {
   promptWithoutSelectedSkills,
   selectedSkillNamesForPrompt,
 } from "./skill-commands.js";
+import { legacyLocale } from "../shared/locales.js";
+import { localizedCopy } from "../shared/i18n-resources.js";
 
 interface ArchivePageProps {
-  locale: "en" | "zh-CN";
+  locale: AppLocale;
   projects: Project[];
   threads: Thread[];
   onOpen(thread: Thread): void;
@@ -58,7 +60,7 @@ export function ArchivePage({
   onDelete,
 }: ArchivePageProps) {
   const [query, setQuery] = useState("");
-  const t = labels[locale];
+  const t = localizedCopy(locale, "app", labels[legacyLocale(locale)]);
   const projectNames = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
     [projects],

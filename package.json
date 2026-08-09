@@ -1,6 +1,6 @@
 {
   "name": "artemis",
-  "version": "1.1.24",
+  "version": "1.1.25",
   "private": true,
   "description": "A local-first cross-platform desktop coding agent powered by Pi.",
   "type": "module",
@@ -13,6 +13,20 @@
   "engines": {
     "node": ">=24.0.0",
     "npm": ">=11.0.0"
+  },
+  "dependencies": {
+    "image-size": "file:./vendor/image-size-disabled",
+    "officeparser": "7.5.1",
+    "pdfjs-dist": "6.2.108",
+    "pptxgenjs": "4.0.1"
+  },
+  "overrides": {
+    "officeparser": {
+      "pdfjs-dist": "$pdfjs-dist"
+    },
+    "pptxgenjs": {
+      "image-size": "$image-size"
+    }
   },
   "scripts": {
     "build": "npm run build:core && npm run build -w @artemis/desktop",

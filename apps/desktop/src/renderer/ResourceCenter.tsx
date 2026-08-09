@@ -6,6 +6,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import type { AppLocale } from "@artemis/protocol";
 
 import type {
   CodexPluginMarketplace,
@@ -22,6 +23,8 @@ import type {
   SettingsSnapshot,
   SkillCatalogItem,
 } from "../shared/api.js";
+import { legacyLocale } from "../shared/locales.js";
+import { localizedCopy } from "../shared/i18n-resources.js";
 import { McpServerEditor } from "./McpServerEditor.js";
 import {
   resourceIconName,
@@ -32,7 +35,7 @@ import {
 } from "./resource-icons.js";
 
 interface ResourceCenterProps {
-  locale: "en" | "zh-CN";
+  locale: AppLocale;
   settings?: SettingsSnapshot;
   onConfirm(message: string, tone?: "default" | "danger"): Promise<boolean>;
   onSettingsChange(settings: SettingsSnapshot): void;
@@ -502,7 +505,7 @@ export function ResourceCenter({
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string>();
   const catalogSearchRef = useRef<HTMLInputElement>(null);
-  const t = labels[locale];
+  const t = localizedCopy(locale, "resources", labels[legacyLocale(locale)]);
 
   useEffect(() => {
     let mounted = true;

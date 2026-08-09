@@ -50,4 +50,11 @@ describe("task titles", () => {
     expect(isAutomaticTaskTitle("New task")).toBe(true);
     expect(isAutomaticTaskTitle("User supplied title")).toBe(false);
   });
+
+  it("localizes generated defaults for the expanded locale set", () => {
+    expect(deriveTaskTitle("/init", "ja")).toBe("プロジェクトを初期化");
+    expect(deriveTaskTitle("", "de")).toBe("Anhänge prüfen");
+    expect(deriveTaskTitle("", "ar")).toBe("فحص المرفقات");
+    expect(isAutomaticTaskTitle("Новая задача")).toBe(true);
+  });
 });

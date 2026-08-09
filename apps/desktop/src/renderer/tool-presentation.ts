@@ -1,3 +1,8 @@
+import type { AppLocale } from "@artemis/protocol";
+
+import { localizedCopy } from "../shared/i18n-resources.js";
+import { legacyLocale } from "../shared/locales.js";
+
 function stripTerminalSequences(value: string): string {
   let output = "";
   for (let index = 0; index < value.length; index += 1) {
@@ -50,7 +55,7 @@ function normalizeProgressFrames(value: string): string {
     .join("\n");
 }
 
-export type ToolPresentationLocale = "en" | "zh-CN";
+export type ToolPresentationLocale = AppLocale;
 
 export type ToolActivityKind = "read" | "write" | "search" | "bash" | "generic";
 
@@ -183,6 +188,7 @@ function readablePattern(value: string): string {
 }
 
 function bashSummary(command: string, locale: ToolPresentationLocale): string {
+  const t = toolCopy(locale);
   const normalized = command.replace(/\s+/gu, " ").trim();
   const pattern = searchPattern(normalized);
   if (pattern) {
@@ -190,19 +196,12 @@ function bashSummary(command: string, locale: ToolPresentationLocale): string {
     const searchesStyles = /\bstyles?\.(?:css|scss|sass|less)\b/iu.test(
       normalized,
     );
-    if (locale === "zh-CN") {
-      return searchesStyles
-        ? `正在搜索 ${target} 相关样式`
-        : `正在搜索 ${target} 文件夹中的文件`;
-    }
-    return searchesStyles
-      ? `Searching styles for ${target}`
-      : `Searching files for ${target}`;
+    return fillToolText(searchesStyles ? t.stylesFor : t.filesFor, {
+      target: isolateDynamicText(locale, target),
+    });
   }
   if (/(?:^|[;&|]\s*|\s)git(?:\.exe)?\s+status\b/iu.test(normalized)) {
-    return locale === "zh-CN"
-      ? "正在检查工作区更改"
-      : "Checking workspace changes";
+    return t.workspaceChanges;
   }
   if (
     /(?:^|[;&|]\s*|\s)(?:npm|pnpm|yarn|bun|npx)\s+(?:run\s+)?(?:test|vitest)\b/iu.test(
@@ -210,23 +209,23 @@ function bashSummary(command: string, locale: ToolPresentationLocale): string {
     ) ||
     /(?:^|[;&|]\s*|\s)vitest\b/iu.test(normalized)
   ) {
-    return locale === "zh-CN" ? "正在运行测试" : "Running tests";
+    return t.tests;
   }
   if (/\b(?:typecheck|tsc|tsgo)\b/iu.test(normalized)) {
-    return locale === "zh-CN" ? "正在检查类型" : "Checking types";
+    return t.types;
   }
   if (
     /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?build\b/iu.test(normalized) ||
     /(?:^|[;&|]\s*|\s)(?:ninja|cmake)\b/iu.test(normalized)
   ) {
-    return locale === "zh-CN" ? "正在构建项目" : "Building the project";
+    return t.project;
   }
 
   const executable = shellWords(normalized)
     .map(executableName)
     .find((word) => word && !word.startsWith("$") && word !== "=");
   const label = compactLabel(executable || "command", 32);
-  return locale === "zh-CN" ? `正在运行 ${label}` : `Running ${label}`;
+  return `${t.running} ${isolateDynamicText(locale, label)}`;
 }
 
 function normalizedToolName(toolName: string): string {
@@ -274,26 +273,20 @@ function completedSummary(
   summary: string,
   locale: ToolPresentationLocale,
 ): string {
-  if (locale === "zh-CN") {
-    return summary
-      .replace(/^正在搜索/u, "已搜索")
-      .replace(/^正在检查/u, "已检查")
-      .replace(/^正在运行/u, "已运行")
-      .replace(/^正在构建/u, "已构建")
-      .replace(/^正在使用/u, "已使用");
-  }
+  const t = toolCopy(locale);
   return summary
-    .replace(/^Searching/u, "Searched")
-    .replace(/^Checking/u, "Checked")
-    .replace(/^Running/u, "Ran")
-    .replace(/^Building/u, "Built")
-    .replace(/^Using/u, "Used");
+    .replace(new RegExp(`^${t.searching}`, "u"), t.searched)
+    .replace(new RegExp(`^${t.checking}`, "u"), t.checked)
+    .replace(new RegExp(`^${t.running}`, "u"), t.ran)
+    .replace(new RegExp(`^${t.building}`, "u"), t.built)
+    .replace(new RegExp(`^${t.using}`, "u"), t.used);
 }
 
 export function summarizeToolGroup(
   tools: readonly ToolPresentationState[],
   locale: ToolPresentationLocale,
 ): string {
+  const t = toolCopy(locale);
   const running = [...tools]
     .reverse()
     .find((tool) => tool.status === "running");
@@ -304,36 +297,18 @@ export function summarizeToolGroup(
       .find((tool) => toolActivityKind(tool.name, tool.input) === "search") ??
     tools.at(-1);
   if (!representative) {
-    return locale === "zh-CN" ? "正在使用工具" : "Using a tool";
+    return t.tool;
   }
 
   const kind = toolActivityKind(representative.name, representative.input);
   if (kind === "read") {
-    return running
-      ? locale === "zh-CN"
-        ? "正在读取文件"
-        : "Reading files"
-      : locale === "zh-CN"
-        ? "已读取文件"
-        : "Read files";
+    return running ? t.readingFiles : t.readFiles;
   }
   if (kind === "write") {
-    return running
-      ? locale === "zh-CN"
-        ? "正在编辑文件"
-        : "Editing files"
-      : locale === "zh-CN"
-        ? "编辑了文件"
-        : "Edited files";
+    return running ? t.editingFiles : t.editedFiles;
   }
   if (kind === "bash") {
-    return running
-      ? locale === "zh-CN"
-        ? "正在执行bash"
-        : "Running Bash"
-      : locale === "zh-CN"
-        ? "执行了bash"
-        : "Ran Bash";
+    return running ? t.runningBash : t.ranBash;
   }
 
   const summary = summarizeToolActivity(
@@ -356,6 +331,7 @@ export function summarizeToolDetail(
   tool: ToolPresentationState,
   locale: ToolPresentationLocale,
 ): string {
+  const t = toolCopy(locale);
   const kind = toolActivityKind(tool.name, tool.input);
   const path = toolActivityPath(tool.input);
   const searchCommand =
@@ -370,31 +346,23 @@ export function summarizeToolDetail(
   const active = tool.status === "running";
 
   if (kind === "read") {
-    return locale === "zh-CN"
-      ? `${active ? "正在读取" : "已读取"} ${label}`
-      : `${active ? "Reading" : "Read"} ${label}`;
+    return `${active ? t.reading : t.read} ${isolateDynamicText(locale, label)}`;
   }
   if (kind === "write") {
-    return locale === "zh-CN"
-      ? `${active ? "正在编辑" : "已编辑"} ${label}`
-      : `${active ? "Editing" : "Edited"} ${label}`;
+    return `${active ? t.editing : t.edited} ${isolateDynamicText(locale, label)}`;
   }
   if (kind === "search") {
     if (pattern) {
       const target = readablePattern(pattern) || compactLabel(pattern, 42);
       const scope = path ?? searchCommand?.scope;
-      if (locale === "zh-CN") {
-        return scope
-          ? `${active ? "正在" : "已"}在 ${compactLabel(scope, 42)} 中搜索“${target}”`
-          : `${active ? "正在搜索" : "已搜索"}“${target}”`;
-      }
       return scope
-        ? `${active ? "Searching" : "Searched"} for “${target}” in ${compactLabel(scope, 42)}`
-        : `${active ? "Searching for" : "Searched for"} “${target}”`;
+        ? fillToolText(active ? t.searchingIn : t.searchedIn, {
+            target: isolateDynamicText(locale, target),
+            scope: isolateDynamicText(locale, compactLabel(scope, 42)),
+          })
+        : `${active ? t.searchingFor : t.searchedFor} “${isolateDynamicText(locale, target)}”`;
     }
-    return locale === "zh-CN"
-      ? `${active ? "正在搜索" : "已搜索"} ${label}`
-      : `${active ? "Searching for" : "Searched for"} ${label}`;
+    return `${active ? t.searchingFor : t.searchedFor} ${isolateDynamicText(locale, label)}`;
   }
   const summary = summarizeToolActivity(tool.name, tool.input, locale);
   return active ? summary : completedSummary(summary, locale);
@@ -405,6 +373,7 @@ export function summarizeToolActivity(
   input: unknown,
   locale: ToolPresentationLocale,
 ): string {
+  const t = toolCopy(locale);
   if (toolName === "bash") {
     return bashSummary(inputText(input, "command") ?? "", locale);
   }
@@ -417,21 +386,13 @@ export function summarizeToolActivity(
   const label = compactLabel(path ?? pattern ?? toolName.replaceAll("_", " "));
   const action =
     toolName === "read"
-      ? locale === "zh-CN"
-        ? "正在读取"
-        : "Reading"
+      ? t.reading
       : toolName === "write" || toolName === "edit"
-        ? locale === "zh-CN"
-          ? "正在更新"
-          : "Updating"
+        ? t.updating
         : toolName === "grep" || toolName === "find"
-          ? locale === "zh-CN"
-            ? "正在搜索"
-            : "Searching"
-          : locale === "zh-CN"
-            ? "正在使用"
-            : "Using";
-  return `${action} ${label}`;
+          ? t.searching
+          : t.using;
+  return `${action} ${isolateDynamicText(locale, label)}`;
 }
 
 export function formatToolInput(
@@ -510,4 +471,100 @@ export function formatBashTranscript(
     if (output) chunks.push(output);
   }
   return chunks.length > 0 ? chunks.join("\n") : undefined;
+}
+const TOOL_COPY = {
+  en: {
+    searching: "Searching",
+    searched: "Searched",
+    checking: "Checking",
+    checked: "Checked",
+    running: "Running",
+    ran: "Ran",
+    building: "Building",
+    built: "Built",
+    using: "Using",
+    used: "Used",
+    stylesFor: "Searching styles for {{target}}",
+    filesFor: "Searching files for {{target}}",
+    workspaceChanges: "Checking workspace changes",
+    tests: "Running tests",
+    types: "Checking types",
+    project: "Building the project",
+    tool: "Using a tool",
+    readingFiles: "Reading files",
+    readFiles: "Read files",
+    editingFiles: "Editing files",
+    editedFiles: "Edited files",
+    runningBash: "Running Bash",
+    ranBash: "Ran Bash",
+    reading: "Reading",
+    read: "Read",
+    editing: "Editing",
+    edited: "Edited",
+    searchingFor: "Searching for",
+    searchedFor: "Searched for",
+    searchingIn: "Searching for “{{target}}” in {{scope}}",
+    searchedIn: "Searched for “{{target}}” in {{scope}}",
+    updating: "Updating",
+  },
+  "zh-CN": {
+    searching: "正在搜索",
+    searched: "已搜索",
+    checking: "正在检查",
+    checked: "已检查",
+    running: "正在运行",
+    ran: "已运行",
+    building: "正在构建",
+    built: "已构建",
+    using: "正在使用",
+    used: "已使用",
+    stylesFor: "正在搜索 {{target}} 相关样式",
+    filesFor: "正在搜索 {{target}} 文件夹中的文件",
+    workspaceChanges: "正在检查工作区更改",
+    tests: "正在运行测试",
+    types: "正在检查类型",
+    project: "正在构建项目",
+    tool: "正在使用工具",
+    readingFiles: "正在读取文件",
+    readFiles: "已读取文件",
+    editingFiles: "正在编辑文件",
+    editedFiles: "编辑了文件",
+    runningBash: "正在执行bash",
+    ranBash: "执行了bash",
+    reading: "正在读取",
+    read: "已读取",
+    editing: "正在编辑",
+    edited: "已编辑",
+    searchingFor: "正在搜索",
+    searchedFor: "已搜索",
+    searchingIn: "正在 {{scope}} 中搜索“{{target}}”",
+    searchedIn: "已在 {{scope}} 中搜索“{{target}}”",
+    updating: "正在更新",
+  },
+} as const;
+
+type ToolCopy = {
+  [Key in keyof (typeof TOOL_COPY)["en"]]: string;
+};
+
+function toolCopy(locale: AppLocale): ToolCopy {
+  return localizedCopy(
+    locale,
+    "common",
+    TOOL_COPY[legacyLocale(locale)],
+  ) as ToolCopy;
+}
+
+function isolateDynamicText(locale: AppLocale, value: string): string {
+  return locale === "ar" ? `\u2068${value}\u2069` : value;
+}
+
+function fillToolText(
+  template: string,
+  values: Readonly<Record<string, string>>,
+): string {
+  return Object.entries(values).reduce(
+    (result, [key, value]) => result.replaceAll(`{{${key}}}`, value),
+    template,
+  );
 }

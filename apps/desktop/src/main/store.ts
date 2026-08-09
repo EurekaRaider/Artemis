@@ -1640,7 +1640,7 @@ export class AppStore {
   }
 
   snapshot(
-    locale: "en" | "zh-CN",
+    locale: AppSnapshot["locale"],
     platform: AppSnapshot["platform"],
     sandbox: AppSnapshot["sandbox"],
     options: { includeEvents?: boolean } = {},

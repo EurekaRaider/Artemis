@@ -1,15 +1,18 @@
 import { useState } from "react";
+import type { AppLocale } from "@artemis/protocol";
 
 import type {
   McpServerConfig,
   McpServerStatus,
   SettingsSnapshot,
 } from "../shared/api.js";
+import { legacyLocale } from "../shared/locales.js";
+import { localizedCopy } from "../shared/i18n-resources.js";
 import { CodexSelect } from "./CodexSelect.js";
 
 interface McpServerEditorProps {
   existingServers: readonly McpServerStatus[];
-  locale: "en" | "zh-CN";
+  locale: AppLocale;
   server?: McpServerStatus;
   onCancel(): void;
   onRemoved(settings: SettingsSnapshot): void;
@@ -126,7 +129,7 @@ export function McpServerEditor({
   onRemoved,
   onSaved,
 }: McpServerEditorProps) {
-  const t = labels[locale];
+  const t = localizedCopy(locale, "resources", labels[legacyLocale(locale)]);
   const [transport] = useState<McpServerConfig["transport"]>(
     server?.config.transport ?? "stdio",
   );

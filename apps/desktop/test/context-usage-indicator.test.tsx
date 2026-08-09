@@ -20,7 +20,7 @@ describe("ContextUsageIndicator", () => {
     expect(html).toContain('class="context-usage-ring"');
     expect(html).toContain('role="tooltip"');
     expect(html).toContain("24% 已用（剩余 76%）");
-    expect(html).toContain("已用 61k token，共 258k");
+    expect(html).toContain("已用 6.1万 Token，共 25.8万");
   });
 
   it("lists the estimated current context by source category", () => {
@@ -49,14 +49,14 @@ describe("ContextUsageIndicator", () => {
     );
 
     expect(html).toContain("按类别估算的用量");
-    expect(html).toContain("系统提示词</dt><dd>2k token（0.2%）");
-    expect(html).toContain("系统工具</dt><dd>3k token（0.3%）");
-    expect(html).toContain("MCP 工具</dt><dd>2k token（0.2%）");
-    expect(html).toContain("记忆文件</dt><dd>1k token（0.1%）");
-    expect(html).toContain("Skills</dt><dd>1k token（0.1%）");
-    expect(html).toContain("消息</dt><dd>2.6k token（0.3%）");
-    expect(html).toContain("可用空间</dt><dd>932.1k token（88.9%）");
-    expect(html).toContain("自动压缩缓冲区</dt><dd>104.9k token（10.0%）");
+    expect(html).toContain("系统提示词</dt><dd>2000 Token (0.2%)");
+    expect(html).toContain("系统工具</dt><dd>3000 Token (0.3%)");
+    expect(html).toContain("MCP 工具</dt><dd>2000 Token (0.2%)");
+    expect(html).toContain("记忆文件</dt><dd>1000 Token (0.1%)");
+    expect(html).toContain("Skills</dt><dd>1000 Token (0.1%)");
+    expect(html).toContain("消息</dt><dd>2623 Token (0.3%)");
+    expect(html).toContain("可用空间</dt><dd>93.2万 Token (88.9%)");
+    expect(html).toContain("自动压缩缓冲区</dt><dd>10.5万 Token (10%)");
     expect(html).not.toContain("自定义代理</dt>");
   });
 
@@ -104,8 +104,8 @@ describe("ContextUsageIndicator", () => {
     expect(positions).toEqual(
       [...positions].sort((left, right) => left - right),
     );
-    expect(html).toContain("System tools</dt><dd>3k tokens (1.5%)");
-    expect(html).toContain("Autocompact buffer</dt><dd>20k tokens (10.0%)");
+    expect(html).toContain("System tools</dt><dd>3K Token (1.5%)");
+    expect(html).toContain("Autocompact buffer</dt><dd>20K Token (10%)");
   });
 
   it("announces active automatic compaction", () => {
@@ -139,7 +139,7 @@ describe("ContextUsageIndicator", () => {
     );
 
     expect(html).toContain("约 25% 已用（约剩余 75%）");
-    expect(html).toContain("压缩后估算约 32k token，共 128k");
+    expect(html).toContain("压缩后估算约 3.2万 Token，共 12.8万");
     expect(html).not.toContain("0% 已用");
   });
 
@@ -160,8 +160,8 @@ describe("ContextUsageIndicator", () => {
     );
 
     expect(html).toContain("约 55% 已用");
-    expect(html).toContain("当前估算约 571.8k token，共 1m");
-    expect(html).toContain("上次模型实测输入 84.8k token");
+    expect(html).toContain("当前估算约 57.2万 Token，共 104.9万");
+    expect(html).toContain("上次模型实测输入 8.5万 Token");
   });
 
   it("labels unknown usage without drawing it as zero percent", () => {

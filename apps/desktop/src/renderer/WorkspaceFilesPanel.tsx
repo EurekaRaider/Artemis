@@ -123,7 +123,7 @@ function DirectoryTree({
                 .filter(Boolean)
                 .join(" ")}
               onClick={() => (directory ? onToggle(entry) : onOpen(entry))}
-              style={{ paddingLeft: `${10 + depth * 14}px` }}
+              style={{ paddingInlineStart: `${10 + depth * 14}px` }}
               title={entry.path}
             >
               <span className="workspace-file-chevron" aria-hidden="true">

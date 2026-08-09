@@ -44,6 +44,7 @@ import type {
   AgentRuntimeConfiguration,
   AgentPayload,
   AppLanguage,
+  AppLocale,
   AppTheme,
   ApprovalPolicy,
   ApprovalResolution,
@@ -64,6 +65,7 @@ import type {
 
 import {
   PROTOCOL_VERSION,
+  appLocaleSchema,
   appLanguageSchema,
   appThemeSchema,
   approvalPolicySchema,
@@ -168,6 +170,8 @@ import {
   type PreparedNodePtyRuntime,
 } from "./node-pty-runtime.js";
 import { deriveTaskTitle, isAutomaticTaskTitle } from "./task-title.js";
+import { mainText } from "./i18n.js";
+import { I18N_RESOURCES } from "../shared/i18n-resources.js";
 import {
   configureNodePtyRuntime,
   TerminalService,
@@ -244,6 +248,7 @@ import {
   BROWSER_SESSION_PARTITION,
   withBrowserAcceptLanguage,
 } from "../shared/browser-locale.js";
+import { resolveAppLocale } from "../shared/locales.js";
 
 const { autoUpdater } = electronUpdater;
 const smokeMode = Boolean(process.env.ARTEMIS_SMOKE_SCREENSHOT);
@@ -274,6 +279,7 @@ let settingsStore: EncryptedSettingsStore | undefined;
 let globalInstructionsStore: GlobalInstructionsStore | undefined;
 let configurationImportService: ConfigurationImportService | undefined;
 let languagePreference: AppLanguage = "system";
+let resolvedLocalePreference: AppLocale = "en";
 let mcpConfigStore: McpConfigStore | undefined;
 let mcpClientManager: McpClientManager | undefined;
 let mcpOAuthStore: McpOAuthStore | undefined;
@@ -696,18 +702,14 @@ function parseThreadCommand<T extends ThreadCommand["type"]>(
   >;
 }
 
-function currentLocale(): "en" | "zh-CN" {
-  if (
-    smokeMode &&
-    (process.env.ARTEMIS_SMOKE_LOCALE === "en" ||
-      process.env.ARTEMIS_SMOKE_LOCALE === "zh-CN")
-  ) {
-    return process.env.ARTEMIS_SMOKE_LOCALE;
+function currentLocale(): AppLocale {
+  if (smokeMode) {
+    const smokeLocale = appLocaleSchema.safeParse(
+      process.env.ARTEMIS_SMOKE_LOCALE,
+    );
+    if (smokeLocale.success) return smokeLocale.data;
   }
-  if (languagePreference !== "system") {
-    return languagePreference;
-  }
-  return app.getLocale().toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+  return resolvedLocalePreference;
 }
 
 function configureBrowserLocaleSession(): void {
@@ -3103,9 +3105,7 @@ async function createTaskThread(
   const thread: Thread = {
     id: randomUUID(),
     projectId: command.projectId,
-    title:
-      title ??
-      (currentLocale() === "zh-CN" ? "等待任务内容" : "Waiting for task"),
+    title: title ?? mainText(currentLocale(), "waitingForTask"),
     mode: command.mode,
     target: command.target,
     status: "idle",
@@ -3125,10 +3125,7 @@ async function createTaskThread(
     }
     const selection = await dialog.showOpenDialog(mainWindow, {
       properties: ["openDirectory"],
-      title:
-        currentLocale() === "zh-CN"
-          ? "选择现有永久 Worktree"
-          : "Select an existing permanent worktree",
+      title: mainText(currentLocale(), "selectPermanentWorktree"),
     });
     const selectedPath = selection.filePaths[0];
     if (selection.canceled || !selectedPath) {
@@ -3531,22 +3528,15 @@ async function authorizeAutomation(
   }
   const result = await dialog.showMessageBox(mainWindow, {
     type: "warning",
-    title:
-      currentLocale() === "zh-CN"
-        ? "授权无人值守执行"
-        : "Authorize unattended execution",
-    message:
-      currentLocale() === "zh-CN"
-        ? `“${current.name}”将按计划自动运行 Execute。`
-        : `"${current.name}" will run Execute automatically on schedule.`,
-    detail:
-      currentLocale() === "zh-CN"
-        ? "该任务可以通过内置 bash 以当前桌面用户的完整权限执行命令，写文件、Office 文档、MCP 和可信扩展操作也会自动批准，不会逐条询问。Plan/Review 只读限制、原生沙箱与扩展信任校验仍然生效。"
-        : "This task may use built-in bash with the current desktop user's full permissions. File and Office document writes, MCP calls, and trusted extension operations are also auto-approved without per-operation prompts. Plan/Review read-only rules, native sandbox requirements, and extension trust checks still apply.",
-    buttons:
-      currentLocale() === "zh-CN"
-        ? ["取消", "授权并启用"]
-        : ["Cancel", "Authorize and enable"],
+    title: mainText(currentLocale(), "authorizeAutomation"),
+    message: mainText(currentLocale(), "automationWillRun", {
+      name: current.name,
+    }),
+    detail: mainText(currentLocale(), "automationAuthorizationDetail"),
+    buttons: [
+      I18N_RESOURCES[currentLocale()].common.cancel,
+      mainText(currentLocale(), "authorizeAndEnable"),
+    ],
     defaultId: 0,
     cancelId: 0,
     noLink: true,
@@ -3580,12 +3570,8 @@ function automationRunNotification(
   if (!Notification.isSupported()) return;
   const title =
     run.state === "completed"
-      ? currentLocale() === "zh-CN"
-        ? "定时任务已完成"
-        : "Automation completed"
-      : currentLocale() === "zh-CN"
-        ? "定时任务需要处理"
-        : "Automation needs attention";
+      ? mainText(currentLocale(), "automationCompleted")
+      : mainText(currentLocale(), "automationNeedsAttention");
   const notification = new Notification({
     title,
     body: `${automation.name}: ${run.reason ?? run.state}`,
@@ -3663,6 +3649,10 @@ function registerIpc(): void {
       const language = appLanguageSchema.parse(value);
       await settingsStore.setLanguagePreference(language);
       languagePreference = language;
+      resolvedLocalePreference = resolveAppLocale(
+        languagePreference,
+        app.getPreferredSystemLanguages(),
+      );
       return getSettingsSnapshot();
     },
   );
@@ -3750,10 +3740,7 @@ function registerIpc(): void {
         throw new Error("Diagnostic service is not ready.");
       }
       const result = await dialog.showSaveDialog(mainWindow, {
-        title:
-          currentLocale() === "zh-CN"
-            ? "导出脱敏诊断包"
-            : "Export redacted diagnostic bundle",
+        title: mainText(currentLocale(), "exportDiagnostics"),
         defaultPath: `Artemis-diagnostics-${new Date()
           .toISOString()
           .replaceAll(":", "-")}.json.gz`,
@@ -4287,10 +4274,7 @@ function registerIpc(): void {
       }
       const selection = await dialog.showOpenDialog(mainWindow, {
         properties: ["openFile"],
-        title:
-          currentLocale() === "zh-CN"
-            ? "导入 Pi auth.json"
-            : "Import Pi auth.json",
+        title: mainText(currentLocale(), "importPiAuth"),
         defaultPath: join(app.getPath("home"), ".pi", "agent", "auth.json"),
         filters: [{ name: "JSON", extensions: ["json"] }],
       });
@@ -4474,10 +4458,10 @@ function registerIpc(): void {
       try {
         const result = await dialog.showMessageBox(owner, {
           type: "question",
-          buttons:
-            currentLocale() === "zh-CN"
-              ? ["确认", "取消"]
-              : ["Confirm", "Cancel"],
+          buttons: [
+            mainText(currentLocale(), "confirm"),
+            I18N_RESOURCES[currentLocale()].common.cancel,
+          ],
           cancelId: 1,
           defaultId: 0,
           message,
@@ -4602,10 +4586,7 @@ function registerIpc(): void {
       const operationId = resourceInstallOperationId(operationIdInput);
       const selection = await dialog.showOpenDialog(mainWindow, {
         properties: ["openDirectory"],
-        title:
-          currentLocale() === "zh-CN"
-            ? "选择本地 Skill 文件夹"
-            : "Select a local Skill folder",
+        title: mainText(currentLocale(), "selectLocalSkill"),
       });
       restoreResourceDialogFocus(event.sender);
       if (selection.canceled || selection.filePaths.length !== 1)
@@ -4698,10 +4679,7 @@ function registerIpc(): void {
       }
       const selection = await dialog.showOpenDialog(mainWindow, {
         properties: ["openDirectory"],
-        title:
-          currentLocale() === "zh-CN"
-            ? "选择包含 .codex-plugin 的插件文件夹"
-            : "Select a plugin folder containing .codex-plugin",
+        title: mainText(currentLocale(), "selectLocalPlugin"),
       });
       restoreResourceDialogFocus(event.sender);
       const selectedPath = selection.filePaths[0];
@@ -5143,10 +5121,7 @@ function registerIpc(): void {
       }
       const selection = await dialog.showOpenDialog(mainWindow, {
         properties: ["openFile"],
-        title:
-          currentLocale() === "zh-CN"
-            ? "选择并信任 Pi 扩展"
-            : "Select and trust a Pi extension",
+        title: mainText(currentLocale(), "selectPiExtension"),
         filters: [
           {
             name: "Pi extension",
@@ -5701,10 +5676,7 @@ function registerIpc(): void {
       const forkedThread: Thread = {
         id: randomUUID(),
         projectId: source.projectId,
-        title:
-          currentLocale() === "zh-CN"
-            ? `${source.title}（分叉）`
-            : `${source.title} (fork)`,
+        title: `${source.title}${mainText(currentLocale(), "forkSuffix")}`,
         mode: source.mode,
         target: source.target === "local" ? "local" : "managed-worktree",
         status: "idle",
@@ -6701,11 +6673,11 @@ function createMainWindow(): BrowserWindow {
     const locale = currentLocale();
     Menu.buildFromTemplate([
       {
-        label: locale === "zh-CN" ? "打开链接" : "Open Link",
+        label: mainText(locale, "openLink"),
         click: () => void shell.openExternal(linkUrl),
       },
       {
-        label: locale === "zh-CN" ? "复制链接" : "Copy Link",
+        label: mainText(locale, "copyLink"),
         click: () => clipboard.writeText(linkUrl),
       },
     ]).popup({ window });
@@ -6899,6 +6871,7 @@ function createMainWindow(): BrowserWindow {
                 }
                 return {
                   documentLanguage: document.documentElement.lang,
+                  documentDirection: document.documentElement.dir,
                   title: document.title,
                   interactiveCount: document.querySelectorAll(
                     "button, a[href], input, select, textarea, [role='button'], [role='tab']",
@@ -6991,6 +6964,10 @@ app
     nativeTheme.on("updated", syncWindowBackgroundColors);
     applyNativeTheme(await settingsStore.themePreference());
     languagePreference = await settingsStore.languagePreference();
+    resolvedLocalePreference = resolveAppLocale(
+      languagePreference,
+      app.getPreferredSystemLanguages(),
+    );
     configureBrowserLocaleSession();
     seedSmokeUserInputFixture();
     mcpConfigStore = new McpConfigStore(

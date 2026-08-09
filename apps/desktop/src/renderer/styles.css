@@ -9817,3 +9817,50 @@ body.sidebar-collapsed .sidebar {
     grid-template-columns: 1fr;
   }
 }
+/* Locale direction is applied at the document root. Keep technical content
+   stable and left-to-right while the surrounding application follows RTL. */
+:root[dir="rtl"] body {
+  direction: rtl;
+}
+
+:root[dir="rtl"]
+  :is(
+    .terminal-panel,
+    .terminal-host,
+    .diff-view,
+    .review-diff-reader,
+    .workspace-code-line,
+    .workspace-file-editor,
+    .browser-address,
+    .browser-address-input,
+    .settings-path,
+    .workspace-file-viewer-path,
+    .preview-file-path,
+    .review-file-path,
+    code,
+    pre
+  ) {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
+
+:root[dir="rtl"]
+  :is(
+    .workspace-file-path,
+    .workspace-file-name,
+    .message-file-link,
+    .tool-path
+  ) {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
+
+:root[dir="rtl"] :is(.tool-disclosure, .resource-back-button) svg {
+  transform: scaleX(-1);
+}
+
+:root[dir="rtl"] :is(.workspace-file-tree-row, .review-file-path) {
+  unicode-bidi: isolate;
+}

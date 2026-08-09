@@ -18,6 +18,7 @@ import {
   type UIEvent as ReactUIEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
+import { useTranslation } from "react-i18next";
 import {
   MAX_PROMPT_ATTACHMENTS,
   MAX_PROMPT_IMAGES,
@@ -28,6 +29,7 @@ import {
   type AgentTeamState,
   type ApprovalPolicy,
   type ApprovalState,
+  type AppLocale,
   type ChildAgentState,
   type PromptAttachment,
   type PromptImage,
@@ -52,6 +54,8 @@ import type {
   SettingsSnapshot,
   WorkspaceFileLink,
 } from "../shared/api.js";
+import { legacyLocale, localeDirection } from "../shared/locales.js";
+import { I18N_RESOURCES, localizedCopy } from "../shared/i18n-resources.js";
 import artemisIcon from "../../build/icon.png";
 import { ArchivePage } from "./ArchivePage.js";
 import { MarkdownContent } from "./MarkdownContent.js";
@@ -140,7 +144,7 @@ import {
   type TurnFailureNotices,
 } from "./turn-failure-notices.js";
 
-type Locale = "en" | "zh-CN";
+type Locale = AppLocale;
 type ModelPickerSection = "model" | "thinking";
 type ActiveView =
   "workspace" | "archive" | "resources" | "token-usage" | "automations";
@@ -692,7 +696,11 @@ const copy = {
     archivedReadOnly: "已归档对话",
     archivedReadOnlyDetail: "归档状态下只能阅读；恢复后才能继续对话。",
   },
-} satisfies Record<Locale, Record<string, string>>;
+} satisfies Record<"en" | "zh-CN", Record<string, string>>;
+
+function appCopy(locale: Locale): (typeof copy)["en"] {
+  return localizedCopy(locale, "app", copy[legacyLocale(locale)]);
+}
 
 function Icon({ children, size = 18 }: { children: ReactNode; size?: number }) {
   return (
@@ -1386,7 +1394,7 @@ function ApprovalIcon({ warning = false }: { warning?: boolean }) {
 }
 
 function statusLabel(state: ThreadViewState | undefined, locale: Locale) {
-  const t = copy[locale];
+  const t = appCopy(locale);
   switch (state?.status) {
     case "running":
       return state.activity?.phase === "queued"
@@ -1406,27 +1414,16 @@ function statusLabel(state: ThreadViewState | undefined, locale: Locale) {
 }
 
 function thinkingLevelLabel(level: ThinkingLevel, locale: Locale): string {
-  const labels: Record<Locale, Record<ThinkingLevel, string>> = {
-    en: {
-      off: "Off",
-      minimal: "Minimal",
-      low: "Low",
-      medium: "Medium",
-      high: "High",
-      xhigh: "Extra high",
-      max: "Max",
-    },
-    "zh-CN": {
-      off: "关闭",
-      minimal: "最低",
-      low: "低",
-      medium: "中",
-      high: "高",
-      xhigh: "极高",
-      max: "最高",
-    },
-  };
-  return labels[locale][level];
+  const key = {
+    off: "thinkingOff",
+    minimal: "thinkingMinimal",
+    low: "thinkingLow",
+    medium: "thinkingMedium",
+    high: "thinkingHigh",
+    xhigh: "thinkingXHigh",
+    max: "thinkingMax",
+  } as const;
+  return I18N_RESOURCES[locale].settings[key[level]];
 }
 
 function updateThreadStatus(
@@ -1493,6 +1490,7 @@ function visibleThreadTitle(title: string): string {
 }
 
 export function App() {
+  const { i18n } = useTranslation();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
   const [activeProjectId, setActiveProjectId] = useState<string>();
   const [activeThreadId, setActiveThreadId] = useState<string>();
@@ -1637,7 +1635,7 @@ export function App() {
   );
 
   const locale: Locale = snapshot?.locale ?? "en";
-  const t = copy[locale];
+  const t = appCopy(locale);
   const username = snapshot?.userName ?? t.local;
   const localeRef = useRef(locale);
   localeRef.current = locale;
@@ -2354,10 +2352,7 @@ export function App() {
           action,
           ...(action === "steer"
             ? {
-                message:
-                  localeRef.current === "zh-CN"
-                    ? "请立即汇报当前状态、阻塞点和下一步；如原方案不可行，请改用其他办法。"
-                    : "Report your current status, blocker, and next step now. If the current approach is not viable, use another one.",
+                message: I18N_RESOURCES[localeRef.current].app.childNudgePrompt,
               }
             : {}),
         });
@@ -2572,7 +2567,9 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.lang = locale;
-  }, [locale]);
+    document.documentElement.dir = localeDirection(locale);
+    void i18n.changeLanguage(locale);
+  }, [i18n, locale]);
 
   useEffect(() => {
     const theme = runtimeSettings?.theme ?? "system";
@@ -2782,7 +2779,7 @@ export function App() {
               current[event.threadId] ?? emptyWorkspaceTabs(),
               agentTeamWorkspaceTab(
                 teamStatus.teamId,
-                copy[localeRef.current].agentTeam,
+                appCopy(localeRef.current).agentTeam,
               ),
             ),
           }));
@@ -2799,7 +2796,7 @@ export function App() {
           );
         }
         if (event.payload.type === "turn.failed") {
-          const message = `${copy[localeRef.current].turnError} ${event.payload.message}`;
+          const message = `${appCopy(localeRef.current).turnError} ${event.payload.message}`;
           setTurnFailureNotices((current) =>
             reduceTurnFailureNotices(current, {
               type: "failed",
@@ -6889,58 +6886,74 @@ function AgentTeamPanel({
   team: AgentTeamState | undefined;
 }) {
   const messageList = useRef<HTMLDivElement>(null);
-  const labels =
-    locale === "zh-CN"
-      ? {
-          title: "Agent 团队",
-          members: "成员与任务",
-          collaboration: "协作记录",
-          noMessages: "团队消息会在这里按顺序出现。",
-          unavailable: "团队记录尚未加载或当前不可用。",
-          history: "历史只读",
-          stop: "停止团队",
-        }
-      : {
-          title: "Agent team",
-          members: "Members and tasks",
-          collaboration: "Collaboration log",
-          noMessages: "Team messages will appear here in sequence.",
-          unavailable: "The team record is not loaded or is unavailable.",
-          history: "Read-only history",
-          stop: "Stop team",
-        };
-  const teamStatusLabels =
-    locale === "zh-CN"
-      ? {
-          forming: "正在组队",
-          running: "协作中",
-          blocked: "存在阻塞",
-          integrating: "等待主 Agent 集成",
-          completed: "已完成",
-          aborted: "已中止",
-        }
-      : {
-          forming: "Forming",
-          running: "Collaborating",
-          blocked: "Blocked",
-          integrating: "Awaiting parent integration",
-          completed: "Completed",
-          aborted: "Aborted",
-        };
-  const messageKindLabels =
-    locale === "zh-CN"
-      ? {
-          finding: "发现",
-          request: "请求",
-          blocker: "阻塞",
-          handoff: "交接",
-        }
-      : {
-          finding: "Finding",
-          request: "Request",
-          blocker: "Blocker",
-          handoff: "Handoff",
-        };
+  const labels = localizedCopy(
+    locale,
+    "app",
+    {
+      "zh-CN": {
+        title: "Agent 团队",
+        members: "成员与任务",
+        collaboration: "协作记录",
+        noMessages: "团队消息会在这里按顺序出现。",
+        unavailable: "团队记录尚未加载或当前不可用。",
+        history: "历史只读",
+        stop: "停止团队",
+        parent: "主 Agent",
+        everyone: "全体成员",
+      },
+      en: {
+        title: "Agent team",
+        members: "Members and tasks",
+        collaboration: "Collaboration log",
+        noMessages: "Team messages will appear here in sequence.",
+        unavailable: "The team record is not loaded or is unavailable.",
+        history: "Read-only history",
+        stop: "Stop team",
+        parent: "Parent agent",
+        everyone: "Everyone",
+      },
+    }[legacyLocale(locale)],
+  );
+  const teamStatusLabels = localizedCopy(
+    locale,
+    "app",
+    {
+      "zh-CN": {
+        forming: "正在组队",
+        running: "协作中",
+        blocked: "存在阻塞",
+        integrating: "等待主 Agent 集成",
+        completed: "已完成",
+        aborted: "已中止",
+      },
+      en: {
+        forming: "Forming",
+        running: "Collaborating",
+        blocked: "Blocked",
+        integrating: "Awaiting parent integration",
+        completed: "Completed",
+        aborted: "Aborted",
+      },
+    }[legacyLocale(locale)],
+  );
+  const messageKindLabels = localizedCopy(
+    locale,
+    "app",
+    {
+      "zh-CN": {
+        finding: "发现",
+        request: "请求",
+        blocker: "阻塞",
+        handoff: "交接",
+      },
+      en: {
+        finding: "Finding",
+        request: "Request",
+        blocker: "Blocker",
+        handoff: "Handoff",
+      },
+    }[legacyLocale(locale)],
+  );
   const teamRunning =
     team &&
     (team.status === "forming" ||
@@ -6949,13 +6962,9 @@ function AgentTeamPanel({
       team.status === "integrating");
   const agentName = (agentId: string) =>
     agentId === "parent"
-      ? locale === "zh-CN"
-        ? "主 Agent"
-        : "Parent agent"
+      ? labels.parent
       : agentId === "all"
-        ? locale === "zh-CN"
-          ? "全体成员"
-          : "Everyone"
+        ? labels.everyone
         : (members.find((member) => member.agentId === agentId)?.label ??
           agentId);
 
@@ -7045,10 +7054,10 @@ function AgentTeamPanel({
                     </strong>
                     <span>{messageKindLabels[message.kind]}</span>
                     <time>
-                      {new Date(message.createdAt).toLocaleTimeString(
-                        locale === "zh-CN" ? "zh-CN" : "en-US",
-                        { hour: "2-digit", minute: "2-digit" },
-                      )}
+                      {new Intl.DateTimeFormat(locale, {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }).format(new Date(message.createdAt))}
                     </time>
                   </header>
                   <p>{message.content}</p>
@@ -7083,48 +7092,56 @@ function ChildAgentPanel({
   const CHILD_AGENT_SCROLL_THRESHOLD = 64;
   const childAgentScrollContainer = useRef<HTMLDivElement>(null);
   const childAgentFollowOutput = useRef(true);
-  const labels =
-    locale === "zh-CN"
-      ? {
-          queued: "等待开始",
-          running: "已开始工作",
-          blocked: "被依赖阻塞",
-          cancelling: "正在停止",
-          completed: "已完成",
-          failed: "失败",
-          cancelled: "已停止",
-          waiting: "等待子智能体输出…",
-          unavailable: "此子智能体的输出当前不可用。",
-          task: "任务",
-          elapsed: "运行时长",
-          lastActivity: "最后活动",
-          currentTool: "当前工具",
-          suspect: "疑似卡住",
-          nudge: "催办",
-          stop: "停止此子代理",
-          retry: "重试",
-          justNow: "刚刚",
-        }
-      : {
-          queued: "Waiting to start",
-          running: "Started working",
-          blocked: "Blocked by dependency",
-          cancelling: "Stopping",
-          completed: "Completed",
-          failed: "Failed",
-          cancelled: "Stopped",
-          waiting: "Waiting for subagent output…",
-          unavailable: "This subagent output is currently unavailable.",
-          task: "Task",
-          elapsed: "Runtime",
-          lastActivity: "Last activity",
-          currentTool: "Current tool",
-          suspect: "Possibly stuck",
-          nudge: "Nudge",
-          stop: "Stop subagent",
-          retry: "Retry",
-          justNow: "just now",
-        };
+  const labels = localizedCopy(
+    locale,
+    "app",
+    {
+      "zh-CN": {
+        queued: "等待开始",
+        running: "已开始工作",
+        blocked: "被依赖阻塞",
+        cancelling: "正在停止",
+        completed: "已完成",
+        failed: "失败",
+        cancelled: "已停止",
+        waiting: "等待子智能体输出…",
+        unavailable: "此子智能体的输出当前不可用。",
+        task: "任务",
+        elapsed: "运行时长",
+        lastActivity: "最后活动",
+        currentTool: "当前工具",
+        suspect: "疑似卡住",
+        nudge: "催办",
+        stop: "停止此子代理",
+        retry: "重试",
+        justNow: "刚刚",
+        ago: "{{duration}}前",
+        subagent: "子智能体",
+      },
+      en: {
+        queued: "Waiting to start",
+        running: "Started working",
+        blocked: "Blocked by dependency",
+        cancelling: "Stopping",
+        completed: "Completed",
+        failed: "Failed",
+        cancelled: "Stopped",
+        waiting: "Waiting for subagent output…",
+        unavailable: "This subagent output is currently unavailable.",
+        task: "Task",
+        elapsed: "Runtime",
+        lastActivity: "Last activity",
+        currentTool: "Current tool",
+        suspect: "Possibly stuck",
+        nudge: "Nudge",
+        stop: "Stop subagent",
+        retry: "Retry",
+        justNow: "just now",
+        ago: "{{duration}} ago",
+        subagent: "Subagent",
+      },
+    }[legacyLocale(locale)],
+  );
   const content = child?.error ?? child?.output ?? child?.activity;
   const running = child?.status === "queued" || child?.status === "running";
   const lastActivityMs = child?.lastActivityAt
@@ -7148,9 +7165,10 @@ function ChildAgentPanel({
   const lastActivityLabel =
     silentMilliseconds < 1_000
       ? labels.justNow
-      : locale === "zh-CN"
-        ? `${formatRunDuration(silentMilliseconds)}前`
-        : `${formatRunDuration(silentMilliseconds)} ago`;
+      : labels.ago.replace(
+          "{{duration}}",
+          formatRunDuration(silentMilliseconds),
+        );
   const currentToolElapsed = child?.currentToolStartedAt
     ? Math.max(0, clockMs - Date.parse(child.currentToolStartedAt))
     : undefined;
@@ -7181,9 +7199,7 @@ function ChildAgentPanel({
           identity={child?.agentId}
         />
         <span>
-          <strong>
-            {child?.label ?? (locale === "zh-CN" ? "子智能体" : "Subagent")}
-          </strong>
+          <strong>{child?.label ?? labels.subagent}</strong>
           {child && (
             <small>
               {labels[child.status]}
@@ -7309,7 +7325,7 @@ function UserInputCard({
   onResolve: (resolution: UserInputResolution) => Promise<void>;
   placement?: "composer" | "timeline";
 }) {
-  const t = copy[locale];
+  const t = appCopy(locale);
   const recommendedOptionIndex = Math.max(
     0,
     input.options.findIndex((option) => option.recommended),
@@ -7668,12 +7684,27 @@ function ToolActivityGroupCard({
     ? toolActivityKind(representative.name, representative.input)
     : "generic";
   const summary = summarizeToolGroup(tools, locale);
-  const statusLabel =
-    locale === "zh-CN"
-      ? { running: "正在运行", completed: "已完成", failed: "失败" }[status]
-      : { running: "Running", completed: "Completed", failed: "Failed" }[
-          status
-        ];
+  const toolLabels = localizedCopy(
+    locale,
+    "app",
+    {
+      en: {
+        running: "Running",
+        completed: "Completed",
+        failed: "Failed",
+        collapse: "Collapse",
+        expand: "Expand",
+      },
+      "zh-CN": {
+        running: "正在运行",
+        completed: "已完成",
+        failed: "失败",
+        collapse: "收起",
+        expand: "展开",
+      },
+    }[legacyLocale(locale)],
+  );
+  const statusLabel = toolLabels[status];
   const bashTranscript =
     kind === "bash" ? formatBashTranscript(tools) : undefined;
   const fileActivity = kind === "read" || kind === "write" || kind === "search";
@@ -7689,7 +7720,7 @@ function ToolActivityGroupCard({
         </span>
         <button
           aria-expanded={open}
-          aria-label={`${open ? "Collapse" : "Expand"}: ${summary}, ${statusLabel}`}
+          aria-label={`${open ? toolLabels.collapse : toolLabels.expand}: ${summary}, ${statusLabel}`}
           className="tool-disclosure"
           onClick={() => setOpen((value) => !value)}
           type="button"
@@ -7786,7 +7817,7 @@ function Timeline({
   ) => void;
   onResolveUserInput: (resolution: UserInputResolution) => Promise<void>;
 }) {
-  const t = copy[locale];
+  const t = appCopy(locale);
   const timelineCache = useRef<{
     entries: ReturnType<typeof groupTimelineActivities>;
     orderLength: number;
@@ -7819,26 +7850,30 @@ function Timeline({
     state.status === "running" && state.queue.steering.length === 0
       ? latestVisibleToolGroupKey(timelineEntries, state.messageParts)
       : undefined;
-  const childStatusLabels =
-    locale === "zh-CN"
-      ? {
-          queued: "等待开始",
-          running: "已开始工作",
-          blocked: "被阻塞",
-          cancelling: "正在停止",
-          completed: "已完成",
-          failed: "失败",
-          cancelled: "已停止",
-        }
-      : {
-          queued: "Waiting to start",
-          running: "Started working",
-          blocked: "Blocked",
-          cancelling: "Stopping",
-          completed: "Completed",
-          failed: "Failed",
-          cancelled: "Stopped",
-        };
+  const childStatusLabels = localizedCopy(
+    locale,
+    "app",
+    {
+      "zh-CN": {
+        queued: "等待开始",
+        running: "已开始工作",
+        blocked: "被阻塞",
+        cancelling: "正在停止",
+        completed: "已完成",
+        failed: "失败",
+        cancelled: "已停止",
+      },
+      en: {
+        queued: "Waiting to start",
+        running: "Started working",
+        blocked: "Blocked",
+        cancelling: "Stopping",
+        completed: "Completed",
+        failed: "Failed",
+        cancelled: "Stopped",
+      },
+    }[legacyLocale(locale)],
+  );
   return (
     <div className="timeline">
       {timelineEntries.map((timelineEntry) => {

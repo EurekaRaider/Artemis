@@ -1,9 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
+import type { AppLocale } from "@artemis/protocol";
 
+import { legacyLocale } from "../shared/locales.js";
+import { localizedCopy } from "../shared/i18n-resources.js";
 import type { TaskPlan, TaskPlanStepStatus } from "./task-plan.js";
 
 interface TaskPlanProgressProps {
-  locale: "en" | "zh-CN";
+  locale: AppLocale;
   plan: TaskPlan;
 }
 
@@ -22,6 +25,17 @@ const statusLabels = {
   },
 } as const;
 
+const planLabels = {
+  en: {
+    progress: "Step {{current}} of {{total}}",
+    taskSteps: "Task steps",
+  },
+  "zh-CN": {
+    progress: "第 {{current}} / {{total}} 步",
+    taskSteps: "任务步骤",
+  },
+} as const;
+
 function StepMarker({
   locale,
   status,
@@ -31,7 +45,11 @@ function StepMarker({
 }) {
   return (
     <span
-      aria-label={statusLabels[locale][status]}
+      aria-label={
+        localizedCopy(locale, "common", statusLabels[legacyLocale(locale)])[
+          status
+        ]
+      }
       className={`task-step-marker ${status}`}
       role="img"
     >
@@ -63,10 +81,11 @@ export function TaskPlanProgress({ locale, plan }: TaskPlanProgressProps) {
   const root = useRef<HTMLDivElement>(null);
   const detailsId = useId();
   const current = plan.steps[plan.currentIndex] ?? plan.steps[0];
-  const progressLabel =
-    locale === "zh-CN"
-      ? `第 ${plan.currentIndex + 1} / ${plan.steps.length} 步`
-      : `Step ${plan.currentIndex + 1} of ${plan.steps.length}`;
+  const t = localizedCopy(locale, "app", planLabels[legacyLocale(locale)]);
+  const number = new Intl.NumberFormat(locale);
+  const progressLabel = t.progress
+    .replace("{{current}}", number.format(plan.currentIndex + 1))
+    .replace("{{total}}", number.format(plan.steps.length));
 
   useEffect(() => {
     if (!open) return;
@@ -98,11 +117,7 @@ export function TaskPlanProgress({ locale, plan }: TaskPlanProgressProps) {
       ref={root}
     >
       {open && (
-        <ol
-          aria-label={locale === "zh-CN" ? "任务步骤" : "Task steps"}
-          className="task-plan-list"
-          id={detailsId}
-        >
+        <ol aria-label={t.taskSteps} className="task-plan-list" id={detailsId}>
           {plan.steps.map((step, index) => {
             const status = visibleStepStatus(
               step.status,

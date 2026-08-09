@@ -62,7 +62,7 @@ describe("renderer navigation policy", () => {
     expect(mainSource).toContain("Menu.buildFromTemplate(");
     expect(mainSource).toContain("shell.openExternal(linkUrl)");
     expect(mainSource).toContain("clipboard.writeText(linkUrl)");
-    expect(mainSource).toContain('"复制链接"');
-    expect(mainSource).toContain('"Copy Link"');
+    expect(mainSource).toContain('mainText(locale, "openLink")');
+    expect(mainSource).toContain('mainText(locale, "copyLink")');
   });
 });

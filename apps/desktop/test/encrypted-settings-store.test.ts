@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { ProviderConnection } from "@artemis/protocol";
+import { APP_LOCALES, type ProviderConnection } from "@artemis/protocol";
 
 import {
   EncryptedSettingsStore,
@@ -120,6 +120,11 @@ describe("EncryptedSettingsStore", () => {
     );
 
     expect(await reopened.languagePreference()).toBe("zh-CN");
+
+    for (const language of APP_LOCALES) {
+      await reopened.setLanguagePreference(language);
+      expect(await reopened.languagePreference()).toBe(language);
+    }
   });
 
   it("persists the theme preference and defaults to the system theme", async () => {

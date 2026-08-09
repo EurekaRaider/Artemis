@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import type {
+  AppLocale,
   AppLanguage,
   AppTheme,
   ProviderConnection,
@@ -12,11 +14,17 @@ import type {
   ConfigurationImportSource,
   SettingsSnapshot,
 } from "../shared/api.js";
+import {
+  LOCALE_METADATA,
+  SUPPORTED_LOCALES,
+  legacyLocale,
+} from "../shared/locales.js";
+import { I18N_RESOURCES } from "../shared/i18n-resources.js";
 import { CodexSelect } from "./CodexSelect.js";
 
 interface SettingsPanelProps {
   initialTab?: SettingsTab;
-  locale: "en" | "zh-CN";
+  locale: AppLocale;
   onClose(): void;
   onSettingsChange(settings: SettingsSnapshot): void;
 }
@@ -363,7 +371,17 @@ export function SettingsPanel({
   onClose,
   onSettingsChange,
 }: SettingsPanelProps) {
-  const t = labels[locale];
+  const { i18n } = useTranslation("settings");
+  const translate = i18n.getFixedT(locale, "settings");
+  const t = {
+    ...labels[legacyLocale(locale)],
+    ...Object.fromEntries(
+      Object.keys(I18N_RESOURCES.en.settings).map((key) => [
+        key,
+        translate(key),
+      ]),
+    ),
+  } as (typeof labels)["en"];
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [settings, setSettings] = useState<SettingsSnapshot>();
   const [selectedModel, setSelectedModel] = useState("");
@@ -1082,8 +1100,10 @@ export function SettingsPanel({
                           onChange={(language) => void setLanguage(language)}
                           options={[
                             { value: "system", label: t.languageSystem },
-                            { value: "en", label: t.languageEnglish },
-                            { value: "zh-CN", label: t.languageChinese },
+                            ...SUPPORTED_LOCALES.map((language) => ({
+                              value: language,
+                              label: LOCALE_METADATA[language].nativeName,
+                            })),
                           ]}
                           value={settings.language}
                         />

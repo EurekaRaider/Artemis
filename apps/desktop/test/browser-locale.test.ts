@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { APP_LOCALES } from "@artemis/protocol";
 
 import {
   BROWSER_SESSION_PARTITION,
@@ -10,9 +11,11 @@ import {
 
 describe("browser locale negotiation", () => {
   it("maps each resolved Artemis locale to an ordered language preference", () => {
-    expect(browserAcceptLanguage("zh-CN")).toBe(
-      "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
-    );
+    for (const locale of APP_LOCALES) {
+      expect(browserAcceptLanguage(locale)).toContain(locale.split("-", 1)[0]);
+      expect(browserAcceptLanguage(locale)).toContain("en");
+    }
+    expect(browserAcceptLanguage("zh-TW")).toContain("zh-Hant");
     expect(browserAcceptLanguage("en")).toBe("en-US,en;q=0.9");
   });
 
@@ -27,7 +30,7 @@ describe("browser locale negotiation", () => {
         "zh-CN",
       ),
     ).toEqual({
-      "accept-language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+      "accept-language": "zh-CN,zh-Hans;q=0.9,zh;q=0.8,en-US;q=0.7,en;q=0.6",
       "X-Artemis-Test": "preserved",
     });
   });

@@ -9,12 +9,14 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import type { Project, RunMode } from "@artemis/protocol";
+import type { AppLocale, Project, RunMode } from "@artemis/protocol";
 
 import type { ProjectGitInfo } from "../shared/api.js";
+import { legacyLocale } from "../shared/locales.js";
+import { localizedCopy } from "../shared/i18n-resources.js";
 import { CodexSelect } from "./CodexSelect.js";
 
-type Locale = "en" | "zh-CN";
+type Locale = AppLocale;
 
 interface ComposerContextBarProps {
   activeProject: Project;
@@ -88,7 +90,7 @@ const labels = {
       return `未提交：${count} 个文件`;
     },
   },
-} satisfies Record<Locale, Record<string, unknown>>;
+} satisfies Record<"en" | "zh-CN", Record<string, unknown>>;
 
 function ContextIcon({
   children,
@@ -254,7 +256,7 @@ export function ComposerContextBar({
   onSelectProject,
   projects,
 }: ComposerContextBarProps) {
-  const t = labels[locale];
+  const t = localizedCopy(locale, "app", labels[legacyLocale(locale)]);
   const rootRef = useRef<HTMLDivElement>(null);
   const projectControlRef = useRef<HTMLDivElement>(null);
   const branchControlRef = useRef<HTMLDivElement>(null);

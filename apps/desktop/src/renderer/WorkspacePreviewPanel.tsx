@@ -13,6 +13,7 @@ import {
   shouldReloadBrowserForLocaleChange,
   type BrowserLocale,
 } from "../shared/browser-locale.js";
+import { localeDirection } from "../shared/locales.js";
 import {
   browserNavigationSnapshot,
   normalizeBrowserAddress,
@@ -97,6 +98,7 @@ function useWorkspaceTextFile({
 }
 
 export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
+  const rtl = localeDirection(props.locale) === "rtl";
   const webviewRef = useRef<Electron.WebviewTag>(null);
   const webviewReadyRef = useRef(false);
   const previousLocaleRef = useRef(props.locale);
@@ -273,7 +275,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
             onClick={() => runWhenWebviewReady((webview) => webview.goBack())}
             title={props.backLabel}
           >
-            ←
+            {rtl ? "→" : "←"}
           </button>
           <button
             aria-label={props.forwardLabel}
@@ -283,7 +285,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
             }
             title={props.forwardLabel}
           >
-            →
+            {rtl ? "←" : "→"}
           </button>
           <button
             aria-label={props.refreshLabel}

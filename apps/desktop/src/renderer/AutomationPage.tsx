@@ -5,13 +5,16 @@ import {
   type Automation,
   type AutomationSchedule,
   type AutomationTarget,
+  type AppLocale,
   type AutomationViewState,
   type Project,
   type RunMode,
 } from "@artemis/protocol";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { legacyLocale } from "../shared/locales.js";
+import { localizedCopy } from "../shared/i18n-resources.js";
 
-type Locale = "en" | "zh-CN";
+type Locale = AppLocale;
 type SchedulePreset = "once" | "daily" | "weekdays" | "weekly";
 
 interface AutomationDraft {
@@ -210,7 +213,7 @@ function draftForAutomation(automation: Automation): AutomationDraft {
 }
 
 function formatDate(value: string | undefined, locale: Locale): string {
-  if (!value) return text[locale].never;
+  if (!value) return text[legacyLocale(locale)].never;
   return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -220,10 +223,10 @@ function formatDate(value: string | undefined, locale: Locale): string {
 function scheduleLabel(automation: Automation, locale: Locale): string {
   const schedule = automation.schedule;
   if (schedule.kind === "once") {
-    return `${text[locale].once} · ${formatDate(schedule.at, locale)} · ${schedule.timeZone}`;
+    return `${text[legacyLocale(locale)].once} · ${formatDate(schedule.at, locale)} · ${schedule.timeZone}`;
   }
   const days = schedule.daysOfWeek
-    .map((day) => weekLabels[locale][day - 1])
+    .map((day) => weekLabels[legacyLocale(locale)][day - 1])
     .join(" ");
   return `${days} · ${schedule.localTime} · ${schedule.timeZone}`;
 }
@@ -234,7 +237,11 @@ export function AutomationPage(props: {
   onConfirm(message: string, tone?: "default" | "danger"): Promise<boolean>;
   onOpenThread(threadId: string): void;
 }) {
-  const t = text[props.locale];
+  const t = localizedCopy(
+    props.locale,
+    "automations",
+    text[legacyLocale(props.locale)],
+  );
   const [state, setState] = useState<AutomationViewState>(
     createAutomationViewState,
   );
@@ -642,7 +649,7 @@ export function AutomationPage(props: {
             </div>
             {draft.preset === "weekly" && (
               <div className="automation-weekdays">
-                {weekLabels[props.locale].map((label, index) => {
+                {weekLabels[legacyLocale(props.locale)].map((label, index) => {
                   const day = index + 1;
                   return (
                     <label key={day}>

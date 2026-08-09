@@ -21,13 +21,28 @@ const outputDirectory = resolve(
 );
 const require = createRequire(import.meta.url);
 const electronPath = require("electron");
+const locales = [
+  "en",
+  "zh-CN",
+  "zh-TW",
+  "ja",
+  "ko",
+  "es",
+  "fr",
+  "de",
+  "pt-BR",
+  "it",
+  "ru",
+  "ar",
+  "hi",
+  "id",
+];
 const variants = [
-  ["en", 1],
-  ["en", 1.25],
-  ["en", 1.5],
-  ["zh-CN", 1],
-  ["zh-CN", 1.25],
-  ["zh-CN", 1.5],
+  ...locales.map((locale) => [locale, 1]),
+  ...["en", "zh-CN", "de", "ar"].flatMap((locale) => [
+    [locale, 1.25],
+    [locale, 1.5],
+  ]),
 ];
 
 await mkdir(outputDirectory, { recursive: true });
@@ -113,6 +128,7 @@ try {
     const accessibility = JSON.parse(await readFile(accessibilityPath, "utf8"));
     if (
       accessibility.documentLanguage !== locale ||
+      accessibility.documentDirection !== (locale === "ar" ? "rtl" : "ltr") ||
       accessibility.zoomFactor !== zoomFactor ||
       !Array.isArray(accessibility.issues) ||
       accessibility.issues.length > 0 ||

@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS arm64" src="https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-111111?logo=apple&logoColor=white" />
-  <img alt="737 passing tests" src="https://img.shields.io/badge/Tests-737_passing-2EA44F" />
+  <img alt="759 passing tests" src="https://img.shields.io/badge/Tests-759_passing-2EA44F" />
   <img alt="Maximum 16 active agents" src="https://img.shields.io/badge/Agents-max_16-F5A524" />
 </p>
 
@@ -111,7 +111,7 @@ credentials are protected with operating-system encryption.
   <tr>
     <td colspan="2" valign="top">
       <p><strong>07</strong>&nbsp;&nbsp;/&nbsp;&nbsp;OPERATIONS</p>
-      <p>Local automations, daily/weekly/cumulative Token insights, fork-safe usage accounting, OS user identity, bilingual/system-language UI, themes, diagnostics export, update recovery and native packaging gates.</p>
+      <p>Local automations, daily/weekly/cumulative Token insights, fork-safe usage accounting, OS user identity, 14-language/system-language UI, themes, diagnostics export, update recovery and native packaging gates.</p>
     </td>
   </tr>
 </table>
@@ -131,10 +131,10 @@ credentials are protected with operating-system encryption.
   </tr>
 </table>
 
-The refreshed screenshot matrix shows the current activity bar, project
-sidebar and responsive workspace canvas in English and Simplified Chinese at
-100%, 125% and 150% zoom. Each image has a companion automated accessibility
-audit; the current manifest reports zero audited issues for all six variants.
+The refreshed screenshot matrix covers all 14 supported locales at 100% zoom,
+plus English, Simplified Chinese, German and Arabic at 125% and 150%. Each image
+has a companion automated accessibility audit; the current manifest reports
+zero audited issues for all 22 variants, including the Arabic RTL layout.
 
 ### Plugin marketplace and capability center
 
@@ -279,9 +279,11 @@ tasks. Interactive tasks run against the repository's local checkout.
 - **Large-history responsiveness** — incoming events are reduced in batches,
   cached for the most recent tasks and kept out of unrelated snapshot refreshes.
 - **User identity and localization** — the desktop uses the operating-system
-  username and avatar where available, follows the selected English or
-  Simplified Chinese locale, advertises that locale to external Browser pages,
-  and supports light, dark and system themes.
+  username and avatar where available and follows either the system language or
+  one of 14 locales: English, Simplified Chinese, Traditional Chinese, Japanese,
+  Korean, Spanish, French, German, Brazilian Portuguese, Italian, Russian,
+  Arabic, Hindi and Indonesian. Arabic uses an RTL layout; external Browser
+  requests advertise the resolved locale without translating workspace HTML.
 - **Local automations** — create one-time, daily, weekday, or weekly schedules
   with a timezone, run immediately, inspect persisted run history and receive
   completion notifications. Runs use the normal Pi task path and coalesce
@@ -306,7 +308,7 @@ The right workspace keeps repository work beside the conversation:
     <td width="50%" valign="top"><p><strong>TERMINAL</strong></p><p>A real desktop-user PTY in the Local checkout.</p></td>
   </tr>
   <tr>
-    <td colspan="2" valign="top"><p><strong>BROWSER</strong></p><p>HTTP and HTTPS pages with JavaScript, cookies and web storage while keeping Node integration, preload APIs and local-file access disabled. External requests follow the selected English or Simplified Chinese locale through <code>Accept-Language</code>; switching locale reloads remote pages while leaving workspace HTML unchanged. Agent-created HTML opens only from explicit links.</p></td>
+    <td colspan="2" valign="top"><p><strong>BROWSER</strong></p><p>HTTP and HTTPS pages with JavaScript, cookies and web storage while keeping Node integration, preload APIs and local-file access disabled. External requests follow the resolved locale through <code>Accept-Language</code>; switching locale reloads remote pages while leaving workspace HTML unchanged. Agent-created HTML opens only from explicit links.</p></td>
   </tr>
   <tr>
     <td width="50%" valign="top"><p><strong>MARKDOWN</strong></p><p>Source and rich rendering for local Markdown files.</p></td>
@@ -456,8 +458,8 @@ process.
 
 ### Models, providers and settings
 
-Settings follows the desktop's English/Chinese locale and is divided into five
-focused pages:
+Settings follows the desktop's resolved locale and is divided into five focused
+pages:
 
 | Page                        | Functions                                                                                                                                                                             |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -885,11 +887,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **737 passing tests** (4 skipped):
+The current full test run contains **759 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       55 |       19 |         72 |     591 |   **737** |
+|       55 |       19 |         73 |     612 |   **759** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -898,6 +900,9 @@ write-scope conflict checks, audited collaboration and lifecycle control, draft
 and deletion lifecycles, Git Review with untracked/binary staging, attachments,
 automations, usage insights, configuration import, Skills, MCP, extensions,
 Terminal behavior and Windows-native extension sandbox boundaries.
+
+The release dependency tree also reports **0 known vulnerabilities** through
+`npm audit`.
 
 Windows-native verification additionally exercises the desktop-user PTY with
 workspace/outside writes and network access, local stdio MCP with full
@@ -913,13 +918,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.1.24` packaging configuration produces:
+The `1.1.25` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.24.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.24.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.24.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.1.25.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.1.25.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.1.25.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and
@@ -1068,7 +1073,7 @@ The main remaining gates are:
 2. macOS Developer ID signing, notarization, stapling and native release gates;
 3. broader destructive Git policy coverage;
 4. controlled real-provider turn/resume/fork smoke tests;
-5. dependency-audit resolution without forced unrelated downgrades.
+5. broader language QA on real Windows and Intel macOS hosts.
 
 ### Documentation
 

@@ -1,0 +1,16 @@
+{
+  "name": "image-size",
+  "version": "3.0.0-artemis.0",
+  "private": true,
+  "description": "Artemis safety replacement for PptxGenJS's unused image-size dependency.",
+  "type": "commonjs",
+  "main": "index.cjs",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./index.cjs",
+      "import": "./index.cjs"
+    }
+  }
+}

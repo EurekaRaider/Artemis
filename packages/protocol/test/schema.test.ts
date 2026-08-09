@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  APP_LOCALES,
   agentPayloadSchema,
   appLanguageSchema,
   appThemeSchema,
@@ -442,11 +443,12 @@ describe("provider and language schemas", () => {
     ).toBe(false);
   });
 
-  it("supports system, English, and Simplified Chinese language preferences", () => {
+  it("supports system and every Artemis locale", () => {
     expect(appLanguageSchema.safeParse("system").success).toBe(true);
-    expect(appLanguageSchema.safeParse("en").success).toBe(true);
-    expect(appLanguageSchema.safeParse("zh-CN").success).toBe(true);
-    expect(appLanguageSchema.safeParse("fr").success).toBe(false);
+    for (const locale of APP_LOCALES) {
+      expect(appLanguageSchema.safeParse(locale).success).toBe(true);
+    }
+    expect(appLanguageSchema.safeParse("nl").success).toBe(false);
   });
 
   it("supports system, light, and dark theme preferences", () => {
