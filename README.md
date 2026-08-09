@@ -18,7 +18,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
-  <img alt="macOS arm64" src="https://img.shields.io/badge/macOS-Apple%20Silicon%20arm64-111111?logo=apple&logoColor=white" />
+  <img alt="macOS arm64 and x64" src="https://img.shields.io/badge/macOS-arm64%20%7C%20x64-111111?logo=apple&logoColor=white" />
   <img alt="759 passing tests" src="https://img.shields.io/badge/Tests-759_passing-2EA44F" />
   <img alt="Maximum 16 active agents" src="https://img.shields.io/badge/Agents-max_16-F5A524" />
 </p>
@@ -191,7 +191,7 @@ enablement and removal visible to the user.
 #### Requirements
 
 > [!IMPORTANT]
-> **Runtime baseline** — Node.js 24+ · npm 11+ · Git · Windows 11 x64 or macOS 14+ on Apple Silicon
+> **Runtime baseline** — Node.js 24+ · npm 11+ · Git · Windows 11 x64 or macOS 14+ on Apple Silicon arm64 or Intel x64
 
 #### Run from source
 
@@ -1062,7 +1062,7 @@ downloads require Authenticode signing and the real Windows gate. See Microsoft'
 | --------------------- | ------------------------------------------------------------------- | ------------------------------------------------- |
 | **Windows 11 x64**    | Desktop-user PTY/MCP; AppContainer extensions; native ZIP packaging | Real Windows x64 release gate required            |
 | **macOS 14+ arm64**   | Seatbelt, hardened runtime, DMG/ZIP and release gates               | Engineering artifact checked; public gate pending |
-| macOS x64             | Separate DMG/ZIP engineering artifacts                              | Static artifact check only; Intel gate pending    |
+| **macOS 14+ x64**     | Separate DMG/ZIP engineering artifacts                              | Static artifact check only; Intel gate pending    |
 | Windows ARM64 / Linux | Outside the initial Beta scope                                      | —                                                 |
 
 ### Project status
