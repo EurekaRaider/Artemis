@@ -379,6 +379,17 @@ describe("provider and language schemas", () => {
         estimated: true,
         source: "local-estimate",
         providerInputTokens: 61_000,
+        breakdown: {
+          systemPromptTokens: 12_000,
+          systemToolTokens: 18_000,
+          mcpToolTokens: 4_000,
+          customAgentTokens: 0,
+          memoryFileTokens: 8_000,
+          skillTokens: 4_000,
+          messageTokens: 28_000,
+          freeSpaceTokens: 158_200,
+          autocompactBufferTokens: 25_800,
+        },
         footprint: {
           imageBytes: 12_000,
           imageCount: 1,

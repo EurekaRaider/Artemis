@@ -9,6 +9,8 @@ import {
   SessionManager,
   createAgentSession,
   defineTool,
+  estimateTokens,
+  formatSkillsForPrompt,
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
@@ -175,6 +177,164 @@ interface ContextFootprint {
   largestToolResultBytes: number;
 }
 
+interface ContextTokenBreakdown {
+  systemPromptTokens: number;
+  systemToolTokens: number;
+  mcpToolTokens: number;
+  customAgentTokens: number;
+  memoryFileTokens: number;
+  skillTokens: number;
+  messageTokens: number;
+  freeSpaceTokens: number;
+  autocompactBufferTokens: number;
+}
+
+function estimateTextTokens(value: string): number {
+  return Math.ceil(value.length / 4);
+}
+
+function contextFilesPrompt(
+  files: readonly { path: string; content: string }[],
+): string {
+  if (files.length === 0) return "";
+  return [
+    "\n\n<project_context>\n\n",
+    "Project-specific instructions and guidelines:\n\n",
+    ...files.map(
+      (file) =>
+        `<project_instructions path="${file.path}">\n${file.content}\n</project_instructions>\n\n`,
+    ),
+    "</project_context>\n",
+  ].join("");
+}
+
+function removeFirst(value: string, section: string): string {
+  if (!section) return value;
+  const index = value.indexOf(section);
+  return index < 0
+    ? value
+    : `${value.slice(0, index)}${value.slice(index + section.length)}`;
+}
+
+function serializedToolSchemas(tools: readonly SessionTool[]): string {
+  try {
+    return JSON.stringify(
+      tools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+      })),
+    );
+  } catch {
+    return "";
+  }
+}
+
+function estimateToolSchemaTokens(tools: readonly SessionTool[]): number {
+  return tools.length === 0
+    ? 0
+    : estimateTextTokens(serializedToolSchemas(tools));
+}
+
+function normalizeContextTokenBreakdown(
+  breakdown: ContextTokenBreakdown,
+  totalTokens: number | null,
+): ContextTokenBreakdown {
+  if (totalTokens === null) return breakdown;
+  const rawTotal =
+    breakdown.systemPromptTokens +
+    breakdown.systemToolTokens +
+    breakdown.mcpToolTokens +
+    breakdown.customAgentTokens +
+    breakdown.memoryFileTokens +
+    breakdown.skillTokens +
+    breakdown.messageTokens;
+  if (rawTotal === 0) return breakdown;
+
+  const scale = totalTokens / rawTotal;
+  const normalized: ContextTokenBreakdown = {
+    systemPromptTokens: Math.floor(breakdown.systemPromptTokens * scale),
+    systemToolTokens: Math.floor(breakdown.systemToolTokens * scale),
+    mcpToolTokens: Math.floor(breakdown.mcpToolTokens * scale),
+    customAgentTokens: Math.floor(breakdown.customAgentTokens * scale),
+    memoryFileTokens: Math.floor(breakdown.memoryFileTokens * scale),
+    skillTokens: Math.floor(breakdown.skillTokens * scale),
+    messageTokens: Math.floor(breakdown.messageTokens * scale),
+    freeSpaceTokens: breakdown.freeSpaceTokens,
+    autocompactBufferTokens: breakdown.autocompactBufferTokens,
+  };
+  normalized.systemPromptTokens +=
+    totalTokens -
+    (normalized.systemPromptTokens +
+      normalized.systemToolTokens +
+      normalized.mcpToolTokens +
+      normalized.customAgentTokens +
+      normalized.memoryFileTokens +
+      normalized.skillTokens +
+      normalized.messageTokens);
+  return normalized;
+}
+
+function contextTokenBreakdown(
+  hosted: HostedThread,
+  totalTokens: number | null,
+  contextWindow: number,
+): ContextTokenBreakdown | undefined {
+  const systemPrompt = hosted.session.systemPrompt;
+  if (typeof systemPrompt !== "string") return undefined;
+
+  const contextFiles =
+    hosted.resourceLoader?.getAgentsFiles().agentsFiles ?? [];
+  const skills = hosted.resourceLoader?.getSkills().skills ?? [];
+  const projectInstructions = contextFilesPrompt(contextFiles);
+  const skillPrompt = formatSkillsForPrompt(skills);
+  const includedProjectInstructions = systemPrompt.includes(projectInstructions)
+    ? projectInstructions
+    : "";
+  const includedSkillPrompt = systemPrompt.includes(skillPrompt)
+    ? skillPrompt
+    : "";
+  const baseSystemPrompt = removeFirst(
+    removeFirst(systemPrompt, includedProjectInstructions),
+    includedSkillPrompt,
+  );
+  const tools = hosted.session.agent?.state?.tools ?? [];
+  const mcpToolNames = hosted.mcpToolNames ?? new Set<string>();
+  const systemTools = tools.filter((tool) => !mcpToolNames.has(tool.name));
+  const mcpTools = tools.filter((tool) => mcpToolNames.has(tool.name));
+  const messages = hosted.session.messages ?? [];
+  const usedBreakdown: ContextTokenBreakdown = {
+    systemPromptTokens: estimateTextTokens(baseSystemPrompt),
+    systemToolTokens: estimateToolSchemaTokens(systemTools),
+    mcpToolTokens: estimateToolSchemaTokens(mcpTools),
+    customAgentTokens: 0,
+    memoryFileTokens: estimateTextTokens(includedProjectInstructions),
+    skillTokens: estimateTextTokens(includedSkillPrompt),
+    messageTokens: messages.reduce(
+      (total, message) => total + estimateTokens(message),
+      0,
+    ),
+    freeSpaceTokens: 0,
+    autocompactBufferTokens: 0,
+  };
+  const normalized = normalizeContextTokenBreakdown(usedBreakdown, totalTokens);
+  const usedTokens =
+    normalized.systemPromptTokens +
+    normalized.systemToolTokens +
+    normalized.mcpToolTokens +
+    normalized.customAgentTokens +
+    normalized.memoryFileTokens +
+    normalized.skillTokens +
+    normalized.messageTokens;
+  normalized.autocompactBufferTokens =
+    compactionSettingsForContextWindow(contextWindow).reserveTokens;
+  normalized.freeSpaceTokens = Math.max(
+    0,
+    contextWindow - usedTokens - normalized.autocompactBufferTokens,
+  );
+  return normalized;
+}
+
 function record(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
@@ -254,21 +414,10 @@ function contextFootprint(
       );
     }
   }
-  let toolSchemaBytes = 0;
-  try {
-    toolSchemaBytes = Buffer.byteLength(
-      JSON.stringify(
-        tools.map((tool) => ({
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        })),
-      ),
-      "utf8",
-    );
-  } catch {
-    toolSchemaBytes = 0;
-  }
+  const toolSchemaBytes = Buffer.byteLength(
+    serializedToolSchemas(tools),
+    "utf8",
+  );
   return {
     textBytes,
     imageBytes,
@@ -403,6 +552,7 @@ interface HostedThread {
   compacting: boolean;
   readTool: SessionTool;
   writeTool: SessionTool;
+  mcpToolNames: Set<string>;
   delegatedTools: SessionTool[];
   executeTools: SessionTool[];
   childAgents: Map<string, ChildAgentExecution>;
@@ -851,6 +1001,7 @@ export class ArtemisAgentHost {
       estimatedTokens === undefined
         ? (usage?.tokens ?? null)
         : Math.max(0, Math.round(estimatedTokens));
+    const breakdown = contextTokenBreakdown(hosted, tokens, contextWindow);
     const source =
       estimatedTokens !== undefined
         ? "compaction-estimate"
@@ -865,6 +1016,7 @@ export class ArtemisAgentHost {
       source,
       ...(source === "provider" ? {} : { estimated: true }),
       ...(providerInput ? { providerInputTokens: providerInput.tokens } : {}),
+      ...(breakdown ? { breakdown } : {}),
       footprint: contextFootprint(
         messages,
         hosted.session.agent?.state?.tools ?? [],
@@ -3175,6 +3327,7 @@ export class ArtemisAgentHost {
       compacting: false,
       readTool: readSessionTool,
       writeTool: writeSessionTool,
+      mcpToolNames: new Set(mcpTools.map((tool) => tool.name)),
       delegatedTools: [
         readSessionTool,
         requestUserInputSessionTool,

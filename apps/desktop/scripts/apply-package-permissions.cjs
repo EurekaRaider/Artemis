@@ -5,6 +5,10 @@ const { promisify } = require("node:util");
 const execFileAsync = promisify(execFile);
 
 exports.default = async function applyPackagePermissions(context) {
+  const { verifyPackagedSourcePrivacy } =
+    await import("./verify-packaged-source-privacy.mjs");
+  await verifyPackagedSourcePrivacy(context);
+
   if (context.electronPlatformName === "darwin") {
     const { ensureNodePtySpawnHelpersExecutable } =
       await import("./node-pty-permissions.mjs");

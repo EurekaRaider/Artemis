@@ -33,6 +33,10 @@ function run(command, args, environment = process.env, cwd = desktopRoot) {
 
 const npmCli = process.env.npm_execpath;
 if (!npmCli) throw new Error("Run this script through npm.");
+const packageEnvironment = {
+  ...process.env,
+  ARTEMIS_PACKAGE_BUILD: "1",
+};
 
 await run(
   process.execPath,
@@ -41,7 +45,7 @@ await run(
   workspaceRoot,
 );
 await run(process.execPath, [npmCli, "run", "verify:bundled-plugins"]);
-await run(process.execPath, [npmCli, "run", "build"]);
+await run(process.execPath, [npmCli, "run", "build"], packageEnvironment);
 
 const builderArgs = [];
 if (release) {
@@ -55,7 +59,7 @@ await run(
     ...builderArgs,
   ],
   {
-    ...process.env,
+    ...packageEnvironment,
     ...(release ? {} : { ARTEMIS_ALLOW_CROSS_WINDOWS_ZIP: "1" }),
   },
 );

@@ -390,12 +390,34 @@ describe("reduceAgentEvent", () => {
         estimated: true,
         source: "compaction-estimate",
         providerInputTokens: 61_000,
+        breakdown: {
+          systemPromptTokens: 12_000,
+          systemToolTokens: 18_000,
+          mcpToolTokens: 4_000,
+          customAgentTokens: 0,
+          memoryFileTokens: 8_000,
+          skillTokens: 4_000,
+          messageTokens: 28_000,
+          freeSpaceTokens: 158_200,
+          autocompactBufferTokens: 25_800,
+        },
       }),
       event("usage-unknown", 2, {
         type: "context.usage",
         tokens: null,
         contextWindow: 258_000,
         compacting: false,
+        breakdown: {
+          systemPromptTokens: 10,
+          systemToolTokens: 10,
+          mcpToolTokens: 10,
+          customAgentTokens: 0,
+          memoryFileTokens: 10,
+          skillTokens: 10,
+          messageTokens: 10,
+          freeSpaceTokens: 10,
+          autocompactBufferTokens: 10,
+        },
       }),
     ]);
 
@@ -406,6 +428,17 @@ describe("reduceAgentEvent", () => {
       estimated: true,
       source: "compaction-estimate",
       providerInputTokens: 61_000,
+      breakdown: {
+        systemPromptTokens: 12_000,
+        systemToolTokens: 18_000,
+        mcpToolTokens: 4_000,
+        customAgentTokens: 0,
+        memoryFileTokens: 8_000,
+        skillTokens: 4_000,
+        messageTokens: 28_000,
+        freeSpaceTokens: 158_200,
+        autocompactBufferTokens: 25_800,
+      },
     });
 
     const reported = reduceAgentEvent(

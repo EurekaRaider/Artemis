@@ -4125,6 +4125,40 @@ summary:focus-visible {
   font-weight: 520;
 }
 
+.context-usage-breakdown {
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 3px;
+  padding-top: 8px;
+}
+
+.context-usage-breakdown > span,
+.context-usage-breakdown dt {
+  color: var(--muted);
+}
+
+.context-usage-breakdown dl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.context-usage-breakdown dl > div {
+  align-items: baseline;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.context-usage-breakdown dd {
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+  white-space: nowrap;
+}
+
 .context-usage-indicator:hover .context-usage-popover,
 .context-usage-indicator:focus-visible .context-usage-popover {
   opacity: 1;

@@ -414,6 +414,19 @@ export const contextUsagePayloadSchema = z.object({
     .enum(["provider", "local-estimate", "compaction-estimate"])
     .optional(),
   providerInputTokens: z.number().int().nonnegative().optional(),
+  breakdown: z
+    .object({
+      systemPromptTokens: z.number().int().nonnegative(),
+      systemToolTokens: z.number().int().nonnegative(),
+      mcpToolTokens: z.number().int().nonnegative(),
+      customAgentTokens: z.number().int().nonnegative(),
+      memoryFileTokens: z.number().int().nonnegative(),
+      skillTokens: z.number().int().nonnegative(),
+      messageTokens: z.number().int().nonnegative(),
+      freeSpaceTokens: z.number().int().nonnegative(),
+      autocompactBufferTokens: z.number().int().nonnegative(),
+    })
+    .optional(),
   footprint: z
     .object({
       textBytes: z.number().int().nonnegative(),

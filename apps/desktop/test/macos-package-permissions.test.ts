@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createPackage } from "@electron/asar";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ensureNodePtySpawnHelpersExecutable } from "../scripts/node-pty-permissions.mjs";
@@ -72,6 +73,16 @@ describe("macOS node-pty package permissions", () => {
       "node-pty",
     );
     const helpers = await createReadOnlySpawnHelpers(nodePtyRoot);
+    const asarInput = join(directory, "asar-input");
+    await mkdir(join(asarInput, "dist-electron"), { recursive: true });
+    await writeFile(
+      join(asarInput, "dist-electron", "main.js"),
+      "console.log('fixture');",
+    );
+    await createPackage(
+      asarInput,
+      join(directory, "Artemis.app", "Contents", "Resources", "app.asar"),
+    );
     const afterPack = require(afterPackPath).default as (context: {
       electronPlatformName: string;
       appOutDir: string;

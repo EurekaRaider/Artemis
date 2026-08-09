@@ -412,6 +412,9 @@ function applyAgentEvent(
         state.contextUsage.tokens !== null;
       const estimated = preserveEstimate ? true : payload.estimated;
       const previous = preserveEstimate ? state.contextUsage : undefined;
+      const breakdown = preserveEstimate
+        ? previous?.breakdown
+        : (payload.breakdown ?? previous?.breakdown);
       state.contextUsage = {
         tokens: preserveEstimate ? previous!.tokens : payload.tokens,
         contextWindow: payload.contextWindow,
@@ -427,6 +430,7 @@ function applyAgentEvent(
               providerInputTokens:
                 payload.providerInputTokens ?? previous?.providerInputTokens,
             }),
+        ...(breakdown === undefined ? {} : { breakdown }),
         ...((payload.footprint ?? previous?.footprint) === undefined
           ? {}
           : { footprint: payload.footprint ?? previous?.footprint }),

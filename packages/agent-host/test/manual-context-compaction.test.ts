@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { formatSkillsForPrompt } from "@earendil-works/pi-coding-agent";
 
 import { ArtemisAgentHost } from "../src/runtime.js";
 
@@ -123,5 +124,92 @@ describe("context usage updates", () => {
         toolSchemaBytes: 2,
       },
     });
+  });
+
+  it("publishes a normalized current-context breakdown", () => {
+    const emit = vi.fn();
+    const host = new ArtemisAgentHost({ async request() {} }, { emit });
+    const contextFiles = [
+      { path: "/workspace/AGENTS.md", content: "Project rules" },
+    ];
+    const skills = [
+      {
+        name: "documents",
+        description: "Create and edit documents",
+        filePath: "/skills/documents/SKILL.md",
+        disableModelInvocation: false,
+      },
+    ];
+    const skillPrompt = formatSkillsForPrompt(
+      skills as unknown as Parameters<typeof formatSkillsForPrompt>[0],
+    );
+    const projectPrompt =
+      '\n\n<project_context>\n\nProject-specific instructions and guidelines:\n\n<project_instructions path="/workspace/AGENTS.md">\nProject rules\n</project_instructions>\n\n</project_context>\n';
+    const hosted = {
+      threadId: "thread-1",
+      currentTurnId: "turn-1",
+      mcpToolNames: new Set(["github_search"]),
+      resourceLoader: {
+        getAgentsFiles: () => ({ agentsFiles: contextFiles }),
+        getSkills: () => ({ skills }),
+      },
+      session: {
+        getContextUsage: () => ({
+          tokens: 1_000,
+          contextWindow: 128_000,
+          percent: 1,
+        }),
+        model: { contextWindow: 128_000 },
+        systemPrompt: `Base system prompt${projectPrompt}${skillPrompt}`,
+        messages: [{ role: "user", content: "Hello", timestamp: 1 }],
+        agent: {
+          state: {
+            tools: [
+              {
+                name: "read",
+                description: "Read a file",
+                parameters: { type: "object", properties: {} },
+              },
+              {
+                name: "github_search",
+                description: "Search GitHub",
+                parameters: { type: "object", properties: {} },
+              },
+            ],
+          },
+        },
+      },
+    };
+    const emitContextUsage = (
+      host as unknown as {
+        emitContextUsage(hosted: unknown, compacting: boolean): void;
+      }
+    ).emitContextUsage.bind(host);
+
+    emitContextUsage(hosted, false);
+
+    const payload = emit.mock.calls.at(-1)?.[2] as {
+      breakdown: Record<string, number>;
+    };
+    expect(payload.breakdown).toMatchObject({
+      systemPromptTokens: expect.any(Number),
+      systemToolTokens: expect.any(Number),
+      mcpToolTokens: expect.any(Number),
+      customAgentTokens: 0,
+      memoryFileTokens: expect.any(Number),
+      skillTokens: expect.any(Number),
+      messageTokens: expect.any(Number),
+      freeSpaceTokens: 114_200,
+      autocompactBufferTokens: 12_800,
+    });
+    expect(
+      payload.breakdown.systemPromptTokens +
+        payload.breakdown.systemToolTokens +
+        payload.breakdown.mcpToolTokens +
+        payload.breakdown.customAgentTokens +
+        payload.breakdown.memoryFileTokens +
+        payload.breakdown.skillTokens +
+        payload.breakdown.messageTokens,
+    ).toBe(1_000);
   });
 });

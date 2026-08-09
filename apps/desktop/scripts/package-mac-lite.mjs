@@ -84,6 +84,10 @@ function output(command, args) {
 
 const npmCli = process.env.npm_execpath;
 if (!npmCli) throw new Error("Run this script through npm.");
+const packageEnvironment = {
+  ...process.env,
+  ARTEMIS_PACKAGE_BUILD: "1",
+};
 
 if (releaseMode) {
   await run(process.execPath, ["scripts/validate-release-env.mjs", "mac"]);
@@ -193,7 +197,7 @@ await run(
   workspaceRoot,
 );
 await run(process.execPath, [npmCli, "run", "verify:bundled-plugins"]);
-await run(process.execPath, [npmCli, "run", "build"]);
+await run(process.execPath, [npmCli, "run", "build"], packageEnvironment);
 const cleanupStagedDependencies = await stageX64CanvasPackage();
 try {
   await run(
@@ -219,7 +223,7 @@ try {
       "never",
     ],
     {
-      ...process.env,
+      ...packageEnvironment,
       PATH: `${dirname(actoolPath)}:${process.env.PATH ?? ""}`,
     },
   );

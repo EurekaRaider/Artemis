@@ -23,6 +23,91 @@ describe("ContextUsageIndicator", () => {
     expect(html).toContain("已用 61k token，共 258k");
   });
 
+  it("lists the estimated current context by source category", () => {
+    const html = renderToStaticMarkup(
+      <ContextUsageIndicator
+        contextWindow={1_048_576}
+        locale="zh-CN"
+        usage={{
+          tokens: 11_623,
+          contextWindow: 1_048_576,
+          compacting: false,
+          source: "provider",
+          breakdown: {
+            systemPromptTokens: 2_000,
+            systemToolTokens: 3_000,
+            mcpToolTokens: 2_000,
+            customAgentTokens: 0,
+            memoryFileTokens: 1_000,
+            skillTokens: 1_000,
+            messageTokens: 2_623,
+            freeSpaceTokens: 932_096,
+            autocompactBufferTokens: 104_857,
+          },
+        }}
+      />,
+    );
+
+    expect(html).toContain("按类别估算的用量");
+    expect(html).toContain("系统提示词</dt><dd>2k token（0.2%）");
+    expect(html).toContain("系统工具</dt><dd>3k token（0.3%）");
+    expect(html).toContain("MCP 工具</dt><dd>2k token（0.2%）");
+    expect(html).toContain("记忆文件</dt><dd>1k token（0.1%）");
+    expect(html).toContain("Skills</dt><dd>1k token（0.1%）");
+    expect(html).toContain("消息</dt><dd>2.6k token（0.3%）");
+    expect(html).toContain("可用空间</dt><dd>932.1k token（88.9%）");
+    expect(html).toContain("自动压缩缓冲区</dt><dd>104.9k token（10.0%）");
+    expect(html).not.toContain("自定义代理</dt>");
+  });
+
+  it("matches the Claude Code category names and order in English", () => {
+    const html = renderToStaticMarkup(
+      <ContextUsageIndicator
+        contextWindow={200_000}
+        locale="en"
+        usage={{
+          tokens: 10_000,
+          contextWindow: 200_000,
+          compacting: false,
+          source: "provider",
+          breakdown: {
+            systemPromptTokens: 2_000,
+            systemToolTokens: 3_000,
+            mcpToolTokens: 1_000,
+            customAgentTokens: 500,
+            memoryFileTokens: 500,
+            skillTokens: 500,
+            messageTokens: 2_500,
+            freeSpaceTokens: 170_000,
+            autocompactBufferTokens: 20_000,
+          },
+        }}
+      />,
+    );
+
+    expect(html).toContain("Estimated usage by category");
+    const categories = [
+      "System prompt",
+      "System tools",
+      "MCP tools",
+      "Custom agents",
+      "Memory files",
+      "Skills",
+      "Messages",
+      "Free space",
+      "Autocompact buffer",
+    ];
+    const positions = categories.map((category) =>
+      html.indexOf(`${category}</dt>`),
+    );
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual(
+      [...positions].sort((left, right) => left - right),
+    );
+    expect(html).toContain("System tools</dt><dd>3k tokens (1.5%)");
+    expect(html).toContain("Autocompact buffer</dt><dd>20k tokens (10.0%)");
+  });
+
   it("announces active automatic compaction", () => {
     const html = renderToStaticMarkup(
       <ContextUsageIndicator
@@ -75,8 +160,8 @@ describe("ContextUsageIndicator", () => {
     );
 
     expect(html).toContain("约 55% 已用");
-    expect(html).toContain("当前估算约 572k token，共 1m");
-    expect(html).toContain("上次模型实测输入 85k token");
+    expect(html).toContain("当前估算约 571.8k token，共 1m");
+    expect(html).toContain("上次模型实测输入 84.8k token");
   });
 
   it("labels unknown usage without drawing it as zero percent", () => {

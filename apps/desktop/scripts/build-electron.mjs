@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { rm } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { build } from "esbuild";
@@ -6,6 +7,7 @@ import { build } from "esbuild";
 import { ensureNodePtySpawnHelpersExecutable } from "./node-pty-permissions.mjs";
 
 const require = createRequire(import.meta.url);
+const packageBuild = process.env.ARTEMIS_PACKAGE_BUILD === "1";
 const esmRequireBridge = {
   js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);',
 };
@@ -14,6 +16,8 @@ if (process.platform === "darwin") {
   const nodePtyRoot = dirname(dirname(require.resolve("node-pty")));
   await ensureNodePtySpawnHelpersExecutable(nodePtyRoot);
 }
+
+await rm("dist-electron", { recursive: true, force: true });
 
 const shared = {
   bundle: true,
@@ -25,8 +29,9 @@ const shared = {
     "electron-updater",
   ],
   logLevel: "info",
+  minify: packageBuild,
   platform: "node",
-  sourcemap: true,
+  sourcemap: !packageBuild,
   target: "node24",
 };
 

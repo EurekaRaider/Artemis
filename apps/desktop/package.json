@@ -71,7 +71,6 @@
     "afterPack": "scripts/apply-package-permissions.cjs",
     "npmRebuild": false,
     "asarUnpack": [
-      "node_modules/@earendil-works/**",
       "node_modules/node-pty/**"
     ],
     "extraResources": [
@@ -86,7 +85,15 @@
     "files": [
       "dist-electron/**/*",
       "dist-renderer/**/*",
-      "package.json"
+      "package.json",
+      "!**/*.map",
+      "!**/*.ts",
+      "!**/*.tsx",
+      "!**/*.mts",
+      "!**/*.cts",
+      "!**/__tests__/**",
+      "!**/test/**",
+      "!**/tests/**"
     ],
     "mac": {
       "artifactName": "Artemis-macOS-${arch}-${version}.${ext}",
