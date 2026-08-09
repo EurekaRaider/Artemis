@@ -18,7 +18,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
-  <img alt="macOS arm64 and x64" src="https://img.shields.io/badge/macOS-arm64%20%7C%20x64-111111?logo=apple&logoColor=white" />
+  <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-arm64%20%7C%20x64-111111?logo=apple&logoColor=white" />
   <img alt="801 passing tests" src="https://img.shields.io/badge/Tests-801_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
