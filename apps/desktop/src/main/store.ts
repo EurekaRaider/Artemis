@@ -1343,6 +1343,34 @@ export class AppStore {
     });
   }
 
+  completeAutomationRunForThread(
+    threadId: string,
+  ): { run: AutomationRun; deletedAutomationId?: string } | undefined {
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const current = this.getAutomationRunForThread(threadId);
+      if (!current) {
+        this.database.exec("ROLLBACK");
+        return undefined;
+      }
+      const run = this.updateAutomationRun(current.id, { state: "completed" });
+      const automation = this.getAutomation(run.automationId);
+      const shouldDelete =
+        automation?.schedule.kind === "once" &&
+        !automation.nextRunAt &&
+        !automation.deletedAt;
+      if (shouldDelete) this.softDeleteAutomation(run.automationId);
+      this.database.exec("COMMIT");
+      return {
+        run,
+        ...(shouldDelete ? { deletedAutomationId: run.automationId } : {}),
+      };
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   hasActiveAutomationRun(automationId: string): boolean {
     return Boolean(
       this.database

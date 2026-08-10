@@ -20,6 +20,10 @@ const automationPageSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/AutomationPage.tsx", import.meta.url)),
   "utf8",
 );
+const archivePageSource = readFileSync(
+  fileURLToPath(new URL("../src/renderer/ArchivePage.tsx", import.meta.url)),
+  "utf8",
+);
 const stylesSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/styles.css", import.meta.url)),
   "utf8",
@@ -467,6 +471,19 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("<ArchivePage");
     expect(appSource).toContain('activeView === "archive"');
     expect(appSource).toContain("setThreadArchived(thread, false)");
+    expect(archivePageSource).toContain('className="archive-panel"');
+    expect(archivePageSource).toContain('className="archive-header"');
+    expect(archivePageSource).toContain('className="archive-search"');
+    expect(archivePageSource).toContain('className="archive-empty"');
+    expect(archivePageSource).not.toContain('className="library-hero"');
+    expect(cssRule(".archive-page")).toContain(
+      "background: var(--codex-workspace-bg)",
+    );
+    expect(cssRule(".archive-panel")).toContain("border-radius: 14px");
+    expect(cssRule(".archive-results")).toContain(
+      "border: 1px solid var(--border)",
+    );
+    expect(cssRule(".archive-empty")).not.toContain("border: 1px dashed");
   });
 
   it("exposes MCP, Skills, and persistent task goals as first-class navigation", () => {

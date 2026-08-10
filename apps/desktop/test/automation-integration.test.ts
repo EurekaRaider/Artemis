@@ -48,6 +48,11 @@ describe("automation desktop integration", () => {
     expect(main).toContain("MCP tool metadata no longer matches");
   });
 
+  it("removes a completed one-time automation without archiving its task", () => {
+    expect(main).toContain("store.completeAutomationRunForThread(threadId)");
+    expect(main).toContain("automationDeleted(completion.deletedAutomationId)");
+  });
+
   it("adds a localized and accessible Automation activity", () => {
     expect(app).toContain('"workspace" | "archive" | "resources"');
     expect(app).toContain('"token-usage" | "automations"');
@@ -77,6 +82,28 @@ describe("automation desktop integration", () => {
     );
     expect(styles).toMatch(
       /\.automation-create-button:disabled\s*\{\s*[^}]+\}/u,
+    );
+  });
+
+  it("uses a styled, accessible time picker instead of Chromium's native popup", () => {
+    expect(page).not.toContain('type="time"');
+    expect(page).toContain("function TimePicker(");
+    expect(page).toContain('aria-haspopup="dialog"');
+    expect(page).toContain('className="automation-time-popover"');
+    expect(page).toContain('role="listbox"');
+    expect(page).toContain('role="option"');
+    expect(page).toContain("aria-selected={option === props.value}");
+    expect(styles).toContain(".automation-time-trigger");
+    expect(styles).toContain(".automation-time-popover");
+    expect(styles).toMatch(/\.automation-time-option:focus-visible\s*\{/u);
+  });
+
+  it("renders the time picker popover on an opaque theme surface", () => {
+    expect(styles).toMatch(
+      /\.automation-time-popover\s*\{[^}]*background: var\(--panel-2\)/su,
+    );
+    expect(styles).toMatch(
+      /\.automation-time-popover::after\s*\{[^}]*background: var\(--panel-2\)/su,
     );
   });
 });

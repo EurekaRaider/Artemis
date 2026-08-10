@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="801 passing tests" src="https://img.shields.io/badge/Tests-801_passing-2EA44F" />
+  <img alt="806 passing tests" src="https://img.shields.io/badge/Tests-806_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -291,9 +291,11 @@ tasks. Interactive tasks run against the repository's local checkout.
   Arabic, Hindi and Indonesian. Arabic uses an RTL layout; external Browser
   requests advertise the resolved locale without translating workspace HTML.
 - **Local automations** — create one-time, daily, weekday, or weekly schedules
-  with a timezone, run immediately, inspect persisted run history and receive
-  completion notifications. Runs use the normal Pi task path and coalesce
-  downtime to only the latest missed occurrence when Artemis starts
+  with an accessible hour/minute picker and timezone, run immediately, inspect
+  persisted run history and receive completion notifications. A completed
+  one-time schedule removes itself while keeping its generated task and history;
+  recurring schedules remain available. Runs use the normal Pi task path and
+  coalesce downtime to only the latest missed occurrence when Artemis starts
   again.
 
 </details>
@@ -946,11 +948,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **801 passing tests** (4 skipped):
+The current full test run contains **806 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       57 |       19 |         80 |     645 |   **801** |
+|       57 |       19 |         80 |     650 |   **806** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -977,13 +979,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.2.26` packaging configuration produces:
+The `1.2.27` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.2.26.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.2.26.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.2.26.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.2.27.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.2.27.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.2.27.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and

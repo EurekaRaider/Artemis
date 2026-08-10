@@ -104,4 +104,108 @@ describe("AppStore automations", () => {
     expect(store.getAutomation("automation-1")?.nextRunAt).toBeUndefined();
     store.close();
   });
+
+  it("deletes only a completed one-time automation with no next run", async () => {
+    const store = await createStore();
+    store.upsertProject({
+      id: "project-1",
+      name: "Project",
+      path: "D:\\Project",
+      createdAt: "2026-07-30T01:00:00.000Z",
+      updatedAt: "2026-07-30T01:00:00.000Z",
+    });
+    store.createAutomation({
+      ...automation(),
+      schedule: {
+        kind: "once",
+        at: "2026-07-31T01:30:00.000Z",
+        timeZone: "Asia/Shanghai",
+      },
+      enabled: false,
+      nextRunAt: undefined,
+    });
+    store.createThread({
+      id: "thread-once",
+      projectId: "project-1",
+      title: "One-time review",
+      mode: "review",
+      target: "local",
+      status: "running",
+      pinned: false,
+      archived: false,
+      createdAt: "2026-07-31T01:30:00.000Z",
+      updatedAt: "2026-07-31T01:30:00.000Z",
+    });
+    store.claimAutomationRun(
+      {
+        id: "run-once",
+        automationId: "automation-1",
+        scheduledFor: "2026-07-31T01:30:00.000Z",
+        trigger: "schedule",
+        state: "running",
+        threadId: "thread-once",
+        createdAt: "2026-07-31T01:30:00.000Z",
+        updatedAt: "2026-07-31T01:30:00.000Z",
+      },
+      { advanceSchedule: false },
+    );
+
+    expect(store.completeAutomationRunForThread("thread-once")).toMatchObject({
+      run: { id: "run-once", state: "completed" },
+      deletedAutomationId: "automation-1",
+    });
+    expect(store.listAutomations()).toEqual([]);
+    expect(store.getAutomation("automation-1")?.deletedAt).toBeDefined();
+    expect(store.getThread("thread-once")).toMatchObject({ archived: false });
+    store.close();
+  });
+
+  it("keeps a recurring automation after its run completes", async () => {
+    const store = await createStore();
+    store.upsertProject({
+      id: "project-1",
+      name: "Project",
+      path: "D:\\Project",
+      createdAt: "2026-07-30T01:00:00.000Z",
+      updatedAt: "2026-07-30T01:00:00.000Z",
+    });
+    store.createAutomation(automation());
+    store.createThread({
+      id: "thread-recurring",
+      projectId: "project-1",
+      title: "Recurring review",
+      mode: "review",
+      target: "local",
+      status: "running",
+      pinned: false,
+      archived: false,
+      createdAt: "2026-07-31T01:30:00.000Z",
+      updatedAt: "2026-07-31T01:30:00.000Z",
+    });
+    store.claimAutomationRun(
+      {
+        id: "run-recurring",
+        automationId: "automation-1",
+        scheduledFor: "2026-07-31T01:30:00.000Z",
+        trigger: "schedule",
+        state: "running",
+        threadId: "thread-recurring",
+        createdAt: "2026-07-31T01:30:00.000Z",
+        updatedAt: "2026-07-31T01:30:00.000Z",
+      },
+      {
+        advanceSchedule: true,
+        nextRunAt: "2026-08-01T01:30:00.000Z",
+      },
+    );
+
+    expect(
+      store.completeAutomationRunForThread("thread-recurring"),
+    ).toMatchObject({
+      run: { id: "run-recurring", state: "completed" },
+    });
+    expect(store.getAutomation("automation-1")?.deletedAt).toBeUndefined();
+    expect(store.listAutomations()).toHaveLength(1);
+    store.close();
+  });
 });

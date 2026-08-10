@@ -1649,9 +1649,13 @@ function applyPayloadSideEffects(
     }
     case "turn.completed":
       store.updateThread(threadId, { status: "idle" });
-      publishAutomationRun(
-        store.updateAutomationRunForThread(threadId, "completed"),
-      );
+      {
+        const completion = store.completeAutomationRunForThread(threadId);
+        publishAutomationRun(completion?.run);
+        if (completion?.deletedAutomationId) {
+          automationDeleted(completion.deletedAutomationId);
+        }
+      }
       activeTurns.delete(threadId);
       break;
     case "turn.failed":
