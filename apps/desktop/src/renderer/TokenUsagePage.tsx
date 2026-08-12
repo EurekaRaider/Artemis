@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { AgentEvent } from "@artemis/protocol";
 
 import {
+  buildCacheUsageMetrics,
   buildTokenUsageCells,
   formatTokenUsageTooltip,
   TOKEN_USAGE_COPY,
@@ -149,16 +150,22 @@ export function TokenUsagePage({
       !peak || cell.dailyTokens > peak.dailyTokens ? cell : peak,
     undefined,
   );
-  const usageTotals = events.reduce(
-    (totals, event) => {
-      if (event.payload.type !== "assistant.usage") return totals;
-      totals.input += event.payload.inputTokens;
-      totals.output += event.payload.outputTokens;
-      totals.cacheRead += event.payload.cacheReadTokens;
-      totals.cacheWrite += event.payload.cacheWriteTokens;
-      return totals;
-    },
-    { cacheRead: 0, cacheWrite: 0, input: 0, output: 0 },
+  const { usageTotals, cacheMetrics } = useMemo(
+    () => ({
+      usageTotals: events.reduce(
+        (totals, event) => {
+          if (event.payload.type !== "assistant.usage") return totals;
+          totals.input += event.payload.inputTokens;
+          totals.output += event.payload.outputTokens;
+          totals.cacheRead += event.payload.cacheReadTokens;
+          totals.cacheWrite += event.payload.cacheWriteTokens;
+          return totals;
+        },
+        { cacheRead: 0, cacheWrite: 0, input: 0, output: 0 },
+      ),
+      cacheMetrics: buildCacheUsageMetrics(events),
+    }),
+    [events],
   );
   const number = new Intl.NumberFormat(locale, {
     notation: "compact",
@@ -173,6 +180,19 @@ export function TokenUsagePage({
     dateStyle: "medium",
     timeZone: "UTC",
   });
+  const percent = new Intl.NumberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits: 1,
+  });
+  const cachePolicyDistribution = [
+    [t.policyExplicit30m, cacheMetrics.policies["explicit-30m"]],
+    [t.policyLong, cacheMetrics.policies.long],
+    [t.policyShort, cacheMetrics.policies.short],
+    [t.policyDisabled, cacheMetrics.policies.disabled],
+  ]
+    .filter(([, count]) => Number(count) > 0)
+    .map(([label, count]) => `${label} ${exactNumber.format(Number(count))}`)
+    .join(" · ");
   const monthLabels = cells.flatMap((cell, index) => {
     if (index % 7 !== 0) return [];
     const previous = cells[index - 7];
@@ -222,6 +242,21 @@ export function TokenUsagePage({
     {
       label: t.recordedResponses,
       value: exactNumber.format(events.length),
+    },
+    {
+      label: t.cacheHitRate,
+      value:
+        cacheMetrics.hitRate === undefined
+          ? "—"
+          : percent.format(cacheMetrics.hitRate),
+    },
+    {
+      label: t.cacheDataCoverage,
+      value: `${percent.format(cacheMetrics.coverage)} (${exactNumber.format(cacheMetrics.reportedEvents)}/${exactNumber.format(cacheMetrics.usageEvents)})`,
+    },
+    {
+      label: t.automaticPolicyDistribution,
+      value: cachePolicyDistribution || "—",
     },
   ];
   const composition = [
@@ -282,7 +317,7 @@ export function TokenUsagePage({
                 role="tab"
                 type="button"
               >
-                {t[candidate]}
+                {t[`${candidate}Tab`]}
               </button>
             ))}
           </div>

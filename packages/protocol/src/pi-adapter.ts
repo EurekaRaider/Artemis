@@ -13,6 +13,8 @@ interface PiMessage {
     cacheRead?: unknown;
     cacheWrite?: unknown;
     totalTokens?: unknown;
+    cacheReadReported?: unknown;
+    cacheWriteReported?: unknown;
   };
 }
 
@@ -221,6 +223,12 @@ function assistantUsage(
     cacheReadTokens: message.usage.cacheRead as number,
     cacheWriteTokens: message.usage.cacheWrite as number,
     totalTokens: message.usage.totalTokens as number,
+    ...(typeof message.usage.cacheReadReported === "boolean"
+      ? { cacheReadReported: message.usage.cacheReadReported }
+      : {}),
+    ...(typeof message.usage.cacheWriteReported === "boolean"
+      ? { cacheWriteReported: message.usage.cacheWriteReported }
+      : {}),
   };
 }
 

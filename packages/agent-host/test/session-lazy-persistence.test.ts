@@ -138,6 +138,11 @@ describe("Pi session lazy persistence", () => {
       target: "local",
     });
     expect(opened.sessionFile).toBeUndefined();
+    const initialSessionId = (
+      host as unknown as {
+        threads: Map<string, { session: { sessionId: string } }>;
+      }
+    ).threads.get("persisted-thread")!.session.sessionId;
     await expect(access(join(agentDir, "sessions"))).rejects.toMatchObject({
       code: "ENOENT",
     });
@@ -157,6 +162,9 @@ describe("Pi session lazy persistence", () => {
     expect(
       SessionManager.open(sessionFile!).getEntries().length,
     ).toBeGreaterThanOrEqual(2);
+    expect(SessionManager.open(sessionFile!).getSessionId()).toBe(
+      initialSessionId,
+    );
 
     host.dispose();
   });

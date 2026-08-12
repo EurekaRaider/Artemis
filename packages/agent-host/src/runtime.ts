@@ -69,6 +69,10 @@ import { createResourceOverrides } from "./resource-overrides.js";
 import { expandSkillInvocations } from "./skill-invocations.js";
 import { resolveCodexWorkspaceDependencies } from "./codex-workspace-dependencies.js";
 import { omitReasoningFromSession } from "./reasoning-persistence.js";
+import {
+  PromptCacheController,
+  withPromptCacheController,
+} from "./prompt-cache.js";
 
 const MINIMUM_MCP_TEXT_BUDGET_BYTES = 1024;
 const MAXIMUM_MCP_TEXT_BUDGET_BYTES = 2 * 1024 * 1024;
@@ -565,6 +569,7 @@ interface HostedThread {
   currentTurnId: string | undefined;
   currentMode: RunMode | undefined;
   compacting: boolean;
+  topLevelUserTurns: number;
   readTool: SessionTool;
   writeTool: SessionTool;
   mcpToolNames: Set<string>;
@@ -868,6 +873,7 @@ function createLazySessionManager(
   onPersist: (sessionFile: string) => void,
 ): SessionManager {
   let active = omitReasoningFromSession(SessionManager.inMemory(workspacePath));
+  const sessionId = active.getSessionId();
   const persist = (): string => {
     if (active.isPersisted()) {
       const existing = active.getSessionFile();
@@ -879,6 +885,7 @@ function createLazySessionManager(
       SessionManager.create(
         workspacePath,
         piSessionDirectory(workspacePath, agentDir),
+        { id: sessionId },
       ),
     );
     replayDraftSessionEntries(entries, persisted);
@@ -918,12 +925,41 @@ export class ArtemisAgentHost {
   private readonly userInputTails = new Map<string, Promise<void>>();
   private readonly registeredProviderIds = new Set<string>();
   private readonly providerAdmissionBlockedUntil = new Map<string, number>();
+  private readonly promptCache = new PromptCacheController();
   private readonly agentDir: string;
   private readonly onSessionFile:
     ((threadId: string, path: string) => void) | undefined;
   private configuration: AgentRuntimeConfiguration = { credentials: {} };
   private modelRuntimePromise:
     ReturnType<typeof ModelRuntime.create> | undefined;
+
+  private promptCacheUsage(
+    sessionId: string,
+    payload: Extract<AgentPayload, { type: "assistant.usage" }>,
+  ): Extract<AgentPayload, { type: "assistant.usage" }> {
+    const cache = this.promptCache.latestResolution(sessionId);
+    return {
+      ...payload,
+      ...(cache
+        ? {
+            cacheReadReported:
+              payload.cacheReadReported ?? cache.cacheReadReported,
+            cacheWriteReported:
+              payload.cacheWriteReported ?? cache.cacheWriteReported,
+            cachePolicy: cache.policy,
+            cachePolicyReason: cache.reason,
+            ...(cache.cacheKeyFingerprint
+              ? { cacheKeyFingerprint: cache.cacheKeyFingerprint }
+              : {}),
+            systemPromptFingerprint: cache.systemPromptFingerprint,
+            toolSchemaFingerprint: cache.toolSchemaFingerprint,
+            stablePrefixTokens: cache.stablePrefixTokens,
+            cacheKeyRequestsPerMinute: cache.cacheKeyRequestsPerMinute,
+            cacheKeyRateWarning: cache.cacheKeyRateWarning,
+          }
+        : {}),
+    };
+  }
 
   constructor(
     private readonly broker: AgentBroker,
@@ -1032,7 +1068,7 @@ export class ArtemisAgentHost {
     this.modelRuntimePromise ??= ModelRuntime.create({
       credentials: this.credentials,
       allowModelNetwork: false,
-    });
+    }).then((runtime) => withPromptCacheController(runtime, this.promptCache));
     return this.modelRuntimePromise;
   }
 
@@ -3480,7 +3516,7 @@ export class ArtemisAgentHost {
                   cwd: request.workspacePath,
                   agentDir: this.agentDir,
                   noExtensions: true,
-                  ...createResourceOverrides(() => this.configuration),
+                  ...createResourceOverrides(() => this.configuration, "child"),
                 });
                 await childResourceLoader.reload();
                 const modelRuntime = await this.getModelRuntime();
@@ -3571,6 +3607,10 @@ export class ArtemisAgentHost {
                   ],
                 });
                 child.session = created.session;
+                this.promptCache.registerSession(child.session.sessionId, {
+                  scope: "child",
+                  priorTopLevelUserTurns: 0,
+                });
                 this.configureSessionCompaction(child.session);
                 child.session.agent.state.tools =
                   child.session.agent.state.tools.filter(
@@ -3643,6 +3683,15 @@ export class ArtemisAgentHost {
                       );
                     } else if (payload.type === "turn.failed") {
                       scheduleActivityUpdate(`\n[failed] ${payload.message}\n`);
+                    } else if (payload.type === "assistant.usage") {
+                      this.sink.emit(
+                        hosted.threadId,
+                        input.turnId,
+                        this.promptCacheUsage(
+                          child.session!.sessionId,
+                          payload,
+                        ),
+                      );
                     }
                   }
                 });
@@ -3662,7 +3711,7 @@ export class ArtemisAgentHost {
                   );
                 }
                 await child.session.prompt(
-                  `${modeInstruction(input.mode)}\n\nYou are ${input.role}, an Artemis child agent at depth ${input.depth} of ${AGENT_TEAM_MAXIMUM_DEPTH}. Complete only this bounded task:\n${input.task}\n\nYour supervisor is ${input.parentAgentId}. Inspect the compact roster with list_agents, wait with wait_agent or wait_team, and communicate through send_message; recipient \"supervisor\" routes to your immediate supervisor while \"parent\" routes to the root agent. You may create up to ${AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN} direct children when the task has independent workstreams and the team still has capacity. If you create children, wait for them, integrate their results with finish_subteam, and only then return your final handoff. Send user-decision requests to your supervisor instead of asking the user directly. Your cooperative write scope is ${input.writePaths.length > 0 ? input.writePaths.join(", ") : "empty (workspace write calls are read-only)"}. Shell commands still run with the desktop user's full permissions, so treat the scope as a conflict-control contract and do not modify anything outside it.${queuedGuidance}`,
+                  `${modeInstruction(input.mode)}\n\nYou are ${input.role}, an Artemis child agent at depth ${input.depth} of ${AGENT_TEAM_MAXIMUM_DEPTH}. Complete only this bounded task:\n${input.task}\n\nYour supervisor is ${input.parentAgentId}. You may create up to ${AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN} direct children when the task has independent workstreams and the team still has capacity. Your cooperative write scope is ${input.writePaths.length > 0 ? input.writePaths.join(", ") : "empty (workspace write calls are read-only)"}.${queuedGuidance}`,
                 );
                 if (
                   this.directChildren(hosted, child.agentId).length > 0 &&
@@ -3726,6 +3775,9 @@ export class ArtemisAgentHost {
                 delete child.currentTool;
                 delete child.currentToolStartedAt;
                 child.lastActivityAt = Date.now();
+                if (child.session) {
+                  this.promptCache.unregisterSession(child.session.sessionId);
+                }
                 child.session?.dispose();
                 delete child.session;
                 this.emitChild(hosted, child);
@@ -3845,6 +3897,13 @@ export class ArtemisAgentHost {
         ...extensionTools.map((tool) => tool.name),
       ],
     });
+    const restoredTopLevelUserTurns = session.messages.filter(
+      (message) => message.role === "user",
+    ).length;
+    this.promptCache.registerSession(session.sessionId, {
+      scope: "parent",
+      priorTopLevelUserTurns: restoredTopLevelUserTurns,
+    });
     this.configureSessionCompaction(session);
     const readSessionTool = session.agent.state.tools.find(
       (tool) => tool.name === "read",
@@ -3944,6 +4003,7 @@ export class ArtemisAgentHost {
       currentTurnId: undefined,
       currentMode: undefined,
       compacting: false,
+      topLevelUserTurns: restoredTopLevelUserTurns,
       readTool: readSessionTool,
       writeTool: writeSessionTool,
       mcpToolNames: new Set(mcpTools.map((tool) => tool.name)),
@@ -4013,6 +4073,14 @@ export class ArtemisAgentHost {
               });
             }
           }
+          if (payload.type === "assistant.usage") {
+            this.sink.emit(
+              hosted.threadId,
+              hosted.currentTurnId,
+              this.promptCacheUsage(session.sessionId, payload),
+            );
+            continue;
+          }
           this.sink.emit(hosted.threadId, hosted.currentTurnId, payload);
         }
       }
@@ -4058,7 +4126,7 @@ export class ArtemisAgentHost {
       mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
 
     const prompt = appendPromptFiles(
-      buildTurnPrompt(mode, text, goal, memoryContext),
+      buildTurnPrompt(mode, text, goal, memoryContext, interruptedTeamContext),
       attachments,
     );
     const expandedPrompt = await expandSkillInvocations(
@@ -4066,16 +4134,11 @@ export class ArtemisAgentHost {
       hosted.resourceLoader.getSkills().skills,
     );
     const images = toSessionImages(attachments);
-    const ultraMode = this.configuration.selection?.ultraMode === true;
-    const coordinationInstruction = `${
-      ultraMode
-        ? `Ultra Mode agent-tree coordination: first assess whether the task is complex, long-horizon, cross-subsystem, has multiple independent workstreams, can parallelize investigation, implementation, testing, or builds, or benefits from multiple specialties. When it does, proactively start three to five complementary direct children early and let them delegate further only when their own tasks divide cleanly. The tree supports ${AGENT_TEAM_LOGICAL_MAXIMUM} current members and ${AGENT_TEAM_MAXIMUM_DEPTH} levels, but capacity is a ceiling rather than a target. Keep write scopes disjoint, monitor collaboration with wait_team, resolve blockers, integrate the results yourself, and call finish_team before your final answer. Keep simple, atomic, strictly sequential tasks, or tasks where coordination would cost more than it helps, with the parent agent only.`
-        : `Agent-tree coordination: delegate only when parallel work materially helps. Prefer three to five complementary direct children and allow deeper delegation only for independent bounded work. The tree supports ${AGENT_TEAM_LOGICAL_MAXIMUM} current members and ${AGENT_TEAM_MAXIMUM_DEPTH} levels, but do not create agents merely to fill capacity. Keep write scopes disjoint, monitor collaboration with wait_team, resolve blockers, integrate the results yourself, and call finish_team before your final answer. If no team is created, continue normally.`
-    } If the user asks to continue work from an interrupted team, create a fresh replacement team from the prior tasks and handoffs; never claim that cancelled model requests or processes were resumed.${
-      interruptedTeamContext
-        ? `\n\nPrevious interrupted agent-team context:\n${interruptedTeamContext}`
-        : ""
-    }`;
+    this.promptCache.updateParentTurnCount(
+      hosted.session.sessionId,
+      hosted.topLevelUserTurns,
+    );
+    hosted.topLevelUserTurns += 1;
     try {
       const concurrency = this.concurrency.snapshot;
       if (
@@ -4113,18 +4176,13 @@ export class ArtemisAgentHost {
               );
             }
             await (images || expandedPrompt.expanded
-              ? hosted.session.prompt(
-                  `${expandedPrompt.text}\n\n${coordinationInstruction}`,
-                  {
-                    ...(images ? { images } : {}),
-                    ...(expandedPrompt.expanded
-                      ? { expandPromptTemplates: false }
-                      : {}),
-                  },
-                )
-              : hosted.session.prompt(
-                  `${expandedPrompt.text}\n\n${coordinationInstruction}`,
-                ));
+              ? hosted.session.prompt(expandedPrompt.text, {
+                  ...(images ? { images } : {}),
+                  ...(expandedPrompt.expanded
+                    ? { expandPromptTemplates: false }
+                    : {}),
+                })
+              : hosted.session.prompt(expandedPrompt.text));
           } catch (error) {
             if (providerId) this.recordProviderBackoff(providerId, error);
             throw error;
@@ -4291,10 +4349,14 @@ export class ArtemisAgentHost {
     hosted.unsubscribe();
     for (const child of hosted.childAgents.values()) {
       this.requestChildCancellation(hosted, child);
+      if (child.session) {
+        this.promptCache.unregisterSession(child.session.sessionId);
+      }
       child.session?.dispose();
     }
     hosted.childAgents.clear();
     this.bashExecutions.disposeThread(threadId);
+    this.promptCache.unregisterSession(hosted.session.sessionId);
     hosted.session.dispose();
     this.threads.delete(threadId);
   }
@@ -4326,8 +4388,12 @@ export class ArtemisAgentHost {
       hosted.unsubscribe();
       for (const child of hosted.childAgents.values()) {
         this.requestChildCancellation(hosted, child);
+        if (child.session) {
+          this.promptCache.unregisterSession(child.session.sessionId);
+        }
         child.session?.dispose();
       }
+      this.promptCache.unregisterSession(hosted.session.sessionId);
       hosted.session.dispose();
       this.bashExecutions.disposeThread(hosted.threadId);
     }

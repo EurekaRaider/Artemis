@@ -354,7 +354,19 @@ interface TurnLatencyTrace {
   queueDepth: number;
   eventCount: number;
   contextTokens?: number;
+  uncachedInputTokens?: number;
   cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  cacheReadReported?: boolean;
+  cacheWriteReported?: boolean;
+  cachePolicy?: TurnLatencySample["cachePolicy"];
+  cachePolicyReason?: string;
+  cacheKeyFingerprint?: string;
+  systemPromptFingerprint?: string;
+  toolSchemaFingerprint?: string;
+  stablePrefixTokens?: number;
+  cacheKeyRequestsPerMinute?: number;
+  cacheKeyRateWarning?: boolean;
   providerInputTokens?: number;
   currentEstimatedTokens?: number;
   displayedContextTokens?: number;
@@ -590,9 +602,45 @@ function finalizeTurnLatency(trace: TurnLatencyTrace): void {
     ...(trace.contextTokens === undefined
       ? {}
       : { contextTokens: trace.contextTokens }),
+    ...(trace.uncachedInputTokens === undefined
+      ? {}
+      : { uncachedInputTokens: trace.uncachedInputTokens }),
     ...(trace.cacheReadTokens === undefined
       ? {}
       : { cacheReadTokens: trace.cacheReadTokens }),
+    ...(trace.cacheWriteTokens === undefined
+      ? {}
+      : { cacheWriteTokens: trace.cacheWriteTokens }),
+    ...(trace.cacheReadReported === undefined
+      ? {}
+      : { cacheReadReported: trace.cacheReadReported }),
+    ...(trace.cacheWriteReported === undefined
+      ? {}
+      : { cacheWriteReported: trace.cacheWriteReported }),
+    ...(trace.cachePolicy === undefined
+      ? {}
+      : { cachePolicy: trace.cachePolicy }),
+    ...(trace.cachePolicyReason === undefined
+      ? {}
+      : { cachePolicyReason: trace.cachePolicyReason }),
+    ...(trace.cacheKeyFingerprint === undefined
+      ? {}
+      : { cacheKeyFingerprint: trace.cacheKeyFingerprint }),
+    ...(trace.systemPromptFingerprint === undefined
+      ? {}
+      : { systemPromptFingerprint: trace.systemPromptFingerprint }),
+    ...(trace.toolSchemaFingerprint === undefined
+      ? {}
+      : { toolSchemaFingerprint: trace.toolSchemaFingerprint }),
+    ...(trace.stablePrefixTokens === undefined
+      ? {}
+      : { stablePrefixTokens: trace.stablePrefixTokens }),
+    ...(trace.cacheKeyRequestsPerMinute === undefined
+      ? {}
+      : { cacheKeyRequestsPerMinute: trace.cacheKeyRequestsPerMinute }),
+    ...(trace.cacheKeyRateWarning === undefined
+      ? {}
+      : { cacheKeyRateWarning: trace.cacheKeyRateWarning }),
     ...(trace.providerInputTokens === undefined
       ? {}
       : { providerInputTokens: trace.providerInputTokens }),
@@ -662,9 +710,62 @@ function observeTurnPayload(
       trace.contextFootprint = payload.footprint;
     }
   } else if (payload.type === "assistant.usage") {
-    trace.contextTokens ??= payload.inputTokens;
-    trace.providerInputTokens = payload.inputTokens;
-    trace.cacheReadTokens = payload.cacheReadTokens;
+    trace.contextTokens ??=
+      payload.inputTokens + payload.cacheReadTokens + payload.cacheWriteTokens;
+    trace.uncachedInputTokens =
+      (trace.uncachedInputTokens ?? 0) + payload.inputTokens;
+    trace.providerInputTokens =
+      (trace.providerInputTokens ?? 0) +
+      payload.inputTokens +
+      payload.cacheReadTokens +
+      payload.cacheWriteTokens;
+    trace.cacheReadTokens =
+      (trace.cacheReadTokens ?? 0) + payload.cacheReadTokens;
+    trace.cacheWriteTokens =
+      (trace.cacheWriteTokens ?? 0) + payload.cacheWriteTokens;
+    if (payload.cacheReadReported !== undefined) {
+      trace.cacheReadReported =
+        trace.cacheReadReported === true || payload.cacheReadReported;
+    }
+    if (payload.cacheWriteReported !== undefined) {
+      trace.cacheWriteReported =
+        trace.cacheWriteReported === true || payload.cacheWriteReported;
+    }
+    if (payload.cachePolicy !== undefined) {
+      trace.cachePolicy = payload.cachePolicy;
+    }
+    if (payload.cachePolicyReason !== undefined) {
+      trace.cachePolicyReason = payload.cachePolicyReason;
+    }
+    if (payload.cacheKeyFingerprint !== undefined) {
+      trace.cacheKeyFingerprint = payload.cacheKeyFingerprint;
+    }
+    if (payload.systemPromptFingerprint !== undefined) {
+      trace.systemPromptFingerprint = payload.systemPromptFingerprint;
+    }
+    if (payload.toolSchemaFingerprint !== undefined) {
+      trace.toolSchemaFingerprint = payload.toolSchemaFingerprint;
+    }
+    if (payload.stablePrefixTokens !== undefined) {
+      trace.stablePrefixTokens = payload.stablePrefixTokens;
+    }
+    trace.cacheKeyRequestsPerMinute = Math.max(
+      trace.cacheKeyRequestsPerMinute ?? 0,
+      payload.cacheKeyRequestsPerMinute ?? 0,
+    );
+    const firstCacheKeyRateWarning =
+      trace.cacheKeyRateWarning !== true &&
+      payload.cacheKeyRateWarning === true;
+    trace.cacheKeyRateWarning =
+      trace.cacheKeyRateWarning === true ||
+      payload.cacheKeyRateWarning === true;
+    if (firstCacheKeyRateWarning) {
+      diagnosticBundleService?.record({
+        source: "agent-host",
+        severity: "warning",
+        message: `Prompt cache key ${payload.cacheKeyFingerprint ?? "unknown"} reached ${payload.cacheKeyRequestsPerMinute ?? 0} requests in the rolling one-minute window. Artemis kept the key stable to preserve cache affinity.`,
+      });
+    }
   } else if (
     payload.type === "turn.completed" ||
     payload.type === "turn.failed"
@@ -6938,6 +7039,69 @@ function seedSmokeUserInputFixture(): void {
   });
 }
 
+function seedSmokeTokenUsageFixture(): void {
+  if (!store || process.env.ARTEMIS_SMOKE_VIEW !== "token-usage") return;
+  const now = new Date();
+  const timestamp = now.toISOString();
+  const projectId = "artemis-smoke-token-usage-project";
+  const threadId = "artemis-smoke-token-usage-thread";
+  store.upsertProject({
+    id: projectId,
+    name: "Artemis",
+    path: process.cwd(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+  store.createThread({
+    id: threadId,
+    projectId,
+    title: "Prompt cache metrics",
+    mode: "execute",
+    target: "local",
+    status: "idle",
+    pinned: false,
+    archived: false,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+  const usage = [
+    {
+      inputTokens: 3_000,
+      outputTokens: 400,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalTokens: 3_400,
+    },
+    {
+      inputTokens: 900,
+      outputTokens: 350,
+      cacheReadTokens: 2_100,
+      cacheWriteTokens: 300,
+      totalTokens: 3_650,
+      cacheReadReported: true,
+      cacheWriteReported: true,
+      cachePolicy: "explicit-30m" as const,
+    },
+    {
+      inputTokens: 800,
+      outputTokens: 320,
+      cacheReadTokens: 2_200,
+      cacheWriteTokens: 0,
+      totalTokens: 3_320,
+      cacheReadReported: true,
+      cachePolicy: "long" as const,
+    },
+  ];
+  for (const [index, entry] of usage.entries()) {
+    store.appendEvent(
+      `artemis-smoke-token-usage-${index}`,
+      threadId,
+      `artemis-smoke-token-turn-${index}`,
+      { type: "assistant.usage", ...entry },
+    );
+  }
+}
+
 async function seedSmokeEnvironmentFixture(): Promise<void> {
   if (!store || !process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment")) {
     return;
@@ -7361,6 +7525,14 @@ function createMainWindow(): BrowserWindow {
                   }
                   return;
                 }
+                if (view === 'token-usage') {
+                  document.querySelectorAll('.activity-button')[2]?.click();
+                  await wait(1_000);
+                  const page = document.querySelector('.token-usage-page');
+                  if (page) page.scrollTop = page.scrollHeight;
+                  await wait(300);
+                  return;
+                }
                 document.querySelectorAll('.activity-button')[1]?.click();
                 await wait(1_000);
                 if (view === 'add-plugin') {
@@ -7624,6 +7796,7 @@ app
     configureBrowserLocaleSession();
     await seedSmokeEnvironmentFixture();
     seedSmokeUserInputFixture();
+    seedSmokeTokenUsageFixture();
     mcpConfigStore = new McpConfigStore(
       join(app.getPath("userData"), "mcp.json"),
     );

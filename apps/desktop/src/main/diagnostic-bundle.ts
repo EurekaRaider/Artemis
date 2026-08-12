@@ -36,7 +36,19 @@ export interface TurnLatencySample {
   queueDepth: number;
   eventCount: number;
   contextTokens?: number;
+  uncachedInputTokens?: number;
   cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  cacheReadReported?: boolean;
+  cacheWriteReported?: boolean;
+  cachePolicy?: "disabled" | "short" | "long" | "explicit-30m";
+  cachePolicyReason?: string;
+  cacheKeyFingerprint?: string;
+  systemPromptFingerprint?: string;
+  toolSchemaFingerprint?: string;
+  stablePrefixTokens?: number;
+  cacheKeyRequestsPerMinute?: number;
+  cacheKeyRateWarning?: boolean;
   providerInputTokens?: number;
   currentEstimatedTokens?: number;
   displayedContextTokens?: number;
@@ -289,7 +301,11 @@ export class DiagnosticBundleService {
       if (value !== undefined) stagesMs[name] = value;
     }
     const contextTokens = metric(sample.contextTokens);
+    const uncachedInputTokens = metric(sample.uncachedInputTokens);
     const cacheReadTokens = metric(sample.cacheReadTokens);
+    const cacheWriteTokens = metric(sample.cacheWriteTokens);
+    const stablePrefixTokens = metric(sample.stablePrefixTokens);
+    const cacheKeyRequestsPerMinute = metric(sample.cacheKeyRequestsPerMinute);
     const providerInputTokens = metric(sample.providerInputTokens);
     const currentEstimatedTokens = metric(sample.currentEstimatedTokens);
     const displayedContextTokens = metric(sample.displayedContextTokens);
@@ -349,7 +365,51 @@ export class DiagnosticBundleService {
       queueDepth: metric(sample.queueDepth) ?? 0,
       eventCount: metric(sample.eventCount) ?? 0,
       ...(contextTokens === undefined ? {} : { contextTokens }),
+      ...(uncachedInputTokens === undefined ? {} : { uncachedInputTokens }),
       ...(cacheReadTokens === undefined ? {} : { cacheReadTokens }),
+      ...(cacheWriteTokens === undefined ? {} : { cacheWriteTokens }),
+      ...(sample.cacheReadReported === undefined
+        ? {}
+        : { cacheReadReported: sample.cacheReadReported === true }),
+      ...(sample.cacheWriteReported === undefined
+        ? {}
+        : { cacheWriteReported: sample.cacheWriteReported === true }),
+      ...(["disabled", "short", "long", "explicit-30m"].includes(
+        sample.cachePolicy ?? "",
+      )
+        ? { cachePolicy: sample.cachePolicy }
+        : {}),
+      ...(sample.cachePolicyReason
+        ? {
+            cachePolicyReason: boundedText(
+              redact(sample.cachePolicyReason, this.sensitiveRoots),
+              64,
+            ),
+          }
+        : {}),
+      ...(sample.cacheKeyFingerprint
+        ? { cacheKeyFingerprint: sample.cacheKeyFingerprint.slice(0, 16) }
+        : {}),
+      ...(sample.systemPromptFingerprint
+        ? {
+            systemPromptFingerprint: sample.systemPromptFingerprint.slice(
+              0,
+              16,
+            ),
+          }
+        : {}),
+      ...(sample.toolSchemaFingerprint
+        ? {
+            toolSchemaFingerprint: sample.toolSchemaFingerprint.slice(0, 16),
+          }
+        : {}),
+      ...(stablePrefixTokens === undefined ? {} : { stablePrefixTokens }),
+      ...(cacheKeyRequestsPerMinute === undefined
+        ? {}
+        : { cacheKeyRequestsPerMinute }),
+      ...(sample.cacheKeyRateWarning === undefined
+        ? {}
+        : { cacheKeyRateWarning: sample.cacheKeyRateWarning === true }),
       ...(providerInputTokens === undefined ? {} : { providerInputTokens }),
       ...(currentEstimatedTokens === undefined
         ? {}

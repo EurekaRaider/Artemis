@@ -498,6 +498,27 @@ export const assistantUsagePayloadSchema = z.object({
   cacheReadTokens: z.number().int().nonnegative(),
   cacheWriteTokens: z.number().int().nonnegative(),
   totalTokens: z.number().int().nonnegative(),
+  cacheReadReported: z.boolean().optional(),
+  cacheWriteReported: z.boolean().optional(),
+  cachePolicy: z.enum(["disabled", "short", "long", "explicit-30m"]).optional(),
+  cachePolicyReason: z
+    .enum([
+      "explicitly-disabled",
+      "official-gpt-5.6",
+      "official-gpt-5.5",
+      "official-legacy-first-turn",
+      "official-legacy-persistent",
+      "child-agent",
+      "non-official-endpoint",
+      "unsupported-model",
+    ])
+    .optional(),
+  cacheKeyFingerprint: z.string().length(16).optional(),
+  systemPromptFingerprint: z.string().length(16).optional(),
+  toolSchemaFingerprint: z.string().length(16).optional(),
+  stablePrefixTokens: z.number().int().nonnegative().optional(),
+  cacheKeyRequestsPerMinute: z.number().int().nonnegative().optional(),
+  cacheKeyRateWarning: z.boolean().optional(),
 });
 export type AssistantUsagePayload = z.infer<typeof assistantUsagePayloadSchema>;
 

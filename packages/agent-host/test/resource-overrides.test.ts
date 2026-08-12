@@ -28,6 +28,20 @@ describe("agent resource overrides", () => {
     expect(prompts?.at(-1)).toContain("exactly one question per call");
     expect(prompts?.at(-1)).toContain("after five minutes");
     expect(prompts?.at(-1)).toContain("For tools that require model_approval");
+    expect(prompts?.at(-1)).toContain("call update_plan");
+    expect(prompts?.at(-1)).toContain("call save_memory");
+    expect(prompts?.at(-1)).toContain("Agent-team coordination");
+  });
+
+  it("keeps parent-only tool rules out of child system prompts", () => {
+    const overrides = createResourceOverrides({ credentials: {} }, "child");
+    const prompt = overrides.appendSystemPromptOverride?.([]).at(-1);
+
+    expect(prompt).toContain("Child-agent coordination");
+    expect(prompt).not.toContain("call request_user_input");
+    expect(prompt).not.toContain("call update_plan");
+    expect(prompt).not.toContain("call save_memory");
+    expect(prompt).not.toContain("call finish_team");
   });
 
   it("reports the configured provider and model instead of a pretrained identity", () => {

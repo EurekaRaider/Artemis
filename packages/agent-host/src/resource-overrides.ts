@@ -1,7 +1,11 @@
 import { resolve } from "node:path";
 
 import type { DefaultResourceLoader } from "@earendil-works/pi-coding-agent";
-import type { AgentRuntimeConfiguration } from "@artemis/protocol";
+import {
+  AGENT_TEAM_LOGICAL_MAXIMUM,
+  AGENT_TEAM_MAXIMUM_DEPTH,
+  type AgentRuntimeConfiguration,
+} from "@artemis/protocol";
 
 type ResourceLoaderOptions = ConstructorParameters<
   typeof DefaultResourceLoader
@@ -18,6 +22,24 @@ When progress requires the user to choose among requirements, designs, tradeoffs
 
 Do not use request_user_input for command, file, document, MCP, or extension execution approval. For tools that require model_approval, independently assess the exact operation. Set approved to true only when it is clearly in scope, routine, and acceptably reversible. Set it to false when it is destructive, security-sensitive, ambiguous, or should be decided by the user; the desktop will then request human approval.`;
 
+const PLAN_UPDATE_PROMPT = `## Plan updates
+For tasks with multiple meaningful steps, call update_plan before starting work and whenever a step status changes. Keep at most one step in_progress, and mark every step completed when the task finishes. Do not create a plan for a trivial single-step request. Follow this rule only when update_plan is available.`;
+
+const MEMORY_SAVE_PROMPT = `## Experiential memory
+After a workflow succeeds and is verified, decide whether its durable experience is likely to prevent repeated work. If so, and only when save_memory is available in Execute mode, call save_memory and choose its scope yourself: use project memory for repository-specific paths, commands, architecture, conventions, or decisions; use global memory only for workflows that apply unchanged across unrelated repositories. If uncertain, choose project memory. Do not save routine steps, transient results, guesses, or credentials.`;
+
+function parentCoordinationPrompt(ultraMode: boolean): string {
+  return `## Agent-team coordination
+${
+  ultraMode
+    ? `In Ultra Mode, first assess whether the task is complex, long-horizon, cross-subsystem, has multiple independent workstreams, can parallelize investigation, implementation, testing, or builds, or benefits from multiple specialties. When it does, proactively start three to five complementary direct children early and let them delegate further only when their own tasks divide cleanly.`
+    : `Delegate only when parallel work materially helps. Prefer three to five complementary direct children and allow deeper delegation only for independent bounded work. Do not create agents merely to fill capacity.`
+} The tree supports ${AGENT_TEAM_LOGICAL_MAXIMUM} current members and ${AGENT_TEAM_MAXIMUM_DEPTH} levels, but capacity is a ceiling rather than a target. Keep write scopes disjoint, monitor collaboration with wait_team, resolve blockers, integrate the results yourself, and call finish_team before your final answer. If no team is created, continue normally. If the user asks to continue work from an interrupted team, create a fresh replacement team from the prior tasks and handoffs; never claim that cancelled model requests or processes were resumed.`;
+}
+
+const CHILD_COORDINATION_PROMPT = `## Child-agent coordination
+You are an Artemis child agent completing a bounded task for a supervisor. Use list_agents, wait_agent or wait_team, send_message, and finish_subteam only when those tools are available and relevant. Recipient "supervisor" routes to your immediate supervisor while "parent" routes to the root agent. Create children only for independent workstreams, integrate them before returning, and send user-decision requests to your supervisor instead of asking the user directly. Treat the assigned write scope as a conflict-control contract even though shell commands run with the desktop user's permissions.`;
+
 type RuntimeConfigurationSource =
   AgentRuntimeConfiguration | (() => AgentRuntimeConfiguration);
 
@@ -27,10 +49,17 @@ function resolveConfiguration(
   return typeof source === "function" ? source() : source;
 }
 
-function modelIdentityPrompt(configuration: AgentRuntimeConfiguration): string {
+function modelIdentityPrompt(
+  configuration: AgentRuntimeConfiguration,
+  scope: "parent" | "child",
+): string {
+  const scopedPrompts =
+    scope === "parent"
+      ? `${USER_DECISION_PROMPT}\n\n${PLAN_UPDATE_PROMPT}\n\n${MEMORY_SAVE_PROMPT}\n\n${parentCoordinationPrompt(configuration.selection?.ultraMode === true)}`
+      : CHILD_COORDINATION_PROMPT;
   const selection = configuration.selection;
   if (!selection) {
-    return `${ARTEMIS_IDENTITY_PROMPT}\n\n${WORKSPACE_FILE_LINK_PROMPT}\n\n${USER_DECISION_PROMPT}`;
+    return `${ARTEMIS_IDENTITY_PROMPT}\n\n${WORKSPACE_FILE_LINK_PROMPT}\n\n${scopedPrompts}`;
   }
 
   const provider = configuration.providers?.find(
@@ -51,7 +80,7 @@ When the user asks which provider, backend, base model, or model is running, ans
 
 ${WORKSPACE_FILE_LINK_PROMPT}
 
-${USER_DECISION_PROMPT}`;
+${scopedPrompts}`;
 }
 
 function comparablePath(path: string): string {
@@ -64,6 +93,7 @@ function comparablePath(path: string): string {
 
 export function createResourceOverrides(
   configurationSource: RuntimeConfigurationSource,
+  scope: "parent" | "child" = "parent",
 ): Pick<
   ResourceLoaderOptions,
   "agentsFilesOverride" | "appendSystemPromptOverride" | "skillsOverride"
@@ -72,7 +102,7 @@ export function createResourceOverrides(
     appendSystemPromptOverride(base) {
       return [
         ...base,
-        modelIdentityPrompt(resolveConfiguration(configurationSource)),
+        modelIdentityPrompt(resolveConfiguration(configurationSource), scope),
       ];
     },
     agentsFilesOverride(base) {

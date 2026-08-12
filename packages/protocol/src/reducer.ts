@@ -54,7 +54,20 @@ export interface TaskSourceState extends TaskSourceAddedPayload {
 }
 
 export type ContextUsageState = Omit<ContextUsagePayload, "type">;
-export type AssistantUsageState = Omit<AssistantUsagePayload, "type">;
+export interface AssistantUsageState {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalTokens: number;
+  usageEvents: number;
+  cacheReadReportedEvents: number;
+  cacheWriteReportedEvents: number;
+  cachePolicies: Record<
+    NonNullable<AssistantUsagePayload["cachePolicy"]>,
+    number
+  >;
+}
 
 export interface ContextCompactionState {
   id: string;
@@ -123,6 +136,15 @@ export function createThreadViewState(
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
       totalTokens: 0,
+      usageEvents: 0,
+      cacheReadReportedEvents: 0,
+      cacheWriteReportedEvents: 0,
+      cachePolicies: {
+        disabled: 0,
+        short: 0,
+        long: 0,
+        "explicit-30m": 0,
+      },
     },
     queue: {
       steering: [],
@@ -152,7 +174,10 @@ function cloneThreadViewState(state: ThreadViewState): ThreadViewState {
     taskSources: { ...state.taskSources },
     taskSourceOrder: [...state.taskSourceOrder],
     contextCompactions: { ...state.contextCompactions },
-    assistantUsage: { ...state.assistantUsage },
+    assistantUsage: {
+      ...state.assistantUsage,
+      cachePolicies: { ...state.assistantUsage.cachePolicies },
+    },
     queue: {
       steering: [...state.queue.steering],
       followUp: [...state.queue.followUp],
@@ -505,6 +530,8 @@ function applyAgentEvent(
       return;
     }
     case "assistant.usage": {
+      const cachePolicies = { ...state.assistantUsage.cachePolicies };
+      if (payload.cachePolicy) cachePolicies[payload.cachePolicy] += 1;
       state.assistantUsage = {
         inputTokens: state.assistantUsage.inputTokens + payload.inputTokens,
         outputTokens: state.assistantUsage.outputTokens + payload.outputTokens,
@@ -513,6 +540,14 @@ function applyAgentEvent(
         cacheWriteTokens:
           state.assistantUsage.cacheWriteTokens + payload.cacheWriteTokens,
         totalTokens: state.assistantUsage.totalTokens + payload.totalTokens,
+        usageEvents: state.assistantUsage.usageEvents + 1,
+        cacheReadReportedEvents:
+          state.assistantUsage.cacheReadReportedEvents +
+          (payload.cacheReadReported === true ? 1 : 0),
+        cacheWriteReportedEvents:
+          state.assistantUsage.cacheWriteReportedEvents +
+          (payload.cacheWriteReported === true ? 1 : 0),
+        cachePolicies,
       };
       return;
     }

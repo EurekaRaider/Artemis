@@ -102,13 +102,9 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
     );
 
     expect(projectTree).toContain('className="thread-title"');
-    expect(projectTree).toContain(
-      "onPointerEnter={prepareThreadTitleScroll}",
-    );
+    expect(projectTree).toContain("onPointerEnter={prepareThreadTitleScroll}");
     expect(projectTree).toContain('className="thread-title-text"');
-    expect(appSource).toContain(
-      "content.scrollWidth - viewport.clientWidth",
-    );
+    expect(appSource).toContain("content.scrollWidth - viewport.clientWidth");
     expect(appSource).toContain('dataset.overflowing = "true"');
 
     const scrollingTitle = cssDeclarations(

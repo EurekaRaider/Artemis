@@ -50,14 +50,30 @@ describe("buildTurnPrompt", () => {
     ).not.toContain("Relevant experiential memory");
   });
 
-  it("asks the model to decide both whether to save memory and which scope to use", () => {
+  it("keeps repeated plan and memory rules out of the dynamic user turn", () => {
     const prompt = buildTurnPrompt("execute", "Verify the release workflow.");
 
-    expect(prompt).toContain("decide whether");
-    expect(prompt).toContain("choose its scope yourself");
-    expect(prompt).toContain("repository-specific");
-    expect(prompt).toContain("unrelated repositories");
-    expect(prompt).toContain("If uncertain, choose project memory");
+    expect(prompt).not.toContain("call update_plan");
+    expect(prompt).not.toContain("call save_memory");
+    expect(prompt).toContain("User request:\nVerify the release workflow.");
+  });
+
+  it("places interrupted team context before the current request", () => {
+    const prompt = buildTurnPrompt(
+      "execute",
+      "Continue the interrupted work.",
+      undefined,
+      undefined,
+      "Agent A finished the protocol audit.",
+    );
+
+    expect(prompt).toContain("Previous interrupted agent-team context");
+    expect(prompt.indexOf("Previous interrupted")).toBeLessThan(
+      prompt.indexOf("User request"),
+    );
+    expect(
+      prompt.endsWith("User request:\nContinue the interrupted work."),
+    ).toBe(true);
   });
 
   it("keeps an explicit Skill command at the start so Pi expands it", () => {
@@ -89,21 +105,27 @@ describe("buildTurnPrompt", () => {
   });
 
   it("delivers attached file contents as clearly delimited user data", () => {
-    const prompt = appendPromptFiles("Review the attached config.", [
-      {
-        type: "file",
-        name: "settings.json",
-        mimeType: "application/json",
-        content: '{ "theme": "dark" }',
-      },
-    ]);
+    const prompt = appendPromptFiles(
+      buildTurnPrompt("review", "Review the attached config."),
+      [
+        {
+          type: "file",
+          name: "settings.json",
+          mimeType: "application/json",
+          content: '{ "theme": "dark" }',
+        },
+      ],
+    );
 
     expect(prompt).toContain("Attached files (user-provided data)");
     expect(prompt).toContain('name="settings.json"');
     expect(prompt).toContain('media-type="application/json"');
     expect(prompt).toContain('{ "theme": "dark" }');
-    expect(prompt.indexOf("Review the attached config.")).toBeLessThan(
-      prompt.indexOf("Attached files"),
+    expect(prompt.indexOf("Attached files")).toBeLessThan(
+      prompt.indexOf("User request"),
+    );
+    expect(prompt.endsWith("User request:\nReview the attached config.")).toBe(
+      true,
     );
   });
 

@@ -23,6 +23,10 @@ interface InspectableThread {
   currentMode?: "execute" | "plan" | "review";
   childAgents: Map<string, { status: string }>;
   executeTools: InspectableTool[];
+  resourceLoader: {
+    getAppendSystemPrompt(): string[];
+    reload(): Promise<void>;
+  };
   session: {
     agent: { state: { tools: InspectableTool[] } };
     abort(): Promise<void>;
@@ -159,7 +163,7 @@ describe("sub-agent control tools", () => {
     ).toBeUndefined();
   });
 
-  it("uses Ultra coordination in every task mode without relaxing read-only tools", async () => {
+  it("keeps Ultra coordination stable in the system prompt without relaxing read-only tools", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "artemis-ultra-team-"));
     cleanupPaths.push(workspace);
     const host = new ArtemisAgentHost(
@@ -208,6 +212,18 @@ describe("sub-agent control tools", () => {
       run: <T>(_kind: "parent" | "child", task: () => Promise<T>) => task(),
     };
     const thread = internals.threads.get("thread-ultra")!;
+    await thread.resourceLoader.reload();
+    const ultraSystemPrompt = thread.resourceLoader
+      .getAppendSystemPrompt()
+      .join("\n");
+    expect(ultraSystemPrompt).toContain("## Agent-team coordination");
+    expect(ultraSystemPrompt).toContain("In Ultra Mode");
+    expect(ultraSystemPrompt).toContain(
+      "proactively start three to five complementary direct children",
+    );
+    expect(
+      ultraSystemPrompt.match(/## Agent-team coordination/gu),
+    ).toHaveLength(1);
     const prompts: string[] = [];
     thread.session.prompt = async (text: string) => {
       prompts.push(text);
@@ -220,8 +236,8 @@ describe("sub-agent control tools", () => {
         "Handle a complex cross-subsystem task.",
         mode,
       );
-      expect(prompts.at(-1)).toContain("Ultra Mode agent-tree coordination:");
-      expect(prompts.at(-1)).toContain(
+      expect(prompts.at(-1)).not.toContain("Agent-team coordination");
+      expect(prompts.at(-1)).not.toContain(
         "proactively start three to five complementary direct children",
       );
       if (mode !== "execute") {
@@ -235,16 +251,21 @@ describe("sub-agent control tools", () => {
     }
 
     delete internals.configuration.selection.ultraMode;
+    await thread.resourceLoader.reload();
     await host.prompt(
       "thread-ultra",
       "turn-standard",
       "Handle a normal task.",
       "execute",
     );
-    expect(prompts.at(-1)).toContain(
-      "Agent-tree coordination: delegate only when parallel work materially helps.",
+    const standardSystemPrompt = thread.resourceLoader
+      .getAppendSystemPrompt()
+      .join("\n");
+    expect(standardSystemPrompt).toContain(
+      "Delegate only when parallel work materially helps.",
     );
-    expect(prompts.at(-1)).not.toContain("Ultra Mode agent-tree coordination:");
+    expect(standardSystemPrompt).not.toContain("In Ultra Mode");
+    expect(prompts.at(-1)).not.toContain("Agent-team coordination");
     host.dispose();
   });
 

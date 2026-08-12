@@ -14,14 +14,24 @@ export interface TokenUsageCell {
   cumulativeTokens: number;
 }
 
+export interface CacheUsageMetrics {
+  usageEvents: number;
+  reportedEvents: number;
+  reportedInputTokens: number;
+  cacheReadTokens: number;
+  hitRate?: number;
+  coverage: number;
+  policies: Record<"disabled" | "short" | "long" | "explicit-30m", number>;
+}
+
 export const TOKEN_USAGE_COPY = {
   en: {
     title: "Token usage",
     subtitle: "Model usage recorded by Artemis",
     activity: "Token activity",
-    daily: "Daily",
-    weekly: "Weekly",
-    cumulative: "Cumulative",
+    dailyTab: "Daily",
+    weeklyTab: "Weekly",
+    cumulativeTab: "Cumulative",
     totalTokens: "Total Tokens",
     peakDay: "Peak daily Tokens",
     peakWeek: "Peak weekly Tokens",
@@ -38,6 +48,13 @@ export const TOKEN_USAGE_COPY = {
     outputTokens: "Output Tokens",
     cacheReadTokens: "Cache read Tokens",
     cacheWriteTokens: "Cache write Tokens",
+    cacheHitRate: "Cache hit rate",
+    cacheDataCoverage: "Cache data coverage",
+    automaticPolicyDistribution: "Automatic cache policies",
+    policyDisabled: "Disabled",
+    policyShort: "Short",
+    policyLong: "24h",
+    policyExplicit30m: "Explicit 30m",
     days: "days",
     ofDays: "of {total} days",
     loading: "Loading usage…",
@@ -48,9 +65,9 @@ export const TOKEN_USAGE_COPY = {
     title: "Token 用量",
     subtitle: "Artemis 记录的模型调用用量",
     activity: "Token 活动",
-    daily: "每日",
-    weekly: "每周",
-    cumulative: "累计",
+    dailyTab: "每日",
+    weeklyTab: "每周",
+    cumulativeTab: "累计",
     totalTokens: "累计 Token 数",
     peakDay: "单日峰值 Token 数",
     peakWeek: "单周峰值 Token 数",
@@ -67,6 +84,13 @@ export const TOKEN_USAGE_COPY = {
     outputTokens: "输出 Token",
     cacheReadTokens: "缓存读取 Token",
     cacheWriteTokens: "缓存写入 Token",
+    cacheHitRate: "缓存命中率",
+    cacheDataCoverage: "缓存数据覆盖率",
+    automaticPolicyDistribution: "自动缓存策略分布",
+    policyDisabled: "禁用",
+    policyShort: "短缓存",
+    policyLong: "24 小时",
+    policyExplicit30m: "显式 30 分钟",
     days: "天",
     ofDays: "/ {total} 天",
     loading: "正在加载用量…",
@@ -74,6 +98,53 @@ export const TOKEN_USAGE_COPY = {
     error: "历史用量暂时无法加载，实时用量仍会继续记录。",
   },
 } as const;
+
+export function buildCacheUsageMetrics(
+  events: readonly AgentEvent[],
+): CacheUsageMetrics {
+  const metrics: CacheUsageMetrics = {
+    usageEvents: 0,
+    reportedEvents: 0,
+    reportedInputTokens: 0,
+    cacheReadTokens: 0,
+    coverage: 0,
+    policies: {
+      disabled: 0,
+      short: 0,
+      long: 0,
+      "explicit-30m": 0,
+    },
+  };
+  const seen = new Set<string>();
+  for (const event of events) {
+    if (seen.has(event.eventId) || event.payload.type !== "assistant.usage") {
+      continue;
+    }
+    seen.add(event.eventId);
+    metrics.usageEvents += 1;
+    if (event.payload.cachePolicy) {
+      metrics.policies[event.payload.cachePolicy] += 1;
+    }
+    if (event.payload.cacheReadReported !== true) continue;
+    metrics.reportedEvents += 1;
+    metrics.cacheReadTokens += event.payload.cacheReadTokens;
+    metrics.reportedInputTokens +=
+      event.payload.inputTokens +
+      event.payload.cacheReadTokens +
+      event.payload.cacheWriteTokens;
+  }
+  metrics.coverage =
+    metrics.usageEvents === 0
+      ? 0
+      : metrics.reportedEvents / metrics.usageEvents;
+  if (metrics.reportedEvents > 0) {
+    metrics.hitRate =
+      metrics.reportedInputTokens === 0
+        ? 0
+        : metrics.cacheReadTokens / metrics.reportedInputTokens;
+  }
+  return metrics;
+}
 
 const TOKEN_USAGE_TOOLTIP_COPY = {
   en: {

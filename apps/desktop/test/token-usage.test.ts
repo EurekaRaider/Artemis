@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { PROTOCOL_VERSION, type AgentEvent } from "@artemis/protocol";
 import {
+  buildCacheUsageMetrics,
   buildTokenUsageCells,
   formatTokenUsageTooltip,
   TOKEN_USAGE_COPY,
@@ -96,20 +97,66 @@ describe("token usage activity", () => {
     expect(TOKEN_USAGE_COPY.en).toMatchObject({
       title: "Token usage",
       activity: "Token activity",
-      daily: "Daily",
-      weekly: "Weekly",
-      cumulative: "Cumulative",
+      dailyTab: "Daily",
+      weeklyTab: "Weekly",
+      cumulativeTab: "Cumulative",
       insights: "Activity insights",
       tokenComposition: "Token composition",
+      cacheHitRate: "Cache hit rate",
+      cacheDataCoverage: "Cache data coverage",
+      automaticPolicyDistribution: "Automatic cache policies",
     });
     expect(TOKEN_USAGE_COPY["zh-CN"]).toMatchObject({
       title: "Token 用量",
       activity: "Token 活动",
-      daily: "每日",
-      weekly: "每周",
-      cumulative: "累计",
+      dailyTab: "每日",
+      weeklyTab: "每周",
+      cumulativeTab: "累计",
       insights: "活动观察",
       tokenComposition: "Token 构成",
+      cacheHitRate: "缓存命中率",
+      cacheDataCoverage: "缓存数据覆盖率",
+      automaticPolicyDistribution: "自动缓存策略分布",
     });
+  });
+
+  it("computes cache hit rate only from explicitly reported events", () => {
+    const reported = usageEvent("usage-10", "2026-07-27T05:00:00.000Z", 1_000);
+    reported.payload = {
+      type: "assistant.usage",
+      inputTokens: 400,
+      outputTokens: 100,
+      cacheReadTokens: 400,
+      cacheWriteTokens: 100,
+      totalTokens: 1_000,
+      cacheReadReported: true,
+      cacheWriteReported: true,
+      cachePolicy: "explicit-30m",
+    };
+    const legacy = usageEvent("usage-11", "2026-07-27T06:00:00.000Z", 200);
+
+    expect(buildCacheUsageMetrics([reported, legacy, reported])).toEqual({
+      usageEvents: 2,
+      reportedEvents: 1,
+      reportedInputTokens: 900,
+      cacheReadTokens: 400,
+      hitRate: 400 / 900,
+      coverage: 0.5,
+      policies: {
+        disabled: 0,
+        short: 0,
+        long: 0,
+        "explicit-30m": 1,
+      },
+    });
+  });
+
+  it("reports an unknown hit rate rather than zero for legacy usage", () => {
+    const metrics = buildCacheUsageMetrics([
+      usageEvent("usage-12", "2026-07-27T06:00:00.000Z", 200),
+    ]);
+
+    expect(metrics.hitRate).toBeUndefined();
+    expect(metrics.coverage).toBe(0);
   });
 });

@@ -24,6 +24,11 @@ import {
   type Usage,
 } from "@earendil-works/pi-ai";
 
+import {
+  promptCacheMetadata,
+  type PromptCacheResolution,
+} from "./prompt-cache.js";
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -145,18 +150,50 @@ function applyUsage(
   model: Model<Api>,
   output: AssistantMessage,
   usage: LanguageModelUsage,
+  cache: PromptCacheResolution | undefined,
 ): void {
-  output.usage.input = usage.inputTokens ?? 0;
+  const cacheRead = usage.inputTokenDetails.cacheReadTokens ?? 0;
+  const cacheWrite = usage.inputTokenDetails.cacheWriteTokens ?? 0;
+  const totalInput = usage.inputTokens ?? 0;
+  output.usage.input = Math.max(
+    0,
+    usage.inputTokenDetails.noCacheTokens ??
+      totalInput - cacheRead - cacheWrite,
+  );
   output.usage.output = usage.outputTokens ?? 0;
-  output.usage.cacheRead = usage.inputTokenDetails.cacheReadTokens ?? 0;
-  output.usage.cacheWrite = usage.inputTokenDetails.cacheWriteTokens ?? 0;
+  output.usage.cacheRead = cacheRead;
+  output.usage.cacheWrite = cacheWrite;
   output.usage.reasoning = usage.outputTokenDetails.reasoningTokens ?? 0;
   output.usage.totalTokens =
-    usage.totalTokens ??
     output.usage.input +
-      output.usage.output +
-      output.usage.cacheRead +
-      output.usage.cacheWrite;
+    output.usage.cacheRead +
+    output.usage.cacheWrite +
+    output.usage.output;
+  const raw = usage.raw;
+  const inputDetails =
+    raw && typeof raw === "object" && "input_tokens_details" in raw
+      ? (raw as { input_tokens_details?: unknown }).input_tokens_details
+      : undefined;
+  const reports = output.usage as Usage & {
+    cacheReadReported?: boolean;
+    cacheWriteReported?: boolean;
+  };
+  if (
+    cache?.cacheReadReported ||
+    (inputDetails &&
+      typeof inputDetails === "object" &&
+      "cached_tokens" in inputDetails)
+  ) {
+    reports.cacheReadReported = true;
+  }
+  if (
+    cache?.cacheWriteReported ||
+    (inputDetails &&
+      typeof inputDetails === "object" &&
+      "cache_write_tokens" in inputDetails)
+  ) {
+    reports.cacheWriteReported = true;
+  }
   calculateCost(model, output.usage);
 }
 
@@ -203,25 +240,49 @@ export function streamOpenAIResponsesWithAiSdk(
       });
       const tools = toAiSdkTools(context);
       const cacheRetention = options?.cacheRetention ?? "short";
+      const cache = promptCacheMetadata(options);
+      const explicitCache = cache?.policy === "explicit-30m";
       const openaiOptions = {
         forceReasoning: model.reasoning,
         ...(model.reasoning
           ? { reasoningEffort: options?.reasoning ?? "none" }
           : {}),
-        ...(options?.sessionId && cacheRetention !== "none"
+        ...(options?.sessionId && explicitCache
           ? {
               promptCacheKey: options.sessionId,
-              promptCacheRetention:
-                cacheRetention === "long"
-                  ? ("24h" as const)
-                  : ("in_memory" as const),
+              promptCacheOptions: {
+                mode: "explicit" as const,
+                ttl: "30m" as const,
+              },
             }
-          : {}),
+          : options?.sessionId && cacheRetention !== "none"
+            ? {
+                promptCacheKey: options.sessionId,
+                promptCacheRetention:
+                  cacheRetention === "long"
+                    ? ("24h" as const)
+                    : ("in_memory" as const),
+              }
+            : {}),
       } satisfies OpenAILanguageModelResponsesOptions;
+      const messages = toModelMessages(context);
+      if (context.systemPrompt && explicitCache) {
+        messages.unshift({
+          role: "system",
+          content: context.systemPrompt,
+          providerOptions: {
+            openai: {
+              promptCacheBreakpoint: { mode: "explicit" },
+            },
+          },
+        });
+      }
       const result = streamText({
         model: openai.responses(model.id),
-        ...(context.systemPrompt ? { system: context.systemPrompt } : {}),
-        messages: toModelMessages(context),
+        ...(context.systemPrompt && !explicitCache
+          ? { system: context.systemPrompt }
+          : {}),
+        messages,
         ...(tools ? { tools } : {}),
         ...(options?.temperature === undefined
           ? {}
@@ -391,10 +452,10 @@ export function streamOpenAIResponsesWithAiSdk(
         } else if (part.type === "finish-step") {
           output.responseId = part.response.id;
           output.responseModel = part.response.modelId;
-          applyUsage(model, output, part.usage);
+          applyUsage(model, output, part.usage, cache);
         } else if (part.type === "finish") {
           finalReason = stopReason(part.finishReason);
-          applyUsage(model, output, part.totalUsage);
+          applyUsage(model, output, part.totalUsage, cache);
         } else if (part.type === "abort") {
           throw new Error(part.reason ?? "The model request was aborted.");
         } else if (part.type === "error") {

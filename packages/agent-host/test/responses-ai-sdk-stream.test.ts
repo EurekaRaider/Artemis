@@ -215,6 +215,115 @@ describe("streamOpenAIResponsesWithAiSdk", () => {
     );
   });
 
+  it("splits total input into uncached, cache read, and cache write tokens", async () => {
+    sdk.streamText.mockReturnValue({
+      fullStream: fullStream([
+        { type: "text-start", id: "text-cache" },
+        { type: "text-delta", id: "text-cache", text: "OK" },
+        { type: "text-end", id: "text-cache" },
+        {
+          type: "finish",
+          finishReason: "stop",
+          rawFinishReason: "completed",
+          totalUsage: {
+            inputTokens: 1_000,
+            inputTokenDetails: {
+              noCacheTokens: 300,
+              cacheReadTokens: 500,
+              cacheWriteTokens: 200,
+            },
+            outputTokens: 100,
+            outputTokenDetails: { textTokens: 100, reasoningTokens: 0 },
+            totalTokens: 1_100,
+            raw: {
+              input_tokens: 1_000,
+              input_tokens_details: {
+                cached_tokens: 500,
+                cache_write_tokens: 200,
+              },
+              output_tokens: 100,
+            },
+          },
+        },
+      ]),
+    });
+
+    const events = await Array.fromAsync(
+      streamOpenAIResponsesWithAiSdk(model, {
+        messages: [{ role: "user", content: "Hello", timestamp: 1 }],
+      }),
+    );
+    const done = events.find((event) => event.type === "done");
+
+    expect(done?.message.usage).toMatchObject({
+      input: 300,
+      cacheRead: 500,
+      cacheWrite: 200,
+      output: 100,
+      totalTokens: 1_100,
+      cacheReadReported: true,
+      cacheWriteReported: true,
+    });
+  });
+
+  it("uses an AI SDK system breakpoint for GPT-5.6 explicit caching", async () => {
+    sdk.streamText.mockReturnValue({
+      fullStream: fullStream([
+        {
+          type: "finish",
+          finishReason: "stop",
+          rawFinishReason: "completed",
+          totalUsage: usage,
+        },
+      ]),
+    });
+    const cache = {
+      policy: "explicit-30m",
+      reason: "official-gpt-5.6",
+      cacheKey: "stable-cache-key",
+      cacheKeyFingerprint: "stable-cache-key".slice(0, 16),
+      systemPromptFingerprint: "0123456789abcdef",
+      toolSchemaFingerprint: "fedcba9876543210",
+      stablePrefixTokens: 1_024,
+      cacheKeyRequestsPerMinute: 1,
+      cacheKeyRateWarning: false,
+      cacheReadReported: true,
+      cacheWriteReported: true,
+    } as const;
+
+    await Array.fromAsync(
+      streamOpenAIResponsesWithAiSdk(
+        reasoningModel,
+        {
+          systemPrompt: "Stable system prompt.",
+          messages: [{ role: "user", content: "Dynamic", timestamp: 1 }],
+        },
+        {
+          sessionId: "stable-cache-key",
+          cacheRetention: "none",
+          metadata: { artemisPromptCache: cache },
+        },
+      ),
+    );
+
+    const request = sdk.streamText.mock.calls[0]![0];
+    expect(request).not.toHaveProperty("system");
+    expect(request.messages[0]).toEqual({
+      role: "system",
+      content: "Stable system prompt.",
+      providerOptions: {
+        openai: { promptCacheBreakpoint: { mode: "explicit" } },
+      },
+    });
+    expect(request.providerOptions.openai).toMatchObject({
+      promptCacheKey: "stable-cache-key",
+      promptCacheOptions: { mode: "explicit", ttl: "30m" },
+    });
+    expect(request.providerOptions.openai).not.toHaveProperty(
+      "promptCacheRetention",
+    );
+  });
+
   it("maps AI SDK tool calls without executing a second agent loop", async () => {
     sdk.streamText.mockReturnValue({
       fullStream: fullStream([
