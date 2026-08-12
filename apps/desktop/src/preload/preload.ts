@@ -179,13 +179,8 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.resourceConfirm, message),
   listMcpServers: () => ipcRenderer.invoke(IPC.resourceMcpList),
   searchMcpCatalog: (query) => ipcRenderer.invoke(IPC.resourceMcpSearch, query),
-  installMcpCatalog: (registryName, version, operationId) =>
-    ipcRenderer.invoke(
-      IPC.resourceMcpInstall,
-      registryName,
-      version,
-      operationId,
-    ),
+  installMcpCatalog: (request) =>
+    ipcRenderer.invoke(IPC.resourceMcpInstall, request),
   searchSkillCatalog: (query) =>
     ipcRenderer.invoke(IPC.resourceSkillSearch, query),
   listInstalledSkills: () => ipcRenderer.invoke(IPC.resourceSkillList),

@@ -2119,6 +2119,42 @@ describe("renderer layout contract", () => {
     );
   });
 
+  it("distinguishes active, empty, and untouched MCP and Skill searches", () => {
+    expect(resourceCenterSource).toContain("catalogSearchPhase");
+    expect(resourceCenterSource).toContain("setMcpResults([])");
+    expect(resourceCenterSource).toContain("setSkillResults([])");
+    expect(resourceCenterSource).toContain("t.searchingMcp");
+    expect(resourceCenterSource).toContain("t.searchingSkills");
+    expect(resourceCenterSource).toContain("t.noMcpCatalogResults");
+    expect(resourceCenterSource).toContain("t.noSkillCatalogResults");
+    expect(resourceCenterSource).toContain('role="status"');
+    expect(stylesSource).toContain(".resource-search-spinner");
+    const mcpSearch = resourceCenterSource.indexOf("aria-label={t.searchMcp}");
+    const mcpList = resourceCenterSource.indexOf(
+      'className="resource-management-list grouped"',
+      mcpSearch,
+    );
+    const skillSearch = resourceCenterSource.indexOf(
+      "aria-label={t.searchSkills}",
+    );
+    const skillList = resourceCenterSource.indexOf(
+      'className="resource-management-list"',
+      skillSearch,
+    );
+    expect(mcpSearch).toBeGreaterThan(-1);
+    expect(mcpList).toBeGreaterThan(mcpSearch);
+    expect(skillSearch).toBeGreaterThan(-1);
+    expect(skillList).toBeGreaterThan(skillSearch);
+    for (const view of [
+      "mcp-search-loading",
+      "mcp-search-empty",
+      "skill-search-loading",
+      "skill-search-empty",
+    ]) {
+      expect(mainProcessSource).toContain(view);
+    }
+  });
+
   it("uses the in-app confirmation dialog while preserving native file-picker focus", () => {
     expect(resourceCenterSource).not.toContain("window.confirm(");
     expect(resourceCenterSource).not.toContain("confirmResourceAction");
@@ -2444,7 +2480,7 @@ describe("renderer layout contract", () => {
       saveMcpStart,
     );
     expect(mainProcessSource.slice(saveMcpStart, saveMcpEnd)).toContain(
-      "await connectMcpServer(saved, true)",
+      "await connectMcpServer(saved, true, connectionOptions)",
     );
 
     const pluginEnableStart = mainProcessSource.indexOf(
@@ -2468,6 +2504,28 @@ describe("renderer layout contract", () => {
     const startupSource = mainProcessSource.slice(startupStart, startupEnd);
     expect(startupSource).not.toContain("authorizeMcpServer(");
     expect(startupSource).not.toContain("connectMcpServer(");
+  });
+
+  it("waits for cold Registry npm MCP startup and rejects failed connections", () => {
+    const connectStart = mainProcessSource.indexOf(
+      "async function connectMcpServer",
+    );
+    const connectEnd = mainProcessSource.indexOf(
+      "async function ensureGoogleMcpReady",
+      connectStart,
+    );
+    const connectSource = mainProcessSource.slice(connectStart, connectEnd);
+    expect(connectSource).toContain('status.state === "failed"');
+    expect(connectSource).toContain("throw new Error(");
+
+    const installStart = mainProcessSource.indexOf("IPC.resourceMcpInstall");
+    const installEnd = mainProcessSource.indexOf(
+      "IPC.resourceSkillSearch",
+      installStart,
+    );
+    const installSource = mainProcessSource.slice(installStart, installEnd);
+    expect(installSource).toContain("MCP_REGISTRY_NPM_STARTUP_TIMEOUT_MS");
+    expect(installSource).toContain("startupTimeoutMs:");
   });
 
   it("packages four runtime-free Lite artifact plugins on macOS and Windows", () => {

@@ -189,6 +189,67 @@ describe("McpConfigStore", () => {
     ).toThrow("environment variable name");
   });
 
+  it("keeps encrypted credentials bound to their original execution target", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-mcp-"));
+    temporaryDirectories.push(directory);
+    const store = new McpConfigStore(join(directory, "mcp.json"));
+    await store.upsert(
+      stdioServer({
+        id: "context7",
+        command: "npx",
+        args: ["-y", "@upstash/context7-mcp@1.0.31"],
+        credentialEnvVars: ["CONTEXT7_API_KEY"],
+      }),
+    );
+
+    await expect(
+      store.upsert(
+        stdioServer({
+          id: "context7",
+          command: "other-program",
+          args: [],
+          credentialEnvVars: ["CONTEXT7_API_KEY"],
+        }),
+      ),
+    ).rejects.toThrow(/uninstall and reinstall/iu);
+
+    const remoteStore = new McpConfigStore(join(directory, "remote-mcp.json"));
+    await remoteStore.upsert({
+      id: "remote-context7",
+      name: "Remote Context7",
+      transport: "streamable-http",
+      enabled: true,
+      url: "https://one.example.test/mcp",
+      auth: "headers",
+      headerNames: ["Authorization"],
+    });
+    await expect(
+      remoteStore.upsert({
+        id: "remote-context7",
+        name: "Remote Context7",
+        transport: "streamable-http",
+        enabled: true,
+        url: "https://two.example.test/mcp",
+        auth: "headers",
+        headerNames: ["Authorization"],
+      }),
+    ).rejects.toThrow(/uninstall and reinstall/iu);
+  });
+
+  it("rejects protocol-controlled Registry header names", () => {
+    expect(() =>
+      validateMcpServerConfig({
+        id: "unsafe-headers",
+        name: "Unsafe headers",
+        transport: "streamable-http",
+        enabled: false,
+        url: "https://example.test/mcp",
+        auth: "headers",
+        headerNames: ["Mcp-Session-Id"],
+      }),
+    ).toThrow(/header name/iu);
+  });
+
   it("requires uninstalling an existing server before changing transport", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-mcp-"));
     temporaryDirectories.push(directory);

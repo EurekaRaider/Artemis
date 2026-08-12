@@ -332,6 +332,44 @@ lines.on("line", (line) => {
     },
   );
 
+  it("injects decrypted catalog secrets only into the stdio child process", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-mcp-secret-env-"));
+    const fixturePath = fileURLToPath(
+      new URL("fixtures/mcp-echo-server.mjs", import.meta.url),
+    );
+    const manager = new McpClientManager(process.platform, undefined);
+    try {
+      const status = await manager.connect(
+        {
+          id: "context7",
+          name: "Context7",
+          transport: "stdio",
+          enabled: true,
+          command: process.execPath,
+          args: [fixturePath],
+          env: {},
+          envVars: [],
+          credentialEnvVars: ["CONTEXT7_API_KEY"],
+          workspacePath: directory,
+          allowNetwork: true,
+        },
+        { stdioEnv: { CONTEXT7_API_KEY: "ctx-secret" } },
+      );
+      expect(status.state, status.error).toBe("connected");
+      expect(JSON.stringify(status)).not.toContain("ctx-secret");
+      await expect(
+        manager.call("context7", "environment_value", {
+          name: "CONTEXT7_API_KEY",
+        }),
+      ).resolves.toMatchObject({
+        content: [{ type: "text", text: "ctx-secret" }],
+      });
+    } finally {
+      await manager.dispose();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("launches every local stdio server directly as the desktop user", () => {
     expect(mcpClientManagerSource).toContain("buildDesktopUserLaunch(command)");
     expect(mcpClientManagerSource).not.toContain(
@@ -814,6 +852,29 @@ lines.on("line", async (line) => {
     expect(hanging).toMatchObject({ state: "failed", tools: [] });
     expect(hanging.error).toContain("connection timed out after 15 ms");
     expect(healthy.state).toBe("connected");
+    await manager.dispose();
+  });
+
+  it("allows one cold package startup to use a longer connection timeout", async () => {
+    const manager = new McpClientManager(
+      "darwin",
+      undefined,
+      async () => {
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 30));
+        return {
+          listTools: async () => ({ tools: [] }),
+          callTool: async () => ({ content: [] }),
+          close: async () => undefined,
+        };
+      },
+      10,
+    );
+
+    const status = await manager.connect(config, undefined, {
+      startupTimeoutMs: 60,
+    });
+
+    expect(status.state).toBe("connected");
     await manager.dispose();
   });
 

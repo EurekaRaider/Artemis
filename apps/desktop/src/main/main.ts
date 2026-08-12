@@ -155,7 +155,10 @@ import {
 } from "./memory-store.js";
 import { recallMemoryForTurn } from "./memory-recall.js";
 import { McpClientManager } from "./mcp-client-manager.js";
-import type { McpConnectionAuthentication } from "./mcp-client-manager.js";
+import type {
+  McpConnectionAuthentication,
+  McpConnectOptions,
+} from "./mcp-client-manager.js";
 import { McpConfigStore } from "./mcp-config-store.js";
 import { importMcpServers } from "./mcp-import.js";
 import {
@@ -167,6 +170,7 @@ import {
   startMcpOAuthCallback,
 } from "./mcp-oauth-provider.js";
 import { McpOAuthStore } from "./mcp-oauth-store.js";
+import { McpSecretStore } from "./mcp-secret-store.js";
 import { ResourceCatalogService } from "./resource-catalog.js";
 import { CodexPluginService } from "./codex-plugin-service.js";
 import {
@@ -233,6 +237,7 @@ import {
   type InstalledSkill,
   type InstalledCodexPlugin,
   type GoogleGrantId,
+  type McpCatalogInstallRequest,
   type McpCatalogItem,
   type QueueTurnInput,
   type McpServerConfig,
@@ -299,6 +304,7 @@ let resolvedLocalePreference: AppLocale = "en";
 let mcpConfigStore: McpConfigStore | undefined;
 let mcpClientManager: McpClientManager | undefined;
 let mcpOAuthStore: McpOAuthStore | undefined;
+let mcpSecretStore: McpSecretStore | undefined;
 let googleAccountService: GoogleAccountService | undefined;
 let resourceCatalogService: ResourceCatalogService | undefined;
 let codexPluginService: CodexPluginService | undefined;
@@ -320,6 +326,7 @@ let runtimeToolCount = 0;
 let runtimeMcpToolCount = 0;
 let enabledMcpServerCount = 0;
 const AGENT_RUNTIME_CONFIGURATION_TIMEOUT_MS = 120_000;
+const MCP_REGISTRY_NPM_STARTUP_TIMEOUT_MS = 60_000;
 const memoryStores = new Map<string, MemoryStore>();
 
 interface TurnLatencyTrace {
@@ -987,8 +994,37 @@ async function mcpBearerToken(
 async function mcpAuthentication(
   config: McpServerConfig,
 ): Promise<string | McpConnectionAuthentication | undefined> {
-  if (config.transport !== "streamable-http") return undefined;
+  if (config.transport === "stdio") {
+    const names = config.credentialEnvVars ?? [];
+    if (names.length === 0) return undefined;
+    if (!mcpSecretStore) throw new Error("MCP secret service is not ready.");
+    const stored = await mcpSecretStore.get(config.id);
+    const stdioEnv = Object.fromEntries(
+      names.map((name) => {
+        const value = stored.env[name];
+        if (!value) {
+          throw new Error(`MCP credential is unavailable: ${name}`);
+        }
+        return [name, value];
+      }),
+    );
+    return { stdioEnv };
+  }
   const auth = config.auth ?? (config.credentialProviderId ? "bearer" : "none");
+  if (auth === "headers") {
+    if (!mcpSecretStore) throw new Error("MCP secret service is not ready.");
+    const stored = await mcpSecretStore.get(config.id);
+    const headers = Object.fromEntries(
+      (config.headerNames ?? []).map((name) => {
+        const value = stored.headers[name];
+        if (!value) {
+          throw new Error(`MCP credential is unavailable: ${name}`);
+        }
+        return [name, value];
+      }),
+    );
+    return { headers };
+  }
   if (auth === "bearer") {
     return mcpBearerToken(config);
   }
@@ -1054,6 +1090,7 @@ async function authorizeMcpServer(config: McpServerConfig): Promise<void> {
 async function connectMcpServer(
   config: McpServerConfig,
   authorizeMissingOAuth = false,
+  options?: McpConnectOptions,
 ): Promise<void> {
   if (!mcpClientManager) {
     throw new Error("MCP service is not ready.");
@@ -1062,7 +1099,13 @@ async function connectMcpServer(
   const status = await mcpClientManager.connect(
     config,
     await mcpAuthentication(config),
+    options,
   );
+  if (status.state === "failed") {
+    throw new Error(
+      status.error ?? `MCP server ${config.name} failed to connect.`,
+    );
+  }
   if (
     authorizeMissingOAuth &&
     config.transport === "streamable-http" &&
@@ -1375,7 +1418,42 @@ async function reconnectEnabledMcpServers(
   }
 }
 
+function mcpSecretBinding(config: McpServerConfig): string | undefined {
+  if (
+    config.transport === "stdio" &&
+    (config.credentialEnvVars?.length ?? 0) > 0
+  ) {
+    return `env:${[...(config.credentialEnvVars ?? [])].sort().join("\0")}`;
+  }
+  if (config.transport === "streamable-http" && config.auth === "headers") {
+    return `headers:${[...(config.headerNames ?? [])].sort().join("\0")}`;
+  }
+  return undefined;
+}
+
+async function assertMcpSecretsAvailable(
+  config: McpServerConfig,
+): Promise<void> {
+  if (!mcpSecretBinding(config)) return;
+  if (!mcpSecretStore) throw new Error("MCP secret service is not ready.");
+  const stored = await mcpSecretStore.get(config.id);
+  const missing =
+    config.transport === "stdio"
+      ? (config.credentialEnvVars ?? []).find((name) => !stored.env[name])
+      : (config.headerNames ?? []).find((name) => !stored.headers[name]);
+  if (missing) {
+    throw new Error(`MCP credential is unavailable: ${missing}`);
+  }
+}
+
 async function removeMcpAuthentication(config: McpServerConfig): Promise<void> {
+  if (
+    (config.transport === "stdio" &&
+      (config.credentialEnvVars?.length ?? 0) > 0) ||
+    (config.transport === "streamable-http" && config.auth === "headers")
+  ) {
+    await mcpSecretStore?.delete(config.id);
+  }
   if (
     config.transport === "streamable-http" &&
     (config.auth ?? (config.credentialProviderId ? "bearer" : "none")) ===
@@ -1401,6 +1479,8 @@ async function cleanupRemovedMcpAuthentication(
     if (
       !current ||
       current.transport !== previous.transport ||
+      (mcpSecretBinding(previous) !== undefined &&
+        mcpSecretBinding(current) !== mcpSecretBinding(previous)) ||
       (current.transport === "streamable-http" &&
         previous.transport === "streamable-http" &&
         (current.url !== previous.url ||
@@ -1467,6 +1547,7 @@ function validateConfigurationImportRequest(
 async function saveMcpConfiguration(
   input: McpServerConfig,
   bearerToken?: string,
+  connectionOptions?: McpConnectOptions,
 ): Promise<SettingsSnapshot> {
   if (!mcpConfigStore || !mcpClientManager || !settingsStore) {
     throw new Error("MCP service is not ready.");
@@ -1488,7 +1569,15 @@ async function saveMcpConfiguration(
     });
     config = { ...config, credentialProviderId };
   }
+  await assertMcpSecretsAvailable(config);
   const saved = await mcpConfigStore.upsert(config);
+  if (
+    existing &&
+    mcpSecretBinding(existing) !== undefined &&
+    mcpSecretBinding(saved) !== mcpSecretBinding(existing)
+  ) {
+    await mcpSecretStore?.delete(existing.id);
+  }
   if (
     existing?.transport === "streamable-http" &&
     (existing.auth ?? (existing.credentialProviderId ? "bearer" : "none")) ===
@@ -1500,7 +1589,7 @@ async function saveMcpConfiguration(
     );
   }
   if (saved.enabled) {
-    await connectMcpServer(saved, true);
+    await connectMcpServer(saved, true, connectionOptions);
   } else {
     await mcpClientManager.disconnect(saved.id);
   }
@@ -4694,18 +4783,7 @@ function registerIpc(): void {
       await resetAgentThreadsForToolChange();
       await mcpClientManager.disconnect(serverId);
       await mcpConfigStore.remove(serverId);
-      if (
-        config?.transport === "streamable-http" &&
-        (config.auth ?? (config.credentialProviderId ? "bearer" : "none")) ===
-          "bearer"
-      ) {
-        await settingsStore.deleteCredential(
-          config.credentialProviderId ?? `mcp.${config.id}`,
-        );
-      }
-      if (config?.transport === "streamable-http" && config.auth === "oauth") {
-        await mcpOAuthStore?.delete(config.id);
-      }
+      if (config) await removeMcpAuthentication(config);
       await applyAgentRuntime();
       return getSettingsSnapshot();
     },
@@ -4747,6 +4825,18 @@ function registerIpc(): void {
       if (!resourceCatalogService || !mcpConfigStore) {
         throw new Error("Resource catalog is not ready.");
       }
+      if (smokeMode && process.env.ARTEMIS_SMOKE_VIEW === "mcp-search-empty") {
+        return [];
+      }
+      if (
+        smokeMode &&
+        process.env.ARTEMIS_SMOKE_VIEW === "mcp-search-loading"
+      ) {
+        await new Promise((resolvePromise) =>
+          setTimeout(resolvePromise, 10_000),
+        );
+        return [];
+      }
       const normalized = String(query ?? "")
         .trim()
         .slice(0, 200);
@@ -4760,15 +4850,36 @@ function registerIpc(): void {
     IPC.resourceMcpInstall,
     async (
       event,
-      registryName: string,
-      version: string,
-      operationIdInput: string,
+      input: McpCatalogInstallRequest,
     ): Promise<SettingsSnapshot> => {
-      if (!resourceCatalogService) {
+      if (
+        !resourceCatalogService ||
+        !mcpConfigStore ||
+        !mcpClientManager ||
+        !mcpSecretStore
+      ) {
         throw new Error("Resource catalog is not ready.");
       }
-      const operationId = resourceInstallOperationId(operationIdInput);
-      const resourceId = String(registryName ?? "").trim();
+      if (!input || typeof input !== "object" || Array.isArray(input)) {
+        throw new Error("MCP installation request is invalid.");
+      }
+      const operationId = resourceInstallOperationId(input.operationId);
+      const resourceId = String(input.registryName ?? "").trim();
+      const version = String(input.version ?? "").trim();
+      const optionId = String(input.optionId ?? "").trim();
+      if (
+        !resourceId ||
+        resourceId.length > 300 ||
+        !version ||
+        version.length > 128 ||
+        !/^(?:remote|npm)-\d{1,3}$/u.test(optionId) ||
+        !input.inputValues ||
+        typeof input.inputValues !== "object" ||
+        Array.isArray(input.inputValues) ||
+        Object.keys(input.inputValues).length > 100
+      ) {
+        throw new Error("MCP installation request is invalid.");
+      }
       const publish = (percent: number) =>
         publishResourceInstallProgress(event.sender, {
           operationId,
@@ -4777,14 +4888,47 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
-      const config = await resourceCatalogService.resolveMcpConfig(
+      const resolved = await resourceCatalogService.resolveMcpInstall(
         resourceId,
-        String(version ?? "").trim(),
+        version,
+        optionId,
+        input.inputValues,
       );
-      publish(45);
-      const settings = await saveMcpConfiguration(config);
-      publish(100);
-      return settings;
+      if (
+        (await mcpConfigStore.list()).some(
+          (server) => server.id === resolved.config.id,
+        )
+      ) {
+        throw new Error("This MCP server is already installed.");
+      }
+      const hasSecrets =
+        Object.keys(resolved.secrets.env).length > 0 ||
+        Object.keys(resolved.secrets.headers).length > 0;
+      publish(35);
+      if (hasSecrets) {
+        await mcpSecretStore.set(resolved.config.id, resolved.secrets);
+      }
+      publish(50);
+      try {
+        const settings = await saveMcpConfiguration(
+          resolved.config,
+          undefined,
+          resolved.config.transport === "stdio" &&
+            resolved.config.command === "npx"
+            ? { startupTimeoutMs: MCP_REGISTRY_NPM_STARTUP_TIMEOUT_MS }
+            : undefined,
+        );
+        publish(100);
+        return settings;
+      } catch (error) {
+        await mcpClientManager.disconnect(resolved.config.id).catch(() => {});
+        await mcpConfigStore.remove(resolved.config.id).catch(() => {});
+        if (hasSecrets) {
+          await mcpSecretStore.delete(resolved.config.id).catch(() => {});
+        }
+        await applyAgentRuntime().catch(() => {});
+        throw error;
+      }
     },
   );
   ipcMain.handle(
@@ -4792,6 +4936,21 @@ function registerIpc(): void {
     async (_event, query: string): Promise<SkillCatalogItem[]> => {
       if (!resourceCatalogService) {
         throw new Error("Resource catalog is not ready.");
+      }
+      if (
+        smokeMode &&
+        process.env.ARTEMIS_SMOKE_VIEW === "skill-search-empty"
+      ) {
+        return [];
+      }
+      if (
+        smokeMode &&
+        process.env.ARTEMIS_SMOKE_VIEW === "skill-search-loading"
+      ) {
+        await new Promise((resolvePromise) =>
+          setTimeout(resolvePromise, 10_000),
+        );
+        return [];
       }
       return resourceCatalogService.searchSkills(
         String(query ?? "")
@@ -7552,6 +7711,69 @@ function createMainWindow(): BrowserWindow {
                   await wait(300);
                   clickByText('.resource-add-button', 'Add server');
                   await wait(500);
+                } else if (view === 'mcp-context7-install') {
+                  document
+                    .querySelector('.resource-installed-overview .resource-icon-button')
+                    ?.click();
+                  await wait(500);
+                  clickByText('.resource-management-tabs button', 'MCP');
+                  await wait(300);
+                  document
+                    .querySelector('.resource-list-heading-actions .resource-add-button')
+                    ?.click();
+                  await wait(300);
+                  const input = document.querySelector(
+                    '.resource-discovery-panel input',
+                  );
+                  if (input instanceof HTMLInputElement) {
+                    const setter = Object.getOwnPropertyDescriptor(
+                      HTMLInputElement.prototype,
+                      'value',
+                    )?.set;
+                    setter?.call(input, 'context7');
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.form?.requestSubmit();
+                    await wait(2_500);
+                    const row = [...document.querySelectorAll(
+                      '.resource-discovery-row',
+                    )].find(
+                      (candidate) =>
+                        candidate.querySelector('strong')?.textContent?.trim() ===
+                        'Context7',
+                    );
+                    row?.querySelector('button')?.click();
+                    await wait(500);
+                  }
+                } else if (
+                  view.startsWith('mcp-search-') ||
+                  view.startsWith('skill-search-')
+                ) {
+                  document
+                    .querySelector('.resource-installed-overview .resource-icon-button')
+                    ?.click();
+                  await wait(500);
+                  const tabIndex = view.startsWith('mcp-search-') ? 2 : 3;
+                  document
+                    .querySelectorAll('.resource-management-tabs button')
+                    [tabIndex]?.click();
+                  await wait(300);
+                  document
+                    .querySelector('.resource-list-heading-actions .resource-add-button')
+                    ?.click();
+                  await wait(300);
+                  const input = document.querySelector(
+                    '.resource-discovery-panel input',
+                  );
+                  if (input instanceof HTMLInputElement) {
+                    const setter = Object.getOwnPropertyDescriptor(
+                      HTMLInputElement.prototype,
+                      'value',
+                    )?.set;
+                    setter?.call(input, 'artemis-no-results-smoke');
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.form?.requestSubmit();
+                    await wait(500);
+                  }
                 }
               })()
             `)
@@ -7802,6 +8024,10 @@ app
     );
     mcpOAuthStore = new McpOAuthStore(
       join(app.getPath("userData"), "mcp-oauth.json"),
+      safeStorage,
+    );
+    mcpSecretStore = new McpSecretStore(
+      join(app.getPath("userData"), "mcp-secrets.json"),
       safeStorage,
     );
     googleAccountService = new GoogleAccountService(

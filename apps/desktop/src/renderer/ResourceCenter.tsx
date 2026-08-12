@@ -18,6 +18,7 @@ import type {
   GoogleGrantId,
   InstalledCodexPlugin,
   InstalledSkill,
+  McpCatalogInstallOption,
   McpCatalogItem,
   McpServerConfig,
   McpServerStatus,
@@ -28,6 +29,7 @@ import type {
 import { legacyLocale } from "../shared/locales.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { McpServerEditor } from "./McpServerEditor.js";
+import { DownloadSimpleIcon, XIcon } from "@phosphor-icons/react";
 import {
   resourceIconName,
   resourceIconPalette,
@@ -43,7 +45,15 @@ interface ResourceCenterProps {
   onSettingsChange(settings: SettingsSnapshot): void;
 }
 
+interface McpInstallDraft {
+  item: McpCatalogItem;
+  option: McpCatalogInstallOption;
+  values: Record<string, string>;
+}
+
 type ManagementTab = "plugins" | "connectors" | "mcp" | "skills";
+type CatalogSearchTab = Extract<ManagementTab, "mcp" | "skills">;
+type CatalogSearchPhase = "idle" | "searching" | "complete";
 type ResourceKind = ResourceIconKind;
 
 let installedSkillsCache: InstalledSkill[] | undefined;
@@ -138,6 +148,8 @@ const labels = {
     searchInstalled: "Search installed resources",
     searchMcp: "Search the official MCP Registry",
     searchSkills: "Search Agent Skills",
+    searchingMcp: "Searching the official MCP Registry…",
+    searchingSkills: "Searching Agent Skills…",
     gitMarketplace: "Git marketplace",
     gitMarketplaceHint: "Public GitHub owner/repository or HTTPS URL",
     offlineMarketplace: "Offline marketplace package",
@@ -157,6 +169,15 @@ const labels = {
     confirmRequiredDocuments:
       "Install the four required document plugins and activate their bundled artifact runtime? Complete Skills and resources are copied into Artemis; credentials are not imported.",
     install: "Install",
+    configureInstall: "Configure and install",
+    installMcpTitle: "Install {name}",
+    installMcpMethod: "Installation method",
+    installMcpCredentialHint:
+      "Sensitive values are encrypted by the operating system and are not saved in the MCP configuration.",
+    installMcpLocalWarning:
+      "This local stdio MCP runs with your desktop user’s full filesystem and network access.",
+    optional: "optional",
+    cancel: "Cancel",
     installedLabel: "Installed",
     installing: "Installing",
     update: "Update",
@@ -172,6 +193,8 @@ const labels = {
     noMcp: "No MCP servers installed.",
     noSkills: "No global Pi Skills installed.",
     noCatalogResults: "Search to see installable capabilities.",
+    noMcpCatalogResults: "No matching MCP servers found.",
+    noSkillCatalogResults: "No matching Agent Skills found.",
     needsSetup: "Unavailable",
     thirdParty:
       "Third-party capabilities can influence Agent behavior or access external services. Review the source before installing.",
@@ -261,6 +284,8 @@ const labels = {
     searchInstalled: "搜索已安装资源",
     searchMcp: "搜索官方 MCP Registry",
     searchSkills: "搜索 Agent Skills",
+    searchingMcp: "正在搜索官方 MCP Registry…",
+    searchingSkills: "正在搜索 Agent Skills…",
     gitMarketplace: "Git marketplace",
     gitMarketplaceHint: "公开 GitHub owner/repository 或 HTTPS 地址",
     offlineMarketplace: "脱机插件商店包",
@@ -280,6 +305,15 @@ const labels = {
     confirmRequiredDocuments:
       "安装四个必备文档插件并启用应用内置运行时？完整 Skill 与资源会复制到 Artemis，但不会导入任何凭据。",
     install: "安装",
+    configureInstall: "配置并安装",
+    installMcpTitle: "安装 {name}",
+    installMcpMethod: "安装方式",
+    installMcpCredentialHint:
+      "敏感值由操作系统加密保存，不会写入 MCP 普通配置。",
+    installMcpLocalWarning:
+      "这个本地 stdio MCP 将以当前桌面用户权限运行，可访问完整文件系统与网络。",
+    optional: "可选",
+    cancel: "取消",
     installedLabel: "已安装",
     installing: "正在安装",
     update: "更新",
@@ -295,6 +329,8 @@ const labels = {
     noMcp: "尚未安装 MCP 服务器。",
     noSkills: "尚未安装全局 Pi Skill。",
     noCatalogResults: "搜索后将在这里显示可安装能力。",
+    noMcpCatalogResults: "没有找到匹配的 MCP 服务器。",
+    noSkillCatalogResults: "没有找到匹配的 Agent Skill。",
     needsSetup: "暂不可用",
     thirdParty:
       "第三方能力可能影响 Agent 行为或访问外部服务。安装前请先审查来源。",
@@ -475,6 +511,28 @@ function EmptyResource({ children }: { children: ReactNode }) {
   return <div className="resource-empty-state">{children}</div>;
 }
 
+function CatalogSearchNotice({
+  children,
+  loading = false,
+}: {
+  children: ReactNode;
+  loading?: boolean;
+}) {
+  return (
+    <div
+      aria-busy={loading}
+      aria-live="polite"
+      className={`resource-empty-state resource-catalog-status${loading ? " is-loading" : ""}`}
+      role="status"
+    >
+      {loading ? (
+        <span aria-hidden="true" className="resource-search-spinner" />
+      ) : null}
+      <span>{children}</span>
+    </div>
+  );
+}
+
 const FEATURED_PLUGINS = [
   "documents",
   "pdf",
@@ -512,6 +570,10 @@ export function ResourceCenter({
   const [connectorBearer, setConnectorBearer] = useState("");
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [mcpResults, setMcpResults] = useState<McpCatalogItem[]>([]);
+  const [catalogSearchPhase, setCatalogSearchPhase] = useState<
+    Record<CatalogSearchTab, CatalogSearchPhase>
+  >({ mcp: "idle", skills: "idle" });
+  const [mcpInstallDraft, setMcpInstallDraft] = useState<McpInstallDraft>();
   const [mcpServers, setMcpServers] = useState(settings?.mcpServers ?? []);
   const [skillResults, setSkillResults] = useState<SkillCatalogItem[]>([]);
   const [installedSkills, setInstalledSkills] = useState<InstalledSkill[]>([]);
@@ -645,6 +707,16 @@ export function ResourceCenter({
 
   function focusCatalogSearch(): void {
     requestAnimationFrame(() => catalogSearchRef.current?.focus());
+  }
+
+  function toggleCatalogDiscovery(tab: CatalogSearchTab): void {
+    const opening = !discoveryOpen;
+    setDiscoveryOpen(opening);
+    setCatalogQuery("");
+    setCatalogSearchPhase((current) => ({ ...current, [tab]: "idle" }));
+    if (tab === "mcp") setMcpResults([]);
+    else setSkillResults([]);
+    if (opening) focusCatalogSearch();
   }
 
   function applyMarketplaceState(next: CodexPluginMarketplaceState): void {
@@ -906,33 +978,60 @@ export function ResourceCenter({
 
   async function searchCatalog(event: FormEvent) {
     event.preventDefault();
-    if (!catalogQuery.trim() || searching) return;
+    if (
+      !catalogQuery.trim() ||
+      searching ||
+      (managementTab !== "mcp" && managementTab !== "skills")
+    ) {
+      return;
+    }
+    const searchTab = managementTab;
     setSearching(true);
     setMessage(undefined);
+    setCatalogSearchPhase((current) => ({
+      ...current,
+      [searchTab]: "searching",
+    }));
+    if (searchTab === "mcp") setMcpResults([]);
+    else setSkillResults([]);
     try {
-      if (managementTab === "mcp") {
+      if (searchTab === "mcp") {
         setMcpResults(await window.artemis.searchMcpCatalog(catalogQuery));
-      } else if (managementTab === "skills") {
+      } else {
         setSkillResults(await window.artemis.searchSkillCatalog(catalogQuery));
       }
+      setCatalogSearchPhase((current) => ({
+        ...current,
+        [searchTab]: "complete",
+      }));
     } catch (error) {
+      setCatalogSearchPhase((current) => ({
+        ...current,
+        [searchTab]: "idle",
+      }));
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setSearching(false);
     }
   }
 
-  async function installMcp(item: McpCatalogItem) {
-    if (!item.installable || !(await onConfirm(t.confirmMcp))) return;
+  async function executeMcpInstall(
+    item: McpCatalogItem,
+    option: McpCatalogInstallOption,
+    inputValues: Record<string, string>,
+  ) {
     const operationId = beginInstallation("mcp", item.title);
     setBusyId(item.configId);
+    setMcpInstallDraft(undefined);
     setMessage(undefined);
     try {
-      const next = await window.artemis.installMcpCatalog(
-        item.registryName,
-        item.version,
+      const next = await window.artemis.installMcpCatalog({
+        registryName: item.registryName,
+        version: item.version,
+        optionId: option.id,
+        inputValues,
         operationId,
-      );
+      });
       setMcpServers(next.mcpServers);
       onSettingsChange(next);
       setMcpResults((current) =>
@@ -949,6 +1048,35 @@ export function ResourceCenter({
       setInstallProgress(undefined);
       focusCatalogSearch();
     }
+  }
+
+  async function installMcp(item: McpCatalogItem) {
+    const option = item.installOption;
+    if (!item.installable || !option) return;
+    if (option.inputs.length > 0) {
+      setMcpInstallDraft({
+        item,
+        option,
+        values: Object.fromEntries(
+          option.inputs.flatMap((field) =>
+            field.defaultValue ? [[field.id, field.defaultValue]] : [],
+          ),
+        ),
+      });
+      return;
+    }
+    if (!(await onConfirm(t.confirmMcp))) return;
+    await executeMcpInstall(item, option, {});
+  }
+
+  function submitMcpInstall(event: FormEvent) {
+    event.preventDefault();
+    if (!mcpInstallDraft) return;
+    void executeMcpInstall(
+      mcpInstallDraft.item,
+      mcpInstallDraft.option,
+      mcpInstallDraft.values,
+    );
   }
 
   async function installSkill(item: SkillCatalogItem) {
@@ -2759,10 +2887,7 @@ export function ResourceCenter({
             <div className="resource-list-heading-actions">
               <button
                 className="resource-add-button subtle"
-                onClick={() => {
-                  setDiscoveryOpen((current) => !current);
-                  setCatalogQuery("");
-                }}
+                onClick={() => toggleCatalogDiscovery("mcp")}
                 type="button"
               >
                 <PlusIcon />
@@ -2778,6 +2903,75 @@ export function ResourceCenter({
               </button>
             </div>
           </div>
+          {discoveryOpen && (
+            <section className="resource-discovery-panel">
+              <form onSubmit={(event) => void searchCatalog(event)}>
+                <SearchIcon />
+                <input
+                  aria-label={t.searchMcp}
+                  onChange={(event) => setCatalogQuery(event.target.value)}
+                  placeholder={t.searchMcp}
+                  ref={catalogSearchRef}
+                  value={catalogQuery}
+                />
+                <button
+                  disabled={!catalogQuery.trim() || searching}
+                  type="submit"
+                >
+                  {catalogSearchPhase.mcp === "searching"
+                    ? t.searchingMcp
+                    : t.searchMcp}
+                </button>
+              </form>
+              <div className="resource-discovery-results">
+                {catalogSearchPhase.mcp === "searching" ? (
+                  <CatalogSearchNotice loading>
+                    {t.searchingMcp}
+                  </CatalogSearchNotice>
+                ) : mcpResults.length > 0 ? (
+                  mcpResults.map((item) => (
+                    <article
+                      className="resource-discovery-row"
+                      key={item.registryName}
+                    >
+                      <ResourceAvatar kind="mcp" name={item.title} />
+                      <span>
+                        <strong>{item.title}</strong>
+                        <small>{item.description}</small>
+                        <small className="resource-discovery-detail">
+                          {item.installOption?.detail ?? item.reason}
+                        </small>
+                      </span>
+                      <button
+                        disabled={
+                          item.installed ||
+                          !item.installable ||
+                          busyId === item.configId ||
+                          installProgress !== undefined
+                        }
+                        onClick={() => void installMcp(item)}
+                        type="button"
+                      >
+                        {item.installed
+                          ? t.installedLabel
+                          : item.installable
+                            ? item.installMode === "needs-input"
+                              ? t.configureInstall
+                              : t.install
+                            : t.needsSetup}
+                      </button>
+                    </article>
+                  ))
+                ) : (
+                  <CatalogSearchNotice>
+                    {catalogSearchPhase.mcp === "complete"
+                      ? t.noMcpCatalogResults
+                      : t.noCatalogResults}
+                  </CatalogSearchNotice>
+                )}
+              </div>
+            </section>
+          )}
           <div className="resource-management-list grouped">
             {visibleMcp.map((server) => {
               const owner = owningPluginForMcp(server);
@@ -2856,59 +3050,6 @@ export function ResourceCenter({
               <EmptyResource>{t.noMcp}</EmptyResource>
             )}
           </div>
-          {discoveryOpen && (
-            <section className="resource-discovery-panel">
-              <form onSubmit={(event) => void searchCatalog(event)}>
-                <SearchIcon />
-                <input
-                  aria-label={t.searchMcp}
-                  onChange={(event) => setCatalogQuery(event.target.value)}
-                  placeholder={t.searchMcp}
-                  ref={catalogSearchRef}
-                  value={catalogQuery}
-                />
-                <button
-                  disabled={!catalogQuery.trim() || searching}
-                  type="submit"
-                >
-                  {searching ? "…" : t.searchMcp}
-                </button>
-              </form>
-              <div className="resource-discovery-results">
-                {mcpResults.map((item) => (
-                  <article
-                    className="resource-discovery-row"
-                    key={item.registryName}
-                  >
-                    <ResourceAvatar kind="mcp" name={item.title} />
-                    <span>
-                      <strong>{item.title}</strong>
-                      <small>{item.description}</small>
-                    </span>
-                    <button
-                      disabled={
-                        item.installed ||
-                        !item.installable ||
-                        busyId === item.configId ||
-                        installProgress !== undefined
-                      }
-                      onClick={() => void installMcp(item)}
-                      type="button"
-                    >
-                      {item.installed
-                        ? t.installedLabel
-                        : item.installable
-                          ? t.install
-                          : t.needsSetup}
-                    </button>
-                  </article>
-                ))}
-                {mcpResults.length === 0 && (
-                  <EmptyResource>{t.noCatalogResults}</EmptyResource>
-                )}
-              </div>
-            </section>
-          )}
         </section>
       )}
 
@@ -2919,10 +3060,7 @@ export function ResourceCenter({
             <div className="resource-list-heading-actions">
               <button
                 className="resource-add-button subtle"
-                onClick={() => {
-                  setDiscoveryOpen((current) => !current);
-                  setCatalogQuery("");
-                }}
+                onClick={() => toggleCatalogDiscovery("skills")}
                 type="button"
               >
                 <PlusIcon />
@@ -2939,6 +3077,62 @@ export function ResourceCenter({
               </button>
             </div>
           </div>
+          {discoveryOpen && (
+            <section className="resource-discovery-panel">
+              <form onSubmit={(event) => void searchCatalog(event)}>
+                <SearchIcon />
+                <input
+                  aria-label={t.searchSkills}
+                  onChange={(event) => setCatalogQuery(event.target.value)}
+                  placeholder={t.searchSkills}
+                  ref={catalogSearchRef}
+                  value={catalogQuery}
+                />
+                <button
+                  disabled={!catalogQuery.trim() || searching}
+                  type="submit"
+                >
+                  {catalogSearchPhase.skills === "searching"
+                    ? t.searchingSkills
+                    : t.searchSkills}
+                </button>
+              </form>
+              <div className="resource-discovery-results">
+                {catalogSearchPhase.skills === "searching" ? (
+                  <CatalogSearchNotice loading>
+                    {t.searchingSkills}
+                  </CatalogSearchNotice>
+                ) : skillResults.length > 0 ? (
+                  skillResults.map((item) => (
+                    <article className="resource-discovery-row" key={item.id}>
+                      <ResourceAvatar kind="skill" name={item.name} />
+                      <span>
+                        <strong>{item.name}</strong>
+                        <small>{item.source}</small>
+                      </span>
+                      <button
+                        disabled={
+                          item.installed ||
+                          busyId === item.id ||
+                          installProgress !== undefined
+                        }
+                        onClick={() => void installSkill(item)}
+                        type="button"
+                      >
+                        {item.installed ? t.installedLabel : t.install}
+                      </button>
+                    </article>
+                  ))
+                ) : (
+                  <CatalogSearchNotice>
+                    {catalogSearchPhase.skills === "complete"
+                      ? t.noSkillCatalogResults
+                      : t.noCatalogResults}
+                  </CatalogSearchNotice>
+                )}
+              </div>
+            </section>
+          )}
           <div className="resource-management-list">
             {visibleSkills.map((skill) => {
               const visual = visualForSkill(skill);
@@ -2984,52 +3178,91 @@ export function ResourceCenter({
               <EmptyResource>{t.noSkills}</EmptyResource>
             )}
           </div>
-          {discoveryOpen && (
-            <section className="resource-discovery-panel">
-              <form onSubmit={(event) => void searchCatalog(event)}>
-                <SearchIcon />
-                <input
-                  aria-label={t.searchSkills}
-                  onChange={(event) => setCatalogQuery(event.target.value)}
-                  placeholder={t.searchSkills}
-                  ref={catalogSearchRef}
-                  value={catalogQuery}
-                />
-                <button
-                  disabled={!catalogQuery.trim() || searching}
-                  type="submit"
-                >
-                  {searching ? "…" : t.searchSkills}
-                </button>
-              </form>
-              <div className="resource-discovery-results">
-                {skillResults.map((item) => (
-                  <article className="resource-discovery-row" key={item.id}>
-                    <ResourceAvatar kind="skill" name={item.name} />
-                    <span>
-                      <strong>{item.name}</strong>
-                      <small>{item.source}</small>
-                    </span>
-                    <button
-                      disabled={
-                        item.installed ||
-                        busyId === item.id ||
-                        installProgress !== undefined
-                      }
-                      onClick={() => void installSkill(item)}
-                      type="button"
-                    >
-                      {item.installed ? t.installedLabel : t.install}
-                    </button>
-                  </article>
-                ))}
-                {skillResults.length === 0 && (
-                  <EmptyResource>{t.noCatalogResults}</EmptyResource>
-                )}
-              </div>
-            </section>
-          )}
         </section>
+      )}
+
+      {mcpInstallDraft && (
+        <div className="mcp-install-dialog-backdrop">
+          <form
+            aria-labelledby="mcp-install-dialog-title"
+            aria-modal="true"
+            className="mcp-install-dialog"
+            onSubmit={submitMcpInstall}
+            role="dialog"
+          >
+            <header>
+              <div>
+                <h2 id="mcp-install-dialog-title">
+                  {t.installMcpTitle.replace(
+                    "{name}",
+                    mcpInstallDraft.item.title,
+                  )}
+                </h2>
+                <p>{mcpInstallDraft.item.description}</p>
+              </div>
+            </header>
+            <div className="mcp-install-method">
+              <span>{t.installMcpMethod}</span>
+              <code>{mcpInstallDraft.option.detail}</code>
+            </div>
+            {mcpInstallDraft.option.inputs.map((field) => (
+              <label key={field.id}>
+                <span>
+                  {field.label}
+                  {!field.required && ` (${t.optional})`}
+                </span>
+                {field.description && <small>{field.description}</small>}
+                <input
+                  autoComplete="off"
+                  autoFocus={field.id === mcpInstallDraft.option.inputs[0]?.id}
+                  maxLength={32 * 1024}
+                  onChange={(event) =>
+                    setMcpInstallDraft((current) =>
+                      current
+                        ? {
+                            ...current,
+                            values: {
+                              ...current.values,
+                              [field.id]: event.target.value,
+                            },
+                          }
+                        : current,
+                    )
+                  }
+                  required={field.required}
+                  type={field.secret ? "password" : "text"}
+                  value={mcpInstallDraft.values[field.id] ?? ""}
+                />
+              </label>
+            ))}
+            {mcpInstallDraft.option.inputs.some((field) => field.secret) && (
+              <p className="mcp-install-security">
+                {t.installMcpCredentialHint}
+              </p>
+            )}
+            {mcpInstallDraft.option.kind === "npm-stdio" && (
+              <p className="mcp-install-warning">{t.installMcpLocalWarning}</p>
+            )}
+            <div className="mcp-install-dialog-actions">
+              <button
+                className="mcp-install-cancel"
+                onClick={() => setMcpInstallDraft(undefined)}
+                type="button"
+              >
+                <XIcon aria-hidden="true" size={15} weight="bold" />
+                <span>{t.cancel}</span>
+              </button>
+              <button className="mcp-install-primary" type="submit">
+                <DownloadSimpleIcon
+                  aria-hidden="true"
+                  size={16}
+                  weight="bold"
+                />
+                <span>{t.configureInstall}</span>
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );

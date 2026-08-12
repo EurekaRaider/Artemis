@@ -161,7 +161,7 @@ enablement and removal visible to the user.
     </td>
     <td width="50%" valign="top">
       <p><strong>CONNECT</strong>&nbsp;&nbsp;/&nbsp;&nbsp;First-class MCP setup</p>
-      <p>Add or edit stdio and HTTP MCP servers from a dedicated page with arguments, environment values, variable passthrough, working directory and encrypted OAuth or bearer credentials where supported. Signed plugin MCP runtimes can request scoped Google Workspace or Gmail authorization without receiving the stored refresh token.</p>
+      <p>Search the official MCP Registry, install supported pinned HTTPS or npm/stdio servers, and provide required setup values before connecting. Sensitive Registry headers and stdio environment credentials are stored with operating-system encryption instead of the ordinary MCP configuration. Signed plugin MCP runtimes can request scoped Google Workspace or Gmail authorization without receiving the stored refresh token.</p>
     </td>
   </tr>
 </table>
@@ -489,7 +489,7 @@ pages:
 | **General**                 | Model search/selection, thinking level, validated context-window limit, language, theme and approval policy                                                                           |
 | **Providers & credentials** | Built-in Pi catalog, editable custom OpenAI-compatible Chat Completions/Responses providers and models, reasoning/image capabilities, encrypted API keys and explicit Pi OAuth import |
 | **Agent configuration**     | Editable global `AGENTS.md`, configuration scan/preview/import and imported source/category selection without silent credential copying                                               |
-| **MCP & extensions**        | MCP stdio/Streamable HTTP configuration, bearer/OAuth authorization, enablement, trusted-extension selection, hash state, tool inventory and extension network policy                 |
+| **MCP & extensions**        | MCP stdio/Streamable HTTP configuration, bearer/OAuth/Registry-header authorization, enablement, trusted-extension selection, hash state, tool inventory and extension network policy |
 | **Updates & diagnostics**   | Update state and actions, local diagnostic-bundle export and maintenance information                                                                                                  |
 
 The dialog has tab semantics, keyboard focus behavior and Escape-to-close
@@ -545,8 +545,15 @@ The Resource Center separates Plugin, Connector, MCP and Skill catalogs, shows
 installed state, connection/tool counts and enable switches, and exposes source
 links before installation.
 
-- search the MCP npm catalog and the Skill catalog;
-- install supported catalog entries after confirmation;
+- search the official MCP Registry and the Skill catalog with distinct loading,
+  empty-result and error states;
+- install supported fixed HTTPS endpoints and pinned npm/stdio packages after
+  confirmation, collecting required setup values before connecting;
+- keep sensitive Registry headers and stdio environment credentials out of the
+  ordinary MCP configuration by encrypting them with operating-system storage;
+- reject unsupported or unsafe Registry declarations, including templated URLs,
+  non-stdio npm transports, custom npm registries, protocol-controlled headers
+  and process-redirection environment variables;
 - enable or disable installed MCP servers and Skills;
 - import a local Skill directory containing valid `SKILL.md` frontmatter;
 - copy local Skills atomically into the managed Skill root;
@@ -793,7 +800,9 @@ provider policy and packaged GUI acceptance remain external release checks.
   explicitly enabled, with a human approval required for tools marked
   destructive;
 - desktop-user filesystem and network permissions for local stdio servers;
-- encrypted bearer tokens;
+- encrypted bearer tokens, Registry HTTP headers and npm/stdio credential
+  environment values, with Registry credentials bound to their original
+  endpoint or launch command;
 - OAuth 2.1 authorization code + PKCE with exact loopback state validation;
 - encrypted dynamic-client and token persistence;
 - structured MCP text and image blocks preserved through Pi without converting
@@ -987,11 +996,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **862 passing tests** (4 skipped):
+The current full test run contains **875 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       61 |       19 |         99 |     683 |   **862** |
+|       61 |       19 |         99 |     696 |   **875** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office

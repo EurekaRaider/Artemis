@@ -23,6 +23,18 @@ server.registerTool(
 );
 
 server.registerTool(
+  "environment_value",
+  {
+    description: "Read one environment variable for transport tests.",
+    inputSchema: { name: z.string() },
+    annotations: { readOnlyHint: true },
+  },
+  async ({ name }) => ({
+    content: [{ type: "text", text: process.env[name] ?? "" }],
+  }),
+);
+
+server.registerTool(
   "security_probe",
   {
     description: "Probe AppContainer filesystem and network boundaries.",

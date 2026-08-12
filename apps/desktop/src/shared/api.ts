@@ -407,6 +407,7 @@ export type McpServerConfig = (
       args: string[];
       env: Record<string, string>;
       envVars: string[];
+      credentialEnvVars?: string[];
       workspacePath: string;
       allowNetwork: boolean;
     }
@@ -416,8 +417,9 @@ export type McpServerConfig = (
       transport: "streamable-http";
       enabled: boolean;
       url: string;
-      auth?: "none" | "bearer" | "oauth";
+      auth?: "none" | "bearer" | "oauth" | "headers";
       credentialProviderId?: string;
+      headerNames?: string[];
     }
 ) &
   McpResourceMetadata;
@@ -442,10 +444,37 @@ export interface McpCatalogItem {
   description: string;
   version: string;
   installable: boolean;
+  installMode: "ready" | "needs-input" | "unsupported";
   installed: boolean;
+  installOption?: McpCatalogInstallOption;
   remoteUrl?: string;
   repositoryUrl?: string;
   reason?: string;
+}
+
+export interface McpCatalogInstallInput {
+  id: string;
+  label: string;
+  description?: string;
+  required: boolean;
+  secret: boolean;
+  defaultValue?: string;
+}
+
+export interface McpCatalogInstallOption {
+  id: string;
+  kind: "remote" | "npm-stdio";
+  label: string;
+  detail: string;
+  inputs: McpCatalogInstallInput[];
+}
+
+export interface McpCatalogInstallRequest {
+  registryName: string;
+  version: string;
+  optionId: string;
+  inputValues: Record<string, string>;
+  operationId: string;
 }
 
 export interface SkillCatalogItem {
@@ -804,9 +833,7 @@ export interface ArtemisApi {
   listMcpServers(): Promise<McpServerStatus[]>;
   searchMcpCatalog(query: string): Promise<McpCatalogItem[]>;
   installMcpCatalog(
-    registryName: string,
-    version: string,
-    operationId: string,
+    request: McpCatalogInstallRequest,
   ): Promise<SettingsSnapshot>;
   searchSkillCatalog(query: string): Promise<SkillCatalogItem[]>;
   listInstalledSkills(): Promise<InstalledSkill[]>;

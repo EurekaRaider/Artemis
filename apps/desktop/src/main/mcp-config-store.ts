@@ -26,6 +26,78 @@ function validateEnvironmentName(value: string): string {
   return name;
 }
 
+function validateHeaderName(value: string): string {
+  const name = value.trim();
+  if (
+    !/^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}$/u.test(name) ||
+    [
+      "accept",
+      "connection",
+      "content-length",
+      "content-type",
+      "host",
+      "last-event-id",
+      "mcp-protocol-version",
+      "mcp-session-id",
+      "proxy-authorization",
+      "proxy-connection",
+      "te",
+      "trailer",
+      "transfer-encoding",
+      "upgrade",
+    ].includes(name.toLowerCase())
+  ) {
+    throw new Error("MCP HTTP header name is invalid");
+  }
+  return name;
+}
+
+function credentialBinding(config: McpServerConfig): string | undefined {
+  if (
+    config.transport === "stdio" &&
+    (config.credentialEnvVars?.length ?? 0) > 0
+  ) {
+    return `env:${[...(config.credentialEnvVars ?? [])].sort().join("\0")}`;
+  }
+  if (config.transport === "streamable-http" && config.auth === "headers") {
+    return `headers:${[...(config.headerNames ?? [])].sort().join("\0")}`;
+  }
+  return undefined;
+}
+
+function assertCredentialTargetUnchanged(
+  previous: McpServerConfig,
+  next: McpServerConfig,
+): void {
+  const previousBinding = credentialBinding(previous);
+  const nextBinding = credentialBinding(next);
+  if (!previousBinding || !nextBinding) return;
+  if (previousBinding !== nextBinding) {
+    throw new Error(
+      "Uninstall and reinstall this MCP server to change its credential binding",
+    );
+  }
+  if (
+    previous.transport === "stdio" &&
+    next.transport === "stdio" &&
+    (previous.command !== next.command ||
+      JSON.stringify(previous.args) !== JSON.stringify(next.args))
+  ) {
+    throw new Error(
+      "Uninstall and reinstall this MCP server to change its credential target",
+    );
+  }
+  if (
+    previous.transport === "streamable-http" &&
+    next.transport === "streamable-http" &&
+    previous.url !== next.url
+  ) {
+    throw new Error(
+      "Uninstall and reinstall this MCP server to change its credential target",
+    );
+  }
+}
+
 function validateResourceMetadata(input: McpServerConfig): {
   resourceKind?: "connector";
   connectorId?: string;
@@ -109,7 +181,12 @@ export function validateMcpServerConfig(
     }
     const environmentEntries = Object.entries(input.env ?? {});
     const environmentVariables = input.envVars ?? [];
-    if (environmentEntries.length > 100 || environmentVariables.length > 100) {
+    const credentialEnvironmentVariables = input.credentialEnvVars ?? [];
+    if (
+      environmentEntries.length > 100 ||
+      environmentVariables.length > 100 ||
+      credentialEnvironmentVariables.length > 100
+    ) {
       throw new Error("MCP stdio environment has too many entries");
     }
     const env = Object.fromEntries(
@@ -123,6 +200,16 @@ export function validateMcpServerConfig(
     const envVars = [
       ...new Set(environmentVariables.map(validateEnvironmentName)),
     ];
+    const credentialEnvVars = [
+      ...new Set(credentialEnvironmentVariables.map(validateEnvironmentName)),
+    ];
+    if (
+      credentialEnvVars.some(
+        (name) => Object.hasOwn(env, name) || envVars.includes(name),
+      )
+    ) {
+      throw new Error("MCP credential environment variable is duplicated");
+    }
     return {
       ...structuredClone(input),
       ...resourceMetadata,
@@ -131,6 +218,7 @@ export function validateMcpServerConfig(
       command: input.command.trim(),
       env,
       envVars,
+      credentialEnvVars,
       workspacePath: input.workspacePath.trim(),
       allowNetwork: true,
     };
@@ -150,10 +238,27 @@ export function validateMcpServerConfig(
   const auth =
     input.auth ??
     (input.credentialProviderId ? ("bearer" as const) : ("none" as const));
-  if (!["none", "bearer", "oauth"].includes(auth)) {
+  if (!["none", "bearer", "oauth", "headers"].includes(auth)) {
     throw new Error("MCP HTTP authentication mode is invalid");
   }
-  const { credentialProviderId, ...withoutCredential } = structuredClone(input);
+  const headerNames = (input.headerNames ?? []).map(validateHeaderName);
+  if (
+    new Set(headerNames.map((name) => name.toLowerCase())).size !==
+    headerNames.length
+  ) {
+    throw new Error("MCP HTTP header names must be unique");
+  }
+  if (headerNames.length > 20) {
+    throw new Error("MCP HTTP headers exceed the supported limit");
+  }
+  if ((auth === "headers") !== headerNames.length > 0) {
+    throw new Error("MCP HTTP header authentication is invalid");
+  }
+  const {
+    credentialProviderId,
+    headerNames: _headerNames,
+    ...withoutCredential
+  } = structuredClone(input);
   return {
     ...withoutCredential,
     ...resourceMetadata,
@@ -164,6 +269,7 @@ export function validateMcpServerConfig(
     ...(auth === "bearer" && credentialProviderId
       ? { credentialProviderId }
       : {}),
+    ...(auth === "headers" ? { headerNames } : {}),
   };
 }
 
@@ -199,6 +305,7 @@ export class McpConfigStore {
           "Uninstall the existing MCP server before changing its transport",
         );
       }
+      assertCredentialTargetUnchanged(value.servers[index]!, config);
       value.servers[index] = config;
     } else {
       value.servers.push(config);
@@ -217,11 +324,17 @@ export class McpConfigStore {
 
   async replaceAll(inputs: McpServerConfig[]): Promise<McpServerConfig[]> {
     const ids = new Set<string>();
+    const current = await this.load();
+    const previousById = new Map(
+      current.servers.map((server) => [server.id, server]),
+    );
     const servers = inputs.map((input) => {
       const config = validateMcpServerConfig(this.withDefaultWorkspace(input));
       if (ids.has(config.id)) {
         throw new Error(`Duplicate MCP server ID: ${config.id}`);
       }
+      const previous = previousById.get(config.id);
+      if (previous) assertCredentialTargetUnchanged(previous, config);
       ids.add(config.id);
       return config;
     });

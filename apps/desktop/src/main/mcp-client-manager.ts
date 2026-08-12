@@ -62,13 +62,19 @@ export interface McpConnection {
 
 export interface McpConnectionAuthentication {
   bearerToken?: string;
+  headers?: Record<string, string>;
   oauthProvider?: OAuthClientProvider;
   authorizationCode?: Promise<string>;
+  stdioEnv?: Record<string, string>;
 }
 
 export interface McpExecutionScope {
   workspacePath: string;
   mode: Extract<RunMode, "execute">;
+}
+
+export interface McpConnectOptions {
+  startupTimeoutMs?: number;
 }
 
 export type McpConnectionFactory = (
@@ -683,6 +689,7 @@ export class McpClientManager {
         const commandEnvironment = {
           ...forwardedEnvironment,
           ...config.env,
+          ...(authentication?.stdioEnv ?? {}),
         };
         if (
           this.platform !== "win32" &&
@@ -827,14 +834,17 @@ export class McpClientManager {
           await connectStdioClient(client, buildLaunch(command));
         }
       } else {
+        const requestHeaders =
+          authentication?.headers ??
+          (authentication?.bearerToken
+            ? { Authorization: `Bearer ${authentication.bearerToken}` }
+            : undefined);
         const createTransport = () =>
           new StreamableHTTPClientTransport(new URL(config.url), {
-            ...(authentication?.bearerToken
+            ...(requestHeaders
               ? {
                   requestInit: {
-                    headers: {
-                      Authorization: `Bearer ${authentication.bearerToken}`,
-                    },
+                    headers: requestHeaders,
                   },
                 }
               : {}),
@@ -907,15 +917,16 @@ export class McpClientManager {
     promise: Promise<T>,
     serverId: string,
     stage: "connection" | "listTools",
+    startupTimeoutMs: number,
   ): Promise<T> {
     return new Promise<T>((resolvePromise, rejectPromise) => {
       const timer = setTimeout(() => {
         rejectPromise(
           new Error(
-            `MCP server ${serverId} ${stage} timed out after ${this.startupTimeoutMs} ms.`,
+            `MCP server ${serverId} ${stage} timed out after ${startupTimeoutMs} ms.`,
           ),
         );
-      }, this.startupTimeoutMs);
+      }, startupTimeoutMs);
       promise.then(
         (value) => {
           clearTimeout(timer);
@@ -933,6 +944,7 @@ export class McpClientManager {
     config: McpServerConfig,
     authentication: McpConnectionAuthentication | undefined,
     scope?: McpExecutionScope,
+    startupTimeoutMs = this.startupTimeoutMs,
   ): Promise<{ client: McpConnection; listed: { tools: McpTool[] } }> {
     const clientPromise = this.factory(config, authentication, scope);
     let client: McpConnection;
@@ -941,6 +953,7 @@ export class McpClientManager {
         clientPromise,
         config.id,
         "connection",
+        startupTimeoutMs,
       );
     } catch (error) {
       void clientPromise
@@ -953,6 +966,7 @@ export class McpClientManager {
         client.listTools(),
         config.id,
         "listTools",
+        startupTimeoutMs,
       );
       return { client, listed };
     } catch (error) {
@@ -964,6 +978,7 @@ export class McpClientManager {
   async connect(
     config: McpServerConfig,
     authentication?: string | McpConnectionAuthentication,
+    options: McpConnectOptions = {},
   ): Promise<McpServerStatus> {
     await this.disconnect(config.id);
     const resolvedAuthentication =
@@ -981,6 +996,8 @@ export class McpClientManager {
       const { client, listed } = await this.startConnection(
         config,
         resolvedAuthentication,
+        undefined,
+        options.startupTimeoutMs ?? this.startupTimeoutMs,
       );
       const tools = listed.tools.map((tool) => ({
         serverId: config.id,

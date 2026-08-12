@@ -42,9 +42,14 @@ const labels = {
     authNone: "None",
     authBearer: "Bearer token",
     authOAuth: "OAuth 2.1",
+    authHeaders: "Registry headers",
     bearer: "Bearer token (optional, encrypted)",
     oauthHint:
       "Authorization opens your browser and stores tokens with OS encryption.",
+    registryHeadersHint:
+      "Registry headers are encrypted. Reinstall from the Registry to change their values.",
+    registryCredentialsHint:
+      "This Registry command is locked to prevent sending its encrypted credentials to another program. Uninstall and reinstall to change it.",
     mcpFullAccessHint:
       "Local stdio MCP always has full local access and network access.",
     saveServer: "Save and connect",
@@ -73,8 +78,13 @@ const labels = {
     authNone: "无",
     authBearer: "Bearer Token",
     authOAuth: "OAuth 2.1",
+    authHeaders: "Registry Header",
     bearer: "Bearer Token（可选，加密保存）",
     oauthHint: "授权将在浏览器中完成，Token 由操作系统加密保存。",
+    registryHeadersHint:
+      "Registry Header 已加密保存；如需更改，请从 Registry 重新安装。",
+    registryCredentialsHint:
+      "这个 Registry 启动命令已锁定，避免把加密凭据交给其他程序；如需更改，请卸载后重新安装。",
     mcpFullAccessHint: "本地 stdio MCP 始终拥有完整本机访问权限并可联网。",
     saveServer: "保存并连接",
     uninstall: "卸载",
@@ -160,7 +170,7 @@ export function McpServerEditor({
   const [workspace, setWorkspace] = useState(
     server?.config.transport === "stdio" ? server.config.workspacePath : "",
   );
-  const [auth, setAuth] = useState<"none" | "bearer" | "oauth">(
+  const [auth, setAuth] = useState<"none" | "bearer" | "oauth" | "headers">(
     server?.config.transport === "streamable-http"
       ? (server.config.auth ?? "none")
       : "none",
@@ -168,6 +178,12 @@ export function McpServerEditor({
   const [bearer, setBearer] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const locksCredentialTarget =
+    server?.config.transport === "stdio" &&
+    (server.config.credentialEnvVars?.length ?? 0) > 0;
+  const locksHeaderTarget =
+    server?.config.transport === "streamable-http" &&
+    server.config.auth === "headers";
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -217,6 +233,10 @@ export function McpServerEditor({
             .map((entry) => [entry.key, entry.value]),
         ),
         envVars: environmentVariables.filter((name) => name.trim()),
+        credentialEnvVars:
+          server?.config.transport === "stdio"
+            ? (server.config.credentialEnvVars ?? [])
+            : [],
         workspacePath: workspace,
         allowNetwork: true,
       };
@@ -229,6 +249,9 @@ export function McpServerEditor({
         enabled: server?.config.enabled ?? true,
         url: endpoint,
         auth,
+        ...(auth === "headers" && server?.config.transport === "streamable-http"
+          ? { headerNames: server.config.headerNames ?? [] }
+          : {}),
       };
     }
     onSaved(
@@ -286,7 +309,7 @@ export function McpServerEditor({
               <input
                 aria-label={t.launchCommand}
                 autoFocus
-                disabled={busy}
+                disabled={busy || locksCredentialTarget}
                 onChange={(event) => setEndpoint(event.target.value)}
                 value={endpoint}
               />
@@ -299,7 +322,7 @@ export function McpServerEditor({
                 <div className="mcp-argument-row" key={`argument-${index}`}>
                   <input
                     aria-label={`${t.arguments} ${index + 1}`}
-                    disabled={busy}
+                    disabled={busy || locksCredentialTarget}
                     onChange={(event) =>
                       setArgumentsList((current) =>
                         current.map((value, itemIndex) =>
@@ -312,7 +335,7 @@ export function McpServerEditor({
                   <button
                     aria-label={t.delete}
                     className="mcp-remove-row"
-                    disabled={busy}
+                    disabled={busy || locksCredentialTarget}
                     onClick={() =>
                       setArgumentsList((current) =>
                         current.filter((_, itemIndex) => itemIndex !== index),
@@ -326,7 +349,7 @@ export function McpServerEditor({
               ))}
               <button
                 className="mcp-add-row"
-                disabled={busy}
+                disabled={busy || locksCredentialTarget}
                 onClick={() => setArgumentsList((current) => [...current, ""])}
                 type="button"
               >
@@ -334,6 +357,9 @@ export function McpServerEditor({
               </button>
             </div>
           </div>
+          {locksCredentialTarget && (
+            <p className="settings-security">{t.registryCredentialsHint}</p>
+          )}
           <div className="mcp-editor-card">
             <strong>{t.environmentVariables}</strong>
             <div className="mcp-dynamic-list">
@@ -470,7 +496,7 @@ export function McpServerEditor({
             <input
               aria-label={t.serverUrl}
               autoFocus
-              disabled={busy}
+              disabled={busy || locksHeaderTarget}
               onChange={(event) => setEndpoint(event.target.value)}
               type="url"
               value={endpoint}
@@ -479,7 +505,7 @@ export function McpServerEditor({
           <label>
             <strong>{t.authentication}</strong>
             <div className="settings-codex-select">
-              <CodexSelect<"none" | "bearer" | "oauth">
+              <CodexSelect<"none" | "bearer" | "oauth" | "headers">
                 ariaLabel={t.authentication}
                 disabled={busy}
                 onChange={setAuth}
@@ -487,6 +513,10 @@ export function McpServerEditor({
                   { value: "none", label: t.authNone },
                   { value: "bearer", label: t.authBearer },
                   { value: "oauth", label: t.authOAuth },
+                  ...(server?.config.transport === "streamable-http" &&
+                  server.config.auth === "headers"
+                    ? ([{ value: "headers", label: t.authHeaders }] as const)
+                    : []),
                 ]}
                 value={auth}
               />
@@ -505,6 +535,9 @@ export function McpServerEditor({
           )}
           {auth === "oauth" && (
             <span className="settings-security">{t.oauthHint}</span>
+          )}
+          {auth === "headers" && (
+            <span className="settings-security">{t.registryHeadersHint}</span>
           )}
         </div>
       )}

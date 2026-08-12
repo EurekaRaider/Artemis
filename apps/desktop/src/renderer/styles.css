@@ -9362,6 +9362,155 @@ button.environment-row:disabled {
   white-space: nowrap;
 }
 
+.resource-discovery-detail {
+  color: var(--muted-2);
+  font-family: var(--mono-font);
+  margin-top: 2px;
+}
+
+.mcp-install-dialog-backdrop {
+  align-items: center;
+  background: rgb(0 0 0 / 48%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 90;
+}
+
+.mcp-install-dialog {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 22px 70px rgb(0 0 0 / 34%);
+  display: grid;
+  gap: 14px;
+  max-height: calc(100vh - 48px);
+  max-width: 580px;
+  overflow: auto;
+  padding: 20px;
+  width: 100%;
+}
+
+.mcp-install-dialog h2,
+.mcp-install-dialog p {
+  margin: 0;
+}
+
+.mcp-install-dialog header p,
+.mcp-install-dialog label small,
+.mcp-install-method > span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.mcp-install-dialog label,
+.mcp-install-method {
+  display: grid;
+  gap: 6px;
+}
+
+.mcp-install-dialog input,
+.mcp-install-method code {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 9px 10px;
+}
+
+.mcp-install-method code {
+  overflow-wrap: anywhere;
+}
+
+.mcp-install-security,
+.mcp-install-warning {
+  border-radius: 9px;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 9px 11px;
+}
+
+.mcp-install-security {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--muted);
+}
+
+.mcp-install-warning {
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 24%, var(--border));
+  color: var(--text);
+}
+
+.mcp-install-dialog-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.mcp-install-dialog-actions button {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 620;
+  gap: 7px;
+  height: 40px;
+  justify-content: center;
+  padding: 0 16px;
+  transition:
+    background 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mcp-install-dialog-actions button svg {
+  flex: 0 0 auto;
+}
+
+.mcp-install-dialog-actions .mcp-install-cancel {
+  background: color-mix(in srgb, var(--panel-3) 72%, transparent);
+  border-color: var(--border-soft);
+  color: var(--muted);
+  min-width: 92px;
+}
+
+.mcp-install-dialog-actions .mcp-install-cancel:hover {
+  background: var(--hover);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.mcp-install-dialog-actions .mcp-install-primary {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 76%, var(--border));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 16%),
+    0 5px 14px -9px rgb(0 0 0 / 72%);
+  color: var(--accent-text);
+  min-width: 148px;
+}
+
+.mcp-install-dialog-actions .mcp-install-primary:hover {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 20%),
+    0 7px 18px -10px rgb(0 0 0 / 58%);
+  transform: translateY(-1px);
+}
+
+.mcp-install-dialog-actions button:active {
+  box-shadow: none;
+  transform: translateY(1px) scale(0.985);
+}
+
 .plugin-market-copy .plugin-market-source,
 .resource-management-copy .plugin-market-source {
   color: var(--muted-2);
@@ -9602,6 +9751,36 @@ button.environment-row:disabled {
   flex-direction: column;
   gap: 3px;
   margin-top: 10px;
+}
+
+.resource-catalog-status {
+  flex-direction: column;
+  gap: 9px;
+}
+
+.resource-catalog-status.is-loading {
+  color: var(--text);
+}
+
+.resource-search-spinner {
+  animation: resource-search-spin 720ms linear infinite;
+  border: 2px solid color-mix(in srgb, var(--muted-2) 28%, transparent);
+  border-radius: 50%;
+  border-top-color: var(--text);
+  height: 18px;
+  width: 18px;
+}
+
+@keyframes resource-search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resource-search-spinner {
+    animation: none;
+  }
 }
 
 .resource-discovery-row {

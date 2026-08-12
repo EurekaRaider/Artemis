@@ -105,7 +105,7 @@ describe("resource catalog", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("maps only fixed streamable HTTP MCP endpoints to one-click installs", () => {
+  it("maps fixed HTTP, authenticated HTTP, and npm stdio MCP install plans", () => {
     const items = parseMcpCatalogResponse({
       servers: [
         {
@@ -128,14 +128,76 @@ describe("resource catalog", () => {
         },
         {
           server: {
-            name: "io.example/templated",
-            description: "Needs setup",
+            name: "ai.smithery/context7fork",
+            description: "Authenticated Context7 fork",
+            version: "1.0.13",
+            remotes: [
+              {
+                type: "streamable-http",
+                url: "https://server.smithery.ai/context7/mcp",
+                headers: [
+                  {
+                    name: "Authorization",
+                    description: "Bearer token for Smithery authentication",
+                    value: "Bearer {smithery_api_key}",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          server: {
+            name: "com.clauxel/context7docs-mcp",
+            description: "Private Context7 documentation",
             version: "1.0.0",
             remotes: [
               {
                 type: "streamable-http",
-                url: "{baseUrl}/mcp",
-                variables: { baseUrl: { isRequired: true } },
+                url: "https://context7docs.example/mcp",
+                headers: [
+                  {
+                    name: "Authorization",
+                    description: "Bearer token from the product website.",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          server: {
+            name: "io.github.upstash/context7",
+            title: "Context7",
+            description: "Up-to-date code docs for any prompt",
+            version: "1.0.31",
+            packages: [
+              {
+                registryType: "npm",
+                identifier: "@upstash/context7-mcp",
+                version: "1.0.31",
+                transport: { type: "stdio" },
+                environmentVariables: [
+                  {
+                    name: "CONTEXT7_API_KEY",
+                    description: "API key for authentication",
+                    isSecret: true,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        {
+          server: {
+            name: "io.example/templated",
+            description: "Needs a tenant URL",
+            version: "1.0.0",
+            remotes: [
+              {
+                type: "streamable-http",
+                url: "https://{tenant}.example.com/mcp",
+                variables: { tenant: { isRequired: true } },
               },
             ],
           },
@@ -148,10 +210,236 @@ describe("resource catalog", () => {
       title: "Weather",
       remoteUrl: "https://weather.example.com/mcp",
       installable: true,
+      installMode: "ready",
+      installOption: {
+        id: "remote-0",
+        kind: "remote",
+        inputs: [],
+      },
     });
     expect(items[1]).toMatchObject({
+      registryName: "ai.smithery/context7fork",
+      installable: true,
+      installMode: "needs-input",
+      installOption: {
+        id: "remote-0",
+        kind: "remote",
+        inputs: [
+          {
+            id: "header.0.smithery_api_key",
+            required: true,
+            secret: true,
+          },
+        ],
+      },
+    });
+    expect(items[2]).toMatchObject({
+      registryName: "com.clauxel/context7docs-mcp",
+      installMode: "needs-input",
+      installOption: {
+        id: "remote-0",
+        inputs: [
+          {
+            id: "header.0.value",
+            label: "Authorization",
+            required: true,
+            secret: true,
+          },
+        ],
+      },
+    });
+    expect(items[3]).toMatchObject({
+      registryName: "io.github.upstash/context7",
+      installMode: "needs-input",
+      installOption: {
+        id: "npm-0",
+        kind: "npm-stdio",
+        detail: "npx -y @upstash/context7-mcp@1.0.31",
+        inputs: [
+          {
+            id: "env.CONTEXT7_API_KEY",
+            required: false,
+            secret: true,
+          },
+        ],
+      },
+    });
+    expect(items[4]).toMatchObject({
       registryName: "io.example/templated",
       installable: false,
+      installMode: "unsupported",
+      reason: expect.stringContaining("URL variables"),
+    });
+  });
+
+  it("resolves a pinned Context7 npm package without persisting its API key", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-mcp-catalog-"));
+    temporaryDirectories.push(directory);
+    const fetcher: typeof fetch = async () =>
+      Response.json({
+        server: {
+          name: "io.github.upstash/context7",
+          title: "Context7",
+          description: "Up-to-date code docs for any prompt",
+          version: "1.0.31",
+          packages: [
+            {
+              registryType: "npm",
+              identifier: "@upstash/context7-mcp",
+              version: "1.0.31",
+              transport: { type: "stdio" },
+              environmentVariables: [
+                {
+                  name: "CONTEXT7_API_KEY",
+                  description: "API key for authentication",
+                  isSecret: true,
+                },
+              ],
+            },
+          ],
+        },
+      });
+    const service = new ResourceCatalogService(directory, fetcher);
+
+    await expect(
+      service.resolveMcpInstall(
+        "io.github.upstash/context7",
+        "1.0.31",
+        "npm-0",
+        { "env.CONTEXT7_API_KEY": "ctx-secret" },
+      ),
+    ).resolves.toEqual({
+      config: expect.objectContaining({
+        name: "Context7",
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "@upstash/context7-mcp@1.0.31"],
+        env: {},
+        credentialEnvVars: ["CONTEXT7_API_KEY"],
+        allowNetwork: true,
+      }),
+      secrets: { env: { CONTEXT7_API_KEY: "ctx-secret" }, headers: {} },
+    });
+  });
+
+  it("resolves authenticated HTTP headers from user input and rejects missing values", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-mcp-catalog-"));
+    temporaryDirectories.push(directory);
+    const fetcher: typeof fetch = async () =>
+      Response.json({
+        server: {
+          name: "ai.smithery/context7fork",
+          title: "Context7 fork",
+          description: "Authenticated Context7 fork",
+          version: "1.0.13",
+          remotes: [
+            {
+              type: "streamable-http",
+              url: "https://server.smithery.ai/context7/mcp",
+              headers: [
+                {
+                  name: "Authorization",
+                  value: "Bearer {smithery_api_key}",
+                },
+              ],
+            },
+          ],
+        },
+      });
+    const service = new ResourceCatalogService(directory, fetcher);
+
+    await expect(
+      service.resolveMcpInstall(
+        "ai.smithery/context7fork",
+        "1.0.13",
+        "remote-0",
+        {},
+      ),
+    ).rejects.toThrow(/smithery_api_key/u);
+    await expect(
+      service.resolveMcpInstall(
+        "ai.smithery/context7fork",
+        "1.0.13",
+        "remote-0",
+        { "header.0.smithery_api_key": "smithery-secret" },
+      ),
+    ).resolves.toEqual({
+      config: expect.objectContaining({
+        transport: "streamable-http",
+        auth: "headers",
+        headerNames: ["Authorization"],
+      }),
+      secrets: {
+        env: {},
+        headers: { Authorization: "Bearer smithery-secret" },
+      },
+    });
+  });
+
+  it("omits an optional Registry header when the user leaves it blank", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-mcp-catalog-"));
+    temporaryDirectories.push(directory);
+    const service = new ResourceCatalogService(directory, async () =>
+      Response.json({
+        server: {
+          name: "io.example/optional-header",
+          title: "Optional header",
+          description: "Works without an API key",
+          version: "1.0.0",
+          remotes: [
+            {
+              type: "streamable-http",
+              url: "https://example.test/mcp",
+              headers: [
+                { name: "X-Api-Key", isRequired: false, isSecret: true },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    await expect(
+      service.resolveMcpInstall(
+        "io.example/optional-header",
+        "1.0.0",
+        "remote-0",
+        {},
+      ),
+    ).resolves.toEqual({
+      config: expect.objectContaining({ auth: "none" }),
+      secrets: { env: {}, headers: {} },
+    });
+  });
+
+  it("rejects Registry environment variables that can redirect package execution", () => {
+    const [item] = parseMcpCatalogResponse({
+      servers: [
+        {
+          server: {
+            name: "io.example/unsafe-environment",
+            description: "Attempts to change npm execution",
+            version: "1.0.0",
+            packages: [
+              {
+                registryType: "npm",
+                identifier: "safe-package",
+                version: "1.0.0",
+                transport: { type: "stdio" },
+                environmentVariables: [
+                  { name: "NPM_CONFIG_REGISTRY", isRequired: true },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(item).toMatchObject({
+      installMode: "unsupported",
+      installable: false,
+      reason: expect.stringContaining("environment name"),
     });
   });
 
