@@ -72,6 +72,7 @@ interface LiveChildActivity {
 import { MarkdownContent } from "./MarkdownContent.js";
 import { normalizeBrowserAddress } from "./browser-navigation.js";
 import { CodexSelect } from "./CodexSelect.js";
+import { ChildAgentIcon } from "./ChildAgentIcon.js";
 import { ComposerContextBar } from "./ComposerContextBar.js";
 import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
 import { EnvironmentPanel } from "./EnvironmentPanel.js";
@@ -382,6 +383,8 @@ const copy = {
     approveSession: "Approve for task",
     approveProject: "Approve for project",
     deny: "Deny",
+    approvalApproved: "Approved request",
+    approvalDenied: "Denied request",
     recommended: "Recommended",
     otherAnswer: "Other…",
     otherAnswerDetail: "Type an answer that is not listed above",
@@ -601,6 +604,8 @@ const copy = {
     approveSession: "本任务内批准",
     approveProject: "本项目内批准",
     deny: "拒绝",
+    approvalApproved: "已批准的操作",
+    approvalDenied: "已拒绝的操作",
     recommended: "模型推荐",
     otherAnswer: "其他…",
     otherAnswerDetail: "输入一个不在以上列表中的答案",
@@ -1119,169 +1124,6 @@ function FilesIcon() {
   );
 }
 
-const CHILD_AGENT_MARK_COLORS = [
-  "#4f86ff",
-  "#1fc9ae",
-  "#f2a93b",
-  "#f2667e",
-  "#8cc84b",
-  "#ff7652",
-  "#35b9db",
-  "#b36fea",
-  "#e08b3f",
-  "#42c98b",
-  "#e85db4",
-  "#7f7aff",
-] as const;
-
-function childAgentMarkHash(identity: string): number {
-  let hash = 2_166_136_261;
-  for (let index = 0; index < identity.length; index += 1) {
-    hash ^= identity.charCodeAt(index);
-    hash = Math.imul(hash, 16_777_619) >>> 0;
-  }
-  return hash;
-}
-
-function ChildAgentIcon({
-  className,
-  identity = "agent-team",
-}: {
-  className?: string;
-  identity?: string | undefined;
-}) {
-  const hash = childAgentMarkHash(identity);
-  const color = CHILD_AGENT_MARK_COLORS[hash % CHILD_AGENT_MARK_COLORS.length];
-  const shape = (hash >>> 8) % 8;
-  const glyph = (() => {
-    switch (shape) {
-      case 0:
-        return (
-          <>
-            <path
-              d="M10 1.5 17.4 5.75v8.5L10 18.5l-7.4-4.25v-8.5Z"
-              opacity="0.32"
-            />
-            <path
-              d="M6.4 10h7.2M10 6.4v7.2"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="1.8"
-            />
-          </>
-        );
-      case 1:
-        return (
-          <>
-            <path d="M10 1.35 18.65 10 10 18.65 1.35 10Z" opacity="0.32" />
-            <circle cx="10" cy="10" r="2.7" />
-            <circle cx="10" cy="5.2" r="0.9" />
-            <circle cx="14.8" cy="10" r="0.9" />
-          </>
-        );
-      case 2:
-        return (
-          <>
-            <circle cx="10" cy="10" r="8.35" opacity="0.32" />
-            <ellipse
-              cx="10"
-              cy="10"
-              fill="none"
-              rx="5.2"
-              ry="2.9"
-              stroke="currentColor"
-              strokeWidth="1.45"
-              transform="rotate(-28 10 10)"
-            />
-            <circle cx="10" cy="10" r="1.8" />
-          </>
-        );
-      case 3:
-        return (
-          <>
-            <path
-              d="M10 1.45 17 4.25v5.1c0 4.35-2.75 7.45-7 9.2-4.25-1.75-7-4.85-7-9.2v-5.1Z"
-              opacity="0.32"
-            />
-            <path d="m10.8 4.9-4.1 6h3l-.5 4.2 4.1-6h-3Z" />
-          </>
-        );
-      case 4:
-        return (
-          <>
-            <rect
-              height="16.5"
-              opacity="0.32"
-              rx="4.2"
-              width="16.5"
-              x="1.75"
-              y="1.75"
-            />
-            <path d="M5.4 5.4h3.2v3.2H5.4zm6 0h3.2v3.2h-3.2zm-6 6h3.2v3.2H5.4zm6 0h3.2v3.2h-3.2z" />
-          </>
-        );
-      case 5:
-        return (
-          <>
-            <path d="M10 1.4 18.65 17H1.35Z" opacity="0.32" />
-            <path
-              d="m10 6.15 4.05 7.1h-8.1Z"
-              fill="none"
-              stroke="currentColor"
-              strokeLinejoin="round"
-              strokeWidth="1.65"
-            />
-          </>
-        );
-      case 6:
-        return (
-          <>
-            <rect height="17" opacity="0.32" rx="6" width="12" x="4" y="1.5" />
-            <path
-              d="M7.05 7.1c1.55-2.05 4.35-2.05 5.9 0M7.05 12.9c1.55 2.05 4.35 2.05 5.9 0"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="1.7"
-            />
-            <circle cx="10" cy="10" r="1.45" />
-          </>
-        );
-      default:
-        return (
-          <>
-            <path
-              d="m10 1.35 2.1 3.15 3.7-.3-.3 3.7L18.65 10l-3.15 2.1.3 3.7-3.7-.3L10 18.65 7.9 15.5l-3.7.3.3-3.7L1.35 10 4.5 7.9l-.3-3.7 3.7.3Z"
-              opacity="0.32"
-            />
-            <circle
-              cx="10"
-              cy="10"
-              fill="none"
-              r="3.25"
-              stroke="currentColor"
-              strokeWidth="1.45"
-            />
-            <circle cx="10" cy="10" r="1.15" />
-          </>
-        );
-    }
-  })();
-
-  return (
-    <svg
-      aria-hidden="true"
-      className={["child-agent-mark", className].filter(Boolean).join(" ")}
-      focusable="false"
-      style={{ color }}
-      viewBox="0 0 20 20"
-    >
-      {glyph}
-    </svg>
-  );
-}
-
 function WorkspaceTabIcon({
   identity,
   kind,
@@ -1377,7 +1219,13 @@ function TabScrollIcon({ direction }: { direction: "left" | "right" }) {
   );
 }
 
-function ApprovalIcon({ warning = false }: { warning?: boolean }) {
+function ApprovalIcon({
+  neutral = false,
+  warning = false,
+}: {
+  neutral?: boolean;
+  warning?: boolean;
+}) {
   return (
     <Icon size={19}>
       <path
@@ -1386,7 +1234,7 @@ function ApprovalIcon({ warning = false }: { warning?: boolean }) {
         strokeLinejoin="round"
         strokeWidth="1.6"
       />
-      {warning ? (
+      {neutral ? null : warning ? (
         <path
           d="M12 8v5m0 3v.1"
           stroke="currentColor"
@@ -8391,74 +8239,105 @@ function Timeline({
         }
         if (kind === "approval") {
           const approval = state.approvals[id];
-          return approval ? (
+          if (!approval) return null;
+          const approvalCopy = (
+            <div className="approval-card-copy">
+              <strong>{approval.summary}</strong>
+              <small>{approval.command ?? approval.paths.join(", ")}</small>
+              {approval.actorAgentId && (
+                <small>
+                  {t.agentActor}:{" "}
+                  {state.childAgents[approval.actorAgentId]?.label ??
+                    approval.actorAgentId}
+                </small>
+              )}
+            </div>
+          );
+          const modelReason = approval.modelReason ? (
+            <p className="approval-model-reason">
+              <span>{t.modelReason}</span>
+              {approval.modelReason}
+            </p>
+          ) : null;
+          if (approval.status !== "pending") {
+            return (
+              <details
+                className={`approval-card ${approval.status}`}
+                key={entry}
+              >
+                <summary>
+                  <span className="approval-shield">
+                    <ApprovalIcon neutral />
+                  </span>
+                  <strong>
+                    {approval.status === "approved"
+                      ? t.approvalApproved
+                      : t.approvalDenied}
+                  </strong>
+                  <span className="approval-card-chevron">
+                    <ChevronIcon />
+                  </span>
+                </summary>
+                <div className="approval-resolved-details">
+                  {approvalCopy}
+                  {modelReason}
+                </div>
+              </details>
+            );
+          }
+          return (
             <article className={`approval-card ${approval.status}`} key={entry}>
               <header>
-                <span className="approval-shield">!</span>
-                <div>
-                  <strong>{approval.summary}</strong>
-                  <small>{approval.command ?? approval.paths.join(", ")}</small>
-                  {approval.actorAgentId && (
-                    <small>
-                      {t.agentActor}:{" "}
-                      {state.childAgents[approval.actorAgentId]?.label ??
-                        approval.actorAgentId}
+                <span className="approval-shield">
+                  <ApprovalIcon neutral />
+                </span>
+                {approvalCopy}
+              </header>
+              {modelReason}
+              <div className="approval-actions">
+                <button
+                  className="secondary-button"
+                  onClick={() => onResolve(approval, false, "once")}
+                >
+                  {t.deny}
+                  {approval.modelRecommendation === "deny" && (
+                    <small className="recommendation-badge">
+                      {t.recommended}
                     </small>
                   )}
-                </div>
-              </header>
-              {approval.modelReason && (
-                <p className="approval-model-reason">
-                  <span>{t.modelReason}</span>
-                  {approval.modelReason}
-                </p>
-              )}
-              {approval.status === "pending" && (
-                <div className="approval-actions">
+                </button>
+                {approval.allowedScopes.includes("project") && (
                   <button
                     className="secondary-button"
-                    onClick={() => onResolve(approval, false, "once")}
+                    onClick={() => onResolve(approval, true, "project")}
                   >
-                    {t.deny}
-                    {approval.modelRecommendation === "deny" && (
+                    {t.approveProject}
+                  </button>
+                )}
+                {approval.allowedScopes.includes("session") && (
+                  <button
+                    className="secondary-button"
+                    onClick={() => onResolve(approval, true, "session")}
+                  >
+                    {t.approveSession}
+                  </button>
+                )}
+                {approval.allowedScopes.includes("once") && (
+                  <button
+                    className="primary-button compact"
+                    onClick={() => onResolve(approval, true, "once")}
+                  >
+                    {t.approveOnce}
+                    {approval.modelRecommendation === "approve" && (
                       <small className="recommendation-badge">
                         {t.recommended}
                       </small>
                     )}
                   </button>
-                  {approval.allowedScopes.includes("project") && (
-                    <button
-                      className="secondary-button"
-                      onClick={() => onResolve(approval, true, "project")}
-                    >
-                      {t.approveProject}
-                    </button>
-                  )}
-                  {approval.allowedScopes.includes("session") && (
-                    <button
-                      className="secondary-button"
-                      onClick={() => onResolve(approval, true, "session")}
-                    >
-                      {t.approveSession}
-                    </button>
-                  )}
-                  {approval.allowedScopes.includes("once") && (
-                    <button
-                      className="primary-button compact"
-                      onClick={() => onResolve(approval, true, "once")}
-                    >
-                      {t.approveOnce}
-                      {approval.modelRecommendation === "approve" && (
-                        <small className="recommendation-badge">
-                          {t.recommended}
-                        </small>
-                      )}
-                    </button>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </article>
-          ) : null;
+          );
         }
         if (kind === "child") {
           const child = state.childAgents[id];

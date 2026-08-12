@@ -11,6 +11,7 @@ function source(relativePath: string): string {
 }
 
 const appSource = source("../src/renderer/App.tsx");
+const childAgentIconSource = source("../src/renderer/ChildAgentIcon.tsx");
 const stylesSource = source("../src/renderer/styles.css");
 const apiSource = source("../src/shared/api.ts");
 const mainSource = source("../src/main/main.ts");
@@ -68,16 +69,16 @@ describe("agent-team workbench", () => {
   });
 
   it("assigns stable colors and geometric marks to child agent identities", () => {
-    expect(appSource).toContain("const CHILD_AGENT_MARK_COLORS = [");
-    expect(appSource).toContain(
+    expect(childAgentIconSource).toContain("const CHILD_AGENT_MARK_COLORS = [");
+    expect(childAgentIconSource).toContain(
       "function childAgentMarkHash(identity: string)",
     );
-    expect(appSource).toContain("const shape = (hash >>> 8) % 8");
+    expect(childAgentIconSource).toContain("shape: (hash >>> 8) % 8");
     expect(appSource).toContain("identity={child.agentId}");
     expect(appSource).toContain("identity={child?.agentId}");
-    expect(appSource).toContain('"#4f86ff"');
-    expect(appSource).toContain('"#1fc9ae"');
-    expect(appSource).toContain('opacity="0.32"');
+    expect(childAgentIconSource).toContain('"#4f86ff"');
+    expect(childAgentIconSource).toContain('"#1fc9ae"');
+    expect(childAgentIconSource).toContain('opacity="0.32"');
     expect(stylesSource).toContain(".child-agent-mark {");
   });
 

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -20,6 +21,27 @@ import {
 import type { ProjectGitInfo, ReviewScope } from "../shared/api.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
+import { ChildAgentIcon } from "./ChildAgentIcon.js";
+
+// Keep the centered 800px timeline clear of the 304px floating panel.
+export const ENVIRONMENT_PANEL_MIN_WORKSPACE_WIDTH = 1_472;
+
+export function shouldAutoHideEnvironmentPanel(workspaceWidth: number) {
+  return workspaceWidth < ENVIRONMENT_PANEL_MIN_WORKSPACE_WIDTH;
+}
+
+export function environmentPanelVisibilityAfterResize(
+  current: Readonly<{ open: boolean; autoHidden: boolean }>,
+  workspaceWidth: number,
+) {
+  if (shouldAutoHideEnvironmentPanel(workspaceWidth) && current.open) {
+    return { open: false, autoHidden: true };
+  }
+  if (!shouldAutoHideEnvironmentPanel(workspaceWidth) && current.autoHidden) {
+    return { open: true, autoHidden: false };
+  }
+  return current;
+}
 
 const labels = {
   en: {
@@ -395,15 +417,6 @@ function LocalIcon() {
   );
 }
 
-function AgentIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <circle cx="12" cy="8" r="3" />
-      <path d="M6 20c.5-4 2.5-6 6-6s5.5 2 6 6M5 7H3m18 0h-2" />
-    </svg>
-  );
-}
-
 function McpIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -492,9 +505,12 @@ export function EnvironmentPanel({
   teams: AgentTeamState[];
 }) {
   const t = localizedCopy(locale, "app", labels[legacyLocale(locale)]);
+  const control = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const request = useRef(0);
+  const autoHidden = useRef(false);
+  const openRef = useRef(defaultOpen);
   const [open, setOpen] = useState(defaultOpen);
   const [gitInfo, setGitInfo] = useState<ProjectGitInfo>();
   const [gitError, setGitError] = useState<string>();
@@ -514,6 +530,48 @@ export function EnvironmentPanel({
   const [showAllAgents, setShowAllAgents] = useState(false);
   const [showAllMcp, setShowAllMcp] = useState(false);
   const [showAllSources, setShowAllSources] = useState(false);
+
+  const closePanel = useCallback(() => {
+    autoHidden.current = false;
+    openRef.current = false;
+    setOpen(false);
+  }, []);
+
+  const togglePanel = useCallback(() => {
+    autoHidden.current = false;
+    openRef.current = !openRef.current;
+    setOpen(openRef.current);
+  }, []);
+
+  useLayoutEffect(() => {
+    const workspace = control.current?.closest(".workspace");
+    if (
+      !(workspace instanceof HTMLElement) ||
+      typeof window.ResizeObserver !== "function"
+    ) {
+      return;
+    }
+
+    const syncVisibility = (width: number) => {
+      const current = {
+        open: openRef.current,
+        autoHidden: autoHidden.current,
+      };
+      const next = environmentPanelVisibilityAfterResize(current, width);
+      if (next === current) return;
+      autoHidden.current = next.autoHidden;
+      openRef.current = next.open;
+      setOpen(next.open);
+    };
+    syncVisibility(workspace.getBoundingClientRect().width);
+    const observer = new window.ResizeObserver(([entry]) => {
+      syncVisibility(
+        entry?.contentRect.width ?? workspace.getBoundingClientRect().width,
+      );
+    });
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, []);
 
   const loadGit = useCallback(async () => {
     const id = ++request.current;
@@ -575,13 +633,13 @@ export function EnvironmentPanel({
       } else if (branchOpen) {
         setBranchOpen(false);
       } else {
-        setOpen(false);
+        closePanel();
         window.requestAnimationFrame(() => trigger.current?.focus());
       }
     };
     window.addEventListener("keydown", closeEscape);
     return () => window.removeEventListener("keydown", closeEscape);
-  }, [branchOpen, commitBranchOpen, commitOpen, open]);
+  }, [branchOpen, closePanel, commitBranchOpen, commitOpen, open]);
 
   const displayAgents = useMemo(
     () => environmentDisplayAgents(agents, teams),
@@ -817,6 +875,7 @@ export function EnvironmentPanel({
     <div
       className="environment-control"
       data-dock-open={dockOpen}
+      ref={control}
       style={dockOffset > 0 ? { marginInlineEnd: dockOffset } : undefined}
     >
       <button
@@ -824,7 +883,7 @@ export function EnvironmentPanel({
         aria-haspopup="dialog"
         aria-label={t.trigger}
         className={`environment-trigger${open ? " active" : ""}`}
-        onClick={() => setOpen((current) => !current)}
+        onClick={togglePanel}
         ref={trigger}
         title={t.trigger}
         type="button"
@@ -871,7 +930,7 @@ export function EnvironmentPanel({
                   className="environment-row"
                   disabled={gitInfo.changeCount === 0}
                   onClick={() => {
-                    setOpen(false);
+                    closePanel();
                     onOpenReview(
                       gitInfo.unstagedCount > 0 || gitInfo.untrackedCount > 0
                         ? "unstaged"
@@ -947,7 +1006,7 @@ export function EnvironmentPanel({
                 <button
                   className="environment-row"
                   onClick={() => {
-                    setOpen(false);
+                    closePanel();
                     onOpenReview("branch");
                   }}
                   type="button"
@@ -1025,13 +1084,16 @@ export function EnvironmentPanel({
                     className="environment-activity-row"
                     key={team.teamId}
                     onClick={() => {
-                      setOpen(false);
+                      closePanel();
                       onOpenTeam(team);
                     }}
                     type="button"
                   >
                     <span className="environment-row-icon">
-                      <AgentIcon />
+                      <ChildAgentIcon
+                        className="environment-agent-mark"
+                        identity={team.teamId}
+                      />
                     </span>
                     <span>
                       <strong>{team.mission}</strong>
@@ -1047,13 +1109,16 @@ export function EnvironmentPanel({
                     className="environment-activity-row"
                     key={agent.agentId}
                     onClick={() => {
-                      setOpen(false);
+                      closePanel();
                       onOpenAgent(agent);
                     }}
                     type="button"
                   >
                     <span className="environment-row-icon">
-                      <AgentIcon />
+                      <ChildAgentIcon
+                        className="environment-agent-mark"
+                        identity={agent.agentId}
+                      />
                     </span>
                     <span>
                       <strong>{agent.label}</strong>

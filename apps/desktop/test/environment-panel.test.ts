@@ -10,11 +10,15 @@ import type {
 } from "@artemis/protocol";
 
 import type { ProjectGitInfo } from "../src/shared/api.js";
+import { childAgentMarkForIdentity } from "../src/renderer/ChildAgentIcon.js";
 import {
+  ENVIRONMENT_PANEL_MIN_WORKSPACE_WIDTH,
+  environmentPanelVisibilityAfterResize,
   environmentAgentCounts,
   environmentDisplayAgents,
   environmentGitAction,
   groupMcpUsage,
+  shouldAutoHideEnvironmentPanel,
   suggestedEnvironmentBranchName,
 } from "../src/renderer/EnvironmentPanel.js";
 
@@ -103,6 +107,27 @@ describe("task environment panel state", () => {
     expect(panelSource).toContain("combinedSources.length > 0 &&");
   });
 
+  it("shows stable identity marks instead of generic person icons", () => {
+    expect(panelSource).toContain("<ChildAgentIcon");
+    expect(panelSource).toContain("identity={team.teamId}");
+    expect(panelSource).toContain("identity={agent.agentId}");
+    expect(panelSource).not.toContain("function AgentIcon(");
+    expect(stylesSource).toContain(
+      ".environment-row-icon svg:not(.child-agent-mark)",
+    );
+
+    const identities = [
+      "environment-team",
+      "ui-agent",
+      "git-agent",
+      "test-agent",
+    ];
+    const marks = identities.map((identity) =>
+      JSON.stringify(childAgentMarkForIdentity(identity)),
+    );
+    expect(new Set(marks).size).toBe(identities.length);
+  });
+
   it("wires real review, branch, commit, push, agent, and source actions", () => {
     expect(panelSource).toContain('onOpenReview("branch")');
     expect(panelSource).toContain("window.artemis.switchProjectBranch(");
@@ -140,8 +165,43 @@ describe("task environment panel state", () => {
     expect(stylesSource).toContain("max-height: calc(100vh - 64px)");
   });
 
+  it("keeps the timeline centered and auto-hides the panel before they overlap", () => {
+    expect(ENVIRONMENT_PANEL_MIN_WORKSPACE_WIDTH).toBe(1_472);
+    expect(shouldAutoHideEnvironmentPanel(1_471)).toBe(true);
+    expect(shouldAutoHideEnvironmentPanel(1_472)).toBe(false);
+    expect(panelSource).toContain('closest(".workspace")');
+    expect(panelSource).toContain("new window.ResizeObserver");
+    expect(stylesSource).not.toContain(
+      '.workspace:has(.environment-trigger[aria-expanded="true"]) .timeline-scroll',
+    );
+    expect(stylesSource).toMatch(
+      /\.timeline\s*\{[^}]*margin:\s*0 auto;[^}]*max-width:\s*800px;/su,
+    );
+  });
+
+  it("restores the panel after an auto-hidden narrow layout becomes wide", () => {
+    const autoHidden = environmentPanelVisibilityAfterResize(
+      { open: true, autoHidden: false },
+      1_471,
+    );
+    expect(autoHidden).toEqual({ open: false, autoHidden: true });
+    expect(environmentPanelVisibilityAfterResize(autoHidden, 1_472)).toEqual({
+      open: true,
+      autoHidden: false,
+    });
+    expect(
+      environmentPanelVisibilityAfterResize(
+        { open: false, autoHidden: false },
+        1_472,
+      ),
+    ).toEqual({ open: false, autoHidden: false });
+  });
+
   it("provides a deterministic Chinese Electron smoke fixture", () => {
     expect(mainSource).toContain("seedSmokeEnvironmentFixture");
+    expect(mainSource).toContain("ARTEMIS_SMOKE_WINDOW_WIDTH");
+    expect(mainSource).toContain("ARTEMIS_SMOKE_RESIZE_WIDTH");
+    expect(mainSource).toContain("view === 'environment-agents'");
     expect(mainSource).toContain(
       'ARTEMIS_SMOKE_VIEW?.startsWith("environment")',
     );

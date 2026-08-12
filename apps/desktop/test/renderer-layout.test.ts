@@ -723,6 +723,21 @@ describe("renderer layout contract", () => {
     );
   });
 
+  it("collapses resolved approval details and keeps pending cards aligned", () => {
+    expect(appSource).toContain('if (approval.status !== "pending")');
+    expect(appSource).toContain("<details");
+    expect(appSource).toContain("<summary>");
+    expect(appSource).toContain('className="approval-resolved-details"');
+    expect(appSource).not.toContain("<details open");
+    expect(stylesSource).toMatch(
+      /\.approval-card > header,\s*\.approval-card > summary\s*\{[^}]*\balign-items:\s*center/u,
+    );
+    expect(appSource).toContain("<ApprovalIcon neutral />");
+    expect(appSource).not.toContain(
+      '<span className="approval-shield">!</span>',
+    );
+  });
+
   it("renders one recommended workflow choice and wires its resolution", () => {
     expect(apiSource).toContain(
       "resolveUserInput(resolution: UserInputResolution): Promise<void>",

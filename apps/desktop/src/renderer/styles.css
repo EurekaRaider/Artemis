@@ -946,7 +946,7 @@ summary:focus-visible {
 }
 
 .environment-trigger svg,
-.environment-row-icon svg,
+.environment-row-icon svg:not(.child-agent-mark),
 .environment-branch-menu svg {
   fill: none;
   height: 20px;
@@ -1088,6 +1088,11 @@ button.environment-row:disabled {
   height: 24px;
   justify-content: center;
   width: 24px;
+}
+
+.environment-agent-mark {
+  height: 20px;
+  width: 20px;
 }
 
 .environment-row-copy,
@@ -2276,16 +2281,48 @@ button.environment-row:disabled {
   padding: 12px;
 }
 
-.approval-card header {
-  align-items: flex-start;
+.approval-card > header,
+.approval-card > summary {
+  align-items: center;
   display: flex;
   gap: 10px;
 }
 
-.approval-card header div {
+.approval-card > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.approval-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.approval-card > summary > strong {
+  flex: 1;
+}
+
+.approval-card-copy {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.approval-card-chevron {
+  color: var(--muted);
+  display: flex;
+  transition: transform 120ms ease;
+}
+
+.approval-card[open] .approval-card-chevron {
+  transform: rotate(180deg);
+}
+
+.approval-resolved-details {
+  margin: 12px 0 0 34px;
+}
+
+.approval-resolved-details .approval-model-reason {
+  margin-left: 0;
 }
 
 .approval-card small {

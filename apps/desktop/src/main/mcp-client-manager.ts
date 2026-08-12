@@ -662,7 +662,7 @@ export class McpClientManager {
     ) => {
       let client = new Client({
         name: "Artemis",
-        version: "1.3.27",
+        version: "1.3.28",
       });
       if (config.transport === "stdio") {
         const commandArguments =
@@ -814,7 +814,7 @@ export class McpClientManager {
           }
           client = new Client({
             name: "Artemis",
-            version: "1.3.27",
+            version: "1.3.28",
           });
           command = {
             ...command,
@@ -863,7 +863,7 @@ export class McpClientManager {
           }
           client = new Client({
             name: "Artemis",
-            version: "1.3.27",
+            version: "1.3.28",
           });
           transport = createTransport();
           await client.connect(transport as Parameters<Client["connect"]>[0]);

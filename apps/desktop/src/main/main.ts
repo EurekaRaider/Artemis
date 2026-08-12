@@ -7106,12 +7106,20 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
 function createMainWindow(): BrowserWindow {
   const smokeScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT;
   const smokeAccessibility = process.env.ARTEMIS_SMOKE_ACCESSIBILITY;
+  const requestedSmokeWidth = Number(process.env.ARTEMIS_SMOKE_WINDOW_WIDTH);
+  const requestedSmokeResizeWidth = Number(
+    process.env.ARTEMIS_SMOKE_RESIZE_WIDTH,
+  );
+  const smokeWidth =
+    smokeMode && Number.isFinite(requestedSmokeWidth)
+      ? Math.max(980, Math.min(2_000, Math.round(requestedSmokeWidth)))
+      : 1_420;
   const requestedScale = Number(process.env.ARTEMIS_SMOKE_SCALE ?? "1");
   const smokeScale = [1, 1.25, 1.5].includes(requestedScale)
     ? requestedScale
     : 1;
   const window = new BrowserWindow({
-    width: 1420,
+    width: smokeWidth,
     height: 920,
     minWidth: 980,
     minHeight: 680,
@@ -7232,6 +7240,12 @@ function createMainWindow(): BrowserWindow {
         return;
       }
       window.webContents.setZoomFactor(smokeScale);
+      if (smokeMode && Number.isFinite(requestedSmokeResizeWidth)) {
+        window.setSize(
+          Math.max(980, Math.min(2_000, Math.round(requestedSmokeResizeWidth))),
+          920,
+        );
+      }
       const requestedSmokeView = process.env.ARTEMIS_SMOKE_VIEW;
       const prepareSmokeView = process.env.ARTEMIS_SMOKE_USER_INPUT
         ? window.webContents.executeJavaScript(
@@ -7253,6 +7267,12 @@ function createMainWindow(): BrowserWindow {
                 if (view.startsWith('environment')) {
                   document.querySelector('.thread-select')?.click();
                   await wait(600);
+                  if (view === 'environment-agents') {
+                    const popover = document.querySelector('.environment-popover');
+                    if (popover) popover.scrollTop = 220;
+                    await wait(500);
+                    return;
+                  }
                   if (
                     view === 'environment-commit-dialog' ||
                     view === 'environment-commit-branch-menu' ||

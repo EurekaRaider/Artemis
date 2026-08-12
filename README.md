@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="836 passing tests" src="https://img.shields.io/badge/Tests-836_passing-2EA44F" />
+  <img alt="840 passing tests" src="https://img.shields.io/badge/Tests-840_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -263,12 +263,17 @@ tasks. Interactive tasks run against the repository's local checkout.
   thinking level.
 - **Task environment** — open a compact header panel for Git changes, local
   repository and branch state, branch switching, commit/push actions, child
-  Agents and teams, MCP usage, and attached task sources. Git mutations remain
-  behind main-process validation and are disabled while local tasks are active.
+  Agents and teams, MCP usage, and attached task sources. Agents and teams keep
+  stable identity-specific color and geometry marks across the timeline,
+  workspace tabs and environment panel. The panel auto-hides before it can
+  overlap the centered timeline and restores itself when the workspace widens;
+  Git mutations remain behind main-process validation and are disabled while
+  local tasks are active.
 - **Streaming timeline** — render safe Markdown, text/thinking deltas, tool
   input/output, approval cards with the model's decision, structured workflow
   choices, child-Agent status, errors and completion states in original event
-  order.
+  order. Pending approvals keep their actions visible, while approved and
+  denied requests collapse into compact summaries with expandable details.
 - **Progress and context** — `update_plan` produces visible multi-step progress
   only while its turn remains active; run timing and context-window usage remain
   visible. The context indicator distinguishes the current local estimate from
@@ -954,11 +959,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **836 passing tests** (4 skipped):
+The current full test run contains **840 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       59 |       19 |         82 |     676 |   **836** |
+|       59 |       19 |         82 |     680 |   **840** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -985,13 +990,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.3.27` packaging configuration produces:
+The `1.3.28` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.3.27.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.3.27.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.3.27.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.3.28.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.3.28.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.3.28.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and
