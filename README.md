@@ -435,6 +435,9 @@ flowchart LR
     Broker --> Workspace["Validated workspace operation"]
     Broker --> Bash["Pi Bash as desktop user"]
     Mode -->|"User opens"| Terminal["Desktop-user Terminal"]
+    Registry["Official MCP Registry metadata"] --> Validate["Validate endpoint, package and setup inputs"]
+    Validate -->|"User installs and connects"| MCP
+    Validate -->|"Encrypt declared secrets"| Secrets["OS-encrypted MCP secrets"]
     Mode -->|"User enables"| MCP["Desktop-user MCP"]
     Mode -->|"Project + hash trust"| Trust["Executable extension"]
     Trust --> Native["AppContainer / Seatbelt"]
@@ -451,14 +454,15 @@ flowchart LR
 
 #### Execution surfaces
 
-| Surface                 | Effective boundary                                                                                                                                                                                                                                                                                                            |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Pi Bash**             | Available only in Execute. After brokered model or user approval, it intentionally inherits the current desktop user's full filesystem and network permissions.                                                                                                                                                               |
-| **Integrated Terminal** | Opened by the user and inherits the current desktop user's filesystem and network permissions without automatic administrator elevation.                                                                                                                                                                                      |
-| **MCP**                 | Non-destructive tools are auto-approved after the server is enabled. Destructive tools require human approval unless an exact trusted-host policy exempts that tool, such as Gmail new-message sending. Enabled local stdio servers intentionally inherit the current desktop user's full filesystem and network permissions. |
-| **Extensions**          | Remain disabled until project and content-hash trust are explicit. They run in AppContainer on Windows or Seatbelt on macOS by default; the **Full local access** setting opts extensions alone into desktop-user permissions.                                                                                                |
-| **Browser**             | Has normal HTTP/HTTPS access but no Node integration, preload API or local-file access.                                                                                                                                                                                                                                       |
-| **Plan and Review**     | Reject writes before an executor or filesystem call and do not expose Pi Bash, MCP or executable extensions.                                                                                                                                                                                                                  |
+| Surface                  | Effective boundary                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Pi Bash**              | Available only in Execute. After brokered model or user approval, it intentionally inherits the current desktop user's full filesystem and network permissions.                                                                                                                                                                                                                |
+| **Integrated Terminal**  | Opened by the user and inherits the current desktop user's filesystem and network permissions without automatic administrator elevation.                                                                                                                                                                                                                                       |
+| **MCP Registry install** | The official Registry is a discovery source, not a security endorsement. Artemis re-fetches the selected name and version, accepts only validated fixed HTTPS endpoints or version-pinned npm/stdio packages from the official npm registry, requires an explicit install-and-connect action, and keeps declared secret headers or environment values in OS-encrypted storage. |
+| **MCP runtime**          | Registry-installed and manually configured servers share the same runtime boundary. Non-destructive tools are auto-approved after enablement; destructive tools require human approval unless an exact trusted-host policy exempts that tool. Local stdio servers intentionally inherit the current desktop user's full filesystem and network permissions.                    |
+| **Extensions**           | Remain disabled until project and content-hash trust are explicit. They run in AppContainer on Windows or Seatbelt on macOS by default; the **Full local access** setting opts extensions alone into desktop-user permissions.                                                                                                                                                 |
+| **Browser**              | Has normal HTTP/HTTPS access but no Node integration, preload API or local-file access.                                                                                                                                                                                                                                                                                        |
+| **Plan and Review**      | Reject writes before an executor or filesystem call and do not expose Pi Bash, MCP or executable extensions.                                                                                                                                                                                                                                                                   |
 
 > [!CAUTION]
 > **macOS validation boundary** — Lite engineering packages generate separate Apple Silicon arm64 and Intel x64 artifacts. Local checks cover archive integrity, architecture, the ad-hoc engineering signature and packaged resources; the x64 result is a static build validation only. Intel-native launch, Developer ID signing, notarization, stapling, PTY/Seatbelt and update/rollback release acceptance remain separate native gates.
@@ -996,11 +1000,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **875 passing tests** (4 skipped):
+The current full test run contains **876 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       61 |       19 |         99 |     696 |   **875** |
+|       61 |       19 |         99 |     697 |   **876** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
