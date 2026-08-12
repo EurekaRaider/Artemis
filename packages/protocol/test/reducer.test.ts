@@ -358,6 +358,45 @@ describe("reduceAgentEvent", () => {
     );
   });
 
+  it("accumulates MCP usage and source metadata outside the timeline", () => {
+    const usage = event("mcp-usage", 1, {
+      type: "mcp.tool.used",
+      toolCallId: "call-1",
+      serverId: "codegraph",
+      serverName: "CodeGraph",
+      toolName: "explore",
+      agentId: "child-1",
+    });
+    const source = event("source", 2, {
+      type: "task.source.added",
+      sourceId: "source-1",
+      name: "screenshot.png",
+      mimeType: "image/png",
+      kind: "image",
+    });
+    const initial = createThreadViewState("thread-1");
+    const state = reduceAgentEventBatch(initial, [usage, source]);
+
+    expect(state.order).toEqual([]);
+    expect(initial.mcpToolUseOrder).toEqual([]);
+    expect(initial.taskSourceOrder).toEqual([]);
+    expect(state.mcpToolUses).not.toBe(initial.mcpToolUses);
+    expect(state.mcpToolUseOrder).not.toBe(initial.mcpToolUseOrder);
+    expect(state.taskSources).not.toBe(initial.taskSources);
+    expect(state.taskSourceOrder).not.toBe(initial.taskSourceOrder);
+    expect(state.mcpToolUseOrder).toHaveLength(1);
+    expect(Object.values(state.mcpToolUses)[0]).toMatchObject({
+      serverName: "CodeGraph",
+      toolName: "explore",
+      agentId: "child-1",
+    });
+    expect(state.taskSourceOrder).toEqual(["source-1"]);
+    expect(state.taskSources["source-1"]).toMatchObject({
+      name: "screenshot.png",
+      mimeType: "image/png",
+    });
+  });
+
   it("records tool runtime and last activity timestamps", () => {
     const state = reduceAgentEvents("thread-1", [
       event("tool-started", 1, {

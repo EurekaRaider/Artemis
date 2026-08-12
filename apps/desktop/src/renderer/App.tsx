@@ -74,6 +74,7 @@ import { normalizeBrowserAddress } from "./browser-navigation.js";
 import { CodexSelect } from "./CodexSelect.js";
 import { ComposerContextBar } from "./ComposerContextBar.js";
 import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
+import { EnvironmentPanel } from "./EnvironmentPanel.js";
 import { TaskPlanProgress } from "./TaskPlanProgress.js";
 import { resolveTimelinePinned } from "./timeline-scroll.js";
 import { HighlightedCodeLine } from "./WorkspaceFileEditor.js";
@@ -2383,6 +2384,18 @@ export function App() {
     [dispatchWorkspaceTab],
   );
 
+  const openAgentTeamPanel = useCallback(
+    (team: AgentTeamState) => {
+      setWorkspaceDockOpen(true);
+      setWorkspaceTabMenuOpen(false);
+      dispatchWorkspaceTab({
+        type: "open",
+        tab: agentTeamWorkspaceTab(team.teamId, t.agentTeam),
+      });
+    },
+    [dispatchWorkspaceTab, t.agentTeam],
+  );
+
   const controlChildAgent = useCallback(
     async (child: ChildAgentState, action: "steer" | "cancel" | "retry") => {
       if (!activeThreadId) return;
@@ -2634,11 +2647,11 @@ export function App() {
 
   useLayoutEffect(() => {
     if (!workspaceDockOpen || workspaceDockWidth !== undefined) return;
-    const frame = window.requestAnimationFrame(() => {
+    const timer = window.setTimeout(() => {
       const measured = workspaceDock.current?.getBoundingClientRect().width;
       if (measured) setWorkspaceDockWidth(Math.round(measured));
-    });
-    return () => window.cancelAnimationFrame(frame);
+    }, 280);
+    return () => window.clearTimeout(timer);
   }, [workspaceDockOpen, workspaceDockWidth]);
 
   useEffect(() => {
@@ -3155,6 +3168,37 @@ export function App() {
         .at(-1),
     [threadState?.agentTeams],
   );
+  const environmentAgents = useMemo(
+    () => Object.values(threadState?.childAgents ?? {}),
+    [threadState?.childAgents],
+  );
+  const environmentTeams = useMemo(
+    () => Object.values(threadState?.agentTeams ?? {}),
+    [threadState?.agentTeams],
+  );
+  const environmentMcpUsages = useMemo(
+    () =>
+      (threadState?.mcpToolUseOrder ?? []).flatMap((key) => {
+        const usage = threadState?.mcpToolUses[key];
+        return usage ? [usage] : [];
+      }),
+    [threadState?.mcpToolUseOrder, threadState?.mcpToolUses],
+  );
+  const environmentSources = useMemo(
+    () =>
+      (threadState?.taskSourceOrder ?? []).flatMap((sourceId) => {
+        const source = threadState?.taskSources[sourceId];
+        return source ? [source] : [];
+      }),
+    [threadState?.taskSourceOrder, threadState?.taskSources],
+  );
+  const environmentRefreshKey = useMemo(() => {
+    for (let index = activeEvents.length - 1; index >= 0; index -= 1) {
+      const event = activeEvents[index];
+      if (event?.payload.type === "file.changed") return event.eventId;
+    }
+    return undefined;
+  }, [activeEvents]);
   useEffect(() => {
     if (
       !activeThreadId ||
@@ -3554,6 +3598,11 @@ export function App() {
     setSelectedReviewFileId(undefined);
     setCommentLineId(undefined);
     setCommentBody("");
+  };
+
+  const openReviewScopePanel = (scope: ReviewScope) => {
+    selectReviewScope(scope);
+    openReviewPanel();
   };
 
   useEffect(() => {
@@ -4872,6 +4921,40 @@ export function App() {
                     </time>
                   )}
                 </span>
+                {activeProject && (
+                  <EnvironmentPanel
+                    actionsDisabled={
+                      projectBranchActionsDisabled ||
+                      Boolean(activeThread?.archived)
+                    }
+                    agents={environmentAgents}
+                    attachments={attachments}
+                    defaultOpen={!workspaceDockOpen}
+                    dockOffset={
+                      workspaceDockOpen ? Math.max(0, dockWidthNow - 50) : 0
+                    }
+                    dockOpen={workspaceDockOpen}
+                    key={`${activeProject.id}:${activeThread?.id ?? "draft"}:${workspaceDockOpen ? "dock-open" : "dock-closed"}`}
+                    locale={locale}
+                    mcpUsages={environmentMcpUsages}
+                    onAddProject={() => void openProject()}
+                    onAddSources={() => void selectPromptAttachments()}
+                    onConfirm={requestConfirmation}
+                    onMessage={(message, error) =>
+                      setToast(error ? { error: true, message } : message)
+                    }
+                    onOpenAgent={openChildAgentPanel}
+                    onOpenReview={openReviewScopePanel}
+                    onOpenTeam={openAgentTeamPanel}
+                    project={activeProject}
+                    {...(environmentRefreshKey
+                      ? { refreshKey: environmentRefreshKey }
+                      : {})}
+                    sources={environmentSources}
+                    taskTitle={activeThread?.title ?? activeProject.name}
+                    teams={environmentTeams}
+                  />
+                )}
                 {!activeThread?.archived && (
                   <button
                     aria-expanded={workspaceDockOpen}

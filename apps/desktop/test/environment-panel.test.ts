@@ -1,0 +1,362 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+import type {
+  AgentTeamState,
+  ChildAgentState,
+  McpToolUsageState,
+} from "@artemis/protocol";
+
+import type { ProjectGitInfo } from "../src/shared/api.js";
+import {
+  environmentAgentCounts,
+  environmentDisplayAgents,
+  environmentGitAction,
+  groupMcpUsage,
+  suggestedEnvironmentBranchName,
+} from "../src/renderer/EnvironmentPanel.js";
+
+const source = (relativePath: string) =>
+  readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
+
+const appSource = source("../src/renderer/App.tsx");
+const panelSource = source("../src/renderer/EnvironmentPanel.tsx");
+const stylesSource = source("../src/renderer/styles.css");
+const mainSource = source("../src/main/main.ts");
+
+const copy = {
+  stopTasks: "stop tasks",
+  conflicts: "resolve conflicts",
+  behind: "reconcile upstream",
+  noUpstream: "no upstream",
+  synced: "synced",
+  detachedBlocked: "switch branch",
+};
+
+function gitInfo(overrides: Partial<ProjectGitInfo> = {}): ProjectGitInfo {
+  return {
+    managed: true,
+    detached: false,
+    root: "/tmp/project",
+    currentBranch: "main",
+    changeCount: 0,
+    additions: 0,
+    deletions: 0,
+    stagedAdditions: 0,
+    stagedDeletions: 0,
+    stagedCount: 0,
+    unstagedCount: 0,
+    untrackedCount: 0,
+    conflictCount: 0,
+    upstream: "origin/main",
+    ahead: 0,
+    behind: 0,
+    branches: [{ name: "main", current: true }],
+    ...overrides,
+  };
+}
+
+describe("task environment panel state", () => {
+  it("mounts the popover between task status and the existing right dock", () => {
+    const status = appSource.indexOf('className="status-pill"');
+    const environment = appSource.indexOf("<EnvironmentPanel", status);
+    const dock = appSource.indexOf(
+      'className="right-sidebar-toggle"',
+      environment,
+    );
+
+    expect(status).toBeGreaterThan(-1);
+    expect(environment).toBeGreaterThan(status);
+    expect(dock).toBeGreaterThan(environment);
+  });
+
+  it("defaults open, closes with the dock, and can reopen beside the dock", () => {
+    expect(appSource).toContain("defaultOpen={!workspaceDockOpen}");
+    expect(appSource).toContain(
+      'workspaceDockOpen ? "dock-open" : "dock-closed"',
+    );
+    expect(appSource).toContain(
+      "workspaceDockOpen ? Math.max(0, dockWidthNow - 50) : 0",
+    );
+    expect(panelSource).toContain("useState(defaultOpen)");
+    expect(panelSource).toContain("data-dock-open={dockOpen}");
+    expect(stylesSource).toContain(
+      '.environment-control[data-dock-open="true"] .environment-popover',
+    );
+  });
+
+  it("uses compact Codex-like popover proportions", () => {
+    expect(stylesSource).toContain("width: min(304px, calc(100vw - 24px))");
+    expect(stylesSource).toContain(
+      "max-height: min(440px, calc(100vh - 64px))",
+    );
+    expect(stylesSource).toContain("min-height: 42px");
+  });
+
+  it("hides optional task sections until they contain activity", () => {
+    expect(panelSource).toContain(
+      "(displayAgents.length > 0 || teams.length > 0) &&",
+    );
+    expect(panelSource).toContain("mcpGroups.length > 0 &&");
+    expect(panelSource).toContain("combinedSources.length > 0 &&");
+  });
+
+  it("wires real review, branch, commit, push, agent, and source actions", () => {
+    expect(panelSource).toContain('onOpenReview("branch")');
+    expect(panelSource).toContain("window.artemis.switchProjectBranch(");
+    expect(panelSource).toContain("window.artemis.commitProjectChanges(");
+    expect(panelSource).toContain("window.artemis.pushProjectBranch(");
+    expect(panelSource).toContain("window.artemis.createProjectBranch(");
+    expect(panelSource).toContain("includeUnstaged");
+    expect(panelSource).toContain('className="environment-git-dialog"');
+    expect(panelSource).toContain("createPortal(");
+    expect(panelSource).toContain("t.commitOrPush");
+    expect(panelSource).not.toContain("commitChanges:");
+    expect(panelSource).toContain("onOpenAgent(agent)");
+    expect(panelSource).toContain("onOpenTeam(team)");
+    expect(panelSource).toContain("onClick={onAddSources}");
+    expect(panelSource).not.toMatch(/picture.?in.?picture|画中画/iu);
+  });
+
+  it("suggests a safe Codex-prefixed branch from the task title", () => {
+    expect(suggestedEnvironmentBranchName("Codex Git 面板")).toBe(
+      "codex/codex-git-面板",
+    );
+    expect(suggestedEnvironmentBranchName("---")).toBe("codex/changes");
+  });
+
+  it("stays open on outside clicks while supporting Escape, scrolling, RTL, and narrow windows", () => {
+    expect(panelSource).not.toContain(
+      'document.addEventListener("pointerdown"',
+    );
+    expect(panelSource).toContain('event.key !== "Escape"');
+    expect(panelSource).toContain("trigger.current?.focus()");
+    expect(panelSource).toContain('role="dialog"');
+    expect(stylesSource).toContain("overscroll-behavior: contain");
+    expect(stylesSource).toContain("inset-inline-end:");
+    expect(stylesSource).toContain("@media (max-width: 680px)");
+    expect(stylesSource).toContain("max-height: calc(100vh - 64px)");
+  });
+
+  it("provides a deterministic Chinese Electron smoke fixture", () => {
+    expect(mainSource).toContain("seedSmokeEnvironmentFixture");
+    expect(mainSource).toContain(
+      'ARTEMIS_SMOKE_VIEW?.startsWith("environment")',
+    );
+    expect(mainSource).toContain('"environment-empty"');
+    expect(mainSource).toContain("environment-repository");
+    expect(mainSource).toContain("view === 'environment-outside-click'");
+    expect(mainSource).toContain("new PointerEvent('pointerdown'");
+    expect(mainSource).toContain("view === 'environment-dock-open'");
+    expect(mainSource).toContain("view === 'environment-commit-dialog'");
+    expect(mainSource).toContain("view === 'environment-commit-new-branch'");
+    expect(mainSource).toContain(
+      "view === 'environment-commit-and-push-execute'",
+    );
+    expect(mainSource).toContain("view === 'environment-push-execute'");
+    expect(mainSource).toContain(
+      "document.querySelector('.right-sidebar-toggle')?.click()",
+    );
+    expect(mainSource).toContain(
+      "document.querySelector('.environment-trigger')?.click()",
+    );
+    expect(mainSource).toContain('type: "mcp.tool.used"');
+    expect(mainSource).toContain('type: "task.source.added"');
+  });
+
+  it("summarizes all child agent states", () => {
+    const agents = [
+      {
+        type: "child-agent.status",
+        agentId: "a",
+        label: "A",
+        status: "running",
+      },
+      {
+        type: "child-agent.status",
+        agentId: "b",
+        label: "B",
+        status: "cancelling",
+      },
+      {
+        type: "child-agent.status",
+        agentId: "c",
+        label: "C",
+        status: "queued",
+      },
+      {
+        type: "child-agent.status",
+        agentId: "d",
+        label: "D",
+        status: "blocked",
+      },
+      {
+        type: "child-agent.status",
+        agentId: "e",
+        label: "E",
+        status: "completed",
+      },
+      {
+        type: "child-agent.status",
+        agentId: "f",
+        label: "F",
+        status: "failed",
+      },
+    ] satisfies ChildAgentState[];
+
+    expect(environmentAgentCounts(agents)).toEqual({
+      total: 6,
+      active: 2,
+      queued: 1,
+      blocked: 1,
+      completed: 1,
+    });
+  });
+
+  it("marks stale active members complete when their team has completed", () => {
+    const now = "2026-08-12T00:00:00.000Z";
+    const teams = [
+      {
+        type: "agent-team.status",
+        teamId: "done-team",
+        mission: "Finished work",
+        status: "completed",
+        memberAgentIds: ["running", "failed"],
+        requiredAgentIds: ["running"],
+        maxMembers: 8,
+        updatedAt: now,
+      },
+      {
+        type: "agent-team.status",
+        teamId: "aborted-team",
+        mission: "Stopped work",
+        status: "aborted",
+        memberAgentIds: ["queued"],
+        requiredAgentIds: ["queued"],
+        maxMembers: 8,
+        updatedAt: now,
+      },
+    ] satisfies AgentTeamState[];
+    const agents = [
+      {
+        type: "child-agent.status",
+        agentId: "running",
+        label: "Running",
+        teamId: "done-team",
+        status: "running",
+        currentTool: "bash",
+      },
+      {
+        type: "child-agent.status",
+        agentId: "failed",
+        label: "Failed",
+        teamId: "done-team",
+        status: "failed",
+      },
+      {
+        type: "child-agent.status",
+        agentId: "queued",
+        label: "Queued",
+        teamId: "aborted-team",
+        status: "queued",
+      },
+      {
+        type: "child-agent.status",
+        agentId: "orphan",
+        label: "Orphan",
+        status: "running",
+      },
+    ] satisfies ChildAgentState[];
+
+    const displayed = environmentDisplayAgents(agents, teams);
+
+    expect(displayed.map((agent) => agent.status)).toEqual([
+      "completed",
+      "failed",
+      "cancelled",
+      "running",
+    ]);
+    expect(displayed[0]).not.toHaveProperty("currentTool");
+    expect(environmentAgentCounts(displayed)).toMatchObject({
+      active: 1,
+      queued: 0,
+      completed: 1,
+    });
+  });
+
+  it("groups MCP calls by server without retaining tool input or output", () => {
+    const usages = [
+      {
+        type: "mcp.tool.used",
+        toolCallId: "call-1",
+        serverId: "github",
+        serverName: "GitHub",
+        toolName: "get_issue",
+        agentId: "parent",
+        timestamp: "2026-08-12T00:00:00.000Z",
+      },
+      {
+        type: "mcp.tool.used",
+        toolCallId: "call-2",
+        serverId: "github",
+        serverName: "GitHub",
+        toolName: "get_issue",
+        agentId: "child-1",
+        timestamp: "2026-08-12T00:00:01.000Z",
+      },
+      {
+        type: "mcp.tool.used",
+        toolCallId: "call-3",
+        serverId: "github",
+        serverName: "GitHub",
+        toolName: "list_comments",
+        agentId: "child-1",
+        timestamp: "2026-08-12T00:00:02.000Z",
+      },
+    ] satisfies McpToolUsageState[];
+
+    expect(groupMcpUsage(usages)).toEqual([
+      {
+        id: "github",
+        name: "GitHub",
+        calls: 3,
+        tools: ["get_issue", "list_comments"],
+        agents: ["parent", "child-1"],
+      },
+    ]);
+  });
+
+  it("selects commit, safe push, or a blocked idle state", () => {
+    expect(
+      environmentGitAction(gitInfo({ changeCount: 2 }), false, copy),
+    ).toEqual({ kind: "commit" });
+    expect(
+      environmentGitAction(gitInfo({ changeCount: 1 }), true, copy),
+    ).toEqual({ kind: "commit", disabledReason: "stop tasks" });
+    expect(
+      environmentGitAction(
+        gitInfo({ changeCount: 1, conflictCount: 1 }),
+        false,
+        copy,
+      ),
+    ).toEqual({ kind: "commit", disabledReason: "resolve conflicts" });
+    expect(environmentGitAction(gitInfo({ ahead: 2 }), false, copy)).toEqual({
+      kind: "push",
+    });
+    expect(
+      environmentGitAction(gitInfo({ ahead: 1, behind: 1 }), false, copy),
+    ).toEqual({ kind: "push", disabledReason: "reconcile upstream" });
+    expect(environmentGitAction(gitInfo(), false, copy)).toEqual({
+      kind: "idle",
+      disabledReason: "synced",
+    });
+    const detached = gitInfo({ detached: true, changeCount: 1 });
+    delete detached.currentBranch;
+    expect(environmentGitAction(detached, false, copy)).toEqual({
+      kind: "commit",
+      disabledReason: "switch branch",
+    });
+  });
+});

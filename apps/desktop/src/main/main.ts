@@ -1,6 +1,6 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { userInfo } from "node:os";
 import { monitorEventLoopDelay, type IntervalHistogram } from "node:perf_hooks";
 import {
@@ -13,6 +13,7 @@ import {
   sep,
 } from "node:path";
 import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 
 import {
   app,
@@ -123,8 +124,10 @@ import {
 } from "./pi-session-delete.js";
 import { loadPromptAttachments } from "./prompt-attachments.js";
 import {
+  commitProjectChanges,
   createGitBranch,
   inspectGitBranches,
+  pushProjectBranch,
   switchGitBranch,
 } from "./git-branches.js";
 import { getReviewDiff, mutateReviewDiff } from "./git-review.js";
@@ -234,6 +237,8 @@ import {
   type QueueTurnInput,
   type McpServerConfig,
   type ProjectGitInfo,
+  type ProjectGitCommitResult,
+  type ProjectGitPushResult,
   type ResourceInstallProgress,
   type ReviewDiff,
   type ReviewComment,
@@ -262,6 +267,7 @@ import { resolveAppLocale } from "../shared/locales.js";
 
 const { autoUpdater } = electronUpdater;
 const smokeMode = Boolean(process.env.ARTEMIS_SMOKE_SCREENSHOT);
+const execFileAsync = promisify(execFile);
 
 if (smokeMode) {
   app.disableHardwareAcceleration();
@@ -1720,10 +1726,18 @@ function emitInitialTurn(
   turnId: string,
   text: string,
   mode: StartTurnInput["mode"],
+  attachments: PromptAttachment[],
 ): AgentEvent[] {
   if (!store) throw new Error("Application store is not ready.");
   const payloads: AgentPayload[] = [
     { type: "user.message", messageId: randomUUID(), text },
+    ...attachments.map((attachment): AgentPayload => ({
+      type: "task.source.added",
+      sourceId: randomUUID(),
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      kind: "type" in attachment ? "file" : "image",
+    })),
     { type: "turn.started", mode },
   ];
   for (const payload of payloads) observeTurnPayload(turnId, payload);
@@ -3430,7 +3444,7 @@ async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
   }
 
   try {
-    emitInitialTurn(thread.id, turnId, requestText, input.mode);
+    emitInitialTurn(thread.id, turnId, requestText, input.mode, attachments);
   } catch (error) {
     trace.completedAt = Date.now();
     trace.outcome = "failed";
@@ -3495,6 +3509,15 @@ async function queueTurn(
       ? { attachments: command.attachments }
       : {}),
   });
+  for (const attachment of command.attachments ?? []) {
+    emitPayload(thread.id, turnId, {
+      type: "task.source.added",
+      sourceId: randomUUID(),
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      kind: "type" in attachment ? "file" : "image",
+    });
+  }
 }
 
 async function controlTurnQueue(
@@ -5692,14 +5715,14 @@ function registerIpc(): void {
     return project;
   };
 
-  const assertProjectBranchChangeAllowed = (projectId: string): void => {
+  const assertProjectGitMutationAllowed = (projectId: string): void => {
     const hasLiveLocalTurn = [...activeTurns.keys()].some((threadId) => {
       const thread = store?.getThread(threadId);
       return thread?.projectId === projectId && thread.target === "local";
     });
     if (store?.hasActiveLocalThread(projectId) || hasLiveLocalTurn) {
       throw new Error(
-        "Stop active local tasks before changing the project branch.",
+        "Stop active local tasks before changing the project repository.",
       );
     }
   };
@@ -5718,7 +5741,7 @@ function registerIpc(): void {
       branchName: string,
     ): Promise<ProjectGitInfo> => {
       const project = projectForGitRequest(projectId);
-      assertProjectBranchChangeAllowed(project.id);
+      assertProjectGitMutationAllowed(project.id);
       return switchGitBranch(project.path, String(branchName ?? ""));
     },
   );
@@ -5731,8 +5754,34 @@ function registerIpc(): void {
       branchName: string,
     ): Promise<ProjectGitInfo> => {
       const project = projectForGitRequest(projectId);
-      assertProjectBranchChangeAllowed(project.id);
+      assertProjectGitMutationAllowed(project.id);
       return createGitBranch(project.path, String(branchName ?? ""));
+    },
+  );
+
+  ipcMain.handle(
+    IPC.projectGitCommit,
+    (
+      _event,
+      projectId: string,
+      message: string,
+      includeUnstaged: boolean,
+    ): Promise<ProjectGitCommitResult> => {
+      const project = projectForGitRequest(projectId);
+      assertProjectGitMutationAllowed(project.id);
+      if (typeof includeUnstaged !== "boolean") {
+        throw new Error("Include-unstaged selection is invalid.");
+      }
+      return commitProjectChanges(project.path, message, includeUnstaged);
+    },
+  );
+
+  ipcMain.handle(
+    IPC.projectGitPush,
+    (_event, projectId: string): Promise<ProjectGitPushResult> => {
+      const project = projectForGitRequest(projectId);
+      assertProjectGitMutationAllowed(project.id);
+      return pushProjectBranch(project.path);
     },
   );
 
@@ -6889,6 +6938,171 @@ function seedSmokeUserInputFixture(): void {
   });
 }
 
+async function seedSmokeEnvironmentFixture(): Promise<void> {
+  if (!store || !process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment")) {
+    return;
+  }
+  const now = new Date().toISOString();
+  const projectId = "artemis-smoke-environment-project";
+  const threadId = "artemis-smoke-environment-thread";
+  const turnId = "artemis-smoke-environment-turn";
+  const workspace = join(
+    app.getPath("userData"),
+    "fixtures",
+    "environment-repository",
+  );
+  const remote = join(
+    app.getPath("userData"),
+    "fixtures",
+    "environment-remote.git",
+  );
+  await rm(workspace, { recursive: true, force: true });
+  await rm(remote, { recursive: true, force: true });
+  await mkdir(workspace, { recursive: true });
+  const git = (...args: string[]) =>
+    execFileAsync("git", args, {
+      cwd: workspace,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: "0",
+        GCM_INTERACTIVE: "Never",
+      },
+      timeout: 15_000,
+    });
+  await git("init", "-b", "main");
+  await git("config", "user.name", "Artemis Smoke");
+  await git("config", "user.email", "smoke@example.invalid");
+  await writeFile(
+    join(workspace, "README.md"),
+    "# Artemis environment fixture\n\nOriginal line\n",
+    "utf8",
+  );
+  await git("add", "--all", "--");
+  await git("commit", "-m", "Initial fixture");
+  await git("init", "--bare", remote);
+  await git("remote", "add", "origin", remote);
+  await git("push", "-u", "origin", "main");
+  await writeFile(
+    join(workspace, "README.md"),
+    "# Artemis environment fixture\n\nUpdated line\nSecond line\n",
+    "utf8",
+  );
+  await writeFile(join(workspace, "设计说明.md"), "任务环境面板\n", "utf8");
+  if (process.env.ARTEMIS_SMOKE_VIEW === "environment-push-execute") {
+    await git("add", "--all", "--");
+    await git("commit", "-m", "Ahead fixture");
+  }
+
+  store.upsertProject({
+    id: projectId,
+    name: "Artemis 环境面板",
+    path: workspace,
+    createdAt: now,
+    updatedAt: now,
+  });
+  store.createThread({
+    id: threadId,
+    projectId,
+    title: "实现右上角任务环境面板",
+    mode: "execute",
+    target: "local",
+    status: "idle",
+    pinned: false,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+  type SmokeEnvironmentEvent = { id: string; payload: AgentPayload };
+  const events: SmokeEnvironmentEvent[] = [
+    {
+      id: "environment-user-message",
+      payload: {
+        type: "user.message",
+        messageId: "environment-user-message",
+        text: "实现任务环境面板，并验证 Git、子代理、MCP 和来源信息。",
+      },
+    },
+    ...(process.env.ARTEMIS_SMOKE_VIEW === "environment-empty"
+      ? []
+      : ([
+          {
+            id: "environment-team",
+            payload: {
+              type: "agent-team.status",
+              teamId: "environment-team",
+              mission: "并行验证环境面板",
+              status: "completed",
+              memberAgentIds: ["ui-agent", "git-agent", "test-agent"],
+              requiredAgentIds: ["ui-agent", "git-agent"],
+              maxMembers: 8,
+              updatedAt: now,
+            },
+          },
+          ...[
+            ["ui-agent", "界面实现", "running"],
+            ["git-agent", "Git 安全检查", "completed"],
+            ["test-agent", "渲染验证", "queued"],
+          ].map(([agentId, label, status]) => ({
+            id: `environment-child-${agentId}`,
+            payload: {
+              type: "child-agent.status" as const,
+              agentId: agentId!,
+              label: label!,
+              teamId: "environment-team",
+              status: status as "running" | "completed" | "queued",
+              updatedAt: now,
+            },
+          })),
+          {
+            id: "environment-mcp-parent",
+            payload: {
+              type: "mcp.tool.used",
+              toolCallId: "mcp-parent-1",
+              serverId: "codegraph",
+              serverName: "CodeGraph",
+              toolName: "codegraph_explore",
+              agentId: "parent",
+            },
+          },
+          {
+            id: "environment-mcp-child",
+            payload: {
+              type: "mcp.tool.used",
+              toolCallId: "mcp-child-1",
+              serverId: "codegraph",
+              serverName: "CodeGraph",
+              toolName: "codegraph_status",
+              agentId: "ui-agent",
+            },
+          },
+          {
+            id: "environment-source-image",
+            payload: {
+              type: "task.source.added",
+              sourceId: "source-screen",
+              name: "Codex 环境信息参考.png",
+              mimeType: "image/png",
+              kind: "image",
+            },
+          },
+          {
+            id: "environment-source-file",
+            payload: {
+              type: "task.source.added",
+              sourceId: "source-plan",
+              name: "任务环境面板计划.md",
+              mimeType: "text/markdown",
+              kind: "file",
+            },
+          },
+        ] satisfies SmokeEnvironmentEvent[])),
+  ];
+  for (const event of events) {
+    store.appendEvent(event.id, threadId, turnId, event.payload);
+  }
+}
+
 function createMainWindow(): BrowserWindow {
   const smokeScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT;
   const smokeAccessibility = process.env.ARTEMIS_SMOKE_ACCESSIBILITY;
@@ -7035,9 +7249,100 @@ function createMainWindow(): BrowserWindow {
                   );
                   button?.click();
                 };
+                const view = ${JSON.stringify(requestedSmokeView)};
+                if (view.startsWith('environment')) {
+                  document.querySelector('.thread-select')?.click();
+                  await wait(600);
+                  if (
+                    view === 'environment-commit-dialog' ||
+                    view === 'environment-commit-branch-menu' ||
+                    view === 'environment-commit-new-branch' ||
+                    view === 'environment-commit-execute' ||
+                    view === 'environment-commit-new-branch-execute' ||
+                    view === 'environment-commit-and-push-execute' ||
+                    view === 'environment-push-execute'
+                  ) {
+                    document.querySelector('.commit-push-row')?.click();
+                    await wait(500);
+                    if (
+                      view === 'environment-commit-branch-menu' ||
+                      view === 'environment-commit-new-branch' ||
+                      view === 'environment-commit-new-branch-execute'
+                    ) {
+                      document
+                        .querySelector('.environment-git-destination-trigger')
+                        ?.click();
+                      await wait(350);
+                    }
+                    if (
+                      view === 'environment-commit-new-branch' ||
+                      view === 'environment-commit-new-branch-execute'
+                    ) {
+                      document
+                        .querySelector(
+                          '.environment-git-destination-menu button:last-child',
+                        )
+                        ?.click();
+                      await wait(350);
+                    }
+                    if (
+                      view === 'environment-commit-execute' ||
+                      view === 'environment-commit-new-branch-execute'
+                    ) {
+                      document
+                        .querySelector('.environment-git-actions button.primary')
+                        ?.click();
+                      await wait(1_000);
+                    }
+                    if (view === 'environment-commit-and-push-execute') {
+                      document
+                        .querySelector(
+                          '.environment-git-actions button:nth-child(2)',
+                        )
+                        ?.click();
+                      await wait(350);
+                      document
+                        .querySelector('.confirmation-actions .primary-button')
+                        ?.click();
+                      await wait(1_200);
+                    }
+                    if (view === 'environment-push-execute') {
+                      document
+                        .querySelector(
+                          '.environment-git-actions button:nth-child(3)',
+                        )
+                        ?.click();
+                      await wait(350);
+                      document
+                        .querySelector('.confirmation-actions .primary-button')
+                        ?.click();
+                      await wait(1_200);
+                    }
+                    return;
+                  }
+                  if (view === 'environment-outside-click') {
+                    document.querySelector('.timeline-scroll')?.dispatchEvent(
+                      new PointerEvent('pointerdown', {
+                        bubbles: true,
+                        pointerId: 1,
+                        pointerType: 'mouse',
+                      }),
+                    );
+                    await wait(500);
+                    return;
+                  }
+                  if (view === 'environment-dock' || view === 'environment-dock-open') {
+                    document.querySelector('.right-sidebar-toggle')?.click();
+                    await wait(600);
+                  }
+                  if (view === 'environment-dock-open') {
+                    document.querySelector('.environment-trigger')?.click();
+                    await wait(500);
+                  }
+                  return;
+                }
                 document.querySelectorAll('.activity-button')[1]?.click();
                 await wait(1_000);
-                const view = ${JSON.stringify(requestedSmokeView)};
                 if (view === 'add-plugin') {
                   document.querySelector('.resource-add-button')?.click();
                   await wait(500);
@@ -7154,10 +7459,53 @@ function createMainWindow(): BrowserWindow {
                 if (!document.documentElement.lang) {
                   issues.push({ rule: "document-language", element: "html" });
                 }
+                const environmentPanel = document.querySelector(
+                  ".environment-popover",
+                );
+                const environmentBounds = environmentPanel
+                  ?.getBoundingClientRect();
+                const workspaceDock = document.querySelector(
+                  ".workspace-tool-dock",
+                );
+                const workspaceDockBounds = workspaceDock
+                  ?.getBoundingClientRect();
                 return {
                   documentLanguage: document.documentElement.lang,
                   documentDirection: document.documentElement.dir,
                   title: document.title,
+                  environmentPanel: environmentBounds
+                    ? {
+                        visible: visible(environmentPanel),
+                        top: environmentBounds.top,
+                        right: environmentBounds.right,
+                        bottom: environmentBounds.bottom,
+                        left: environmentBounds.left,
+                        width: environmentBounds.width,
+                        height: environmentBounds.height,
+                      }
+                    : null,
+                  environmentSectionHeadings: environmentPanel
+                    ? [...environmentPanel.querySelectorAll(
+                        ":scope > .environment-section > header > h2",
+                      )]
+                        .map((heading) => heading.textContent?.trim() ?? "")
+                    : [],
+                  environmentAgentStatuses: environmentPanel
+                    ? [...environmentPanel.querySelectorAll(
+                        ".environment-activity-row small",
+                      )]
+                        .map((status) => status.textContent?.trim() ?? "")
+                    : [],
+                  workspaceDockVisible: workspaceDock
+                    ? visible(workspaceDock)
+                    : false,
+                  workspaceDock: workspaceDockBounds
+                    ? {
+                        left: workspaceDockBounds.left,
+                        right: workspaceDockBounds.right,
+                        width: workspaceDockBounds.width,
+                      }
+                    : null,
                   interactiveCount: document.querySelectorAll(
                     "button, a[href], input, select, textarea, [role='button'], [role='tab']",
                   ).length,
@@ -7254,6 +7602,7 @@ app
       app.getPreferredSystemLanguages(),
     );
     configureBrowserLocaleSession();
+    await seedSmokeEnvironmentFixture();
     seedSmokeUserInputFixture();
     mcpConfigStore = new McpConfigStore(
       join(app.getPath("userData"), "mcp.json"),

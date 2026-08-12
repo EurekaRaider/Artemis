@@ -435,6 +435,27 @@ export type AgentTeamMessagePayload = z.infer<
   typeof agentTeamMessagePayloadSchema
 >;
 
+export const mcpToolUsedPayloadSchema = z.object({
+  type: z.literal("mcp.tool.used"),
+  toolCallId: z.string().min(1).max(200),
+  serverId: z.string().min(1).max(200),
+  serverName: z.string().min(1).max(200),
+  toolName: z.string().min(1).max(200),
+  agentId: z.string().min(1).max(200),
+});
+export type McpToolUsedPayload = z.infer<typeof mcpToolUsedPayloadSchema>;
+
+export const taskSourceAddedPayloadSchema = z.object({
+  type: z.literal("task.source.added"),
+  sourceId: z.string().min(1).max(200),
+  name: z.string().trim().min(1).max(255),
+  mimeType: z.string().trim().min(1).max(120),
+  kind: z.enum(["file", "image"]),
+});
+export type TaskSourceAddedPayload = z.infer<
+  typeof taskSourceAddedPayloadSchema
+>;
+
 export const contextUsagePayloadSchema = z.object({
   type: z.literal("context.usage"),
   tokens: z.number().int().nonnegative().nullable(),
@@ -521,6 +542,8 @@ export const agentPayloadSchema = z.discriminatedUnion("type", [
   childAgentPayloadSchema,
   agentTeamStatusPayloadSchema,
   agentTeamMessagePayloadSchema,
+  mcpToolUsedPayloadSchema,
+  taskSourceAddedPayloadSchema,
   contextUsagePayloadSchema,
   assistantUsagePayloadSchema,
   queueUpdatedPayloadSchema,

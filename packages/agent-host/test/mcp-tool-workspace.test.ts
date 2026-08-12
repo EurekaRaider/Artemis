@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { BrokerExecutionRequest } from "@artemis/protocol";
+import type { AgentPayload, BrokerExecutionRequest } from "@artemis/protocol";
 
 import { ArtemisAgentHost } from "../src/runtime.js";
 
@@ -19,6 +19,10 @@ interface InspectableThread {
   executeTools: InspectableTool[];
   currentTurnId?: string;
   currentMode?: "execute" | "plan" | "review";
+  session: {
+    prompt(text: string): Promise<void>;
+    _emit(event: unknown): void;
+  };
 }
 
 const cleanupPaths: string[] = [];
@@ -99,6 +103,73 @@ describe("MCP task workspace propagation", () => {
       toolName: "codegraph_status",
     });
 
+    host.dispose();
+  });
+
+  it("emits metadata-only usage when the parent invokes an MCP tool", async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), "artemis-mcp-usage-event-"),
+    );
+    cleanupPaths.push(workspacePath);
+    const payloads: AgentPayload[] = [];
+    const host = new ArtemisAgentHost(
+      { async request() {} },
+      {
+        emit(_threadId, _turnId, payload) {
+          payloads.push(payload);
+        },
+      },
+    );
+    await host.configure({
+      credentials: {},
+      mcpTools: [
+        {
+          serverId: "codegraph",
+          serverName: "CodeGraph",
+          transport: "stdio",
+          piName: "codegraph_codegraph_status",
+          toolName: "codegraph_status",
+          description: "Inspect the current project graph",
+          inputSchema: { type: "object", properties: {} },
+          readOnly: true,
+        },
+      ],
+    });
+    await host.openThread({
+      threadId: "mcp-usage-thread",
+      workspacePath,
+      target: "local",
+    });
+    const thread = (
+      host as unknown as { threads: Map<string, InspectableThread> }
+    ).threads.get("mcp-usage-thread")!;
+    thread.session.prompt = async () => {
+      thread.session._emit({
+        type: "tool_execution_start",
+        toolCallId: "mcp-call-1",
+        toolName: "codegraph_codegraph_status",
+        args: { credential: "must-not-be-copied" },
+      });
+    };
+
+    await host.prompt(
+      "mcp-usage-thread",
+      "turn-1",
+      "Inspect the graph.",
+      "execute",
+    );
+
+    const usage = payloads.find((payload) => payload.type === "mcp.tool.used");
+    expect(usage).toEqual({
+      type: "mcp.tool.used",
+      toolCallId: "mcp-call-1",
+      serverId: "codegraph",
+      serverName: "CodeGraph",
+      toolName: "codegraph_status",
+      agentId: "parent",
+    });
+    expect(usage).not.toHaveProperty("input");
+    expect(usage).not.toHaveProperty("output");
     host.dispose();
   });
 

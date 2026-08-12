@@ -28,6 +28,8 @@ describe("composer project and Git context menus", () => {
     expect(apiSource).toContain("getProjectGitInfo(projectId: string)");
     expect(apiSource).toContain("switchProjectBranch(");
     expect(apiSource).toContain("createProjectBranch(");
+    expect(apiSource).toContain("commitProjectChanges(");
+    expect(apiSource).toContain("pushProjectBranch(projectId: string)");
     expect(preloadSource).toContain("ipcRenderer.invoke(IPC.projectGitInfo");
     expect(preloadSource).toContain(
       "ipcRenderer.invoke(IPC.projectGitBranchSwitch",
@@ -35,15 +37,20 @@ describe("composer project and Git context menus", () => {
     expect(preloadSource).toContain(
       "ipcRenderer.invoke(IPC.projectGitBranchCreate",
     );
+    expect(preloadSource).toContain("IPC.projectGitCommit,");
+    expect(preloadSource).toContain("ipcRenderer.invoke(IPC.projectGitPush");
+    expect(mainSource).toContain(
+      "commitProjectChanges(project.path, message, includeUnstaged)",
+    );
+    expect(mainSource).toContain("pushProjectBranch(project.path)");
+    expect(mainSource).not.toContain("pushProjectBranch(project.path,");
     expect(contextSource).not.toContain('from "node:child_process"');
   });
 
   it("guards branch mutations while local tasks are active", () => {
     expect(mainSource).toContain("store?.hasActiveLocalThread(projectId)");
     expect(mainSource).toContain("[...activeTurns.keys()].some");
-    expect(mainSource).toContain(
-      "assertProjectBranchChangeAllowed(project.id)",
-    );
+    expect(mainSource).toContain("assertProjectGitMutationAllowed(project.id)");
     expect(contextSource).toContain("branchActionsDisabled");
   });
 

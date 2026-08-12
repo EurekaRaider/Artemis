@@ -23,6 +23,15 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.projectGitBranchSwitch, projectId, branchName),
   createProjectBranch: (projectId, branchName) =>
     ipcRenderer.invoke(IPC.projectGitBranchCreate, projectId, branchName),
+  commitProjectChanges: (projectId, message, includeUnstaged) =>
+    ipcRenderer.invoke(
+      IPC.projectGitCommit,
+      projectId,
+      message,
+      includeUnstaged,
+    ),
+  pushProjectBranch: (projectId) =>
+    ipcRenderer.invoke(IPC.projectGitPush, projectId),
   selectPromptAttachments: () =>
     ipcRenderer.invoke(IPC.promptAttachmentsSelect),
   readPromptAttachments: (files) =>

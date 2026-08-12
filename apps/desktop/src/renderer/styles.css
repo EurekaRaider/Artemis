@@ -575,8 +575,8 @@ summary:focus-visible {
 }
 
 .thread-title[data-overflowing="true"]:hover .thread-title-text {
-  animation: thread-title-scroll
-    var(--thread-title-scroll-duration, 4s) linear infinite alternate;
+  animation: thread-title-scroll var(--thread-title-scroll-duration, 4s) linear
+    infinite alternate;
   overflow: visible;
   text-overflow: clip;
   width: max-content;
@@ -919,12 +919,736 @@ summary:focus-visible {
   width: 32px;
 }
 
+.environment-control {
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.environment-trigger {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  width: 32px;
+}
+
+.environment-trigger:hover,
+.environment-trigger.active,
+.environment-trigger:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.environment-trigger svg,
+.environment-row-icon svg,
+.environment-branch-menu svg {
+  fill: none;
+  height: 20px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 20px;
+}
+
+.environment-popover {
+  background: color-mix(in srgb, var(--panel-2) 97%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+  border-radius: 17px;
+  box-shadow: 0 20px 52px rgb(0 0 0 / 30%);
+  color: var(--text);
+  inset-inline-end: -38px;
+  max-height: min(440px, calc(100vh - 64px));
+  outline: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  position: absolute;
+  scrollbar-color: var(--muted-2) transparent;
+  top: calc(100% + 10px);
+  width: min(304px, calc(100vw - 24px));
+  z-index: 80;
+}
+
+.environment-control[data-dock-open="true"] .environment-popover {
+  inset-inline-end: 0;
+}
+
+.environment-section {
+  padding: 14px 15px;
+}
+
+.environment-section + .environment-section {
+  border-top: 1px solid var(--border-soft);
+}
+
+.environment-section > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  min-height: 24px;
+}
+
+.environment-section h2 {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.environment-header-action,
+.environment-text-action {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.environment-header-action {
+  align-items: center;
+  border-radius: 7px;
+  display: inline-flex;
+  font-size: 23px;
+  font-weight: 300;
+  height: 24px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 24px;
+}
+
+.environment-text-action {
+  border-radius: 6px;
+  font-size: 11px;
+  padding: 5px 7px;
+}
+
+.environment-header-action:hover,
+.environment-header-action:focus-visible,
+.environment-text-action:hover,
+.environment-text-action:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.environment-rows,
+.environment-activity-list,
+.environment-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.environment-row,
+.environment-activity-row,
+.environment-source-row {
+  align-items: center;
+  border: 0;
+  border-radius: 10px;
+  color: var(--text);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-height: 42px;
+  padding: 5px 6px;
+  text-align: start;
+  width: 100%;
+}
+
+button.environment-row,
+button.environment-activity-row {
+  background: transparent;
+  cursor: pointer;
+}
+
+button.environment-row:hover:not(:disabled),
+button.environment-row:focus-visible:not(:disabled),
+button.environment-activity-row:hover,
+button.environment-activity-row:focus-visible {
+  background: var(--hover);
+}
+
+button.environment-row:disabled {
+  color: var(--muted-2);
+  cursor: default;
+}
+
+.environment-row-icon {
+  align-items: center;
+  color: currentColor;
+  display: inline-flex;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.environment-row-copy,
+.environment-activity-row > span:nth-child(2),
+.environment-source-row > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.environment-row strong,
+.environment-activity-row strong,
+.environment-source-row strong {
+  font-size: 12.5px;
+  font-weight: 560;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.environment-row small,
+.environment-activity-row small,
+.environment-source-row small,
+.environment-commit-form > small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.environment-diff-total {
+  display: flex;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  gap: 5px;
+}
+
+.environment-diff-total i {
+  color: #42c878;
+  font-style: normal;
+}
+
+.environment-diff-total b {
+  color: #ef6464;
+  font-weight: 500;
+}
+
+.environment-chevron,
+.environment-external,
+.environment-activity-row > i {
+  color: var(--muted);
+  font-size: 18px;
+  font-style: normal;
+}
+
+.environment-branch-control {
+  position: relative;
+}
+
+.environment-branch-menu {
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 28%);
+  inset-inline: 34px 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  position: absolute;
+  top: calc(100% - 2px);
+  z-index: 2;
+}
+
+.environment-branch-menu button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  font-size: 12px;
+  gap: 8px;
+  grid-template-columns: 20px minmax(0, 1fr) 16px;
+  min-height: 34px;
+  padding: 5px 7px;
+  text-align: start;
+  width: 100%;
+}
+
+.environment-branch-menu button:hover:not(:disabled),
+.environment-branch-menu button:focus-visible:not(:disabled),
+.environment-branch-menu button.selected {
+  background: var(--selected);
+}
+
+.environment-branch-menu button:disabled {
+  color: var(--muted-2);
+  cursor: default;
+}
+
+.environment-branch-menu span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.environment-branch-menu i {
+  color: var(--success);
+  font-style: normal;
+}
+
+.environment-commit-form {
+  background: color-mix(in srgb, var(--panel-3) 60%, transparent);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 4px;
+  padding: 11px;
+}
+
+.environment-commit-form label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.environment-commit-form textarea {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  min-height: 72px;
+  padding: 8px 9px;
+  resize: vertical;
+}
+
+.environment-commit-form textarea:focus {
+  border-color: color-mix(in srgb, var(--blue) 60%, var(--border));
+  outline: 2px solid color-mix(in srgb, var(--blue) 18%, transparent);
+}
+
+.environment-commit-form > div {
+  display: flex;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
+.environment-git-dialog-backdrop {
+  align-items: center;
+  background: rgb(0 0 0 / 42%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 140;
+}
+
+.environment-git-dialog {
+  background: color-mix(in srgb, var(--panel-2) 98%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 24px 72px rgb(0 0 0 / 46%);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+  max-width: calc(100vw - 40px);
+  overflow: visible;
+  padding: 10px;
+  width: 430px;
+}
+
+.environment-git-destination {
+  position: relative;
+}
+
+.environment-git-destination-trigger {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 14px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 9px;
+  grid-template-columns: 22px minmax(0, 1fr) 18px;
+  min-height: 40px;
+  padding: 0 10px;
+  text-align: start;
+  width: 100%;
+}
+
+.environment-git-destination-trigger:hover,
+.environment-git-destination-trigger[aria-expanded="true"] {
+  background: var(--hover);
+}
+
+.environment-git-destination-trigger svg,
+.environment-git-destination-menu svg,
+.environment-git-actions svg {
+  fill: none;
+  height: 20px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 20px;
+}
+
+.environment-git-destination-trigger strong {
+  font-size: 15px;
+  font-weight: 560;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.environment-git-destination-menu {
+  background: color-mix(in srgb, var(--panel-2) 98%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  box-shadow: 0 20px 54px rgb(0 0 0 / 42%);
+  inset-inline-start: 0;
+  min-width: 240px;
+  padding: 10px;
+  position: absolute;
+  top: calc(100% + 2px);
+  z-index: 3;
+}
+
+.environment-git-destination-menu h3 {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  margin: 2px 8px 7px;
+}
+
+.environment-git-destination-menu button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 8px;
+  grid-template-columns: 22px minmax(0, 1fr) 20px;
+  min-height: 39px;
+  padding: 5px 8px;
+  text-align: start;
+  width: 100%;
+}
+
+.environment-git-destination-menu button:hover:not(:disabled),
+.environment-git-destination-menu button.selected {
+  background: var(--hover);
+}
+
+.environment-git-destination-menu button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.environment-git-destination-menu button span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.environment-git-destination-menu button i {
+  font-size: 18px;
+  font-style: normal;
+  text-align: center;
+}
+
+.environment-git-new-branch-icon {
+  font-size: 25px;
+  font-weight: 300;
+  line-height: 1;
+  text-align: center;
+}
+
+.environment-git-branch-name {
+  display: block;
+  padding: 7px 10px 0;
+}
+
+.environment-git-branch-name input,
+.environment-git-message textarea {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  width: 100%;
+}
+
+.environment-git-branch-name input {
+  font-size: 15px;
+  min-height: 34px;
+}
+
+.environment-git-message {
+  display: block;
+  min-height: 132px;
+  padding: 12px 10px 6px;
+}
+
+.environment-git-message textarea {
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 112px;
+  resize: none;
+}
+
+.environment-git-branch-name input::placeholder,
+.environment-git-message textarea::placeholder {
+  color: var(--muted);
+}
+
+.environment-git-include {
+  align-items: center;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  min-height: 46px;
+  padding: 0 10px 8px;
+  position: relative;
+}
+
+.environment-git-include input {
+  height: 20px;
+  inset-inline-start: 10px;
+  margin: 0;
+  opacity: 0;
+  position: absolute;
+  width: 20px;
+}
+
+.environment-git-include > span[aria-hidden="true"] {
+  align-items: center;
+  border: 1px solid var(--muted-2);
+  border-radius: 7px;
+  color: transparent;
+  display: inline-flex;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
+}
+
+.environment-git-include input:checked + span {
+  background: color-mix(in srgb, var(--text) 13%, transparent);
+  color: var(--text);
+}
+
+.environment-git-include input:focus-visible + span {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.environment-git-include strong {
+  font-size: 14px;
+  font-weight: 560;
+}
+
+.environment-git-actions {
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 8px;
+}
+
+.environment-git-actions button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 10px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  min-height: 42px;
+  padding: 0 10px;
+  text-align: start;
+  width: 100%;
+}
+
+.environment-git-actions button.primary,
+.environment-git-actions button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.environment-git-actions button:disabled {
+  cursor: default;
+  opacity: 0.36;
+}
+
+.environment-git-actions button strong {
+  font-size: 14px;
+  font-weight: 560;
+}
+
+.environment-git-actions kbd {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+.environment-git-dialog-error {
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 7px 10px 3px;
+}
+
+.environment-inline-error {
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 5px 6px 0 38px;
+}
+
+.environment-empty {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+  padding: 8px;
+}
+
+.environment-empty.error {
+  align-items: flex-start;
+  color: var(--danger);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.environment-empty.error button {
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.environment-agent-summary {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 0 6px 5px;
+}
+
+.environment-summary-grid {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0 5px 7px;
+}
+
+.environment-summary-grid span {
+  background: color-mix(in srgb, var(--panel-3) 66%, transparent);
+  border-radius: 8px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 9px;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px;
+}
+
+.environment-summary-grid b {
+  color: var(--text);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.environment-activity-row.static {
+  grid-template-columns: 24px minmax(0, 1fr);
+}
+
+.environment-source-row img {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  height: 32px;
+  object-fit: cover;
+  width: 32px;
+}
+
+.environment-view-all {
+  align-self: flex-start;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  margin: 3px 0 0 8px;
+  padding: 5px 7px;
+}
+
+.environment-view-all:hover,
+.environment-view-all:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+
 .left-sidebar-toggle:hover,
 .left-sidebar-toggle[aria-expanded="true"],
 .right-sidebar-toggle:hover,
 .right-sidebar-toggle[aria-expanded="true"] {
   background: var(--hover);
   color: var(--text);
+}
+
+@media (max-width: 680px) {
+  .workspace-header {
+    padding-inline: 8px;
+  }
+
+  .workspace-heading .workspace-thread-title,
+  .workspace-heading .header-separator,
+  .status-pill time {
+    display: none;
+  }
+
+  .environment-control[data-dock-open="true"] {
+    margin-inline-end: 0 !important;
+  }
+
+  .environment-popover {
+    inset-inline: 10px;
+    max-height: calc(100vh - 64px);
+    position: fixed;
+    top: 54px;
+    width: auto;
+  }
+
+  .environment-section {
+    padding-inline: 15px;
+  }
 }
 
 .workspace-content {

@@ -2,7 +2,11 @@ import { execFile } from "node:child_process";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
 
-import type { ProjectGitInfo } from "../shared/api.js";
+import type {
+  ProjectGitCommitResult,
+  ProjectGitInfo,
+  ProjectGitPushResult,
+} from "../shared/api.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -12,18 +16,46 @@ interface GitFailure extends Error {
   stderr?: string;
 }
 
-async function runGit(cwd: string, args: string[]): Promise<string> {
+interface StatusCounts {
+  changeCount: number;
+  stagedCount: number;
+  unstagedCount: number;
+  untrackedCount: number;
+  conflictCount: number;
+}
+
+interface LineCounts {
+  additions: number;
+  deletions: number;
+}
+
+async function runGit(
+  cwd: string,
+  args: string[],
+  acceptedExitCodes: number[] = [0],
+): Promise<string> {
   try {
     const { stdout } = await execFileAsync("git", args, {
       cwd,
       encoding: "utf8",
-      maxBuffer: 8 * 1024 * 1024,
-      timeout: 20_000,
+      env: {
+        ...process.env,
+        GCM_INTERACTIVE: "Never",
+        GIT_TERMINAL_PROMPT: "0",
+      },
+      maxBuffer: 32 * 1024 * 1024,
+      timeout: 60_000,
       windowsHide: true,
     });
     return stdout;
   } catch (error) {
     const failure = error as GitFailure;
+    if (
+      typeof failure.code === "number" &&
+      acceptedExitCodes.includes(failure.code)
+    ) {
+      return failure.stdout ?? "";
+    }
     const detail = (failure.stderr ?? failure.message).trim();
     throw new Error(detail || "Git command failed.");
   }
@@ -69,6 +101,128 @@ async function validateBranchName(
   return normalized;
 }
 
+function statusCounts(output: string): StatusCounts {
+  const entries = output.split("\0");
+  let changeCount = 0;
+  let stagedCount = 0;
+  let unstagedCount = 0;
+  let untrackedCount = 0;
+  let conflictCount = 0;
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (!entry || entry.length < 3) continue;
+    const status = entry.slice(0, 2);
+    const staged = status[0] ?? " ";
+    const unstaged = status[1] ?? " ";
+    changeCount += 1;
+    if (status === "??") {
+      untrackedCount += 1;
+    } else {
+      if (staged !== " " && staged !== "!") stagedCount += 1;
+      if (unstaged !== " " && unstaged !== "!") unstagedCount += 1;
+    }
+    if (["DD", "AU", "UD", "UA", "DU", "AA", "UU"].includes(status)) {
+      conflictCount += 1;
+    }
+    if (staged === "R" || staged === "C") index += 1;
+  }
+
+  return {
+    changeCount,
+    stagedCount,
+    unstagedCount,
+    untrackedCount,
+    conflictCount,
+  };
+}
+
+function parseNumstat(output: string): LineCounts {
+  let additions = 0;
+  let deletions = 0;
+  for (const line of output.split(/\r?\n/u)) {
+    if (!line) continue;
+    const [added = "", deleted = ""] = line.split("\t", 2);
+    if (/^\d+$/u.test(added)) additions += Number(added);
+    if (/^\d+$/u.test(deleted)) deletions += Number(deleted);
+  }
+  return { additions, deletions };
+}
+
+async function untrackedLineCounts(root: string): Promise<LineCounts> {
+  const paths = (
+    await runGit(root, ["ls-files", "--others", "--exclude-standard", "-z"])
+  )
+    .split("\0")
+    .filter(Boolean);
+  const total = { additions: 0, deletions: 0 };
+  for (let index = 0; index < paths.length; index += 4) {
+    const counts = await Promise.all(
+      paths
+        .slice(index, index + 4)
+        .map(async (path) =>
+          parseNumstat(
+            await runGit(
+              root,
+              [
+                "-c",
+                "core.quotePath=false",
+                "diff",
+                "--no-ext-diff",
+                "--no-index",
+                "--numstat",
+                "--",
+                "/dev/null",
+                path,
+              ],
+              [0, 1],
+            ),
+          ),
+        ),
+    );
+    for (const count of counts) {
+      total.additions += count.additions;
+      total.deletions += count.deletions;
+    }
+  }
+  return total;
+}
+
+async function workingTreeLineCounts(root: string): Promise<LineCounts> {
+  const hasHead = await runGit(
+    root,
+    ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"],
+    [0, 1],
+  );
+  const tracked = hasHead.trim()
+    ? await runGit(root, ["diff", "--no-ext-diff", "--numstat", "HEAD", "--"])
+    : `${await runGit(root, ["diff", "--no-ext-diff", "--numstat", "--cached", "--"])}${await runGit(root, ["diff", "--no-ext-diff", "--numstat", "--"])}`;
+  const [trackedCounts, untrackedCounts] = await Promise.all([
+    Promise.resolve(parseNumstat(tracked)),
+    untrackedLineCounts(root),
+  ]);
+  return {
+    additions: trackedCounts.additions + untrackedCounts.additions,
+    deletions: trackedCounts.deletions + untrackedCounts.deletions,
+  };
+}
+
+async function aheadBehind(root: string): Promise<LineCounts> {
+  const output = (
+    await runGit(root, [
+      "rev-list",
+      "--left-right",
+      "--count",
+      "HEAD...@{upstream}",
+    ])
+  ).trim();
+  const [ahead = "0", behind = "0"] = output.split(/\s+/u, 2);
+  return {
+    additions: Number(ahead) || 0,
+    deletions: Number(behind) || 0,
+  };
+}
+
 export async function inspectGitBranches(
   workspace: string,
 ): Promise<ProjectGitInfo> {
@@ -78,24 +232,44 @@ export async function inspectGitBranches(
       managed: false,
       detached: false,
       changeCount: 0,
+      additions: 0,
+      deletions: 0,
+      stagedAdditions: 0,
+      stagedDeletions: 0,
+      stagedCount: 0,
+      unstagedCount: 0,
+      untrackedCount: 0,
+      conflictCount: 0,
+      ahead: 0,
+      behind: 0,
       branches: [],
     };
   }
 
-  const [symbolicBranch, shortHead, branchOutput, statusOutput] =
-    await Promise.all([
-      runGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]).catch(
-        () => "",
-      ),
-      runGit(root, ["rev-parse", "--short", "HEAD"]).catch(() => ""),
-      runGit(root, [
-        "for-each-ref",
-        "--sort=refname",
-        "--format=%(refname:short)%09%(upstream:short)%09%(HEAD)",
-        "refs/heads",
-      ]),
-      runGit(root, ["status", "--porcelain=v1", "--untracked-files=all"]),
-    ]);
+  const [
+    symbolicBranch,
+    shortHead,
+    branchOutput,
+    statusOutput,
+    lineCounts,
+    stagedLineCounts,
+  ] = await Promise.all([
+    runGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]).catch(
+      () => "",
+    ),
+    runGit(root, ["rev-parse", "--short", "HEAD"]).catch(() => ""),
+    runGit(root, [
+      "for-each-ref",
+      "--sort=refname",
+      "--format=%(refname:short)%09%(upstream:short)%09%(HEAD)",
+      "refs/heads",
+    ]),
+    runGit(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]),
+    workingTreeLineCounts(root),
+    runGit(root, ["diff", "--no-ext-diff", "--numstat", "--cached", "--"]).then(
+      parseNumstat,
+    ),
+  ]);
 
   const currentBranch = symbolicBranch.trim() || undefined;
   const branches = branchOutput
@@ -118,14 +292,25 @@ export async function inspectGitBranches(
     branches.unshift({ name: currentBranch, current: true });
   }
 
+  const upstream = branches.find((branch) => branch.current)?.upstream;
+  const divergence = upstream
+    ? await aheadBehind(root).catch(() => ({ additions: 0, deletions: 0 }))
+    : { additions: 0, deletions: 0 };
+  const counts = statusCounts(statusOutput);
   return {
     managed: true,
     root,
     ...(currentBranch ? { currentBranch } : {}),
     ...(shortHead.trim() ? { head: shortHead.trim() } : {}),
     detached: !currentBranch,
-    changeCount: statusOutput.split(/\r?\n/u).filter((line) => line.length > 0)
-      .length,
+    ...counts,
+    additions: lineCounts.additions,
+    deletions: lineCounts.deletions,
+    stagedAdditions: stagedLineCounts.additions,
+    stagedDeletions: stagedLineCounts.deletions,
+    ...(upstream ? { upstream } : {}),
+    ahead: divergence.additions,
+    behind: divergence.deletions,
     branches,
   };
 }
@@ -154,4 +339,105 @@ export async function createGitBranch(
   const normalized = await validateBranchName(root, branchName);
   await runGit(root, ["switch", "-c", normalized]);
   return inspectGitBranches(root);
+}
+
+export async function commitProjectChanges(
+  workspace: string,
+  message: unknown,
+  includeUnstaged = true,
+): Promise<ProjectGitCommitResult> {
+  const root = await requireRepositoryRoot(workspace);
+  if (typeof message !== "string") {
+    throw new Error("Commit message is invalid.");
+  }
+  const normalizedMessage = message.trim();
+  if (normalizedMessage.length > 10_000) {
+    throw new Error("Commit message must not exceed 10,000 characters.");
+  }
+  if (typeof includeUnstaged !== "boolean") {
+    throw new Error("Include-unstaged selection is invalid.");
+  }
+  const before = await inspectGitBranches(root);
+  if (before.detached) {
+    throw new Error("Create or switch to a branch before committing.");
+  }
+  if (before.conflictCount > 0) {
+    throw new Error("Resolve repository conflicts before committing.");
+  }
+  if (includeUnstaged ? before.changeCount === 0 : before.stagedCount === 0) {
+    throw new Error(
+      includeUnstaged
+        ? "There are no project changes to commit."
+        : "There are no staged changes to commit.",
+    );
+  }
+
+  if (includeUnstaged) {
+    await runGit(root, ["add", "--all", "--"]);
+  }
+  const staged = await runGit(root, [
+    "diff",
+    "--cached",
+    "--name-only",
+    "-z",
+    "--",
+  ]);
+  if (!staged) {
+    throw new Error("There are no staged changes to commit.");
+  }
+  const stagedPaths = staged.split("\0").filter(Boolean);
+  const generatedMessage =
+    stagedPaths.length === 1
+      ? `Update ${stagedPaths[0]}`
+      : `Update ${stagedPaths.length} files`;
+  await runGit(root, ["commit", "-m", normalizedMessage || generatedMessage]);
+  const commit = (await runGit(root, ["rev-parse", "HEAD"])).trim();
+  return { commit, gitInfo: await inspectGitBranches(root) };
+}
+
+export async function pushProjectBranch(
+  workspace: string,
+): Promise<ProjectGitPushResult> {
+  const root = await requireRepositoryRoot(workspace);
+  const before = await inspectGitBranches(root);
+  if (before.detached || !before.currentBranch) {
+    throw new Error("Create or switch to a branch before pushing.");
+  }
+  if (before.conflictCount > 0) {
+    throw new Error("Resolve repository conflicts before pushing.");
+  }
+  if (before.changeCount > 0) {
+    throw new Error("Commit or discard project changes before pushing.");
+  }
+  if (!before.upstream) {
+    throw new Error("The current branch has no configured upstream.");
+  }
+  if (before.behind > 0) {
+    throw new Error(
+      "The current branch is behind or diverged from its upstream.",
+    );
+  }
+  if (before.ahead === 0) {
+    throw new Error("There are no commits to push.");
+  }
+
+  const target = (
+    await runGit(root, [
+      "for-each-ref",
+      "--format=%(upstream:remotename)%09%(upstream:remoteref)",
+      `refs/heads/${before.currentBranch}`,
+    ])
+  ).trim();
+  const [remote = "", remoteRef = ""] = target.split("\t", 2);
+  if (!remote || !remoteRef.startsWith("refs/heads/")) {
+    throw new Error("The configured upstream is not a pushable remote branch.");
+  }
+  await runGit(root, [
+    "push",
+    "--porcelain",
+    "--",
+    remote,
+    `HEAD:${remoteRef}`,
+  ]);
+  return { upstream: before.upstream, gitInfo: await inspectGitBranches(root) };
 }

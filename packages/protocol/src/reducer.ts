@@ -6,7 +6,9 @@ import type {
   AssistantUsagePayload,
   ChildAgentPayload,
   ContextUsagePayload,
+  McpToolUsedPayload,
   RunMode,
+  TaskSourceAddedPayload,
   ToolStartedPayload,
   TurnActivityPayload,
   UserInputRequestedPayload,
@@ -42,6 +44,14 @@ export interface UserInputState extends UserInputRequestedPayload {
 export interface ChildAgentState extends ChildAgentPayload {}
 export interface AgentTeamState extends AgentTeamStatusPayload {}
 export interface AgentTeamMessageState extends AgentTeamMessagePayload {}
+export interface McpToolUsageState extends McpToolUsedPayload {
+  turnId?: string;
+  timestamp: string;
+}
+export interface TaskSourceState extends TaskSourceAddedPayload {
+  turnId?: string;
+  timestamp: string;
+}
 
 export type ContextUsageState = Omit<ContextUsagePayload, "type">;
 export type AssistantUsageState = Omit<AssistantUsagePayload, "type">;
@@ -67,6 +77,10 @@ export interface ThreadViewState {
   agentTeams: Record<string, AgentTeamState>;
   agentTeamMessages: Record<string, AgentTeamMessageState>;
   agentTeamMessageOrder: string[];
+  mcpToolUses: Record<string, McpToolUsageState>;
+  mcpToolUseOrder: string[];
+  taskSources: Record<string, TaskSourceState>;
+  taskSourceOrder: string[];
   contextCompactions: Record<string, ContextCompactionState>;
   contextUsage?: ContextUsageState;
   assistantUsage: AssistantUsageState;
@@ -98,6 +112,10 @@ export function createThreadViewState(
     agentTeams: {},
     agentTeamMessages: {},
     agentTeamMessageOrder: [],
+    mcpToolUses: {},
+    mcpToolUseOrder: [],
+    taskSources: {},
+    taskSourceOrder: [],
     contextCompactions: {},
     assistantUsage: {
       inputTokens: 0,
@@ -129,6 +147,10 @@ function cloneThreadViewState(state: ThreadViewState): ThreadViewState {
     agentTeams: { ...state.agentTeams },
     agentTeamMessages: { ...state.agentTeamMessages },
     agentTeamMessageOrder: [...state.agentTeamMessageOrder],
+    mcpToolUses: { ...state.mcpToolUses },
+    mcpToolUseOrder: [...state.mcpToolUseOrder],
+    taskSources: { ...state.taskSources },
+    taskSourceOrder: [...state.taskSourceOrder],
     contextCompactions: { ...state.contextCompactions },
     assistantUsage: { ...state.assistantUsage },
     queue: {
@@ -411,6 +433,27 @@ function applyAgentEvent(
           state.agentTeamMessages[left]!.sequence -
           state.agentTeamMessages[right]!.sequence,
       );
+      return;
+    }
+    case "mcp.tool.used": {
+      const key = `${event.turnId ?? ""}\0${payload.agentId}\0${payload.toolCallId}`;
+      if (!state.mcpToolUses[key]) state.mcpToolUseOrder.push(key);
+      state.mcpToolUses[key] = {
+        ...payload,
+        ...(event.turnId ? { turnId: event.turnId } : {}),
+        timestamp: event.timestamp,
+      };
+      return;
+    }
+    case "task.source.added": {
+      if (!state.taskSources[payload.sourceId]) {
+        state.taskSourceOrder.push(payload.sourceId);
+      }
+      state.taskSources[payload.sourceId] = {
+        ...payload,
+        ...(event.turnId ? { turnId: event.turnId } : {}),
+        timestamp: event.timestamp,
+      };
       return;
     }
     case "context.usage": {

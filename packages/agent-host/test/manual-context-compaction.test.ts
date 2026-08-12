@@ -126,6 +126,69 @@ describe("context usage updates", () => {
     });
   });
 
+  it("adds fixed context to the post-compaction message estimate", () => {
+    const emit = vi.fn();
+    const host = new ArtemisAgentHost({ async request() {} }, { emit });
+    const hosted = {
+      threadId: "thread-1",
+      currentTurnId: "turn-1",
+      mcpToolNames: new Set<string>(),
+      resourceLoader: {
+        getAgentsFiles: () => ({ agentsFiles: [] }),
+        getSkills: () => ({ skills: [] }),
+      },
+      session: {
+        getContextUsage: () => ({
+          tokens: null,
+          contextWindow: 1_000_000,
+          percent: null,
+        }),
+        model: { contextWindow: 1_000_000 },
+        systemPrompt: "s".repeat(20_000),
+        messages: [],
+        agent: { state: { tools: [] } },
+      },
+    };
+    const emitContextUsage = (
+      host as unknown as {
+        emitContextUsage(
+          hosted: unknown,
+          compacting: boolean,
+          estimatedTokens?: number,
+        ): void;
+      }
+    ).emitContextUsage.bind(host);
+
+    emitContextUsage(hosted, false, 3_102);
+
+    expect(emit).toHaveBeenLastCalledWith("thread-1", "turn-1", {
+      type: "context.usage",
+      tokens: 8_102,
+      contextWindow: 1_000_000,
+      compacting: false,
+      estimated: true,
+      source: "compaction-estimate",
+      breakdown: {
+        systemPromptTokens: 5_000,
+        systemToolTokens: 0,
+        mcpToolTokens: 0,
+        customAgentTokens: 0,
+        memoryFileTokens: 0,
+        skillTokens: 0,
+        messageTokens: 3_102,
+        freeSpaceTokens: 891_898,
+        autocompactBufferTokens: 100_000,
+      },
+      footprint: {
+        imageBytes: 0,
+        imageCount: 0,
+        largestToolResultBytes: 0,
+        textBytes: 0,
+        toolSchemaBytes: 2,
+      },
+    });
+  });
+
   it("publishes a normalized current-context breakdown", () => {
     const emit = vi.fn();
     const host = new ArtemisAgentHost({ async request() {} }, { emit });

@@ -621,7 +621,28 @@ export interface ProjectGitInfo {
   head?: string;
   detached: boolean;
   changeCount: number;
+  additions: number;
+  deletions: number;
+  stagedAdditions: number;
+  stagedDeletions: number;
+  stagedCount: number;
+  unstagedCount: number;
+  untrackedCount: number;
+  conflictCount: number;
+  upstream?: string;
+  ahead: number;
+  behind: number;
   branches: ProjectGitBranch[];
+}
+
+export interface ProjectGitCommitResult {
+  commit: string;
+  gitInfo: ProjectGitInfo;
+}
+
+export interface ProjectGitPushResult {
+  upstream: string;
+  gitInfo: ProjectGitInfo;
 }
 
 export interface ArtemisApi {
@@ -641,6 +662,12 @@ export interface ArtemisApi {
     projectId: string,
     branchName: string,
   ): Promise<ProjectGitInfo>;
+  commitProjectChanges(
+    projectId: string,
+    message: string,
+    includeUnstaged: boolean,
+  ): Promise<ProjectGitCommitResult>;
+  pushProjectBranch(projectId: string): Promise<ProjectGitPushResult>;
   selectPromptAttachments(): Promise<PromptAttachment[] | undefined>;
   readPromptAttachments(files: File[]): Promise<PromptAttachment[]>;
   createThread(input: CreateThreadInput): Promise<Thread | undefined>;
@@ -887,6 +914,8 @@ export const IPC = {
   projectGitInfo: "artemis:project-git-info",
   projectGitBranchSwitch: "artemis:project-git-branch-switch",
   projectGitBranchCreate: "artemis:project-git-branch-create",
+  projectGitCommit: "artemis:project-git-commit",
+  projectGitPush: "artemis:project-git-push",
   promptAttachmentsSelect: "artemis:prompt-attachments-select",
   promptAttachmentsRead: "artemis:prompt-attachments-read",
   threadCreate: "artemis:thread-create",

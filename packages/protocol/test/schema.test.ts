@@ -266,6 +266,38 @@ describe("prompt attachment schemas", () => {
 });
 
 describe("child-agent schemas", () => {
+  it("validates privacy-safe MCP usage and task source metadata", () => {
+    expect(
+      agentPayloadSchema.safeParse({
+        type: "mcp.tool.used",
+        toolCallId: "call-1",
+        serverId: "codegraph",
+        serverName: "CodeGraph",
+        toolName: "explore",
+        agentId: "parent",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentPayloadSchema.safeParse({
+        type: "task.source.added",
+        sourceId: "source-1",
+        name: "screenshot.png",
+        mimeType: "image/png",
+        kind: "image",
+        data: "must-not-be-persisted",
+      }).success,
+    ).toBe(true);
+    const parsed = agentPayloadSchema.parse({
+      type: "task.source.added",
+      sourceId: "source-1",
+      name: "screenshot.png",
+      mimeType: "image/png",
+      kind: "image",
+      data: "must-not-be-persisted",
+    });
+    expect("data" in parsed).toBe(false);
+  });
+
   it("carries the task and bounded live activity while remaining backward compatible", () => {
     const runningChild = {
       type: "child-agent.status",

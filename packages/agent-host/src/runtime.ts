@@ -280,10 +280,23 @@ function normalizeContextTokenBreakdown(
   return normalized;
 }
 
+function usedContextTokens(breakdown: ContextTokenBreakdown): number {
+  return (
+    breakdown.systemPromptTokens +
+    breakdown.systemToolTokens +
+    breakdown.mcpToolTokens +
+    breakdown.customAgentTokens +
+    breakdown.memoryFileTokens +
+    breakdown.skillTokens +
+    breakdown.messageTokens
+  );
+}
+
 function contextTokenBreakdown(
   hosted: HostedThread,
   totalTokens: number | null,
   contextWindow: number,
+  estimatedMessageTokens?: number,
 ): ContextTokenBreakdown | undefined {
   const systemPrompt = hosted.session.systemPrompt;
   if (typeof systemPrompt !== "string") return undefined;
@@ -315,22 +328,19 @@ function contextTokenBreakdown(
     customAgentTokens: 0,
     memoryFileTokens: estimateTextTokens(includedProjectInstructions),
     skillTokens: estimateTextTokens(includedSkillPrompt),
-    messageTokens: messages.reduce(
-      (total, message) => total + estimateTokens(message),
-      0,
-    ),
+    messageTokens:
+      estimatedMessageTokens ??
+      messages.reduce((total, message) => total + estimateTokens(message), 0),
     freeSpaceTokens: 0,
     autocompactBufferTokens: 0,
   };
-  const normalized = normalizeContextTokenBreakdown(usedBreakdown, totalTokens);
-  const usedTokens =
-    normalized.systemPromptTokens +
-    normalized.systemToolTokens +
-    normalized.mcpToolTokens +
-    normalized.customAgentTokens +
-    normalized.memoryFileTokens +
-    normalized.skillTokens +
-    normalized.messageTokens;
+  const normalized = normalizeContextTokenBreakdown(
+    usedBreakdown,
+    // Pi's post-compaction estimate covers rebuilt messages only. Keep the
+    // fixed prompt and tool estimates intact instead of scaling them into it.
+    estimatedMessageTokens === undefined ? totalTokens : null,
+  );
+  const usedTokens = usedContextTokens(normalized);
   normalized.autocompactBufferTokens =
     compactionSettingsForContextWindow(contextWindow).reserveTokens;
   normalized.freeSpaceTokens = Math.max(
@@ -1112,11 +1122,24 @@ export class ArtemisAgentHost {
     }
     const messages = hosted.session.messages ?? [];
     const providerInput = lastProviderInput(messages);
-    const tokens =
+    const reportedTokens =
+      estimatedTokens === undefined ? (usage?.tokens ?? null) : null;
+    const estimatedMessageTokens =
       estimatedTokens === undefined
-        ? (usage?.tokens ?? null)
+        ? undefined
         : Math.max(0, Math.round(estimatedTokens));
-    const breakdown = contextTokenBreakdown(hosted, tokens, contextWindow);
+    const breakdown = contextTokenBreakdown(
+      hosted,
+      reportedTokens,
+      contextWindow,
+      estimatedMessageTokens,
+    );
+    const tokens =
+      estimatedMessageTokens === undefined
+        ? reportedTokens
+        : breakdown
+          ? usedContextTokens(breakdown)
+          : estimatedMessageTokens;
     const source =
       estimatedTokens !== undefined
         ? "compaction-estimate"
@@ -3192,6 +3215,9 @@ export class ArtemisAgentHost {
     });
 
     const configuredMcpTools = this.configuration.mcpTools ?? [];
+    const mcpToolByPiName = new Map(
+      configuredMcpTools.map((tool) => [tool.piName, tool] as const),
+    );
     const createMcpTools = (actorAgentId?: string) =>
       configuredMcpTools.map((tool) =>
         defineTool({
@@ -3580,6 +3606,17 @@ export class ArtemisAgentHost {
                       scheduleActivityUpdate(payload.delta);
                     } else if (payload.type === "tool.started") {
                       childToolNames.set(payload.toolCallId, payload.toolName);
+                      const mcpTool = mcpToolByPiName.get(payload.toolName);
+                      if (mcpTool) {
+                        this.sink.emit(hosted.threadId, input.turnId, {
+                          type: "mcp.tool.used",
+                          toolCallId: payload.toolCallId,
+                          serverId: mcpTool.serverId,
+                          serverName: mcpTool.serverName,
+                          toolName: mcpTool.toolName,
+                          agentId,
+                        });
+                      }
                       child.currentTool = payload.toolName;
                       child.currentToolStartedAt = Date.now();
                       const toolInput =
@@ -3962,6 +3999,19 @@ export class ArtemisAgentHost {
           ) {
             hosted.deferredTurnCompletion = payload;
             continue;
+          }
+          if (payload.type === "tool.started") {
+            const mcpTool = mcpToolByPiName.get(payload.toolName);
+            if (mcpTool) {
+              this.sink.emit(hosted.threadId, hosted.currentTurnId, {
+                type: "mcp.tool.used",
+                toolCallId: payload.toolCallId,
+                serverId: mcpTool.serverId,
+                serverName: mcpTool.serverName,
+                toolName: mcpTool.toolName,
+                agentId: "parent",
+              });
+            }
           }
           this.sink.emit(hosted.threadId, hosted.currentTurnId, payload);
         }
