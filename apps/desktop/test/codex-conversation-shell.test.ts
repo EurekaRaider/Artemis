@@ -324,6 +324,18 @@ describe("Codex conversation shell contract", () => {
     );
   });
 
+  it("keeps the compact task status horizontal when the title needs space", () => {
+    expect(cssDeclarations(".workspace-header-leading")).toMatch(
+      /\bflex:\s*1 1 auto/u,
+    );
+    expect(cssDeclarations(".header-actions")).toMatch(
+      /\bflex:\s*0 0 auto/u,
+    );
+    const status = cssDeclarations(".status-pill");
+    expect(status).toMatch(/\bflex:\s*0 0 auto/u);
+    expect(status).toMatch(/\bwhite-space:\s*nowrap/u);
+  });
+
   it("deletes a conversation through confirmation, preload IPC, and the store with an active-turn guard", () => {
     expect(apiSource).toContain(
       "deleteThread(threadId: string): Promise<void>;",

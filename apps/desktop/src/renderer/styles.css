@@ -823,6 +823,7 @@ summary:focus-visible {
 .workspace-header-leading {
   align-items: center;
   display: flex;
+  flex: 1 1 auto;
   gap: 6px;
   min-width: 0;
 }
@@ -867,21 +868,31 @@ summary:focus-visible {
 .header-actions {
   align-items: center;
   display: flex;
+  flex: 0 0 auto;
   gap: 6px;
 }
 
 .status-pill {
   align-items: center;
+  background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
   color: var(--muted);
   display: flex;
+  flex: 0 0 auto;
   font-size: 12px;
   gap: 6px;
   margin-right: 4px;
+  min-height: 26px;
+  padding: 0 9px;
+  white-space: nowrap;
 }
 
 .status-pill time {
+  border-left: 1px solid var(--border-soft);
   color: var(--muted-2);
   font-variant-numeric: tabular-nums;
+  padding-left: 6px;
 }
 
 .toolbar-button {
