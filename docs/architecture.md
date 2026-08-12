@@ -7,7 +7,11 @@ flowchart LR
   R["Sandboxed React Renderer<br/>no Node"] --> P["Typed preload bridge"]
   P --> M["Electron Main<br/>lifecycle · policy · persistence"]
   M <--> A["Utility process<br/>Pi Agent Host"]
-  A --> PI["Pi SDK + PiAdapter<br/>single agent loop"]
+  A --> PI["Pi SDK<br/>single agent loop"]
+  PI --> PC["ModelRuntime Prompt Cache<br/>stable key · model-aware policy"]
+  PC --> MP["Model Provider<br/>Responses / Chat Completions"]
+  PI --> PA["PiAdapter<br/>normalized usage events"]
+  PA --> M
   PI --> C["In-memory child-session tree<br/>64 logical · depth 5 · fanout 8"]
   C --> Q["Fair active scheduler<br/>auto 2–16 · manual 2–64"]
   A --> B["Mode + approval broker"]
@@ -59,6 +63,35 @@ provider-independent. The main process assigns authoritative event IDs and
 sequences, persists events, and then publishes them to renderer subscribers.
 Reducers preserve first-seen order, merge deltas, and ignore duplicate event
 IDs.
+
+## Model runtime and Prompt Cache
+
+Artemis keeps Pi as the only Agent loop and wraps its `ModelRuntime` rather than
+forking the Pi dependency. The cache controller hashes the original Pi session
+ID, Provider, model, stable System Prompt and canonically ordered tool schemas.
+Only 16-character fingerprints enter local diagnostics; Prompt text, complete
+tool schemas, original session IDs and credentials are not recorded there.
+Lazy JSONL persistence retains the original Pi session ID so a restored task
+keeps the same cache affinity when its other key inputs are unchanged.
+
+Policy selection is automatic and endpoint-aware. Official GPT-5.6 requests to
+the HTTPS `api.openai.com` endpoint use `prompt_cache_key`, explicit 30-minute
+options and a stable System Prompt breakpoint. Official GPT-5.5 uses its long
+policy. Exact documented legacy models begin a new parent task with short
+caching and upgrade persistent or resumed parent tasks to long caching. Child
+Agents, unknown models, Azure endpoints and compatible gateways remain short;
+Pi compaction and other one-shot calls that explicitly request `none` stay
+disabled. System Prompt, tools and model changes therefore create new keys
+without changing the Plan, Review or Execute tool sets.
+
+Provider usage is normalized before it reaches the protocol: uncached input,
+cache reads, cache writes and output add up to `totalTokens`. Optional reporting
+flags distinguish an explicit zero from missing Provider data. The replay-safe
+reducer aggregates reported events and policy counts for Token Usage, while the
+local diagnostic bundle records bounded policy reasons, fingerprints,
+stable-prefix estimates and per-key request rates. Near 15 requests per minute
+Artemis emits only a diagnostic warning; it does not rotate the key and create
+an intentional cold cache.
 
 ## Execution policy
 

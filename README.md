@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="840 passing tests" src="https://img.shields.io/badge/Tests-840_passing-2EA44F" />
+  <img alt="862 passing tests" src="https://img.shields.io/badge/Tests-862_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -105,13 +105,13 @@ credentials are protected with operating-system encryption.
     </td>
     <td width="50%" valign="top">
       <p><strong>06</strong>&nbsp;&nbsp;/&nbsp;&nbsp;MODELS &amp; RESOURCES</p>
-      <p>Pi model catalog, thinking/context controls, custom OpenAI-compatible Chat Completions and Responses providers, encrypted credentials, Skills, full-permission MCP stdio/HTTP with OAuth 2.1 + PKCE, and trusted Pi extensions.</p>
+      <p>Pi model catalog, thinking/context controls, model-aware Prompt Cache policy, custom OpenAI-compatible Chat Completions and Responses providers, encrypted credentials, Skills, full-permission MCP stdio/HTTP with OAuth 2.1 + PKCE, and trusted Pi extensions.</p>
     </td>
   </tr>
   <tr>
     <td colspan="2" valign="top">
       <p><strong>07</strong>&nbsp;&nbsp;/&nbsp;&nbsp;OPERATIONS</p>
-      <p>Local automations, daily/weekly/cumulative Token insights, fork-safe usage accounting, OS user identity, 14-language/system-language UI, themes, diagnostics export, update recovery and native packaging gates.</p>
+      <p>Local automations, daily/weekly/cumulative Token insights with cache hit and reporting coverage, fork-safe usage accounting, OS user identity, 14-language/system-language UI, themes, diagnostics export, update recovery and native packaging gates.</p>
     </td>
   </tr>
 </table>
@@ -283,7 +283,10 @@ tasks. Interactive tasks run against the repository's local checkout.
   state. Post-compaction usage combines the rebuilt message estimate with the
   system prompt, tools, MCP schemas, project instructions and Skills that remain
   in context. Usage Insights adds daily, weekly and cumulative Token totals with
-  a calendar heatmap and avoids double-counting forked history.
+  a calendar heatmap, cache hit rate, cache-reporting coverage and automatic
+  policy distribution while avoiding double-counting forked history. A missing
+  Provider cache breakdown remains unknown instead of being rendered as a 0%
+  hit rate.
 
 </details>
 
@@ -512,6 +515,23 @@ faster than a standard thinking level.
 Credentials and authorization material are encrypted with Electron
 `safeStorage`. If OS encryption is unavailable, secret writes fail instead of
 falling back to plaintext.
+
+#### Automatic Prompt Cache
+
+Artemis wraps Pi's existing `ModelRuntime` with an automatic, model-aware cache
+policy; Pi remains the only Agent loop. Stable keys bind the Pi session,
+Provider, model, System Prompt and normalized tool schemas. Official OpenAI
+models use only documented, model-specific policies, while child Agents,
+unknown models, Azure endpoints and OpenAI-compatible gateways remain on short
+caching. Pi compaction and other one-shot requests that explicitly select
+`none` always bypass caching.
+
+GPT-5.6 requests to `https://api.openai.com` use an explicit 30-minute cache
+with a System Prompt breakpoint. GPT-5.5 uses its supported long policy, and
+the documented legacy whitelist upgrades persistent parent tasks from short to
+long caching after the first top-level turn. There is no user setting: changing
+the session, model, System Prompt or tool set changes the stable key
+automatically without exposing additional Execute tools to Plan or Review.
 
 <br />
 
@@ -878,7 +898,8 @@ bounded subteam and must integrate it before completing.
 ### Diagnostics and update recovery
 
 - bounded local diagnostics cover main-process errors, Renderer crashes/hangs
-  and Agent Host stderr/exit;
+  and Agent Host stderr/exit, plus cache read/write reporting, selected policy,
+  redacted fingerprints, stable-prefix size and per-key request rate;
 - export produces a user-selected gzip JSON bundle with credentials,
   authorization material and recognizable paths redacted;
 - diagnostics are never uploaded automatically;
@@ -902,7 +923,11 @@ flowchart LR
     Preload --> Main["Electron Main<br/>lifecycle · policy · persistence"]
     Main <--> Agent["Utility Process<br/>Pi Agent Host"]
 
-    Agent --> Pi["Pi SDK + PiAdapter<br/>single agent loop"]
+    Agent --> Pi["Pi SDK<br/>single agent loop"]
+    Pi --> Cache["ModelRuntime Prompt Cache<br/>stable key · model-aware policy"]
+    Cache --> Provider["Model Provider<br/>Responses / Chat Completions"]
+    Pi --> Adapter["PiAdapter<br/>normalized usage events"]
+    Adapter --> Main
     Pi --> Team["Tree coordinator<br/>64 logical · depth 5 · fanout 8"]
     Team --> Children["In-memory child Pi sessions<br/>nested delegation"]
     Team --> Capacity["Dynamic active capacity<br/>auto 2–16 · manual 2–64"]
@@ -929,6 +954,9 @@ flowchart LR
 - Pi is the only agent loop.
 - Raw Pi events stop at `PiAdapter`; UI code consumes only
   `@artemis/protocol`.
+- Prompt caching wraps Pi's `ModelRuntime`; it does not replace or fork the Pi
+  loop. Cache keys change with the session, Provider, model, System Prompt or
+  normalized tools, and one-shot `none` requests always win.
 - Every persisted UI event uses a versioned envelope and an idempotent reducer.
 - The Renderer never imports Electron main-process or Node APIs.
 - Plan and Review writes are denied before an executor runs and do not expose
@@ -959,11 +987,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **840 passing tests** (4 skipped):
+The current full test run contains **862 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       59 |       19 |         82 |     680 |   **840** |
+|       61 |       19 |         99 |     683 |   **862** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -990,13 +1018,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.3.28` packaging configuration produces:
+The `1.3.29` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.3.28.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.3.28.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.3.28.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.3.29.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.3.29.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.3.29.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and
