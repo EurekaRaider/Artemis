@@ -563,6 +563,36 @@ summary:focus-visible {
   font-size: 13px;
   font-weight: 400;
   grid-column: 2;
+  min-width: 0;
+}
+
+.thread-title-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateX(0);
+  white-space: nowrap;
+}
+
+.thread-title[data-overflowing="true"]:hover .thread-title-text {
+  animation: thread-title-scroll
+    var(--thread-title-scroll-duration, 4s) linear infinite alternate;
+  overflow: visible;
+  text-overflow: clip;
+  width: max-content;
+  will-change: transform;
+}
+
+@keyframes thread-title-scroll {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+
+  85%,
+  100% {
+    transform: translateX(var(--thread-title-scroll-distance, 0));
+  }
 }
 
 .thread-select .status-dot {
@@ -1507,6 +1537,13 @@ summary:focus-visible {
     animation: none;
     background: none;
     color: var(--text);
+  }
+
+  .thread-title[data-overflowing="true"]:hover .thread-title-text {
+    animation: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: auto;
   }
 }
 

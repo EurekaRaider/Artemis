@@ -94,6 +94,34 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
     expect(selectedRow?.groups?.body).toContain("background: var(--selected)");
   });
 
+  it("scrolls only overflowing conversation titles while their text is hovered", () => {
+    const projectTree = sourceBetween(
+      appSource,
+      '<div className="project-tree">',
+      '<div className="sidebar-footer">',
+    );
+
+    expect(projectTree).toContain('className="thread-title"');
+    expect(projectTree).toContain(
+      "onPointerEnter={prepareThreadTitleScroll}",
+    );
+    expect(projectTree).toContain('className="thread-title-text"');
+    expect(appSource).toContain(
+      "content.scrollWidth - viewport.clientWidth",
+    );
+    expect(appSource).toContain('dataset.overflowing = "true"');
+
+    const scrollingTitle = cssDeclarations(
+      '.thread-title[data-overflowing="true"]:hover .thread-title-text',
+    );
+    expect(scrollingTitle).toContain("animation: thread-title-scroll");
+    expect(scrollingTitle).toContain("text-overflow: clip");
+    expect(stylesSource).toMatch(/@keyframes\s+thread-title-scroll\s*\{/u);
+    expect(stylesSource).toMatch(
+      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.thread-title\[data-overflowing="true"\]:hover\s+\.thread-title-text[\s\S]*?animation:\s*none/u,
+    );
+  });
+
   it("routes delete, archive, project removal, and revert through one styled in-app dialog", () => {
     const actionSources = [
       sourceBetween(

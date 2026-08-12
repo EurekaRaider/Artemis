@@ -1501,6 +1501,32 @@ function visibleThreadTitle(title: string): string {
   );
 }
 
+function prepareThreadTitleScroll(
+  event: ReactPointerEvent<HTMLSpanElement>,
+): void {
+  const viewport = event.currentTarget;
+  const content = viewport.firstElementChild;
+  if (!(content instanceof HTMLElement)) return;
+
+  const distance = Math.ceil(content.scrollWidth - viewport.clientWidth);
+  if (distance <= 1) {
+    delete viewport.dataset.overflowing;
+    viewport.style.removeProperty("--thread-title-scroll-distance");
+    viewport.style.removeProperty("--thread-title-scroll-duration");
+    return;
+  }
+
+  viewport.dataset.overflowing = "true";
+  viewport.style.setProperty(
+    "--thread-title-scroll-distance",
+    `-${distance}px`,
+  );
+  viewport.style.setProperty(
+    "--thread-title-scroll-duration",
+    `${Math.max(4, distance / 36 + 2).toFixed(2)}s`,
+  );
+}
+
 export function App() {
   const { i18n } = useTranslation();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
@@ -4638,8 +4664,14 @@ export function App() {
                                   className={`status-dot ${thread.status}`}
                                 />
                               )}
-                              <span className="thread-title">
-                                {visibleThreadTitle(thread.title)}
+                              <span
+                                className="thread-title"
+                                onPointerEnter={prepareThreadTitleScroll}
+                                title={visibleThreadTitle(thread.title)}
+                              >
+                                <span className="thread-title-text">
+                                  {visibleThreadTitle(thread.title)}
+                                </span>
                               </span>
                             </button>
                             <button
