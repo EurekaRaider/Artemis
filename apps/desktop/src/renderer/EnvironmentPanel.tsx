@@ -573,6 +573,12 @@ export function EnvironmentPanel({
     return () => observer.disconnect();
   }, []);
 
+  useLayoutEffect(() => {
+    autoHidden.current = false;
+    openRef.current = !dockOpen;
+    setOpen(!dockOpen);
+  }, [dockOpen]);
+
   const loadGit = useCallback(async () => {
     const id = ++request.current;
     setGitLoading(true);

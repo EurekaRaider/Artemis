@@ -4783,7 +4783,7 @@ export function App() {
                       workspaceDockOpen ? Math.max(0, dockWidthNow - 50) : 0
                     }
                     dockOpen={workspaceDockOpen}
-                    key={`${activeProject.id}:${activeThread?.id ?? "draft"}:${workspaceDockOpen ? "dock-open" : "dock-closed"}`}
+                    key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}
                     locale={locale}
                     mcpUsages={environmentMcpUsages}
                     onAddProject={() => void openProject()}

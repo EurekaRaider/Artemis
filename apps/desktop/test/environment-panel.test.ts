@@ -79,16 +79,25 @@ describe("task environment panel state", () => {
   it("defaults open, closes with the dock, and can reopen beside the dock", () => {
     expect(appSource).toContain("defaultOpen={!workspaceDockOpen}");
     expect(appSource).toContain(
-      'workspaceDockOpen ? "dock-open" : "dock-closed"',
-    );
-    expect(appSource).toContain(
       "workspaceDockOpen ? Math.max(0, dockWidthNow - 50) : 0",
     );
     expect(panelSource).toContain("useState(defaultOpen)");
+    expect(panelSource).toContain("openRef.current = !dockOpen");
+    expect(panelSource).toContain("setOpen(!dockOpen)");
     expect(panelSource).toContain("data-dock-open={dockOpen}");
     expect(stylesSource).toContain(
       '.environment-control[data-dock-open="true"] .environment-popover',
     );
+  });
+
+  it("keeps loaded Git information mounted while the workspace dock toggles", () => {
+    expect(appSource).toContain(
+      'key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}',
+    );
+    expect(appSource).not.toContain(
+      '${workspaceDockOpen ? "dock-open" : "dock-closed"}',
+    );
+    expect(panelSource).toContain("gitLoading && !gitInfo");
   });
 
   it("uses compact Codex-like popover proportions", () => {
