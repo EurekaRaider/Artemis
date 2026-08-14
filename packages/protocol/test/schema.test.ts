@@ -7,6 +7,7 @@ import {
   appThemeSchema,
   approvalResolutionSchema,
   contextWindowSchema,
+  modelApprovalDecisionSchema,
   OFFICE_DOCUMENT_PROTOCOL_VERSION,
   officeDocumentCapabilitiesSchema,
   officeDocumentRequestSchema,
@@ -53,6 +54,27 @@ describe("queued message recovery schema", () => {
 });
 
 describe("approval schemas", () => {
+  it("records model risk and exact explicit-user authorization", () => {
+    expect(
+      modelApprovalDecisionSchema.parse({
+        risk: "high",
+        explicitUserRequest: true,
+        reason: "The user explicitly requested this exact destructive action.",
+      }),
+    ).toEqual({
+      risk: "high",
+      explicitUserRequest: true,
+      reason: "The user explicitly requested this exact destructive action.",
+    });
+    expect(
+      modelApprovalDecisionSchema.safeParse({
+        risk: "critical",
+        explicitUserRequest: true,
+        reason: "Unsupported model risk level.",
+      }).success,
+    ).toBe(false);
+  });
+
   it("requires the host nonce on requests and resolutions", () => {
     expect(
       agentPayloadSchema.safeParse({

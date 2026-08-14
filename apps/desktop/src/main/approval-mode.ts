@@ -1,21 +1,73 @@
-import type { ApprovalPolicy } from "@artemis/protocol";
+import type {
+  ApprovalPolicy,
+  ModelApprovalDecision,
+  ModelRiskLevel,
+  RiskLevel,
+} from "@artemis/protocol";
 
 export type ApprovalOperation =
-  | { kind: "workspace.write"; modelApproved: boolean }
-  | { kind: "shell.execute"; modelApproved: boolean }
+  | {
+      kind: "workspace.write";
+      minimumRisk: RiskLevel;
+      modelApproval: ModelApprovalDecision;
+    }
+  | {
+      kind: "shell.execute";
+      minimumRisk: RiskLevel;
+      modelApproval: ModelApprovalDecision;
+    }
   | {
       kind: "mcp.call";
       readOnly: boolean;
       destructive: boolean;
       network: boolean;
+      modelApproval: ModelApprovalDecision;
       toolName?: string;
       googleGrant?: "gmail" | "google-workspace";
     }
   | {
       kind: "extension.call";
       allowNetwork: boolean;
-      modelApproved: boolean;
+      modelApproval: ModelApprovalDecision;
     };
+
+const RISK_ORDER = {
+  low: 0,
+  medium: 1,
+  high: 2,
+} satisfies Record<ModelRiskLevel, number>;
+
+function maximumRisk(first: RiskLevel, second: ModelRiskLevel): ModelRiskLevel {
+  const normalizedFirst = first === "critical" ? "high" : first;
+  return RISK_ORDER[normalizedFirst] >= RISK_ORDER[second]
+    ? normalizedFirst
+    : second;
+}
+
+export function effectiveApprovalRisk(
+  operation: ApprovalOperation,
+): ModelRiskLevel {
+  const minimumRisk =
+    operation.kind === "mcp.call"
+      ? operation.destructive
+        ? "high"
+        : operation.network
+          ? "medium"
+          : operation.readOnly
+            ? "low"
+            : "medium"
+      : operation.kind === "extension.call"
+        ? operation.allowNetwork
+          ? "high"
+          : "medium"
+        : operation.minimumRisk;
+  return maximumRisk(minimumRisk, operation.modelApproval.risk);
+}
+
+export function modelMayAutoApprove(operation: ApprovalOperation): boolean {
+  const risk = effectiveApprovalRisk(operation);
+  return risk !== "high" || operation.modelApproval.explicitUserRequest;
+}
 
 const TRUSTED_GOOGLE_TOOL_ALLOWLISTS = {
   gmail: new Set([
@@ -49,6 +101,9 @@ export function shouldAutoApprove(
   operation: ApprovalOperation,
   fullAccessAvailable: boolean,
 ): boolean {
+  if (policy === "agent") {
+    return modelMayAutoApprove(operation);
+  }
   if (operation.kind === "mcp.call") {
     return (
       !operation.destructive ||
@@ -62,8 +117,5 @@ export function shouldAutoApprove(
   if (policy === "full-access") {
     return fullAccessAvailable;
   }
-  if (policy !== "agent") {
-    return false;
-  }
-  return operation.modelApproved;
+  return false;
 }

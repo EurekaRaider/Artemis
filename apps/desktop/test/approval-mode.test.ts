@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { shouldAutoApprove } from "../src/main/approval-mode.js";
+import {
+  effectiveApprovalRisk,
+  shouldAutoApprove,
+} from "../src/main/approval-mode.js";
 
 describe("approval modes", () => {
   it("keeps non-MCP operations manual in request-approval or custom mode", () => {
@@ -8,7 +11,15 @@ describe("approval modes", () => {
       expect(
         shouldAutoApprove(
           policy,
-          { kind: "workspace.write", modelApproved: true },
+          {
+            kind: "workspace.write",
+            minimumRisk: "medium",
+            modelApproval: {
+              risk: "low",
+              explicitUserRequest: false,
+              reason: "The change is scoped to the workspace.",
+            },
+          },
           true,
         ),
       ).toBe(false);
@@ -23,12 +34,22 @@ describe("approval modes", () => {
           readOnly: true,
           destructive: false,
           network: false,
+          modelApproval: {
+            risk: "low",
+            explicitUserRequest: false,
+            reason: "Read-only inspection.",
+          },
         },
         {
           kind: "mcp.call",
           readOnly: false,
           destructive: false,
           network: true,
+          modelApproval: {
+            risk: "medium",
+            explicitUserRequest: false,
+            reason: "A reversible remote update.",
+          },
         },
       ] as const) {
         for (const nativeSandboxAvailable of [false, true]) {
@@ -40,7 +61,7 @@ describe("approval modes", () => {
     }
   });
 
-  it("auto-approves the exact trusted Google plugin action allowlists", () => {
+  it("retains exact trusted Google allowlists outside agent review", () => {
     const allowlists = [
       [
         "gmail",
@@ -74,7 +95,7 @@ describe("approval modes", () => {
       ],
     ] as const;
 
-    for (const policy of ["ask", "agent", "custom", "full-access"] as const) {
+    for (const policy of ["ask", "custom", "full-access"] as const) {
       for (const [googleGrant, toolNames] of allowlists) {
         for (const toolName of toolNames) {
           expect(
@@ -87,6 +108,11 @@ describe("approval modes", () => {
                 network: false,
                 toolName,
                 googleGrant,
+                modelApproval: {
+                  risk: "high",
+                  explicitUserRequest: false,
+                  reason: "A destructive Google operation.",
+                },
               },
               false,
             ),
@@ -115,6 +141,11 @@ describe("approval modes", () => {
             readOnly: false,
             destructive: true,
             network: false,
+            modelApproval: {
+              risk: "high",
+              explicitUserRequest: false,
+              reason: "A destructive MCP operation.",
+            },
             ...operation,
           },
           true,
@@ -123,25 +154,52 @@ describe("approval modes", () => {
     }
   });
 
-  it("lets the model decide auto-approval in agent mode", () => {
+  it("auto-approves low and medium model risk in agent mode", () => {
     expect(
       shouldAutoApprove(
         "agent",
-        { kind: "workspace.write", modelApproved: true },
+        {
+          kind: "workspace.write",
+          minimumRisk: "medium",
+          modelApproval: {
+            risk: "low",
+            explicitUserRequest: false,
+            reason: "A scoped workspace edit.",
+          },
+        },
         true,
       ),
     ).toBe(true);
     expect(
       shouldAutoApprove(
         "agent",
-        { kind: "workspace.write", modelApproved: false },
+        {
+          kind: "shell.execute",
+          minimumRisk: "medium",
+          modelApproval: {
+            risk: "medium",
+            explicitUserRequest: false,
+            reason: "A reversible project build.",
+          },
+        },
         true,
       ),
-    ).toBe(false);
+    ).toBe(true);
+  });
+
+  it("requires high-risk actions to match an explicit user request", () => {
     expect(
       shouldAutoApprove(
         "agent",
-        { kind: "shell.execute", modelApproved: false },
+        {
+          kind: "shell.execute",
+          minimumRisk: "medium",
+          modelApproval: {
+            risk: "high",
+            explicitUserRequest: false,
+            reason: "Publishing was inferred rather than requested.",
+          },
+        },
         true,
       ),
     ).toBe(false);
@@ -149,9 +207,65 @@ describe("approval modes", () => {
       shouldAutoApprove(
         "agent",
         {
-          kind: "extension.call",
-          allowNetwork: false,
-          modelApproved: true,
+          kind: "shell.execute",
+          minimumRisk: "medium",
+          modelApproval: {
+            risk: "high",
+            explicitUserRequest: true,
+            reason: "The user explicitly requested this exact publication.",
+          },
+        },
+        true,
+      ),
+    ).toBe(true);
+  });
+
+  it("uses trusted host metadata as a minimum risk", () => {
+    expect(
+      effectiveApprovalRisk({
+        kind: "mcp.call",
+        readOnly: true,
+        destructive: false,
+        network: true,
+        modelApproval: {
+          risk: "low",
+          explicitUserRequest: false,
+          reason: "A remote read.",
+        },
+      }),
+    ).toBe("medium");
+    expect(
+      shouldAutoApprove(
+        "agent",
+        {
+          kind: "mcp.call",
+          readOnly: false,
+          destructive: true,
+          network: true,
+          toolName: "gmail_send_message",
+          googleGrant: "gmail",
+          modelApproval: {
+            risk: "low",
+            explicitUserRequest: false,
+            reason: "The model underestimated the operation.",
+          },
+        },
+        true,
+      ),
+    ).toBe(false);
+    expect(
+      shouldAutoApprove(
+        "agent",
+        {
+          kind: "mcp.call",
+          readOnly: false,
+          destructive: true,
+          network: true,
+          modelApproval: {
+            risk: "low",
+            explicitUserRequest: true,
+            reason: "The user explicitly requested the exact destructive call.",
+          },
         },
         true,
       ),
@@ -162,7 +276,15 @@ describe("approval modes", () => {
     expect(
       shouldAutoApprove(
         "full-access",
-        { kind: "workspace.write", modelApproved: false },
+        {
+          kind: "workspace.write",
+          minimumRisk: "medium",
+          modelApproval: {
+            risk: "high",
+            explicitUserRequest: false,
+            reason: "A high-risk workspace action.",
+          },
+        },
         false,
       ),
     ).toBe(false);
@@ -172,7 +294,11 @@ describe("approval modes", () => {
         {
           kind: "extension.call",
           allowNetwork: true,
-          modelApproved: false,
+          modelApproval: {
+            risk: "high",
+            explicitUserRequest: false,
+            reason: "A networked extension action.",
+          },
         },
         true,
       ),

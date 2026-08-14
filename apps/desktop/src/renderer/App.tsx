@@ -443,7 +443,7 @@ const copy = {
       "Always ask before non-MCP external changes or network access",
     agentApproval: "Approve for me",
     agentApprovalDetail:
-      "The model auto-approves suitable commands and changes; you decide when it does not",
+      "Low and medium risk run automatically; high risk runs only when you explicitly requested it",
     fullAccess: "Full access",
     fullAccessDetail:
       "Auto-approve supported operations within the native sandbox",
@@ -662,7 +662,8 @@ const copy = {
     askApproval: "请求批准",
     askApprovalDetail: "非 MCP 的外部更改或网络访问前始终询问",
     agentApproval: "替我审批",
-    agentApprovalDetail: "由模型批准合适的命令和更改；模型不批准时交给你选择",
+    agentApprovalDetail:
+      "低、中风险自动批准；高风险仅在你明确要求该操作时自动批准",
     fullAccess: "完全访问权限",
     fullAccessDetail: "在原生沙箱边界内自动批准支持的操作",
     fullAccessUnavailable: "需要先安装原生命令沙箱",

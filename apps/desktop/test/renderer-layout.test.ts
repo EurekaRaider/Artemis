@@ -708,18 +708,16 @@ describe("renderer layout contract", () => {
     expect(promptHistorySource).toContain("state.draft");
   });
 
-  it("lets the model decide Agent approval and falls back to the user", () => {
+  it("uses model risk and exact user authorization for Agent approval", () => {
     expect(mainProcessSource).not.toContain(
       'request.document.operation !== "delete"',
     );
+    expect(mainProcessSource).toContain("modelApproval: request.modelApproval");
     expect(mainProcessSource).toContain(
-      "modelApproved: request.modelApproval.approved",
-    );
-    expect(mainProcessSource).toContain(
-      'modelRecommendation: request.modelApproval.approved ? "approve" : "deny"',
+      "risk: effectiveApprovalRisk(approvalOperation)",
     );
     expect(appSource).toContain(
-      "由模型批准合适的命令和更改；模型不批准时交给你选择",
+      "低、中风险自动批准；高风险仅在你明确要求该操作时自动批准",
     );
   });
 

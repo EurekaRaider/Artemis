@@ -184,8 +184,12 @@ export type ApprovalScope = z.infer<typeof approvalScopeSchema>;
 export const riskLevelSchema = z.enum(["low", "medium", "high", "critical"]);
 export type RiskLevel = z.infer<typeof riskLevelSchema>;
 
+export const modelRiskLevelSchema = z.enum(["low", "medium", "high"]);
+export type ModelRiskLevel = z.infer<typeof modelRiskLevelSchema>;
+
 export const modelApprovalDecisionSchema = z.object({
-  approved: z.boolean(),
+  risk: modelRiskLevelSchema,
+  explicitUserRequest: z.boolean(),
   reason: z.string().trim().min(1).max(500),
 });
 export type ModelApprovalDecision = z.infer<typeof modelApprovalDecisionSchema>;

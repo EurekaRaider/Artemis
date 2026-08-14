@@ -104,7 +104,11 @@ import {
   validateAutomationSchedule,
 } from "./automation-schedule.js";
 import { AutomationScheduler } from "./automation-scheduler.js";
-import { shouldAutoApprove } from "./approval-mode.js";
+import {
+  effectiveApprovalRisk,
+  modelMayAutoApprove,
+  shouldAutoApprove,
+} from "./approval-mode.js";
 import {
   PendingApprovalRegistry,
   createApprovalFingerprint,
@@ -2272,14 +2276,16 @@ async function handleShellBrokerRequest(
     });
     return;
   }
+  const approvalOperation = {
+    kind: "shell.execute" as const,
+    minimumRisk: decision.outcome === "ask" ? decision.risk : "medium",
+    modelApproval: request.modelApproval,
+  };
   if (
     decision.outcome === "allow" ||
     shouldAutoApprove(
       approvalPolicy ?? "ask",
-      {
-        kind: "shell.execute",
-        modelApproved: request.modelApproval.approved,
-      },
+      approvalOperation,
       fullAccessAvailable,
     )
   ) {
@@ -2317,10 +2323,12 @@ async function handleShellBrokerRequest(
     command: request.command,
     paths: [],
     network: [],
-    risk: decision.outcome === "ask" ? decision.risk : "medium",
+    risk: effectiveApprovalRisk(approvalOperation),
     allowedScopes: [...allowedScopes],
-    source: request.modelApproval.approved ? "policy" : "model",
-    modelRecommendation: request.modelApproval.approved ? "approve" : "deny",
+    source: modelMayAutoApprove(approvalOperation) ? "policy" : "model",
+    modelRecommendation: modelMayAutoApprove(approvalOperation)
+      ? "approve"
+      : "deny",
     modelReason: request.modelApproval.reason,
     ...(request.actorAgentId ? { actorAgentId: request.actorAgentId } : {}),
   });
@@ -2492,14 +2500,16 @@ async function handleBrokerRequest(
     return;
   }
 
+  const approvalOperation = {
+    kind: "workspace.write" as const,
+    minimumRisk: decision.outcome === "ask" ? decision.risk : "medium",
+    modelApproval: request.modelApproval,
+  };
   if (
     decision.outcome === "allow" ||
     shouldAutoApprove(
       approvalPolicy ?? "ask",
-      {
-        kind: "workspace.write",
-        modelApproved: request.modelApproval.approved,
-      },
+      approvalOperation,
       fullAccessAvailable,
     )
   ) {
@@ -2534,10 +2544,12 @@ async function handleBrokerRequest(
     summary: `Write ${request.relativePath}`,
     paths: [request.relativePath],
     network: [],
-    risk: decision.risk,
+    risk: effectiveApprovalRisk(approvalOperation),
     allowedScopes: [...allowedScopes],
-    source: request.modelApproval.approved ? "policy" : "model",
-    modelRecommendation: request.modelApproval.approved ? "approve" : "deny",
+    source: modelMayAutoApprove(approvalOperation) ? "policy" : "model",
+    modelRecommendation: modelMayAutoApprove(approvalOperation)
+      ? "approve"
+      : "deny",
     modelReason: request.modelApproval.reason,
     ...(request.actorAgentId ? { actorAgentId: request.actorAgentId } : {}),
   });
@@ -2773,12 +2785,14 @@ async function handleOfficeDocumentBrokerRequest(
     return;
   }
 
+  const approvalOperation = {
+    kind: "workspace.write" as const,
+    minimumRisk: decision.risk,
+    modelApproval: request.modelApproval,
+  };
   const autoApproved = shouldAutoApprove(
     approvalPolicy ?? "ask",
-    {
-      kind: "workspace.write",
-      modelApproved: request.modelApproval.approved,
-    },
+    approvalOperation,
     fullAccessAvailable,
   );
   if (autoApproved) {
@@ -2812,10 +2826,12 @@ async function handleOfficeDocumentBrokerRequest(
     summary,
     paths: [request.document.path],
     network: [],
-    risk: decision.risk,
+    risk: effectiveApprovalRisk(approvalOperation),
     allowedScopes: [...allowedScopes],
-    source: request.modelApproval.approved ? "policy" : "model",
-    modelRecommendation: request.modelApproval.approved ? "approve" : "deny",
+    source: modelMayAutoApprove(approvalOperation) ? "policy" : "model",
+    modelRecommendation: modelMayAutoApprove(approvalOperation)
+      ? "approve"
+      : "deny",
     modelReason: request.modelApproval.reason,
     ...(request.actorAgentId ? { actorAgentId: request.actorAgentId } : {}),
   });
@@ -2946,19 +2962,19 @@ async function handleMcpBrokerRequest(
     );
     return;
   }
+  const approvalOperation = {
+    kind: "mcp.call" as const,
+    readOnly: request.readOnly,
+    destructive: request.destructive,
+    network: request.transport === "streamable-http",
+    toolName: request.toolName,
+    modelApproval: request.modelApproval,
+    ...(mcpConfig?.hostAuth ? { googleGrant: mcpConfig.hostAuth.grant } : {}),
+  };
   if (
     shouldAutoApprove(
       approvalPolicy ?? "ask",
-      {
-        kind: "mcp.call",
-        readOnly: request.readOnly,
-        destructive: request.destructive,
-        network: request.transport === "streamable-http",
-        toolName: request.toolName,
-        ...(mcpConfig?.hostAuth
-          ? { googleGrant: mcpConfig.hostAuth.grant }
-          : {}),
-      },
+      approvalOperation,
       fullAccessAvailable,
     )
   ) {
@@ -2987,10 +3003,15 @@ async function handleMcpBrokerRequest(
     summary: approvalSummary,
     paths: [],
     network: networkTargets,
-    risk: request.destructive ? "high" : "medium",
+    risk: effectiveApprovalRisk(approvalOperation),
     allowedScopes: request.destructive
       ? ["once"]
       : ["once", "session", "project"],
+    source: modelMayAutoApprove(approvalOperation) ? "policy" : "model",
+    modelRecommendation: modelMayAutoApprove(approvalOperation)
+      ? "approve"
+      : "deny",
+    modelReason: request.modelApproval.reason,
   });
 }
 
@@ -3093,14 +3114,15 @@ async function handleExtensionBrokerRequest(
     );
     return;
   }
+  const approvalOperation = {
+    kind: "extension.call" as const,
+    allowNetwork: status.config.allowNetwork,
+    modelApproval: request.modelApproval,
+  };
   if (
     shouldAutoApprove(
       approvalPolicy ?? "ask",
-      {
-        kind: "extension.call",
-        allowNetwork: status.config.allowNetwork,
-        modelApproved: request.modelApproval.approved,
-      },
+      approvalOperation,
       fullAccessAvailable,
     )
   ) {
@@ -3135,10 +3157,12 @@ async function handleExtensionBrokerRequest(
     summary: `Run trusted extension ${request.extensionName}: ${request.toolName}`,
     paths: [request.workspacePath],
     network: status.config.allowNetwork ? [request.extensionName] : [],
-    risk: status.config.allowNetwork ? "high" : "medium",
+    risk: effectiveApprovalRisk(approvalOperation),
     allowedScopes: [...allowedScopes],
-    source: request.modelApproval.approved ? "policy" : "model",
-    modelRecommendation: request.modelApproval.approved ? "approve" : "deny",
+    source: modelMayAutoApprove(approvalOperation) ? "policy" : "model",
+    modelRecommendation: modelMayAutoApprove(approvalOperation)
+      ? "approve"
+      : "deny",
     modelReason: request.modelApproval.reason,
     ...(request.actorAgentId ? { actorAgentId: request.actorAgentId } : {}),
   });

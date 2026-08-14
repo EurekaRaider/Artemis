@@ -42,6 +42,9 @@ describe("agent resource overrides", () => {
     expect(prompt).not.toContain("call update_plan");
     expect(prompt).not.toContain("call save_memory");
     expect(prompt).not.toContain("call finish_team");
+    expect(prompt).toContain(
+      "A supervisor assignment is not itself an explicit user request",
+    );
   });
 
   it("reports the configured provider and model instead of a pretrained identity", () => {

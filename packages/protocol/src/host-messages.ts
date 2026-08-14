@@ -301,6 +301,7 @@ export type BrokerExecutionRequest =
       actorAgentId?: string;
       readOnly: boolean;
       destructive: boolean;
+      modelApproval: ModelApprovalDecision;
       mode: RunMode;
     }
   | {

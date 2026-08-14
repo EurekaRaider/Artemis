@@ -80,7 +80,8 @@ describe("observed Bash tools", () => {
       command: "printf 'pi bash ready'",
       deadline_seconds: 10,
       model_approval: {
-        approved: true,
+        risk: "low",
+        explicit_user_request: false,
         reason: "A read-only, task-scoped probe.",
       },
     });
@@ -94,7 +95,8 @@ describe("observed Bash tools", () => {
         kind: "shell.execute",
         command: "printf 'pi bash ready'",
         modelApproval: {
-          approved: true,
+          risk: "low",
+          explicitUserRequest: false,
           reason: "A read-only, task-scoped probe.",
         },
       },

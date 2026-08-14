@@ -92,7 +92,14 @@ describe("MCP task workspace propagation", () => {
     );
     expect(tool).toBeDefined();
 
-    await tool?.execute("mcp-call", { projectPath: workspacePath });
+    await tool?.execute("mcp-call", {
+      arguments: { projectPath: workspacePath },
+      model_approval: {
+        risk: "low",
+        explicit_user_request: false,
+        reason: "Read-only project graph inspection.",
+      },
+    });
 
     expect(requests).toHaveLength(1);
     expect(requests[0]).toMatchObject({
@@ -101,6 +108,12 @@ describe("MCP task workspace propagation", () => {
       workspacePath,
       serverId: "codegraph",
       toolName: "codegraph_status",
+      arguments: { projectPath: workspacePath },
+      modelApproval: {
+        risk: "low",
+        explicitUserRequest: false,
+        reason: "Read-only project graph inspection.",
+      },
     });
 
     host.dispose();
@@ -289,7 +302,16 @@ describe("MCP task workspace propagation", () => {
       (candidate) => candidate.name === "renderer_render",
     );
 
-    await expect(tool?.execute("mcp-call", {})).resolves.toMatchObject({
+    await expect(
+      tool?.execute("mcp-call", {
+        arguments: {},
+        model_approval: {
+          risk: "low",
+          explicit_user_request: false,
+          reason: "Read-only preview rendering.",
+        },
+      }),
+    ).resolves.toMatchObject({
       content: [
         { type: "text", text: "Rendered preview" },
         { type: "image", data: imageData, mimeType: "image/png" },
@@ -355,7 +377,14 @@ describe("MCP task workspace propagation", () => {
     const tool = thread?.executeTools.find(
       (candidate) => candidate.name === "large_read",
     );
-    const result = (await tool?.execute("mcp-call", {})) as {
+    const result = (await tool?.execute("mcp-call", {
+      arguments: {},
+      model_approval: {
+        risk: "low",
+        explicit_user_request: false,
+        reason: "Read-only content retrieval.",
+      },
+    })) as {
       content: Array<{ type: string; text?: string }>;
     };
     const text =

@@ -471,9 +471,16 @@ function lastProviderInput(messages: readonly unknown[]):
 
 const modelApprovalParameter = Type.Object(
   {
-    approved: Type.Boolean({
+    risk: Type.Union(
+      [Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")],
+      {
+        description:
+          "Classify the exact operation: low is read-only without external side effects; medium is scoped, reversible project or temporary-state change; high is destructive, security-sensitive, broad, privileged, sensitive-data access, or an external commitment.",
+      },
+    ),
+    explicit_user_request: Type.Boolean({
       description:
-        "Approve only when this exact operation is in scope, routine, and acceptably reversible. Use false when it is destructive, security-sensitive, ambiguous, or should be decided by the user.",
+        "Use true only when the user's current request directly and unambiguously authorizes this exact action and target. General goals, inferred steps, prior unrelated approvals, and scope changes are false.",
     }),
     reason: Type.String({
       minLength: 1,
@@ -484,10 +491,18 @@ const modelApprovalParameter = Type.Object(
   { additionalProperties: false },
 );
 
-function modelApproval(decision: ModelApprovalDecision): ModelApprovalDecision {
+function modelApproval(decision: {
+  risk: ModelApprovalDecision["risk"];
+  explicit_user_request: boolean;
+  reason: string;
+}): ModelApprovalDecision {
   const reason = decision.reason.trim();
   if (!reason) throw new Error("A model approval reason is required.");
-  return { approved: decision.approved, reason };
+  return {
+    risk: decision.risk,
+    explicitUserRequest: decision.explicit_user_request,
+    reason,
+  };
 }
 
 function toSessionImages(
@@ -2325,7 +2340,7 @@ export class ArtemisAgentHost {
         name: "bash",
         label: "Run shell command",
         description:
-          "Run a shell command with the current desktop user's permissions after recording an explicit model approval decision. Choose deadline_seconds based on the task type. The deadline is only an observation window: when it expires, the process keeps running and this tool returns an execution_id so you can decide whether to call bash_wait or bash_cancel.",
+          "Run a shell command with the current desktop user's permissions after classifying its risk and whether the user explicitly requested the exact action. Choose deadline_seconds based on the task type. The deadline is only an observation window: when it expires, the process keeps running and this tool returns an execution_id so you can decide whether to call bash_wait or bash_cancel.",
         parameters: Type.Object(
           {
             command: Type.String({ minLength: 1 }),
@@ -2445,7 +2460,7 @@ export class ArtemisAgentHost {
         name: "write",
         label: "Write file",
         description:
-          "Write a complete UTF-8 file inside the active Artemis workspace after recording an explicit model approval decision. In agent-approval mode, the desktop executes only model-approved writes automatically and asks the user otherwise.",
+          "Write a complete UTF-8 file inside the active Artemis workspace after classifying its risk and whether the user explicitly requested the exact action. In agent-approval mode, low and medium risk continue automatically; high risk continues only when explicitly requested by the user.",
         parameters: Type.Object({
           path: Type.String({
             description: "Path relative to the active workspace.",
@@ -2507,7 +2522,7 @@ export class ArtemisAgentHost {
         name: "office_document",
         label: "Office document",
         description:
-          "Create, write, read, modify, or delete a normalized PDF, Excel (.xlsx), Word (.docx), or PowerPoint (.pptx) document inside the active workspace. Record an explicit model approval decision; the desktop validates paths and brokers mutations for approval.",
+          "Create, write, read, modify, or delete a normalized PDF, Excel (.xlsx), Word (.docx), or PowerPoint (.pptx) document inside the active workspace. Classify the exact operation's risk and whether the user explicitly requested it; the desktop validates paths and brokers mutations for approval.",
         parameters: Type.Object({
           operation: Type.Union([
             Type.Literal("create"),
@@ -3259,8 +3274,14 @@ export class ArtemisAgentHost {
         defineTool({
           name: tool.piName,
           label: `${tool.serverName}: ${tool.toolName}`,
-          description: tool.description,
-          parameters: tool.inputSchema as TSchema,
+          description: `${tool.description} Provide the MCP arguments plus a risk assessment for this exact call.`,
+          parameters: Type.Object(
+            {
+              arguments: tool.inputSchema as TSchema,
+              model_approval: modelApprovalParameter,
+            },
+            { additionalProperties: false },
+          ),
           execute: async (_toolCallId, parameters) => {
             const hosted = this.threads.get(request.threadId);
             if (!hosted?.currentTurnId) {
@@ -3276,10 +3297,11 @@ export class ArtemisAgentHost {
               serverName: tool.serverName,
               transport: tool.transport,
               toolName: tool.toolName,
-              arguments: parameters as Record<string, unknown>,
+              arguments: parameters.arguments as Record<string, unknown>,
               ...(actorAgentId ? { actorAgentId } : {}),
               readOnly: tool.readOnly,
               destructive: tool.destructive,
+              modelApproval: modelApproval(parameters.model_approval),
               mode: hosted.currentMode ?? "plan",
             });
             if (!result.approved) {
@@ -3324,7 +3346,7 @@ export class ArtemisAgentHost {
         defineTool({
           name: tool.piName,
           label: `${tool.extensionName}: ${tool.label}`,
-          description: `${tool.description} Provide the extension arguments and an explicit model approval decision.`,
+          description: `${tool.description} Provide the extension arguments plus a risk assessment for this exact call.`,
           parameters: Type.Object(
             {
               arguments: tool.inputSchema as TSchema,
