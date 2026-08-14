@@ -1231,6 +1231,22 @@ describe("renderer layout contract", () => {
     );
     expect(settingsSource).toContain("value={providerContextWindow}");
     expect(settingsSource).toContain("value={providerMaxTokens}");
+    const providerFormSource = settingsSource.slice(
+      settingsSource.indexOf(
+        '<form\n                    className="credential-form provider-form"',
+      ),
+      settingsSource.indexOf("{t.configuredProviders}"),
+    );
+    expect(providerFormSource.match(/step=\{1\}/gu)).toHaveLength(2);
+    expect(providerFormSource).not.toContain("step={1_024}");
+    expect(settingsSource).toContain(
+      "const providerIdPattern = /^[a-z0-9][a-z0-9._-]*$/u;",
+    );
+    expect(settingsSource).toContain(
+      'event.target.value.toLocaleLowerCase("en-US")',
+    );
+    expect(settingsSource).toContain('pattern="[a-z0-9][a-z0-9._-]*"');
+    expect(settingsSource).toContain("!providerIdValid");
     expect(settingsSource).toContain(
       "contextWindow: parsedProviderContextWindow",
     );

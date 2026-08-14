@@ -39,6 +39,19 @@ describe("visible model catalog", () => {
           candidate.modelId === "gpt-5.6-sol",
       )?.highestThinkingLevel,
     ).toBe("max");
+    for (const providerId of ["zai", "zai-coding-cn"]) {
+      expect(
+        models.find(
+          (candidate) =>
+            candidate.providerId === providerId &&
+            candidate.modelId === "glm-5.3",
+        ),
+      ).toMatchObject({
+        name: "GLM-5.3",
+        reasoning: true,
+        contextWindow: 1_000_000,
+      });
+    }
     expect(models.every((candidate) => candidate.configured === false)).toBe(
       true,
     );

@@ -328,9 +328,7 @@ describe("Codex conversation shell contract", () => {
     expect(cssDeclarations(".workspace-header-leading")).toMatch(
       /\bflex:\s*1 1 auto/u,
     );
-    expect(cssDeclarations(".header-actions")).toMatch(
-      /\bflex:\s*0 0 auto/u,
-    );
+    expect(cssDeclarations(".header-actions")).toMatch(/\bflex:\s*0 0 auto/u);
     const status = cssDeclarations(".status-pill");
     expect(status).toMatch(/\bflex:\s*0 0 auto/u);
     expect(status).toMatch(/\bwhite-space:\s*nowrap/u);

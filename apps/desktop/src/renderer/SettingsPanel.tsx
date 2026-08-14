@@ -83,7 +83,7 @@ const labels = {
     saveProvider: "Save provider connection",
     cancelEdit: "Cancel edit",
     providerHint:
-      "Use Responses for OpenCode @ai-sdk/openai, or Chat Completions for @ai-sdk/openai-compatible. API key is optional for local services.",
+      "Provider ID uses lowercase letters, numbers, dots, underscores, or hyphens. Use Responses for OpenCode @ai-sdk/openai, or Chat Completions for @ai-sdk/openai-compatible. API key is optional for local services.",
     configuredProviders: "Configured provider connections",
     noProviders: "No custom provider connections",
     apiKey: "API key",
@@ -248,7 +248,7 @@ const labels = {
     saveProvider: "保存 Provider 连接",
     cancelEdit: "取消编辑",
     providerHint:
-      "OpenCode @ai-sdk/openai 请选择 Responses；@ai-sdk/openai-compatible 请选择 Chat Completions。本地服务可以不填写 API Key。",
+      "Provider ID 仅支持小写字母、数字、点、下划线或连字符。OpenCode @ai-sdk/openai 请选择 Responses；@ai-sdk/openai-compatible 请选择 Chat Completions。本地服务可以不填写 API Key。",
     configuredProviders: "已配置的 Provider 连接",
     noProviders: "尚未配置自定义 Provider",
     apiKey: "API Key",
@@ -359,6 +359,7 @@ const labels = {
 
 const DEFAULT_PROVIDER_CONTEXT_WINDOW = 1_000_000;
 const DEFAULT_PROVIDER_MAX_TOKENS = 128_000;
+const providerIdPattern = /^[a-z0-9][a-z0-9._-]*$/u;
 
 type SettingsTab =
   "general" | "providers" | "agents" | "capabilities" | "maintenance";
@@ -555,6 +556,9 @@ export function SettingsPanel({
     parsedContextWindow <=
       (selectedModelInfo?.contextWindow ?? Number.POSITIVE_INFINITY);
   const parsedProviderContextWindow = Number(providerContextWindow);
+  const trimmedProviderId = providerId.trim();
+  const providerIdValid =
+    trimmedProviderId.length <= 80 && providerIdPattern.test(trimmedProviderId);
   const providerContextWindowValid =
     Number.isInteger(parsedProviderContextWindow) &&
     parsedProviderContextWindow >= 1_024 &&
@@ -708,8 +712,8 @@ export function SettingsPanel({
   async function saveProviderConnection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const provider: ProviderConnection = {
-      id: providerId.trim(),
-      name: providerName.trim() || providerId.trim(),
+      id: trimmedProviderId,
+      name: providerName.trim() || trimmedProviderId,
       baseUrl: baseUrl.trim(),
       api: providerApi,
       models: [
@@ -1155,9 +1159,18 @@ export function SettingsPanel({
                   >
                     <input
                       aria-label={t.provider}
+                      autoCapitalize="none"
+                      autoCorrect="off"
                       disabled={busy || Boolean(editingProviderId)}
-                      onChange={(event) => setProviderId(event.target.value)}
+                      maxLength={80}
+                      onChange={(event) =>
+                        setProviderId(
+                          event.target.value.toLocaleLowerCase("en-US"),
+                        )
+                      }
+                      pattern="[a-z0-9][a-z0-9._-]*"
                       placeholder={t.provider}
+                      spellCheck={false}
                       value={providerId}
                     />
                     <input
@@ -1221,7 +1234,7 @@ export function SettingsPanel({
                         onChange={(event) =>
                           setProviderContextWindow(event.target.value)
                         }
-                        step={1_024}
+                        step={1}
                         type="number"
                         value={providerContextWindow}
                       />
@@ -1236,7 +1249,7 @@ export function SettingsPanel({
                         onChange={(event) =>
                           setProviderMaxTokens(event.target.value)
                         }
-                        step={1_024}
+                        step={1}
                         type="number"
                         value={providerMaxTokens}
                       />
@@ -1278,7 +1291,7 @@ export function SettingsPanel({
                       className="settings-primary-action"
                       disabled={
                         busy ||
-                        !providerId.trim() ||
+                        !providerIdValid ||
                         !baseUrl.trim() ||
                         !providerModelId.trim() ||
                         !providerContextWindowValid ||

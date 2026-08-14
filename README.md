@@ -13,13 +13,13 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
   <img alt="Cross-platform build" src="https://img.shields.io/badge/Build-cross--platform-2088FF?logo=githubactions&logoColor=white" />
   <a href="https://www.electronjs.org/"><img alt="Electron 43" src="https://img.shields.io/badge/Electron-43-47848F?logo=electron&logoColor=white" /></a>
   <a href="https://react.dev/"><img alt="React 19" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white" /></a>
-  <a href="https://pi.dev/"><img alt="Pi 0.84.1" src="https://img.shields.io/badge/Agent_core-Pi_0.84.1-8257E5" /></a>
+  <a href="https://pi.dev/"><img alt="Pi 0.84.2" src="https://img.shields.io/badge/Agent_core-Pi_0.84.2-8257E5" /></a>
 </p>
 
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="862 passing tests" src="https://img.shields.io/badge/Tests-862_passing-2EA44F" />
+  <img alt="879 passing tests" src="https://img.shields.io/badge/Tests-879_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -479,13 +479,13 @@ process.
 Settings follows the desktop's resolved locale and is divided into five focused
 pages:
 
-| Page                        | Functions                                                                                                                                                                             |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **General**                 | Model search/selection, thinking level, validated context-window limit, language, theme and approval policy                                                                           |
-| **Providers & credentials** | Built-in Pi catalog, editable custom OpenAI-compatible Chat Completions/Responses providers and models, reasoning/image capabilities, encrypted API keys and explicit Pi OAuth import |
-| **Agent configuration**     | Editable global `AGENTS.md`, configuration scan/preview/import and imported source/category selection without silent credential copying                                               |
-| **MCP & extensions**        | MCP stdio/Streamable HTTP configuration, bearer/OAuth/Registry-header authorization, enablement, trusted-extension selection, hash state, tool inventory and extension network policy |
-| **Updates & diagnostics**   | Update state and actions, local diagnostic-bundle export and maintenance information                                                                                                  |
+| Page                        | Functions                                                                                                                                                                                                                                                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **General**                 | Model search/selection, thinking level, validated context-window limit, language, theme and approval policy                                                                                                                                                                                                     |
+| **Providers & credentials** | Built-in Pi catalog including GLM-5.3 for the Z.AI global and China Coding Plan endpoints; editable custom OpenAI-compatible Chat Completions/Responses providers with lowercase-validated IDs and integer context/output limits; reasoning/image capabilities, encrypted API keys and explicit Pi OAuth import |
+| **Agent configuration**     | Editable global `AGENTS.md`, configuration scan/preview/import and imported source/category selection without silent credential copying                                                                                                                                                                         |
+| **MCP & extensions**        | MCP stdio/Streamable HTTP configuration, bearer/OAuth/Registry-header authorization, enablement, trusted-extension selection, hash state, tool inventory and extension network policy                                                                                                                           |
+| **Updates & diagnostics**   | Update state and actions, local diagnostic-bundle export and maintenance information                                                                                                                                                                                                                            |
 
 The dialog has tab semantics, keyboard focus behavior and Escape-to-close
 support. Model application reports success or failure without silently
@@ -962,11 +962,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **876 passing tests** (4 skipped):
+The current full test run contains **879 passing tests** (4 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       61 |       19 |         99 |     697 |   **876** |
+|       62 |       19 |         99 |     699 |   **879** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -993,13 +993,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.3.29` packaging configuration produces:
+The `1.3.30` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.3.29.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.3.29.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.3.29.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.3.30.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.3.30.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.3.30.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and
