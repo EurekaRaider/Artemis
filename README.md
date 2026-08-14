@@ -427,22 +427,13 @@ requested operation first passes through the active mode policy. The next
 boundary depends on the execution surface instead of applying one sandbox model
 to every local process.
 
-```mermaid
-flowchart LR
-    Request["Tool or process request"] --> Mode["Plan / Execute / Review policy"]
-    Mode -->|"Plan / Review"| Deny["Reject writes and hidden tools"]
-    Mode -->|"Execute"| Broker["Brokered execution approval"]
-    Broker --> Workspace["Validated workspace operation"]
-    Broker --> Bash["Pi Bash as desktop user"]
-    Mode -->|"User opens"| Terminal["Desktop-user Terminal"]
-    Registry["Official MCP Registry metadata"] --> Validate["Validate endpoint, package and setup inputs"]
-    Validate -->|"User installs and connects"| MCP
-    Validate -->|"Encrypt declared secrets"| Secrets["OS-encrypted MCP secrets"]
-    Mode -->|"User enables"| MCP["Desktop-user MCP"]
-    Mode -->|"Project + hash trust"| Trust["Executable extension"]
-    Trust --> Native["AppContainer / Seatbelt"]
-    Trust --> OptIn["Extension-only full local access"]
-```
+![Artemis Trust Fabric](docs/images/artemis-trust-fabric.png)
+
+The official MCP Registry is a discovery input to this trust fabric, not a
+trusted execution source. Its installation path is independently validated
+before a server can be saved, connected or exposed to the Agent runtime.
+
+![Artemis MCP Registry Trust Fabric](docs/images/artemis-mcp-trust-fabric.png)
 
 #### Interaction control
 
@@ -930,36 +921,7 @@ bounded subteam and must integrate it before completing.
 
 ### Architecture
 
-```mermaid
-flowchart LR
-    UI["React Renderer<br/>sandboxed · no Node"] --> Preload["Typed Preload API"]
-    Preload --> Main["Electron Main<br/>lifecycle · policy · persistence"]
-    Main <--> Agent["Utility Process<br/>Pi Agent Host"]
-
-    Agent --> Pi["Pi SDK<br/>single agent loop"]
-    Pi --> Cache["ModelRuntime Prompt Cache<br/>stable key · model-aware policy"]
-    Cache --> Provider["Model Provider<br/>Responses / Chat Completions"]
-    Pi --> Adapter["PiAdapter<br/>normalized usage events"]
-    Adapter --> Main
-    Pi --> Team["Tree coordinator<br/>64 logical · depth 5 · fanout 8"]
-    Team --> Children["In-memory child Pi sessions<br/>nested delegation"]
-    Team --> Capacity["Dynamic active capacity<br/>auto 2–16 · manual 2–64"]
-    Agent --> Gate["Mode + approval broker"]
-    Children --> Gate
-    Gate --> Workspace["Validated workspace tools"]
-    Gate --> UserExec["Approved desktop-user Pi Bash"]
-    Agent --> MCP["Enabled desktop-user MCP"]
-    Main --> Terminal["Desktop-user PTY"]
-    Main --> Browser["Sandboxed HTTP(S) Browser"]
-    Main --> Extension["Trusted extension"]
-    Extension --> Native["AppContainer / Seatbelt"]
-    Extension --> FullAccess["Optional extension full access"]
-
-    Main --> SQLite[("SQLite WAL<br/>desktop projection")]
-    Agent --> JSONL[("Pi JSONL<br/>conversation source")]
-    Main --> Memory["Project / global<br/>Markdown memory"]
-    Main --> Secrets["DPAPI / Keychain<br/>safeStorage"]
-```
+![Artemis system architecture](docs/images/artemis-system-architecture.png)
 
 <details>
 <summary><strong>Inspect architecture invariants</strong></summary>
