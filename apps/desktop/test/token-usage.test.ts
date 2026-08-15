@@ -159,4 +159,55 @@ describe("token usage activity", () => {
     expect(metrics.hitRate).toBeUndefined();
     expect(metrics.coverage).toBe(0);
   });
+
+  it("infers compatible endpoint reporting from cache reads on the same key", () => {
+    const cached = usageEvent("usage-13", "2026-07-27T07:00:00.000Z", 1_000);
+    cached.payload = {
+      type: "assistant.usage",
+      inputTokens: 100,
+      outputTokens: 100,
+      cacheReadTokens: 800,
+      cacheWriteTokens: 0,
+      totalTokens: 1_000,
+      cacheReadReported: false,
+      cachePolicy: "short",
+      cachePolicyReason: "non-official-endpoint",
+      cacheKeyFingerprint: "0123456789abcdef",
+    };
+    const cold = usageEvent("usage-14", "2026-07-27T08:00:00.000Z", 1_000);
+    cold.payload = {
+      type: "assistant.usage",
+      inputTokens: 900,
+      outputTokens: 100,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalTokens: 1_000,
+      cacheReadReported: false,
+      cachePolicy: "short",
+      cachePolicyReason: "non-official-endpoint",
+      cacheKeyFingerprint: "0123456789abcdef",
+    };
+    const unknown = usageEvent("usage-15", "2026-07-27T09:00:00.000Z", 1_000);
+    unknown.payload = {
+      type: "assistant.usage",
+      inputTokens: 900,
+      outputTokens: 100,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalTokens: 1_000,
+      cacheReadReported: false,
+      cachePolicy: "short",
+      cachePolicyReason: "non-official-endpoint",
+      cacheKeyFingerprint: "fedcba9876543210",
+    };
+
+    expect(buildCacheUsageMetrics([cold, unknown, cached])).toMatchObject({
+      usageEvents: 3,
+      reportedEvents: 2,
+      reportedInputTokens: 1_800,
+      cacheReadTokens: 800,
+      hitRate: 800 / 1_800,
+      coverage: 2 / 3,
+    });
+  });
 });

@@ -64,19 +64,19 @@ function toolNames(tools: InspectableTool[]): string[] {
   return tools.map((tool) => tool.name);
 }
 
-describe("observed Bash tools", () => {
+describe("observed shell tools", () => {
   it("are available with full local execution in Execute only", async () => {
     const { host, thread, requests } = await openInspectableHost();
 
     expect(toolNames(thread.executeTools)).toEqual(
-      expect.arrayContaining(["bash", "bash_wait", "bash_cancel"]),
+      expect.arrayContaining(["shell", "shell_wait", "shell_cancel"]),
     );
-    expect(toolNames(thread.delegatedTools)).not.toContain("bash");
+    expect(toolNames(thread.delegatedTools)).not.toContain("shell");
 
-    const bash = thread.executeTools.find((tool) => tool.name === "bash");
-    expect(bash).toBeDefined();
+    const shell = thread.executeTools.find((tool) => tool.name === "shell");
+    expect(shell).toBeDefined();
     thread.currentTurnId = "bash-turn";
-    const result = await bash!.execute("bash-call", {
+    const result = await shell!.execute("bash-call", {
       command: "printf 'pi bash ready'",
       deadline_seconds: 10,
       model_approval: {
@@ -89,6 +89,10 @@ describe("observed Bash tools", () => {
       status: "completed",
       outputDelta: "pi bash ready",
       observationExpired: false,
+      shell: {
+        shell: { kind: expect.any(String), executable: expect.any(String) },
+        profileMode: "environment",
+      },
     });
     expect(requests).toMatchObject([
       {

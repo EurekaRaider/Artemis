@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="879 passing tests" src="https://img.shields.io/badge/Tests-879_passing-2EA44F" />
+  <img alt="895 passing tests" src="https://img.shields.io/badge/Tests-895_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -68,8 +68,8 @@ credentials are protected with operating-system encryption.
       <h3>Explicit boundaries by design</h3>
       <p><strong>Read-only modes, user-authorized integrations and extension trust have distinct boundaries.</strong></p>
       <ul>
-        <li>Plan and Review deny writes before an executor or filesystem call runs and do not expose Bash, MCP or executable extensions.</li>
-        <li>Approved Pi Bash, the integrated Terminal and enabled local stdio MCP servers intentionally run with the desktop user's filesystem and network permissions.</li>
+        <li>Plan and Review deny writes before an executor or filesystem call runs and do not expose Shell, MCP or executable extensions.</li>
+        <li>The approved platform Shell, integrated Terminal and enabled local stdio MCP servers intentionally run with the desktop user's filesystem and network permissions.</li>
         <li>Executable extensions require project and content-hash trust; they use the native sandbox unless extension-only full local access is enabled.</li>
         <li>API keys, OAuth records, bearer tokens and PKCE material use Electron <code>safeStorage</code>.</li>
       </ul>
@@ -318,7 +318,7 @@ tasks. Interactive tasks run against the repository's local checkout.
 > The Renderer is sandboxed and has no Node integration. It reaches the desktop only through a typed, validated preload API.
 
 > [!WARNING]
-> Automations run only while the desktop app is open; Artemis does not install an operating-system service or wake a stopped app. Plan and Review keep their write-denial policy. Execute automations require an explicit native warning confirmation because their brokered approvals are granted automatically and built-in Pi `bash` runs with the desktop user's permissions. Changing the prompt, mode, target, project, or schedule revokes that authorization and disables the automation until it is confirmed again.
+> Automations run only while the desktop app is open; Artemis does not install an operating-system service or wake a stopped app. Plan and Review keep their write-denial policy. Execute automations require an explicit native warning confirmation because their brokered approvals are granted automatically and the platform-native `shell` tool runs with the desktop user's permissions. Changing the prompt, mode, target, project, or schedule revokes that authorization and disables the automation until it is confirmed again.
 
 ### Workspace tools
 
@@ -353,11 +353,11 @@ and submit the remaining text. `Shift+Tab` cycles **Plan → Execute → Review*
 while the composer is idle. Invalid command combinations are shown above the
 composer for ten seconds, then fade away without covering task progress.
 
-| Mode        | Intended use                                                   |                    Workspace writes | Available execution                                                                             |
-| ----------- | -------------------------------------------------------------- | ----------------------------------: | ----------------------------------------------------------------------------------------------- |
-| **Plan**    | Investigation and implementation planning                      |             Denied before execution | Read-only discovery, planning and read-only child coordination                                  |
-| **Execute** | Repository implementation, general work and portable documents | Allowed through policy and approval | Read/write, Bash, Terminal, Git, Office, memory, MCP, trusted extensions and child coordination |
-| **Review**  | Code and change inspection                                     |             Denied before execution | Read-only discovery, child coordination and Review surfaces                                     |
+| Mode        | Intended use                                                   |                    Workspace writes | Available execution                                                                              |
+| ----------- | -------------------------------------------------------------- | ----------------------------------: | ------------------------------------------------------------------------------------------------ |
+| **Plan**    | Investigation and implementation planning                      |             Denied before execution | Read-only discovery, planning and read-only child coordination                                   |
+| **Execute** | Repository implementation, general work and portable documents | Allowed through policy and approval | Read/write, Shell, Terminal, Git, Office, memory, MCP, trusted extensions and child coordination |
+| **Review**  | Code and change inspection                                     |             Denied before execution | Read-only discovery, child coordination and Review surfaces                                      |
 
 Plan and Review are policy states, not prompt suggestions. Their writes are
 rejected before an executor or filesystem operation is called. `update_plan`
@@ -437,23 +437,23 @@ before a server can be saved, connected or exposed to the Agent runtime.
 
 #### Interaction control
 
-| Control                      | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Brokered execution tools** | Carry a model risk assessment (`low`, `medium`, or `high`) and an exact-operation check against the user's current request. In **Approve for me** mode, low- and medium-risk Bash, workspace, Office, MCP and trusted-extension operations continue automatically. High-risk operations continue automatically only when the user directly and unambiguously requested that exact action and target; otherwise they fall back to a human approval card. Trusted host metadata is enforced as a minimum risk floor, and Custom mode retains exact-target approval memory. |
-| **Workflow choices**         | Use one structured question at a time with two or three options, a custom-answer path and one model recommendation. They support keyboard navigation; if no answer arrives within five minutes, the recommended option is recorded and used automatically.                                                                                                                                                                                                                                                                                                               |
-| **Replay protection**        | Uses host-generated nonces; cancellation revokes outstanding approvals and workflow choices. Unresolved interactions recover safely after restart.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Control                      | Behavior                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Brokered execution tools** | Carry a model risk assessment (`low`, `medium`, or `high`) and an exact-operation check against the user's current request. In **Approve for me** mode, low- and medium-risk Shell, workspace, Office, MCP and trusted-extension operations continue automatically. High-risk operations continue automatically only when the user directly and unambiguously requested that exact action and target; otherwise they fall back to a human approval card. Trusted host metadata is enforced as a minimum risk floor, and Custom mode retains exact-target approval memory. |
+| **Workflow choices**         | Use one structured question at a time with two or three options, a custom-answer path and one model recommendation. They support keyboard navigation; if no answer arrives within five minutes, the recommended option is recorded and used automatically.                                                                                                                                                                                                                                                                                                                |
+| **Replay protection**        | Uses host-generated nonces; cancellation revokes outstanding approvals and workflow choices. Unresolved interactions recover safely after restart.                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 #### Execution surfaces
 
 | Surface                  | Effective boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Pi Bash**              | Available only in Execute. After brokered model or user approval, it intentionally inherits the current desktop user's full filesystem and network permissions.                                                                                                                                                                                                                                                                                                                                                      |
+| **Platform Shell**       | Available only in Execute. Windows prefers a verified PowerShell 7 `pwsh.exe` and falls back to Windows PowerShell 5.1; macOS uses a supported user zsh/bash with safe fallbacks. After brokered model or user approval, it intentionally inherits the current desktop user's full filesystem and network permissions.                                                                                                                                                                                               |
 | **Integrated Terminal**  | Opened by the user and inherits the current desktop user's filesystem and network permissions without automatic administrator elevation.                                                                                                                                                                                                                                                                                                                                                                             |
 | **MCP Registry install** | The official Registry is a discovery source, not a security endorsement. Artemis re-fetches the selected name and version, accepts only validated fixed HTTPS endpoints or version-pinned npm/stdio packages from the official npm registry, requires an explicit install-and-connect action, and keeps declared secret headers or environment values in OS-encrypted storage.                                                                                                                                       |
 | **MCP runtime**          | Registry-installed and manually configured servers share the same runtime boundary. In **Approve for me** mode, each call carries a model risk assessment while server-provided read-only/destructive annotations set a minimum risk floor; high-risk calls require either an exact explicit user request or human approval. Other approval modes retain their documented exact trusted-host behavior. Local stdio servers intentionally inherit the current desktop user's full filesystem and network permissions. |
 | **Extensions**           | Remain disabled until project and content-hash trust are explicit. They run in AppContainer on Windows or Seatbelt on macOS by default; the **Full local access** setting opts extensions alone into desktop-user permissions.                                                                                                                                                                                                                                                                                       |
 | **Browser**              | Has normal HTTP/HTTPS access but no Node integration, preload API or local-file access.                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| **Plan and Review**      | Reject writes before an executor or filesystem call and do not expose Pi Bash, MCP or executable extensions.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Plan and Review**      | Reject writes before an executor or filesystem call and do not expose Shell, MCP or executable extensions.                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 > [!CAUTION]
 > **macOS validation boundary** — Lite engineering packages generate separate Apple Silicon arm64 and Intel x64 artifacts. Local checks cover archive integrity, architecture, the ad-hoc engineering signature and packaged resources; the x64 result is a static build validation only. Intel-native launch, Developer ID signing, notarization, stapling, PTY/Seatbelt and update/rollback release acceptance remain separate native gates.
@@ -468,8 +468,10 @@ process.
   permissions and never requests administrator elevation;
 - uses `@xterm/addon-fit` so PTY rows and columns match the actual panel size;
 - resizes the native PTY through the typed preload bridge;
-- starts PowerShell on Windows and zsh on macOS with platform-appropriate
-  history behavior;
+- prefers PowerShell 7 on Windows with a Windows PowerShell 5.1 fallback, and
+  uses a supported user zsh/bash on macOS;
+- loads the normal interactive profile in the PTY, while Agent Shell commands
+  remain non-interactive and use the configured environment/profile policy;
 - is available with the Execute surface;
 - ships platform-specific Node-API prebuilds outside asar, with packaging checks
   for the Windows Electron runtime.
@@ -623,7 +625,7 @@ confirmed operation:
   MCP definition has been modified outside the plugin manager.
 
 This compatibility layer does not turn plugins into trusted executable Pi
-extensions and does not relax Plan/Review, Bash, Terminal, MCP or extension
+extensions and does not relax Plan/Review, Shell, Terminal, MCP or extension
 permission boundaries.
 
 </details>
@@ -861,7 +863,7 @@ bounded subteam and must integrate it before completing.
 - **Conflict control** — active write scopes must be disjoint; overlapping
   scopes are rejected, and an empty scope makes the brokered workspace write
   tool read-only. This is a team coordination contract rather than an operating
-  system sandbox: approved Pi Bash still has the Execute-mode desktop-user
+  system sandbox: the approved platform Shell still has the Execute-mode desktop-user
   permissions described below.
 
 </details>
@@ -935,9 +937,9 @@ bounded subteam and must integrate it before completing.
 - Every persisted UI event uses a versioned envelope and an idempotent reducer.
 - The Renderer never imports Electron main-process or Node APIs.
 - Plan and Review writes are denied before an executor runs and do not expose
-  Pi Bash, MCP or executable extensions.
-- Pi's built-in `bash` runs with the current desktop user's full permissions in
-  Execute after brokered model or user approval. The user-opened
+  Shell, MCP or executable extensions.
+- The platform-native `shell` tool runs with the current desktop user's full
+  permissions in Execute after brokered model or user approval. The user-opened
   integrated Terminal and enabled local stdio MCP servers also inherit the
   current desktop user's filesystem and network permissions; non-destructive
   and exact policy-exempt MCP tools are auto-approved after enablement.
@@ -962,11 +964,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **879 passing tests** (4 skipped):
+The current full test run contains **895 passing tests** (5 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       62 |       19 |         99 |     699 |   **879** |
+|       62 |       23 |        105 |     705 |   **895** |
 
 Coverage includes replay-safe protocol reduction, mode policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
@@ -993,13 +995,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.3.30` packaging configuration produces:
+The `1.4.0` packaging configuration produces:
 
-| Target                    | Artifacts                                                        |
-| ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.3.30.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.3.30.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.3.30.dmg` and `.zip`   |
+| Target                    | Artifacts                                                       |
+| ------------------------- | --------------------------------------------------------------- |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.0.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.0.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.0.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and

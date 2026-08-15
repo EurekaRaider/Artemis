@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9,7 +9,7 @@ import { TerminalService } from "../src/main/terminal-service.js";
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryPath = resolve(testDirectory, "..", "..", "..");
 
-describe("TerminalService Windows integration", () => {
+describe("TerminalService native integration", () => {
   it.runIf(process.platform === "win32")(
     "runs an interactive PTY with the current desktop user's filesystem and network access",
     async () => {
@@ -84,5 +84,65 @@ describe("TerminalService Windows integration", () => {
       }
     },
     90_000,
+  );
+
+  it.runIf(process.platform === "darwin")(
+    "runs the macOS login shell in a PTY and loads its interactive profile",
+    async () => {
+      const workspacePath = await mkdtemp(
+        join(repositoryPath, ".artemis-pty-macos-"),
+      );
+      const previousZdotdir = process.env.ZDOTDIR;
+      await writeFile(
+        join(workspacePath, ".zshrc"),
+        "export ARTEMIS_TERMINAL_PROFILE='loaded'\n",
+        "utf8",
+      );
+      process.env.ZDOTDIR = workspacePath;
+      let output = "";
+      let resolveExit: ((exitCode: number) => void) | undefined;
+      const exited = new Promise<number>((resolvePromise) => {
+        resolveExit = resolvePromise;
+      });
+      let timeoutHandle: NodeJS.Timeout | undefined;
+      const service = new TerminalService("darwin", {
+        onData: (_terminalId, data) => {
+          output += data;
+        },
+        onExit: ({ exitCode }) => {
+          resolveExit?.(exitCode);
+        },
+      });
+
+      try {
+        const terminal = service.open({
+          threadId: "native-macos-pty",
+          workspacePath,
+          shell: "/bin/zsh",
+          cols: 100,
+          rows: 30,
+        });
+        service.write(
+          terminal.terminalId,
+          'printf "ARTEMIS_MAC_PTY_%s|%s\\n" "$PWD" "$ARTEMIS_TERMINAL_PROFILE"; exit\r',
+        );
+
+        const timeout = new Promise<never>((_resolve, reject) => {
+          timeoutHandle = setTimeout(
+            () => reject(new Error(`PTY timed out. Output:\n${output}`)),
+            30_000,
+          );
+        });
+        expect(await Promise.race([exited, timeout]), output).toBe(0);
+        expect(output).toContain(`ARTEMIS_MAC_PTY_${workspacePath}|loaded`);
+      } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        service.dispose();
+        if (previousZdotdir === undefined) delete process.env.ZDOTDIR;
+        else process.env.ZDOTDIR = previousZdotdir;
+        await rm(workspacePath, { recursive: true, force: true });
+      }
+    },
+    45_000,
   );
 });

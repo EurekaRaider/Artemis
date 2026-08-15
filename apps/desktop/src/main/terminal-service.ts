@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { execFileSync } from "node:child_process";
-import { realpathSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { isAbsolute } from "node:path";
 
-import { type SandboxCommand } from "@artemis/platform";
+import {
+  resolveShellRuntime,
+  type ResolvedShellRuntime,
+  type SandboxCommand,
+} from "@artemis/platform";
+import type { WindowsShellPreference } from "@artemis/protocol";
 import type { IPty } from "node-pty";
 
 export interface TerminalDescriptor {
@@ -43,12 +45,17 @@ export type PtyFactory = (
   options: TerminalSpawnOptions,
 ) => PtyProcess;
 
-export type WindowsExecutableResolver = (executable: string) => string;
+export type TerminalShellResolver = (input: {
+  platform: NodeJS.Platform;
+  requestedShell: string;
+  windowsPreference: WindowsShellPreference;
+}) => ResolvedShellRuntime;
 
 export interface OpenTerminalInput {
   threadId: string;
   workspacePath: string;
   shell: string;
+  windowsPreference?: WindowsShellPreference;
   cols: number;
   rows: number;
 }
@@ -105,26 +112,6 @@ function defaultPtyFactory(
   return configuredNodePty.spawn(executable, args, options);
 }
 
-function defaultWindowsExecutableResolver(executable: string): string {
-  const candidate = isAbsolute(executable)
-    ? executable
-    : execFileSync("where.exe", [executable], {
-        encoding: "utf8",
-        windowsHide: true,
-      })
-        .split(/\r?\n/u)
-        .find((path) => path.trim())
-        ?.trim();
-  if (!candidate) {
-    throw new Error(`Windows terminal executable was not found: ${executable}`);
-  }
-  const canonicalPath = realpathSync.native(candidate);
-  if (!statSync(canonicalPath).isFile()) {
-    throw new Error(`Windows terminal executable is not a file: ${executable}`);
-  }
-  return canonicalPath;
-}
-
 const windowsTerminalBootstrap = [
   "if ((Get-Location).Path -ne $env:ARTEMIS_WORKSPACE) { Set-Location -LiteralPath $env:ARTEMIS_WORKSPACE -ErrorAction Stop }",
   "Set-PSReadLineOption -HistorySaveStyle SaveNothing",
@@ -149,7 +136,13 @@ export class TerminalService {
     private readonly platform: NodeJS.Platform,
     private readonly events: TerminalServiceEvents,
     private readonly createPty: PtyFactory = defaultPtyFactory,
-    private readonly resolveWindowsExecutable: WindowsExecutableResolver = defaultWindowsExecutableResolver,
+    private readonly resolveTerminalShell: TerminalShellResolver = (input) =>
+      resolveShellRuntime({
+        platform: input.platform,
+        env: process.env,
+        requestedShell: input.requestedShell,
+        windowsPreference: input.windowsPreference,
+      }),
   ) {}
 
   open(input: OpenTerminalInput): TerminalDescriptor {
@@ -159,16 +152,17 @@ export class TerminalService {
     }
 
     const terminalId = randomUUID();
+    const resolvedShell = this.resolveTerminalShell({
+      platform: this.platform,
+      requestedShell: input.shell,
+      windowsPreference: input.windowsPreference ?? "auto",
+    });
     const command: SandboxCommand = {
-      executable:
-        this.platform === "win32"
-          ? this.resolveWindowsExecutable(input.shell)
-          : input.shell,
+      executable: resolvedShell.executable,
       args:
         this.platform === "win32"
           ? [
               "-NoLogo",
-              "-NoProfile",
               "-NoExit",
               "-EncodedCommand",
               Buffer.from(windowsTerminalBootstrap, "utf16le").toString(
@@ -223,7 +217,7 @@ export class TerminalService {
 
     return {
       terminalId,
-      shell: input.shell,
+      shell: resolvedShell.executable,
       sandboxImplementation: "desktop-user",
     };
   }

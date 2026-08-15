@@ -295,12 +295,12 @@ describe("PiAdapter", () => {
     ]);
   });
 
-  it("maps observed Bash results to terminal output without execution metadata", () => {
+  it("maps observed shell results to terminal output without execution metadata", () => {
     const adapter = new PiAdapter("turn-1");
     adapter.adapt({
       type: "tool_execution_start",
       toolCallId: "bash-1",
-      toolName: "bash",
+      toolName: "shell",
       args: { command: "ls" },
     });
 

@@ -42,6 +42,35 @@ export type AppLanguage = z.infer<typeof appLanguageSchema>;
 export const appThemeSchema = z.enum(["system", "light", "dark"]);
 export type AppTheme = z.infer<typeof appThemeSchema>;
 
+export const windowsShellPreferenceSchema = z.enum([
+  "auto",
+  "powershell7",
+  "windows-powershell",
+]);
+export type WindowsShellPreference = z.infer<
+  typeof windowsShellPreferenceSchema
+>;
+
+export const shellProfileModeSchema = z.enum([
+  "environment",
+  "full",
+  "disabled",
+]);
+export type ShellProfileMode = z.infer<typeof shellProfileModeSchema>;
+
+export const shellRuntimeConfigurationSchema = z.object({
+  windowsPreference: windowsShellPreferenceSchema,
+  profileMode: shellProfileModeSchema,
+});
+export type ShellRuntimeConfiguration = z.infer<
+  typeof shellRuntimeConfigurationSchema
+>;
+
+export const DEFAULT_SHELL_RUNTIME_CONFIGURATION: ShellRuntimeConfiguration = {
+  windowsPreference: "auto",
+  profileMode: "environment",
+};
+
 export const contextWindowSchema = z.number().int().min(1_024).max(10_000_000);
 
 const providerModelSchema = z.object({

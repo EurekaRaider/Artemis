@@ -5,6 +5,7 @@ import type {
   PromptAttachment,
   ProviderConnection,
   RunMode,
+  ShellRuntimeConfiguration,
   ThinkingLevel,
   WorkspaceTarget,
   UserInputOption,
@@ -89,6 +90,7 @@ export interface ExtensionRuntimeTool {
 
 export interface AgentRuntimeConfiguration {
   credentials: Record<string, RuntimeCredential>;
+  shell?: ShellRuntimeConfiguration;
   providers?: ProviderConnection[];
   selection?: ModelSelection;
   contextWindow?: number;

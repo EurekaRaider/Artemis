@@ -30,8 +30,8 @@ export interface PromptCacheResolution {
   stablePrefixTokens: number;
   cacheKeyRequestsPerMinute: number;
   cacheKeyRateWarning: boolean;
-  cacheReadReported: boolean;
-  cacheWriteReported: boolean;
+  cacheReadReported?: boolean;
+  cacheWriteReported?: boolean;
 }
 
 interface PromptCacheSession {
@@ -181,6 +181,9 @@ export class PromptCacheController {
   private readonly sessions = new Map<string, PromptCacheSession>();
   private readonly requestTimes = new Map<string, number[]>();
   private readonly latest = new Map<string, PromptCacheResolution>();
+  private readonly latestReportingKeys = new Map<string, string>();
+  private readonly cacheReadReportingKeys = new Set<string>();
+  private readonly cacheWriteReportingKeys = new Set<string>();
 
   registerSession(sessionId: string, session: PromptCacheSession): void {
     this.sessions.set(sessionId, { ...session });
@@ -200,11 +203,34 @@ export class PromptCacheController {
   unregisterSession(sessionId: string): void {
     this.sessions.delete(sessionId);
     this.latest.delete(sessionId);
+    this.latestReportingKeys.delete(sessionId);
   }
 
   latestResolution(sessionId: string): PromptCacheResolution | undefined {
     const resolution = this.latest.get(sessionId);
     return resolution ? structuredClone(resolution) : undefined;
+  }
+
+  observeUsage(
+    sessionId: string,
+    usage: {
+      cacheReadTokens: number;
+      cacheWriteTokens: number;
+      cacheReadReported?: boolean | undefined;
+      cacheWriteReported?: boolean | undefined;
+    },
+  ): void {
+    const resolution = this.latest.get(sessionId);
+    const reportingKey = this.latestReportingKeys.get(sessionId);
+    if (!resolution || !reportingKey) return;
+    if (usage.cacheReadReported === true || usage.cacheReadTokens > 0) {
+      this.cacheReadReportingKeys.add(reportingKey);
+      resolution.cacheReadReported = true;
+    }
+    if (usage.cacheWriteReported === true || usage.cacheWriteTokens > 0) {
+      this.cacheWriteReportingKeys.add(reportingKey);
+      resolution.cacheWriteReported = true;
+    }
   }
 
   resolve(
@@ -219,6 +245,13 @@ export class PromptCacheController {
       priorTopLevelUserTurns: 0,
     };
     const official = isOfficialOpenAIEndpoint(model.baseUrl);
+    const reportingKey = digest(
+      JSON.stringify({
+        provider: model.provider,
+        api: model.api,
+        baseUrl: model.baseUrl,
+      }),
+    );
     let policy: PromptCachePolicy;
     let reason: PromptCachePolicyReason;
 
@@ -293,10 +326,16 @@ export class PromptCacheController {
       stablePrefixTokens: Math.ceil(systemPrompt.length / 4),
       cacheKeyRequestsPerMinute,
       cacheKeyRateWarning: cacheKeyRequestsPerMinute >= CACHE_KEY_WARNING_RPM,
-      cacheReadReported: official,
-      cacheWriteReported: policy === "explicit-30m",
+      ...(official || this.cacheReadReportingKeys.has(reportingKey)
+        ? { cacheReadReported: true }
+        : {}),
+      ...(policy === "explicit-30m" ||
+      this.cacheWriteReportingKeys.has(reportingKey)
+        ? { cacheWriteReported: true }
+        : {}),
     };
     this.latest.set(sessionId, resolution);
+    this.latestReportingKeys.set(sessionId, reportingKey);
     return resolution;
   }
 }

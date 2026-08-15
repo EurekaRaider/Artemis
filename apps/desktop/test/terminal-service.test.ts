@@ -70,7 +70,12 @@ describe("TerminalService", () => {
       "win32",
       { onData, onExit },
       factory,
-      () => shell,
+      () => ({
+        kind: "powershell",
+        executable: shell,
+        edition: "Desktop",
+        version: "5.1",
+      }),
     );
 
     const descriptor = service.open({
@@ -84,12 +89,7 @@ describe("TerminalService", () => {
     const [executable, args, options] = factory.mock.calls[0]!;
     expect(executable).toBe(shell);
     expect(args).toEqual(
-      expect.arrayContaining([
-        "-NoLogo",
-        "-NoProfile",
-        "-NoExit",
-        "-EncodedCommand",
-      ]),
+      expect.arrayContaining(["-NoLogo", "-NoExit", "-EncodedCommand"]),
     );
     expect(`${executable}\0${args.join("\0")}`).not.toMatch(
       /windows-sandbox|appcontainer|runas|start-process.*-verb\s+runas/iu,
@@ -106,14 +106,20 @@ describe("TerminalService", () => {
     expect(onData).toHaveBeenCalledWith(descriptor.terminalId, "C:\\repo");
   });
 
-  it("disables persistent PSReadLine history without wrapping interactive PowerShell", () => {
+  it("loads the interactive PowerShell profile while disabling persistent history", () => {
     const fake = new FakePty();
     const factory = vi.fn(() => fake) as PtyFactory;
     const service = new TerminalService(
       "win32",
       { onData: vi.fn(), onExit: vi.fn() },
       factory,
-      () => "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      () => ({
+        kind: "powershell",
+        executable:
+          "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        edition: "Desktop",
+        version: "5.1",
+      }),
     );
 
     const descriptor = service.open({
@@ -131,15 +137,11 @@ describe("TerminalService", () => {
       "interactive PowerShell must not be launched through a helper script",
     ).toBe(false);
     expect(shellArguments).toEqual(
-      expect.arrayContaining([
-        "-NoLogo",
-        "-NoProfile",
-        "-NoExit",
-        "-EncodedCommand",
-      ]),
+      expect.arrayContaining(["-NoLogo", "-NoExit", "-EncodedCommand"]),
     );
     expect(shellArguments).not.toContain("-ArgumentsBase64");
     expect(shellArguments).not.toContain("-File");
+    expect(shellArguments).not.toContain("-NoProfile");
     const bootstrapIndex = shellArguments.indexOf("-EncodedCommand");
     const bootstrap = Buffer.from(
       shellArguments[bootstrapIndex + 1] ?? "",

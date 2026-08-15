@@ -245,7 +245,7 @@ describe("sub-agent control tools", () => {
           (tool) => tool.name,
         );
         expect(activeTools).not.toEqual(
-          expect.arrayContaining(["bash", "write", "office_document"]),
+          expect.arrayContaining(["shell", "write", "office_document"]),
         );
       }
     }

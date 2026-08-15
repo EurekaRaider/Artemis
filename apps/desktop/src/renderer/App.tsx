@@ -426,7 +426,7 @@ const copy = {
     queueEdit: "Edit queued message",
     sandboxUnavailable: "Native command sandbox is not installed",
     sandboxDetail:
-      "Pi bash and the Terminal use your desktop permissions. Sandboxed MCP and extension execution remain locked.",
+      "The platform Shell and Terminal use your desktop permissions. Sandboxed MCP and extension execution remain locked.",
     terminalLocked: "Terminal locked until the native executor is available.",
     refreshDiff: "Refresh",
     addAttachments: "Add files or images",
@@ -647,7 +647,7 @@ const copy = {
     queueEdit: "编辑排队消息",
     sandboxUnavailable: "尚未安装原生命令沙箱",
     sandboxDetail:
-      "Pi bash 与终端使用当前桌面用户权限；MCP 与扩展的沙箱执行保持锁定。",
+      "平台 Shell 与终端使用当前桌面用户权限；MCP 与扩展的沙箱执行保持锁定。",
     terminalLocked: "原生执行器可用前，终端保持锁定。",
     refreshDiff: "刷新",
     addAttachments: "添加文件或图片",

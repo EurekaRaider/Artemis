@@ -34,6 +34,7 @@ import electronUpdater from "electron-updater";
 import {
   evaluateModePolicy,
   getPlatformContract,
+  resolveShellRuntime,
   resolveWorkspacePath,
 } from "@artemis/platform";
 import type {
@@ -58,6 +59,7 @@ import type {
   Project,
   ProviderConnection,
   RiskLevel,
+  ShellRuntimeConfiguration,
   TaskWorktree,
   Thread,
   ThreadCommand,
@@ -80,6 +82,7 @@ import {
   reviewMutationInputSchema,
   reviewQuerySchema,
   runModeSchema,
+  shellRuntimeConfigurationSchema,
   threadCommandSchema,
   userInputRequestedPayloadSchema,
   userInputResolutionSchema,
@@ -1301,12 +1304,14 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     128_000;
   const workspaceDockWidth = await settingsStore.workspaceDockWidth();
   return {
+    platform: contract.platform,
     encryptionAvailable: settingsStore.encryptionAvailable,
     language: await settingsStore.languagePreference(),
     theme: await settingsStore.themePreference(),
     resolvedLocale: currentLocale(),
     approvalPolicy: await settingsStore.approvalPolicy(),
     localFullAccess: await settingsStore.localFullAccess(),
+    shell: await settingsStore.shellRuntimeConfiguration(),
     fullAccessAvailable: contract.sandbox.available,
     contextWindow,
     models,
@@ -4082,6 +4087,30 @@ function registerIpc(): void {
     },
   );
   ipcMain.handle(
+    IPC.settingsShellRuntimeSet,
+    async (
+      _event,
+      value: ShellRuntimeConfiguration,
+    ): Promise<SettingsSnapshot> => {
+      if (!settingsStore) {
+        throw new Error("Agent settings are not ready.");
+      }
+      if (activeTurns.size > 0) {
+        throw new Error("Stop active turns before changing shell settings.");
+      }
+      const configuration = shellRuntimeConfigurationSchema.parse(value);
+      resolveShellRuntime({
+        platform: process.platform,
+        env: process.env,
+        windowsPreference: configuration.windowsPreference,
+      });
+      await resetAgentThreadsForToolChange();
+      await settingsStore.setShellRuntimeConfiguration(configuration);
+      await applyAgentRuntime();
+      return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
     IPC.settingsAgentConcurrencySet,
     async (
       _event,
@@ -5797,7 +5826,7 @@ function registerIpc(): void {
   );
 
   ipcMain.handle(IPC.terminalOpen, async (_event, input: TerminalOpenInput) => {
-    if (!store || !terminalService) {
+    if (!store || !terminalService || !settingsStore) {
       throw new Error("Terminal service is not ready.");
     }
     const thread = store.getThread(input.threadId);
@@ -5806,10 +5835,12 @@ function registerIpc(): void {
     }
     const context = await resolveThreadWorkspace(thread);
     const contract = getPlatformContract();
+    const shellConfiguration = await settingsStore.shellRuntimeConfiguration();
     return terminalService.open({
       threadId: thread.id,
       workspacePath: context.workspacePath,
       shell: contract.shell,
+      windowsPreference: shellConfiguration.windowsPreference,
       cols: input.cols,
       rows: input.rows,
     });

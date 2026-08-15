@@ -9,21 +9,19 @@ describe("modeInstruction", () => {
   });
 
   it("describes coding, general work, Office tools, and brokered execution in Execute mode", () => {
-    expect(modeInstruction("execute")).toContain("full local bash");
+    expect(modeInstruction("execute")).toContain("full local platform Shell");
     expect(modeInstruction("execute")).toContain("desktop user's permissions");
     expect(modeInstruction("execute")).toContain("brokered");
     expect(modeInstruction("execute")).toContain("general work");
     expect(modeInstruction("execute")).toContain("office document");
   });
 
-  it("uses POSIX Bash guidance in Execute mode on Windows", () => {
+  it("uses native PowerShell guidance in Execute mode on Windows", () => {
     const instruction = modeInstruction("execute");
 
-    expect(instruction).toContain("On Windows");
-    expect(instruction).toContain("POSIX");
-    expect(instruction).toContain("find");
-    expect(instruction).toContain("2>/dev/null");
-    expect(instruction).not.toContain("dir /s /b");
-    expect(instruction).not.toContain("2>nul");
+    expect(instruction).toContain("Windows uses PowerShell");
+    expect(instruction).toContain("PowerShell 7 is preferred");
+    expect(instruction).toContain("Windows PowerShell 5.1 fallback");
+    expect(instruction).not.toContain("POSIX Git Bash");
   });
 });

@@ -174,7 +174,10 @@ function isObservedBashTool(toolName: string | undefined): boolean {
   return (
     toolName === "bash" ||
     toolName === "bash_wait" ||
-    toolName === "bash_cancel"
+    toolName === "bash_cancel" ||
+    toolName === "shell" ||
+    toolName === "shell_wait" ||
+    toolName === "shell_cancel"
   );
 }
 

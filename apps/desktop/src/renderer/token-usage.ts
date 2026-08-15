@@ -115,6 +115,17 @@ export function buildCacheUsageMetrics(
       "explicit-30m": 0,
     },
   };
+  const reportingCacheKeys = new Set<string>();
+  for (const event of events) {
+    if (event.payload.type !== "assistant.usage") continue;
+    if (
+      (event.payload.cacheReadReported === true ||
+        event.payload.cacheReadTokens > 0) &&
+      event.payload.cacheKeyFingerprint
+    ) {
+      reportingCacheKeys.add(event.payload.cacheKeyFingerprint);
+    }
+  }
   const seen = new Set<string>();
   for (const event of events) {
     if (seen.has(event.eventId) || event.payload.type !== "assistant.usage") {
@@ -125,7 +136,12 @@ export function buildCacheUsageMetrics(
     if (event.payload.cachePolicy) {
       metrics.policies[event.payload.cachePolicy] += 1;
     }
-    if (event.payload.cacheReadReported !== true) continue;
+    const cacheReadReported =
+      event.payload.cacheReadReported === true ||
+      event.payload.cacheReadTokens > 0 ||
+      (event.payload.cacheKeyFingerprint !== undefined &&
+        reportingCacheKeys.has(event.payload.cacheKeyFingerprint));
+    if (!cacheReadReported) continue;
     metrics.reportedEvents += 1;
     metrics.cacheReadTokens += event.payload.cacheReadTokens;
     metrics.reportedInputTokens +=

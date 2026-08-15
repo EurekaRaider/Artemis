@@ -64,7 +64,7 @@ describe("Pi session lazy persistence", () => {
         "read",
         "write",
         "office_document",
-        "bash",
+        "shell",
         "request_user_input",
       ]),
     );

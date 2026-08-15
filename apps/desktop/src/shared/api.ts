@@ -19,6 +19,7 @@ import type {
   ReviewQuery,
   ReviewScope,
   RunMode,
+  ShellRuntimeConfiguration,
   TaskWorktree,
   Thread,
   UserInputResolution,
@@ -273,12 +274,14 @@ export interface AddedModelConfiguration {
 }
 
 export interface SettingsSnapshot {
+  platform: "win32" | "darwin" | "other";
   encryptionAvailable: boolean;
   language: AppLanguage;
   theme: AppTheme;
   resolvedLocale: AppSnapshot["locale"];
   approvalPolicy: ApprovalPolicy;
   localFullAccess: boolean;
+  shell: ShellRuntimeConfiguration;
   fullAccessAvailable: boolean;
   contextWindow: number;
   models: AgentModelInfo[];
@@ -791,6 +794,9 @@ export interface ArtemisApi {
   setTheme(theme: AppTheme): Promise<SettingsSnapshot>;
   setApprovalPolicy(policy: ApprovalPolicy): Promise<SettingsSnapshot>;
   setLocalFullAccess(enabled: boolean): Promise<SettingsSnapshot>;
+  setShellRuntimeConfiguration(
+    configuration: ShellRuntimeConfiguration,
+  ): Promise<SettingsSnapshot>;
   setAgentConcurrency(
     preference: AgentConcurrencyPreference,
   ): Promise<SettingsSnapshot>;
@@ -1001,6 +1007,7 @@ export const IPC = {
   settingsThemeSet: "artemis:settings-theme-set",
   settingsApprovalPolicySet: "artemis:settings-approval-policy-set",
   settingsLocalFullAccessSet: "artemis:settings-local-full-access-set",
+  settingsShellRuntimeSet: "artemis:settings-shell-runtime-set",
   settingsAgentConcurrencySet: "artemis:settings-agent-concurrency-set",
   settingsModelAdd: "artemis:settings-model-add",
   settingsModelDelete: "artemis:settings-model-delete",

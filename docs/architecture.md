@@ -17,7 +17,7 @@ flowchart LR
   A --> B["Mode + approval broker"]
   C --> B
   B --> W["Validated workspace tools"]
-  B --> H["Approved desktop-user Pi Bash"]
+  B --> H["Approved desktop-user platform Shell"]
   A --> X["Enabled desktop-user MCP"]
   M --> T["Desktop-user PTY"]
   M --> E["Trusted executable extension"]

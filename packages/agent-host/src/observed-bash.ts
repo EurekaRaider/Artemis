@@ -5,6 +5,8 @@ import {
   type BashOperations,
 } from "@earendil-works/pi-coding-agent";
 
+import type { ShellExecutionMetadata } from "./shell-execution.js";
+
 export type ObservedBashStatus =
   "running" | "cancelling" | "completed" | "failed" | "cancelled";
 
@@ -45,8 +47,14 @@ export interface ObservedBashSnapshot {
   observationExpired: boolean;
   outputDelta: string;
   outputTruncated: boolean;
+  shell?: ShellExecutionMetadata;
   exitCode?: number | null;
   error?: string;
+}
+
+interface ObservedShellOperations extends BashOperations {
+  metadata?(): ShellExecutionMetadata;
+  releaseEnvironment?(scope: string): void;
 }
 
 interface ObservedBashRecord extends BashScope {
@@ -85,7 +93,7 @@ export class ObservedBashRegistry {
   private readonly records = new Map<string, ObservedBashRecord>();
 
   constructor(
-    private readonly operations: BashOperations = createLocalBashOperations(),
+    private readonly operations: ObservedShellOperations = createLocalBashOperations(),
   ) {}
 
   async start(input: StartObservedBashInput): Promise<ObservedBashSnapshot> {
@@ -118,6 +126,7 @@ export class ObservedBashRegistry {
     void this.operations
       .exec(input.command, input.cwd, {
         signal: controller.signal,
+        env: { ARTEMIS_SHELL_ENVIRONMENT_SCOPE: input.threadId },
         onData: (data) => {
           const outputDelta = data.toString("utf8");
           this.appendOutput(record, outputDelta);
@@ -221,6 +230,7 @@ export class ObservedBashRegistry {
       if (isActive(record.status)) record.controller.abort();
       this.records.delete(executionId);
     }
+    this.operations.releaseEnvironment?.(threadId);
   }
 
   private validateObservation(value: number): void {
@@ -232,7 +242,7 @@ export class ObservedBashRegistry {
   private ownedRecord(input: CancelObservedBashInput): ObservedBashRecord {
     const record = this.records.get(input.executionId);
     if (!record || scopeKey(record) !== scopeKey(input)) {
-      throw new Error("Bash execution was not found in this agent scope.");
+      throw new Error("Shell execution was not found in this agent scope.");
     }
     return record;
   }
@@ -296,6 +306,9 @@ export class ObservedBashRegistry {
       observationExpired,
       outputDelta,
       outputTruncated: record.outputTruncated,
+      ...(this.operations.metadata
+        ? { shell: this.operations.metadata() }
+        : {}),
       ...(record.exitCode === undefined ? {} : { exitCode: record.exitCode }),
       ...(record.error ? { error: record.error } : {}),
     };

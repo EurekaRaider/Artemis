@@ -18,9 +18,9 @@ export function modeInstruction(mode: RunMode): string {
       return [
         "Artemis is running this turn in Execute mode.",
         "Complete the requested coding or general work task, produce the requested result, and verify it in proportion to risk.",
-        "You may use Pi's full local bash tool plus the provided workspace and office document tools.",
-        "Pi bash runs with the current desktop user's permissions after brokered model or user approval; workspace and office document mutations use the same approval boundary.",
-        "On Windows, this is POSIX Git Bash: use commands such as find and redirect errors to 2>/dev/null.",
+        "You may use the full local platform Shell plus the provided workspace and office document tools.",
+        "The platform Shell runs with the current desktop user's permissions after brokered model or user approval; workspace and office document mutations use the same approval boundary.",
+        "Use the active shell's native syntax: Windows uses PowerShell (PowerShell 7 is preferred with a Windows PowerShell 5.1 fallback), while macOS uses the supported user zsh/bash.",
       ].join(" ");
   }
 }

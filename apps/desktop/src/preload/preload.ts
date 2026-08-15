@@ -142,6 +142,8 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.settingsApprovalPolicySet, policy),
   setLocalFullAccess: (enabled) =>
     ipcRenderer.invoke(IPC.settingsLocalFullAccessSet, enabled),
+  setShellRuntimeConfiguration: (configuration) =>
+    ipcRenderer.invoke(IPC.settingsShellRuntimeSet, configuration),
   setAgentConcurrency: (preference) =>
     ipcRenderer.invoke(IPC.settingsAgentConcurrencySet, preference),
   setModelSelection: (selection) =>

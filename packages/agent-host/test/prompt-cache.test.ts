@@ -90,8 +90,42 @@ describe("PromptCacheController", () => {
     ).toMatchObject({
       policy: "short",
       reason: "non-official-endpoint",
+    });
+    expect(
+      controller.resolve(
+        model("gpt-5.6", "https://openai.azure.com/v1"),
+        context(),
+        { sessionId: "parent" },
+      ),
+    ).not.toHaveProperty("cacheReadReported");
+  });
+
+  it("learns compatible endpoint cache reporting from observed usage", () => {
+    const controller = new PromptCacheController();
+    const compatible = model("gpt-5.6", "https://compatible.example.com/v1");
+    controller.registerSession("session-1", {
+      scope: "parent",
+      priorTopLevelUserTurns: 1,
+    });
+    controller.resolve(compatible, context(), { sessionId: "session-1" });
+
+    controller.observeUsage("session-1", {
+      cacheReadTokens: 2_048,
+      cacheWriteTokens: 0,
       cacheReadReported: false,
     });
+
+    expect(controller.latestResolution("session-1")).toMatchObject({
+      cacheReadReported: true,
+    });
+
+    controller.registerSession("session-2", {
+      scope: "parent",
+      priorTopLevelUserTurns: 0,
+    });
+    expect(
+      controller.resolve(compatible, context(), { sessionId: "session-2" }),
+    ).toMatchObject({ cacheReadReported: true });
   });
 
   it("always honors Pi one-shot requests that explicitly disable caching", () => {

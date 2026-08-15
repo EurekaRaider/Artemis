@@ -125,7 +125,7 @@ describe("tool presentation", () => {
         ],
         "zh-CN",
       ),
-    ).toBe("正在执行bash");
+    ).toBe("正在执行 Shell");
   });
 
   it("describes expanded file searches with query and scope", () => {

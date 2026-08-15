@@ -73,6 +73,7 @@ import {
   PromptCacheController,
   withPromptCacheController,
 } from "./prompt-cache.js";
+import { ArtemisShellRuntime } from "./shell-execution.js";
 
 const MINIMUM_MCP_TEXT_BUDGET_BYTES = 1024;
 const MAXIMUM_MCP_TEXT_BUDGET_BYTES = 2 * 1024 * 1024;
@@ -935,7 +936,8 @@ export class ArtemisAgentHost {
   private readonly threads = new Map<string, HostedThread>();
   private readonly credentials = new RuntimeCredentialStore();
   private readonly concurrency: AgentConcurrencyLimiter;
-  private readonly bashExecutions = new ObservedBashRegistry();
+  private readonly shellRuntime: ArtemisShellRuntime;
+  private readonly bashExecutions: ObservedBashRegistry;
   private readonly cancelledTurns = new Set<string>();
   private readonly userInputTails = new Map<string, Promise<void>>();
   private readonly registeredProviderIds = new Set<string>();
@@ -952,6 +954,7 @@ export class ArtemisAgentHost {
     sessionId: string,
     payload: Extract<AgentPayload, { type: "assistant.usage" }>,
   ): Extract<AgentPayload, { type: "assistant.usage" }> {
+    this.promptCache.observeUsage(sessionId, payload);
     const cache = this.promptCache.latestResolution(sessionId);
     return {
       ...payload,
@@ -985,6 +988,8 @@ export class ArtemisAgentHost {
       onSessionFile?: (threadId: string, path: string) => void;
     } = {},
   ) {
+    this.shellRuntime = new ArtemisShellRuntime();
+    this.bashExecutions = new ObservedBashRegistry(this.shellRuntime);
     this.agentDir = options.agentDir ?? getAgentDir();
     this.onSessionFile = options.onSessionFile;
     const limit = options.agentConcurrencyLimit ?? AGENT_CONCURRENCY_FALLBACK;
@@ -1088,6 +1093,7 @@ export class ArtemisAgentHost {
   }
 
   async configure(configuration: AgentRuntimeConfiguration): Promise<void> {
+    this.shellRuntime.configure(configuration.shell);
     this.credentials.replace(configuration.credentials);
     const resolvedConfiguration = structuredClone(configuration);
     const providers = resolvedConfiguration.providers ?? [];
@@ -2337,10 +2343,9 @@ export class ArtemisAgentHost {
       },
     ) => {
       const bashTool = defineTool({
-        name: "bash",
+        name: "shell",
         label: "Run shell command",
-        description:
-          "Run a shell command with the current desktop user's permissions after classifying its risk and whether the user explicitly requested the exact action. Choose deadline_seconds based on the task type. The deadline is only an observation window: when it expires, the process keeps running and this tool returns an execution_id so you can decide whether to call bash_wait or bash_cancel.",
+        description: `Run a ${this.shellRuntime.toolDescription()} command with the current desktop user's permissions after classifying its risk and whether the user explicitly requested the exact action. Use this shell's native syntax; on Windows this is PowerShell, not Bash. Choose deadline_seconds based on the task type. The deadline is only an observation window: when it expires, the process keeps running and this tool returns an execution_id so you can decide whether to call shell_wait or shell_cancel.`,
         parameters: Type.Object(
           {
             command: Type.String({ minLength: 1 }),
@@ -2390,10 +2395,10 @@ export class ArtemisAgentHost {
         },
       });
       const bashWaitTool = defineTool({
-        name: "bash_wait",
+        name: "shell_wait",
         label: "Wait for shell command",
         description:
-          "Observe a still-running Bash execution for another model-selected window. If the window expires, inspect status, last activity, and health, then decide whether to wait again or cancel and use another approach.",
+          "Observe a still-running shell execution for another model-selected window. If the window expires, inspect status, last activity, and health, then decide whether to wait again or cancel and use another approach.",
         parameters: Type.Object(
           {
             execution_id: Type.String({ minLength: 1 }),
@@ -2415,10 +2420,10 @@ export class ArtemisAgentHost {
         },
       });
       const bashCancelTool = defineTool({
-        name: "bash_cancel",
+        name: "shell_cancel",
         label: "Stop shell command",
         description:
-          "Stop a Bash execution after deciding it is stuck, no longer useful, or should be replaced by another approach.",
+          "Stop a shell execution after deciding it is stuck, no longer useful, or should be replaced by another approach.",
         parameters: Type.Object(
           { execution_id: Type.String({ minLength: 1 }) },
           { additionalProperties: false },
@@ -2441,7 +2446,7 @@ export class ArtemisAgentHost {
     const parentBashTools = createObservedBashTools(() => {
       const hosted = this.threads.get(request.threadId);
       if (!hosted?.currentTurnId) {
-        throw new Error("No active turn is available for this Bash command.");
+        throw new Error("No active turn is available for this shell command.");
       }
       return {
         turnId: hosted.currentTurnId,
@@ -3622,9 +3627,9 @@ export class ArtemisAgentHost {
                     "wait_team",
                     "send_message",
                     "finish_subteam",
-                    "bash",
-                    "bash_wait",
-                    "bash_cancel",
+                    "shell",
+                    "shell_wait",
+                    "shell_cancel",
                     ...childMcpTools.map((tool) => tool.name),
                   ],
                 });
@@ -3645,9 +3650,9 @@ export class ArtemisAgentHost {
                       tool.name === "send_message" ||
                       tool.name === "finish_subteam" ||
                       (input.mode === "execute" &&
-                        (tool.name === "bash" ||
-                          tool.name === "bash_wait" ||
-                          tool.name === "bash_cancel" ||
+                        (tool.name === "shell" ||
+                          tool.name === "shell_wait" ||
+                          tool.name === "shell_cancel" ||
                           tool.name === "write" ||
                           tool.name === "office_document")) ||
                       (input.mode === "execute" &&
@@ -3912,9 +3917,9 @@ export class ArtemisAgentHost {
         "steer_agent",
         "cancel_agent",
         "retry_agent",
-        "bash",
-        "bash_wait",
-        "bash_cancel",
+        "shell",
+        "shell_wait",
+        "shell_cancel",
         ...mcpTools.map((tool) => tool.name),
         ...extensionTools.map((tool) => tool.name),
       ],
@@ -3970,13 +3975,13 @@ export class ArtemisAgentHost {
       ].includes(tool.name),
     );
     const bashSessionTool = session.agent.state.tools.find(
-      (tool) => tool.name === "bash",
+      (tool) => tool.name === "shell",
     );
     const bashWaitSessionTool = session.agent.state.tools.find(
-      (tool) => tool.name === "bash_wait",
+      (tool) => tool.name === "shell_wait",
     );
     const bashCancelSessionTool = session.agent.state.tools.find(
-      (tool) => tool.name === "bash_cancel",
+      (tool) => tool.name === "shell_cancel",
     );
     if (
       !readSessionTool ||
@@ -4000,9 +4005,9 @@ export class ArtemisAgentHost {
       (tool) =>
         tool.name === "read" ||
         tool.name === "request_user_input" ||
-        tool.name === "bash" ||
-        tool.name === "bash_wait" ||
-        tool.name === "bash_cancel" ||
+        tool.name === "shell" ||
+        tool.name === "shell_wait" ||
+        tool.name === "shell_cancel" ||
         tool.name === "write" ||
         tool.name === "office_document" ||
         tool.name === "load_workspace_dependencies" ||

@@ -9,13 +9,16 @@ import type {
   ModelSelection,
   ProviderConnection,
   RuntimeCredential,
+  ShellRuntimeConfiguration,
 } from "@artemis/protocol";
 import {
+  DEFAULT_SHELL_RUNTIME_CONFIGURATION,
   appLanguageSchema,
   appThemeSchema,
   approvalPolicySchema,
   contextWindowSchema,
   providerConnectionSchema,
+  shellRuntimeConfigurationSchema,
 } from "@artemis/protocol";
 
 import {
@@ -48,6 +51,7 @@ interface PersistedSettings {
   theme?: AppTheme;
   approvalPolicy?: ApprovalPolicy;
   localFullAccess?: boolean;
+  shell?: ShellRuntimeConfiguration;
   contextWindow?: number;
   credentials: Record<string, EncryptedCredential>;
   providers?: Record<string, ProviderConnection>;
@@ -182,6 +186,7 @@ export class EncryptedSettingsStore {
     );
     return {
       credentials,
+      ...(settings.shell ? { shell: structuredClone(settings.shell) } : {}),
       ...(providers.length ? { providers: structuredClone(providers) } : {}),
       ...(settings.model ? { selection: structuredClone(settings.model) } : {}),
       ...(settings.contextWindow
@@ -493,6 +498,20 @@ export class EncryptedSettingsStore {
     return (await this.load()).localFullAccess ?? false;
   }
 
+  async shellRuntimeConfiguration(): Promise<ShellRuntimeConfiguration> {
+    return structuredClone(
+      (await this.load()).shell ?? DEFAULT_SHELL_RUNTIME_CONFIGURATION,
+    );
+  }
+
+  async setShellRuntimeConfiguration(
+    configuration: ShellRuntimeConfiguration,
+  ): Promise<void> {
+    const settings = await this.load();
+    settings.shell = shellRuntimeConfigurationSchema.parse(configuration);
+    await this.save(settings);
+  }
+
   async agentConcurrencyPreference(): Promise<AgentConcurrencyPreference> {
     return structuredClone(
       (await this.load()).agentConcurrency ?? { mode: "auto" },
@@ -575,6 +594,8 @@ export class EncryptedSettingsStore {
           !approvalPolicySchema.safeParse(parsed.approvalPolicy).success) ||
         (parsed.localFullAccess !== undefined &&
           typeof parsed.localFullAccess !== "boolean") ||
+        (parsed.shell !== undefined &&
+          !shellRuntimeConfigurationSchema.safeParse(parsed.shell).success) ||
         (parsed.contextWindow !== undefined &&
           !contextWindowSchema.safeParse(parsed.contextWindow).success) ||
         (parsed.workspaceDockWidth !== undefined &&

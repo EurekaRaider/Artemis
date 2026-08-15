@@ -936,7 +936,7 @@ describe("renderer layout contract", () => {
 
     expect(rendererSources).not.toMatch(/<select\b/gu);
     expect(settingsSource).toContain('from "./CodexSelect.js"');
-    expect(settingsSelectors).toHaveLength(5);
+    expect(settingsSelectors).toHaveLength(7);
     expect(mcpEditorSelectors).toHaveLength(1);
     expect(cssRule(".settings-codex-select .codex-select-trigger")).toMatch(
       /\bwidth:\s*100%/u,

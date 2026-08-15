@@ -233,9 +233,18 @@ function normalizedToolName(toolName: string): string {
 }
 
 function isBashTool(toolName: string): boolean {
-  return ["bash", "bash_wait", "bash_cancel"].includes(
-    normalizedToolName(toolName),
-  );
+  return [
+    "bash",
+    "bash_wait",
+    "bash_cancel",
+    "shell",
+    "shell_wait",
+    "shell_cancel",
+  ].includes(normalizedToolName(toolName));
+}
+
+function isShellExecuteTool(toolName: string): boolean {
+  return ["bash", "shell"].includes(normalizedToolName(toolName));
 }
 
 export function toolActivityKind(
@@ -244,7 +253,7 @@ export function toolActivityKind(
 ): ToolActivityKind {
   const normalized = normalizedToolName(toolName);
   if (
-    normalized === "bash" &&
+    isShellExecuteTool(normalized) &&
     searchPattern(inputText(input, "command") ?? "")
   ) {
     return "search";
@@ -334,10 +343,9 @@ export function summarizeToolDetail(
   const t = toolCopy(locale);
   const kind = toolActivityKind(tool.name, tool.input);
   const path = toolActivityPath(tool.input);
-  const searchCommand =
-    normalizedToolName(tool.name) === "bash"
-      ? searchCommandDetails(inputText(tool.input, "command") ?? "")
-      : undefined;
+  const searchCommand = isShellExecuteTool(tool.name)
+    ? searchCommandDetails(inputText(tool.input, "command") ?? "")
+    : undefined;
   const pattern =
     inputText(tool.input, "pattern") ??
     inputText(tool.input, "query") ??
@@ -374,7 +382,7 @@ export function summarizeToolActivity(
   locale: ToolPresentationLocale,
 ): string {
   const t = toolCopy(locale);
-  if (toolName === "bash") {
+  if (isShellExecuteTool(toolName)) {
     return bashSummary(inputText(input, "command") ?? "", locale);
   }
 
@@ -401,7 +409,7 @@ export function formatToolInput(
 ): string | undefined {
   if (input === undefined) return undefined;
   if (
-    toolName === "bash" &&
+    isShellExecuteTool(toolName) &&
     typeof input === "object" &&
     input !== null &&
     "command" in input &&
@@ -463,7 +471,7 @@ export function formatBashTranscript(
 ): string | undefined {
   const chunks: string[] = [];
   for (const tool of tools) {
-    if (normalizedToolName(tool.name) === "bash") {
+    if (isShellExecuteTool(tool.name)) {
       const command = formatToolInput(tool.name, tool.input);
       if (command) chunks.push(command);
     }
@@ -495,8 +503,8 @@ const TOOL_COPY = {
     readFiles: "Read files",
     editingFiles: "Editing files",
     editedFiles: "Edited files",
-    runningBash: "Running Bash",
-    ranBash: "Ran Bash",
+    runningBash: "Running Shell",
+    ranBash: "Ran Shell",
     reading: "Reading",
     read: "Read",
     editing: "Editing",
@@ -529,8 +537,8 @@ const TOOL_COPY = {
     readFiles: "已读取文件",
     editingFiles: "正在编辑文件",
     editedFiles: "编辑了文件",
-    runningBash: "正在执行bash",
-    ranBash: "执行了bash",
+    runningBash: "正在执行 Shell",
+    ranBash: "执行了 Shell",
     reading: "正在读取",
     read: "已读取",
     editing: "正在编辑",

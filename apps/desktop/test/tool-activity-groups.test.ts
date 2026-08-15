@@ -53,7 +53,7 @@ describe("timeline tool activity groups", () => {
 
   it("folds Bash searches and reads into one chronological file-operation group", () => {
     const tools = {
-      search: tool("search", "bash", {
+      search: tool("search", "shell", {
         command: 'rg -n "PiAdapter" packages/protocol',
       }),
       readOne: tool("readOne", "read", { path: "schema.ts" }),
@@ -76,10 +76,10 @@ describe("timeline tool activity groups", () => {
 
   it("folds observed Bash, wait, and cancel calls into one Bash group", () => {
     const tools = {
-      bash: tool("bash", "bash", { command: "npm test" }, "running"),
+      bash: tool("bash", "shell", { command: "npm test" }, "running"),
       plan: tool("plan", "update_plan", {}),
-      wait: tool("wait", "bash_wait", { execution_id: "execution-1" }),
-      cancel: tool("cancel", "bash_cancel", { execution_id: "execution-1" }),
+      wait: tool("wait", "shell_wait", { execution_id: "execution-1" }),
+      cancel: tool("cancel", "shell_cancel", { execution_id: "execution-1" }),
     };
 
     expect(

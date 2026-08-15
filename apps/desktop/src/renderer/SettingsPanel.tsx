@@ -5,6 +5,8 @@ import type {
   AppLanguage,
   AppTheme,
   ProviderConnection,
+  ShellProfileMode,
+  WindowsShellPreference,
 } from "@artemis/protocol";
 
 import type {
@@ -128,6 +130,17 @@ const labels = {
     oauthHint:
       "Authorization opens your browser and stores tokens with OS encryption.",
     capabilityAccess: "Execution access",
+    shellRuntime: "Shell runtime",
+    shellRuntimeHint:
+      "Agent commands stay non-interactive. Environment-only imports PATH and other non-secret variables once per task; full compatibility loads the user profile for every command. Dedicated profiles: ~/.config/artemis/agent-profile.zsh or .bash, and %LOCALAPPDATA%\\Artemis\\agent-profile.ps1.",
+    windowsShell: "Windows shell",
+    windowsShellAuto: "Automatic: PowerShell 7, then 5.1",
+    windowsShellPowerShell7: "Require PowerShell 7",
+    windowsShellLegacy: "Windows PowerShell 5.1",
+    shellProfileMode: "Profile compatibility",
+    shellProfileEnvironment: "Environment only (recommended)",
+    shellProfileFull: "Full profile for every command",
+    shellProfileDisabled: "Disabled",
     localFullAccess: "Full local access",
     localFullAccessDetail:
       "Allow executable extensions to run with your desktop permissions.",
@@ -291,6 +304,17 @@ const labels = {
     authorize: "授权",
     oauthHint: "授权将在浏览器中完成，Token 由操作系统加密保存。",
     capabilityAccess: "执行权限",
+    shellRuntime: "Shell 运行环境",
+    shellRuntimeHint:
+      "Agent 命令保持非交互。仅导入环境会在每个任务中捕获一次 PATH 等非敏感变量；完整兼容会在每条命令前加载用户 profile。专用配置文件：~/.config/artemis/agent-profile.zsh 或 .bash，以及 %LOCALAPPDATA%\\Artemis\\agent-profile.ps1。",
+    windowsShell: "Windows Shell",
+    windowsShellAuto: "自动：PowerShell 7，回退 5.1",
+    windowsShellPowerShell7: "强制 PowerShell 7",
+    windowsShellLegacy: "Windows PowerShell 5.1",
+    shellProfileMode: "Profile 兼容模式",
+    shellProfileEnvironment: "仅导入环境（推荐）",
+    shellProfileFull: "每条命令加载完整 Profile",
+    shellProfileDisabled: "关闭",
     localFullAccess: "完整本机访问",
     localFullAccessDetail: "允许可执行扩展使用当前桌面用户权限运行。",
     mcpFullAccessHint: "本地 stdio MCP 始终拥有完整本机访问权限并可联网。",
@@ -669,6 +693,22 @@ export function SettingsPanel({
   async function setTheme(theme: AppTheme) {
     await run(async () => {
       const updated = await window.artemis.setTheme(theme);
+      setSettings(updated);
+      onSettingsChange(updated);
+    });
+  }
+
+  async function setShellRuntimeConfiguration(
+    change:
+      | { windowsPreference: WindowsShellPreference }
+      | { profileMode: ShellProfileMode },
+  ) {
+    if (!settings) return;
+    await run(async () => {
+      const updated = await window.artemis.setShellRuntimeConfiguration({
+        ...settings.shell,
+        ...change,
+      });
       setSettings(updated);
       onSettingsChange(updated);
     });
@@ -1615,29 +1655,96 @@ export function SettingsPanel({
               )}
 
               {activeTab === "capabilities" && (
-                <section className="settings-section">
-                  <h3>{t.capabilityAccess}</h3>
-                  <label className="settings-checkbox">
-                    <input
-                      checked={settings.localFullAccess}
-                      disabled={busy}
-                      onChange={(event) =>
-                        void run(async () => {
-                          const updated =
-                            await window.artemis.setLocalFullAccess(
-                              event.target.checked,
-                            );
-                          setSettings(updated);
-                          onSettingsChange(updated);
-                        })
-                      }
-                      role="switch"
-                      type="checkbox"
-                    />
-                    <span>{t.localFullAccess}</span>
-                  </label>
-                  <p className="settings-security">{t.localFullAccessDetail}</p>
-                </section>
+                <>
+                  <section className="settings-section">
+                    <h3>{t.shellRuntime}</h3>
+                    {settings.platform === "win32" && (
+                      <div className="settings-field">
+                        <span>{t.windowsShell}</span>
+                        <div className="settings-codex-select">
+                          <CodexSelect<WindowsShellPreference>
+                            ariaLabel={t.windowsShell}
+                            disabled={busy}
+                            onChange={(windowsPreference) =>
+                              void setShellRuntimeConfiguration({
+                                windowsPreference,
+                              })
+                            }
+                            options={[
+                              {
+                                value: "auto",
+                                label: t.windowsShellAuto,
+                              },
+                              {
+                                value: "powershell7",
+                                label: t.windowsShellPowerShell7,
+                              },
+                              {
+                                value: "windows-powershell",
+                                label: t.windowsShellLegacy,
+                              },
+                            ]}
+                            value={settings.shell.windowsPreference}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div className="settings-field">
+                      <span>{t.shellProfileMode}</span>
+                      <div className="settings-codex-select">
+                        <CodexSelect<ShellProfileMode>
+                          ariaLabel={t.shellProfileMode}
+                          disabled={busy}
+                          onChange={(profileMode) =>
+                            void setShellRuntimeConfiguration({ profileMode })
+                          }
+                          options={[
+                            {
+                              value: "environment",
+                              label: t.shellProfileEnvironment,
+                            },
+                            {
+                              value: "full",
+                              label: t.shellProfileFull,
+                            },
+                            {
+                              value: "disabled",
+                              label: t.shellProfileDisabled,
+                            },
+                          ]}
+                          value={settings.shell.profileMode}
+                        />
+                      </div>
+                    </div>
+                    <p className="settings-security">{t.shellRuntimeHint}</p>
+                  </section>
+
+                  <section className="settings-section">
+                    <h3>{t.capabilityAccess}</h3>
+                    <label className="settings-checkbox">
+                      <input
+                        checked={settings.localFullAccess}
+                        disabled={busy}
+                        onChange={(event) =>
+                          void run(async () => {
+                            const updated =
+                              await window.artemis.setLocalFullAccess(
+                                event.target.checked,
+                              );
+                            setSettings(updated);
+                            onSettingsChange(updated);
+                          })
+                        }
+                        role="switch"
+                        type="checkbox"
+                      />
+                      <span>{t.localFullAccess}</span>
+                    </label>
+                    <p className="settings-security">
+                      {t.localFullAccessDetail}
+                    </p>
+                  </section>
+                </>
               )}
 
               {activeTab === "maintenance" && (

@@ -112,6 +112,40 @@ describe("EncryptedSettingsStore", () => {
     await expect(reopened.localFullAccess?.()).resolves.toBe(true);
   });
 
+  it("persists validated shell preferences and defaults to environment import", async () => {
+    const { filePath, store } = await createStore();
+
+    await expect(store.shellRuntimeConfiguration()).resolves.toEqual({
+      windowsPreference: "auto",
+      profileMode: "environment",
+    });
+    await store.setShellRuntimeConfiguration({
+      windowsPreference: "powershell7",
+      profileMode: "full",
+    });
+
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.shellRuntimeConfiguration()).resolves.toEqual({
+      windowsPreference: "powershell7",
+      profileMode: "full",
+    });
+    await expect(reopened.runtimeConfiguration()).resolves.toMatchObject({
+      shell: {
+        windowsPreference: "powershell7",
+        profileMode: "full",
+      },
+    });
+    await expect(
+      reopened.setShellRuntimeConfiguration({
+        windowsPreference: "git-bash" as "auto",
+        profileMode: "environment",
+      }),
+    ).rejects.toThrow();
+  });
+
   it("persists the language preference and defaults to the system language", async () => {
     const { filePath, store } = await createStore();
     expect(await store.languagePreference()).toBe("system");
