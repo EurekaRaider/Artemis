@@ -173,11 +173,11 @@ enablement and removal visible to the user.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/plugin-marketplace-add-plugin.jpg" alt="Artemis add plugin page with Git marketplace, local bundle and executable extension options" /></td>
+    <td width="50%"><img src="docs/images/plugin-marketplace-add-plugin.jpg" alt="Artemis add plugin page with Git and offline marketplaces, local bundle and executable extension options" /></td>
     <td width="50%"><img src="docs/images/plugin-marketplace-add-mcp.jpg" alt="Artemis dedicated MCP server editor" /></td>
   </tr>
   <tr>
-    <td align="center"><sub>Add a Git marketplace, local plugin bundle or trusted executable extension</sub></td>
+    <td align="center"><sub>Add a Git or offline marketplace, local plugin bundle or trusted executable extension</sub></td>
     <td align="center"><sub>Configure a local MCP server in a dedicated structured editor</sub></td>
   </tr>
 </table>
