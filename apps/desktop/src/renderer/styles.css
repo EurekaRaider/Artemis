@@ -5108,7 +5108,7 @@ button.environment-row:disabled {
 }
 
 .model-picker-navigation {
-  align-self: center;
+  align-self: end;
   display: flex;
   flex-direction: column;
   gap: 2px;

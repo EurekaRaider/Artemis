@@ -1182,9 +1182,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("window.artemis.setModelSelection({");
     expect(cssRule(".model-picker-menu")).toMatch(/\bposition:\s*absolute/u);
     expect(cssRule(".model-picker-menu")).toMatch(/\bgrid-template-columns:/u);
-    expect(cssRule(".model-picker-navigation")).toMatch(
-      /\balign-self:\s*center/u,
-    );
+    expect(cssRule(".model-picker-navigation")).toMatch(/\balign-self:\s*end/u);
     expect(cssRule(".model-picker-options")).toMatch(
       /\bmax-height:[\s\S]*\bmargin-left:\s*-1px[\s\S]*\boverflow-y:\s*auto/u,
     );
