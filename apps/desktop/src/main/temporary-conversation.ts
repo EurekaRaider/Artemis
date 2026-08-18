@@ -90,6 +90,8 @@ export async function removeTemporaryConversationWorkspace(
   await rm(temporaryConversationWorkspace(userDataPath, threadId), {
     recursive: true,
     force: true,
+    maxRetries: 5,
+    retryDelay: 50,
   });
 }
 

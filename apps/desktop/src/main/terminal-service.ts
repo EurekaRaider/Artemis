@@ -245,6 +245,11 @@ export class TerminalService {
     session.pty.kill();
   }
 
+  closeThread(threadId: string): void {
+    const terminalId = this.terminalByThread.get(threadId);
+    if (terminalId) this.close(terminalId);
+  }
+
   dispose(): void {
     for (const terminalId of [...this.sessions.keys()]) {
       this.close(terminalId);

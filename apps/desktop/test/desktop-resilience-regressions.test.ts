@@ -41,7 +41,13 @@ describe("desktop resilience regressions", () => {
       /if\s*\(\s*agentProcess\s*\)|agentProcess\?\./u,
     );
 
-    const cleanupRequest = deleteHandler.indexOf('type: "thread.delete"');
+    const hostCleanupStart = deleteHandler.indexOf(
+      "if (agentProcess?.available)",
+    );
+    const cleanupRequest = deleteHandler.indexOf(
+      'type: "thread.delete"',
+      hostCleanupStart,
+    );
     const cleanupFailureBoundary = deleteHandler.indexOf(
       "catch",
       cleanupRequest,
@@ -75,6 +81,32 @@ describe("desktop resilience regressions", () => {
       "threadStateCache.current.delete(thread.id)",
     );
     expect(deleteAction).toContain("delete next[thread.id]");
+  });
+
+  it("closes a thread terminal and removes its temporary workspace before deleting SQLite", () => {
+    const deleteHandler = sourceBetween(
+      mainSource,
+      "IPC.threadDelete,",
+      "IPC.threadFork,",
+    );
+    const closeTerminal = deleteHandler.indexOf(
+      "terminalService?.closeThread(threadId)",
+    );
+    const removeWorkspace = deleteHandler.indexOf(
+      "await removeTemporaryConversationWorkspace(",
+      closeTerminal,
+    );
+    const deleteSqlite = deleteHandler.indexOf(
+      "store.deleteThread(threadId)",
+      removeWorkspace,
+    );
+
+    expect(closeTerminal).toBeGreaterThanOrEqual(0);
+    expect(removeWorkspace).toBeGreaterThan(closeTerminal);
+    expect(deleteSqlite).toBeGreaterThan(removeWorkspace);
+    expect(deleteHandler.slice(removeWorkspace, deleteSqlite)).toContain(
+      "throw new Error(",
+    );
   });
 
   it("keeps the bundled model catalog available when the Agent Host is unavailable", () => {

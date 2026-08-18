@@ -6437,6 +6437,27 @@ function registerIpc(): void {
           "Wait for context compaction before deleting this task.",
         );
       }
+      terminalService?.closeThread(threadId);
+      if (!thread.projectId) {
+        try {
+          await removeTemporaryConversationWorkspace(
+            app.getPath("userData"),
+            thread.id,
+          );
+        } catch (error) {
+          diagnosticBundleService?.record({
+            source: "main",
+            severity: "error",
+            message: `Temporary workspace cleanup blocked thread deletion ${threadId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          });
+          throw new Error(
+            "Temporary conversation workspace could not be removed. Try deleting the conversation again.",
+            { cause: error },
+          );
+        }
+      }
       let transcriptDeleted = false;
       if (agentProcess?.available) {
         try {
@@ -6475,22 +6496,6 @@ function registerIpc(): void {
       }
       openedThreads.delete(threadId);
       store.deleteThread(threadId);
-      if (!thread.projectId) {
-        try {
-          await removeTemporaryConversationWorkspace(
-            app.getPath("userData"),
-            thread.id,
-          );
-        } catch (error) {
-          diagnosticBundleService?.record({
-            source: "main",
-            severity: "warning",
-            message: `Temporary workspace cleanup failed for deleted thread ${threadId}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          });
-        }
-      }
     },
   );
 
