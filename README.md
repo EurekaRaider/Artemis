@@ -10,7 +10,7 @@
 guarded execution modes, Git-native Review, real terminals, automations, reusable memory, Skills, MCP, and parallel Agents.**
 
 <p>
-  <img alt="Cross-platform build" src="https://img.shields.io/badge/Build-cross--platform-2088FF?logo=githubactions&logoColor=white" />
+  <a href="https://github.com/williamjinj-eng/Artemis/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/williamjinj-eng/Artemis/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://www.electronjs.org/"><img alt="Electron 43" src="https://img.shields.io/badge/Electron-43-47848F?logo=electron&logoColor=white" /></a>
   <a href="https://react.dev/"><img alt="React 19" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white" /></a>
   <a href="https://pi.dev/"><img alt="Pi 0.84.2" src="https://img.shields.io/badge/Agent_core-Pi_0.84.2-8257E5" /></a>
@@ -442,11 +442,15 @@ to every local process.
 
 ![Artemis Trust Fabric](docs/images/artemis-trust-fabric.png)
 
+<sub>[Open the Trust Fabric source](docs/diagrams/artemis-trust-fabric.html)</sub>
+
 The official MCP Registry is a discovery input to this trust fabric, not a
 trusted execution source. Its installation path is independently validated
 before a server can be saved, connected or exposed to the Agent runtime.
 
 ![Artemis MCP Registry Trust Fabric](docs/images/artemis-mcp-trust-fabric.png)
+
+<sub>[Open the MCP Trust Fabric source](docs/diagrams/artemis-mcp-trust-fabric.html)</sub>
 
 #### Interaction control
 
@@ -944,6 +948,8 @@ bounded subteam and must integrate it before completing.
 
 ![Artemis system architecture](docs/images/artemis-system-architecture.png)
 
+<sub>[Open the architecture source](docs/diagrams/artemis-system-architecture.html)</sub>
+
 <details>
 <summary><strong>Inspect architecture invariants</strong></summary>
 
@@ -974,6 +980,24 @@ bounded subteam and must integrate it before completing.
 <br />
 
 ## 07 / Verification &amp; delivery
+
+### Continuous integration and tagged releases
+
+`.github/workflows/ci.yml` runs formatting, tests, typechecking, the production
+build and a high-severity production-dependency audit for pushes to `main`, pull
+requests and manual dispatches.
+
+`.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
+pushed. The tag must exactly match the root package version, for example
+`v1.4.1`. After verification succeeds, native GitHub-hosted runners build
+Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
+checks the exact five-file package set before creating one GitHub Release, so a
+failed platform build cannot publish a partial release.
+
+```bash
+git tag v1.4.1
+git push origin v1.4.1
+```
 
 ### Build and test matrix
 
@@ -1025,6 +1049,20 @@ The `1.4.1` packaging configuration produces:
 | macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.1.dmg` and `.zip` |
 | macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.1.dmg` and `.zip`   |
 
+> [!WARNING]
+> **macOS GitHub Release packages are not Apple distribution builds.** They
+> carry only an ad-hoc engineering signature; they are not signed with an Apple
+> Developer ID and are not notarized by Apple. They support local debugging and
+> trial use only. Before first launch, remove the quarantine attribute only
+> after verifying and trusting the download:
+>
+> ```bash
+> xattr -dr com.apple.quarantine "/Applications/Artemis.app"
+> ```
+>
+> Replace the path if Artemis is installed elsewhere. If `/Applications`
+> requires administrator permission, run the same command with `sudo`.
+
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and
 Spreadsheets are all visible, installable, Connector-free and backed by their
@@ -1066,10 +1104,13 @@ npm run package:mac
 The first command must print `darwin` and the build host architecture. The
 default command builds the separate arm64 and x64 DMG/ZIP pairs listed above.
 Use `npm run package:mac:arm64` or `npm run package:mac:x64` when only one
-architecture is needed. Engineering packages are ad-hoc signed; the x64 output
-is statically checked but not Intel-native runtime accepted. Public distribution
-still requires Developer ID signing, notarization and stapling through the
-release gate.
+architecture is needed. Engineering packages are ad-hoc signed; the automated
+tag workflow is configured to build x64 on a native Intel runner, but neither
+macOS package is Apple Developer ID signed, notarized or public-release
+accepted. These artifacts are only for local debugging and trial use. Before
+first launch, run the `xattr` command shown above. Public distribution still
+requires Developer ID signing, notarization and stapling through the separate
+signed release gate.
 
 </details>
 
@@ -1143,9 +1184,14 @@ downloads require Authenticode signing and the real Windows gate. See Microsoft'
   `apps/desktop/resources/bundled-artifact-plugins` and work offline after
   installation from the Resource Center.
 - The macOS engineering profile generates separate arm64 and x64 artifacts.
-  The x64 package has static build and architecture validation only; Intel-native
-  runtime and cross-architecture release completion are not claimed. Windows
-  release acceptance requires the extracted-ZIP native gate on Windows x64.
+  The tag workflow is configured to build each architecture on its matching
+  native GitHub-hosted runner, but these non-Developer-ID-signed, unnotarized
+  engineering artifacts do not establish native runtime or public release
+  acceptance. Windows release acceptance requires the extracted-ZIP native gate
+  on Windows x64.
+- The tag workflow publishes only after all five expected packages exist;
+  workflow artifacts are retained for seven days and GitHub Release is the
+  durable download surface.
 - `release:mac` retains signing, notarization and recovery checks. `release:win`
   requires a real Windows x64 host, valid Authenticode and extracted-ZIP smoke
   validation before producing a manual-distribution checksum manifest.

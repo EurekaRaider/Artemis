@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Artemis MCP Trust Fabric</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --paper: #f7f7f6;
+        --paper-2: #f0f0ef;
+        --ink: #1f2023;
+        --muted: #6e7279;
+        --soft: #93969c;
+        --rule: #d8d8d5;
+        --accent: #326fcb;
+        --accent-tint: rgba(50, 111, 203, 0.08);
+        --link: #1264a3;
+        --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --font-serif: "Instrument Serif", Georgia, serif;
+        --font-mono:
+          ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+      }
+      body {
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--font-sans);
+        min-height: 100vh;
+        padding: 32px;
+      }
+      .frame {
+        margin: 0 auto;
+        max-width: 1400px;
+        min-width: 960px;
+        width: 100%;
+      }
+      .eyebrow {
+        color: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 8px;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+      }
+      h1 {
+        color: var(--ink);
+        font-family: var(--font-serif);
+        font-size: 32px;
+        font-weight: 400;
+        letter-spacing: -0.02em;
+        line-height: 1.12;
+        margin-bottom: 24px;
+      }
+      svg {
+        display: block;
+        min-width: 960px;
+        width: 100%;
+      }
+      .zone {
+        fill: rgba(31, 32, 35, 0.02);
+        stroke: rgba(31, 32, 35, 0.14);
+        stroke-width: 1;
+      }
+      .zone.runtime {
+        fill: rgba(50, 111, 203, 0.025);
+        stroke: rgba(50, 111, 203, 0.32);
+        stroke-dasharray: 4 4;
+      }
+      .zone-label {
+        fill: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 8px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+      }
+      .zone-label.runtime {
+        fill: var(--accent);
+      }
+      .node-mask {
+        fill: var(--paper);
+      }
+      .node {
+        fill: #ffffff;
+        stroke: var(--ink);
+        stroke-width: 1;
+      }
+      .node.focal {
+        fill: var(--accent-tint);
+        stroke: var(--accent);
+        stroke-width: 1.2;
+      }
+      .node.store {
+        fill: rgba(31, 32, 35, 0.05);
+        stroke: var(--muted);
+      }
+      .node.external {
+        fill: rgba(31, 32, 35, 0.03);
+        stroke: rgba(31, 32, 35, 0.32);
+      }
+      .node.optional {
+        fill: rgba(31, 32, 35, 0.02);
+        stroke: rgba(31, 32, 35, 0.28);
+        stroke-dasharray: 4 4;
+      }
+      .tag {
+        fill: transparent;
+        stroke: rgba(31, 32, 35, 0.34);
+        stroke-width: 0.8;
+      }
+      .tag.focal {
+        stroke: rgba(50, 111, 203, 0.62);
+      }
+      .tag-text {
+        fill: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 8px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+      }
+      .tag-text.focal {
+        fill: var(--accent);
+      }
+      .node-name {
+        fill: var(--ink);
+        font-family: var(--font-sans);
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .node-sub {
+        fill: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 8px;
+      }
+      .flow {
+        fill: none;
+        stroke: var(--muted);
+        stroke-width: 1.2;
+      }
+      .flow.link {
+        stroke: var(--link);
+      }
+      .flow.accent {
+        stroke: var(--accent);
+      }
+      .flow.passive {
+        stroke-dasharray: 4 4;
+        stroke-width: 1;
+      }
+      .flow.blocked {
+        stroke: var(--ink);
+        stroke-dasharray: 4 4;
+        stroke-width: 1.2;
+      }
+      .arrow-mask {
+        fill: var(--paper);
+      }
+      .arrow-label {
+        fill: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 8px;
+        letter-spacing: 0.06em;
+      }
+      .arrow-label.link {
+        fill: var(--link);
+      }
+      .arrow-label.accent {
+        fill: var(--accent);
+      }
+      .blocked-caption {
+        fill: var(--ink);
+        font-family: var(--font-mono);
+        font-size: 8px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+      .legend-text {
+        fill: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 8px;
+      }
+      .legend-head {
+        fill: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 8px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="frame">
+      <p class="eyebrow">
+        SECURE PAVED ROAD · MCP REGISTRY · CURRENT IMPLEMENTATION
+      </p>
+      <h1>Artemis MCP Trust Fabric</h1>
+
+      <svg
+        viewBox="0 0 1280 720"
+        xmlns="http://www.w3.org/2000/svg"
+        role="img"
+        aria-labelledby="artemis-mcp-trust-fabric-title artemis-mcp-trust-fabric-desc"
+      >
+        <title id="artemis-mcp-trust-fabric-title">
+          Artemis MCP Trust Fabric
+        </title>
+        <desc id="artemis-mcp-trust-fabric-desc">
+          展示官方 MCP Registry
+          元数据从发现、重新拉取和严格验证，到用户明确安装连接、OS 加密凭据、MCP
+          客户端连接和运行状态反馈的受控路径，并明确 Registry 不能直接触发执行。
+        </desc>
+        <defs>
+          <marker
+            id="trust-arrow"
+            markerWidth="8"
+            markerHeight="8"
+            refX="8"
+            refY="4"
+            orient="auto"
+          >
+            <polygon points="0 0, 8 4, 0 8" fill="#6f737a" />
+          </marker>
+          <marker
+            id="trust-arrow-link"
+            markerWidth="8"
+            markerHeight="8"
+            refX="8"
+            refY="4"
+            orient="auto"
+          >
+            <polygon points="0 0, 8 4, 0 8" fill="#1264a3" />
+          </marker>
+          <marker
+            id="trust-arrow-accent"
+            markerWidth="8"
+            markerHeight="8"
+            refX="8"
+            refY="4"
+            orient="auto"
+          >
+            <polygon points="0 0, 8 4, 0 8" fill="#326fcb" />
+          </marker>
+        </defs>
+
+        <rect width="1280" height="720" fill="#f7f7f6" />
+
+        <!-- Trust zones -->
+        <rect class="zone" x="40" y="64" width="280" height="524" rx="8" />
+        <rect x="56" y="68" width="148" height="16" rx="4" fill="#f7f7f6" />
+        <text class="zone-label" x="64" y="80">DISCOVERY / INTENT</text>
+
+        <rect class="zone" x="344" y="64" width="400" height="524" rx="8" />
+        <rect x="360" y="68" width="176" height="16" rx="4" fill="#f7f7f6" />
+        <text class="zone-label" x="368" y="80">VALIDATION / CONSENT</text>
+
+        <rect
+          class="zone runtime"
+          x="768"
+          y="64"
+          width="472"
+          height="524"
+          rx="8"
+        />
+        <rect x="784" y="68" width="216" height="16" rx="4" fill="#f7f7f6" />
+        <text class="zone-label runtime" x="792" y="80">
+          RUNTIME · NOT A SANDBOX
+        </text>
+
+        <!-- Approved and passive paths paint before nodes -->
+        <line
+          class="flow link"
+          x1="180"
+          y1="240"
+          x2="180"
+          y2="360"
+          marker-end="url(#trust-arrow-link)"
+        />
+        <line
+          class="flow link"
+          x1="284"
+          y1="408"
+          x2="380"
+          y2="408"
+          marker-end="url(#trust-arrow-link)"
+        />
+        <line
+          class="flow accent"
+          x1="284"
+          y1="200"
+          x2="568"
+          y2="200"
+          marker-end="url(#trust-arrow-accent)"
+        />
+        <path
+          class="flow"
+          d="M 460 360 V 320 Q 460 312 468 312 H 640 Q 648 312 648 304 V 256"
+          marker-end="url(#trust-arrow)"
+        />
+        <line
+          class="flow accent"
+          x1="728"
+          y1="200"
+          x2="804"
+          y2="200"
+          marker-end="url(#trust-arrow-accent)"
+        />
+        <line
+          class="flow"
+          x1="620"
+          y1="256"
+          x2="620"
+          y2="360"
+          marker-end="url(#trust-arrow)"
+        />
+        <path
+          class="flow passive"
+          d="M 684 360 V 336 Q 684 328 692 328 H 876 Q 884 328 884 320 V 256"
+          marker-end="url(#trust-arrow)"
+        />
+        <line
+          class="flow"
+          x1="964"
+          y1="200"
+          x2="1040"
+          y2="200"
+          marker-end="url(#trust-arrow)"
+        />
+        <path
+          class="flow passive"
+          d="M 1120 256 V 320 Q 1120 328 1112 328 H 1008 Q 1000 328 1000 336 V 372"
+          marker-end="url(#trust-arrow)"
+        />
+
+        <!-- Forbidden direct ingress stops at the validation boundary -->
+        <line class="flow blocked" x1="284" y1="456" x2="324" y2="456" />
+        <circle
+          cx="332"
+          cy="456"
+          r="8"
+          fill="#f7f7f6"
+          stroke="#1f2023"
+          stroke-width="1.2"
+        />
+        <line
+          x1="328"
+          y1="452"
+          x2="336"
+          y2="460"
+          stroke="#1f2023"
+          stroke-width="1.2"
+        />
+        <line
+          x1="336"
+          y1="452"
+          x2="328"
+          y2="460"
+          stroke="#1f2023"
+          stroke-width="1.2"
+        />
+        <text class="blocked-caption" x="304" y="480" text-anchor="middle">
+          DIRECT EXECUTION BLOCKED
+        </text>
+
+        <!-- Arrow labels with clear connector gaps -->
+        <rect
+          class="arrow-mask"
+          x="144"
+          y="280"
+          width="72"
+          height="12"
+          rx="4"
+        />
+        <text class="arrow-label link" x="180" y="288" text-anchor="middle">
+          SEARCH
+        </text>
+
+        <rect
+          class="arrow-mask"
+          x="304"
+          y="388"
+          width="56"
+          height="12"
+          rx="4"
+        />
+        <text class="arrow-label link" x="332" y="396" text-anchor="middle">
+          METADATA
+        </text>
+
+        <rect
+          class="arrow-mask"
+          x="392"
+          y="180"
+          width="76"
+          height="12"
+          rx="4"
+        />
+        <text class="arrow-label accent" x="430" y="188" text-anchor="middle">
+          AUTHORIZE
+        </text>
+
+        <rect
+          class="arrow-mask"
+          x="520"
+          y="292"
+          width="68"
+          height="12"
+          rx="4"
+        />
+        <text class="arrow-label" x="554" y="300" text-anchor="middle">
+          VALIDATE
+        </text>
+
+        <rect
+          class="arrow-mask"
+          x="740"
+          y="180"
+          width="52"
+          height="12"
+          rx="4"
+        />
+        <text class="arrow-label accent" x="766" y="188" text-anchor="middle">
+          CONNECT
+        </text>
+
+        <rect
+          class="arrow-mask"
+          x="548"
+          y="328"
+          width="56"
+          height="16"
+          rx="4"
+        />
+        <text class="arrow-label" x="576" y="340" text-anchor="middle">
+          ENCRYPT
+        </text>
+
+        <rect
+          class="arrow-mask"
+          x="756"
+          y="308"
+          width="56"
+          height="12"
+          rx="4"
+        />
+        <text class="arrow-label" x="784" y="316" text-anchor="middle">
+          DECRYPT
+        </text>
+
+        <rect
+          class="arrow-mask"
+          x="972"
+          y="180"
+          width="60"
+          height="12"
+          rx="4"
+        />
+        <text class="arrow-label" x="1002" y="188" text-anchor="middle">
+          START / CALL
+        </text>
+
+        <rect
+          class="arrow-mask"
+          x="1028"
+          y="308"
+          width="52"
+          height="12"
+          rx="4"
+        />
+        <text class="arrow-label" x="1054" y="316" text-anchor="middle">
+          STATUS
+        </text>
+
+        <!-- Resource Center / explicit user -->
+        <rect class="node-mask" x="76" y="160" width="208" height="80" rx="8" />
+        <rect class="node" x="76" y="160" width="208" height="80" rx="8" />
+        <rect class="tag" x="88" y="172" width="44" height="16" rx="4" />
+        <text class="tag-text" x="110" y="184" text-anchor="middle">ACTOR</text>
+        <text class="node-name" x="180" y="204" text-anchor="middle">
+          User · Resource Center
+        </text>
+        <text class="node-sub" x="180" y="224" text-anchor="middle">
+          explicit install-and-connect intent
+        </text>
+
+        <!-- Official Registry -->
+        <rect class="node-mask" x="76" y="360" width="208" height="96" rx="8" />
+        <rect
+          class="node external"
+          x="76"
+          y="360"
+          width="208"
+          height="96"
+          rx="8"
+        />
+        <rect class="tag" x="88" y="372" width="64" height="16" rx="4" />
+        <text class="tag-text" x="120" y="384" text-anchor="middle">
+          EXTERNAL
+        </text>
+        <text class="node-name" x="180" y="412" text-anchor="middle">
+          Official MCP Registry
+        </text>
+        <text class="node-sub" x="180" y="432" text-anchor="middle">
+          discovery metadata · no endorsement
+        </text>
+
+        <!-- Resolver -->
+        <rect
+          class="node-mask"
+          x="380"
+          y="360"
+          width="160"
+          height="96"
+          rx="8"
+        />
+        <rect class="node" x="380" y="360" width="160" height="96" rx="8" />
+        <rect class="tag" x="392" y="372" width="64" height="16" rx="4" />
+        <text class="tag-text" x="424" y="384" text-anchor="middle">
+          RESOLVER
+        </text>
+        <text class="node-name" x="460" y="412" text-anchor="middle">
+          Re-fetch &amp; Validate
+        </text>
+        <text class="node-sub" x="460" y="432" text-anchor="middle">
+          name · version · inputs
+        </text>
+        <text class="node-sub" x="460" y="448" text-anchor="middle">
+          fixed HTTPS / pinned npm
+        </text>
+
+        <!-- Privileged consent gate -->
+        <rect
+          class="node-mask"
+          x="568"
+          y="144"
+          width="160"
+          height="112"
+          rx="8"
+        />
+        <rect
+          class="node focal"
+          x="568"
+          y="144"
+          width="160"
+          height="112"
+          rx="8"
+        />
+        <rect class="tag focal" x="580" y="156" width="44" height="16" rx="4" />
+        <text class="tag-text focal" x="602" y="168" text-anchor="middle">
+          GATE
+        </text>
+        <text class="node-name" x="648" y="196" text-anchor="middle">
+          Install &amp; Connect
+        </text>
+        <text class="node-sub" x="648" y="216" text-anchor="middle">
+          explicit user action
+        </text>
+        <text class="node-sub" x="648" y="232" text-anchor="middle">
+          validated option only
+        </text>
+
+        <!-- OS encrypted secrets -->
+        <rect
+          class="node-mask"
+          x="568"
+          y="360"
+          width="160"
+          height="96"
+          rx="8"
+        />
+        <rect
+          class="node store"
+          x="568"
+          y="360"
+          width="160"
+          height="96"
+          rx="8"
+        />
+        <rect class="tag" x="580" y="372" width="48" height="16" rx="4" />
+        <text class="tag-text" x="604" y="384" text-anchor="middle">
+          SECRET
+        </text>
+        <text class="node-name" x="648" y="412" text-anchor="middle">
+          OS-encrypted Store
+        </text>
+        <text class="node-sub" x="648" y="432" text-anchor="middle">
+          safeStorage · mode 0600
+        </text>
+
+        <!-- MCP manager -->
+        <rect
+          class="node-mask"
+          x="804"
+          y="144"
+          width="160"
+          height="112"
+          rx="8"
+        />
+        <rect class="node" x="804" y="144" width="160" height="112" rx="8" />
+        <rect class="tag" x="816" y="156" width="44" height="16" rx="4" />
+        <text class="tag-text" x="838" y="168" text-anchor="middle">HOST</text>
+        <text class="node-name" x="884" y="196" text-anchor="middle">
+          McpClientManager
+        </text>
+        <text class="node-sub" x="884" y="216" text-anchor="middle">
+          config · auth · tools
+        </text>
+        <text class="node-sub" x="884" y="232" text-anchor="middle">
+          connect then refresh Agent
+        </text>
+
+        <!-- Runtime -->
+        <rect
+          class="node-mask"
+          x="1040"
+          y="144"
+          width="160"
+          height="112"
+          rx="8"
+        />
+        <rect
+          class="node external"
+          x="1040"
+          y="144"
+          width="160"
+          height="112"
+          rx="8"
+        />
+        <rect class="tag" x="1052" y="156" width="60" height="16" rx="4" />
+        <text class="tag-text" x="1082" y="168" text-anchor="middle">
+          RUNTIME
+        </text>
+        <text class="node-name" x="1120" y="196" text-anchor="middle">
+          MCP Server
+        </text>
+        <text class="node-sub" x="1120" y="216" text-anchor="middle">
+          remote HTTPS or local stdio
+        </text>
+        <text class="node-sub" x="1120" y="232" text-anchor="middle">
+          stdio = desktop-user access
+        </text>
+
+        <!-- Status and diagnostics destination -->
+        <rect
+          class="node-mask"
+          x="904"
+          y="372"
+          width="192"
+          height="96"
+          rx="8"
+        />
+        <rect
+          class="node optional"
+          x="904"
+          y="372"
+          width="192"
+          height="96"
+          rx="8"
+        />
+        <rect class="tag" x="916" y="384" width="52" height="16" rx="4" />
+        <text class="tag-text" x="942" y="396" text-anchor="middle">
+          RECORD
+        </text>
+        <text class="node-name" x="1000" y="424" text-anchor="middle">
+          Status &amp; Diagnostics
+        </text>
+        <text class="node-sub" x="1000" y="444" text-anchor="middle">
+          connection state · bounded errors
+        </text>
+
+        <!-- Legend strip -->
+        <line
+          x1="40"
+          y1="656"
+          x2="1240"
+          y2="656"
+          stroke="rgba(31,32,35,0.12)"
+          stroke-width="0.8"
+        />
+        <text class="legend-head" x="40" y="680">LEGEND</text>
+        <line
+          class="flow accent"
+          x1="144"
+          y1="676"
+          x2="184"
+          y2="676"
+          marker-end="url(#trust-arrow-accent)"
+        />
+        <text class="legend-text" x="196" y="680">approved path</text>
+        <line
+          class="flow link"
+          x1="360"
+          y1="676"
+          x2="400"
+          y2="676"
+          marker-end="url(#trust-arrow-link)"
+        />
+        <text class="legend-text" x="412" y="680">external HTTPS</text>
+        <line
+          class="flow passive"
+          x1="568"
+          y1="676"
+          x2="608"
+          y2="676"
+          marker-end="url(#trust-arrow)"
+        />
+        <text class="legend-text" x="620" y="680">
+          credential / status flow
+        </text>
+        <circle
+          cx="844"
+          cy="676"
+          r="8"
+          fill="#f7f7f6"
+          stroke="#1f2023"
+          stroke-width="1.2"
+        />
+        <line
+          x1="840"
+          y1="672"
+          x2="848"
+          y2="680"
+          stroke="#1f2023"
+          stroke-width="1.2"
+        />
+        <line
+          x1="848"
+          y1="672"
+          x2="840"
+          y2="680"
+          stroke="#1f2023"
+          stroke-width="1.2"
+        />
+        <text class="legend-text" x="864" y="680">
+          blocked boundary crossing
+        </text>
+        <rect
+          x="1064"
+          y="668"
+          width="36"
+          height="16"
+          rx="4"
+          fill="rgba(50,111,203,0.025)"
+          stroke="rgba(50,111,203,0.40)"
+          stroke-dasharray="4 4"
+          stroke-width="0.8"
+        />
+        <text class="legend-text" x="1112" y="680">runtime boundary</text>
+      </svg>
+    </main>
+  </body>
+</html>

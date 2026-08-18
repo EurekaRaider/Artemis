@@ -1,0 +1,225 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify tag and source
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Verify tag matches package version
+        shell: bash
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [[ "$GITHUB_REF_NAME" != "$expected" ]]; then
+            echo "Release tag $GITHUB_REF_NAME does not match package version $expected." >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run typecheck
+        run: npm run typecheck
+
+      - name: Build production bundles
+        run: npm run build
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  package-windows:
+    name: Package Windows x64
+    needs: verify
+    runs-on: windows-2025
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Package Windows x64 ZIP
+        run: npm run package:win
+
+      - name: Verify Windows x64 package natively
+        run: npm run verify:win-native -w @artemis/desktop
+
+      - name: Upload Windows x64 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-x64
+          path: apps/desktop/release/Artemis-Windows-x64-*.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  package-macos:
+    name: Package macOS ${{ matrix.arch }}
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+            host_arch: arm64
+            binary_arch: arm64
+            app_dir: mac-arm64
+          - arch: x64
+            runner: macos-15-intel
+            host_arch: x86_64
+            binary_arch: x86_64
+            app_dir: mac
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Verify native runner architecture
+        shell: bash
+        run: |
+          actual="$(uname -m)"
+          if [[ "$actual" != "${{ matrix.host_arch }}" ]]; then
+            echo "Expected ${{ matrix.host_arch }} runner, got $actual." >&2
+            exit 1
+          fi
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Package macOS ${{ matrix.arch }} DMG and ZIP
+        run: npm run package:mac:${{ matrix.arch }}
+
+      - name: Verify macOS ${{ matrix.arch }} engineering packages
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          app="apps/desktop/release/${{ matrix.app_dir }}/Artemis.app"
+          executable="$app/Contents/MacOS/Artemis"
+          dmg="apps/desktop/release/Artemis-macOS-${{ matrix.arch }}-$version.dmg"
+          zip="apps/desktop/release/Artemis-macOS-${{ matrix.arch }}-$version.zip"
+          /usr/bin/codesign --verify --deep --strict "$app"
+          /usr/bin/codesign -dv --verbose=4 "$app" 2>&1 | grep -F "Signature=adhoc"
+          actual_arch="$(/usr/bin/lipo -archs "$executable")"
+          if [[ "$actual_arch" != "${{ matrix.binary_arch }}" ]]; then
+            echo "Expected ${{ matrix.binary_arch }} package, got $actual_arch." >&2
+            exit 1
+          fi
+          /usr/bin/hdiutil verify "$dmg"
+          /usr/bin/unzip -t "$zip"
+
+      - name: Upload macOS ${{ matrix.arch }} packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-${{ matrix.arch }}
+          path: |
+            apps/desktop/release/Artemis-macOS-${{ matrix.arch }}-*.dmg
+            apps/desktop/release/Artemis-macOS-${{ matrix.arch }}-*.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    needs:
+      - package-windows
+      - package-macos
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Download release packages
+        uses: actions/download-artifact@v5
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify complete release package set
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          expected=(
+            "Artemis-Windows-x64-$version.zip"
+            "Artemis-macOS-arm64-$version.dmg"
+            "Artemis-macOS-arm64-$version.zip"
+            "Artemis-macOS-x64-$version.dmg"
+            "Artemis-macOS-x64-$version.zip"
+          )
+          for name in "${expected[@]}"; do
+            if [[ ! -f "release-assets/$name" ]]; then
+              echo "Missing release package: $name" >&2
+              exit 1
+            fi
+          done
+          actual_count="$(find release-assets -maxdepth 1 -type f | wc -l | tr -d ' ')"
+          if [[ "$actual_count" != "${#expected[@]}" ]]; then
+            echo "Expected ${#expected[@]} release packages, found $actual_count." >&2
+            find release-assets -maxdepth 1 -type f -print >&2
+            exit 1
+          fi
+
+      - name: Publish release and all packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MACOS_NOTICE: |-
+            > [!WARNING]
+            > The macOS DMG and ZIP packages are engineering artifacts for local debugging and trial use only. They have an ad-hoc engineering signature, but are not signed with an Apple Developer ID and are not notarized by Apple.
+            >
+            > Before first launch, remove the quarantine attribute only after you have verified and trust the download: `xattr -dr com.apple.quarantine "/Applications/Artemis.app"`. Replace the path if Artemis is installed elsewhere.
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" release-assets/* \
+            --verify-tag \
+            --title "Artemis $GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "$MACOS_NOTICE"
