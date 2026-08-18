@@ -35,6 +35,15 @@ describe("automation authorization", () => {
     ).not.toBe(fingerprint);
   });
 
+  it("fingerprints interval schedules without weekly-only fields", () => {
+    expect(
+      automationAuthorizationFingerprint({
+        ...input,
+        schedule: { kind: "interval", every: 30, unit: "minutes" },
+      }),
+    ).toMatch(/^[a-f0-9]{64}$/u);
+  });
+
   it("auto-approves only a linked active Execute automation turn", () => {
     expect(
       automationMayAutoApprove({

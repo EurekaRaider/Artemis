@@ -140,6 +140,7 @@ import {
   sortProjectThreads,
 } from "./thread-list-order.js";
 import { moveUserInputOptionFocus } from "./user-input-navigation.js";
+import { formatUserInputCountdown } from "./user-input-countdown.js";
 import {
   agentTeamWorkspaceTab,
   childAgentWorkspaceTab,
@@ -3106,9 +3107,6 @@ export function App() {
     .filter((entry) => entry.startsWith("input:"))
     .map((entry) => entry.slice("input:".length))
     .find((id) => threadState.userInputs[id]?.status === "pending");
-  const activePendingUserInput = activePendingUserInputId
-    ? threadState?.userInputs[activePendingUserInputId]
-    : undefined;
   useEffect(() => {
     const previousId = previousPendingUserInputId.current;
     previousPendingUserInputId.current = activePendingUserInputId;
@@ -5198,974 +5196,900 @@ export function App() {
                         placement="composer"
                       />
                     )}
-                    {activePendingUserInput ? (
-                      <div className="pending-user-input-composer">
-                        <UserInputCard
-                          active
-                          input={activePendingUserInput}
-                          locale={locale}
-                          onCancel={cancelActiveTurn}
-                          onResolve={resolveUserInputRequest}
-                          placement="composer"
-                        />
-                        <div
-                          aria-label={t.modelPicker}
-                          className="pending-user-input-model"
-                          role="status"
-                        >
-                          <ModelIcon />
+                    <>
+                      <ComposerContextBar
+                        {...(activeProject ? { activeProject } : {})}
+                        branchActionsDisabled={projectBranchActionsDisabled}
+                        locale={locale}
+                        mode={mode}
+                        onClearProject={() => {
+                          discardNewConversationDraft();
+                          beginTemporaryConversation();
+                        }}
+                        onError={(message) =>
+                          setToast({ error: true, message })
+                        }
+                        onModeChange={setMode}
+                        onOpenProject={openProject}
+                        onSelectProject={(project) => {
+                          discardNewConversationDraft();
+                          beginNewConversation(project.id);
+                        }}
+                        projects={projects}
+                      />
+                      {!snapshot.sandbox.available && (
+                        <div className="sandbox-notice">
+                          <Icon size={16}>
+                            <path
+                              d="M12 3.5 20 7v5.8c0 4.1-3.1 6.8-8 8.2-4.9-1.4-8-4.1-8-8.2V7l8-3.5Z"
+                              stroke="currentColor"
+                              strokeLinejoin="round"
+                              strokeWidth="1.5"
+                            />
+                            <path
+                              d="M12 8v5m0 3v.1"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeWidth="1.5"
+                            />
+                          </Icon>
                           <span>
-                            <strong>{activeModelLabel}</strong>
-                            {activeThinkingLevel && (
-                              <small>{activeThinkingLevel}</small>
-                            )}
+                            <strong>{t.sandboxUnavailable}</strong>
+                            <small>{t.sandboxDetail}</small>
                           </span>
                         </div>
-                      </div>
-                    ) : (
-                      <>
-                        <ComposerContextBar
-                          {...(activeProject ? { activeProject } : {})}
-                          branchActionsDisabled={projectBranchActionsDisabled}
-                          locale={locale}
-                          mode={mode}
-                          onClearProject={() => {
-                            discardNewConversationDraft();
-                            beginTemporaryConversation();
-                          }}
-                          onError={(message) =>
-                            setToast({ error: true, message })
-                          }
-                          onModeChange={setMode}
-                          onOpenProject={openProject}
-                          onSelectProject={(project) => {
-                            discardNewConversationDraft();
-                            beginNewConversation(project.id);
-                          }}
-                          projects={projects}
-                        />
-                        {!snapshot.sandbox.available && (
-                          <div className="sandbox-notice">
-                            <Icon size={16}>
-                              <path
-                                d="M12 3.5 20 7v5.8c0 4.1-3.1 6.8-8 8.2-4.9-1.4-8-4.1-8-8.2V7l8-3.5Z"
-                                stroke="currentColor"
-                                strokeLinejoin="round"
-                                strokeWidth="1.5"
-                              />
-                              <path
-                                d="M12 8v5m0 3v.1"
-                                stroke="currentColor"
-                                strokeLinecap="round"
-                                strokeWidth="1.5"
-                              />
-                            </Icon>
-                            <span>
-                              <strong>{t.sandboxUnavailable}</strong>
-                              <small>{t.sandboxDetail}</small>
-                            </span>
-                          </div>
-                        )}
-                        {queuedMessage && (
-                          <div
-                            aria-label={t.queuedMessage}
-                            className="queued-message-bar"
-                            role="status"
-                          >
-                            <span
-                              className="queued-message-content"
-                              title={queuedMessage}
-                            >
-                              <SteerIcon />
-                              <span>{queuedMessage}</span>
-                            </span>
-                            <div className="queued-message-actions">
-                              {canSteerQueuedMessage && (
-                                <button
-                                  aria-label={t.queueSteerHint}
-                                  className="queued-message-steer"
-                                  disabled={busy}
-                                  onClick={() => void steerQueuedMessage()}
-                                  title={t.queueSteerHint}
-                                  type="button"
-                                >
-                                  <SteerIcon />
-                                  <span>{t.queueSteer}</span>
-                                </button>
-                              )}
-                              <button
-                                aria-label={t.queueDelete}
-                                className="queued-message-delete"
-                                disabled={busy}
-                                onClick={() => void deleteQueuedMessage()}
-                                title={t.queueDelete}
-                                type="button"
-                              >
-                                <TrashIcon />
-                              </button>
-                              <button
-                                aria-label={t.queueEdit}
-                                className="queued-message-edit"
-                                disabled={busy}
-                                onClick={() => void editQueuedMessage()}
-                                title={t.queueEdit}
-                                type="button"
-                              >
-                                <EllipsisIcon />
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                      )}
+                      {queuedMessage && (
                         <div
-                          className="composer"
-                          onDragEnter={handleAttachmentDragEnter}
-                          onDragLeave={handleAttachmentDragLeave}
-                          onDragOver={handleAttachmentDragOver}
-                          onDrop={handleAttachmentDrop}
+                          aria-label={t.queuedMessage}
+                          className="queued-message-bar"
+                          role="status"
                         >
-                          {attachmentDragActive && (
-                            <div className="composer-drop-overlay">
-                              <PlusIcon />
-                              <strong>{t.dropAttachments}</strong>
-                              <small>{t.dropAttachmentsDetail}</small>
-                            </div>
-                          )}
-                          {skillCommandMenuOpen && (
-                            <div
-                              aria-label={t.installedSkills}
-                              className="slash-command-menu"
-                              id="skill-command-menu"
-                              ref={slashCommandMenu}
-                              role="listbox"
+                          <span
+                            className="queued-message-content"
+                            title={queuedMessage}
+                          >
+                            <SteerIcon />
+                            <span>{queuedMessage}</span>
+                          </span>
+                          <div className="queued-message-actions">
+                            {canSteerQueuedMessage && (
+                              <button
+                                aria-label={t.queueSteerHint}
+                                className="queued-message-steer"
+                                disabled={busy}
+                                onClick={() => void steerQueuedMessage()}
+                                title={t.queueSteerHint}
+                                type="button"
+                              >
+                                <SteerIcon />
+                                <span>{t.queueSteer}</span>
+                              </button>
+                            )}
+                            <button
+                              aria-label={t.queueDelete}
+                              className="queued-message-delete"
+                              disabled={busy}
+                              onClick={() => void deleteQueuedMessage()}
+                              title={t.queueDelete}
+                              type="button"
                             >
-                              {goalSuggestionIndex >= 0 && (
-                                <button
-                                  aria-selected={
-                                    goalSuggestionIndex ===
-                                    activeSlashSuggestion
-                                  }
-                                  className={`slash-command-suggestion${goalSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
-                                  id={`skill-command-option-${goalSuggestionIndex}`}
-                                  onClick={() =>
-                                    selectComposerCommand("/goal ")
-                                  }
-                                  role="option"
-                                  tabIndex={-1}
-                                >
-                                  <span className="slash-command-icon">◎</span>
-                                  <span>
-                                    <strong>{t.goalCommand}</strong>
-                                    <small>{t.goalCommandDetail}</small>
-                                  </span>
-                                </button>
-                              )}
-                              {compactSuggestionIndex >= 0 && (
-                                <button
-                                  aria-selected={
-                                    compactSuggestionIndex ===
-                                    activeSlashSuggestion
-                                  }
-                                  className={`slash-command-suggestion${compactSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
-                                  id={`skill-command-option-${compactSuggestionIndex}`}
-                                  onClick={() =>
-                                    selectComposerCommand("/compact")
-                                  }
-                                  role="option"
-                                  tabIndex={-1}
-                                >
-                                  <span className="slash-command-icon">
-                                    <Icon size={18}>
-                                      <path
-                                        d="M8 3v5H3m13-5v5h5M8 21v-5H3m13 5v-5h5"
-                                        stroke="currentColor"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="1.5"
-                                      />
-                                    </Icon>
-                                  </span>
-                                  <span>
-                                    <strong>{t.compactCommand}</strong>
-                                    <small>{t.compactCommandDetail}</small>
-                                  </span>
-                                </button>
-                              )}
-                              {initSuggestionIndex >= 0 && (
-                                <button
-                                  aria-selected={
-                                    initSuggestionIndex ===
-                                    activeSlashSuggestion
-                                  }
-                                  className={`slash-command-suggestion${initSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
-                                  id={`skill-command-option-${initSuggestionIndex}`}
-                                  onClick={() => selectComposerCommand("/init")}
-                                  role="option"
-                                  tabIndex={-1}
-                                >
-                                  <span className="slash-command-icon">
-                                    <Icon size={18}>
-                                      <path
-                                        d="M6.5 3.5h7l4 4v13h-11v-17Zm7 0v4h4M9 12h6m-6 4h6"
-                                        stroke="currentColor"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="1.5"
-                                      />
-                                    </Icon>
-                                  </span>
-                                  <span>
-                                    <strong>{t.initCommand}</strong>
-                                    <small>{t.initCommandDetail}</small>
-                                  </span>
-                                </button>
-                              )}
-                              {modeSuggestions.map(({ index, mode }) => {
-                                const commandLabel =
-                                  mode === "plan"
-                                    ? t.planCommand
-                                    : mode === "execute"
-                                      ? t.executeCommand
-                                      : t.reviewCommand;
-                                const commandDetail =
-                                  mode === "plan"
-                                    ? t.planCommandDetail
-                                    : mode === "execute"
-                                      ? t.executeCommandDetail
-                                      : t.reviewCommandDetail;
-                                return (
-                                  <button
-                                    aria-selected={
-                                      index === activeSlashSuggestion
-                                    }
-                                    className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
-                                    id={`skill-command-option-${index}`}
-                                    key={mode}
-                                    onClick={() =>
-                                      selectComposerCommand(`/${mode} `)
-                                    }
-                                    role="option"
-                                    tabIndex={-1}
-                                  >
-                                    <span className="slash-command-icon">
-                                      <ModeIcon />
-                                    </span>
-                                    <span>
-                                      <strong>{commandLabel}</strong>
-                                      <small>{commandDetail}</small>
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                              {skillsLoading ? (
-                                <div className="slash-command-status">
-                                  {t.loadingSkills}
-                                </div>
-                              ) : skillsError ? (
-                                <div className="slash-command-status error">
-                                  {skillsError}
-                                </div>
-                              ) : skillSuggestions.length > 0 ? (
-                                <>
-                                  {pluginSkillSuggestions.length > 0 && (
-                                    <div className="slash-command-heading">
-                                      {t.installedPlugins}
-                                    </div>
-                                  )}
-                                  {pluginSkillSuggestions.map(
-                                    ({ index, plugin, skill }) => (
-                                      <button
-                                        aria-selected={
-                                          index === activeSlashSuggestion
-                                        }
-                                        className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
-                                        id={`skill-command-option-${index}`}
-                                        key={skill.id}
-                                        onClick={() =>
-                                          selectSkillCommand(skill)
-                                        }
-                                        role="option"
-                                        tabIndex={-1}
-                                      >
-                                        <span className="slash-command-icon plugin-icon">
-                                          {plugin.iconDataUrl ? (
-                                            <img
-                                              alt=""
-                                              draggable={false}
-                                              src={plugin.iconDataUrl}
-                                            />
-                                          ) : (
-                                            <ResourceIcon />
-                                          )}
-                                        </span>
-                                        <span>
-                                          <strong>{skill.name}</strong>
-                                          <small title={skill.description}>
-                                            {plugin.displayName} ·{" "}
-                                            {skill.description}
-                                          </small>
-                                        </span>
-                                      </button>
-                                    ),
-                                  )}
-                                  {standaloneSkillSuggestions.length > 0 && (
-                                    <div className="slash-command-heading">
-                                      {t.installedSkills}
-                                    </div>
-                                  )}
-                                  {standaloneSkillSuggestions.map(
-                                    ({ index, skill }) => (
-                                      <button
-                                        aria-selected={
-                                          index === activeSlashSuggestion
-                                        }
-                                        className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
-                                        id={`skill-command-option-${index}`}
-                                        key={skill.id}
-                                        onClick={() =>
-                                          selectSkillCommand(skill)
-                                        }
-                                        role="option"
-                                        tabIndex={-1}
-                                      >
-                                        <span className="slash-command-icon">
-                                          ✦
-                                        </span>
-                                        <span>
-                                          <strong>{skill.name}</strong>
-                                          <small>{skill.description}</small>
-                                        </span>
-                                      </button>
-                                    ),
-                                  )}
-                                </>
-                              ) : (
-                                <div className="slash-command-status">
-                                  {installedSkills.some(
-                                    (skill) => skill.enabled,
-                                  )
-                                    ? t.noMatchingSkills
-                                    : t.noInstalledSkills}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {!skillCommandMenuOpen &&
-                            selectedSkills.map((skill) => {
-                              const plugin = installedPluginBySkillName.get(
-                                skill.name,
-                              );
+                              <TrashIcon />
+                            </button>
+                            <button
+                              aria-label={t.queueEdit}
+                              className="queued-message-edit"
+                              disabled={busy}
+                              onClick={() => void editQueuedMessage()}
+                              title={t.queueEdit}
+                              type="button"
+                            >
+                              <EllipsisIcon />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      <div
+                        className="composer"
+                        onDragEnter={handleAttachmentDragEnter}
+                        onDragLeave={handleAttachmentDragLeave}
+                        onDragOver={handleAttachmentDragOver}
+                        onDrop={handleAttachmentDrop}
+                      >
+                        {attachmentDragActive && (
+                          <div className="composer-drop-overlay">
+                            <PlusIcon />
+                            <strong>{t.dropAttachments}</strong>
+                            <small>{t.dropAttachmentsDetail}</small>
+                          </div>
+                        )}
+                        {skillCommandMenuOpen && (
+                          <div
+                            aria-label={t.installedSkills}
+                            className="slash-command-menu"
+                            id="skill-command-menu"
+                            ref={slashCommandMenu}
+                            role="listbox"
+                          >
+                            {goalSuggestionIndex >= 0 && (
+                              <button
+                                aria-selected={
+                                  goalSuggestionIndex === activeSlashSuggestion
+                                }
+                                className={`slash-command-suggestion${goalSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                id={`skill-command-option-${goalSuggestionIndex}`}
+                                onClick={() => selectComposerCommand("/goal ")}
+                                role="option"
+                                tabIndex={-1}
+                              >
+                                <span className="slash-command-icon">◎</span>
+                                <span>
+                                  <strong>{t.goalCommand}</strong>
+                                  <small>{t.goalCommandDetail}</small>
+                                </span>
+                              </button>
+                            )}
+                            {compactSuggestionIndex >= 0 && (
+                              <button
+                                aria-selected={
+                                  compactSuggestionIndex ===
+                                  activeSlashSuggestion
+                                }
+                                className={`slash-command-suggestion${compactSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                id={`skill-command-option-${compactSuggestionIndex}`}
+                                onClick={() =>
+                                  selectComposerCommand("/compact")
+                                }
+                                role="option"
+                                tabIndex={-1}
+                              >
+                                <span className="slash-command-icon">
+                                  <Icon size={18}>
+                                    <path
+                                      d="M8 3v5H3m13-5v5h5M8 21v-5H3m13 5v-5h5"
+                                      stroke="currentColor"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="1.5"
+                                    />
+                                  </Icon>
+                                </span>
+                                <span>
+                                  <strong>{t.compactCommand}</strong>
+                                  <small>{t.compactCommandDetail}</small>
+                                </span>
+                              </button>
+                            )}
+                            {initSuggestionIndex >= 0 && (
+                              <button
+                                aria-selected={
+                                  initSuggestionIndex === activeSlashSuggestion
+                                }
+                                className={`slash-command-suggestion${initSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                id={`skill-command-option-${initSuggestionIndex}`}
+                                onClick={() => selectComposerCommand("/init")}
+                                role="option"
+                                tabIndex={-1}
+                              >
+                                <span className="slash-command-icon">
+                                  <Icon size={18}>
+                                    <path
+                                      d="M6.5 3.5h7l4 4v13h-11v-17Zm7 0v4h4M9 12h6m-6 4h6"
+                                      stroke="currentColor"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="1.5"
+                                    />
+                                  </Icon>
+                                </span>
+                                <span>
+                                  <strong>{t.initCommand}</strong>
+                                  <small>{t.initCommandDetail}</small>
+                                </span>
+                              </button>
+                            )}
+                            {modeSuggestions.map(({ index, mode }) => {
+                              const commandLabel =
+                                mode === "plan"
+                                  ? t.planCommand
+                                  : mode === "execute"
+                                    ? t.executeCommand
+                                    : t.reviewCommand;
+                              const commandDetail =
+                                mode === "plan"
+                                  ? t.planCommandDetail
+                                  : mode === "execute"
+                                    ? t.executeCommandDetail
+                                    : t.reviewCommandDetail;
                               return (
-                                <div
-                                  className="composer-selected-skill"
-                                  key={skill.id}
+                                <button
+                                  aria-selected={
+                                    index === activeSlashSuggestion
+                                  }
+                                  className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                  id={`skill-command-option-${index}`}
+                                  key={mode}
+                                  onClick={() =>
+                                    selectComposerCommand(`/${mode} `)
+                                  }
+                                  role="option"
+                                  tabIndex={-1}
                                 >
-                                  <span
-                                    className={`slash-command-icon${plugin ? " plugin-icon" : ""}`}
-                                  >
-                                    {plugin?.iconDataUrl ? (
-                                      <img
-                                        alt=""
-                                        draggable={false}
-                                        src={plugin.iconDataUrl}
-                                      />
-                                    ) : plugin ? (
-                                      <ResourceIcon />
-                                    ) : (
-                                      "✦"
-                                    )}
+                                  <span className="slash-command-icon">
+                                    <ModeIcon />
                                   </span>
-                                  <span className="composer-selected-skill-copy">
-                                    <small>{t.selectedSkill}</small>
-                                    <strong>{skill.name}</strong>
+                                  <span>
+                                    <strong>{commandLabel}</strong>
+                                    <small>{commandDetail}</small>
                                   </span>
-                                  <button
-                                    aria-label={`${t.removeSelectedSkill}: ${skill.name}`}
-                                    className="composer-selected-skill-remove"
-                                    onClick={() =>
-                                      removeSelectedSkill(skill.name)
-                                    }
-                                    title={t.removeSelectedSkill}
-                                    type="button"
-                                  >
-                                    ×
-                                  </button>
-                                </div>
+                                </button>
                               );
                             })}
-                          {attachments.length > 0 && (
-                            <div className="composer-attachments">
-                              {attachments.map((attachment, index) => (
-                                <figure
-                                  className="composer-attachment"
-                                  key={`${attachment.name}-${index}`}
-                                >
-                                  {isPromptImage(attachment) ? (
-                                    <img
-                                      alt={attachment.name}
-                                      src={`data:${attachment.mimeType};base64,${attachment.data}`}
-                                    />
-                                  ) : (
-                                    <div
-                                      aria-label={attachment.mimeType}
-                                      className="composer-file-preview"
-                                    >
-                                      <FileIcon />
-                                      <span>
-                                        {attachment.name
-                                          .split(".")
-                                          .pop()
-                                          ?.slice(0, 8)
-                                          .toLocaleUpperCase() || "FILE"}
-                                      </span>
-                                    </div>
-                                  )}
-                                  <button
-                                    aria-label={`${t.removeAttachment}: ${attachment.name}`}
-                                    onClick={() =>
-                                      setAttachments((current) =>
-                                        current.filter(
-                                          (_candidate, candidateIndex) =>
-                                            candidateIndex !== index,
-                                        ),
-                                      )
-                                    }
-                                    title={t.removeAttachment}
-                                  >
-                                    ×
-                                  </button>
-                                  <figcaption title={attachment.name}>
-                                    {attachment.name}
-                                  </figcaption>
-                                </figure>
-                              ))}
-                            </div>
-                          )}
-                          <textarea
-                            aria-activedescendant={
-                              skillCommandMenuOpen &&
-                              slashCommandSuggestions.length > 0
-                                ? `skill-command-option-${activeSlashSuggestion}`
-                                : undefined
-                            }
-                            aria-autocomplete="list"
-                            aria-controls={
-                              skillCommandMenuOpen
-                                ? "skill-command-menu"
-                                : undefined
-                            }
-                            aria-expanded={skillCommandMenuOpen}
-                            aria-label={t.prompt}
-                            onChange={(event) => {
-                              const value = event.target.value;
-                              setPrompt(value);
-                              setSkillMenuDismissed(false);
-                              promptHistoryNavigation.current = {
-                                index: -1,
-                                draft: value,
-                              };
-                            }}
-                            onKeyDown={(event) => {
-                              if (
-                                event.key === "Tab" &&
-                                event.shiftKey &&
-                                !event.nativeEvent.isComposing &&
-                                !turnActive &&
-                                !busy
-                              ) {
-                                event.preventDefault();
-                                setMode((current) => nextRunMode(current));
-                                return;
-                              }
-                              if (
-                                skillCommandMenuOpen &&
-                                slashCommandSuggestions.length > 0 &&
-                                !event.nativeEvent.isComposing
-                              ) {
-                                if (event.key === "ArrowDown") {
-                                  event.preventDefault();
-                                  setActiveSlashSuggestion(
-                                    (current) =>
-                                      (current + 1) %
-                                      slashCommandSuggestions.length,
-                                  );
-                                  return;
-                                }
-                                if (event.key === "ArrowUp") {
-                                  event.preventDefault();
-                                  setActiveSlashSuggestion(
-                                    (current) =>
-                                      (current -
-                                        1 +
-                                        slashCommandSuggestions.length) %
-                                      slashCommandSuggestions.length,
-                                  );
-                                  return;
-                                }
-                                if (event.key === "Enter" && !event.shiftKey) {
-                                  event.preventDefault();
-                                  const suggestion =
-                                    slashCommandSuggestions[
-                                      activeSlashSuggestion
-                                    ];
-                                  if (suggestion?.kind === "goal") {
-                                    selectComposerCommand("/goal ");
-                                  } else if (suggestion?.kind === "compact") {
-                                    selectComposerCommand("/compact");
-                                  } else if (suggestion?.kind === "init") {
-                                    selectComposerCommand("/init");
-                                  } else if (
-                                    suggestion?.kind === "plan" ||
-                                    suggestion?.kind === "execute" ||
-                                    suggestion?.kind === "review"
-                                  ) {
-                                    selectComposerCommand(
-                                      `/${suggestion.kind} `,
-                                    );
-                                  } else if (suggestion?.kind === "skill") {
-                                    selectSkillCommand(suggestion.skill);
-                                  }
-                                  return;
-                                }
-                              }
-                              if (
-                                skillCommandMenuOpen &&
-                                event.key === "Escape"
-                              ) {
-                                event.preventDefault();
-                                setSkillMenuDismissed(true);
-                                return;
-                              }
-                              if (
-                                !skillCommandMenuOpen &&
-                                !event.nativeEvent.isComposing &&
-                                (event.key === "ArrowUp" ||
-                                  event.key === "ArrowDown")
-                              ) {
-                                const navigation = navigatePromptHistory(
-                                  promptHistory,
-                                  prompt,
-                                  promptHistoryNavigation.current,
-                                  event.key === "ArrowUp" ? "previous" : "next",
-                                );
-                                if (navigation) {
-                                  event.preventDefault();
-                                  promptHistoryNavigation.current = navigation;
-                                  setPrompt(navigation.value);
-                                  setSkillMenuDismissed(true);
-                                  window.requestAnimationFrame(() => {
-                                    promptInput.current?.setSelectionRange(
-                                      navigation.value.length,
-                                      navigation.value.length,
-                                    );
-                                  });
-                                  return;
-                                }
-                              }
-                              if (
-                                event.key === "Enter" &&
-                                !event.shiftKey &&
-                                !event.nativeEvent.isComposing
-                              ) {
-                                event.preventDefault();
-                                void sendPrompt();
-                              }
-                            }}
-                            onPaste={handleAttachmentPaste}
-                            placeholder={t.prompt}
-                            ref={promptInput}
-                            rows={3}
-                            value={prompt}
-                          />
-                          <div className="composer-toolbar">
-                            <div className="composer-leading">
-                              <button
-                                aria-label={t.addAttachments}
-                                className="composer-icon-button"
-                                onClick={() => void selectPromptAttachments()}
-                                title={t.addAttachments}
-                              >
-                                <PlusIcon />
-                              </button>
-                              <div className="approval-policy-control">
-                                <button
-                                  aria-expanded={approvalMenuOpen}
-                                  aria-haspopup="menu"
-                                  className="approval-policy-trigger"
-                                  disabled={approvalChangeLocked}
-                                  onClick={() => {
-                                    setModelPickerOpen(false);
-                                    setApprovalMenuOpen((current) => !current);
-                                  }}
-                                  title={t.approvalPolicy}
-                                >
-                                  <ApprovalIcon
-                                    warning={approvalPolicy === "full-access"}
-                                  />
-                                  <span>{approvalPolicyLabel}</span>
-                                  <ChevronIcon />
-                                </button>
-                                {approvalMenuOpen && (
-                                  <div
-                                    aria-label={t.approvalPolicy}
-                                    className="approval-policy-menu"
-                                    role="menu"
-                                  >
-                                    <strong className="approval-policy-heading">
-                                      {t.approvalPolicy}
-                                    </strong>
-                                    <button
-                                      aria-checked={approvalPolicy === "ask"}
-                                      className={
-                                        approvalPolicy === "ask"
-                                          ? "selected"
-                                          : ""
-                                      }
-                                      disabled={approvalChangeLocked}
-                                      onClick={() =>
-                                        void changeApprovalPolicy("ask")
-                                      }
-                                      role="menuitemradio"
-                                    >
-                                      <ApprovalIcon />
-                                      <span>
-                                        <strong>{t.askApproval}</strong>
-                                        <small>{t.askApprovalDetail}</small>
-                                      </span>
-                                      <b aria-hidden="true">
-                                        {approvalPolicy === "ask" ? "✓" : ""}
-                                      </b>
-                                    </button>
-                                    <button
-                                      aria-checked={approvalPolicy === "agent"}
-                                      className={
-                                        approvalPolicy === "agent"
-                                          ? "selected"
-                                          : ""
-                                      }
-                                      disabled={approvalChangeLocked}
-                                      onClick={() =>
-                                        void changeApprovalPolicy("agent")
-                                      }
-                                      role="menuitemradio"
-                                    >
-                                      <ApprovalIcon />
-                                      <span>
-                                        <strong>{t.agentApproval}</strong>
-                                        <small>{t.agentApprovalDetail}</small>
-                                      </span>
-                                      <b aria-hidden="true">
-                                        {approvalPolicy === "agent" ? "✓" : ""}
-                                      </b>
-                                    </button>
-                                    <button
-                                      aria-checked={
-                                        approvalPolicy === "full-access"
-                                      }
-                                      className={`danger ${
-                                        approvalPolicy === "full-access"
-                                          ? "selected"
-                                          : ""
-                                      }`}
-                                      disabled={
-                                        approvalChangeLocked ||
-                                        !snapshot.sandbox.available
-                                      }
-                                      onClick={() =>
-                                        void changeApprovalPolicy("full-access")
-                                      }
-                                      role="menuitemradio"
-                                    >
-                                      <ApprovalIcon warning />
-                                      <span>
-                                        <strong>{t.fullAccess}</strong>
-                                        <small>
-                                          {snapshot.sandbox.available
-                                            ? t.fullAccessDetail
-                                            : t.fullAccessUnavailable}
-                                        </small>
-                                      </span>
-                                      <b aria-hidden="true">
-                                        {approvalPolicy === "full-access"
-                                          ? "✓"
-                                          : ""}
-                                      </b>
-                                    </button>
-                                    <button
-                                      aria-checked={approvalPolicy === "custom"}
-                                      className={
-                                        approvalPolicy === "custom"
-                                          ? "selected"
-                                          : ""
-                                      }
-                                      disabled={approvalChangeLocked}
-                                      onClick={() =>
-                                        void changeApprovalPolicy("custom")
-                                      }
-                                      role="menuitemradio"
-                                    >
-                                      <ModeIcon />
-                                      <span>
-                                        <strong>{t.customApproval}</strong>
-                                        <small>{t.customApprovalDetail}</small>
-                                      </span>
-                                      <b aria-hidden="true">
-                                        {approvalPolicy === "custom" ? "✓" : ""}
-                                      </b>
-                                    </button>
+                            {skillsLoading ? (
+                              <div className="slash-command-status">
+                                {t.loadingSkills}
+                              </div>
+                            ) : skillsError ? (
+                              <div className="slash-command-status error">
+                                {skillsError}
+                              </div>
+                            ) : skillSuggestions.length > 0 ? (
+                              <>
+                                {pluginSkillSuggestions.length > 0 && (
+                                  <div className="slash-command-heading">
+                                    {t.installedPlugins}
                                   </div>
                                 )}
+                                {pluginSkillSuggestions.map(
+                                  ({ index, plugin, skill }) => (
+                                    <button
+                                      aria-selected={
+                                        index === activeSlashSuggestion
+                                      }
+                                      className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                      id={`skill-command-option-${index}`}
+                                      key={skill.id}
+                                      onClick={() => selectSkillCommand(skill)}
+                                      role="option"
+                                      tabIndex={-1}
+                                    >
+                                      <span className="slash-command-icon plugin-icon">
+                                        {plugin.iconDataUrl ? (
+                                          <img
+                                            alt=""
+                                            draggable={false}
+                                            src={plugin.iconDataUrl}
+                                          />
+                                        ) : (
+                                          <ResourceIcon />
+                                        )}
+                                      </span>
+                                      <span>
+                                        <strong>{skill.name}</strong>
+                                        <small title={skill.description}>
+                                          {plugin.displayName} ·{" "}
+                                          {skill.description}
+                                        </small>
+                                      </span>
+                                    </button>
+                                  ),
+                                )}
+                                {standaloneSkillSuggestions.length > 0 && (
+                                  <div className="slash-command-heading">
+                                    {t.installedSkills}
+                                  </div>
+                                )}
+                                {standaloneSkillSuggestions.map(
+                                  ({ index, skill }) => (
+                                    <button
+                                      aria-selected={
+                                        index === activeSlashSuggestion
+                                      }
+                                      className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                      id={`skill-command-option-${index}`}
+                                      key={skill.id}
+                                      onClick={() => selectSkillCommand(skill)}
+                                      role="option"
+                                      tabIndex={-1}
+                                    >
+                                      <span className="slash-command-icon">
+                                        ✦
+                                      </span>
+                                      <span>
+                                        <strong>{skill.name}</strong>
+                                        <small>{skill.description}</small>
+                                      </span>
+                                    </button>
+                                  ),
+                                )}
+                              </>
+                            ) : (
+                              <div className="slash-command-status">
+                                {installedSkills.some((skill) => skill.enabled)
+                                  ? t.noMatchingSkills
+                                  : t.noInstalledSkills}
                               </div>
-                            </div>
-                            <div className="composer-trailing">
-                              <ContextUsageIndicator
-                                contextWindow={
-                                  runtimeSettings?.contextWindow ??
-                                  activeModel?.contextWindow
-                                }
-                                locale={locale}
-                                usage={threadState?.contextUsage}
-                              />
+                            )}
+                          </div>
+                        )}
+                        {!skillCommandMenuOpen &&
+                          selectedSkills.map((skill) => {
+                            const plugin = installedPluginBySkillName.get(
+                              skill.name,
+                            );
+                            return (
                               <div
-                                className="model-picker-control"
-                                ref={modelPickerRoot}
+                                className="composer-selected-skill"
+                                key={skill.id}
                               >
+                                <span
+                                  className={`slash-command-icon${plugin ? " plugin-icon" : ""}`}
+                                >
+                                  {plugin?.iconDataUrl ? (
+                                    <img
+                                      alt=""
+                                      draggable={false}
+                                      src={plugin.iconDataUrl}
+                                    />
+                                  ) : plugin ? (
+                                    <ResourceIcon />
+                                  ) : (
+                                    "✦"
+                                  )}
+                                </span>
+                                <span className="composer-selected-skill-copy">
+                                  <small>{t.selectedSkill}</small>
+                                  <strong>{skill.name}</strong>
+                                </span>
                                 <button
-                                  aria-expanded={modelPickerOpen}
-                                  aria-haspopup="menu"
-                                  aria-label={t.modelPicker}
-                                  className="model-button"
-                                  disabled={
-                                    busy ||
-                                    turnActive ||
-                                    switchableModels.length === 0
+                                  aria-label={`${t.removeSelectedSkill}: ${skill.name}`}
+                                  className="composer-selected-skill-remove"
+                                  onClick={() =>
+                                    removeSelectedSkill(skill.name)
                                   }
-                                  onClick={() => {
-                                    setApprovalMenuOpen(false);
-                                    setModelPickerSection("model");
-                                    setModelPickerOpen((current) => !current);
-                                  }}
-                                  title={t.modelPicker}
+                                  title={t.removeSelectedSkill}
                                   type="button"
                                 >
-                                  <span
-                                    aria-hidden="true"
-                                    className="model-compact-icon"
-                                  >
-                                    <ModelIcon />
-                                  </span>
-                                  <span className="model-information">
-                                    <strong>{activeModelLabel}</strong>
-                                    {activeThinkingLevel && (
-                                      <small>{activeThinkingLevel}</small>
-                                    )}
-                                  </span>
-                                  <ChevronIcon />
+                                  ×
                                 </button>
-                                {modelPickerOpen && (
+                              </div>
+                            );
+                          })}
+                        {attachments.length > 0 && (
+                          <div className="composer-attachments">
+                            {attachments.map((attachment, index) => (
+                              <figure
+                                className="composer-attachment"
+                                key={`${attachment.name}-${index}`}
+                              >
+                                {isPromptImage(attachment) ? (
+                                  <img
+                                    alt={attachment.name}
+                                    src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                                  />
+                                ) : (
                                   <div
-                                    aria-label={t.modelPicker}
-                                    className="model-picker-menu"
+                                    aria-label={attachment.mimeType}
+                                    className="composer-file-preview"
+                                  >
+                                    <FileIcon />
+                                    <span>
+                                      {attachment.name
+                                        .split(".")
+                                        .pop()
+                                        ?.slice(0, 8)
+                                        .toLocaleUpperCase() || "FILE"}
+                                    </span>
+                                  </div>
+                                )}
+                                <button
+                                  aria-label={`${t.removeAttachment}: ${attachment.name}`}
+                                  onClick={() =>
+                                    setAttachments((current) =>
+                                      current.filter(
+                                        (_candidate, candidateIndex) =>
+                                          candidateIndex !== index,
+                                      ),
+                                    )
+                                  }
+                                  title={t.removeAttachment}
+                                >
+                                  ×
+                                </button>
+                                <figcaption title={attachment.name}>
+                                  {attachment.name}
+                                </figcaption>
+                              </figure>
+                            ))}
+                          </div>
+                        )}
+                        <textarea
+                          aria-activedescendant={
+                            skillCommandMenuOpen &&
+                            slashCommandSuggestions.length > 0
+                              ? `skill-command-option-${activeSlashSuggestion}`
+                              : undefined
+                          }
+                          aria-autocomplete="list"
+                          aria-controls={
+                            skillCommandMenuOpen
+                              ? "skill-command-menu"
+                              : undefined
+                          }
+                          aria-expanded={skillCommandMenuOpen}
+                          aria-label={t.prompt}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setPrompt(value);
+                            setSkillMenuDismissed(false);
+                            promptHistoryNavigation.current = {
+                              index: -1,
+                              draft: value,
+                            };
+                          }}
+                          onKeyDown={(event) => {
+                            if (
+                              event.key === "Tab" &&
+                              event.shiftKey &&
+                              !event.nativeEvent.isComposing &&
+                              !turnActive &&
+                              !busy
+                            ) {
+                              event.preventDefault();
+                              setMode((current) => nextRunMode(current));
+                              return;
+                            }
+                            if (
+                              skillCommandMenuOpen &&
+                              slashCommandSuggestions.length > 0 &&
+                              !event.nativeEvent.isComposing
+                            ) {
+                              if (event.key === "ArrowDown") {
+                                event.preventDefault();
+                                setActiveSlashSuggestion(
+                                  (current) =>
+                                    (current + 1) %
+                                    slashCommandSuggestions.length,
+                                );
+                                return;
+                              }
+                              if (event.key === "ArrowUp") {
+                                event.preventDefault();
+                                setActiveSlashSuggestion(
+                                  (current) =>
+                                    (current -
+                                      1 +
+                                      slashCommandSuggestions.length) %
+                                    slashCommandSuggestions.length,
+                                );
+                                return;
+                              }
+                              if (event.key === "Enter" && !event.shiftKey) {
+                                event.preventDefault();
+                                const suggestion =
+                                  slashCommandSuggestions[
+                                    activeSlashSuggestion
+                                  ];
+                                if (suggestion?.kind === "goal") {
+                                  selectComposerCommand("/goal ");
+                                } else if (suggestion?.kind === "compact") {
+                                  selectComposerCommand("/compact");
+                                } else if (suggestion?.kind === "init") {
+                                  selectComposerCommand("/init");
+                                } else if (
+                                  suggestion?.kind === "plan" ||
+                                  suggestion?.kind === "execute" ||
+                                  suggestion?.kind === "review"
+                                ) {
+                                  selectComposerCommand(`/${suggestion.kind} `);
+                                } else if (suggestion?.kind === "skill") {
+                                  selectSkillCommand(suggestion.skill);
+                                }
+                                return;
+                              }
+                            }
+                            if (
+                              skillCommandMenuOpen &&
+                              event.key === "Escape"
+                            ) {
+                              event.preventDefault();
+                              setSkillMenuDismissed(true);
+                              return;
+                            }
+                            if (
+                              !skillCommandMenuOpen &&
+                              !event.nativeEvent.isComposing &&
+                              (event.key === "ArrowUp" ||
+                                event.key === "ArrowDown")
+                            ) {
+                              const navigation = navigatePromptHistory(
+                                promptHistory,
+                                prompt,
+                                promptHistoryNavigation.current,
+                                event.key === "ArrowUp" ? "previous" : "next",
+                              );
+                              if (navigation) {
+                                event.preventDefault();
+                                promptHistoryNavigation.current = navigation;
+                                setPrompt(navigation.value);
+                                setSkillMenuDismissed(true);
+                                window.requestAnimationFrame(() => {
+                                  promptInput.current?.setSelectionRange(
+                                    navigation.value.length,
+                                    navigation.value.length,
+                                  );
+                                });
+                                return;
+                              }
+                            }
+                            if (
+                              event.key === "Enter" &&
+                              !event.shiftKey &&
+                              !event.nativeEvent.isComposing
+                            ) {
+                              event.preventDefault();
+                              void sendPrompt();
+                            }
+                          }}
+                          onPaste={handleAttachmentPaste}
+                          placeholder={t.prompt}
+                          ref={promptInput}
+                          rows={3}
+                          value={prompt}
+                        />
+                        <div className="composer-toolbar">
+                          <div className="composer-leading">
+                            <button
+                              aria-label={t.addAttachments}
+                              className="composer-icon-button"
+                              onClick={() => void selectPromptAttachments()}
+                              title={t.addAttachments}
+                            >
+                              <PlusIcon />
+                            </button>
+                            <div className="approval-policy-control">
+                              <button
+                                aria-expanded={approvalMenuOpen}
+                                aria-haspopup="menu"
+                                className="approval-policy-trigger"
+                                disabled={approvalChangeLocked}
+                                onClick={() => {
+                                  setModelPickerOpen(false);
+                                  setApprovalMenuOpen((current) => !current);
+                                }}
+                                title={t.approvalPolicy}
+                              >
+                                <ApprovalIcon
+                                  warning={approvalPolicy === "full-access"}
+                                />
+                                <span>{approvalPolicyLabel}</span>
+                                <ChevronIcon />
+                              </button>
+                              {approvalMenuOpen && (
+                                <div
+                                  aria-label={t.approvalPolicy}
+                                  className="approval-policy-menu"
+                                  role="menu"
+                                >
+                                  <strong className="approval-policy-heading">
+                                    {t.approvalPolicy}
+                                  </strong>
+                                  <button
+                                    aria-checked={approvalPolicy === "ask"}
+                                    className={
+                                      approvalPolicy === "ask" ? "selected" : ""
+                                    }
+                                    disabled={approvalChangeLocked}
+                                    onClick={() =>
+                                      void changeApprovalPolicy("ask")
+                                    }
+                                    role="menuitemradio"
+                                  >
+                                    <ApprovalIcon />
+                                    <span>
+                                      <strong>{t.askApproval}</strong>
+                                      <small>{t.askApprovalDetail}</small>
+                                    </span>
+                                    <b aria-hidden="true">
+                                      {approvalPolicy === "ask" ? "✓" : ""}
+                                    </b>
+                                  </button>
+                                  <button
+                                    aria-checked={approvalPolicy === "agent"}
+                                    className={
+                                      approvalPolicy === "agent"
+                                        ? "selected"
+                                        : ""
+                                    }
+                                    disabled={approvalChangeLocked}
+                                    onClick={() =>
+                                      void changeApprovalPolicy("agent")
+                                    }
+                                    role="menuitemradio"
+                                  >
+                                    <ApprovalIcon />
+                                    <span>
+                                      <strong>{t.agentApproval}</strong>
+                                      <small>{t.agentApprovalDetail}</small>
+                                    </span>
+                                    <b aria-hidden="true">
+                                      {approvalPolicy === "agent" ? "✓" : ""}
+                                    </b>
+                                  </button>
+                                  <button
+                                    aria-checked={
+                                      approvalPolicy === "full-access"
+                                    }
+                                    className={`danger ${
+                                      approvalPolicy === "full-access"
+                                        ? "selected"
+                                        : ""
+                                    }`}
+                                    disabled={
+                                      approvalChangeLocked ||
+                                      !snapshot.sandbox.available
+                                    }
+                                    onClick={() =>
+                                      void changeApprovalPolicy("full-access")
+                                    }
+                                    role="menuitemradio"
+                                  >
+                                    <ApprovalIcon warning />
+                                    <span>
+                                      <strong>{t.fullAccess}</strong>
+                                      <small>
+                                        {snapshot.sandbox.available
+                                          ? t.fullAccessDetail
+                                          : t.fullAccessUnavailable}
+                                      </small>
+                                    </span>
+                                    <b aria-hidden="true">
+                                      {approvalPolicy === "full-access"
+                                        ? "✓"
+                                        : ""}
+                                    </b>
+                                  </button>
+                                  <button
+                                    aria-checked={approvalPolicy === "custom"}
+                                    className={
+                                      approvalPolicy === "custom"
+                                        ? "selected"
+                                        : ""
+                                    }
+                                    disabled={approvalChangeLocked}
+                                    onClick={() =>
+                                      void changeApprovalPolicy("custom")
+                                    }
+                                    role="menuitemradio"
+                                  >
+                                    <ModeIcon />
+                                    <span>
+                                      <strong>{t.customApproval}</strong>
+                                      <small>{t.customApprovalDetail}</small>
+                                    </span>
+                                    <b aria-hidden="true">
+                                      {approvalPolicy === "custom" ? "✓" : ""}
+                                    </b>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="composer-trailing">
+                            <ContextUsageIndicator
+                              contextWindow={
+                                runtimeSettings?.contextWindow ??
+                                activeModel?.contextWindow
+                              }
+                              locale={locale}
+                              usage={threadState?.contextUsage}
+                            />
+                            <div
+                              className="model-picker-control"
+                              ref={modelPickerRoot}
+                            >
+                              <button
+                                aria-expanded={modelPickerOpen}
+                                aria-haspopup="menu"
+                                aria-label={t.modelPicker}
+                                className="model-button"
+                                disabled={
+                                  busy ||
+                                  turnActive ||
+                                  switchableModels.length === 0
+                                }
+                                onClick={() => {
+                                  setApprovalMenuOpen(false);
+                                  setModelPickerSection("model");
+                                  setModelPickerOpen((current) => !current);
+                                }}
+                                title={t.modelPicker}
+                                type="button"
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className="model-compact-icon"
+                                >
+                                  <ModelIcon />
+                                </span>
+                                <span className="model-information">
+                                  <strong>{activeModelLabel}</strong>
+                                  {activeThinkingLevel && (
+                                    <small>{activeThinkingLevel}</small>
+                                  )}
+                                </span>
+                                <ChevronIcon />
+                              </button>
+                              {modelPickerOpen && (
+                                <div
+                                  aria-label={t.modelPicker}
+                                  className="model-picker-menu"
+                                  role="menu"
+                                >
+                                  <div className="model-picker-navigation">
+                                    <button
+                                      className={
+                                        modelPickerSection === "model"
+                                          ? "selected"
+                                          : ""
+                                      }
+                                      onClick={() =>
+                                        setModelPickerSection("model")
+                                      }
+                                      onMouseEnter={() =>
+                                        setModelPickerSection("model")
+                                      }
+                                      role="menuitem"
+                                      type="button"
+                                    >
+                                      <strong>{t.modelPickerModel}</strong>
+                                      <span>{activeModelLabel}</span>
+                                      <i aria-hidden="true">
+                                        <ChevronIcon />
+                                      </i>
+                                    </button>
+                                    <button
+                                      className={
+                                        modelPickerSection === "thinking"
+                                          ? "selected"
+                                          : ""
+                                      }
+                                      disabled={
+                                        !runtimeSettings?.selection ||
+                                        !activeModelSupportsReasoning
+                                      }
+                                      onClick={() =>
+                                        setModelPickerSection("thinking")
+                                      }
+                                      onMouseEnter={() =>
+                                        setModelPickerSection("thinking")
+                                      }
+                                      role="menuitem"
+                                      type="button"
+                                    >
+                                      <strong>{t.thinking}</strong>
+                                      <span>{activeThinkingLevel ?? "—"}</span>
+                                      <i aria-hidden="true">
+                                        <ChevronIcon />
+                                      </i>
+                                    </button>
+                                  </div>
+                                  <div
+                                    aria-label={
+                                      modelPickerSection === "model"
+                                        ? t.modelPickerModel
+                                        : t.thinking
+                                    }
+                                    className="model-picker-options"
                                     role="menu"
                                   >
-                                    <div className="model-picker-navigation">
-                                      <button
-                                        className={
-                                          modelPickerSection === "model"
-                                            ? "selected"
-                                            : ""
-                                        }
-                                        onClick={() =>
-                                          setModelPickerSection("model")
-                                        }
-                                        onMouseEnter={() =>
-                                          setModelPickerSection("model")
-                                        }
-                                        role="menuitem"
-                                        type="button"
-                                      >
-                                        <strong>{t.modelPickerModel}</strong>
-                                        <span>{activeModelLabel}</span>
-                                        <i aria-hidden="true">
-                                          <ChevronIcon />
-                                        </i>
-                                      </button>
-                                      <button
-                                        className={
-                                          modelPickerSection === "thinking"
-                                            ? "selected"
-                                            : ""
-                                        }
-                                        disabled={
-                                          !runtimeSettings?.selection ||
-                                          !activeModelSupportsReasoning
-                                        }
-                                        onClick={() =>
-                                          setModelPickerSection("thinking")
-                                        }
-                                        onMouseEnter={() =>
-                                          setModelPickerSection("thinking")
-                                        }
-                                        role="menuitem"
-                                        type="button"
-                                      >
-                                        <strong>{t.thinking}</strong>
-                                        <span>
-                                          {activeThinkingLevel ?? "—"}
-                                        </span>
-                                        <i aria-hidden="true">
-                                          <ChevronIcon />
-                                        </i>
-                                      </button>
-                                    </div>
-                                    <div
-                                      aria-label={
-                                        modelPickerSection === "model"
-                                          ? t.modelPickerModel
-                                          : t.thinking
-                                      }
-                                      className="model-picker-options"
-                                      role="menu"
-                                    >
-                                      {modelPickerSection === "thinking" && (
-                                        <div className="model-picker-options-heading">
-                                          {t.thinking}
-                                        </div>
-                                      )}
-                                      {modelPickerSection === "model"
-                                        ? switchableModels.map((model) => {
+                                    {modelPickerSection === "thinking" && (
+                                      <div className="model-picker-options-heading">
+                                        {t.thinking}
+                                      </div>
+                                    )}
+                                    {modelPickerSection === "model"
+                                      ? switchableModels.map((model) => {
+                                          const selected =
+                                            model.providerId ===
+                                              runtimeSettings?.selection
+                                                ?.providerId &&
+                                            model.modelId ===
+                                              runtimeSettings.selection.modelId;
+                                          return (
+                                            <button
+                                              aria-checked={selected}
+                                              className={
+                                                selected ? "selected" : ""
+                                              }
+                                              key={modelIdentity(
+                                                model.providerId,
+                                                model.modelId,
+                                              )}
+                                              onClick={() =>
+                                                void switchComposerModel(model)
+                                              }
+                                              role="menuitemradio"
+                                              type="button"
+                                            >
+                                              <span>
+                                                <strong>{model.name}</strong>
+                                              </span>
+                                              <b aria-hidden="true">
+                                                {selected ? "✓" : ""}
+                                              </b>
+                                            </button>
+                                          );
+                                        })
+                                      : modelPickerThinkingLevels.map(
+                                          (level) => {
                                             const selected =
-                                              model.providerId ===
+                                              runtimeSettings?.selection
+                                                ?.ultraMode !== true &&
+                                              level ===
                                                 runtimeSettings?.selection
-                                                  ?.providerId &&
-                                              model.modelId ===
-                                                runtimeSettings.selection
-                                                  .modelId;
+                                                  ?.thinkingLevel;
                                             return (
                                               <button
                                                 aria-checked={selected}
                                                 className={
                                                   selected ? "selected" : ""
                                                 }
-                                                key={modelIdentity(
-                                                  model.providerId,
-                                                  model.modelId,
-                                                )}
+                                                key={level}
                                                 onClick={() =>
-                                                  void switchComposerModel(
-                                                    model,
+                                                  void switchComposerThinking(
+                                                    level,
                                                   )
                                                 }
                                                 role="menuitemradio"
                                                 type="button"
                                               >
                                                 <span>
-                                                  <strong>{model.name}</strong>
+                                                  <strong>
+                                                    {thinkingLevelLabel(
+                                                      level,
+                                                      locale,
+                                                    )}
+                                                  </strong>
                                                 </span>
                                                 <b aria-hidden="true">
                                                   {selected ? "✓" : ""}
                                                 </b>
                                               </button>
                                             );
-                                          })
-                                        : modelPickerThinkingLevels.map(
-                                            (level) => {
-                                              const selected =
-                                                runtimeSettings?.selection
-                                                  ?.ultraMode !== true &&
-                                                level ===
-                                                  runtimeSettings?.selection
-                                                    ?.thinkingLevel;
-                                              return (
-                                                <button
-                                                  aria-checked={selected}
-                                                  className={
-                                                    selected ? "selected" : ""
-                                                  }
-                                                  key={level}
-                                                  onClick={() =>
-                                                    void switchComposerThinking(
-                                                      level,
-                                                    )
-                                                  }
-                                                  role="menuitemradio"
-                                                  type="button"
-                                                >
-                                                  <span>
-                                                    <strong>
-                                                      {thinkingLevelLabel(
-                                                        level,
-                                                        locale,
-                                                      )}
-                                                    </strong>
-                                                  </span>
-                                                  <b aria-hidden="true">
-                                                    {selected ? "✓" : ""}
-                                                  </b>
-                                                </button>
-                                              );
-                                            },
-                                          )}
-                                      {modelPickerSection === "thinking" &&
-                                        activeModelSupportsReasoning && (
-                                          <button
-                                            aria-checked={activeUltraMode}
-                                            className={`ultra-mode-option${
-                                              activeUltraMode ? " selected" : ""
-                                            }`}
-                                            onClick={() =>
-                                              void switchComposerThinking(
-                                                activeModelHighestThinkingLevel,
-                                                true,
-                                              )
-                                            }
-                                            role="menuitemradio"
-                                            type="button"
-                                          >
-                                            <span>
-                                              <strong>{t.ultraMode}</strong>
-                                              <small>{t.ultraModeQuota}</small>
-                                            </span>
-                                            <b aria-hidden="true">
-                                              {activeUltraMode ? "✓" : ""}
-                                            </b>
-                                          </button>
+                                          },
                                         )}
-                                    </div>
+                                    {modelPickerSection === "thinking" &&
+                                      activeModelSupportsReasoning && (
+                                        <button
+                                          aria-checked={activeUltraMode}
+                                          className={`ultra-mode-option${
+                                            activeUltraMode ? " selected" : ""
+                                          }`}
+                                          onClick={() =>
+                                            void switchComposerThinking(
+                                              activeModelHighestThinkingLevel,
+                                              true,
+                                            )
+                                          }
+                                          role="menuitemradio"
+                                          type="button"
+                                        >
+                                          <span>
+                                            <strong>{t.ultraMode}</strong>
+                                            <small>{t.ultraModeQuota}</small>
+                                          </span>
+                                          <b aria-hidden="true">
+                                            {activeUltraMode ? "✓" : ""}
+                                          </b>
+                                        </button>
+                                      )}
                                   </div>
-                                )}
-                              </div>
-                              {turnActive ? (
-                                <div className="run-actions">
-                                  <button
-                                    className="send-button"
-                                    disabled={
-                                      (!prompt.trim() &&
-                                        attachments.length === 0 &&
-                                        selectedSkills.length === 0) ||
-                                      busy
-                                    }
-                                    onClick={() => void sendPrompt()}
-                                    title={t.followUp}
-                                  >
-                                    <Icon size={17}>
-                                      <path
-                                        d="m6 12 6-6 6 6m-6-6v12"
-                                        stroke="currentColor"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth="1.8"
-                                      />
-                                    </Icon>
-                                  </button>
-                                  <button
-                                    className="send-button stop"
-                                    onClick={() => void cancelActiveTurn()}
-                                    title={t.stop}
-                                  >
-                                    <span />
-                                  </button>
                                 </div>
-                              ) : (
+                              )}
+                            </div>
+                            {turnActive ? (
+                              <div className="run-actions">
                                 <button
                                   className="send-button"
                                   disabled={
@@ -6175,7 +6099,7 @@ export function App() {
                                     busy
                                   }
                                   onClick={() => void sendPrompt()}
-                                  title={t.send}
+                                  title={t.followUp}
                                 >
                                   <Icon size={17}>
                                     <path
@@ -6187,12 +6111,41 @@ export function App() {
                                     />
                                   </Icon>
                                 </button>
-                              )}
-                            </div>
+                                <button
+                                  className="send-button stop"
+                                  onClick={() => void cancelActiveTurn()}
+                                  title={t.stop}
+                                >
+                                  <span />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="send-button"
+                                disabled={
+                                  (!prompt.trim() &&
+                                    attachments.length === 0 &&
+                                    selectedSkills.length === 0) ||
+                                  busy
+                                }
+                                onClick={() => void sendPrompt()}
+                                title={t.send}
+                              >
+                                <Icon size={17}>
+                                  <path
+                                    d="m6 12 6-6 6 6m-6-6v12"
+                                    stroke="currentColor"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth="1.8"
+                                  />
+                                </Icon>
+                              </button>
+                            )}
                           </div>
                         </div>
-                      </>
-                    )}
+                      </div>
+                    </>
                   </div>
                 )}
               </section>
@@ -7746,16 +7699,12 @@ function UserInputCard({
   input,
   active,
   locale,
-  onCancel,
   onResolve,
-  placement = "timeline",
 }: {
   input: UserInputState;
   active: boolean;
   locale: Locale;
-  onCancel?: () => Promise<boolean>;
   onResolve: (resolution: UserInputResolution) => Promise<void>;
-  placement?: "composer" | "timeline";
 }) {
   const t = appCopy(locale);
   const recommendedOptionIndex = Math.max(
@@ -7767,12 +7716,19 @@ function UserInputCard({
   const [showOther, setShowOther] = useState(false);
   const [otherAnswer, setOtherAnswer] = useState("");
   const [resolving, setResolving] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
+  const [clock, setClock] = useState(() => Date.now());
   const [activeOptionIndex, setActiveOptionIndex] = useState(
     recommendedOptionIndex,
   );
   const optionButtons = useRef<Array<HTMLButtonElement | null>>([]);
-  const interactionBusy = resolving || cancelling;
+  const interactionBusy = resolving;
+
+  useEffect(() => {
+    if (input.status !== "pending") return;
+    setClock(Date.now());
+    const timer = window.setInterval(() => setClock(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [input.requestId, input.status]);
 
   useLayoutEffect(() => {
     if (!active || input.status !== "pending") return;
@@ -7801,13 +7757,6 @@ function UserInputCard({
     } catch {
       setResolving(false);
     }
-  };
-
-  const cancel = async () => {
-    if (!onCancel || interactionBusy) return;
-    setCancelling(true);
-    const cancelled = await onCancel();
-    if (!cancelled) setCancelling(false);
   };
 
   const closeOther = () => {
@@ -7842,9 +7791,7 @@ function UserInputCard({
   };
 
   return (
-    <article
-      className={`user-input-card ${input.status} ${placement}-placement`}
-    >
+    <article className={`user-input-card ${input.status}`}>
       <header>
         <span aria-hidden="true" className="user-input-mark">
           <Icon size={18}>
@@ -7867,24 +7814,15 @@ function UserInputCard({
           <small className="user-input-eyebrow">{input.header}</small>
           <strong className="user-input-question">{input.question}</strong>
         </div>
-        {input.status === "pending" && placement === "composer" && (
-          <button
-            aria-label={t.cancelCurrentTask}
-            className="user-input-cancel"
-            disabled={interactionBusy}
-            onClick={() => void cancel()}
-            title={t.cancelCurrentTask}
-            type="button"
+        {input.status === "pending" && (
+          <time
+            aria-label={t.timeoutHint}
+            className="user-input-timeout"
+            dateTime={input.expiresAt}
+            title={t.timeoutHint}
           >
-            <Icon size={18}>
-              <path
-                d="m7 7 10 10M17 7 7 17"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="1.6"
-              />
-            </Icon>
-          </button>
+            {formatUserInputCountdown(Date.parse(input.expiresAt) - clock)}
+          </time>
         )}
       </header>
       {input.status === "pending" ? (
@@ -8054,23 +7992,6 @@ function UserInputCard({
               </form>
             )}
           </div>
-          <footer className="user-input-footer">
-            <time className="user-input-timeout" dateTime={input.expiresAt}>
-              {t.timeoutHint}
-            </time>
-            {placement === "composer" && (
-              <button
-                aria-label={t.skipAndCancelTask}
-                className="user-input-skip"
-                disabled={interactionBusy}
-                onClick={() => void cancel()}
-                title={t.skipAndCancelTask}
-                type="button"
-              >
-                {t.skip}
-              </button>
-            )}
-          </footer>
         </>
       ) : (
         <div className="user-input-result">
@@ -8413,10 +8334,10 @@ function Timeline({
         }
         if (kind === "input") {
           const input = state.userInputs[id];
-          if (!input || input.status === "pending") return null;
+          if (!input) return null;
           return (
             <UserInputCard
-              active={false}
+              active={input.status === "pending"}
               input={input}
               key={entry}
               locale={locale}

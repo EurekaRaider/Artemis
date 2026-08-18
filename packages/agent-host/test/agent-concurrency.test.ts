@@ -33,6 +33,32 @@ describe("AgentConcurrencyLimiter", () => {
     expect(() => host.setConcurrencyLimit(65)).toThrow("2 to 64");
   });
 
+  it("admits two independent parent turns at the minimum capacity", async () => {
+    const host = new ArtemisAgentHost(
+      { request: async () => ({ approved: false }) },
+      { emit() {} },
+      { agentConcurrencyLimit: 2 },
+    );
+    const limiter = (
+      host as unknown as { concurrency: AgentConcurrencyLimiter }
+    ).concurrency;
+    const gate = deferred();
+    const first = limiter.run("parent", () => gate.promise, undefined, "a");
+    const second = limiter.run("parent", () => gate.promise, undefined, "b");
+
+    await flush();
+    expect(limiter.snapshot).toMatchObject({
+      active: 2,
+      activeParents: 2,
+      queued: 0,
+      limit: 2,
+    });
+
+    gate.resolve();
+    await Promise.all([first, second]);
+    host.dispose();
+  });
+
   it("queues 64 logical members behind a 16-slot automatic ceiling", async () => {
     const limiter = new AgentConcurrencyLimiter(16);
     const gate = deferred();

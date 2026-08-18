@@ -16,14 +16,14 @@ export interface AutomationAuthorizationInput {
 }
 
 function canonicalSchedule(schedule: AutomationSchedule): unknown {
-  return schedule.kind === "once"
-    ? schedule
-    : {
+  return schedule.kind === "weekly"
+    ? {
         ...schedule,
         daysOfWeek: [...schedule.daysOfWeek].sort(
           (left, right) => left - right,
         ),
-      };
+      }
+    : schedule;
 }
 
 export function automationAuthorizationFingerprint(

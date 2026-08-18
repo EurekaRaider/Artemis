@@ -21,7 +21,13 @@ describe("manual context compaction", () => {
           {
             compacting: boolean;
             currentTurnId: string | undefined;
-            session: { compact: typeof compact };
+            executeTools: never[];
+            mcpDirectToolNames: Set<string>;
+            session: {
+              compact: typeof compact;
+              getActiveToolNames(): string[];
+              setActiveToolsByName(toolNames: string[]): void;
+            };
           }
         >;
       }
@@ -29,7 +35,13 @@ describe("manual context compaction", () => {
     threads.set("thread-1", {
       compacting: false,
       currentTurnId: undefined,
-      session: { compact },
+      executeTools: [],
+      mcpDirectToolNames: new Set(),
+      session: {
+        compact,
+        getActiveToolNames: () => [],
+        setActiveToolsByName() {},
+      },
     });
 
     await host.compact("thread-1", "Preserve the current implementation state");
@@ -70,7 +82,13 @@ describe("manual context compaction", () => {
     threads.set("idle-thread", {
       compacting: false,
       currentTurnId: undefined,
-      session: { compact },
+      executeTools: [],
+      mcpDirectToolNames: new Set(),
+      session: {
+        compact,
+        getActiveToolNames: () => [],
+        setActiveToolsByName() {},
+      },
     });
 
     await expect(host.compact("idle-thread")).resolves.toBeUndefined();

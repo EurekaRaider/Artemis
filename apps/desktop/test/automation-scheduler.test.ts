@@ -53,6 +53,44 @@ function reviewAutomation(): Automation {
 }
 
 describe("AutomationScheduler", () => {
+  it("uses the persisted interval anchor and schedules the next run from dispatch", async () => {
+    const store = await storeWithProject();
+    store.createAutomation({
+      ...reviewAutomation(),
+      schedule: { kind: "interval", every: 2, unit: "hours" },
+      nextRunAt: "2026-07-30T03:00:00.000Z",
+    });
+    const launches: string[] = [];
+    const scheduler = new AutomationScheduler({
+      store,
+      now: () => new Date("2026-07-30T04:00:00.000Z"),
+      launch: async (_automation, run, linkThread) => {
+        launches.push(run.scheduledFor);
+        store.createThread({
+          id: "thread-interval",
+          projectId: "project-1",
+          title: "Interval review",
+          mode: "review",
+          target: "local",
+          status: "idle",
+          pinned: false,
+          archived: false,
+          createdAt: "2026-07-30T04:00:00.000Z",
+          updatedAt: "2026-07-30T04:00:00.000Z",
+        });
+        linkThread("thread-interval");
+      },
+    });
+
+    await scheduler.runDue();
+
+    expect(launches).toEqual(["2026-07-30T03:00:00.000Z"]);
+    expect(store.getAutomation("automation-1")?.nextRunAt).toBe(
+      "2026-07-30T06:00:00.000Z",
+    );
+    store.close();
+  });
+
   it("coalesces missed runs and dispatches the latest occurrence once", async () => {
     const store = await storeWithProject();
     store.createAutomation(reviewAutomation());

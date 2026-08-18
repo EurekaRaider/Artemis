@@ -6,6 +6,21 @@ import {
 } from "../src/main/automation-schedule.js";
 
 describe("automation schedule", () => {
+  it("advances interval schedules from the supplied run anchor", () => {
+    expect(
+      nextAutomationOccurrence(
+        { kind: "interval", every: 30, unit: "minutes" },
+        "2026-07-30T04:00:00.000Z",
+      ),
+    ).toBe("2026-07-30T04:30:00.000Z");
+    expect(
+      nextAutomationOccurrence(
+        { kind: "interval", every: 2, unit: "hours" },
+        "2026-07-30T04:00:00.000Z",
+      ),
+    ).toBe("2026-07-30T06:00:00.000Z");
+  });
+
   it("calculates daily and weekday presets in their stored time zone", () => {
     const daily = {
       kind: "weekly" as const,

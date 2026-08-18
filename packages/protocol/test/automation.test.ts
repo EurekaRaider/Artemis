@@ -50,6 +50,23 @@ describe("automation protocol", () => {
     ).toThrow();
   });
 
+  it("accepts bounded minute, hour, and day interval schedules", () => {
+    for (const unit of ["minutes", "hours", "days"] as const) {
+      expect(
+        automationSchema.parse({
+          ...automation,
+          schedule: { kind: "interval", every: 2, unit },
+        }).schedule,
+      ).toEqual({ kind: "interval", every: 2, unit });
+    }
+    expect(() =>
+      automationSchema.parse({
+        ...automation,
+        schedule: { kind: "interval", every: 0, unit: "minutes" },
+      }),
+    ).toThrow();
+  });
+
   it("reduces replayed update events idempotently", () => {
     const event = automationEventSchema.parse({
       protocolVersion: PROTOCOL_VERSION,
