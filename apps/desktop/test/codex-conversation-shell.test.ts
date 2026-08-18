@@ -403,7 +403,7 @@ describe("Codex conversation shell contract", () => {
     expect(threadMenu).toContain("{t.deleteTask}");
   });
 
-  it("copies a temporary conversation workspace before persisting its fork", () => {
+  it("copies a temporary workspace and rolls back both fork artifacts on failure", () => {
     const forkHandler = sourceBetween(
       mainSource,
       "IPC.threadFork",
@@ -416,10 +416,20 @@ describe("Codex conversation shell contract", () => {
       "return store.createForkedThread(forkedThread, source.id)",
       copyWorkspace,
     );
+    const removeWorkspace = forkHandler.indexOf(
+      "await removeTemporaryConversationWorkspace(",
+      persistFork,
+    );
+    const removeTranscript = forkHandler.indexOf(
+      "await deletePiSessionTranscript(",
+      removeWorkspace,
+    );
     expect(copyWorkspace).toBeGreaterThanOrEqual(0);
     expect(persistFork).toBeGreaterThan(copyWorkspace);
-    expect(forkHandler).toContain(
-      "await removeTemporaryConversationWorkspace(",
+    expect(removeWorkspace).toBeGreaterThan(persistFork);
+    expect(removeTranscript).toBeGreaterThan(removeWorkspace);
+    expect(forkHandler.slice(removeTranscript)).toContain(
+      'piSessionsRoot(process.env, app.getPath("home"))',
     );
   });
 

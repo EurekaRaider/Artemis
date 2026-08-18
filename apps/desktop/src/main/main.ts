@@ -6583,23 +6583,39 @@ function registerIpc(): void {
       };
       if (forkedThread.target === "local") {
         if (!source.projectId) {
-          await copyTemporaryConversationWorkspace(
-            app.getPath("userData"),
-            source.id,
-            forkedThread.id,
-          );
+          let workspaceCopied = false;
           try {
+            await copyTemporaryConversationWorkspace(
+              app.getPath("userData"),
+              source.id,
+              forkedThread.id,
+            );
+            workspaceCopied = true;
             return store.createForkedThread(forkedThread, source.id);
           } catch (error) {
+            const cleanupErrors: unknown[] = [error];
+            if (workspaceCopied) {
+              try {
+                await removeTemporaryConversationWorkspace(
+                  app.getPath("userData"),
+                  forkedThread.id,
+                );
+              } catch (cleanupError) {
+                cleanupErrors.push(cleanupError);
+              }
+            }
             try {
-              await removeTemporaryConversationWorkspace(
-                app.getPath("userData"),
-                forkedThread.id,
+              await deletePiSessionTranscript(
+                fork.sessionFile,
+                piSessionsRoot(process.env, app.getPath("home")),
               );
             } catch (cleanupError) {
+              cleanupErrors.push(cleanupError);
+            }
+            if (cleanupErrors.length > 1) {
               throw new AggregateError(
-                [error, cleanupError],
-                "Temporary conversation fork failed and its copied workspace could not be removed.",
+                cleanupErrors,
+                "Temporary conversation fork failed and one or more artifacts could not be removed.",
               );
             }
             throw error;
