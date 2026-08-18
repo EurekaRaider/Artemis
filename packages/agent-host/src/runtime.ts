@@ -36,6 +36,7 @@ import {
   type AgentRuntimeConfiguration,
   type BrokerExecutionRequest,
   type ModelApprovalDecision,
+  type ModelSelection,
   type McpToolCallResult,
   type McpToolResultContent,
   type PromptAttachment,
@@ -574,12 +575,16 @@ export interface OpenThreadRequest {
   workspacePath: string;
   target: WorkspaceTarget;
   sessionFile?: string;
+  selection?: ModelSelection;
+  contextWindow?: number;
 }
 
 interface HostedThread {
   threadId: string;
   workspacePath: string;
   target: WorkspaceTarget;
+  selection?: ModelSelection;
+  contextWindow?: number;
   session: AgentSession;
   resourceLoader: DefaultResourceLoader;
   currentTurnId: string | undefined;
@@ -1142,18 +1147,64 @@ export class ArtemisAgentHost {
         getSupportedThinkingLevels(catalogModel).at(-1) ?? "off";
     }
     this.configuration = resolvedConfiguration;
-    const model = configureModelContextWindow(
-      catalogModel,
-      resolvedConfiguration.contextWindow,
-    );
     for (const hosted of this.threads.values()) {
-      await hosted.session.setModel(model);
-      hosted.session.setThinkingLevel(selection.thinkingLevel);
+      if (hosted.selection) {
+        const threadModel = modelRuntime.getModel(
+          hosted.selection.providerId,
+          hosted.selection.modelId,
+        );
+        if (!threadModel) {
+          throw new Error(
+            `Thread model is unavailable: ${hosted.selection.providerId}/${hosted.selection.modelId}`,
+          );
+        }
+        await hosted.session.setModel(
+          configureModelContextWindow(threadModel, hosted.contextWindow),
+        );
+        hosted.session.setThinkingLevel(hosted.selection.thinkingLevel);
+      }
       await hosted.resourceLoader.reload();
       hosted.session.setActiveToolsByName(hosted.session.getActiveToolNames());
       this.configureSessionCompaction(hosted.session);
       this.emitContextUsage(hosted, false);
     }
+  }
+
+  async setThreadModel(
+    threadId: string,
+    selection: ModelSelection,
+    contextWindow: number,
+  ): Promise<void> {
+    const hosted = this.threads.get(threadId);
+    if (!hosted) throw new Error(`Thread is not open: ${threadId}`);
+    if (hosted.currentTurnId || hosted.compacting) {
+      throw new Error("Stop the active task before changing its model.");
+    }
+    const modelRuntime = await this.getModelRuntime();
+    const catalogModel = modelRuntime.getModel(
+      selection.providerId,
+      selection.modelId,
+    );
+    if (!catalogModel) {
+      throw new Error(
+        `Configured model is unavailable: ${selection.providerId}/${selection.modelId}`,
+      );
+    }
+    const normalized = structuredClone(selection);
+    if (normalized.ultraMode) {
+      normalized.thinkingLevel =
+        getSupportedThinkingLevels(catalogModel).at(-1) ?? "off";
+    }
+    await hosted.session.setModel(
+      configureModelContextWindow(catalogModel, contextWindow),
+    );
+    hosted.session.setThinkingLevel(normalized.thinkingLevel);
+    hosted.selection = normalized;
+    hosted.contextWindow = contextWindow;
+    await hosted.resourceLoader.reload();
+    hosted.session.setActiveToolsByName(hosted.session.getActiveToolNames());
+    this.configureSessionCompaction(hosted.session);
+    this.emitContextUsage(hosted, false);
   }
 
   private configureSessionCompaction(session: AgentSession): void {
@@ -3512,7 +3563,7 @@ export class ArtemisAgentHost {
               let pendingActivity = "";
               let activityUpdateTimer:
                 ReturnType<typeof setTimeout> | undefined;
-              const childProviderId = this.configuration.selection?.providerId;
+              const childProviderId = hosted.selection?.providerId;
               const childAdapter = new PiAdapter(
                 `${input.turnId}:child:${agentId}`,
               );
@@ -3543,11 +3594,22 @@ export class ArtemisAgentHost {
                   cwd: request.workspacePath,
                   agentDir: this.agentDir,
                   noExtensions: true,
-                  ...createResourceOverrides(() => this.configuration, "child"),
+                  ...createResourceOverrides(
+                    () => ({
+                      ...this.configuration,
+                      ...(hosted.selection
+                        ? { selection: hosted.selection }
+                        : {}),
+                      ...(hosted.contextWindow
+                        ? { contextWindow: hosted.contextWindow }
+                        : {}),
+                    }),
+                    "child",
+                  ),
                 });
                 await childResourceLoader.reload();
                 const modelRuntime = await this.getModelRuntime();
-                const selection = this.configuration.selection;
+                const selection = hosted.selection;
                 const catalogModel = selection
                   ? modelRuntime.getModel(
                       selection.providerId,
@@ -3557,7 +3619,7 @@ export class ArtemisAgentHost {
                 const selectedModel = catalogModel
                   ? configureModelContextWindow(
                       catalogModel,
-                      this.configuration.contextWindow,
+                      hosted.contextWindow,
                     )
                   : undefined;
                 const childBashTools = createObservedBashTools(() => ({
@@ -3843,7 +3905,7 @@ export class ArtemisAgentHost {
               this.onSessionFile?.(request.threadId, sessionFile),
           );
     const modelRuntime = await this.getModelRuntime();
-    const selection = this.configuration.selection;
+    const selection = request.selection ?? this.configuration.selection;
     const catalogModel = selection
       ? modelRuntime.getModel(selection.providerId, selection.modelId)
       : undefined;
@@ -3855,14 +3917,28 @@ export class ArtemisAgentHost {
     const selectedModel = catalogModel
       ? configureModelContextWindow(
           catalogModel,
-          this.configuration.contextWindow,
+          request.contextWindow ?? this.configuration.contextWindow,
         )
       : undefined;
     const resourceLoader = new DefaultResourceLoader({
       cwd: request.workspacePath,
       agentDir: this.agentDir,
       noExtensions: true,
-      ...createResourceOverrides(() => this.configuration),
+      ...createResourceOverrides(() => {
+        const opened = this.threads.get(request.threadId);
+        const threadSelection = opened?.selection ?? selection;
+        const threadContextWindow =
+          opened?.contextWindow ??
+          request.contextWindow ??
+          this.configuration.contextWindow;
+        return {
+          ...this.configuration,
+          ...(threadSelection ? { selection: threadSelection } : {}),
+          ...(threadContextWindow
+            ? { contextWindow: threadContextWindow }
+            : {}),
+        };
+      }),
     });
     await resourceLoader.reload();
     const { session } = await createAgentSession({
@@ -4025,6 +4101,13 @@ export class ArtemisAgentHost {
       threadId: request.threadId,
       workspacePath: request.workspacePath,
       target: request.target,
+      ...(selection ? { selection: structuredClone(selection) } : {}),
+      ...((request.contextWindow ?? this.configuration.contextWindow)
+        ? {
+            contextWindow:
+              request.contextWindow ?? this.configuration.contextWindow,
+          }
+        : {}),
       session,
       resourceLoader,
       currentTurnId: undefined,
@@ -4183,7 +4266,7 @@ export class ArtemisAgentHost {
         "parent",
         async (lease) => {
           hosted.activeLeases.set(ROOT_AGENT_ID, lease);
-          const providerId = this.configuration.selection?.providerId;
+          const providerId = hosted.selection?.providerId;
           this.sink.emit(hosted.threadId, turnId, {
             type: "turn.activity",
             phase: "requesting-model",

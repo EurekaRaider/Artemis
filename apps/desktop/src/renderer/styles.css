@@ -757,7 +757,7 @@ summary:focus-visible {
   display: flex;
   height: 48px;
   justify-content: space-between;
-  padding: 0 11px 0 14px;
+  padding: 0 11px 6px 14px;
 }
 
 .local-indicator {
@@ -3874,7 +3874,7 @@ button.environment-row:disabled {
   border-radius: 14px 14px 0 0;
   display: flex;
   gap: 8px;
-  margin: 0 20px -1px;
+  margin: 0 20px 1px;
   min-height: 43px;
   overflow: visible;
   padding: 0 13px 1px;

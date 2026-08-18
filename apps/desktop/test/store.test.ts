@@ -19,6 +19,127 @@ afterEach(async () => {
 });
 
 describe("AppStore", () => {
+  it("persists projectless threads with their independent model selection", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "state.sqlite");
+    const now = "2026-08-18T00:00:00.000Z";
+    const first = new AppStore(databasePath);
+    first.createThread({
+      id: "scratch-thread",
+      title: "Temporary conversation",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      modelSelection: {
+        providerId: "provider-a",
+        modelId: "model-a",
+        thinkingLevel: "high",
+      },
+      contextWindow: 128_000,
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    first.close();
+
+    const reopened = new AppStore(databasePath);
+    expect(reopened.getThread("scratch-thread")).toMatchObject({
+      modelSelection: {
+        providerId: "provider-a",
+        modelId: "model-a",
+        thinkingLevel: "high",
+      },
+      contextWindow: 128_000,
+    });
+    expect(reopened.getThread("scratch-thread")).not.toHaveProperty(
+      "projectId",
+    );
+    expect(
+      reopened
+        .snapshot("en", "darwin", {
+          available: true,
+          implementation: "test",
+        })
+        .threads.map((thread) => thread.id),
+    ).toContain("scratch-thread");
+    reopened.close();
+  });
+
+  it("migrates v9 threads to nullable projects without losing event references", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "state.sqlite");
+    const legacy = new DatabaseSync(databasePath);
+    legacy.exec(`
+      PRAGMA foreign_keys = ON;
+      CREATE TABLE projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        path TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        hidden INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE threads (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        goal TEXT,
+        mode TEXT NOT NULL,
+        target TEXT NOT NULL,
+        status TEXT NOT NULL,
+        session_file TEXT,
+        pinned INTEGER NOT NULL DEFAULT 0,
+        archived INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE events (
+        event_id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+        seq INTEGER NOT NULL,
+        body TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(thread_id, seq)
+      );
+      INSERT INTO projects VALUES (
+        'project-1', 'Workspace', '/tmp/workspace',
+        '2026-08-18T00:00:00.000Z', '2026-08-18T00:00:00.000Z', 0
+      );
+      INSERT INTO threads VALUES (
+        'thread-1', 'project-1', 'Existing', NULL, 'execute', 'local', 'idle',
+        NULL, 0, 0, '2026-08-18T00:00:00.000Z',
+        '2026-08-18T00:00:00.000Z'
+      );
+      INSERT INTO events VALUES (
+        'event-1', 'thread-1', 0,
+        '{"protocolVersion":3,"eventId":"event-1","threadId":"thread-1","seq":0,"timestamp":"2026-08-18T00:00:00.000Z","payload":{"type":"turn.started","mode":"execute"}}',
+        '2026-08-18T00:00:00.000Z'
+      );
+      PRAGMA user_version = 9;
+    `);
+    legacy.close();
+
+    const store = new AppStore(databasePath);
+    expect(store.getThread("thread-1")?.projectId).toBe("project-1");
+    expect(store.getThreadEvents("thread-1")).toHaveLength(1);
+    store.createThread({
+      id: "scratch-thread",
+      title: "Temporary conversation",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      createdAt: "2026-08-18T00:01:00.000Z",
+      updatedAt: "2026-08-18T00:01:00.000Z",
+    });
+    expect(store.getThread("scratch-thread")?.projectId).toBeUndefined();
+    store.close();
+  });
+
   it("appends event batches with continuous sequence numbers in one turn transaction", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
     temporaryDirectories.push(directory);

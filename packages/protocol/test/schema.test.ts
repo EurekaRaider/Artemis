@@ -100,6 +100,25 @@ describe("approval schemas", () => {
   it("rejects malformed renderer thread commands", () => {
     expect(
       threadCommandSchema.safeParse({
+        type: "thread.create",
+        mode: "execute",
+        target: "local",
+      }).success,
+    ).toBe(true);
+    expect(
+      threadCommandSchema.safeParse({
+        type: "thread.model.set",
+        threadId: "thread-1",
+        selection: {
+          providerId: "provider-a",
+          modelId: "model-a",
+          thinkingLevel: "high",
+        },
+        contextWindow: 128_000,
+      }).success,
+    ).toBe(true);
+    expect(
+      threadCommandSchema.safeParse({
         type: "thread.rename",
         threadId: "thread-1",
         title: "   ",

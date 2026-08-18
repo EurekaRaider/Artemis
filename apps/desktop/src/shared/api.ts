@@ -51,7 +51,7 @@ export type {
 } from "@artemis/protocol";
 
 export interface CreateThreadInput {
-  projectId: string;
+  projectId?: string;
   mode: RunMode;
   target: WorkspaceTarget;
 }
@@ -703,6 +703,10 @@ export interface ArtemisApi {
   selectPromptAttachments(): Promise<PromptAttachment[] | undefined>;
   readPromptAttachments(files: File[]): Promise<PromptAttachment[]>;
   createThread(input: CreateThreadInput): Promise<Thread | undefined>;
+  setThreadModelSelection(
+    threadId: string,
+    selection: ModelSelection,
+  ): Promise<Thread>;
   renameThread(threadId: string, title: string): Promise<Thread>;
   setThreadGoal(threadId: string, goal: string | null): Promise<Thread>;
   archiveThread(threadId: string, archived: boolean): Promise<Thread>;
@@ -952,6 +956,7 @@ export const IPC = {
   promptAttachmentsSelect: "artemis:prompt-attachments-select",
   promptAttachmentsRead: "artemis:prompt-attachments-read",
   threadCreate: "artemis:thread-create",
+  threadModelSet: "artemis:thread-model-set",
   threadRename: "artemis:thread-rename",
   threadGoal: "artemis:thread-goal",
   threadArchive: "artemis:thread-archive",

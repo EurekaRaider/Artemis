@@ -879,6 +879,14 @@ function handoffBundleRoot(projectId: string, threadId: string): string {
   return join(app.getPath("userData"), "handoff-recovery", projectId, threadId);
 }
 
+function temporaryConversationRoot(): string {
+  return join(app.getPath("userData"), "temporary-conversations");
+}
+
+function temporaryConversationWorkspace(threadId: string): string {
+  return join(temporaryConversationRoot(), threadId);
+}
+
 function windowsSandboxHelperPath(): string {
   return app.isPackaged
     ? join(process.resourcesPath, "resources", "windows-sandbox.ps1")
@@ -944,6 +952,86 @@ function normalizeModelSelection(
         : selection.thinkingLevel
       : "off",
     ...(ultraMode ? { ultraMode: true } : {}),
+  };
+}
+
+async function resolveModelSelection(
+  selection: ModelSelection,
+  currentSelection?: ModelSelection,
+): Promise<{ selection: ModelSelection; contextWindow: number }> {
+  if (!settingsStore) throw new Error("Agent settings are not ready.");
+  if (
+    !selection ||
+    typeof selection.providerId !== "string" ||
+    typeof selection.modelId !== "string"
+  ) {
+    throw new Error("Model selection is invalid.");
+  }
+  if (
+    selection.ultraMode !== undefined &&
+    typeof selection.ultraMode !== "boolean"
+  ) {
+    throw new Error("Ultra mode setting is invalid.");
+  }
+  const allowedThinking = [
+    "off",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+  ];
+  if (!allowedThinking.includes(selection.thinkingLevel)) {
+    throw new Error("Thinking level is invalid.");
+  }
+  const snapshot = await getSettingsSnapshot();
+  const selectedModel = snapshot.models.find(
+    (model) =>
+      model.providerId === selection.providerId &&
+      model.modelId === selection.modelId,
+  );
+  if (!selectedModel) {
+    throw new Error("Selected model is not in the Pi model catalog.");
+  }
+  const addedModel = snapshot.addedModels.find(
+    (model) =>
+      model.providerId === selection.providerId &&
+      model.modelId === selection.modelId,
+  );
+  const customProviderModel = snapshot.providers
+    .find((provider) => provider.id === selection.providerId)
+    ?.models.find((model) => model.id === selection.modelId);
+  const isKnownSelection = [snapshot.selection, currentSelection].some(
+    (candidate) =>
+      candidate?.providerId === selection.providerId &&
+      candidate.modelId === selection.modelId,
+  );
+  if (!addedModel && !customProviderModel && !isKnownSelection) {
+    throw new Error("Add this model in Settings before selecting it.");
+  }
+  const hasStoredCredential = snapshot.credentials.some(
+    (credential) => credential.providerId === selection.providerId,
+  );
+  if (
+    !customProviderModel &&
+    !hasStoredCredential &&
+    !selectedModel.configured
+  ) {
+    throw new Error("This model no longer has configured credentials.");
+  }
+  return {
+    selection: normalizeModelSelection(
+      selection,
+      selectedModel.reasoning,
+      selectedModel.highestThinkingLevel,
+    ),
+    contextWindow: Math.min(
+      addedModel?.contextWindow ??
+        customProviderModel?.contextWindow ??
+        snapshot.contextWindow,
+      selectedModel.contextWindow,
+    ),
   };
 }
 
@@ -1674,20 +1762,43 @@ function pathsEqual(left: string, right: string): boolean {
     : resolvedLeft === resolvedRight;
 }
 
+function approvalProjectId(thread: Thread): string {
+  return thread.projectId ?? `temporary:${thread.id}`;
+}
+
 async function resolveThreadWorkspace(thread: Thread): Promise<{
   project: Project;
   workspacePath: string;
   worktree?: TaskWorktree;
+  temporary: boolean;
 }> {
   if (!store) {
     throw new Error("Application store is not ready.");
+  }
+  if (!thread.projectId) {
+    if (thread.target !== "local") {
+      throw new Error("Temporary conversations cannot use a worktree.");
+    }
+    const workspacePath = temporaryConversationWorkspace(thread.id);
+    await mkdir(workspacePath, { recursive: true });
+    return {
+      project: {
+        id: `temporary:${thread.id}`,
+        name: "Temporary conversation",
+        path: workspacePath,
+        createdAt: thread.createdAt,
+        updatedAt: thread.updatedAt,
+      },
+      workspacePath,
+      temporary: true,
+    };
   }
   const project = store.getProject(thread.projectId);
   if (!project) {
     throw new Error(`Project not found: ${thread.projectId}`);
   }
   if (thread.target === "local") {
-    return { project, workspacePath: project.path };
+    return { project, workspacePath: project.path, temporary: false };
   }
   const worktree = store.getWorktreeForThread(thread.id);
   if (!worktree || worktree.status !== "active") {
@@ -1712,7 +1823,12 @@ async function resolveThreadWorkspace(thread: Thread): Promise<{
         : "Task worktree is unavailable.",
     );
   }
-  return { project, workspacePath: worktree.path, worktree };
+  return {
+    project,
+    workspacePath: worktree.path,
+    worktree,
+    temporary: false,
+  };
 }
 
 async function linkedWorkspaceFile(
@@ -2204,10 +2320,8 @@ async function handleShellBrokerRequest(
     return;
   }
   const thread = store.getThread(request.threadId);
-  const project = thread ? store.getProject(thread.projectId) : undefined;
   if (
     !thread ||
-    !project ||
     cancellingTurns.has(request.threadId) ||
     thread.mode !== request.mode ||
     activeTurns.get(request.threadId) !== request.turnId
@@ -2266,7 +2380,7 @@ async function handleShellBrokerRequest(
     approvalPolicy === "custom"
       ? store.findApprovalGrant({
           threadId: thread.id,
-          projectId: project.id,
+          projectId: approvalProjectId(thread),
           operation: "shell.execute",
           fingerprint,
         })
@@ -2307,7 +2421,9 @@ async function handleShellBrokerRequest(
   const nonce = randomUUID();
   const allowedScopes =
     approvalPolicy === "custom" && decision.outcome === "ask"
-      ? decision.allowedScopes
+      ? decision.allowedScopes.filter(
+          (scope) => scope !== "project" || Boolean(thread.projectId),
+        )
       : ["once" as const];
   pendingApprovals.register({
     approvalId: request.approvalId,
@@ -2316,7 +2432,7 @@ async function handleShellBrokerRequest(
     value: {
       workerRequestId,
       request,
-      projectId: project.id,
+      projectId: approvalProjectId(thread),
       fingerprint,
     },
   });
@@ -2360,6 +2476,23 @@ async function openAgentThread(
     const workspacePath =
       resolvedWorkspacePath ??
       (await resolveThreadWorkspace(thread)).workspacePath;
+    const defaultConfiguration =
+      !thread.modelSelection || !thread.contextWindow
+        ? await settingsStore?.runtimeConfiguration()
+        : undefined;
+    const selection = thread.modelSelection ?? defaultConfiguration?.selection;
+    const contextWindow =
+      thread.contextWindow ?? defaultConfiguration?.contextWindow;
+    if (
+      selection &&
+      contextWindow &&
+      (!thread.modelSelection || !thread.contextWindow)
+    ) {
+      thread = store.updateThread(thread.id, {
+        modelSelection: selection,
+        contextWindow,
+      });
+    }
     const data = await agentProcess.request<{ sessionFile?: string }>({
       type: "thread.open",
       requestId: randomUUID(),
@@ -2367,6 +2500,8 @@ async function openAgentThread(
       workspacePath,
       target: thread.target,
       ...(thread.sessionFile ? { sessionFile: thread.sessionFile } : {}),
+      ...(selection ? { selection } : {}),
+      ...(contextWindow ? { contextWindow } : {}),
     });
     if (data.sessionFile) {
       store.updateThread(thread.id, { sessionFile: data.sessionFile });
@@ -2530,7 +2665,11 @@ async function handleBrokerRequest(
 
   const nonce = randomUUID();
   const allowedScopes =
-    approvalPolicy === "custom" ? decision.allowedScopes : ["once" as const];
+    approvalPolicy === "custom"
+      ? decision.allowedScopes.filter(
+          (scope) => scope !== "project" || Boolean(thread.projectId),
+        )
+      : ["once" as const];
   pendingApprovals.register({
     approvalId: request.approvalId,
     nonce,
@@ -2605,6 +2744,15 @@ async function handleMemoryAppendBrokerRequest(
       workerRequestId,
       request,
       "Memory request workspace does not match the task project.",
+    );
+    return;
+  }
+
+  if (context.temporary && request.scope === "project") {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "Temporary conversations cannot write project memory.",
     );
     return;
   }
@@ -2812,7 +2960,11 @@ async function handleOfficeDocumentBrokerRequest(
 
   const nonce = randomUUID();
   const allowedScopes =
-    approvalPolicy === "custom" ? decision.allowedScopes : ["once" as const];
+    approvalPolicy === "custom"
+      ? decision.allowedScopes.filter(
+          (scope) => scope !== "project" || Boolean(thread.projectId),
+        )
+      : ["once" as const];
   pendingApprovals.register({
     approvalId: request.approvalId,
     nonce,
@@ -2856,8 +3008,7 @@ async function handleMcpBrokerRequest(
     return;
   }
   const thread = store.getThread(request.threadId);
-  const project = thread ? store.getProject(thread.projectId) : undefined;
-  if (!thread || !project) {
+  if (!thread) {
     rejectBrokerRequest(workerRequestId, request, "Task project not found.");
     return;
   }
@@ -2948,7 +3099,7 @@ async function handleMcpBrokerRequest(
     (approvalPolicy === "agent" || approvalPolicy === "custom")
       ? store.findApprovalGrant({
           threadId: thread.id,
-          projectId: project.id,
+          projectId: approvalProjectId(thread),
           operation: "mcp.call",
           fingerprint,
         })
@@ -2988,16 +3139,19 @@ async function handleMcpBrokerRequest(
   }
 
   const nonce = randomUUID();
+  const allowedScopes = request.destructive
+    ? (["once"] as const)
+    : thread.projectId
+      ? (["once", "session", "project"] as const)
+      : (["once", "session"] as const);
   pendingApprovals.register({
     approvalId: request.approvalId,
     nonce,
-    allowedScopes: request.destructive
-      ? ["once"]
-      : ["once", "session", "project"],
+    allowedScopes: [...allowedScopes],
     value: {
       workerRequestId,
       request,
-      projectId: project.id,
+      projectId: approvalProjectId(thread),
       fingerprint,
     },
   });
@@ -3009,9 +3163,7 @@ async function handleMcpBrokerRequest(
     paths: [],
     network: networkTargets,
     risk: effectiveApprovalRisk(approvalOperation),
-    allowedScopes: request.destructive
-      ? ["once"]
-      : ["once", "session", "project"],
+    allowedScopes: [...allowedScopes],
     source: modelMayAutoApprove(approvalOperation) ? "policy" : "model",
     modelRecommendation: modelMayAutoApprove(approvalOperation)
       ? "approve"
@@ -3034,8 +3186,7 @@ async function handleExtensionBrokerRequest(
     return;
   }
   const thread = store.getThread(request.threadId);
-  const project = thread ? store.getProject(thread.projectId) : undefined;
-  if (!thread || !project) {
+  if (!thread) {
     rejectBrokerRequest(workerRequestId, request, "Task project not found.");
     return;
   }
@@ -3096,7 +3247,7 @@ async function handleExtensionBrokerRequest(
     approvalPolicy === "custom"
       ? store.findApprovalGrant({
           threadId: thread.id,
-          projectId: project.id,
+          projectId: approvalProjectId(thread),
           operation: "extension.call",
           fingerprint,
         })
@@ -3142,7 +3293,9 @@ async function handleExtensionBrokerRequest(
   const nonce = randomUUID();
   const allowedScopes =
     approvalPolicy === "custom"
-      ? (["once", "session", "project"] as const)
+      ? thread.projectId
+        ? (["once", "session", "project"] as const)
+        : (["once", "session"] as const)
       : (["once"] as const);
   pendingApprovals.register({
     approvalId: request.approvalId,
@@ -3151,7 +3304,7 @@ async function handleExtensionBrokerRequest(
     value: {
       workerRequestId,
       request,
-      projectId: project.id,
+      projectId: approvalProjectId(thread),
       fingerprint,
     },
   });
@@ -3469,26 +3622,50 @@ async function createTaskThread(
     type: "thread.create",
     ...input,
   });
-  const project = store.getProject(command.projectId);
-  if (!project) {
+  if (!command.projectId && command.target !== "local") {
+    throw new Error("Temporary conversations support only the Local target.");
+  }
+  const project = command.projectId
+    ? store.getProject(command.projectId)
+    : undefined;
+  if (command.projectId && !project) {
     throw new Error(`Project not found: ${command.projectId}`);
   }
+  const defaults = await settingsStore?.runtimeConfiguration();
   const now = new Date().toISOString();
   const thread: Thread = {
     id: randomUUID(),
-    projectId: command.projectId,
+    ...(command.projectId ? { projectId: command.projectId } : {}),
     title: title ?? mainText(currentLocale(), "waitingForTask"),
     mode: command.mode,
     target: command.target,
     status: "idle",
+    ...(defaults?.selection
+      ? { modelSelection: structuredClone(defaults.selection) }
+      : {}),
+    ...(defaults?.contextWindow
+      ? { contextWindow: defaults.contextWindow }
+      : {}),
     pinned: false,
     archived: false,
     createdAt: now,
     updatedAt: now,
   };
   if (command.target === "local") {
+    if (!command.projectId) {
+      const workspacePath = temporaryConversationWorkspace(thread.id);
+      await mkdir(workspacePath, { recursive: true });
+      try {
+        return store.createThread(thread);
+      } catch (error) {
+        await rm(workspacePath, { recursive: true, force: true });
+        throw error;
+      }
+    }
     return store.createThread(thread);
   }
+
+  if (!project) throw new Error("Project not found.");
 
   let worktree: TaskWorktree;
   if (command.target === "permanent-worktree") {
@@ -3565,6 +3742,7 @@ async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
   }
   const turnId = randomUUID();
   const now = Date.now();
+  const traceSelection = thread.modelSelection ?? activeRuntimeSelection;
   const trace: TurnLatencyTrace = {
     turnId,
     mainReceivedAt,
@@ -3575,11 +3753,11 @@ async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
       : {}),
     coldThread: !openedThreads.has(thread.id),
     mode: input.mode,
-    ...(activeRuntimeSelection
+    ...(traceSelection
       ? {
-          providerId: activeRuntimeSelection.providerId,
-          modelId: activeRuntimeSelection.modelId,
-          thinkingLevel: activeRuntimeSelection.thinkingLevel,
+          providerId: traceSelection.providerId,
+          modelId: traceSelection.modelId,
+          thinkingLevel: traceSelection.thinkingLevel,
         }
       : {}),
     enabledMcpServers: enabledMcpServerCount,
@@ -3615,11 +3793,12 @@ async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
   );
   const memoryPromise = (async (): Promise<string | undefined> => {
     try {
-      const projectMemoryPath = join(
-        context.project.path,
-        ".artemis",
-        "MEMORY.md",
-      );
+      const projectMemoryPromise = context.temporary
+        ? Promise.resolve({ content: "" })
+        : memoryStore(
+            join(context.project.path, ".artemis", "MEMORY.md"),
+            PROJECT_MEMORY_MAX_BYTES,
+          ).snapshot();
       const globalMemoryPath = join(
         app.getPath("home"),
         ".pi",
@@ -3627,7 +3806,7 @@ async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
         "MEMORY.md",
       );
       const [projectMemory, globalMemory] = await Promise.all([
-        memoryStore(projectMemoryPath, PROJECT_MEMORY_MAX_BYTES).snapshot(),
+        projectMemoryPromise,
         memoryStore(globalMemoryPath, GLOBAL_MEMORY_MAX_BYTES).snapshot(),
       ]);
       return (
@@ -4300,6 +4479,20 @@ function registerIpc(): void {
       const customProviderExists = snapshot.providers.some(
         (provider) => provider.id === target.providerId,
       );
+      if (
+        !customProviderExists &&
+        store
+          ?.listThreads()
+          .some(
+            (thread) =>
+              thread.modelSelection?.providerId === target.providerId &&
+              thread.modelSelection.modelId === target.modelId,
+          )
+      ) {
+        throw new Error(
+          "Switch conversations using this model before deleting it.",
+        );
+      }
       const removesActiveSelection =
         deletesActiveModel && !customProviderExists;
       if (removesActiveSelection && activeTurns.size > 0) {
@@ -4390,80 +4583,12 @@ function registerIpc(): void {
       if (!settingsStore) {
         throw new Error("Agent settings are not ready.");
       }
-      if (
-        !selection ||
-        typeof selection.providerId !== "string" ||
-        typeof selection.modelId !== "string"
-      ) {
-        throw new Error("Model selection is invalid.");
-      }
-      if (
-        selection.ultraMode !== undefined &&
-        typeof selection.ultraMode !== "boolean"
-      ) {
-        throw new Error("Ultra mode setting is invalid.");
-      }
-      const snapshot = await getSettingsSnapshot();
-      const selectedModel = snapshot.models.find(
-        (model) =>
-          model.providerId === selection.providerId &&
-          model.modelId === selection.modelId,
-      );
-      if (!selectedModel) {
-        throw new Error("Selected model is not in the Pi model catalog.");
-      }
-      const addedModel = snapshot.addedModels.find(
-        (model) =>
-          model.providerId === selection.providerId &&
-          model.modelId === selection.modelId,
-      );
-      const customProviderModel = snapshot.providers
-        .find((provider) => provider.id === selection.providerId)
-        ?.models.find((model) => model.id === selection.modelId);
-      const isCurrentModel =
-        snapshot.selection?.providerId === selection.providerId &&
-        snapshot.selection.modelId === selection.modelId;
-      if (!addedModel && !customProviderModel && !isCurrentModel) {
-        throw new Error("Add this model in Settings before selecting it.");
-      }
-      const hasStoredCredential = snapshot.credentials.some(
-        (credential) => credential.providerId === selection.providerId,
-      );
-      if (
-        !customProviderModel &&
-        !hasStoredCredential &&
-        !selectedModel.configured
-      ) {
-        throw new Error("This model no longer has configured credentials.");
-      }
-      const contextWindow = Math.min(
-        addedModel?.contextWindow ??
-          customProviderModel?.contextWindow ??
-          snapshot.contextWindow,
-        selectedModel.contextWindow,
-      );
-      const allowedThinking = [
-        "off",
-        "minimal",
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-      ];
-      if (!allowedThinking.includes(selection.thinkingLevel)) {
-        throw new Error("Thinking level is invalid.");
-      }
-      const effectiveSelection = normalizeModelSelection(
-        selection,
-        selectedModel.reasoning,
-        selectedModel.highestThinkingLevel,
-      );
+      const resolved = await resolveModelSelection(selection);
       const configuration = await settingsStore.runtimeConfiguration();
-      configuration.selection = effectiveSelection;
-      configuration.contextWindow = contextWindow;
+      configuration.selection = resolved.selection;
+      configuration.contextWindow = resolved.contextWindow;
       await applyAgentRuntime(configuration);
-      await settingsStore.setModel(effectiveSelection, contextWindow);
+      await settingsStore.setModel(resolved.selection, resolved.contextWindow);
       return getSettingsSnapshot();
     },
   );
@@ -4499,6 +4624,22 @@ function registerIpc(): void {
         throw new Error("Agent settings are not ready.");
       }
       const provider = providerConnectionSchema.parse(providerInput);
+      const providerModelIds = new Set(
+        provider.models.map((model) => model.id),
+      );
+      if (
+        store
+          ?.listThreads()
+          .some(
+            (thread) =>
+              thread.modelSelection?.providerId === provider.id &&
+              !providerModelIds.has(thread.modelSelection.modelId),
+          )
+      ) {
+        throw new Error(
+          "Keep every model used by a conversation in this provider.",
+        );
+      }
       const apiKey = apiKeyInput?.trim() || undefined;
       if (apiKey && Buffer.byteLength(apiKey, "utf8") > 16 * 1024) {
         throw new Error("API key cannot exceed 16 KiB.");
@@ -4580,6 +4721,15 @@ function registerIpc(): void {
       );
       if (!provider) {
         throw new Error("Provider connection was not found.");
+      }
+      if (
+        store
+          ?.listThreads()
+          .some((thread) => thread.modelSelection?.providerId === provider.id)
+      ) {
+        throw new Error(
+          "Switch conversations using this provider before deleting it.",
+        );
       }
 
       const configuration = await settingsStore.runtimeConfiguration();
@@ -4663,6 +4813,15 @@ function registerIpc(): void {
     async (_event, providerId: string): Promise<SettingsSnapshot> => {
       if (!settingsStore) {
         throw new Error("Agent settings are not ready.");
+      }
+      if (
+        store
+          ?.listThreads()
+          .some((thread) => thread.modelSelection?.providerId === providerId)
+      ) {
+        throw new Error(
+          "Switch conversations using this provider before deleting its credential.",
+        );
       }
       await settingsStore.deleteCredential(providerId);
       await applyAgentRuntime();
@@ -6135,6 +6294,52 @@ function registerIpc(): void {
       createTaskThread(input),
   );
 
+  ipcMain.handle(
+    IPC.threadModelSet,
+    async (
+      _event,
+      threadId: string,
+      selection: ModelSelection,
+    ): Promise<Thread> => {
+      if (!store || !agentProcess) {
+        throw new Error("Application is not ready.");
+      }
+      const thread = store.getThread(String(threadId ?? ""));
+      if (!thread) throw new Error(`Thread not found: ${threadId}`);
+      if (
+        thread.status === "running" ||
+        thread.status === "waiting-approval" ||
+        activeTurns.has(thread.id) ||
+        compactingThreads.has(thread.id)
+      ) {
+        throw new Error("Stop the active task before changing its model.");
+      }
+      const resolved = await resolveModelSelection(
+        selection,
+        thread.modelSelection,
+      );
+      const command = parseThreadCommand({
+        type: "thread.model.set",
+        threadId: thread.id,
+        selection: resolved.selection,
+        contextWindow: resolved.contextWindow,
+      });
+      if (openedThreads.has(thread.id)) {
+        await agentProcess.request({
+          type: "thread.model.set",
+          requestId: randomUUID(),
+          threadId: thread.id,
+          selection: command.selection,
+          contextWindow: command.contextWindow,
+        });
+      }
+      return store.updateThread(thread.id, {
+        modelSelection: command.selection,
+        contextWindow: command.contextWindow,
+      });
+    },
+  );
+
   ipcMain.handle(IPC.threadPrepare, async (_event, threadId: string) => {
     if (!store) throw new Error("Application store is not ready.");
     const thread = store.getThread(String(threadId ?? ""));
@@ -6278,6 +6483,22 @@ function registerIpc(): void {
       }
       openedThreads.delete(threadId);
       store.deleteThread(threadId);
+      if (!thread.projectId) {
+        const workspacePath = temporaryConversationWorkspace(thread.id);
+        try {
+          if (pathIsInside(temporaryConversationRoot(), workspacePath)) {
+            await rm(workspacePath, { recursive: true, force: true });
+          }
+        } catch (error) {
+          diagnosticBundleService?.record({
+            source: "main",
+            severity: "warning",
+            message: `Temporary workspace cleanup failed for deleted thread ${threadId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          });
+        }
+      }
     },
   );
 
@@ -6319,12 +6540,18 @@ function registerIpc(): void {
       const now = new Date().toISOString();
       const forkedThread: Thread = {
         id: randomUUID(),
-        projectId: source.projectId,
+        ...(source.projectId ? { projectId: source.projectId } : {}),
         title: `${source.title}${mainText(currentLocale(), "forkSuffix")}`,
         mode: source.mode,
         target: source.target === "local" ? "local" : "managed-worktree",
         status: "idle",
         sessionFile: fork.sessionFile,
+        ...(source.modelSelection
+          ? { modelSelection: structuredClone(source.modelSelection) }
+          : {}),
+        ...(source.contextWindow
+          ? { contextWindow: source.contextWindow }
+          : {}),
         pinned: false,
         archived: false,
         createdAt: now,
@@ -6438,6 +6665,11 @@ function registerIpc(): void {
       const thread = store.getThread(command.threadId);
       if (!thread) {
         throw new Error(`Thread not found: ${command.threadId}`);
+      }
+      if (!thread.projectId) {
+        throw new Error(
+          "Temporary conversations do not support worktree branches.",
+        );
       }
       if (
         thread.status === "running" ||
@@ -6588,6 +6820,11 @@ function registerIpc(): void {
       const thread = store.getThread(command.threadId);
       if (!thread) {
         throw new Error(`Thread not found: ${command.threadId}`);
+      }
+      if (!thread.projectId) {
+        throw new Error(
+          "Temporary conversations do not support workspace handoff.",
+        );
       }
       if (
         thread.status === "running" ||
@@ -7012,6 +7249,15 @@ function registerIpc(): void {
           message: "Project not found.",
         };
       }
+      if (!thread.projectId) {
+        return {
+          available: false,
+          scope: query.scope,
+          text: "",
+          files: [],
+          message: "Temporary conversations do not have a project review.",
+        };
+      }
       try {
         const context = await resolveThreadWorkspace(thread);
         return await getReviewDiff({
@@ -7047,6 +7293,11 @@ function registerIpc(): void {
       const thread = store.getThread(input.threadId);
       if (!thread) {
         throw new Error("Project not found.");
+      }
+      if (!thread.projectId) {
+        throw new Error(
+          "Temporary conversations do not have a project review.",
+        );
       }
       if (
         thread.status === "running" ||
@@ -7745,6 +7996,13 @@ function createMainWindow(): BrowserWindow {
                     document.querySelector('.environment-trigger')?.click();
                     await wait(500);
                   }
+                  return;
+                }
+                if (view === 'temporary') {
+                  document
+                    .querySelector('.temporary-conversations .project-select')
+                    ?.click();
+                  await wait(600);
                   return;
                 }
                 if (view === 'token-usage') {

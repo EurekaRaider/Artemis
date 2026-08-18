@@ -36,6 +36,7 @@ const labels = {
     delete: "Delete conversation",
     empty: "No archived conversations match this search.",
     goal: "Goal",
+    temporary: "Temporary conversation",
   },
   "zh-CN": {
     title: "已归档对话",
@@ -46,6 +47,7 @@ const labels = {
     delete: "删除对话",
     empty: "没有符合条件的已归档对话。",
     goal: "目标",
+    temporary: "临时会话",
   },
 } as const;
 
@@ -69,12 +71,12 @@ export function ArchivePage({
       .filter((thread) => thread.archived)
       .filter((thread) => {
         if (!normalized) return true;
-        return `${visibleThreadTitle(thread.title)} ${thread.goal ?? ""} ${projectNames.get(thread.projectId) ?? ""}`
+        return `${visibleThreadTitle(thread.title)} ${thread.goal ?? ""} ${thread.projectId ? (projectNames.get(thread.projectId) ?? "") : t.temporary}`
           .toLocaleLowerCase(locale)
           .includes(normalized);
       })
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-  }, [locale, projectNames, query, threads]);
+  }, [locale, projectNames, query, t.temporary, threads]);
 
   return (
     <div className="archive-page">
@@ -111,7 +113,9 @@ export function ArchivePage({
                 <div className="archive-card-copy">
                   <div className="archive-card-heading">
                     <span className="archive-project">
-                      {projectNames.get(thread.projectId) ?? "Artemis"}
+                      {thread.projectId
+                        ? (projectNames.get(thread.projectId) ?? "Artemis")
+                        : t.temporary}
                     </span>
                     <time dateTime={thread.updatedAt}>
                       {new Intl.DateTimeFormat(locale, {

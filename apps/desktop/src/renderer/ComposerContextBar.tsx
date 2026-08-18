@@ -19,7 +19,7 @@ import { CodexSelect } from "./CodexSelect.js";
 type Locale = AppLocale;
 
 interface ComposerContextBarProps {
-  activeProject: Project;
+  activeProject?: Project;
   branchActionsDisabled: boolean;
   locale: Locale;
   mode: RunMode;
@@ -37,6 +37,7 @@ const labels = {
     searchProjects: "Search projects",
     addProject: "Add project",
     clearProject: "Work without a project",
+    temporaryConversation: "Temporary conversation",
     noProjects: "No matching projects",
     branchMenu: "Branch menu",
     searchBranches: "Search branches",
@@ -66,6 +67,7 @@ const labels = {
     searchProjects: "搜索项目",
     addProject: "新建项目",
     clearProject: "不在项目中工作",
+    temporaryConversation: "临时会话",
     noProjects: "没有匹配的项目",
     branchMenu: "分支菜单",
     searchBranches: "搜索分支",
@@ -278,6 +280,12 @@ export function ComposerContextBar({
 
   const loadGitInfo = useCallback(async () => {
     const request = ++branchRequest.current;
+    if (!activeProject) {
+      setGitInfo(undefined);
+      setGitError(undefined);
+      setGitLoading(false);
+      return;
+    }
     setGitLoading(true);
     setGitError(undefined);
     try {
@@ -291,7 +299,7 @@ export function ComposerContextBar({
     } finally {
       if (request === branchRequest.current) setGitLoading(false);
     }
-  }, [activeProject.id]);
+  }, [activeProject?.id]);
 
   useEffect(() => {
     setGitInfo(undefined);
@@ -415,7 +423,7 @@ export function ComposerContextBar({
   }, [branchQuery, gitInfo?.branches]);
 
   const switchBranch = async (branchName: string) => {
-    if (branchActionsDisabled || branchBusy) return;
+    if (!activeProject || branchActionsDisabled || branchBusy) return;
     setBranchBusy(branchName);
     setBranchError(undefined);
     try {
@@ -434,7 +442,13 @@ export function ComposerContextBar({
 
   const createBranch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (branchActionsDisabled || branchBusy || !newBranchName.trim()) return;
+    if (
+      !activeProject ||
+      branchActionsDisabled ||
+      branchBusy ||
+      !newBranchName.trim()
+    )
+      return;
     setBranchBusy(newBranchName.trim());
     setBranchError(undefined);
     try {
@@ -470,11 +484,11 @@ export function ComposerContextBar({
             setBranchMenuOpen(false);
             setProjectMenuOpen((current) => !current);
           }}
-          title={activeProject.path}
+          title={activeProject?.path ?? t.temporaryConversation}
           type="button"
         >
           <FolderIcon />
-          <strong>{activeProject.name}</strong>
+          <strong>{activeProject?.name ?? t.temporaryConversation}</strong>
         </button>
         {projectMenuOpen && (
           <div
@@ -498,7 +512,7 @@ export function ComposerContextBar({
                 <p className="composer-context-empty">{t.noProjects}</p>
               ) : (
                 filteredProjects.map((project) => {
-                  const selected = project.id === activeProject.id;
+                  const selected = project.id === activeProject?.id;
                   return (
                     <button
                       aria-checked={selected}
@@ -554,175 +568,181 @@ export function ComposerContextBar({
         )}
       </div>
 
-      {gitLoading && !gitInfo ? (
-        <span
-          aria-label={t.loadingGit}
-          className="composer-context-git-loading"
-          role="status"
-        >
-          <span />
-        </span>
-      ) : (gitInfo?.managed && branchLabel) || gitError ? (
-        <div className="composer-context-control" ref={branchControlRef}>
-          <button
-            aria-expanded={branchMenuOpen}
-            aria-haspopup="menu"
-            className="composer-context-trigger branch-context-trigger"
-            onClick={() => {
-              const opening = !branchMenuOpen;
-              setProjectMenuOpen(false);
-              setBranchMenuOpen(opening);
-              if (opening) void loadGitInfo();
-            }}
-            title={gitInfo?.root}
-            type="button"
+      {activeProject &&
+        (gitLoading && !gitInfo ? (
+          <span
+            aria-label={t.loadingGit}
+            className="composer-context-git-loading"
+            role="status"
           >
-            <BranchIcon />
-            <span>{branchLabel ?? "Git"}</span>
-          </button>
-          {branchMenuOpen && (
-            <div
-              aria-label={t.branchMenu}
-              className="composer-context-menu branch-context-menu"
-              role="menu"
-              style={menuLayout}
+            <span />
+          </span>
+        ) : (gitInfo?.managed && branchLabel) || gitError ? (
+          <div className="composer-context-control" ref={branchControlRef}>
+            <button
+              aria-expanded={branchMenuOpen}
+              aria-haspopup="menu"
+              className="composer-context-trigger branch-context-trigger"
+              onClick={() => {
+                const opening = !branchMenuOpen;
+                setProjectMenuOpen(false);
+                setBranchMenuOpen(opening);
+                if (opening) void loadGitInfo();
+              }}
+              title={gitInfo?.root}
+              type="button"
             >
-              {creatingBranch ? (
-                <form className="branch-create-form" onSubmit={createBranch}>
-                  <label htmlFor="new-project-branch">{t.branchName}</label>
-                  <input
-                    autoFocus
-                    disabled={Boolean(branchBusy)}
-                    id="new-project-branch"
-                    onChange={(event) => setNewBranchName(event.target.value)}
-                    placeholder={t.branchNamePlaceholder}
-                    value={newBranchName}
-                  />
-                  <small>{t.branchNameHelp}</small>
-                  {branchError && (
-                    <p className="composer-context-error" role="alert">
-                      {branchError}
-                    </p>
-                  )}
-                  <div>
-                    <button
-                      className="secondary-button"
-                      disabled={Boolean(branchBusy)}
-                      onClick={() => {
-                        setCreatingBranch(false);
-                        setBranchError(undefined);
-                      }}
-                      type="button"
-                    >
-                      {t.cancel}
-                    </button>
-                    <button
-                      className="primary-button"
-                      disabled={Boolean(branchBusy) || !newBranchName.trim()}
-                      type="submit"
-                    >
-                      {branchBusy ? t.changingBranch : t.create}
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <>
-                  <label className="composer-context-search">
-                    <SearchIcon />
+              <BranchIcon />
+              <span>{branchLabel ?? "Git"}</span>
+            </button>
+            {branchMenuOpen && (
+              <div
+                aria-label={t.branchMenu}
+                className="composer-context-menu branch-context-menu"
+                role="menu"
+                style={menuLayout}
+              >
+                {creatingBranch ? (
+                  <form className="branch-create-form" onSubmit={createBranch}>
+                    <label htmlFor="new-project-branch">{t.branchName}</label>
                     <input
-                      aria-label={t.searchBranches}
-                      onChange={(event) => setBranchQuery(event.target.value)}
-                      placeholder={t.searchBranches}
-                      ref={branchSearchRef}
-                      value={branchQuery}
+                      autoFocus
+                      disabled={Boolean(branchBusy)}
+                      id="new-project-branch"
+                      onChange={(event) => setNewBranchName(event.target.value)}
+                      placeholder={t.branchNamePlaceholder}
+                      value={newBranchName}
                     />
-                  </label>
-                  <div className="composer-context-menu-heading">
-                    {t.branches}
-                  </div>
-                  {gitLoading && !gitInfo ? (
-                    <div
-                      aria-label={t.loadingGit}
-                      className="composer-context-menu-skeleton"
-                      role="status"
-                    >
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                  ) : gitError ? (
-                    <div className="composer-context-menu-error" role="alert">
-                      <p>{gitError}</p>
-                      <button onClick={() => void loadGitInfo()} type="button">
-                        {t.retry}
+                    <small>{t.branchNameHelp}</small>
+                    {branchError && (
+                      <p className="composer-context-error" role="alert">
+                        {branchError}
+                      </p>
+                    )}
+                    <div>
+                      <button
+                        className="secondary-button"
+                        disabled={Boolean(branchBusy)}
+                        onClick={() => {
+                          setCreatingBranch(false);
+                          setBranchError(undefined);
+                        }}
+                        type="button"
+                      >
+                        {t.cancel}
+                      </button>
+                      <button
+                        className="primary-button"
+                        disabled={Boolean(branchBusy) || !newBranchName.trim()}
+                        type="submit"
+                      >
+                        {branchBusy ? t.changingBranch : t.create}
                       </button>
                     </div>
-                  ) : (
-                    <div className="composer-context-menu-list branch-list">
-                      {filteredBranches.length === 0 ? (
-                        <p className="composer-context-empty">{t.noBranches}</p>
-                      ) : (
-                        filteredBranches.map((branch) => (
-                          <button
-                            aria-checked={branch.current}
-                            className={branch.current ? "selected" : ""}
-                            disabled={
-                              Boolean(branchBusy) ||
-                              (branchActionsDisabled && !branch.current)
-                            }
-                            key={branch.name}
-                            onClick={() => {
-                              if (branch.current) setBranchMenuOpen(false);
-                              else void switchBranch(branch.name);
-                            }}
-                            role="menuitemradio"
-                            type="button"
-                          >
-                            <BranchIcon />
-                            <span>
-                              <strong>{branch.name}</strong>
-                              {branch.current && (
-                                <small>
-                                  {t.uncommitted(gitInfo?.changeCount ?? 0)}
-                                </small>
-                              )}
-                            </span>
-                            <i aria-hidden="true">
-                              {branch.current ? <CheckIcon /> : null}
-                            </i>
-                          </button>
-                        ))
-                      )}
+                  </form>
+                ) : (
+                  <>
+                    <label className="composer-context-search">
+                      <SearchIcon />
+                      <input
+                        aria-label={t.searchBranches}
+                        onChange={(event) => setBranchQuery(event.target.value)}
+                        placeholder={t.searchBranches}
+                        ref={branchSearchRef}
+                        value={branchQuery}
+                      />
+                    </label>
+                    <div className="composer-context-menu-heading">
+                      {t.branches}
                     </div>
-                  )}
-                  {branchError && (
-                    <p className="composer-context-error" role="alert">
-                      {branchError}
-                    </p>
-                  )}
-                  {branchActionsDisabled && (
-                    <p className="composer-context-hint">{t.stopTasks}</p>
-                  )}
-                  <div className="composer-context-menu-actions branch-menu-actions">
-                    <button
-                      disabled={branchActionsDisabled || Boolean(branchBusy)}
-                      onClick={() => {
-                        setCreatingBranch(true);
-                        setBranchError(undefined);
-                      }}
-                      role="menuitem"
-                      type="button"
-                    >
-                      <PlusIcon />
-                      <span>{t.createBranch}</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      ) : null}
+                    {gitLoading && !gitInfo ? (
+                      <div
+                        aria-label={t.loadingGit}
+                        className="composer-context-menu-skeleton"
+                        role="status"
+                      >
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                    ) : gitError ? (
+                      <div className="composer-context-menu-error" role="alert">
+                        <p>{gitError}</p>
+                        <button
+                          onClick={() => void loadGitInfo()}
+                          type="button"
+                        >
+                          {t.retry}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="composer-context-menu-list branch-list">
+                        {filteredBranches.length === 0 ? (
+                          <p className="composer-context-empty">
+                            {t.noBranches}
+                          </p>
+                        ) : (
+                          filteredBranches.map((branch) => (
+                            <button
+                              aria-checked={branch.current}
+                              className={branch.current ? "selected" : ""}
+                              disabled={
+                                Boolean(branchBusy) ||
+                                (branchActionsDisabled && !branch.current)
+                              }
+                              key={branch.name}
+                              onClick={() => {
+                                if (branch.current) setBranchMenuOpen(false);
+                                else void switchBranch(branch.name);
+                              }}
+                              role="menuitemradio"
+                              type="button"
+                            >
+                              <BranchIcon />
+                              <span>
+                                <strong>{branch.name}</strong>
+                                {branch.current && (
+                                  <small>
+                                    {t.uncommitted(gitInfo?.changeCount ?? 0)}
+                                  </small>
+                                )}
+                              </span>
+                              <i aria-hidden="true">
+                                {branch.current ? <CheckIcon /> : null}
+                              </i>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                    {branchError && (
+                      <p className="composer-context-error" role="alert">
+                        {branchError}
+                      </p>
+                    )}
+                    {branchActionsDisabled && (
+                      <p className="composer-context-hint">{t.stopTasks}</p>
+                    )}
+                    <div className="composer-context-menu-actions branch-menu-actions">
+                      <button
+                        disabled={branchActionsDisabled || Boolean(branchBusy)}
+                        onClick={() => {
+                          setCreatingBranch(true);
+                          setBranchError(undefined);
+                        }}
+                        role="menuitem"
+                        type="button"
+                      >
+                        <PlusIcon />
+                        <span>{t.createBranch}</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        ) : null)}
 
       <div className="composer-context-picker" title={t.taskMode}>
         <ModeIcon />

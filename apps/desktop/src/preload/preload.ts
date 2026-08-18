@@ -41,6 +41,8 @@ const api: ArtemisApi = {
       (paths) => ipcRenderer.invoke(IPC.promptAttachmentsRead, paths),
     ),
   createThread: (input) => ipcRenderer.invoke(IPC.threadCreate, input),
+  setThreadModelSelection: (threadId, selection) =>
+    ipcRenderer.invoke(IPC.threadModelSet, threadId, selection),
   renameThread: (threadId, title) =>
     ipcRenderer.invoke(IPC.threadRename, threadId, title),
   setThreadGoal: (threadId, goal) =>

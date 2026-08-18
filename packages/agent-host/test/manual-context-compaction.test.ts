@@ -56,6 +56,26 @@ describe("manual context compaction", () => {
     await expect(host.compact("thread-1")).rejects.toThrow("active turn");
     expect(compact).not.toHaveBeenCalled();
   });
+
+  it("compacts an idle conversation while another conversation is active", async () => {
+    const compact = vi.fn().mockResolvedValue({});
+    const host = new ArtemisAgentHost({ async request() {} }, { emit() {} });
+    const threads = (host as unknown as { threads: Map<string, unknown> })
+      .threads;
+    threads.set("active-thread", {
+      compacting: false,
+      currentTurnId: "turn-1",
+      session: { compact: vi.fn() },
+    });
+    threads.set("idle-thread", {
+      compacting: false,
+      currentTurnId: undefined,
+      session: { compact },
+    });
+
+    await expect(host.compact("idle-thread")).resolves.toBeUndefined();
+    expect(compact).toHaveBeenCalledOnce();
+  });
 });
 
 describe("context usage updates", () => {

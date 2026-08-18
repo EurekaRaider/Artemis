@@ -119,7 +119,18 @@ async function handle(command: AgentHostCommand): Promise<void> {
           workspacePath: command.workspacePath,
           target: command.target,
           ...(command.sessionFile ? { sessionFile: command.sessionFile } : {}),
+          ...(command.selection ? { selection: command.selection } : {}),
+          ...(command.contextWindow
+            ? { contextWindow: command.contextWindow }
+            : {}),
         });
+        break;
+      case "thread.model.set":
+        await host.setThreadModel(
+          command.threadId,
+          command.selection,
+          command.contextWindow,
+        );
         break;
       case "thread.compact":
         await host.compact(command.threadId, command.instructions);

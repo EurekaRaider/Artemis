@@ -2,6 +2,7 @@ import type {
   AgentPayload,
   ApprovalResolution,
   ModelApprovalDecision,
+  ModelSelection,
   PromptAttachment,
   ProviderConnection,
   RunMode,
@@ -34,13 +35,6 @@ export type RuntimeCredential =
       expires: number;
       [key: string]: unknown;
     };
-
-export interface ModelSelection {
-  providerId: string;
-  modelId: string;
-  thinkingLevel: ThinkingLevel;
-  ultraMode?: boolean;
-}
 
 export interface McpRuntimeTool {
   serverId: string;
@@ -152,6 +146,15 @@ export type AgentHostCommand =
       workspacePath: string;
       target: WorkspaceTarget;
       sessionFile?: string;
+      selection?: ModelSelection;
+      contextWindow?: number;
+    }
+  | {
+      type: "thread.model.set";
+      requestId: string;
+      threadId: string;
+      selection: ModelSelection;
+      contextWindow: number;
     }
   | {
       type: "thread.compact";

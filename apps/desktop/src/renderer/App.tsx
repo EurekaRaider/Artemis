@@ -281,6 +281,8 @@ const copy = {
   en: {
     appName: "Artemis",
     projects: "Projects",
+    temporaryConversations: "Temporary conversations",
+    temporaryConversation: "Temporary conversation",
     automations: "Automations",
     tasks: "Tasks",
     newTask: "New task",
@@ -505,6 +507,8 @@ const copy = {
   "zh-CN": {
     appName: "Artemis",
     projects: "项目",
+    temporaryConversations: "临时会话",
+    temporaryConversation: "临时会话",
     automations: "定时任务",
     tasks: "任务",
     newTask: "新任务",
@@ -1599,10 +1603,6 @@ export function App() {
 
   const beginNewConversation = useCallback(
     (projectId = activeProjectId) => {
-      if (!projectId) {
-        setToast(t.noProject);
-        return;
-      }
       setActiveView("workspace");
       setActiveProjectId(projectId);
       setActiveThreadId(undefined);
@@ -1617,8 +1617,24 @@ export function App() {
       setThreadMenuId(undefined);
       window.requestAnimationFrame(() => promptInput.current?.focus());
     },
-    [activeProjectId, t.noProject],
+    [activeProjectId],
   );
+
+  const beginTemporaryConversation = useCallback(() => {
+    setActiveView("workspace");
+    setActiveProjectId(undefined);
+    setActiveThreadId(undefined);
+    setMode("execute");
+    setComposerDrafts((current) =>
+      clearComposerDraft(current, conversationDraftKey(undefined, undefined)),
+    );
+    promptHistoryNavigation.current = { index: -1, draft: "" };
+    setSkillMenuDismissed(false);
+    setWorkspaceDockOpen(false);
+    setProjectMenuId(undefined);
+    setThreadMenuId(undefined);
+    window.requestAnimationFrame(() => promptInput.current?.focus());
+  }, []);
 
   const discardNewConversationDraft = useCallback(() => {
     if (activeThreadId) return;
@@ -1806,10 +1822,6 @@ export function App() {
   );
   const createThread = useCallback(
     async (projectId = activeProjectId, preserveDraft = false) => {
-      if (!projectId) {
-        setToast(t.noProject);
-        return undefined;
-      }
       try {
         const reusableWorkspaceDraft = snapshot?.threads.find(
           (thread) =>
@@ -1818,7 +1830,7 @@ export function App() {
         const thread =
           reusableWorkspaceDraft ??
           (await window.artemis.createThread({
-            projectId,
+            ...(projectId ? { projectId } : {}),
             mode,
             target: "local",
           }));
@@ -1848,7 +1860,7 @@ export function App() {
         return undefined;
       }
     },
-    [activeProjectId, mode, snapshot?.threads, t.noProject, t.taskError],
+    [activeProjectId, mode, snapshot?.threads, t.taskError],
   );
 
   const ensureWorkspaceThread = useCallback(() => {
@@ -2848,12 +2860,25 @@ export function App() {
   }, [Boolean(snapshot)]);
 
   const projects = snapshot?.projects ?? [];
+  const temporaryThreads = sortProjectThreads(
+    (snapshot?.threads ?? [])
+      .filter((thread) => !thread.projectId && !thread.archived)
+      .filter((thread) => !isWorkspaceDraftThread(thread))
+      .filter(
+        (thread) =>
+          !query.trim() ||
+          thread.title.toLowerCase().includes(query.trim().toLowerCase()),
+      ),
+    snapshot?.events ?? {},
+    promptSubmittedAtByThread,
+  );
   const activeProject = projects.find(
     (project) => project.id === activeProjectId,
   );
   const activeThread = (snapshot?.threads ?? []).find(
     (thread) => thread.id === activeThreadId,
   );
+  const activeWorkspaceLabel = activeProject?.name ?? t.temporaryConversation;
   const activeTurnFailure = activeThreadId
     ? turnFailureNotices[activeThreadId]
     : undefined;
@@ -3122,39 +3147,40 @@ export function App() {
     "full-access": t.fullAccess,
     custom: t.customApproval,
   }[approvalPolicy];
-  const activeModel = runtimeSettings?.selection
-    ? runtimeSettings.models.find(
+  const activeSelection =
+    activeThread?.modelSelection ?? runtimeSettings?.selection;
+  const activeModel = activeSelection
+    ? runtimeSettings?.models.find(
         (model) =>
-          model.providerId === runtimeSettings.selection?.providerId &&
-          model.modelId === runtimeSettings.selection.modelId,
+          model.providerId === activeSelection.providerId &&
+          model.modelId === activeSelection.modelId,
       )
     : undefined;
-  const activeProvider = runtimeSettings?.selection
-    ? runtimeSettings.providers.find(
-        (provider) => provider.id === runtimeSettings.selection?.providerId,
+  const activeProvider = activeSelection
+    ? runtimeSettings?.providers.find(
+        (provider) => provider.id === activeSelection.providerId,
       )
     : undefined;
   const activeProviderModel = activeProvider?.models.find(
-    (model) => model.id === runtimeSettings?.selection?.modelId,
+    (model) => model.id === activeSelection?.modelId,
   );
   const activeModelLabel =
     activeModel?.name ??
     activeProviderModel?.name ??
-    runtimeSettings?.selection?.modelId ??
+    activeSelection?.modelId ??
     t.model;
   const activeModelSupportsReasoning =
     activeModel?.reasoning ?? activeProviderModel?.reasoning ?? false;
   const activeModelHighestThinkingLevel =
     activeModel?.highestThinkingLevel ?? "high";
   const activeUltraMode =
-    activeModelSupportsReasoning &&
-    runtimeSettings?.selection?.ultraMode === true;
+    activeModelSupportsReasoning && activeSelection?.ultraMode === true;
   const activeThinkingLevel = activeUltraMode
     ? t.ultraMode
-    : runtimeSettings?.selection &&
+    : activeSelection &&
         activeModelSupportsReasoning &&
-        runtimeSettings.selection.thinkingLevel !== "off"
-      ? thinkingLevelLabel(runtimeSettings.selection.thinkingLevel, locale)
+        activeSelection.thinkingLevel !== "off"
+      ? thinkingLevelLabel(activeSelection.thinkingLevel, locale)
       : undefined;
   const switchableModels = useMemo(() => {
     if (!runtimeSettings) return [];
@@ -3166,11 +3192,8 @@ export function App() {
     const customProviders = new Set(
       runtimeSettings.providers.map((provider) => provider.id),
     );
-    const selectedModelIdentity = runtimeSettings.selection
-      ? modelIdentity(
-          runtimeSettings.selection.providerId,
-          runtimeSettings.selection.modelId,
-        )
+    const selectedModelIdentity = activeSelection
+      ? modelIdentity(activeSelection.providerId, activeSelection.modelId)
       : undefined;
     return runtimeSettings.models
       .filter((model) => {
@@ -3186,7 +3209,7 @@ export function App() {
           left.name.localeCompare(right.name, locale) ||
           left.providerId.localeCompare(right.providerId, locale),
       );
-  }, [locale, runtimeSettings]);
+  }, [activeSelection, locale, runtimeSettings]);
   const modelPickerThinkingLevels = activeModelSupportsReasoning
     ? MODEL_PICKER_THINKING_LEVELS
     : [];
@@ -3197,22 +3220,37 @@ export function App() {
       setModelPickerOpen(false);
       setBusy(true);
       try {
+        const thread =
+          activeThread ?? (await createThread(activeProjectId, true));
+        if (!thread) return;
         const preserveUltraMode =
-          model.reasoning && runtimeSettings.selection?.ultraMode === true;
-        const updated = await window.artemis.setModelSelection({
-          providerId: model.providerId,
-          modelId: model.modelId,
-          thinkingLevel: model.reasoning
-            ? preserveUltraMode
-              ? (model.highestThinkingLevel ?? "high")
-              : runtimeSettings.selection?.ultraMode === true ||
-                  runtimeSettings.selection?.thinkingLevel === "off"
-                ? "medium"
-                : (runtimeSettings.selection?.thinkingLevel ?? "medium")
-            : "off",
-          ...(preserveUltraMode ? { ultraMode: true } : {}),
-        });
-        setRuntimeSettings(updated);
+          model.reasoning && activeSelection?.ultraMode === true;
+        const updated = await window.artemis.setThreadModelSelection(
+          thread.id,
+          {
+            providerId: model.providerId,
+            modelId: model.modelId,
+            thinkingLevel: model.reasoning
+              ? preserveUltraMode
+                ? (model.highestThinkingLevel ?? "high")
+                : activeSelection?.ultraMode === true ||
+                    activeSelection?.thinkingLevel === "off"
+                  ? "medium"
+                  : (activeSelection?.thinkingLevel ?? "medium")
+              : "off",
+            ...(preserveUltraMode ? { ultraMode: true } : {}),
+          },
+        );
+        setSnapshot((current) =>
+          current
+            ? {
+                ...current,
+                threads: current.threads.map((candidate) =>
+                  candidate.id === updated.id ? updated : candidate,
+                ),
+              }
+            : current,
+        );
       } catch (error) {
         setToast(
           `${t.modelSwitchFailed} ${error instanceof Error ? error.message : String(error)}`,
@@ -3221,21 +3259,45 @@ export function App() {
         setBusy(false);
       }
     },
-    [busy, runtimeSettings, t.modelSwitchFailed, turnActive],
+    [
+      activeProjectId,
+      activeSelection,
+      activeThread,
+      busy,
+      createThread,
+      runtimeSettings,
+      t.modelSwitchFailed,
+      turnActive,
+    ],
   );
 
   const switchComposerThinking = useCallback(
     async (thinkingLevel: ThinkingLevel, ultraMode = false) => {
-      if (!runtimeSettings?.selection || turnActive || busy) return;
+      if (!activeSelection || turnActive || busy) return;
       setModelPickerOpen(false);
       setBusy(true);
       try {
-        const updated = await window.artemis.setModelSelection({
-          ...runtimeSettings.selection,
-          thinkingLevel,
-          ultraMode,
-        });
-        setRuntimeSettings(updated);
+        const thread =
+          activeThread ?? (await createThread(activeProjectId, true));
+        if (!thread) return;
+        const updated = await window.artemis.setThreadModelSelection(
+          thread.id,
+          {
+            ...activeSelection,
+            thinkingLevel,
+            ultraMode,
+          },
+        );
+        setSnapshot((current) =>
+          current
+            ? {
+                ...current,
+                threads: current.threads.map((candidate) =>
+                  candidate.id === updated.id ? updated : candidate,
+                ),
+              }
+            : current,
+        );
       } catch (error) {
         setToast(
           `${t.modelSwitchFailed} ${error instanceof Error ? error.message : String(error)}`,
@@ -3244,7 +3306,15 @@ export function App() {
         setBusy(false);
       }
     },
-    [busy, runtimeSettings, t.modelSwitchFailed, turnActive],
+    [
+      activeProjectId,
+      activeSelection,
+      activeThread,
+      busy,
+      createThread,
+      t.modelSwitchFailed,
+      turnActive,
+    ],
   );
   const runPresentation = useMemo(
     () => deriveRunPresentation(activeEvents, clockMs),
@@ -4404,6 +4474,152 @@ export function App() {
           </div>
         </div>
         <div className="project-tree">
+          <section className="project-group temporary-conversations">
+            <div className={`project-row ${!activeProjectId ? "active" : ""}`}>
+              <span className="project-toggle" aria-hidden="true">
+                <FolderIcon open />
+              </span>
+              <button
+                className="project-select"
+                onClick={beginTemporaryConversation}
+                title={t.temporaryConversations}
+                type="button"
+              >
+                <span className="project-title">
+                  {t.temporaryConversations}
+                </span>
+              </button>
+              <button
+                aria-label={`${t.newTask}: ${t.temporaryConversations}`}
+                className="project-new-thread"
+                onClick={beginTemporaryConversation}
+                title={t.newTask}
+                type="button"
+              >
+                <PlusIcon />
+              </button>
+            </div>
+            <div className="project-thread-list">
+              {temporaryThreads.map((thread) => (
+                <div
+                  className={`project-thread-row ${thread.id === activeThreadId ? "selected" : ""}`}
+                  key={thread.id}
+                >
+                  {threadRename?.threadId === thread.id ? (
+                    <form
+                      className="thread-rename-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void renameThread(thread, threadRename.title);
+                      }}
+                    >
+                      <input
+                        aria-label={t.taskNamePrompt}
+                        autoFocus
+                        className="thread-rename-input"
+                        onBlur={(event) =>
+                          void renameThread(thread, event.currentTarget.value)
+                        }
+                        onChange={(event) =>
+                          setThreadRename((current) =>
+                            current?.threadId === thread.id
+                              ? { ...current, title: event.target.value }
+                              : current,
+                          )
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            setThreadRename(undefined);
+                          }
+                        }}
+                        value={threadRename.title}
+                      />
+                    </form>
+                  ) : (
+                    <>
+                      <button
+                        className="thread-select"
+                        onClick={() => {
+                          discardNewConversationDraft();
+                          setActiveView("workspace");
+                          setActiveProjectId(undefined);
+                          setActiveThreadId(thread.id);
+                          setMode(thread.mode);
+                          setThreadMenuId(undefined);
+                        }}
+                        type="button"
+                      >
+                        {thread.status !== "idle" && (
+                          <span className={`status-dot ${thread.status}`} />
+                        )}
+                        <span
+                          className="thread-title"
+                          onPointerEnter={prepareThreadTitleScroll}
+                          title={visibleThreadTitle(thread.title)}
+                        >
+                          <span className="thread-title-text">
+                            {visibleThreadTitle(thread.title)}
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        aria-label={t.moreActions}
+                        className="thread-action"
+                        onClick={() =>
+                          setThreadMenuId((current) =>
+                            current === thread.id ? undefined : thread.id,
+                          )
+                        }
+                        title={t.moreActions}
+                        type="button"
+                      >
+                        ···
+                      </button>
+                      {threadMenuId === thread.id && (
+                        <div className="thread-menu">
+                          <button onClick={() => beginRenameThread(thread)}>
+                            {t.renameTask}
+                          </button>
+                          <button
+                            disabled={
+                              thread.status === "running" ||
+                              thread.status === "waiting-approval"
+                            }
+                            onClick={() => void forkThread(thread)}
+                          >
+                            {t.forkTask}
+                          </button>
+                          <button
+                            disabled={
+                              thread.status === "running" ||
+                              thread.status === "waiting-approval"
+                            }
+                            onClick={() => void setThreadArchived(thread, true)}
+                          >
+                            {t.archiveTask}
+                          </button>
+                          <button
+                            className="danger"
+                            disabled={
+                              thread.status === "running" ||
+                              thread.status === "waiting-approval"
+                            }
+                            onClick={() => void deleteThread(thread)}
+                          >
+                            {t.deleteTask}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+              {query.trim() && temporaryThreads.length === 0 && (
+                <span className="project-no-matches">{t.noTasks}</span>
+              )}
+            </div>
+          </section>
           {projects.map((project) => {
             const hasActiveTask = snapshot.threads.some(
               (thread) =>
@@ -4657,9 +4873,6 @@ export function App() {
               </section>
             );
           })}
-          {projects.length === 0 && (
-            <span className="empty-list">{t.noProject}</span>
-          )}
         </div>
         <div className="sidebar-footer">
           <span className="local-indicator" title={username}>
@@ -4743,7 +4956,7 @@ export function App() {
                   <LeftSidebarIcon />
                 </button>
                 <div className="workspace-heading">
-                  <strong>{activeProject?.name ?? t.appName}</strong>
+                  <strong>{activeWorkspaceLabel}</strong>
                   {activeThread && (
                     <>
                       <span className="header-separator">/</span>
@@ -4869,26 +5082,19 @@ export function App() {
                   }}
                   ref={timelineScroll}
                 >
-                  {!activeProject ? (
-                    <EmptyState
-                      body={t.emptyBody}
-                      button={t.openProject}
-                      onOpen={openProject}
-                      title={t.emptyTitle}
-                    />
-                  ) : !activeThread ||
-                    (!activeThread.archived &&
-                      loadedEventThreads.current.has(activeThread.id) &&
-                      activeEvents.length === 0 &&
-                      !busy) ? (
+                  {!activeThread ||
+                  (!activeThread.archived &&
+                    loadedEventThreads.current.has(activeThread.id) &&
+                    activeEvents.length === 0 &&
+                    !busy) ? (
                     <div className="conversation-empty-state">
                       <ArtemisMark />
                       <h1
-                        aria-label={`What should we build in ${activeProject.name}?`}
+                        aria-label={`What should we build in ${activeWorkspaceLabel}?`}
                       >
                         What should we build in{" "}
                         <span className="conversation-project-name">
-                          {activeProject.name}
+                          {activeWorkspaceLabel}
                         </span>
                         ?
                       </h1>
@@ -4963,7 +5169,7 @@ export function App() {
                   </div>
                 )}
 
-                {activeProject && activeThread?.archived && (
+                {activeThread?.archived && (
                   <div className="archived-readonly" role="status">
                     <ArchiveIcon />
                     <span>
@@ -4980,7 +5186,7 @@ export function App() {
                   </div>
                 )}
 
-                {activeProject && !activeThread?.archived && (
+                {!activeThread?.archived && (
                   <div className="composer-wrap">
                     {taskPlan && (
                       <TaskPlanProgress locale={locale} plan={taskPlan} />
@@ -5019,16 +5225,13 @@ export function App() {
                     ) : (
                       <>
                         <ComposerContextBar
-                          activeProject={activeProject}
+                          {...(activeProject ? { activeProject } : {})}
                           branchActionsDisabled={projectBranchActionsDisabled}
                           locale={locale}
                           mode={mode}
                           onClearProject={() => {
                             discardNewConversationDraft();
-                            setActiveProjectId(undefined);
-                            setActiveThreadId(undefined);
-                            setMode("execute");
-                            setWorkspaceDockOpen(false);
+                            beginTemporaryConversation();
                           }}
                           onError={(message) =>
                             setToast({ error: true, message })
@@ -6943,44 +7146,14 @@ export function App() {
         </div>
       )}
 
-      {toast &&
-        (activeView !== "workspace" ||
-          !activeProject ||
-          activeThread?.archived) && (
-          <TransientNotice
-            notice={toast}
-            onDismiss={() => setToast(undefined)}
-            placement="view"
-          />
-        )}
+      {toast && (activeView !== "workspace" || activeThread?.archived) && (
+        <TransientNotice
+          notice={toast}
+          onDismiss={() => setToast(undefined)}
+          placement="view"
+        />
+      )}
     </main>
-  );
-}
-
-function EmptyState({
-  title,
-  body,
-  button,
-  onOpen,
-  children,
-}: {
-  title: string;
-  body: string;
-  button: string;
-  onOpen: () => void | Promise<unknown>;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="empty-state">
-      <ArtemisMark />
-      <h1>{title}</h1>
-      <p>{body}</p>
-      {children}
-      <button className="primary-button" onClick={() => void onOpen()}>
-        <FolderIcon />
-        {button}
-      </button>
-    </div>
   );
 }
 

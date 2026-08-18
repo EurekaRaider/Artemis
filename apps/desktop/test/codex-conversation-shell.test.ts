@@ -184,7 +184,7 @@ describe("Codex conversation shell contract", () => {
     expect(conversation).toContain("activeEvents.length === 0");
     expect(conversation).toContain("<ArtemisMark />");
     expect(conversation).toContain(
-      "What should we build in ${activeProject.name}?",
+      "What should we build in ${activeWorkspaceLabel}?",
     );
     expect(conversation).toContain('className="conversation-empty-state"');
     expect(conversation.indexOf("activeEvents.length === 0")).toBeLessThan(
