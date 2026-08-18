@@ -40,7 +40,7 @@ async function repository(): Promise<string> {
 async function bareRemote(): Promise<string> {
   const path = await mkdtemp(join(tmpdir(), "artemis-git-remote-"));
   cleanup.push(path);
-  await git(path, "init", "--bare");
+  await git(path, "init", "--bare", "-b", "main");
   return path;
 }
 
