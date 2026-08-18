@@ -285,7 +285,9 @@ a project.
 - **Streaming timeline** — render safe Markdown, text/thinking deltas, tool
   input/output, approval cards with the model's decision, structured workflow
   choices, child-Agent status, errors and completion states in original event
-  order. Pending approvals keep their actions visible, while approved and
+  order. Pending selection requests stay inline as timeline cards with their
+  countdown in the header while the normal composer and stop control remain
+  available. Pending approvals keep their actions visible, while approved and
   denied requests collapse into compact summaries with expandable details.
 - **Progress and context** — `update_plan` produces visible multi-step progress
   only while its turn remains active; run timing and context-window usage remain
@@ -317,13 +319,15 @@ a project.
   Korean, Spanish, French, German, Brazilian Portuguese, Italian, Russian,
   Arabic, Hindi and Indonesian. Arabic uses an RTL layout; external Browser
   requests advertise the resolved locale without translating workspace HTML.
-- **Local automations** — create one-time, daily, weekday, or weekly schedules
-  with an accessible hour/minute picker and timezone, run immediately, inspect
-  persisted run history and receive completion notifications. A completed
-  one-time schedule removes itself while keeping its generated task and history;
-  recurring schedules remain available. Runs use the normal Pi task path and
-  coalesce downtime to only the latest missed occurrence when Artemis starts
-  again.
+- **Local automations** — create one-time, interval, daily, weekday, or weekly
+  schedules with an accessible hour/minute picker and timezone. Intervals accept
+  minutes, hours or days, persist across restart, and anchor the next occurrence
+  to the latest dispatch so execution duration does not accumulate schedule
+  drift. Run immediately, inspect persisted run history and receive completion
+  notifications. A completed one-time schedule removes itself while keeping its
+  generated task and history; recurring schedules remain available. Runs use the
+  normal Pi task path and coalesce downtime to only the latest missed occurrence
+  when Artemis starts again.
 
 </details>
 
@@ -828,6 +832,9 @@ provider policy and packaged GUI acceptance remain external release checks.
 - structured MCP text and image blocks preserved through Pi without converting
   image Base64 into model-visible JSON text; context-aware oversized text
   protection retains an annotated beginning and end;
+- compact natural-language MCP tool discovery that loads only a bounded set of
+  matching direct schemas on demand, unloads them after compaction and preserves
+  the active selection across resource or model refreshes;
 - stable server-qualified tool names, tool discovery, connection state and
   enablement.
 
@@ -863,7 +870,8 @@ bounded subteam and must integrate it before completing.
   Automatic mode remains bounded to 2–16 active slots. Manual mode accepts
   2–64, starts at the automatic safe value and ramps up only while the machine
   remains healthy; pressure stops new admissions without cancelling running
-  sessions.
+  sessions. Even at the two-slot minimum, independent parent sessions can run
+  concurrently instead of one parent reserving the entire scheduler.
 - **Cooperative waits and Provider backoff** — `wait_agent` and `wait_team`
   release the caller's execution slot and reacquire it before returning, so a
   two-slot limit can still complete a five-level tree. Explicit 429 or
@@ -989,14 +997,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.1`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.2`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.1
-git push origin v1.4.1
+git tag v1.4.2
+git push origin v1.4.2
 ```
 
 ### Build and test matrix
@@ -1009,11 +1017,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **912 passing tests** (5 skipped):
+The current full test run contains **921 passing tests** (5 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       62 |       23 |        106 |     721 |   **912** |
+|       63 |       23 |        108 |     727 |   **921** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1041,13 +1049,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.1` packaging configuration produces:
+The `1.4.2` packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.1.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.1.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.1.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.2.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.2.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.2.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They
