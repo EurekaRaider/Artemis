@@ -83,27 +83,38 @@ describe("desktop resilience regressions", () => {
     expect(deleteAction).toContain("delete next[thread.id]");
   });
 
-  it("closes a thread terminal and removes its temporary workspace before deleting SQLite", () => {
+  it("closes Agent Host and terminal processes before removing a temporary workspace", () => {
     const deleteHandler = sourceBetween(
       mainSource,
       "IPC.threadDelete,",
       "IPC.threadFork,",
     );
+    const closeAgent = deleteHandler.indexOf('type: "thread.close"');
     const closeTerminal = deleteHandler.indexOf(
       "terminalService?.closeThread(threadId)",
+      closeAgent,
     );
     const removeWorkspace = deleteHandler.indexOf(
       "await removeTemporaryConversationWorkspace(",
       closeTerminal,
     );
-    const deleteSqlite = deleteHandler.indexOf(
-      "store.deleteThread(threadId)",
+    const deleteTranscript = deleteHandler.indexOf(
+      'type: "thread.delete"',
       removeWorkspace,
     );
+    const deleteSqlite = deleteHandler.indexOf(
+      "store.deleteThread(threadId)",
+      deleteTranscript,
+    );
 
-    expect(closeTerminal).toBeGreaterThanOrEqual(0);
+    expect(closeAgent).toBeGreaterThanOrEqual(0);
+    expect(closeTerminal).toBeGreaterThan(closeAgent);
     expect(removeWorkspace).toBeGreaterThan(closeTerminal);
-    expect(deleteSqlite).toBeGreaterThan(removeWorkspace);
+    expect(deleteTranscript).toBeGreaterThan(removeWorkspace);
+    expect(deleteSqlite).toBeGreaterThan(deleteTranscript);
+    expect(deleteHandler.slice(closeAgent, removeWorkspace)).toContain(
+      "throw new Error(",
+    );
     expect(deleteHandler.slice(removeWorkspace, deleteSqlite)).toContain(
       "throw new Error(",
     );

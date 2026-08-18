@@ -6437,8 +6437,35 @@ function registerIpc(): void {
           "Wait for context compaction before deleting this task.",
         );
       }
-      terminalService?.closeThread(threadId);
       if (!thread.projectId) {
+        if (openedThreads.has(threadId)) {
+          if (!agentProcess?.available) {
+            throw new Error(
+              "Agent Host is unavailable. Restart Artemis before deleting this temporary conversation.",
+            );
+          }
+          try {
+            await agentProcess.request({
+              type: "thread.close",
+              requestId: randomUUID(),
+              threadId,
+            });
+            openedThreads.delete(threadId);
+          } catch (error) {
+            diagnosticBundleService?.record({
+              source: "agent-host",
+              severity: "error",
+              message: `Agent Host cleanup blocked temporary thread deletion ${threadId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            });
+            throw new Error(
+              "Temporary conversation processes could not be stopped. Try deleting the conversation again.",
+              { cause: error },
+            );
+          }
+        }
+        terminalService?.closeThread(threadId);
         try {
           await removeTemporaryConversationWorkspace(
             app.getPath("userData"),
