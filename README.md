@@ -19,7 +19,7 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="895 passing tests" src="https://img.shields.io/badge/Tests-895_passing-2EA44F" />
+  <img alt="912 passing tests" src="https://img.shields.io/badge/Tests-912_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -81,7 +81,7 @@ credentials are protected with operating-system encryption.
   <tr>
     <td width="50%" valign="top">
       <p><strong>01</strong>&nbsp;&nbsp;/&nbsp;&nbsp;AGENT WORKSPACE</p>
-      <p>Persistent projects and Local tasks, collapsible per-project conversation history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
+      <p>Persistent projects and Local tasks, projectless Temporary conversations, per-conversation model/thinking/context settings, collapsible history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
     </td>
     <td width="50%" valign="top">
       <p><strong>02</strong>&nbsp;&nbsp;/&nbsp;&nbsp;WORKSPACE TOOLS</p>
@@ -200,12 +200,13 @@ npm install
 npm run dev
 ```
 
-Open **Settings** to select a Pi model and thinking level, set the usable
-context window, and save an API key with operating-system encryption. Ultra
-Mode uses the selected model's highest supported thinking level and prioritizes
-flat Agent-team decomposition for complex or long-horizon tasks. Existing Pi
-OAuth credentials can be imported explicitly; Artemis does not silently copy
-them.
+Open **Settings** to select the default Pi model and thinking level, set the
+usable context window, and save an API key with operating-system encryption.
+Each stored conversation then keeps its own model, thinking and context-window
+selection. Ultra Mode uses the selected model's highest supported thinking
+level and prioritizes flat Agent-team decomposition for complex or long-horizon
+tasks. Existing Pi OAuth credentials can be imported explicitly; Artemis does
+not silently copy them.
 
 Google authorization for plugin-hosted MCP runtimes is optional. A source build
 must provide `apps/desktop/resources/google-oauth-client.json` in Google's
@@ -219,8 +220,10 @@ account action reports that the build has no application-level OAuth client.
 
 ### Desktop workspace and task lifecycle
 
-Artemis turns each repository into a persistent project with one or more
-tasks. Interactive tasks run against the repository's local checkout.
+Artemis turns each repository into a persistent project with one or more tasks.
+Project-backed interactive tasks run against the repository's local checkout;
+Temporary conversations use an isolated generated workspace without requiring
+a project.
 
 <details open>
 <summary><strong>01 · Projects and persistent conversations</strong></summary>
@@ -231,12 +234,22 @@ tasks. Interactive tasks run against the repository's local checkout.
   or switch tasks from the sidebar. Running and approval-waiting tasks stay at
   the top, ordered by the most recently submitted prompt when several are
   active.
+- **Temporary conversations** — start, persist, archive, fork and delete a
+  conversation without adding a project. Each conversation and fork has an
+  isolated workspace under application data. Temporary conversations do not
+  receive project memory, Review, worktrees, handoff or project-scoped
+  approvals; deletion stops Agent Host and Terminal processes before removing
+  files, and retains the thread record when cleanup must be retried.
 - **Draft-first conversations** — opening a new conversation resets the
   composer without creating a stored task or Pi session. The first submitted
   prompt creates the task; leaving the empty draft simply discards it. Each
   conversation keeps its own unsent prompt, selected Skills and attachments, so
   switching tasks restores the matching composer draft instead of carrying it
   into another task.
+- **Independent model selection** — each stored conversation persists its own
+  Provider/model, thinking level and context-window limit. Changing the active
+  conversation configures only that Pi session; other open conversations keep
+  their selections, and new conversations start from the current defaults.
 - **Confirmed deletion** — a styled in-app confirmation protects destructive
   actions. Active tasks cannot be deleted; completed-task deletion removes its
   local events and Review comments and cleans up only the matching trusted Pi
@@ -463,7 +476,8 @@ before a server can be saved, connected or exposed to the Agent runtime.
 The workspace terminal uses xterm in the Renderer and `node-pty` in the main
 process.
 
-- opens in the active project's Local checkout;
+- opens in the active project's Local checkout or the generated Temporary
+  conversation workspace;
 - runs as the current desktop user with that user's filesystem and network
   permissions and never requests administrator elevation;
 - uses `@xterm/addon-fit` so PTY rows and columns match the actual panel size;
@@ -483,7 +497,7 @@ pages:
 
 | Page                        | Functions                                                                                                                                                                                                                                                                                                       |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **General**                 | Model search/selection, thinking level, validated context-window limit, language, theme and approval policy                                                                                                                                                                                                     |
+| **General**                 | Default model search/selection, thinking level, validated context-window limit, language, theme and approval policy                                                                                                                                                                                             |
 | **Providers & credentials** | Built-in Pi catalog including GLM-5.3 for the Z.AI global and China Coding Plan endpoints; editable custom OpenAI-compatible Chat Completions/Responses providers with lowercase-validated IDs and integer context/output limits; reasoning/image capabilities, encrypted API keys and explicit Pi OAuth import |
 | **Agent configuration**     | Editable global `AGENTS.md`, configuration scan/preview/import and imported source/category selection without silent credential copying                                                                                                                                                                         |
 | **MCP & extensions**        | MCP stdio/Streamable HTTP configuration, bearer/OAuth/Registry-header authorization, enablement, trusted-extension selection, hash state, tool inventory and extension network policy                                                                                                                           |
@@ -492,6 +506,11 @@ pages:
 The dialog has tab semantics, keyboard focus behavior and Escape-to-close
 support. Model application reports success or failure without silently
 accepting a model that is missing from the live catalog.
+
+Stored conversations persist their own model, thinking level and usable context
+window. Applying a selection from the composer reconfigures only the active Pi
+session, while Settings continues to define defaults for new conversations.
+Providers or models still referenced by stored conversations cannot be removed.
 
 #### Ultra Mode
 
@@ -946,7 +965,9 @@ bounded subteam and must integrate it before completing.
 - Executable Pi extensions require explicit project and content-hash trust,
   default to the platform-native sandbox and alone are affected by the
   extension **Full local access** setting.
-- Interactive tasks always use the project's Local checkout.
+- Project-backed interactive tasks always use the project's Local checkout;
+  Temporary conversations use only their generated workspace and cannot enter
+  Review, worktree or handoff flows.
 
 </details>
 
@@ -964,13 +985,14 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **895 passing tests** (5 skipped):
+The current full test run contains **912 passing tests** (5 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       62 |       23 |        105 |     705 |   **895** |
+|       62 |       23 |        106 |     721 |   **912** |
 
-Coverage includes replay-safe protocol reduction, mode policy, memory
+Coverage includes replay-safe protocol reduction, mode policy, per-conversation
+model isolation, projectless Temporary workspace/fork/cleanup policy, memory
 selection/storage/tool brokerage, task-turn memory integration, Execute/Office
 contracts, legacy run-mode migration, multi-Agent scheduling, dependencies,
 write-scope conflict checks, audited collaboration and lifecycle control, draft
@@ -995,13 +1017,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.0` packaging configuration produces:
+The `1.4.1` packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.0.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.0.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.0.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.1.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.1.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.1.dmg` and `.zip`   |
 
 Every package command first builds the workspace packages and runs the bundled
 plugin gate. The gate fails unless Documents, PDF, Presentations and
