@@ -46,7 +46,7 @@ function assertX64Executable(path) {
 
 function powershell(script, environment = {}) {
   return run(
-    "powershell.exe",
+    process.env.ARTEMIS_POWERSHELL ?? "pwsh.exe",
     [
       "-NoLogo",
       "-NoProfile",
@@ -54,7 +54,7 @@ function powershell(script, environment = {}) {
       "-ExecutionPolicy",
       "Bypass",
       "-Command",
-      script,
+      `$ErrorActionPreference = "Stop"; ${script}`,
     ],
     { env: { ...process.env, ...environment } },
   );

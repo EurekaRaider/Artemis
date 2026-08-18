@@ -90,6 +90,8 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     );
 
     const source = readFileSync(nativeVerifierPath, "utf8");
+    expect(source).toContain('ARTEMIS_POWERSHELL ?? "pwsh.exe"');
+    expect(source).toContain('$ErrorActionPreference = "Stop"');
     expect(source).toContain("Expand-Archive");
     expect(source).toContain("ARTEMIS_WINDOWS_ZIP");
     expect(source).toContain("extractedExecutablePath");
