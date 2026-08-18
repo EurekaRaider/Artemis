@@ -184,7 +184,7 @@ describe("Codex conversation shell contract", () => {
     expect(conversation).toContain("activeEvents.length === 0");
     expect(conversation).toContain("<ArtemisMark />");
     expect(conversation).toContain(
-      "What should we build in ${activeProject.name}?",
+      "What should we build in ${activeWorkspaceLabel}?",
     );
     expect(conversation).toContain('className="conversation-empty-state"');
     expect(conversation.indexOf("activeEvents.length === 0")).toBeLessThan(
@@ -401,5 +401,78 @@ describe("Codex conversation shell contract", () => {
     );
     expect(threadMenu).toContain("void deleteThread(thread)");
     expect(threadMenu).toContain("{t.deleteTask}");
+  });
+
+  it("copies a temporary workspace and rolls back both fork artifacts on failure", () => {
+    const forkHandler = sourceBetween(
+      mainSource,
+      "IPC.threadFork",
+      "IPC.threadCompact",
+    );
+    const copyWorkspace = forkHandler.indexOf(
+      "await copyTemporaryConversationWorkspace(",
+    );
+    const persistFork = forkHandler.indexOf(
+      "return store.createForkedThread(forkedThread, source.id)",
+      copyWorkspace,
+    );
+    const removeWorkspace = forkHandler.indexOf(
+      "await removeTemporaryConversationWorkspace(",
+      persistFork,
+    );
+    const removeTranscript = forkHandler.indexOf(
+      "await deletePiSessionTranscript(",
+      removeWorkspace,
+    );
+    expect(copyWorkspace).toBeGreaterThanOrEqual(0);
+    expect(persistFork).toBeGreaterThan(copyWorkspace);
+    expect(removeWorkspace).toBeGreaterThan(persistFork);
+    expect(removeTranscript).toBeGreaterThan(removeWorkspace);
+    expect(forkHandler.slice(removeTranscript)).toContain(
+      'piSessionsRoot(process.env, app.getPath("home"))',
+    );
+  });
+
+  it("routes every newly projectless broker path through the tested workspace policy", () => {
+    const brokerSections = [
+      sourceBetween(
+        mainSource,
+        "async function handleShellBrokerRequest",
+        "async function openAgentThread",
+      ),
+      sourceBetween(
+        mainSource,
+        "async function handleBrokerRequest",
+        "async function handleMemoryAppendBrokerRequest",
+      ),
+      sourceBetween(
+        mainSource,
+        "async function handleMemoryAppendBrokerRequest",
+        "async function handleOfficeDocumentBrokerRequest",
+      ),
+      sourceBetween(
+        mainSource,
+        "async function handleOfficeDocumentBrokerRequest",
+        "async function handleMcpBrokerRequest",
+      ),
+      sourceBetween(
+        mainSource,
+        "async function handleMcpBrokerRequest",
+        "async function handleExtensionBrokerRequest",
+      ),
+      sourceBetween(
+        mainSource,
+        "async function handleExtensionBrokerRequest",
+        "function rejectBrokerRequest",
+      ),
+    ];
+    for (const section of brokerSections) {
+      expect(section).toContain("conversationWorkspaceMatches(");
+    }
+    expect(mainSource).toContain("assertConversationTarget(");
+    expect(mainSource).toContain("conversationApprovalScopes(");
+    expect(mainSource).toContain("conversationMemoryScopeAllowed(");
+    expect(mainSource).toContain("conversationSupportsProjectFeatures(");
+    expect(mainSource).toContain("removeTemporaryConversationWorkspace(");
   });
 });

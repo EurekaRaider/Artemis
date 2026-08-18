@@ -7,6 +7,7 @@ import {
   automationRunSchema,
   automationSchema,
   isLegacyInternalAgentMessage,
+  modelSelectionSchema,
   type AgentEvent,
   type AgentPayload,
   type AppSnapshot,
@@ -35,13 +36,15 @@ interface ProjectRow {
 
 interface ThreadRow {
   id: string;
-  project_id: string;
+  project_id: string | null;
   title: string;
   goal: string | null;
   mode: RunMode;
   target: WorkspaceTarget;
   status: Thread["status"];
   session_file: string | null;
+  model_selection_json: string | null;
+  context_window: number | null;
   pinned: number;
   archived: number;
   created_at: string;
@@ -108,7 +111,8 @@ interface AutomationRunRow {
   updated_at: string;
 }
 
-const DATABASE_VERSION = 9;
+const DATABASE_VERSION = 10;
+const EVENT_PROTOCOL_DATABASE_VERSION = 9;
 
 export interface EventAppendInput {
   eventId: string;
@@ -144,13 +148,21 @@ function projectFromRow(row: ProjectRow): Project {
 function threadFromRow(row: ThreadRow): Thread {
   return {
     id: row.id,
-    projectId: row.project_id,
+    ...(row.project_id ? { projectId: row.project_id } : {}),
     title: row.title,
     ...(row.goal ? { goal: row.goal } : {}),
     mode: row.mode,
     target: row.target,
     status: row.status,
     ...(row.session_file ? { sessionFile: row.session_file } : {}),
+    ...(row.model_selection_json
+      ? {
+          modelSelection: modelSelectionSchema.parse(
+            JSON.parse(row.model_selection_json),
+          ),
+        }
+      : {}),
+    ...(row.context_window ? { contextWindow: row.context_window } : {}),
     pinned: row.pinned === 1,
     archived: row.archived === 1,
     createdAt: row.created_at,
@@ -262,13 +274,15 @@ export class AppStore {
 
       CREATE TABLE IF NOT EXISTS threads (
         id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
         title TEXT NOT NULL,
         goal TEXT,
         mode TEXT NOT NULL,
         target TEXT NOT NULL,
         status TEXT NOT NULL,
         session_file TEXT,
+        model_selection_json TEXT,
+        context_window INTEGER,
         pinned INTEGER NOT NULL DEFAULT 0,
         archived INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
@@ -420,8 +434,14 @@ export class AppStore {
     const migratedVersion = this.database
       .prepare("PRAGMA user_version")
       .get() as { user_version: number };
-    if (migratedVersion.user_version < DATABASE_VERSION) {
+    if (migratedVersion.user_version < EVENT_PROTOCOL_DATABASE_VERSION) {
       this.migrateEventProtocol();
+    }
+    const eventMigratedVersion = this.database
+      .prepare("PRAGMA user_version")
+      .get() as { user_version: number };
+    if (eventMigratedVersion.user_version < DATABASE_VERSION) {
+      this.migrateThreadSessions();
     }
   }
 
@@ -530,6 +550,66 @@ export class AppStore {
         UPDATE events
         SET body = json_set(body, '$.protocolVersion', ${PROTOCOL_VERSION})
         WHERE json_extract(body, '$.protocolVersion') < ${PROTOCOL_VERSION};
+        PRAGMA user_version = ${EVENT_PROTOCOL_DATABASE_VERSION};
+        COMMIT;
+      `);
+    } catch (error) {
+      try {
+        this.database.exec("ROLLBACK");
+      } catch {
+        // The migration failed before opening its transaction.
+      }
+      throw error;
+    }
+  }
+
+  private migrateThreadSessions(): void {
+    const columns = this.database
+      .prepare("PRAGMA table_info(threads)")
+      .all() as unknown as Array<{ name: string; notnull: number }>;
+    const projectId = columns.find((column) => column.name === "project_id");
+    if (
+      projectId?.notnull === 0 &&
+      columns.some((column) => column.name === "model_selection_json") &&
+      columns.some((column) => column.name === "context_window")
+    ) {
+      this.database.exec(`PRAGMA user_version = ${DATABASE_VERSION}`);
+      return;
+    }
+
+    this.database.exec("PRAGMA foreign_keys = OFF");
+    try {
+      this.database.exec(`
+        BEGIN IMMEDIATE;
+        CREATE TABLE threads_session_v10 (
+          id TEXT PRIMARY KEY,
+          project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          goal TEXT,
+          mode TEXT NOT NULL,
+          target TEXT NOT NULL,
+          status TEXT NOT NULL,
+          session_file TEXT,
+          model_selection_json TEXT,
+          context_window INTEGER,
+          pinned INTEGER NOT NULL DEFAULT 0,
+          archived INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        INSERT INTO threads_session_v10 (
+          id, project_id, title, goal, mode, target, status, session_file,
+          model_selection_json, context_window, pinned, archived, created_at,
+          updated_at
+        )
+        SELECT
+          id, project_id, title, goal, mode, target, status, session_file,
+          NULL, NULL, pinned, archived, created_at, updated_at
+        FROM threads;
+        DROP TABLE threads;
+        ALTER TABLE threads_session_v10 RENAME TO threads;
+        CREATE INDEX ix_threads_project
+          ON threads(project_id, archived, updated_at DESC);
         PRAGMA user_version = ${DATABASE_VERSION};
         COMMIT;
       `);
@@ -540,6 +620,14 @@ export class AppStore {
         // The migration failed before opening its transaction.
       }
       throw error;
+    } finally {
+      this.database.exec("PRAGMA foreign_keys = ON");
+    }
+    const violations = this.database
+      .prepare("PRAGMA foreign_key_check")
+      .all() as unknown[];
+    if (violations.length > 0) {
+      throw new Error("Thread session migration produced invalid references.");
     }
   }
 
@@ -609,18 +697,21 @@ export class AppStore {
       .prepare(
         `INSERT INTO threads (
           id, project_id, title, goal, mode, target, status, session_file,
-          pinned, archived, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          model_selection_json, context_window, pinned, archived, created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         thread.id,
-        thread.projectId,
+        thread.projectId ?? null,
         thread.title,
         thread.goal ?? null,
         thread.mode,
         thread.target,
         thread.status,
         thread.sessionFile ?? null,
+        thread.modelSelection ? JSON.stringify(thread.modelSelection) : null,
+        thread.contextWindow ?? null,
         thread.pinned ? 1 : 0,
         thread.archived ? 1 : 0,
         thread.createdAt,
@@ -722,6 +813,16 @@ export class AppStore {
     return row ? threadFromRow(row) : undefined;
   }
 
+  listThreads(): Thread[] {
+    return (
+      this.database
+        .prepare(
+          "SELECT * FROM threads ORDER BY archived ASC, pinned DESC, updated_at DESC",
+        )
+        .all() as unknown as ThreadRow[]
+    ).map(threadFromRow);
+  }
+
   deleteThread(threadId: string): void {
     const result = this.database
       .prepare("DELETE FROM threads WHERE id = ?")
@@ -743,6 +844,8 @@ export class AppStore {
         | "pinned"
         | "archived"
         | "target"
+        | "modelSelection"
+        | "contextWindow"
       >
     > & { goal?: string | null },
   ): Thread {
@@ -755,7 +858,8 @@ export class AppStore {
       .prepare(
         `UPDATE threads
          SET mode = ?, status = ?, session_file = ?, title = ?, goal = ?,
-             pinned = ?, archived = ?, target = ?, updated_at = ?
+             pinned = ?, archived = ?, target = ?, model_selection_json = ?,
+             context_window = ?, updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -767,6 +871,10 @@ export class AppStore {
         (changes.pinned ?? current.pinned) ? 1 : 0,
         (changes.archived ?? current.archived) ? 1 : 0,
         changes.target ?? current.target,
+        (changes.modelSelection ?? current.modelSelection)
+          ? JSON.stringify(changes.modelSelection ?? current.modelSelection)
+          : null,
+        changes.contextWindow ?? current.contextWindow ?? null,
         updatedAt,
         id,
       );
@@ -1704,15 +1812,9 @@ export class AppStore {
         .all() as unknown as ProjectRow[]
     ).map(projectFromRow);
     const visibleProjectIds = new Set(projects.map((project) => project.id));
-    const threads = (
-      this.database
-        .prepare(
-          "SELECT * FROM threads ORDER BY archived ASC, pinned DESC, updated_at DESC",
-        )
-        .all() as unknown as ThreadRow[]
-    )
-      .map(threadFromRow)
-      .filter((thread) => visibleProjectIds.has(thread.projectId));
+    const threads = this.listThreads().filter(
+      (thread) => !thread.projectId || visibleProjectIds.has(thread.projectId),
+    );
     const worktrees = this.listWorktrees().filter((worktree) =>
       visibleProjectIds.has(worktree.projectId),
     );

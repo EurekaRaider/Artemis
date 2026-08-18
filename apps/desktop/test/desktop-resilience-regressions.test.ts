@@ -41,7 +41,13 @@ describe("desktop resilience regressions", () => {
       /if\s*\(\s*agentProcess\s*\)|agentProcess\?\./u,
     );
 
-    const cleanupRequest = deleteHandler.indexOf('type: "thread.delete"');
+    const hostCleanupStart = deleteHandler.indexOf(
+      "if (agentProcess?.available)",
+    );
+    const cleanupRequest = deleteHandler.indexOf(
+      'type: "thread.delete"',
+      hostCleanupStart,
+    );
     const cleanupFailureBoundary = deleteHandler.indexOf(
       "catch",
       cleanupRequest,
@@ -75,6 +81,43 @@ describe("desktop resilience regressions", () => {
       "threadStateCache.current.delete(thread.id)",
     );
     expect(deleteAction).toContain("delete next[thread.id]");
+  });
+
+  it("closes Agent Host and terminal processes before removing a temporary workspace", () => {
+    const deleteHandler = sourceBetween(
+      mainSource,
+      "IPC.threadDelete,",
+      "IPC.threadFork,",
+    );
+    const closeAgent = deleteHandler.indexOf('type: "thread.close"');
+    const closeTerminal = deleteHandler.indexOf(
+      "terminalService?.closeThread(threadId)",
+      closeAgent,
+    );
+    const removeWorkspace = deleteHandler.indexOf(
+      "await removeTemporaryConversationWorkspace(",
+      closeTerminal,
+    );
+    const deleteTranscript = deleteHandler.indexOf(
+      'type: "thread.delete"',
+      removeWorkspace,
+    );
+    const deleteSqlite = deleteHandler.indexOf(
+      "store.deleteThread(threadId)",
+      deleteTranscript,
+    );
+
+    expect(closeAgent).toBeGreaterThanOrEqual(0);
+    expect(closeTerminal).toBeGreaterThan(closeAgent);
+    expect(removeWorkspace).toBeGreaterThan(closeTerminal);
+    expect(deleteTranscript).toBeGreaterThan(removeWorkspace);
+    expect(deleteSqlite).toBeGreaterThan(deleteTranscript);
+    expect(deleteHandler.slice(closeAgent, removeWorkspace)).toContain(
+      "throw new Error(",
+    );
+    expect(deleteHandler.slice(removeWorkspace, deleteSqlite)).toContain(
+      "throw new Error(",
+    );
   });
 
   it("keeps the bundled model catalog available when the Agent Host is unavailable", () => {

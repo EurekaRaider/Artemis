@@ -462,6 +462,7 @@ describe("renderer layout contract", () => {
     expect(cssRule(".app-version")).toMatch(/\bfont-size:\s*11px/u);
     expect(cssRule(".app-version")).toMatch(/\bcolor:\s*var\(--muted-2\)/u);
     expect(cssRule(".app-version")).toMatch(/\bbackground:\s*transparent/u);
+    expect(cssRule(".sidebar-footer")).toContain("padding: 0 11px 6px 14px");
   });
 
   it("keeps archived conversations out of the task sidebar and opens them from a library", () => {
@@ -484,6 +485,33 @@ describe("renderer layout contract", () => {
       "border: 1px solid var(--border)",
     );
     expect(cssRule(".archive-empty")).not.toContain("border: 1px dashed");
+  });
+
+  it("keeps projectless temporary conversations visible and composable", () => {
+    expect(appSource).toContain(
+      'className="project-group temporary-conversations"',
+    );
+    expect(appSource).toContain("!thread.projectId && !thread.archived");
+    expect(appSource).toContain("beginTemporaryConversation");
+    expect(appSource).toContain("{!activeThread?.archived && (");
+    expect(appSource).not.toContain(
+      "{activeProject && !activeThread?.archived && (",
+    );
+    expect(appSource).toContain("if (!activeProjectId) return;");
+    expect(appSource).toContain("...(activeProject");
+    expect(appSource).toContain("{activeProject && (");
+    expect(archivePageSource).toContain("t.temporary");
+  });
+
+  it("routes composer model changes to only the selected conversation", () => {
+    expect(appSource).toContain("window.artemis.setThreadModelSelection(");
+    expect(appSource).toContain(
+      "activeThread?.modelSelection ?? runtimeSettings?.selection",
+    );
+    expect(apiSource).toContain("setThreadModelSelection(");
+    expect(preloadSource).toContain("IPC.threadModelSet");
+    expect(mainProcessSource).toContain('type: "thread.model.set"');
+    expect(runtimeSource).toContain("async setThreadModel(");
   });
 
   it("exposes MCP, Skills, and persistent task goals as first-class navigation", () => {
@@ -529,6 +557,8 @@ describe("renderer layout contract", () => {
     expect(composerContextSource).toContain("focus({ preventScroll: true })");
     expect(composerContextSource).toContain("conversation.scrollLeft = 0");
     expect(cssRule(".composer")).toMatch(/\bborder-radius:\s*18px/u);
+    expect(cssRule(".composer")).toContain("border: 1px solid var(--border)");
+    expect(cssRule(".composer-context")).toContain("margin: 0 20px 1px");
   });
 
   it("keeps context menus inside the resized conversation", () => {
@@ -1127,11 +1157,9 @@ describe("renderer layout contract", () => {
       "const activeProviderModel = activeProvider?.models.find(",
     );
     expect(appSource).toContain(
-      "activeModel?.name ??\n    activeProviderModel?.name ??\n    runtimeSettings?.selection?.modelId ??\n    t.model",
+      "activeModel?.name ??\n    activeProviderModel?.name ??\n    activeSelection?.modelId ??\n    t.model",
     );
-    expect(appSource).toContain(
-      "provider.id === runtimeSettings.selection?.providerId",
-    );
+    expect(appSource).toContain("provider.id === activeSelection.providerId");
     expect(appSource).toContain("thinkingLevelLabel");
     expect(appSource).toContain('className="model-information"');
   });
@@ -1163,9 +1191,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('ultraMode: "极致模式"');
     expect(appSource).toContain('ultraModeQuota: "Uses your quota faster"');
     expect(appSource).toContain('ultraModeQuota: "更快消耗使用额度"');
-    expect(appSource).toContain(
-      "runtimeSettings?.selection?.ultraMode === true",
-    );
+    expect(appSource).toContain("activeSelection?.ultraMode === true");
     expect(appSource).toContain("preserveUltraMode");
     expect(modelPickerSource).toContain(
       'className="model-picker-options-heading"',
@@ -1179,7 +1205,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain(
       "runtimeSettings.providers.map((provider) => provider.id)",
     );
-    expect(appSource).toContain("window.artemis.setModelSelection({");
+    expect(appSource).toContain("window.artemis.setThreadModelSelection(");
     expect(cssRule(".model-picker-menu")).toMatch(/\bposition:\s*absolute/u);
     expect(cssRule(".model-picker-menu")).toMatch(/\bgrid-template-columns:/u);
     expect(cssRule(".model-picker-navigation")).toMatch(/\balign-self:\s*end/u);
@@ -1382,15 +1408,14 @@ describe("renderer layout contract", () => {
     );
     expect(modelSwitchHandler).not.toContain("apiKeyInput");
     expect(modelSwitchHandler).toContain(
-      "await settingsStore.setModel(effectiveSelection, contextWindow)",
+      "await settingsStore.setModel(resolved.selection, resolved.contextWindow)",
     );
-    expect(modelSwitchHandler).toContain(
+    expect(mainProcessSource).toContain(
       'typeof selection.ultraMode !== "boolean"',
     );
-    expect(modelSwitchHandler).toContain(
-      "normalizeModelSelection(\n        selection,\n        selectedModel.reasoning,",
-    );
-    expect(modelSwitchHandler).toContain("selectedModel.highestThinkingLevel");
+    expect(mainProcessSource).toContain("normalizeModelSelection(");
+    expect(mainProcessSource).toContain("selectedModel.reasoning");
+    expect(mainProcessSource).toContain("selectedModel.highestThinkingLevel");
     expect(mainProcessSource).toContain("selection.ultraMode === true");
 
     // Custom provider setup keeps its independent, working connection flow.

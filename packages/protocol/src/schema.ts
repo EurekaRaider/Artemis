@@ -189,6 +189,14 @@ export const thinkingLevelSchema = z.enum([
 ]);
 export type ThinkingLevel = z.infer<typeof thinkingLevelSchema>;
 
+export const modelSelectionSchema = z.object({
+  providerId: z.string().min(1),
+  modelId: z.string().min(1),
+  thinkingLevel: thinkingLevelSchema,
+  ultraMode: z.boolean().optional(),
+});
+export type ModelSelection = z.infer<typeof modelSelectionSchema>;
+
 export const workspaceTargetSchema = z.enum([
   "local",
   "managed-worktree",
@@ -629,13 +637,15 @@ export type Project = z.infer<typeof projectSchema>;
 
 export const threadSchema = z.object({
   id: z.string().min(1),
-  projectId: z.string().min(1),
+  projectId: z.string().min(1).optional(),
   title: z.string().min(1),
   goal: z.string().trim().min(1).max(2_000).optional(),
   mode: runModeSchema,
   target: workspaceTargetSchema,
   status: z.enum(["idle", "running", "waiting-approval", "failed"]),
   sessionFile: z.string().optional(),
+  modelSelection: modelSelectionSchema.optional(),
+  contextWindow: z.number().int().positive().optional(),
   pinned: z.boolean(),
   archived: z.boolean(),
   createdAt: z.string().datetime({ offset: true }),
@@ -674,9 +684,15 @@ export interface AppSnapshot {
 export const threadCommandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("thread.create"),
-    projectId: z.string().min(1),
+    projectId: z.string().min(1).optional(),
     mode: runModeSchema,
     target: workspaceTargetSchema,
+  }),
+  z.object({
+    type: z.literal("thread.model.set"),
+    threadId: z.string().min(1),
+    selection: modelSelectionSchema,
+    contextWindow: z.number().int().positive(),
   }),
   z.object({
     type: z.literal("thread.archive"),

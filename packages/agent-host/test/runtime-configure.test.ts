@@ -65,11 +65,14 @@ describe("agent runtime configuration", () => {
     expect.soft(createModelRuntime).not.toHaveBeenCalled();
   });
 
-  it("refreshes an open session's backend identity when its model changes", async () => {
+  it("keeps open sessions on their own model until that thread changes it", async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), "artemis-runtime-model-"),
     );
-    cleanupPaths.push(workspacePath);
+    const secondWorkspacePath = await mkdtemp(
+      join(tmpdir(), "artemis-runtime-model-b-"),
+    );
+    cleanupPaths.push(workspacePath, secondWorkspacePath);
     const host = new ArtemisAgentHost(
       {
         async request() {
@@ -78,14 +81,24 @@ describe("agent runtime configuration", () => {
       },
       { emit() {} },
     );
+    const configuredProvider = provider("qwen-coder", "Qwen Coder");
+    configuredProvider.models.push({
+      id: "deepseek-coder",
+      name: "DeepSeek Coder",
+      reasoning: false,
+      input: ["text"],
+      contextWindow: 128_000,
+      maxTokens: 32_000,
+    });
+    const qwenSelection = {
+      providerId: "local-proxy",
+      modelId: "qwen-coder",
+      thinkingLevel: "off" as const,
+    };
     await host.configure({
       credentials: {},
-      providers: [provider("qwen-coder", "Qwen Coder")],
-      selection: {
-        providerId: "local-proxy",
-        modelId: "qwen-coder",
-        thinkingLevel: "off",
-      },
+      providers: [configuredProvider],
+      selection: qwenSelection,
     });
     const sessionFile = SessionManager.create(
       workspacePath,
@@ -95,7 +108,25 @@ describe("agent runtime configuration", () => {
       threadId: "model-identity-thread",
       workspacePath,
       target: "local",
+      selection: qwenSelection,
+      contextWindow: 128_000,
       ...(sessionFile ? { sessionFile } : {}),
+    });
+    const secondSessionFile = SessionManager.create(
+      secondWorkspacePath,
+      join(secondWorkspacePath, "sessions"),
+    ).getSessionFile();
+    await host.openThread({
+      threadId: "second-model-thread",
+      workspacePath: secondWorkspacePath,
+      target: "local",
+      selection: {
+        providerId: "local-proxy",
+        modelId: "deepseek-coder",
+        thinkingLevel: "off",
+      },
+      contextWindow: 128_000,
+      ...(secondSessionFile ? { sessionFile: secondSessionFile } : {}),
     });
     const session = (
       host as unknown as {
@@ -105,21 +136,47 @@ describe("agent runtime configuration", () => {
         >;
       }
     ).threads.get("model-identity-thread")?.session;
+    const secondSession = (
+      host as unknown as {
+        threads: Map<string, { session: { model?: { id: string } } }>;
+      }
+    ).threads.get("second-model-thread")?.session;
 
     expect(session?.model?.id).toBe("qwen-coder");
     expect(session?.systemPrompt).toContain(
       'model "Qwen Coder" (ID: "qwen-coder")',
     );
+    expect(secondSession?.model?.id).toBe("deepseek-coder");
 
     await host.configure({
       credentials: {},
-      providers: [provider("deepseek-coder", "DeepSeek Coder")],
+      providers: [configuredProvider],
       selection: {
         providerId: "local-proxy",
         modelId: "deepseek-coder",
         thinkingLevel: "off",
       },
     });
+
+    expect(session?.model?.id).toBe("qwen-coder");
+    expect(session?.systemPrompt).toContain(
+      'model "Qwen Coder" (ID: "qwen-coder")',
+    );
+    expect(secondSession?.model?.id).toBe("deepseek-coder");
+
+    await host.setThreadModel("second-model-thread", qwenSelection, 128_000);
+    expect(session?.model?.id).toBe("qwen-coder");
+    expect(secondSession?.model?.id).toBe("qwen-coder");
+
+    await host.setThreadModel(
+      "model-identity-thread",
+      {
+        providerId: "local-proxy",
+        modelId: "deepseek-coder",
+        thinkingLevel: "off",
+      },
+      128_000,
+    );
 
     expect(session?.model?.id).toBe("deepseek-coder");
     expect(session?.systemPrompt).toContain(
@@ -128,6 +185,7 @@ describe("agent runtime configuration", () => {
     expect(session?.systemPrompt).not.toContain(
       'model "Qwen Coder" (ID: "qwen-coder")',
     );
+    expect(secondSession?.model?.id).toBe("qwen-coder");
     host.dispose();
   });
 

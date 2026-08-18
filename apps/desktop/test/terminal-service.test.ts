@@ -214,6 +214,44 @@ describe("TerminalService", () => {
     expect(trustedExtensionManagerSource).toContain("buildSeatbeltLaunch");
   });
 
+  it("closes only the terminal owned by a deleted thread", () => {
+    const first = new FakePty();
+    const second = new FakePty();
+    const factory = vi
+      .fn()
+      .mockReturnValueOnce(first)
+      .mockReturnValueOnce(second) as PtyFactory;
+    const service = new TerminalService(
+      "darwin",
+      { onData: vi.fn(), onExit: vi.fn() },
+      factory,
+    );
+    const firstDescriptor = service.open({
+      threadId: "thread-1",
+      workspacePath: "/Users/test/thread-1",
+      shell: "/bin/zsh",
+      cols: 80,
+      rows: 24,
+    });
+    const secondDescriptor = service.open({
+      threadId: "thread-2",
+      workspacePath: "/Users/test/thread-2",
+      shell: "/bin/zsh",
+      cols: 80,
+      rows: 24,
+    });
+
+    service.closeThread("thread-1");
+
+    expect(first.kill).toHaveBeenCalledOnce();
+    expect(second.kill).not.toHaveBeenCalled();
+    expect(() => service.write(firstDescriptor.terminalId, "closed")).toThrow(
+      "no longer active",
+    );
+    service.write(secondDescriptor.terminalId, "open");
+    expect(second.write).toHaveBeenCalledWith("open");
+  });
+
   it("clamps resize requests and kills every session on dispose", () => {
     const fake = new FakePty();
     const service = new TerminalService(
