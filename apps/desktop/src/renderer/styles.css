@@ -797,6 +797,8 @@ summary:focus-visible {
 }
 
 .workspace {
+  --environment-panel-inline-size: 304px;
+  --environment-panel-layout-gap: 24px;
   background: var(--codex-workspace-bg);
   border-left: 1px solid var(--border);
   border-top: 1px solid var(--border);
@@ -983,12 +985,18 @@ summary:focus-visible {
   position: absolute;
   scrollbar-color: var(--muted-2) transparent;
   top: calc(100% + 10px);
-  width: min(304px, calc(100vw - 24px));
+  width: min(var(--environment-panel-inline-size), calc(100vw - 24px));
   z-index: 80;
 }
 
 .environment-control[data-dock-open="true"] .environment-popover {
   inset-inline-end: 0;
+}
+
+.workspace:has(.environment-trigger[aria-expanded="true"]) .conversation {
+  margin-inline-end: calc(
+    var(--environment-panel-inline-size) + var(--environment-panel-layout-gap)
+  );
 }
 
 .environment-section {
@@ -1660,6 +1668,10 @@ button.environment-row:disabled {
     position: fixed;
     top: 54px;
     width: auto;
+  }
+
+  .workspace:has(.environment-trigger[aria-expanded="true"]) .conversation {
+    margin-inline-end: 0;
   }
 
   .environment-section {

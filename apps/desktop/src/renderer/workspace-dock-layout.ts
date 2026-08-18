@@ -11,11 +11,15 @@ export interface WorkspaceDockWidthBounds {
 export function workspaceDockWidthBounds(
   workspaceWidth: number,
   viewportWidth: number,
+  reservedWorkspaceWidth = 0,
 ): WorkspaceDockWidthBounds {
   const responsiveMinimum =
     viewportWidth <= 820 ? 320 : viewportWidth <= 1_100 ? 380 : 440;
   const availableMaximum = Math.floor(
-    workspaceWidth - MIN_CONVERSATION_WIDTH - WORKSPACE_DOCK_RESIZER_WIDTH,
+    workspaceWidth -
+      MIN_CONVERSATION_WIDTH -
+      WORKSPACE_DOCK_RESIZER_WIDTH -
+      Math.max(0, reservedWorkspaceWidth),
   );
   const max = Math.max(
     MIN_WORKSPACE_DOCK_WIDTH,

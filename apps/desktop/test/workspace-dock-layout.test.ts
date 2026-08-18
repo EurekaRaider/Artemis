@@ -19,6 +19,10 @@ describe("workspace dock layout", () => {
       min: 320,
       max: 373,
     });
+    expect(workspaceDockWidthBounds(1_213, 1_512, 328)).toEqual({
+      min: 440,
+      max: 558,
+    });
   });
 
   it("clamps and rounds pointer and keyboard widths", () => {

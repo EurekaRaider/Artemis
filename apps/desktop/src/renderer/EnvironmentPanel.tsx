@@ -23,8 +23,9 @@ import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
 
-// Keep the centered 800px timeline clear of the 304px floating panel.
+// Preserve the centered 800px timeline and breathing room for the 304px panel.
 export const ENVIRONMENT_PANEL_MIN_WORKSPACE_WIDTH = 1_472;
+export const ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH = 328;
 
 export function shouldAutoHideEnvironmentPanel(workspaceWidth: number) {
   return workspaceWidth < ENVIRONMENT_PANEL_MIN_WORKSPACE_WIDTH;
@@ -474,6 +475,7 @@ export function EnvironmentPanel({
   onAddSources,
   onConfirm,
   onMessage,
+  onOpenChange,
   onOpenAgent,
   onOpenReview,
   onOpenTeam,
@@ -495,6 +497,7 @@ export function EnvironmentPanel({
   onAddSources: () => void;
   onConfirm: (message: string) => Promise<boolean>;
   onMessage: (message: string, error?: boolean) => void;
+  onOpenChange: (open: boolean) => void;
   onOpenAgent: (agent: ChildAgentState) => void;
   onOpenReview: (scope: ReviewScope) => void;
   onOpenTeam: (team: AgentTeamState) => void;
@@ -530,6 +533,11 @@ export function EnvironmentPanel({
   const [showAllAgents, setShowAllAgents] = useState(false);
   const [showAllMcp, setShowAllMcp] = useState(false);
   const [showAllSources, setShowAllSources] = useState(false);
+
+  useLayoutEffect(() => {
+    onOpenChange(open);
+    return () => onOpenChange(false);
+  }, [onOpenChange, open]);
 
   const closePanel = useCallback(() => {
     autoHidden.current = false;

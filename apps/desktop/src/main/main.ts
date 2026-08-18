@@ -7645,6 +7645,14 @@ function createMainWindow(): BrowserWindow {
                 if (view.startsWith('environment')) {
                   document.querySelector('.thread-select')?.click();
                   await wait(600);
+                  if (view === 'environment-open') {
+                    const trigger = document.querySelector('.environment-trigger');
+                    if (trigger?.getAttribute('aria-expanded') !== 'true') {
+                      trigger?.click();
+                      await wait(500);
+                    }
+                    return;
+                  }
                   if (view === 'environment-agents') {
                     const popover = document.querySelector('.environment-popover');
                     if (popover) popover.scrollTop = 220;
@@ -7933,11 +7941,28 @@ function createMainWindow(): BrowserWindow {
                 );
                 const environmentBounds = environmentPanel
                   ?.getBoundingClientRect();
+                const conversation = document.querySelector(".conversation");
+                const conversationBounds = conversation
+                  ?.getBoundingClientRect();
                 const workspaceDock = document.querySelector(
                   ".workspace-tool-dock",
                 );
                 const workspaceDockBounds = workspaceDock
                   ?.getBoundingClientRect();
+                if (
+                  environmentPanel &&
+                  environmentBounds &&
+                  conversation &&
+                  conversationBounds &&
+                  visible(environmentPanel) &&
+                  visible(conversation) &&
+                  conversationBounds.right > environmentBounds.left + 1
+                ) {
+                  issues.push({
+                    rule: "environment-conversation-overlap",
+                    element: ".conversation",
+                  });
+                }
                 return {
                   documentLanguage: document.documentElement.lang,
                   documentDirection: document.documentElement.dir,
@@ -7965,6 +7990,13 @@ function createMainWindow(): BrowserWindow {
                       )]
                         .map((status) => status.textContent?.trim() ?? "")
                     : [],
+                  conversation: conversationBounds
+                    ? {
+                        left: conversationBounds.left,
+                        right: conversationBounds.right,
+                        width: conversationBounds.width,
+                      }
+                    : null,
                   workspaceDockVisible: workspaceDock
                     ? visible(workspaceDock)
                     : false,
