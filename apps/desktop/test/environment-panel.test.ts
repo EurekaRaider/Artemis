@@ -101,7 +101,9 @@ describe("task environment panel state", () => {
   });
 
   it("uses compact Codex-like popover proportions", () => {
-    expect(stylesSource).toContain("width: min(304px, calc(100vw - 24px))");
+    expect(stylesSource).toContain(
+      "width: min(var(--environment-panel-inline-size), calc(100vw - 24px))",
+    );
     expect(stylesSource).toContain(
       "max-height: min(440px, calc(100vh - 64px))",
     );
@@ -188,6 +190,23 @@ describe("task environment panel state", () => {
     );
   });
 
+  it("reserves space for the whole conversation while the panel is open", () => {
+    expect(stylesSource).toContain("--environment-panel-inline-size: 304px");
+    expect(stylesSource).toMatch(
+      /\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+\.conversation\s*\{[^}]*margin-inline-end:\s*calc\(\s*var\(--environment-panel-inline-size\)\s*\+\s*var\(--environment-panel-layout-gap\)\s*\);/su,
+    );
+    expect(stylesSource).not.toMatch(
+      /\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+:(?:is|where)\([^)]*(?:timeline|composer)/su,
+    );
+    expect(stylesSource).toMatch(
+      /@media \(max-width: 680px\)[\s\S]*?\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+\.conversation\s*\{[^}]*margin-inline-end:\s*0;/u,
+    );
+    expect(panelSource).toContain("onOpenChange(open)");
+    expect(appSource).toContain(
+      "environmentPanelOpen ? ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH : 0",
+    );
+  });
+
   it("restores the panel after an auto-hidden narrow layout becomes wide", () => {
     const autoHidden = environmentPanelVisibilityAfterResize(
       { open: true, autoHidden: false },
@@ -211,6 +230,7 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain("ARTEMIS_SMOKE_WINDOW_WIDTH");
     expect(mainSource).toContain("ARTEMIS_SMOKE_RESIZE_WIDTH");
     expect(mainSource).toContain("view === 'environment-agents'");
+    expect(mainSource).toContain("view === 'environment-open'");
     expect(mainSource).toContain(
       'ARTEMIS_SMOKE_VIEW?.startsWith("environment")',
     );
@@ -231,6 +251,7 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain(
       "document.querySelector('.environment-trigger')?.click()",
     );
+    expect(mainSource).toContain("environment-conversation-overlap");
     expect(mainSource).toContain('type: "mcp.tool.used"');
     expect(mainSource).toContain('type: "task.source.added"');
   });
