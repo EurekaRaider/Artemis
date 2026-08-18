@@ -2647,6 +2647,7 @@ describe("renderer layout contract", () => {
       'output("/usr/bin/xcrun", ["--find", "actool"])',
     );
     expect(macPackageScriptSource).toContain("Xcode 26 or later is required");
+    expect(engineeringBuilderSource).toContain('icon: "build/icon.png"');
     expect(engineeringBuilderSource).toContain("identity: null");
     expect(engineeringBuilderSource).toContain(
       'afterPack: "scripts/apply-engineering-package-permissions.cjs"',

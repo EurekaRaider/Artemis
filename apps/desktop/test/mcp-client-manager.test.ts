@@ -72,6 +72,14 @@ const config: McpServerConfig = {
   url: "https://example.test/mcp",
 };
 
+function resultText(
+  result: Awaited<ReturnType<McpClientManager["call"]>>,
+): string {
+  return result.content
+    .map((item) => (item.type === "text" ? item.text : ""))
+    .join("");
+}
+
 afterEach(() => {
   vi.unstubAllEnvs();
 });
@@ -779,17 +787,23 @@ lines.on("line", async (line) => {
           allowNetwork: true,
         });
         expect(status.state, status.error).toBe("connected");
-        expect(
-          await manager.call("integration-fixture", "echo", {
-            value: "OK",
-          }),
-        ).toEqual({ output: "MCP_ECHO:OK", isError: false });
+        const echo = await manager.call("integration-fixture", "echo", {
+          value: "OK",
+        });
+        expect(echo.isError).toBe(false);
+        expect(resultText(echo)).toBe("MCP_ECHO:OK");
+        expect(echo.metrics).toEqual({
+          textBytes: 11,
+          imageBytes: 0,
+          imageCount: 0,
+          omittedContentCount: 0,
+        });
         const securityProbe = await manager.call(
           "integration-fixture",
           "security_probe",
           {},
         );
-        expect(JSON.parse(securityProbe.output)).toEqual({
+        expect(JSON.parse(resultText(securityProbe))).toEqual({
           insideWrite: true,
           outsideWrite: true,
           networkAccess: true,
@@ -801,7 +815,7 @@ lines.on("line", async (line) => {
           taskWorkspacePath,
           "execute",
         );
-        expect(JSON.parse(taskProbe.output)).toEqual({
+        expect(JSON.parse(resultText(taskProbe))).toEqual({
           insideWrite: true,
           outsideWrite: true,
           networkAccess: true,
