@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { APP_LOCALES } from "@artemis/protocol";
 
 import { mainText } from "../src/main/i18n.js";
-import { I18N_RESOURCES } from "../src/shared/i18n-resources.js";
+import { I18N_RESOURCES, localizedCopy } from "../src/shared/i18n-resources.js";
 
 describe("i18n resources", () => {
   it("provides the same non-empty keys for every locale and namespace", () => {
@@ -49,6 +49,12 @@ describe("i18n resources", () => {
   it("does not expose English fallback copy for localized core prose", () => {
     const critical = [
       ["app", "emptyTitle"],
+      ["app", "goalCommandDetail"],
+      ["app", "compactCommandDetail"],
+      ["app", "initCommandDetail"],
+      ["app", "planCommandDetail"],
+      ["app", "executeCommandDetail"],
+      ["app", "reviewCommandDetail"],
       ["settings", "languageDetail"],
       ["automations", "subtitle"],
       ["resources", "marketDescription"],
@@ -62,6 +68,45 @@ describe("i18n resources", () => {
         ).not.toBe(
           (I18N_RESOURCES.en[namespace] as Record<string, string>)[key],
         );
+      }
+    }
+  });
+
+  it("localizes slash descriptions while preserving command keywords", () => {
+    const fallback = {
+      goalCommand: "/goal",
+      goalCommandDetail: "Set a persistent task goal",
+      compactCommand: "/compact",
+      compactCommandDetail: "Summarize older context now",
+      initCommand: "/init",
+      initCommandDetail: "Create a project-level AGENTS.md file",
+      planCommand: "/plan",
+      planCommandDetail: "Switch to Plan mode",
+      executeCommand: "/execute",
+      executeCommandDetail: "Switch to Execute mode",
+      reviewCommand: "/review",
+      reviewCommandDetail: "Switch to Review mode",
+    };
+
+    for (const locale of APP_LOCALES) {
+      const copy = localizedCopy(locale, "app", fallback);
+      expect(copy.goalCommand).toBe("/goal");
+      expect(copy.compactCommand).toBe("/compact");
+      expect(copy.initCommand).toBe("/init");
+      expect(copy.planCommand).toBe("/plan");
+      expect(copy.executeCommand).toBe("/execute");
+      expect(copy.reviewCommand).toBe("/review");
+      if (locale !== "en") {
+        expect(copy.goalCommandDetail).not.toBe(fallback.goalCommandDetail);
+        expect(copy.compactCommandDetail).not.toBe(
+          fallback.compactCommandDetail,
+        );
+        expect(copy.initCommandDetail).not.toBe(fallback.initCommandDetail);
+        expect(copy.planCommandDetail).not.toBe(fallback.planCommandDetail);
+        expect(copy.executeCommandDetail).not.toBe(
+          fallback.executeCommandDetail,
+        );
+        expect(copy.reviewCommandDetail).not.toBe(fallback.reviewCommandDetail);
       }
     }
   });
