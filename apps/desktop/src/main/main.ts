@@ -6551,12 +6551,12 @@ function registerIpc(): void {
       };
       if (forkedThread.target === "local") {
         if (!source.projectId) {
+          await copyTemporaryConversationWorkspace(
+            app.getPath("userData"),
+            source.id,
+            forkedThread.id,
+          );
           try {
-            await copyTemporaryConversationWorkspace(
-              app.getPath("userData"),
-              source.id,
-              forkedThread.id,
-            );
             return store.createForkedThread(forkedThread, source.id);
           } catch (error) {
             try {
