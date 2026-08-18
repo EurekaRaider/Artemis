@@ -4,10 +4,10 @@
 
 # Artemis
 
-### Local coding workflows with durable context and explicit trust.
+### Local Agent workflows for software development and everyday work.
 
-**A Windows and macOS desktop coding Agent powered by Pi, with persistent tasks,\
-guarded execution modes, Git-native Review, real terminals, automations, reusable memory, Skills, MCP, and parallel Agents.**
+**A Windows and macOS desktop Agent powered by Pi for coding, research, documents, connected services, and recurring work:\
+persistent tasks, guarded execution modes, Git-native Review, real terminals, automations, reusable memory, Skills, MCP, and parallel Agents.**
 
 <p>
   <a href="https://github.com/williamjinj-eng/Artemis/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/williamjinj-eng/Artemis/actions/workflows/ci.yml/badge.svg" /></a>
@@ -44,11 +44,14 @@ guarded execution modes, Git-native Review, real terminals, automations, reusabl
 
 ## 01 / System overview
 
-### Built for local agent work
+### Built for work, not just code
 
-Artemis is an independent desktop coding Agent for real repositories. Pi
-runs the single agent loop; Electron owns lifecycle, policy and persistence;
-the Renderer consumes only Artemis's versioned protocol. Projects,
+Artemis is an independent local desktop Agent for software development and
+everyday work. Repository-backed projects support coding and Git workflows,
+while projectless Temporary conversations support research, documents,
+spreadsheets and presentations; persistent project tasks can also run recurring
+automations. Pi runs the single agent loop; Electron owns lifecycle, policy and
+persistence; the Renderer consumes only Artemis's versioned protocol. Projects,
 conversation projections, review state and reusable experience stay local, and
 credentials are protected with operating-system encryption.
 
@@ -91,7 +94,7 @@ credentials are protected with operating-system encryption.
   <tr>
     <td width="50%" valign="top">
       <p><strong>03</strong>&nbsp;&nbsp;/&nbsp;&nbsp;GUARDED MODES</p>
-      <p>Plan for read-only planning, Execute for implementation, general work and Office tasks, and Review for read-only inspection. Plan and Review reject writes before execution.</p>
+      <p>Plan for read-only investigation and planning, Execute for software development and everyday work, and Review for read-only inspection. Plan and Review reject writes before execution.</p>
     </td>
     <td width="50%" valign="top">
       <p><strong>04</strong>&nbsp;&nbsp;/&nbsp;&nbsp;GIT WORKFLOW</p>
@@ -115,6 +118,27 @@ credentials are protected with operating-system encryption.
     </td>
   </tr>
 </table>
+
+<br />
+
+### One Agent for building and getting things done
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <p><strong>SOFTWARE DEVELOPMENT</strong></p>
+      <p>Understand and edit repositories, run real development tools, inspect and stage Git changes, coordinate parallel Agents, and carry durable project context across long-running tasks.</p>
+    </td>
+    <td width="50%" valign="top">
+      <p><strong>EVERYDAY WORK</strong></p>
+      <p>Research with the Browser and local files, create or update portable documents, spreadsheets, presentations and PDFs, use installed Skills and connected services, handle projectless work in Temporary conversations, and schedule recurring tasks for persistent projects.</p>
+    </td>
+  </tr>
+</table>
+
+Examples include drafting a report from source material, organizing information
+in a workbook, preparing a presentation, researching a topic, or running a
+recurring follow-up alongside the same coding and Git workflows.
 
 <br />
 
@@ -220,10 +244,10 @@ account action reports that the build has no application-level OAuth client.
 
 ### Desktop workspace and task lifecycle
 
-Artemis turns each repository into a persistent project with one or more tasks.
-Project-backed interactive tasks run against the repository's local checkout;
-Temporary conversations use an isolated generated workspace without requiring
-a project.
+Artemis supports two workspace shapes. Repository-backed projects keep software
+and file-based work in a persistent local checkout, while projectless Temporary
+conversations use an isolated generated workspace for research, documents and
+other everyday tasks.
 
 <details open>
 <summary><strong>01 · Projects and persistent conversations</strong></summary>
@@ -339,7 +363,8 @@ a project.
 
 ### Workspace tools
 
-The right workspace keeps repository work beside the conversation:
+The right workspace keeps source code, documents, research and task output
+beside the conversation:
 
 <table>
   <tr>
@@ -358,7 +383,7 @@ The right workspace keeps repository work beside the conversation:
   </tr>
 </table>
 
-### Plan, Execute, Review and Office work
+### Plan, Execute, Review and everyday work
 
 The formal protocol and persistence enum is `execute | plan | review`. Every UI
 selector presents **Plan → Execute → Review**, while new tasks default to
@@ -370,11 +395,11 @@ and submit the remaining text. `Shift+Tab` cycles **Plan → Execute → Review*
 while the composer is idle. Invalid command combinations are shown above the
 composer for ten seconds, then fade away without covering task progress.
 
-| Mode        | Intended use                                                   |                    Workspace writes | Available execution                                                                              |
-| ----------- | -------------------------------------------------------------- | ----------------------------------: | ------------------------------------------------------------------------------------------------ |
-| **Plan**    | Investigation and implementation planning                      |             Denied before execution | Read-only discovery, planning and read-only child coordination                                   |
-| **Execute** | Repository implementation, general work and portable documents | Allowed through policy and approval | Read/write, Shell, Terminal, Git, Office, memory, MCP, trusted extensions and child coordination |
-| **Review**  | Code and change inspection                                     |             Denied before execution | Read-only discovery, child coordination and Review surfaces                                      |
+| Mode        | Intended use                                               |                    Workspace writes | Available execution                                                                              |
+| ----------- | ---------------------------------------------------------- | ----------------------------------: | ------------------------------------------------------------------------------------------------ |
+| **Plan**    | Investigation and task planning                            |             Denied before execution | Read-only discovery, planning and read-only child coordination                                   |
+| **Execute** | Software development, everyday work and portable documents | Allowed through policy and approval | Read/write, Shell, Terminal, Git, Office, memory, MCP, trusted extensions and child coordination |
+| **Review**  | Code and change inspection                                 |             Denied before execution | Read-only discovery, child coordination and Review surfaces                                      |
 
 Plan and Review are policy states, not prompt suggestions. Their writes are
 rejected before an executor or filesystem operation is called. `update_plan`
@@ -1248,8 +1273,8 @@ Artemis does not copy OpenAI private prompts, protocols or services.
 
 ---
 
-**Built for the moment when a coding Agent stops being a chat box\
-and becomes part of the workstation.**
+**Built for the moment when an Agent moves beyond the chat box\
+and becomes part of the way you build, research, organize and create.**
 
 **Artemis**
 
