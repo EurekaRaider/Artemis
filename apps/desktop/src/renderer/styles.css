@@ -2435,7 +2435,7 @@ button.environment-row:disabled {
 }
 
 .user-input-card header {
-  align-items: flex-start;
+  align-items: center;
   background: color-mix(in srgb, var(--blue) 4%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--blue) 16%, var(--border));
   display: flex;
@@ -2665,7 +2665,15 @@ button.environment-row:disabled {
 }
 
 .user-input-timeout {
+  background: color-mix(in srgb, var(--blue) 10%, var(--panel-2));
+  border: 1px solid color-mix(in srgb, var(--blue) 28%, var(--border));
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
   line-height: 1.35;
+  margin-left: auto;
+  padding: 4px 8px;
   text-align: right;
 }
 
@@ -2683,184 +2691,12 @@ button.environment-row:disabled {
   color: var(--text);
 }
 
-.user-input-card.composer-placement {
-  background: color-mix(in srgb, var(--panel) 96%, var(--bg));
-  border: 1px solid color-mix(in srgb, var(--border) 92%, white 8%);
-  border-radius: 24px;
-  box-shadow:
-    0 18px 48px rgb(0 0 0 / 18%),
-    inset 0 1px rgb(255 255 255 / 4%);
-  margin: 0;
-  overflow: hidden;
-}
-
-.user-input-card.composer-placement.pending::before {
-  display: none;
-}
-
-.user-input-card.composer-placement header {
-  align-items: center;
-  background: transparent;
-  border-bottom: 0;
-  gap: 0;
-  min-height: 82px;
-  padding: 20px 22px 16px;
-}
-
-.user-input-card.composer-placement .user-input-heading {
-  flex: 1;
-  gap: 6px;
-  padding-right: 14px;
-}
-
-.user-input-card.composer-placement .user-input-mark {
-  display: none;
-}
-
-.user-input-card.composer-placement .user-input-eyebrow {
-  color: var(--muted-2);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
-.user-input-card.composer-placement .user-input-question {
-  font-size: 16px;
-  font-weight: 650;
-  letter-spacing: -0.014em;
-  line-height: 1.4;
-}
-
-.user-input-cancel {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  color: var(--muted);
-  cursor: pointer;
-  display: inline-flex;
-  flex: 0 0 auto;
-  height: 34px;
-  justify-content: center;
-  transition:
-    opacity 140ms ease,
-    transform 140ms ease;
-  width: 34px;
-}
-
-.user-input-cancel:hover:not(:disabled),
-.user-input-cancel:focus-visible {
-  background: color-mix(in srgb, var(--panel-3) 76%, transparent);
-  color: var(--text);
-  outline: none;
-}
-
-.user-input-cancel:active:not(:disabled) {
-  transform: scale(0.94);
-}
-
 .user-input-options-scroll {
   max-height: min(420px, 48vh);
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0 14px;
   scrollbar-gutter: stable;
-}
-
-.user-input-card.composer-placement .user-input-options {
-  gap: 8px;
-  padding: 0;
-}
-
-.user-input-card.composer-placement .user-input-option {
-  align-items: center;
-  background: color-mix(in srgb, var(--panel-2) 82%, var(--panel));
-  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 16px;
-  box-shadow: inset 0 1px rgb(255 255 255 / 2.5%);
-  column-gap: 12px;
-  grid-template-columns: 32px minmax(0, 1fr) 20px;
-  min-height: 60px;
-  padding: 10px 13px;
-  transition:
-    opacity 140ms ease,
-    transform 140ms ease;
-}
-
-.user-input-card.composer-placement .user-input-option-index {
-  background: color-mix(in srgb, var(--panel-3) 64%, transparent);
-  border-color: color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  height: 32px;
-  width: 32px;
-}
-
-.user-input-card.composer-placement .user-input-option-copy {
-  gap: 3px;
-}
-
-.user-input-card.composer-placement .user-input-option-title {
-  min-height: 20px;
-}
-
-.user-input-card.composer-placement .user-input-option-title strong {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.user-input-card.composer-placement .user-input-option-copy > small {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.user-input-card.composer-placement .user-input-option.recommended {
-  background: color-mix(in srgb, var(--panel-3) 72%, var(--panel-2));
-  border-color: color-mix(in srgb, var(--muted-2) 42%, var(--border));
-}
-
-.user-input-card.composer-placement .user-input-option:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--muted) 44%, var(--border));
-  transform: translateY(-1px);
-}
-
-.user-input-card.composer-placement .user-input-option:focus-visible,
-.user-input-card.composer-placement .user-input-option.active {
-  background: color-mix(in srgb, var(--panel-3) 82%, var(--panel-2));
-  border-color: color-mix(in srgb, var(--blue) 52%, var(--border));
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--blue) 11%, transparent),
-    inset 0 1px rgb(255 255 255 / 3%);
-  outline: none;
-  transform: none;
-}
-
-.user-input-card.composer-placement
-  .user-input-option.active
-  .user-input-option-index {
-  background: color-mix(in srgb, var(--blue) 82%, var(--panel-3));
-  border-color: transparent;
-  color: white;
-}
-
-.user-input-card.composer-placement .recommendation-badge {
-  background: color-mix(in srgb, var(--text) 7%, transparent);
-  border-color: color-mix(in srgb, var(--text) 12%, transparent);
-  color: var(--muted) !important;
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.user-input-card.composer-placement .user-input-option-enter {
-  color: var(--muted);
-}
-
-.user-input-card.composer-placement
-  .user-input-option.active
-  .user-input-option-enter {
-  opacity: 0.8;
 }
 
 .user-input-other-icon .icon {
@@ -2925,84 +2761,9 @@ button.environment-row:disabled {
   transform: scale(1.04);
 }
 
-.user-input-other-submit:disabled,
-.user-input-cancel:disabled,
-.user-input-skip:disabled {
+.user-input-other-submit:disabled {
   cursor: progress;
   opacity: 0.45;
-}
-
-.user-input-card.composer-placement .user-input-footer {
-  gap: 18px;
-  padding: 14px 18px 17px 22px;
-}
-
-.user-input-card.composer-placement .user-input-timeout {
-  color: var(--muted-2);
-  font-size: 11px;
-  text-align: left;
-}
-
-.user-input-skip {
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
-  border-radius: 999px;
-  color: var(--text);
-  cursor: pointer;
-  flex: 0 0 auto;
-  font-size: 12px;
-  font-weight: 600;
-  min-height: 34px;
-  padding: 0 15px;
-  transition:
-    opacity 140ms ease,
-    transform 140ms ease;
-}
-
-.user-input-skip:hover:not(:disabled),
-.user-input-skip:focus-visible {
-  background: color-mix(in srgb, var(--panel-3) 76%, transparent);
-  outline: none;
-}
-
-.user-input-skip:active:not(:disabled) {
-  transform: scale(0.96);
-}
-
-.pending-user-input-composer {
-  margin: 0 auto;
-  max-width: 920px;
-}
-
-.pending-user-input-model {
-  align-items: center;
-  color: var(--muted);
-  display: inline-flex;
-  gap: 8px;
-  margin: 10px 0 0 18px;
-  min-height: 26px;
-}
-
-.pending-user-input-model > .icon {
-  height: 15px;
-  width: 15px;
-}
-
-.pending-user-input-model > span {
-  align-items: baseline;
-  display: inline-flex;
-  font-size: 12px;
-  gap: 6px;
-}
-
-.pending-user-input-model strong {
-  color: var(--text);
-  font-weight: 550;
-}
-
-.pending-user-input-model small {
-  color: var(--muted-2);
-  font-size: 11px;
 }
 
 .child-agent-card {
@@ -10744,27 +10505,8 @@ body.sidebar-collapsed .sidebar {
     height: 100%;
   }
 
-  .user-input-card.composer-placement {
-    border-radius: 20px;
-  }
-
-  .user-input-card.composer-placement header {
-    min-height: 72px;
-    padding: 17px 17px 13px;
-  }
-
   .user-input-options-scroll {
     padding: 0 10px;
-  }
-
-  .user-input-card.composer-placement .user-input-option {
-    grid-template-columns: 30px minmax(0, 1fr) 18px;
-    padding: 9px 10px;
-  }
-
-  .user-input-card.composer-placement .user-input-option-index {
-    height: 30px;
-    width: 30px;
   }
 
   .user-input-other-inline {
@@ -10774,17 +10516,6 @@ body.sidebar-collapsed .sidebar {
   .user-input-other-submit {
     grid-column: 2;
     justify-self: end;
-  }
-
-  .user-input-card.composer-placement .user-input-footer {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 10px;
-    padding: 13px 14px 15px 17px;
-  }
-
-  .user-input-skip {
-    align-self: flex-end;
   }
 }
 .automation-page {
@@ -11084,10 +10815,17 @@ body.sidebar-collapsed .sidebar {
 
 .automation-dialog > label,
 .automation-form-grid > label,
-.automation-time-field {
+.automation-time-field,
+.automation-interval-field {
   display: grid;
   font-size: 12px;
   gap: 6px;
+}
+
+.automation-interval-controls {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.8fr);
 }
 
 .automation-dialog input,

@@ -140,6 +140,7 @@ import {
   sortProjectThreads,
 } from "./thread-list-order.js";
 import { moveUserInputOptionFocus } from "./user-input-navigation.js";
+import { formatUserInputCountdown } from "./user-input-countdown.js";
 import {
   agentTeamWorkspaceTab,
   childAgentWorkspaceTab,
@@ -3106,9 +3107,6 @@ export function App() {
     .filter((entry) => entry.startsWith("input:"))
     .map((entry) => entry.slice("input:".length))
     .find((id) => threadState.userInputs[id]?.status === "pending");
-  const activePendingUserInput = activePendingUserInputId
-    ? threadState?.userInputs[activePendingUserInputId]
-    : undefined;
   useEffect(() => {
     const previousId = previousPendingUserInputId.current;
     previousPendingUserInputId.current = activePendingUserInputId;
@@ -5198,32 +5196,7 @@ export function App() {
                         placement="composer"
                       />
                     )}
-                    {activePendingUserInput ? (
-                      <div className="pending-user-input-composer">
-                        <UserInputCard
-                          active
-                          input={activePendingUserInput}
-                          locale={locale}
-                          onCancel={cancelActiveTurn}
-                          onResolve={resolveUserInputRequest}
-                          placement="composer"
-                        />
-                        <div
-                          aria-label={t.modelPicker}
-                          className="pending-user-input-model"
-                          role="status"
-                        >
-                          <ModelIcon />
-                          <span>
-                            <strong>{activeModelLabel}</strong>
-                            {activeThinkingLevel && (
-                              <small>{activeThinkingLevel}</small>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
+                    <>
                         <ComposerContextBar
                           {...(activeProject ? { activeProject } : {})}
                           branchActionsDisabled={projectBranchActionsDisabled}
@@ -6191,8 +6164,7 @@ export function App() {
                             </div>
                           </div>
                         </div>
-                      </>
-                    )}
+                    </>
                   </div>
                 )}
               </section>
@@ -7746,16 +7718,12 @@ function UserInputCard({
   input,
   active,
   locale,
-  onCancel,
   onResolve,
-  placement = "timeline",
 }: {
   input: UserInputState;
   active: boolean;
   locale: Locale;
-  onCancel?: () => Promise<boolean>;
   onResolve: (resolution: UserInputResolution) => Promise<void>;
-  placement?: "composer" | "timeline";
 }) {
   const t = appCopy(locale);
   const recommendedOptionIndex = Math.max(
@@ -7767,12 +7735,19 @@ function UserInputCard({
   const [showOther, setShowOther] = useState(false);
   const [otherAnswer, setOtherAnswer] = useState("");
   const [resolving, setResolving] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
+  const [clock, setClock] = useState(() => Date.now());
   const [activeOptionIndex, setActiveOptionIndex] = useState(
     recommendedOptionIndex,
   );
   const optionButtons = useRef<Array<HTMLButtonElement | null>>([]);
-  const interactionBusy = resolving || cancelling;
+  const interactionBusy = resolving;
+
+  useEffect(() => {
+    if (input.status !== "pending") return;
+    setClock(Date.now());
+    const timer = window.setInterval(() => setClock(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [input.requestId, input.status]);
 
   useLayoutEffect(() => {
     if (!active || input.status !== "pending") return;
@@ -7801,13 +7776,6 @@ function UserInputCard({
     } catch {
       setResolving(false);
     }
-  };
-
-  const cancel = async () => {
-    if (!onCancel || interactionBusy) return;
-    setCancelling(true);
-    const cancelled = await onCancel();
-    if (!cancelled) setCancelling(false);
   };
 
   const closeOther = () => {
@@ -7842,9 +7810,7 @@ function UserInputCard({
   };
 
   return (
-    <article
-      className={`user-input-card ${input.status} ${placement}-placement`}
-    >
+    <article className={`user-input-card ${input.status}`}>
       <header>
         <span aria-hidden="true" className="user-input-mark">
           <Icon size={18}>
@@ -7867,24 +7833,15 @@ function UserInputCard({
           <small className="user-input-eyebrow">{input.header}</small>
           <strong className="user-input-question">{input.question}</strong>
         </div>
-        {input.status === "pending" && placement === "composer" && (
-          <button
-            aria-label={t.cancelCurrentTask}
-            className="user-input-cancel"
-            disabled={interactionBusy}
-            onClick={() => void cancel()}
-            title={t.cancelCurrentTask}
-            type="button"
+        {input.status === "pending" && (
+          <time
+            aria-label={t.timeoutHint}
+            className="user-input-timeout"
+            dateTime={input.expiresAt}
+            title={t.timeoutHint}
           >
-            <Icon size={18}>
-              <path
-                d="m7 7 10 10M17 7 7 17"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="1.6"
-              />
-            </Icon>
-          </button>
+            {formatUserInputCountdown(Date.parse(input.expiresAt) - clock)}
+          </time>
         )}
       </header>
       {input.status === "pending" ? (
@@ -8054,23 +8011,6 @@ function UserInputCard({
               </form>
             )}
           </div>
-          <footer className="user-input-footer">
-            <time className="user-input-timeout" dateTime={input.expiresAt}>
-              {t.timeoutHint}
-            </time>
-            {placement === "composer" && (
-              <button
-                aria-label={t.skipAndCancelTask}
-                className="user-input-skip"
-                disabled={interactionBusy}
-                onClick={() => void cancel()}
-                title={t.skipAndCancelTask}
-                type="button"
-              >
-                {t.skip}
-              </button>
-            )}
-          </footer>
         </>
       ) : (
         <div className="user-input-result">
@@ -8413,10 +8353,10 @@ function Timeline({
         }
         if (kind === "input") {
           const input = state.userInputs[id];
-          if (!input || input.status === "pending") return null;
+          if (!input) return null;
           return (
             <UserInputCard
-              active={false}
+              active={input.status === "pending"}
               input={input}
               key={entry}
               locale={locale}

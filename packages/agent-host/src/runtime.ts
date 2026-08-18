@@ -200,6 +200,10 @@ interface ContextTokenBreakdown {
   autocompactBufferTokens: number;
 }
 
+function parentConcurrencyLimit(limit: number): number {
+  return Math.min(limit, Math.max(2, limit - 1));
+}
+
 function estimateTextTokens(value: string): number {
   return Math.ceil(value.length / 4);
 }
@@ -594,6 +598,7 @@ interface HostedThread {
   readTool: SessionTool;
   writeTool: SessionTool;
   mcpToolNames: Set<string>;
+  mcpDirectToolNames: Set<string>;
   delegatedTools: SessionTool[];
   executeTools: SessionTool[];
   childAgents: Map<string, ChildAgentExecution>;
@@ -1000,7 +1005,7 @@ export class ArtemisAgentHost {
     const limit = options.agentConcurrencyLimit ?? AGENT_CONCURRENCY_FALLBACK;
     this.concurrency = new AgentConcurrencyLimiter(
       limit,
-      Math.max(1, limit - 1),
+      parentConcurrencyLimit(limit),
     );
   }
 
@@ -1014,7 +1019,7 @@ export class ArtemisAgentHost {
         `Agent concurrency limit must be an integer from ${AGENT_CONCURRENCY_MINIMUM} to ${AGENT_CONCURRENCY_MAXIMUM}.`,
       );
     }
-    return this.concurrency.setLimits(limit, limit - 1);
+    return this.concurrency.setLimits(limit, parentConcurrencyLimit(limit));
   }
 
   concurrencyStatus(): AgentConcurrencySnapshot {
@@ -1163,8 +1168,9 @@ export class ArtemisAgentHost {
         );
         hosted.session.setThinkingLevel(hosted.selection.thinkingLevel);
       }
+      const activeToolNames = hosted.session.getActiveToolNames();
       await hosted.resourceLoader.reload();
-      hosted.session.setActiveToolsByName(hosted.session.getActiveToolNames());
+      hosted.session.setActiveToolsByName(activeToolNames);
       this.configureSessionCompaction(hosted.session);
       this.emitContextUsage(hosted, false);
     }
@@ -1201,8 +1207,9 @@ export class ArtemisAgentHost {
     hosted.session.setThinkingLevel(normalized.thinkingLevel);
     hosted.selection = normalized;
     hosted.contextWindow = contextWindow;
+    const activeToolNames = hosted.session.getActiveToolNames();
     await hosted.resourceLoader.reload();
-    hosted.session.setActiveToolsByName(hosted.session.getActiveToolNames());
+    hosted.session.setActiveToolsByName(activeToolNames);
     this.configureSessionCompaction(hosted.session);
     this.emitContextUsage(hosted, false);
   }
@@ -3397,6 +3404,89 @@ export class ArtemisAgentHost {
         }),
       );
     const mcpTools = createMcpTools();
+    const searchMcpToolsTool = defineTool({
+      name: "search_mcp_tools",
+      label: "Search MCP tools",
+      description:
+        "Search configured MCP servers by server, tool, or capability. Matching tools are activated for later calls without loading every MCP schema into context.",
+      parameters: Type.Object(
+        {
+          query: Type.String({ minLength: 1 }),
+          limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 10 })),
+        },
+        { additionalProperties: false },
+      ),
+      execute: async (_toolCallId, parameters) => {
+        const hosted = this.threads.get(request.threadId);
+        if (!hosted) {
+          throw new Error(`Thread is not open: ${request.threadId}`);
+        }
+        const queryTerms = parameters.query
+          .trim()
+          .toLocaleLowerCase()
+          .split(/[^\p{L}\p{N}]+/u)
+          .filter(Boolean);
+        const limit = parameters.limit ?? 5;
+        const matches = configuredMcpTools
+          .filter((tool) => {
+            const searchable = [
+              tool.piName,
+              tool.serverName,
+              tool.toolName,
+              tool.description,
+            ]
+              .join(" ")
+              .toLocaleLowerCase();
+            return (
+              queryTerms.length > 0 &&
+              queryTerms.every((term) => searchable.includes(term))
+            );
+          })
+          .slice(0, limit);
+        if (matches.length > 0) {
+          const activatedNames = new Set(hosted.session.getActiveToolNames());
+          for (const match of matches) {
+            activatedNames.add(match.piName);
+          }
+          hosted.session.setActiveToolsByName([...activatedNames]);
+          for (const match of matches) {
+            const sessionTool = hosted.session.agent.state.tools.find(
+              (candidate) => candidate.name === match.piName,
+            );
+            if (
+              sessionTool &&
+              !hosted.executeTools.some(
+                (candidate) => candidate.name === sessionTool.name,
+              )
+            ) {
+              hosted.executeTools.push(sessionTool);
+            }
+          }
+        }
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                query: parameters.query,
+                matches: matches.map((tool) => ({
+                  name: tool.piName,
+                  server: tool.serverName,
+                  tool: tool.toolName,
+                  description: tool.description,
+                  inputSchema: tool.inputSchema,
+                  readOnly: tool.readOnly,
+                  destructive: tool.destructive,
+                })),
+              }),
+            },
+          ],
+          details: { activated: matches.map((tool) => tool.piName) },
+        };
+      },
+    });
+    const mcpDiscoveryTools =
+      configuredMcpTools.length > 0 ? [searchMcpToolsTool] : [];
     const extensionTools = (this.configuration.extensionTools ?? []).map(
       (tool) =>
         defineTool({
@@ -3971,6 +4061,7 @@ export class ArtemisAgentHost {
         parentBashTools.bashTool,
         parentBashTools.bashWaitTool,
         parentBashTools.bashCancelTool,
+        ...mcpDiscoveryTools,
         ...mcpTools,
         ...extensionTools,
       ],
@@ -3996,6 +4087,7 @@ export class ArtemisAgentHost {
         "shell",
         "shell_wait",
         "shell_cancel",
+        ...mcpDiscoveryTools.map((tool) => tool.name),
         ...mcpTools.map((tool) => tool.name),
         ...extensionTools.map((tool) => tool.name),
       ],
@@ -4008,6 +4100,12 @@ export class ArtemisAgentHost {
       priorTopLevelUserTurns: restoredTopLevelUserTurns,
     });
     this.configureSessionCompaction(session);
+    const mcpDirectToolNames = new Set(mcpTools.map((tool) => tool.name));
+    session.setActiveToolsByName(
+      session
+        .getActiveToolNames()
+        .filter((name) => !mcpDirectToolNames.has(name)),
+    );
     const readSessionTool = session.agent.state.tools.find(
       (tool) => tool.name === "read",
     );
@@ -4094,7 +4192,7 @@ export class ArtemisAgentHost {
         childControlSessionTools.some(
           (candidate) => candidate.name === tool.name,
         ) ||
-        mcpTools.some((candidate) => candidate.name === tool.name) ||
+        mcpDiscoveryTools.some((candidate) => candidate.name === tool.name) ||
         extensionTools.some((candidate) => candidate.name === tool.name),
     );
     const hosted: HostedThread = {
@@ -4116,7 +4214,10 @@ export class ArtemisAgentHost {
       topLevelUserTurns: restoredTopLevelUserTurns,
       readTool: readSessionTool,
       writeTool: writeSessionTool,
-      mcpToolNames: new Set(mcpTools.map((tool) => tool.name)),
+      mcpToolNames: new Set(
+        [...mcpDiscoveryTools, ...mcpTools].map((tool) => tool.name),
+      ),
+      mcpDirectToolNames,
       delegatedTools: [
         readSessionTool,
         requestUserInputSessionTool,
@@ -4378,6 +4479,14 @@ export class ArtemisAgentHost {
           throw new Error("Cannot compact context during an active turn.");
         }
         await hosted.session.compact(customInstructions);
+        hosted.executeTools = hosted.executeTools.filter(
+          (tool) => !hosted.mcpDirectToolNames.has(tool.name),
+        );
+        hosted.session.setActiveToolsByName(
+          hosted.session
+            .getActiveToolNames()
+            .filter((name) => !hosted.mcpDirectToolNames.has(name)),
+        );
       });
     } finally {
       hosted.compacting = false;

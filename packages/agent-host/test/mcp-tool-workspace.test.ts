@@ -27,6 +27,18 @@ interface InspectableThread {
 
 const cleanupPaths: string[] = [];
 
+async function activateMcpTool(
+  thread: InspectableThread | undefined,
+  query: string,
+  toolName: string,
+): Promise<InspectableTool | undefined> {
+  const discovery = thread?.executeTools.find(
+    (tool) => tool.name === "search_mcp_tools",
+  );
+  await discovery?.execute("discover-mcp", { query, limit: 10 });
+  return thread?.executeTools.find((tool) => tool.name === toolName);
+}
+
 afterEach(async () => {
   await Promise.all(
     cleanupPaths
@@ -36,6 +48,80 @@ afterEach(async () => {
 });
 
 describe("MCP task workspace propagation", () => {
+  it("keeps MCP schemas inactive until a bounded discovery activates matches", async () => {
+    const workspacePath = await mkdtemp(join(tmpdir(), "artemis-mcp-lazy-"));
+    cleanupPaths.push(workspacePath);
+    const host = new ArtemisAgentHost({ async request() {} }, { emit() {} });
+    await host.configure({
+      credentials: {},
+      mcpTools: [
+        {
+          serverId: "codegraph",
+          serverName: "CodeGraph",
+          transport: "stdio",
+          piName: "codegraph_status",
+          toolName: "status",
+          description: "Inspect graph status",
+          inputSchema: {
+            type: "object",
+            properties: { verbose: { type: "boolean" } },
+          },
+          readOnly: true,
+          destructive: false,
+        },
+        {
+          serverId: "drive",
+          serverName: "Drive",
+          transport: "streamable-http",
+          piName: "drive_search",
+          toolName: "search",
+          description: "Search files",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" } },
+          },
+          readOnly: true,
+          destructive: false,
+        },
+      ],
+    });
+    await host.openThread({
+      threadId: "mcp-lazy-thread",
+      workspacePath,
+      target: "local",
+    });
+    const thread = (
+      host as unknown as { threads: Map<string, InspectableThread> }
+    ).threads.get("mcp-lazy-thread")!;
+
+    expect(thread.executeTools.map((tool) => tool.name)).toContain(
+      "search_mcp_tools",
+    );
+    expect(thread.executeTools.map((tool) => tool.name)).not.toContain(
+      "codegraph_status",
+    );
+
+    const discovery = thread.executeTools.find(
+      (tool) => tool.name === "search_mcp_tools",
+    );
+    await discovery?.execute("discover-mcp", { query: "graph", limit: 5 });
+
+    expect(thread.executeTools.map((tool) => tool.name)).toContain(
+      "codegraph_status",
+    );
+    expect(thread.executeTools.map((tool) => tool.name)).not.toContain(
+      "drive_search",
+    );
+
+    (thread.session as unknown as { compact(): Promise<void> }).compact =
+      async () => {};
+    await host.compact("mcp-lazy-thread");
+    expect(thread.executeTools.map((tool) => tool.name)).not.toContain(
+      "codegraph_status",
+    );
+    host.dispose();
+  });
+
   it("includes the opened task workspace in every MCP broker request", async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), "artemis-mcp-task-workspace-"),
@@ -87,8 +173,10 @@ describe("MCP task workspace propagation", () => {
       thread.currentTurnId = "turn-1";
       thread.currentMode = "execute";
     }
-    const tool = thread?.executeTools.find(
-      (candidate) => candidate.name === "codegraph_codegraph_status",
+    const tool = await activateMcpTool(
+      thread,
+      "graph status",
+      "codegraph_codegraph_status",
     );
     expect(tool).toBeDefined();
 
@@ -232,6 +320,7 @@ describe("MCP task workspace propagation", () => {
     const thread = (
       host as unknown as { threads: Map<string, InspectableThread> }
     ).threads.get("mcp-collision-thread");
+    await activateMcpTool(thread, "search", "first_search");
     const names = thread?.executeTools.map((tool) => tool.name) ?? [];
 
     expect(names).not.toContain("search");
@@ -298,9 +387,7 @@ describe("MCP task workspace propagation", () => {
       thread.currentTurnId = "turn-1";
       thread.currentMode = "execute";
     }
-    const tool = thread?.executeTools.find(
-      (candidate) => candidate.name === "renderer_render",
-    );
+    const tool = await activateMcpTool(thread, "render", "renderer_render");
 
     await expect(
       tool?.execute("mcp-call", {
@@ -374,9 +461,7 @@ describe("MCP task workspace propagation", () => {
       thread.currentTurnId = "turn-1";
       thread.currentMode = "execute";
     }
-    const tool = thread?.executeTools.find(
-      (candidate) => candidate.name === "large_read",
-    );
+    const tool = await activateMcpTool(thread, "large", "large_read");
     const result = (await tool?.execute("mcp-call", {
       arguments: {},
       model_approval: {

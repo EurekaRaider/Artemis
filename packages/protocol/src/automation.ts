@@ -26,6 +26,11 @@ export const automationScheduleSchema = z.discriminatedUnion("kind", [
       .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/u, "Invalid local time."),
     timeZone: automationTimeZoneSchema,
   }),
+  z.object({
+    kind: z.literal("interval"),
+    every: z.number().int().min(1).max(10_000),
+    unit: z.enum(["minutes", "hours", "days"]),
+  }),
 ]);
 export type AutomationSchedule = z.infer<typeof automationScheduleSchema>;
 

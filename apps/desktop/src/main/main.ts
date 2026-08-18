@@ -8632,7 +8632,9 @@ app
         const scheduledLabel = new Intl.DateTimeFormat(currentLocale(), {
           dateStyle: "short",
           timeStyle: "short",
-          timeZone: automation.schedule.timeZone,
+          ...(automation.schedule.kind === "interval"
+            ? {}
+            : { timeZone: automation.schedule.timeZone }),
         }).format(new Date(run.scheduledFor));
         const thread = await createTaskThread(
           {

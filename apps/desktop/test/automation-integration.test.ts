@@ -65,6 +65,15 @@ describe("automation desktop integration", () => {
     expect(styles).toContain(".automation-page");
   });
 
+  it("edits persisted interval schedules with value and unit controls", () => {
+    expect(page).toContain('type SchedulePreset = "once" | "interval"');
+    expect(page).toContain('kind: "interval"');
+    expect(page).toContain('draft.preset === "interval"');
+    expect(page).toContain('className="automation-interval-field"');
+    expect(page).toContain("intervalEvery");
+    expect(page).toContain("intervalUnit");
+  });
+
   it("gives the header create action a decorative icon and interaction states", () => {
     const createButton =
       page.match(

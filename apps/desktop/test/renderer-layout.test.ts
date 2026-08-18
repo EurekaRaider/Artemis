@@ -782,20 +782,11 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("5 分钟内未选择将自动采用模型推荐项");
   });
 
-  it("replaces the composer with the active workflow choice in one keyboard-navigable column", () => {
+  it("keeps the active workflow choice inline in the timeline with its countdown in the header", () => {
     const composerStart = appSource.indexOf('<div className="composer-wrap">');
-    const pendingBranch = appSource.indexOf(
-      "{activePendingUserInput ? (",
-      composerStart,
-    );
-    const fallbackBranch = appSource.indexOf(") : (", pendingBranch);
-    const composerChoice = appSource.indexOf(
-      'placement="composer"',
-      pendingBranch,
-    );
     const composerContext = appSource.indexOf(
       "<ComposerContextBar",
-      fallbackBranch,
+      composerStart,
     );
     const timelineStart = appSource.indexOf("function Timeline(");
     const timelineSource = appSource.slice(timelineStart);
@@ -805,27 +796,22 @@ describe("renderer layout contract", () => {
       userInputStart,
     );
     const userInputSource = appSource.slice(userInputStart, userInputEnd);
+    const cardHeader = userInputSource.slice(
+      userInputSource.indexOf("<header>"),
+      userInputSource.indexOf("</header>"),
+    );
 
     expect(appSource).toContain("activePendingUserInputId");
-    expect(appSource).toContain("const activePendingUserInput =");
     expect(composerStart).toBeGreaterThan(-1);
-    expect(pendingBranch).toBeGreaterThan(composerStart);
-    expect(fallbackBranch).toBeGreaterThan(pendingBranch);
-    expect(composerChoice).toBeGreaterThan(composerStart);
-    expect(composerChoice).toBeLessThan(fallbackBranch);
-    expect(composerContext).toBeGreaterThan(fallbackBranch);
-    expect(appSource.slice(pendingBranch, fallbackBranch)).not.toContain(
-      "<ComposerContextBar",
+    expect(composerContext).toBeGreaterThan(composerStart);
+    expect(appSource).not.toContain("{activePendingUserInput ? (");
+    expect(userInputSource).not.toContain('placement="composer"');
+    expect(timelineSource).toContain('active={input.status === "pending"}');
+    expect(timelineSource).not.toContain(
+      'input.status === "pending") return null;',
     );
-    expect(appSource.slice(pendingBranch, fallbackBranch)).not.toContain(
-      'className="composer"',
-    );
-    expect(appSource.slice(pendingBranch, fallbackBranch)).toContain(
-      'className="pending-user-input-model"',
-    );
-    expect(timelineSource).toContain(
-      'if (!input || input.status === "pending") return null;',
-    );
+    expect(cardHeader).toContain('className="user-input-timeout"');
+    expect(cardHeader).toContain("formatUserInputCountdown(");
     expect(userInputSource).not.toContain("new ResizeObserver");
     expect(appSource).toContain("moveUserInputOptionFocus(");
     expect(appSource).toContain('role="listbox"');
@@ -836,12 +822,6 @@ describe("renderer layout contract", () => {
     expect(cssRule(".user-input-options")).toMatch(
       /grid-template-columns:\s*minmax\(0,\s*1fr\)/u,
     );
-    expect(cssRule(".user-input-card.composer-placement")).toMatch(
-      /\bborder-radius:\s*24px/u,
-    );
-    expect(cssRule(".user-input-card.composer-placement")).toMatch(
-      /\bmargin:\s*0/u,
-    );
     expect(cssRule(".user-input-options-scroll")).toMatch(
       /\boverflow-y:\s*auto/u,
     );
@@ -850,27 +830,17 @@ describe("renderer layout contract", () => {
     );
   });
 
-  it("cancels a pending turn from close or Skip without resolving an answer", () => {
+  it("keeps the normal turn stop control while a timeline choice is pending", () => {
     const cardStart = appSource.indexOf("function UserInputCard(");
     const cardEnd = appSource.indexOf(
       "function ToolActivityGroupCard(",
       cardStart,
     );
     const cardSource = appSource.slice(cardStart, cardEnd);
-    const cancelStart = cardSource.indexOf("const cancel = async () =>");
-    const cancelEnd = cardSource.indexOf("const closeOther", cancelStart);
-    const cancelSource = cardSource.slice(cancelStart, cancelEnd);
-
-    expect(appSource).toContain("onCancel={cancelActiveTurn}");
     expect(appSource).toContain("window.artemis.cancelTurn(activeThreadId)");
-    expect(cardSource).toContain(
-      "const interactionBusy = resolving || cancelling",
-    );
-    expect(
-      cardSource.match(/onClick=\{\(\) => void cancel\(\)\}/gu),
-    ).toHaveLength(2);
-    expect(cancelSource).toContain("await onCancel()");
-    expect(cancelSource).not.toContain("onResolve");
+    expect(appSource).toContain("onClick={() => void cancelActiveTurn()}");
+    expect(cardSource).toContain("const interactionBusy = resolving");
+    expect(cardSource).not.toContain("onCancel");
     expect(cardSource).toContain('className="user-input-other-inline"');
     expect(cardSource).toContain('event.key !== "Escape"');
     expect(cardSource).toContain("closeOther();");

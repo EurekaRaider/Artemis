@@ -90,7 +90,10 @@ export class AutomationScheduler {
   private async drainDue(): Promise<void> {
     const now = this.now().toISOString();
     for (const automation of this.options.store.listDueAutomations(now)) {
-      const scheduledFor = latestAutomationOccurrence(automation.schedule, now);
+      const scheduledFor =
+        automation.schedule.kind === "interval"
+          ? automation.nextRunAt
+          : latestAutomationOccurrence(automation.schedule, now);
       if (!scheduledFor) continue;
       const nextRunAt = nextAutomationOccurrence(automation.schedule, now);
       const trigger: AutomationRunTrigger =
