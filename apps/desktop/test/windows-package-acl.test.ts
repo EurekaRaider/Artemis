@@ -93,6 +93,9 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     expect(source).toContain("Expand-Archive");
     expect(source).toContain("ARTEMIS_WINDOWS_ZIP");
     expect(source).toContain("extractedExecutablePath");
+    expect(source).toContain(
+      "GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])",
+    );
     expect(source).toContain("assertAppContainerReadAcl(extractedRoot)");
     expect(source).toContain('join(extractedRoot, "resources", "app.asar")');
     expect(source).toContain("zipSmoke: true");

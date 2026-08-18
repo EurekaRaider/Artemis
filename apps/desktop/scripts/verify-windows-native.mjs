@@ -63,7 +63,8 @@ function powershell(script, environment = {}) {
 function effectiveAclSids(path) {
   const output = powershell(
     "$acl = Get-Acl -LiteralPath $env:ARTEMIS_ACL_PATH; " +
-      "$acl.Access | ForEach-Object { try { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value } catch {} }",
+      "$acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | " +
+      "ForEach-Object { $_.IdentityReference.Value }",
     { ARTEMIS_ACL_PATH: path },
   );
   return new Set(
