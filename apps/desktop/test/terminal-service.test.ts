@@ -169,6 +169,7 @@ describe("TerminalService", () => {
       "darwin",
       { onData: vi.fn(), onExit: vi.fn() },
       factory,
+      () => ({ kind: "zsh", executable: "/bin/zsh" }),
     );
 
     service.open({
