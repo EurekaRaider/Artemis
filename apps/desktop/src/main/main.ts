@@ -196,6 +196,16 @@ import { deriveTaskTitle, isAutomaticTaskTitle } from "./task-title.js";
 import { mainText } from "./i18n.js";
 import { I18N_RESOURCES } from "../shared/i18n-resources.js";
 import {
+  assertConversationTarget,
+  conversationApprovalScopes,
+  conversationMemoryScopeAllowed,
+  conversationSupportsProjectFeatures,
+  conversationWorkspaceMatches,
+  copyTemporaryConversationWorkspace,
+  ensureTemporaryConversationWorkspace,
+  removeTemporaryConversationWorkspace,
+} from "./temporary-conversation.js";
+import {
   configureNodePtyRuntime,
   TerminalService,
 } from "./terminal-service.js";
@@ -877,14 +887,6 @@ function worktreeRecoveryRoot(projectId: string): string {
 
 function handoffBundleRoot(projectId: string, threadId: string): string {
   return join(app.getPath("userData"), "handoff-recovery", projectId, threadId);
-}
-
-function temporaryConversationRoot(): string {
-  return join(app.getPath("userData"), "temporary-conversations");
-}
-
-function temporaryConversationWorkspace(threadId: string): string {
-  return join(temporaryConversationRoot(), threadId);
 }
 
 function windowsSandboxHelperPath(): string {
@@ -1775,12 +1777,12 @@ async function resolveThreadWorkspace(thread: Thread): Promise<{
   if (!store) {
     throw new Error("Application store is not ready.");
   }
+  assertConversationTarget(thread.projectId, thread.target);
   if (!thread.projectId) {
-    if (thread.target !== "local") {
-      throw new Error("Temporary conversations cannot use a worktree.");
-    }
-    const workspacePath = temporaryConversationWorkspace(thread.id);
-    await mkdir(workspacePath, { recursive: true });
+    const workspacePath = await ensureTemporaryConversationWorkspace(
+      app.getPath("userData"),
+      thread.id,
+    );
     return {
       project: {
         id: `temporary:${thread.id}`,
@@ -2344,7 +2346,9 @@ async function handleShellBrokerRequest(
     );
     return;
   }
-  if (!pathsEqual(context.workspacePath, request.workspacePath)) {
+  if (
+    !conversationWorkspaceMatches(context.workspacePath, request.workspacePath)
+  ) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -2421,9 +2425,7 @@ async function handleShellBrokerRequest(
   const nonce = randomUUID();
   const allowedScopes =
     approvalPolicy === "custom" && decision.outcome === "ask"
-      ? decision.allowedScopes.filter(
-          (scope) => scope !== "project" || Boolean(thread.projectId),
-        )
+      ? conversationApprovalScopes(thread, decision.allowedScopes)
       : ["once" as const];
   pendingApprovals.register({
     approvalId: request.approvalId,
@@ -2575,13 +2577,7 @@ async function handleBrokerRequest(
     );
     return;
   }
-  const expectedWorkspace = resolve(taskWorkspace);
-  const requestedWorkspace = resolve(request.workspacePath);
-  const workspaceMatches =
-    process.platform === "win32"
-      ? expectedWorkspace.toLowerCase() === requestedWorkspace.toLowerCase()
-      : expectedWorkspace === requestedWorkspace;
-  if (!workspaceMatches) {
+  if (!conversationWorkspaceMatches(taskWorkspace, request.workspacePath)) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -2666,9 +2662,7 @@ async function handleBrokerRequest(
   const nonce = randomUUID();
   const allowedScopes =
     approvalPolicy === "custom"
-      ? decision.allowedScopes.filter(
-          (scope) => scope !== "project" || Boolean(thread.projectId),
-        )
+      ? conversationApprovalScopes(thread, decision.allowedScopes)
       : ["once" as const];
   pendingApprovals.register({
     approvalId: request.approvalId,
@@ -2739,7 +2733,9 @@ async function handleMemoryAppendBrokerRequest(
     );
     return;
   }
-  if (!pathsEqual(context.workspacePath, request.workspacePath)) {
+  if (
+    !conversationWorkspaceMatches(context.workspacePath, request.workspacePath)
+  ) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -2748,7 +2744,7 @@ async function handleMemoryAppendBrokerRequest(
     return;
   }
 
-  if (context.temporary && request.scope === "project") {
+  if (!conversationMemoryScopeAllowed(thread, request.scope)) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -2853,7 +2849,7 @@ async function handleOfficeDocumentBrokerRequest(
     );
     return;
   }
-  if (!pathsEqual(taskWorkspace, request.workspacePath)) {
+  if (!conversationWorkspaceMatches(taskWorkspace, request.workspacePath)) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -2961,9 +2957,7 @@ async function handleOfficeDocumentBrokerRequest(
   const nonce = randomUUID();
   const allowedScopes =
     approvalPolicy === "custom"
-      ? decision.allowedScopes.filter(
-          (scope) => scope !== "project" || Boolean(thread.projectId),
-        )
+      ? conversationApprovalScopes(thread, decision.allowedScopes)
       : ["once" as const];
   pendingApprovals.register({
     approvalId: request.approvalId,
@@ -3023,7 +3017,9 @@ async function handleMcpBrokerRequest(
     );
     return;
   }
-  if (!pathsEqual(context.workspacePath, request.workspacePath)) {
+  if (
+    !conversationWorkspaceMatches(context.workspacePath, request.workspacePath)
+  ) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -3139,11 +3135,10 @@ async function handleMcpBrokerRequest(
   }
 
   const nonce = randomUUID();
-  const allowedScopes = request.destructive
-    ? (["once"] as const)
-    : thread.projectId
-      ? (["once", "session", "project"] as const)
-      : (["once", "session"] as const);
+  const allowedScopes = conversationApprovalScopes(
+    thread,
+    request.destructive ? ["once"] : ["once", "session", "project"],
+  );
   pendingApprovals.register({
     approvalId: request.approvalId,
     nonce,
@@ -3191,13 +3186,9 @@ async function handleExtensionBrokerRequest(
     return;
   }
   const context = await resolveThreadWorkspace(thread);
-  const requestedWorkspace = resolve(request.workspacePath);
-  const expectedWorkspace = resolve(context.workspacePath);
-  const workspaceMatches =
-    process.platform === "win32"
-      ? expectedWorkspace.toLowerCase() === requestedWorkspace.toLowerCase()
-      : expectedWorkspace === requestedWorkspace;
-  if (!workspaceMatches) {
+  if (
+    !conversationWorkspaceMatches(context.workspacePath, request.workspacePath)
+  ) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -3293,9 +3284,7 @@ async function handleExtensionBrokerRequest(
   const nonce = randomUUID();
   const allowedScopes =
     approvalPolicy === "custom"
-      ? thread.projectId
-        ? (["once", "session", "project"] as const)
-        : (["once", "session"] as const)
+      ? conversationApprovalScopes(thread, ["once", "session", "project"])
       : (["once"] as const);
   pendingApprovals.register({
     approvalId: request.approvalId,
@@ -3622,9 +3611,7 @@ async function createTaskThread(
     type: "thread.create",
     ...input,
   });
-  if (!command.projectId && command.target !== "local") {
-    throw new Error("Temporary conversations support only the Local target.");
-  }
+  assertConversationTarget(command.projectId, command.target);
   const project = command.projectId
     ? store.getProject(command.projectId)
     : undefined;
@@ -3653,12 +3640,17 @@ async function createTaskThread(
   };
   if (command.target === "local") {
     if (!command.projectId) {
-      const workspacePath = temporaryConversationWorkspace(thread.id);
-      await mkdir(workspacePath, { recursive: true });
+      await ensureTemporaryConversationWorkspace(
+        app.getPath("userData"),
+        thread.id,
+      );
       try {
         return store.createThread(thread);
       } catch (error) {
-        await rm(workspacePath, { recursive: true, force: true });
+        await removeTemporaryConversationWorkspace(
+          app.getPath("userData"),
+          thread.id,
+        );
         throw error;
       }
     }
@@ -6484,11 +6476,11 @@ function registerIpc(): void {
       openedThreads.delete(threadId);
       store.deleteThread(threadId);
       if (!thread.projectId) {
-        const workspacePath = temporaryConversationWorkspace(thread.id);
         try {
-          if (pathIsInside(temporaryConversationRoot(), workspacePath)) {
-            await rm(workspacePath, { recursive: true, force: true });
-          }
+          await removeTemporaryConversationWorkspace(
+            app.getPath("userData"),
+            thread.id,
+          );
         } catch (error) {
           diagnosticBundleService?.record({
             source: "main",
@@ -6558,6 +6550,29 @@ function registerIpc(): void {
         updatedAt: now,
       };
       if (forkedThread.target === "local") {
+        if (!source.projectId) {
+          try {
+            await copyTemporaryConversationWorkspace(
+              app.getPath("userData"),
+              source.id,
+              forkedThread.id,
+            );
+            return store.createForkedThread(forkedThread, source.id);
+          } catch (error) {
+            try {
+              await removeTemporaryConversationWorkspace(
+                app.getPath("userData"),
+                forkedThread.id,
+              );
+            } catch (cleanupError) {
+              throw new AggregateError(
+                [error, cleanupError],
+                "Temporary conversation fork failed and its copied workspace could not be removed.",
+              );
+            }
+            throw error;
+          }
+        }
         return store.createForkedThread(forkedThread, source.id);
       }
 
@@ -6666,7 +6681,7 @@ function registerIpc(): void {
       if (!thread) {
         throw new Error(`Thread not found: ${command.threadId}`);
       }
-      if (!thread.projectId) {
+      if (!conversationSupportsProjectFeatures(thread)) {
         throw new Error(
           "Temporary conversations do not support worktree branches.",
         );
@@ -6821,7 +6836,7 @@ function registerIpc(): void {
       if (!thread) {
         throw new Error(`Thread not found: ${command.threadId}`);
       }
-      if (!thread.projectId) {
+      if (!conversationSupportsProjectFeatures(thread)) {
         throw new Error(
           "Temporary conversations do not support workspace handoff.",
         );
@@ -7249,7 +7264,7 @@ function registerIpc(): void {
           message: "Project not found.",
         };
       }
-      if (!thread.projectId) {
+      if (!conversationSupportsProjectFeatures(thread)) {
         return {
           available: false,
           scope: query.scope,
@@ -7294,7 +7309,7 @@ function registerIpc(): void {
       if (!thread) {
         throw new Error("Project not found.");
       }
-      if (!thread.projectId) {
+      if (!conversationSupportsProjectFeatures(thread)) {
         throw new Error(
           "Temporary conversations do not have a project review.",
         );
@@ -7998,11 +8013,15 @@ function createMainWindow(): BrowserWindow {
                   }
                   return;
                 }
-                if (view === 'temporary') {
+                if (view.startsWith('temporary')) {
                   document
                     .querySelector('.temporary-conversations .project-select')
                     ?.click();
                   await wait(600);
+                  if (view === 'temporary-dock') {
+                    document.querySelector('.right-sidebar-toggle')?.click();
+                    await wait(500);
+                  }
                   return;
                 }
                 if (view === 'token-usage') {

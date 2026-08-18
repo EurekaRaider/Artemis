@@ -497,6 +497,9 @@ describe("renderer layout contract", () => {
     expect(appSource).not.toContain(
       "{activeProject && !activeThread?.archived && (",
     );
+    expect(appSource).toContain("if (!activeProjectId) return;");
+    expect(appSource).toContain("...(activeProject");
+    expect(appSource).toContain("{activeProject && (");
     expect(archivePageSource).toContain("t.temporary");
   });
 

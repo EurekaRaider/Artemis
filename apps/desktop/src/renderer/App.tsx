@@ -2322,10 +2322,10 @@ export function App() {
     [activeThreadId],
   );
 
-  const openReviewPanel = useCallback(
-    () => openWorkspaceTab("review"),
-    [openWorkspaceTab],
-  );
+  const openReviewPanel = useCallback(() => {
+    if (!activeProjectId) return;
+    openWorkspaceTab("review");
+  }, [activeProjectId, openWorkspaceTab]);
   const openTerminalPanel = useCallback(
     () => openWorkspaceTab("terminal"),
     [openWorkspaceTab],
@@ -6337,7 +6337,11 @@ export function App() {
                           <div className="workspace-tab-menu">
                             {(
                               [
-                                ["review", t.reviewPanel, <ReviewIcon />],
+                                ...(activeProject
+                                  ? ([
+                                      ["review", t.reviewPanel, <ReviewIcon />],
+                                    ] as const)
+                                  : []),
                                 ["terminal", t.terminal, <TerminalIcon />],
                                 ["browser", t.browser, <BrowserIcon />],
                                 ["file", t.files, <FilesIcon />],
@@ -6361,14 +6365,16 @@ export function App() {
                       {workspaceTabs.tabs.length === 0 && (
                         <div className="right-sidebar-launcher">
                           <div className="right-sidebar-launcher-actions">
-                            <button
-                              className="right-sidebar-launcher-item"
-                              onClick={openReviewPanel}
-                            >
-                              <ReviewIcon />
-                              <span>{t.reviewPanel}</span>
-                              <kbd>Ctrl+Alt+B</kbd>
-                            </button>
+                            {activeProject && (
+                              <button
+                                className="right-sidebar-launcher-item"
+                                onClick={openReviewPanel}
+                              >
+                                <ReviewIcon />
+                                <span>{t.reviewPanel}</span>
+                                <kbd>Ctrl+Alt+B</kbd>
+                              </button>
+                            )}
                             <button
                               className="right-sidebar-launcher-item"
                               onClick={openTerminalPanel}

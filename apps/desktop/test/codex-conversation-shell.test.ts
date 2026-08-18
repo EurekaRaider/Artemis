@@ -402,4 +402,67 @@ describe("Codex conversation shell contract", () => {
     expect(threadMenu).toContain("void deleteThread(thread)");
     expect(threadMenu).toContain("{t.deleteTask}");
   });
+
+  it("copies a temporary conversation workspace before persisting its fork", () => {
+    const forkHandler = sourceBetween(
+      mainSource,
+      "IPC.threadFork",
+      "IPC.threadCompact",
+    );
+    const copyWorkspace = forkHandler.indexOf(
+      "await copyTemporaryConversationWorkspace(",
+    );
+    const persistFork = forkHandler.indexOf(
+      "return store.createForkedThread(forkedThread, source.id)",
+      copyWorkspace,
+    );
+    expect(copyWorkspace).toBeGreaterThanOrEqual(0);
+    expect(persistFork).toBeGreaterThan(copyWorkspace);
+    expect(forkHandler).toContain(
+      "await removeTemporaryConversationWorkspace(",
+    );
+  });
+
+  it("routes every newly projectless broker path through the tested workspace policy", () => {
+    const brokerSections = [
+      sourceBetween(
+        mainSource,
+        "async function handleShellBrokerRequest",
+        "async function openAgentThread",
+      ),
+      sourceBetween(
+        mainSource,
+        "async function handleBrokerRequest",
+        "async function handleMemoryAppendBrokerRequest",
+      ),
+      sourceBetween(
+        mainSource,
+        "async function handleMemoryAppendBrokerRequest",
+        "async function handleOfficeDocumentBrokerRequest",
+      ),
+      sourceBetween(
+        mainSource,
+        "async function handleOfficeDocumentBrokerRequest",
+        "async function handleMcpBrokerRequest",
+      ),
+      sourceBetween(
+        mainSource,
+        "async function handleMcpBrokerRequest",
+        "async function handleExtensionBrokerRequest",
+      ),
+      sourceBetween(
+        mainSource,
+        "async function handleExtensionBrokerRequest",
+        "function rejectBrokerRequest",
+      ),
+    ];
+    for (const section of brokerSections) {
+      expect(section).toContain("conversationWorkspaceMatches(");
+    }
+    expect(mainSource).toContain("assertConversationTarget(");
+    expect(mainSource).toContain("conversationApprovalScopes(");
+    expect(mainSource).toContain("conversationMemoryScopeAllowed(");
+    expect(mainSource).toContain("conversationSupportsProjectFeatures(");
+    expect(mainSource).toContain("removeTemporaryConversationWorkspace(");
+  });
 });
