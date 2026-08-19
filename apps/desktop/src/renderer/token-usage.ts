@@ -24,11 +24,32 @@ export interface CacheUsageMetrics {
   policies: Record<"disabled" | "short" | "long" | "explicit-30m", number>;
 }
 
+export interface TokenUsageModelSummary {
+  key: string;
+  providerId?: string;
+  modelId?: string;
+  usageEvents: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalTokens: number;
+}
+
+export const ALL_USAGE_MODELS = "all";
+export const UNATTRIBUTED_USAGE_MODEL = "unattributed";
+
 export const TOKEN_USAGE_COPY = {
   en: {
     title: "Token usage",
     subtitle: "Model usage recorded by Artemis",
     activity: "Token activity",
+    modelFilter: "Model",
+    allModels: "All models",
+    unattributedModel: "Earlier usage (model unavailable)",
+    usageByModel: "Usage by model",
+    modelColumn: "Model",
+    responsesColumn: "Responses",
     dailyTab: "Daily",
     weeklyTab: "Weekly",
     cumulativeTab: "Cumulative",
@@ -65,6 +86,12 @@ export const TOKEN_USAGE_COPY = {
     title: "Token 用量",
     subtitle: "Artemis 记录的模型调用用量",
     activity: "Token 活动",
+    modelFilter: "模型",
+    allModels: "全部模型",
+    unattributedModel: "较早用量（模型信息不可用）",
+    usageByModel: "按模型统计",
+    modelColumn: "模型",
+    responsesColumn: "回复次数",
     dailyTab: "每日",
     weeklyTab: "每周",
     cumulativeTab: "累计",
@@ -98,6 +125,62 @@ export const TOKEN_USAGE_COPY = {
     error: "历史用量暂时无法加载，实时用量仍会继续记录。",
   },
 } as const;
+
+export function tokenUsageModelKey(event: AgentEvent): string | undefined {
+  if (event.payload.type !== "assistant.usage") return undefined;
+  if (!event.payload.providerId || !event.payload.modelId) {
+    return UNATTRIBUTED_USAGE_MODEL;
+  }
+  return `${encodeURIComponent(event.payload.providerId)}:${encodeURIComponent(event.payload.modelId)}`;
+}
+
+export function filterTokenUsageEvents(
+  events: readonly AgentEvent[],
+  modelKey: string,
+): AgentEvent[] {
+  if (modelKey === ALL_USAGE_MODELS) {
+    return events.filter((event) => event.payload.type === "assistant.usage");
+  }
+  return events.filter((event) => tokenUsageModelKey(event) === modelKey);
+}
+
+export function buildTokenUsageByModel(
+  events: readonly AgentEvent[],
+): TokenUsageModelSummary[] {
+  const models = new Map<string, TokenUsageModelSummary>();
+  const seen = new Set<string>();
+  for (const event of events) {
+    if (seen.has(event.eventId) || event.payload.type !== "assistant.usage") {
+      continue;
+    }
+    seen.add(event.eventId);
+    const key = tokenUsageModelKey(event)!;
+    const current = models.get(key) ?? {
+      key,
+      ...(event.payload.providerId
+        ? { providerId: event.payload.providerId }
+        : {}),
+      ...(event.payload.modelId ? { modelId: event.payload.modelId } : {}),
+      usageEvents: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalTokens: 0,
+    };
+    current.usageEvents += 1;
+    current.inputTokens += event.payload.inputTokens;
+    current.outputTokens += event.payload.outputTokens;
+    current.cacheReadTokens += event.payload.cacheReadTokens;
+    current.cacheWriteTokens += event.payload.cacheWriteTokens;
+    current.totalTokens += event.payload.totalTokens;
+    models.set(key, current);
+  }
+  return [...models.values()].sort(
+    (left, right) =>
+      right.totalTokens - left.totalTokens || left.key.localeCompare(right.key),
+  );
+}
 
 export function buildCacheUsageMetrics(
   events: readonly AgentEvent[],

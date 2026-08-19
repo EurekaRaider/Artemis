@@ -534,6 +534,8 @@ export type ContextUsagePayload = z.infer<typeof contextUsagePayloadSchema>;
 
 export const assistantUsagePayloadSchema = z.object({
   type: z.literal("assistant.usage"),
+  providerId: z.string().min(1).optional(),
+  modelId: z.string().min(1).optional(),
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
   cacheReadTokens: z.number().int().nonnegative(),

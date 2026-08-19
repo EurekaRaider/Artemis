@@ -1393,6 +1393,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     models[0]?.contextWindow ??
     128_000;
   const workspaceDockWidth = await settingsStore.workspaceDockWidth();
+  const projectSidebarWidth = await settingsStore.projectSidebarWidth();
   return {
     platform: contract.platform,
     encryptionAvailable: settingsStore.encryptionAvailable,
@@ -1417,6 +1418,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
       rollbackAvailable: false,
     },
     agentConcurrency: await agentConcurrencyStatus(),
+    ...(projectSidebarWidth === undefined ? {} : { projectSidebarWidth }),
     ...(workspaceDockWidth === undefined ? {} : { workspaceDockWidth }),
     ...(selection ? { selection } : {}),
   };
@@ -4183,6 +4185,15 @@ function registerIpc(): void {
   });
 
   ipcMain.handle(IPC.settingsGet, () => getSettingsSnapshot());
+  ipcMain.handle(
+    IPC.settingsProjectSidebarWidthSet,
+    async (_event, width: number): Promise<number> => {
+      if (!settingsStore) {
+        throw new Error("Agent settings are not ready.");
+      }
+      return settingsStore.setProjectSidebarWidth(width);
+    },
+  );
   ipcMain.handle(
     IPC.settingsWorkspaceDockWidthSet,
     async (_event, width: number): Promise<number> => {
@@ -7594,6 +7605,8 @@ function seedSmokeTokenUsageFixture(): void {
   });
   const usage = [
     {
+      providerId: "openai",
+      modelId: "gpt-5.4",
       inputTokens: 3_000,
       outputTokens: 400,
       cacheReadTokens: 0,
@@ -7601,6 +7614,8 @@ function seedSmokeTokenUsageFixture(): void {
       totalTokens: 3_400,
     },
     {
+      providerId: "openai",
+      modelId: "gpt-5.4",
       inputTokens: 900,
       outputTokens: 350,
       cacheReadTokens: 2_100,

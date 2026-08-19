@@ -1312,17 +1312,20 @@ describe("renderer layout contract", () => {
   });
 
   it("adds a built-in model and its API key without using the switch API", () => {
-    const generalTabStart = settingsSource.indexOf('{activeTab === "general"');
     const providersTabStart = settingsSource.indexOf(
       '{activeTab === "providers"',
     );
-    const agentsTabStart = settingsSource.indexOf('{activeTab === "agents"');
-    const generalTabSource = settingsSource.slice(
-      generalTabStart,
-      providersTabStart,
+    const generalTabStart = settingsSource.indexOf('{activeTab === "general"');
+    const customProvidersStart = settingsSource.indexOf(
+      'providerConfigTab === "custom"',
     );
-    const providersTabSource = settingsSource.slice(
+    const agentsTabStart = settingsSource.indexOf('{activeTab === "agents"');
+    const builtInProvidersTabSource = settingsSource.slice(
       providersTabStart,
+      generalTabStart,
+    );
+    const customProvidersTabSource = settingsSource.slice(
+      customProvidersStart,
       agentsTabStart,
     );
 
@@ -1343,22 +1346,28 @@ describe("renderer layout contract", () => {
       mainProcessSource.indexOf("IPC.settingsApiKeySave"),
     );
 
-    expect(generalTabSource).toContain("<h3>{t.model}</h3>");
-    expect(generalTabSource).not.toContain("{t.thinking}");
-    expect(generalTabSource).not.toContain("<h3>{t.apiKey}</h3>");
-    expect(generalTabSource).toContain("aria-label={t.apiKey}");
-    expect(generalTabSource).toContain("selectedModelInfo?.providerId");
-    expect(generalTabSource).toContain("onClick={addModel}");
-    expect(generalTabSource).not.toContain("onClick={saveKey}");
-    expect(generalTabSource).not.toContain("keyProviderId");
+    expect(builtInProvidersTabSource).toContain("<h3>{t.model}</h3>");
+    expect(builtInProvidersTabSource).not.toContain("{t.thinking}");
+    expect(builtInProvidersTabSource).not.toContain("<h3>{t.apiKey}</h3>");
+    expect(builtInProvidersTabSource).toContain("aria-label={t.apiKey}");
+    expect(builtInProvidersTabSource).toContain(
+      "selectedModelInfo?.providerId",
+    );
+    expect(builtInProvidersTabSource).toContain("onClick={addModel}");
+    expect(builtInProvidersTabSource).not.toContain("onClick={saveKey}");
+    expect(builtInProvidersTabSource).not.toContain("keyProviderId");
     expect(
-      generalTabSource.match(/className="settings-primary-action"/gu) ?? [],
+      builtInProvidersTabSource.match(
+        /className="settings-primary-action"/gu,
+      ) ?? [],
     ).toHaveLength(1);
-    expect(generalTabSource).not.toContain("settings.credentials.map");
-    expect(generalTabSource).not.toContain("window.artemis.deleteCredential");
-    expect(generalTabSource).toContain("settings.addedModels.map");
-    expect(generalTabSource).toContain("setModelDeleteTarget(model)");
-    expect(generalTabSource).toContain("importPiCredentials");
+    expect(builtInProvidersTabSource).not.toContain("settings.credentials.map");
+    expect(builtInProvidersTabSource).not.toContain(
+      "window.artemis.deleteCredential",
+    );
+    expect(builtInProvidersTabSource).toContain("settings.addedModels.map");
+    expect(builtInProvidersTabSource).toContain("setModelDeleteTarget(model)");
+    expect(builtInProvidersTabSource).toContain("importPiCredentials");
     expect(addModelSource).toContain("keyApiKey.trim() || undefined");
     expect(apiSource).toMatch(
       /addModel\(\s*model: AddedModelConfiguration,\s*apiKey\?: string,/u,
@@ -1389,11 +1398,11 @@ describe("renderer layout contract", () => {
     expect(mainProcessSource).toContain("selection.ultraMode === true");
 
     // Custom provider setup keeps its independent, working connection flow.
-    expect(providersTabSource).toContain("<h3>{t.customProviders}</h3>");
-    expect(providersTabSource).toContain("saveProviderConnection");
-    expect(providersTabSource).toContain("t.optionalApiKey");
-    expect(providersTabSource).not.toContain("onClick={saveKey}");
-    expect(providersTabSource).not.toContain("keyProviderId");
+    expect(customProvidersTabSource).toContain("<h3>{t.customProviders}</h3>");
+    expect(customProvidersTabSource).toContain("saveProviderConnection");
+    expect(customProvidersTabSource).toContain("t.optionalApiKey");
+    expect(customProvidersTabSource).not.toContain("onClick={saveKey}");
+    expect(customProvidersTabSource).not.toContain("keyProviderId");
   });
 
   it("uses a centered settings dialog with left tabs and one active content panel", () => {
@@ -1407,6 +1416,11 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain('activeTab === "agents"');
     expect(settingsSource).toContain('activeTab === "capabilities"');
     expect(settingsSource).toContain('activeTab === "maintenance"');
+    expect(settingsSource).toContain('tabProviders: "Providers & models"');
+    expect(settingsSource).toContain('tabProviders: "供应商及模型配置"');
+    expect(settingsSource).toContain('className="provider-config-tabs"');
+    expect(settingsSource).toContain('["builtin", t.providerConfigBuiltin]');
+    expect(settingsSource).toContain('["custom", t.providerConfigCustom]');
     expect(cssRule(".settings-backdrop")).toMatch(
       /\bjustify-content:\s*center/u,
     );
@@ -1870,6 +1884,7 @@ describe("renderer layout contract", () => {
     const collapsedSidebar = cssRule("body.sidebar-collapsed .sidebar");
     const dock = cssRule(".workspace-tool-dock");
     const resizer = cssRule(".workspace-dock-resizer");
+    const projectSidebarResizer = cssRule(".project-sidebar-resizer");
     const closedDock = cssRule('.workspace-tool-dock[data-open="false"]');
     const reducedMotion = cssAtRule(
       /@media\s*\(prefers-reduced-motion:\s*reduce\)/u,
@@ -1891,6 +1906,10 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("onKeyDown={resizeWorkspaceDockFromKeyboard}");
     expect(apiSource).toContain("setWorkspaceDockWidth(width: number)");
     expect(preloadSource).toContain("setWorkspaceDockWidth: (width)");
+    expect(appSource).toContain("onPointerDown={beginProjectSidebarResize}");
+    expect(appSource).toContain("onKeyDown={resizeProjectSidebarFromKeyboard}");
+    expect(apiSource).toContain("setProjectSidebarWidth(width: number)");
+    expect(preloadSource).toContain("setProjectSidebarWidth: (width)");
 
     expect(shell).toMatch(/--project-sidebar-width:\s*252px/u);
     expect(shell).toMatch(/transition:\s*grid-template-columns\s+240ms/u);
@@ -1898,6 +1917,8 @@ describe("renderer layout contract", () => {
     expect(sidebar).toMatch(/\btransform:/u);
     expect(collapsedSidebar).toMatch(/\bopacity:\s*0/u);
     expect(collapsedSidebar).toMatch(/\btransform:\s*translateX\(-/u);
+    expect(projectSidebarResizer).toMatch(/\bcursor:\s*col-resize/u);
+    expect(projectSidebarResizer).toMatch(/\btouch-action:\s*none/u);
 
     expect(dock).toMatch(
       /\bflex:\s*0\s+1\s+var\(--workspace-dock-width,\s*62%\)/u,
@@ -1915,6 +1936,48 @@ describe("renderer layout contract", () => {
     expect(reducedMotion).toContain(".workspace-dock-resizer");
     expect(reducedMotion).toContain(".workspace-tool-dock");
     expect(reducedMotion).toMatch(/transition:\s*none/u);
+  });
+
+  it("keeps temporary conversations and projects as the two sidebar roots", () => {
+    const temporaryRoot = appSource.indexOf(
+      'className="project-group temporary-conversations"',
+    );
+    const projectsRoot = appSource.indexOf(
+      'className="project-group project-collection"',
+    );
+    const nestedProjects = appSource.indexOf(
+      "{projects.map((project) => {",
+      projectsRoot,
+    );
+
+    expect(temporaryRoot).toBeGreaterThan(-1);
+    expect(projectsRoot).toBeGreaterThan(temporaryRoot);
+    expect(nestedProjects).toBeGreaterThan(projectsRoot);
+    expect(appSource).toContain('className="project-group nested-project"');
+    expect(appSource).toContain("aria-level={2}");
+    expect(appSource).toContain("setProjectsOpen((open) => !open)");
+  });
+
+  it("dismisses sidebar action menus and reasoning hover panels", () => {
+    expect(appSource).toContain(
+      '".project-menu, .thread-menu, .project-action, .thread-action"',
+    );
+    expect(appSource).toContain(
+      'window.addEventListener("keydown", closeOnEscape)',
+    );
+    expect(appSource).toContain("onMouseEnter={cancelModelPickerHoverClose}");
+    expect(appSource).toContain("onMouseLeave={scheduleModelPickerHoverClose}");
+    expect(appSource).toContain("}, 160);");
+  });
+
+  it("aligns conversation content with the wider composer reference line", () => {
+    const timeline = cssRule(".timeline");
+    const composerWrap = cssRule(".composer-wrap");
+
+    expect(timeline).toMatch(/\bmax-width:\s*960px/u);
+    expect(timeline).toMatch(/\bpadding:\s*34px\s+20px\s+24px/u);
+    expect(composerWrap).toMatch(/\bmax-width:\s*960px/u);
+    expect(composerWrap).toMatch(/\bpadding:\s*0\s+20px\s+18px/u);
   });
 
   it("keeps PowerShell input legible and prevents an xterm horizontal scrollbar", () => {

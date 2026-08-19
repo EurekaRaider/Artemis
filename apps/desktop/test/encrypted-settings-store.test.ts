@@ -41,6 +41,24 @@ async function createStore() {
 }
 
 describe("EncryptedSettingsStore", () => {
+  it("persists a validated project sidebar width", async () => {
+    const { filePath, store } = await createStore();
+    await expect(store.projectSidebarWidth()).resolves.toBeUndefined();
+    await expect(store.setProjectSidebarWidth(319)).resolves.toBe(319);
+
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.projectSidebarWidth()).resolves.toBe(319);
+    await expect(reopened.setProjectSidebarWidth(207)).rejects.toThrow(
+      "208 to 420",
+    );
+    await expect(reopened.setProjectSidebarWidth(421)).rejects.toThrow(
+      "208 to 420",
+    );
+  });
+
   it("persists a validated workspace dock width", async () => {
     const { filePath, store } = await createStore();
     await expect(store.workspaceDockWidth()).resolves.toBeUndefined();

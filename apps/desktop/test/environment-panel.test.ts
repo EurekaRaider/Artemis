@@ -186,7 +186,7 @@ describe("task environment panel state", () => {
       '.workspace:has(.environment-trigger[aria-expanded="true"]) .timeline-scroll',
     );
     expect(stylesSource).toMatch(
-      /\.timeline\s*\{[^}]*margin:\s*0 auto;[^}]*max-width:\s*800px;/su,
+      /\.timeline\s*\{[^}]*margin:\s*0 auto;[^}]*max-width:\s*960px;/su,
     );
   });
 

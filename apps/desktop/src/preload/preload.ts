@@ -153,6 +153,8 @@ const api: ArtemisApi = {
   addModel: (model, apiKey) =>
     ipcRenderer.invoke(IPC.settingsModelAdd, model, apiKey),
   removeModel: (model) => ipcRenderer.invoke(IPC.settingsModelDelete, model),
+  setProjectSidebarWidth: (width) =>
+    ipcRenderer.invoke(IPC.settingsProjectSidebarWidthSet, width),
   setWorkspaceDockWidth: (width) =>
     ipcRenderer.invoke(IPC.settingsWorkspaceDockWidthSet, width),
   saveApiKey: (providerId, apiKey) =>

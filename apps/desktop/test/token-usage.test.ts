@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { PROTOCOL_VERSION, type AgentEvent } from "@artemis/protocol";
 import {
+  ALL_USAGE_MODELS,
   buildCacheUsageMetrics,
+  buildTokenUsageByModel,
   buildTokenUsageCells,
+  filterTokenUsageEvents,
   formatTokenUsageTooltip,
   TOKEN_USAGE_COPY,
   tokenUsageValue,
+  UNATTRIBUTED_USAGE_MODEL,
 } from "../src/renderer/token-usage.js";
 
 function usageEvent(
@@ -158,6 +162,46 @@ describe("token usage activity", () => {
 
     expect(metrics.hitRate).toBeUndefined();
     expect(metrics.coverage).toBe(0);
+  });
+
+  it("groups and filters usage by provider and model while retaining legacy events", () => {
+    const first = usageEvent("usage-20", "2026-07-27T06:00:00.000Z", 200);
+    first.payload = {
+      ...first.payload,
+      providerId: "openai",
+      modelId: "gpt-5.6",
+    };
+    const second = usageEvent("usage-21", "2026-07-27T07:00:00.000Z", 300);
+    second.payload = {
+      ...second.payload,
+      providerId: "zhipu",
+      modelId: "glm-5.3",
+    };
+    const legacy = usageEvent("usage-22", "2026-07-27T08:00:00.000Z", 100);
+
+    expect(buildTokenUsageByModel([first, second, legacy, second])).toEqual([
+      expect.objectContaining({
+        key: "zhipu:glm-5.3",
+        usageEvents: 1,
+        totalTokens: 300,
+      }),
+      expect.objectContaining({
+        key: "openai:gpt-5.6",
+        usageEvents: 1,
+        totalTokens: 200,
+      }),
+      expect.objectContaining({
+        key: UNATTRIBUTED_USAGE_MODEL,
+        usageEvents: 1,
+        totalTokens: 100,
+      }),
+    ]);
+    expect(
+      filterTokenUsageEvents([first, second, legacy], "openai:gpt-5.6"),
+    ).toEqual([first]);
+    expect(
+      filterTokenUsageEvents([first, second, legacy], ALL_USAGE_MODELS),
+    ).toHaveLength(3);
   });
 
   it("infers compatible endpoint reporting from cache reads on the same key", () => {

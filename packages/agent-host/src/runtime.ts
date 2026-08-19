@@ -963,11 +963,18 @@ export class ArtemisAgentHost {
   private promptCacheUsage(
     sessionId: string,
     payload: Extract<AgentPayload, { type: "assistant.usage" }>,
+    selection?: ModelSelection,
   ): Extract<AgentPayload, { type: "assistant.usage" }> {
     this.promptCache.observeUsage(sessionId, payload);
     const cache = this.promptCache.latestResolution(sessionId);
     return {
       ...payload,
+      ...(selection
+        ? {
+            providerId: selection.providerId,
+            modelId: selection.modelId,
+          }
+        : {}),
       ...(cache
         ? {
             cacheReadReported:
@@ -3869,6 +3876,7 @@ export class ArtemisAgentHost {
                         this.promptCacheUsage(
                           child.session!.sessionId,
                           payload,
+                          hosted.selection,
                         ),
                       );
                     }
@@ -4288,7 +4296,11 @@ export class ArtemisAgentHost {
             this.sink.emit(
               hosted.threadId,
               hosted.currentTurnId,
-              this.promptCacheUsage(session.sessionId, payload),
+              this.promptCacheUsage(
+                session.sessionId,
+                payload,
+                hosted.selection,
+              ),
             );
             continue;
           }

@@ -242,6 +242,7 @@ summary:focus-visible {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  position: relative;
   transition: grid-template-columns 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -343,6 +344,46 @@ summary:focus-visible {
   visibility: visible;
 }
 
+.project-sidebar-resizer {
+  bottom: 0;
+  cursor: col-resize;
+  inset-inline-start: calc(46px + var(--project-sidebar-width) - 4px);
+  position: absolute;
+  top: 0;
+  touch-action: none;
+  width: 8px;
+  z-index: 55;
+}
+
+.app-shell[data-platform="darwin"] .project-sidebar-resizer {
+  top: 28px;
+}
+
+.project-sidebar-resizer::after {
+  background: transparent;
+  bottom: 0;
+  content: "";
+  left: 3px;
+  position: absolute;
+  top: 0;
+  transition: background 120ms ease;
+  width: 2px;
+}
+
+.project-sidebar-resizer:hover::after,
+.project-sidebar-resizer:focus-visible::after {
+  background: color-mix(in srgb, var(--blue) 72%, var(--border));
+}
+
+.project-sidebar-resizer:focus-visible {
+  outline: none;
+}
+
+.project-sidebar-resizer[data-open="false"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .sidebar-header,
 .panel-header,
 .terminal-header {
@@ -424,6 +465,14 @@ summary:focus-visible {
 
 .project-group + .project-group {
   margin-top: 14px;
+}
+
+.nested-project {
+  margin-inline-start: 12px;
+}
+
+.nested-project + .nested-project {
+  margin-top: 6px;
 }
 
 .project-row,
@@ -1817,8 +1866,8 @@ button.environment-row:disabled {
 
 .timeline {
   margin: 0 auto;
-  max-width: 800px;
-  padding: 34px 28px 24px;
+  max-width: 960px;
+  padding: 34px 20px 24px;
   width: 100%;
 }
 
@@ -6939,6 +6988,31 @@ button.environment-row:disabled {
   padding: 24px 26px 30px;
 }
 
+.provider-config-tabs {
+  align-self: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+}
+
+.provider-config-tabs button {
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  min-height: 30px;
+  padding: 0 16px;
+}
+
+.provider-config-tabs button:hover,
+.provider-config-tabs button.active {
+  background: var(--selected);
+  color: var(--text);
+}
+
 .settings-loading {
   align-items: center;
   color: var(--muted);
@@ -9847,6 +9921,7 @@ button.environment-row:disabled {
 .token-usage-profile,
 .token-usage-summary,
 .token-usage-activity,
+.token-usage-models,
 .token-usage-details {
   margin-left: auto;
   margin-right: auto;
@@ -9968,6 +10043,31 @@ button.environment-row:disabled {
   display: flex;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+
+.token-usage-activity-controls {
+  align-items: center;
+  display: flex;
+  gap: 24px;
+}
+
+.token-usage-model-filter {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.token-usage-model-filter select {
+  background: var(--panel-3);
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  color: var(--text);
+  font: inherit;
+  max-width: 250px;
+  min-height: 30px;
+  padding: 0 28px 0 9px;
 }
 
 .token-usage-activity h2,
@@ -10123,6 +10223,71 @@ button.environment-row:disabled {
   color: var(--danger);
 }
 
+.token-usage-models {
+  margin-top: 54px;
+}
+
+.token-usage-models h2 {
+  font-size: 18px;
+  margin: 0 0 16px;
+}
+
+.token-usage-models-scroll {
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  overflow-x: auto;
+}
+
+.token-usage-models table {
+  border-collapse: collapse;
+  min-width: 840px;
+  width: 100%;
+}
+
+.token-usage-models th,
+.token-usage-models td {
+  border-bottom: 1px solid var(--border-soft);
+  font-variant-numeric: tabular-nums;
+  padding: 11px 13px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.token-usage-models th {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.token-usage-models th:first-child,
+.token-usage-models td:first-child {
+  text-align: left;
+}
+
+.token-usage-models tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.token-usage-models tbody tr.selected {
+  background: color-mix(in srgb, var(--blue) 9%, transparent);
+}
+
+.token-usage-models td button {
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  max-width: 320px;
+  overflow: hidden;
+  padding: 2px 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-usage-models td button:hover,
+.token-usage-models td button:focus-visible {
+  color: var(--blue);
+}
+
 .token-usage-details {
   display: grid;
   gap: clamp(54px, 9vw, 118px);
@@ -10190,6 +10355,7 @@ button.environment-row:disabled {
 .token-usage-profile,
 .token-usage-summary,
 .token-usage-activity,
+.token-usage-models,
 .token-usage-details {
   animation: token-usage-reveal 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -10204,6 +10370,10 @@ button.environment-row:disabled {
 
 .token-usage-details {
   animation-delay: 135ms;
+}
+
+.token-usage-models {
+  animation-delay: 120ms;
 }
 
 .token-usage-page.is-loading .token-usage-grid {
@@ -10264,6 +10434,12 @@ button.environment-row:disabled {
     gap: 12px;
   }
 
+  .token-usage-activity-controls {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
   .token-usage-details {
     gap: 38px;
     grid-template-columns: 1fr;
@@ -10300,6 +10476,11 @@ button.environment-row:disabled {
     gap: 18px;
   }
 
+  .token-usage-model-filter {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .token-usage-chart {
     min-width: 720px;
   }
@@ -10309,6 +10490,7 @@ button.environment-row:disabled {
   .token-usage-profile,
   .token-usage-summary,
   .token-usage-activity,
+  .token-usage-models,
   .token-usage-details,
   .token-usage-page.is-loading .token-usage-grid {
     animation: none;
