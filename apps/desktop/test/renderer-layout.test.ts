@@ -1910,6 +1910,9 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("onKeyDown={resizeProjectSidebarFromKeyboard}");
     expect(apiSource).toContain("setProjectSidebarWidth(width: number)");
     expect(preloadSource).toContain("setProjectSidebarWidth: (width)");
+    expect(appSource).toMatch(
+      /"--project-sidebar-width":\s*sidebarOpen\s*\?\s*`\$\{projectSidebarWidth \?\? PROJECT_SIDEBAR_WIDTH_DEFAULT\}px`\s*:\s*"0px"/u,
+    );
 
     expect(shell).toMatch(/--project-sidebar-width:\s*252px/u);
     expect(shell).toMatch(/transition:\s*grid-template-columns\s+240ms/u);

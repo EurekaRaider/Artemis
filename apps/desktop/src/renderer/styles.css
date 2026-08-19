@@ -10579,10 +10579,6 @@ kbd {
   min-height: 0;
 }
 
-body.sidebar-collapsed .app-shell {
-  --project-sidebar-width: 0px;
-}
-
 body.sidebar-collapsed .sidebar {
   opacity: 0;
   pointer-events: none;

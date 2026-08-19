@@ -4553,7 +4553,9 @@ export function App() {
       data-renderer-ready="true"
       style={
         {
-          "--project-sidebar-width": `${projectSidebarWidth ?? PROJECT_SIDEBAR_WIDTH_DEFAULT}px`,
+          "--project-sidebar-width": sidebarOpen
+            ? `${projectSidebarWidth ?? PROJECT_SIDEBAR_WIDTH_DEFAULT}px`
+            : "0px",
         } as CSSProperties
       }
     >
