@@ -2,11 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import type { AgentEvent } from "@artemis/protocol";
 
 import {
+  ALL_USAGE_MODELS,
   buildCacheUsageMetrics,
+  buildTokenUsageByModel,
   buildTokenUsageCells,
+  filterTokenUsageEvents,
   formatTokenUsageTooltip,
   TOKEN_USAGE_COPY,
   tokenUsageValue,
+  UNATTRIBUTED_USAGE_MODEL,
   type TokenUsageCell,
   type TokenUsageLocale,
   type TokenUsageView,
@@ -93,6 +97,7 @@ export function TokenUsagePage({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [view, setView] = useState<TokenUsageView>("daily");
+  const [selectedModel, setSelectedModel] = useState(ALL_USAGE_MODELS);
   const [hovered, setHovered] = useState<TokenUsageCell>();
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
@@ -124,18 +129,23 @@ export function TokenUsagePage({
 
   const today = dateKey(new Date(), timeZone);
   const firstVisibleDate = addDays(startOfWeek(today), -52 * 7);
+  const usageByModel = useMemo(() => buildTokenUsageByModel(events), [events]);
+  const visibleEvents = useMemo(
+    () => filterTokenUsageEvents(events, selectedModel),
+    [events, selectedModel],
+  );
   const allCells = useMemo(
-    () => buildTokenUsageCells(events, { timeZone }),
-    [events, timeZone],
+    () => buildTokenUsageCells(visibleEvents, { timeZone }),
+    [timeZone, visibleEvents],
   );
   const cells = useMemo(
     () =>
-      buildTokenUsageCells(events, {
+      buildTokenUsageCells(visibleEvents, {
         timeZone,
         startDate: firstVisibleDate,
         endDate: today,
       }),
-    [events, firstVisibleDate, timeZone, today],
+    [firstVisibleDate, timeZone, today, visibleEvents],
   );
   const maximum = Math.max(
     0,
@@ -152,7 +162,7 @@ export function TokenUsagePage({
   );
   const { usageTotals, cacheMetrics } = useMemo(
     () => ({
-      usageTotals: events.reduce(
+      usageTotals: visibleEvents.reduce(
         (totals, event) => {
           if (event.payload.type !== "assistant.usage") return totals;
           totals.input += event.payload.inputTokens;
@@ -163,9 +173,9 @@ export function TokenUsagePage({
         },
         { cacheRead: 0, cacheWrite: 0, input: 0, output: 0 },
       ),
-      cacheMetrics: buildCacheUsageMetrics(events),
+      cacheMetrics: buildCacheUsageMetrics(visibleEvents),
     }),
-    [events],
+    [visibleEvents],
   );
   const number = new Intl.NumberFormat(locale, {
     notation: "compact",
@@ -241,7 +251,7 @@ export function TokenUsagePage({
     },
     {
       label: t.recordedResponses,
-      value: exactNumber.format(events.length),
+      value: exactNumber.format(visibleEvents.length),
     },
     {
       label: t.cacheHitRate,
@@ -273,6 +283,10 @@ export function TokenUsagePage({
       value: usageTotals.cacheWrite,
     },
   ];
+  const modelLabel = (model: (typeof usageByModel)[number]) =>
+    model.key === UNATTRIBUTED_USAGE_MODEL
+      ? t.unattributedModel
+      : `${model.providerId} · ${model.modelId}`;
 
   return (
     <section
@@ -305,21 +319,41 @@ export function TokenUsagePage({
       <section className="token-usage-activity">
         <div className="token-usage-activity-header">
           <h2>{t.activity}</h2>
-          <div className="token-usage-tabs" role="tablist">
-            {(["daily", "weekly", "cumulative"] as const).map((candidate) => (
-              <button
-                aria-selected={view === candidate}
-                key={candidate}
-                onClick={() => {
-                  setView(candidate);
+          <div className="token-usage-activity-controls">
+            <label className="token-usage-model-filter">
+              <span>{t.modelFilter}</span>
+              <select
+                aria-label={t.modelFilter}
+                onChange={(event) => {
+                  setSelectedModel(event.target.value);
                   setHovered(undefined);
                 }}
-                role="tab"
-                type="button"
+                value={selectedModel}
               >
-                {t[`${candidate}Tab`]}
-              </button>
-            ))}
+                <option value={ALL_USAGE_MODELS}>{t.allModels}</option>
+                {usageByModel.map((model) => (
+                  <option key={model.key} value={model.key}>
+                    {modelLabel(model)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="token-usage-tabs" role="tablist">
+              {(["daily", "weekly", "cumulative"] as const).map((candidate) => (
+                <button
+                  aria-selected={view === candidate}
+                  key={candidate}
+                  onClick={() => {
+                    setView(candidate);
+                    setHovered(undefined);
+                  }}
+                  role="tab"
+                  type="button"
+                >
+                  {t[`${candidate}Tab`]}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -389,6 +423,54 @@ export function TokenUsagePage({
           </p>
         ) : null}
       </section>
+
+      {usageByModel.length > 0 && (
+        <section className="token-usage-models" aria-label={t.usageByModel}>
+          <h2>{t.usageByModel}</h2>
+          <div className="token-usage-models-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>{t.modelColumn}</th>
+                  <th>{t.responsesColumn}</th>
+                  <th>{t.inputTokens}</th>
+                  <th>{t.outputTokens}</th>
+                  <th>{t.cacheReadTokens}</th>
+                  <th>{t.cacheWriteTokens}</th>
+                  <th>{t.totalTokens}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usageByModel.map((model) => (
+                  <tr
+                    className={selectedModel === model.key ? "selected" : ""}
+                    key={model.key}
+                  >
+                    <td>
+                      <button
+                        aria-pressed={selectedModel === model.key}
+                        onClick={() => {
+                          setSelectedModel(model.key);
+                          setHovered(undefined);
+                        }}
+                        type="button"
+                      >
+                        {modelLabel(model)}
+                      </button>
+                    </td>
+                    <td>{exactNumber.format(model.usageEvents)}</td>
+                    <td>{number.format(model.inputTokens)}</td>
+                    <td>{number.format(model.outputTokens)}</td>
+                    <td>{number.format(model.cacheReadTokens)}</td>
+                    <td>{number.format(model.cacheWriteTokens)}</td>
+                    <td>{number.format(model.totalTokens)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="token-usage-details" aria-label={t.insights}>
         <div className="token-usage-detail-block">

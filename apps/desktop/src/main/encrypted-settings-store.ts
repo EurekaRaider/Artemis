@@ -57,6 +57,7 @@ interface PersistedSettings {
   providers?: Record<string, ProviderConnection>;
   disabledSkillFiles?: string[];
   agentConcurrency?: AgentConcurrencyPreference;
+  projectSidebarWidth?: number;
   workspaceDockWidth?: number;
 }
 
@@ -74,6 +75,8 @@ const EMPTY_SETTINGS: PersistedSettings = {
 
 export const WORKSPACE_DOCK_WIDTH_MIN = 320;
 export const WORKSPACE_DOCK_WIDTH_MAX = 1_080;
+export const PROJECT_SIDEBAR_WIDTH_MIN = 208;
+export const PROJECT_SIDEBAR_WIDTH_MAX = 420;
 
 function validateProviderId(providerId: string): string {
   const normalized = providerId.trim();
@@ -109,6 +112,19 @@ function validateWorkspaceDockWidth(width: number): number {
   ) {
     throw new Error(
       `Workspace dock width must be an integer from ${WORKSPACE_DOCK_WIDTH_MIN} to ${WORKSPACE_DOCK_WIDTH_MAX}`,
+    );
+  }
+  return width;
+}
+
+function validateProjectSidebarWidth(width: number): number {
+  if (
+    !Number.isInteger(width) ||
+    width < PROJECT_SIDEBAR_WIDTH_MIN ||
+    width > PROJECT_SIDEBAR_WIDTH_MAX
+  ) {
+    throw new Error(
+      `Project sidebar width must be an integer from ${PROJECT_SIDEBAR_WIDTH_MIN} to ${PROJECT_SIDEBAR_WIDTH_MAX}`,
     );
   }
   return width;
@@ -265,6 +281,18 @@ export class EncryptedSettingsStore {
 
   async workspaceDockWidth(): Promise<number | undefined> {
     return (await this.load()).workspaceDockWidth;
+  }
+
+  async projectSidebarWidth(): Promise<number | undefined> {
+    return (await this.load()).projectSidebarWidth;
+  }
+
+  async setProjectSidebarWidth(width: number): Promise<number> {
+    const validated = validateProjectSidebarWidth(width);
+    const settings = await this.load();
+    settings.projectSidebarWidth = validated;
+    await this.save(settings);
+    return validated;
   }
 
   async setWorkspaceDockWidth(width: number): Promise<number> {
@@ -598,6 +626,15 @@ export class EncryptedSettingsStore {
           !shellRuntimeConfigurationSchema.safeParse(parsed.shell).success) ||
         (parsed.contextWindow !== undefined &&
           !contextWindowSchema.safeParse(parsed.contextWindow).success) ||
+        (parsed.projectSidebarWidth !== undefined &&
+          (() => {
+            try {
+              validateProjectSidebarWidth(parsed.projectSidebarWidth);
+              return false;
+            } catch {
+              return true;
+            }
+          })()) ||
         (parsed.workspaceDockWidth !== undefined &&
           (() => {
             try {

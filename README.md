@@ -84,7 +84,7 @@ credentials are protected with operating-system encryption.
   <tr>
     <td width="50%" valign="top">
       <p><strong>01</strong>&nbsp;&nbsp;/&nbsp;&nbsp;AGENT WORKSPACE</p>
-      <p>Persistent projects and Local tasks, projectless Temporary conversations, per-conversation model/thinking/context settings, collapsible history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
+      <p>Persistent projects and Local tasks, projectless Temporary conversations, a resizable two-level conversation sidebar, per-conversation model/thinking/context settings, collapsible history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
     </td>
     <td width="50%" valign="top">
       <p><strong>02</strong>&nbsp;&nbsp;/&nbsp;&nbsp;WORKSPACE TOOLS</p>
@@ -114,7 +114,7 @@ credentials are protected with operating-system encryption.
   <tr>
     <td colspan="2" valign="top">
       <p><strong>07</strong>&nbsp;&nbsp;/&nbsp;&nbsp;OPERATIONS</p>
-      <p>Local automations, daily/weekly/cumulative Token insights with cache hit and reporting coverage, fork-safe usage accounting, OS user identity, 14-language/system-language UI, themes, diagnostics export, update recovery and native packaging gates.</p>
+      <p>Local automations, daily/weekly/cumulative Token insights with per-model filtering and breakdowns, cache hit and reporting coverage, fork-safe usage accounting, OS user identity, 14-language/system-language UI, themes, diagnostics export, update recovery and native packaging gates.</p>
     </td>
   </tr>
 </table>
@@ -253,11 +253,13 @@ other everyday tasks.
 <summary><strong>01 · Projects and persistent conversations</strong></summary>
 
 - **Project and task management** — add a repository with the native picker;
-  expand or collapse each project's conversation history, preview five tasks
+  use Temporary conversations and Projects as the two sidebar roots, expand
+  individual project histories beneath Projects, and drag the persisted sidebar
+  width to fit long task names or reclaim workspace space. Preview five tasks
   before expanding, and create, rename, search, archive, restore, fork, delete
   or switch tasks from the sidebar. Running and approval-waiting tasks stay at
   the top, ordered by the most recently submitted prompt when several are
-  active.
+  active. Sidebar action menus dismiss on outside click or Escape.
 - **Temporary conversations** — start, persist, archive, fork and delete a
   conversation without adding a project. Each conversation and fork has an
   isolated workspace under application data. Temporary conversations do not
@@ -322,10 +324,12 @@ other everyday tasks.
   state. Post-compaction usage combines the rebuilt message estimate with the
   system prompt, tools, MCP schemas, project instructions and Skills that remain
   in context. Usage Insights adds daily, weekly and cumulative Token totals with
-  a calendar heatmap, cache hit rate, cache-reporting coverage and automatic
-  policy distribution while avoiding double-counting forked history. A missing
-  Provider cache breakdown remains unknown instead of being rendered as a 0%
-  hit rate.
+  a calendar heatmap, all-model or per-model filtering, a Provider/model usage
+  table, cache hit rate, cache-reporting coverage and automatic policy
+  distribution while avoiding double-counting forked history. Older events
+  recorded before model attribution remain visible in an explicit unassigned
+  group. A missing Provider cache breakdown remains unknown instead of being
+  rendered as a 0% hit rate.
 
 </details>
 
@@ -528,13 +532,13 @@ process.
 Settings follows the desktop's resolved locale and is divided into five focused
 pages:
 
-| Page                        | Functions                                                                                                                                                                                                                                                                                                       |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **General**                 | Default model search/selection, thinking level, validated context-window limit, language, theme and approval policy                                                                                                                                                                                             |
-| **Providers & credentials** | Built-in Pi catalog including GLM-5.3 for the Z.AI global and China Coding Plan endpoints; editable custom OpenAI-compatible Chat Completions/Responses providers with lowercase-validated IDs and integer context/output limits; reasoning/image capabilities, encrypted API keys and explicit Pi OAuth import |
-| **Agent configuration**     | Editable global `AGENTS.md`, configuration scan/preview/import and imported source/category selection without silent credential copying                                                                                                                                                                         |
-| **MCP & extensions**        | MCP stdio/Streamable HTTP configuration, bearer/OAuth/Registry-header authorization, enablement, trusted-extension selection, hash state, tool inventory and extension network policy                                                                                                                           |
-| **Updates & diagnostics**   | Update state and actions, local diagnostic-bundle export and maintenance information                                                                                                                                                                                                                            |
+| Page                      | Functions                                                                                                                                                                                                                                                                                                                    |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **General**               | Language, theme and approval policy                                                                                                                                                                                                                                                                                          |
+| **Providers & models**    | One focused page with **Built-in** and **Custom** tabs: default model search/selection, validated context-window limits, the Pi catalog including GLM-5.3 for Z.AI endpoints, editable OpenAI-compatible Chat Completions/Responses providers, reasoning/image capabilities, encrypted API keys and explicit Pi OAuth import |
+| **Agent configuration**   | Editable global `AGENTS.md`, configuration scan/preview/import and imported source/category selection without silent credential copying                                                                                                                                                                                      |
+| **MCP & extensions**      | MCP stdio/Streamable HTTP configuration, bearer/OAuth/Registry-header authorization, enablement, trusted-extension selection, hash state, tool inventory and extension network policy                                                                                                                                        |
+| **Updates & diagnostics** | Update state and actions, local diagnostic-bundle export and maintenance information                                                                                                                                                                                                                                         |
 
 The dialog has tab semantics, keyboard focus behavior and Escape-to-close
 support. Model application reports success or failure without silently
@@ -1022,14 +1026,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.2`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.3`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.2
-git push origin v1.4.2
+git tag v1.4.3
+git push origin v1.4.3
 ```
 
 ### Build and test matrix
@@ -1042,11 +1046,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **921 passing tests** (5 skipped):
+The current full test run contains **928 passing tests** (5 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       63 |       23 |        108 |     727 |   **921** |
+|       64 |       23 |        108 |     733 |   **928** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1074,13 +1078,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.2` packaging configuration produces:
+The `1.4.3` packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.2.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.2.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.2.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.3.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.3.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.3.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

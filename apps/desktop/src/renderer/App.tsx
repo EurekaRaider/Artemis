@@ -158,6 +158,12 @@ import {
   workspaceDockWidthBounds,
 } from "./workspace-dock-layout.js";
 import {
+  clampProjectSidebarWidth,
+  PROJECT_SIDEBAR_WIDTH_DEFAULT,
+  PROJECT_SIDEBAR_WIDTH_MAX,
+  PROJECT_SIDEBAR_WIDTH_MIN,
+} from "./project-sidebar-layout.js";
+import {
   reduceTurnFailureNotices,
   type TurnFailureNotices,
 } from "./turn-failure-notices.js";
@@ -189,6 +195,12 @@ interface FileLinkContextMenuState {
 }
 
 interface WorkspaceDockDrag {
+  pointerId: number;
+  startWidth: number;
+  startX: number;
+}
+
+interface ProjectSidebarDrag {
   pointerId: number;
   startWidth: number;
   startX: number;
@@ -282,6 +294,9 @@ const copy = {
   en: {
     appName: "Artemis",
     projects: "Projects",
+    expandProjects: "Expand projects",
+    collapseProjects: "Collapse projects",
+    resizeProjectsSidebar: "Resize conversations sidebar",
     temporaryConversations: "Temporary conversations",
     temporaryConversation: "Temporary conversation",
     automations: "Automations",
@@ -508,6 +523,9 @@ const copy = {
   "zh-CN": {
     appName: "Artemis",
     projects: "项目",
+    expandProjects: "展开项目",
+    collapseProjects: "收起项目",
+    resizeProjectsSidebar: "调整会话侧栏宽度",
     temporaryConversations: "临时会话",
     temporaryConversation: "临时会话",
     automations: "定时任务",
@@ -1412,6 +1430,7 @@ export function App() {
     useState<ModelPickerSection>("model");
   const [mode, setMode] = useState<RunMode>("execute");
   const [query, setQuery] = useState("");
+  const [projectsOpen, setProjectsOpen] = useState(true);
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -1446,6 +1465,10 @@ export function App() {
   const workspaceDockDrag = useRef<WorkspaceDockDrag | undefined>(undefined);
   const workspaceDockWidthRef = useRef<number | undefined>(undefined);
   const workspaceDockPersistence = useRef<Promise<void>>(Promise.resolve());
+  const projectSidebar = useRef<HTMLElement>(null);
+  const projectSidebarDrag = useRef<ProjectSidebarDrag | undefined>(undefined);
+  const projectSidebarWidthRef = useRef<number | undefined>(undefined);
+  const projectSidebarPersistence = useRef<Promise<void>>(Promise.resolve());
   const knownAgentTeamTabs = useRef(new Set<string>());
   const workspaceThreadCreation =
     useRef<Promise<string | undefined>>(undefined);
@@ -1457,6 +1480,8 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [projectSidebarWidth, setProjectSidebarWidth] = useState<number>();
+  const [projectSidebarResizing, setProjectSidebarResizing] = useState(false);
   const [clockMs, setClockMs] = useState(() => Date.now());
   const [childAgentControlPending, setChildAgentControlPending] = useState<
     string | undefined
@@ -1510,6 +1535,7 @@ export function App() {
   const promptInput = useRef<HTMLTextAreaElement>(null);
   const previousPendingUserInputId = useRef<string | undefined>(undefined);
   const modelPickerRoot = useRef<HTMLDivElement>(null);
+  const modelPickerHoverCloseTimer = useRef<number | undefined>(undefined);
   const slashCommandMenu = useRef<HTMLDivElement>(null);
   const confirmationCancelButton = useRef<HTMLButtonElement>(null);
   const confirmationResolver = useRef<
@@ -1544,6 +1570,7 @@ export function App() {
   const activeThreadIdRef = useRef(activeThreadId);
   activeThreadIdRef.current = activeThreadId;
   workspaceDockWidthRef.current = workspaceDockWidth;
+  projectSidebarWidthRef.current = projectSidebarWidth;
   const activeComposerDraftKey = conversationDraftKey(
     activeProjectId,
     activeThreadId,
@@ -1719,11 +1746,57 @@ export function App() {
     const closeOutside = (event: PointerEvent) => {
       if (!modelPickerRoot.current?.contains(event.target as Node)) {
         setModelPickerOpen(false);
+        setModelPickerSection("model");
       }
     };
     document.addEventListener("pointerdown", closeOutside);
     return () => document.removeEventListener("pointerdown", closeOutside);
   }, [modelPickerOpen]);
+  const cancelModelPickerHoverClose = useCallback(() => {
+    if (modelPickerHoverCloseTimer.current !== undefined) {
+      window.clearTimeout(modelPickerHoverCloseTimer.current);
+      modelPickerHoverCloseTimer.current = undefined;
+    }
+  }, []);
+  const scheduleModelPickerHoverClose = useCallback(() => {
+    cancelModelPickerHoverClose();
+    modelPickerHoverCloseTimer.current = window.setTimeout(() => {
+      setModelPickerSection("model");
+      modelPickerHoverCloseTimer.current = undefined;
+    }, 160);
+  }, [cancelModelPickerHoverClose]);
+  useEffect(
+    () => () => cancelModelPickerHoverClose(),
+    [cancelModelPickerHoverClose],
+  );
+
+  useEffect(() => {
+    if (!projectMenuId && !threadMenuId) return;
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          ".project-menu, .thread-menu, .project-action, .thread-action",
+        )
+      ) {
+        return;
+      }
+      setProjectMenuId(undefined);
+      setThreadMenuId(undefined);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setProjectMenuId(undefined);
+      setThreadMenuId(undefined);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [projectMenuId, threadMenuId]);
   const skillCommandMenuOpen =
     !skillMenuDismissed && isSkillCommandPrompt(prompt);
   const installedPluginBySkillName = useMemo(() => {
@@ -2355,6 +2428,109 @@ export function App() {
     },
     [discardNewConversationDraft],
   );
+  const persistProjectSidebarWidth = useCallback((width: number) => {
+    projectSidebarPersistence.current = projectSidebarPersistence.current.then(
+      async () => {
+        try {
+          const persisted = await window.artemis.setProjectSidebarWidth(width);
+          setProjectSidebarWidth(persisted);
+          setRuntimeSettings((current) =>
+            current ? { ...current, projectSidebarWidth: persisted } : current,
+          );
+        } catch (error) {
+          setToast({
+            error: true,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    );
+    return projectSidebarPersistence.current;
+  }, []);
+  const projectSidebarWidthForPointer = useCallback((clientX: number) => {
+    const drag = projectSidebarDrag.current;
+    if (!drag) return projectSidebarWidthRef.current;
+    const delta =
+      document.documentElement.dir === "rtl"
+        ? drag.startX - clientX
+        : clientX - drag.startX;
+    return clampProjectSidebarWidth(drag.startWidth + delta);
+  }, []);
+  const beginProjectSidebarResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!sidebarOpen || event.button !== 0) return;
+      const startWidth =
+        projectSidebar.current?.getBoundingClientRect().width ??
+        projectSidebarWidthRef.current ??
+        PROJECT_SIDEBAR_WIDTH_DEFAULT;
+      projectSidebarDrag.current = {
+        pointerId: event.pointerId,
+        startWidth,
+        startX: event.clientX,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setProjectSidebarWidth(Math.round(startWidth));
+      setProjectSidebarResizing(true);
+    },
+    [sidebarOpen],
+  );
+  const moveProjectSidebarResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (projectSidebarDrag.current?.pointerId !== event.pointerId) return;
+      const width = projectSidebarWidthForPointer(event.clientX);
+      if (width !== undefined) setProjectSidebarWidth(width);
+    },
+    [projectSidebarWidthForPointer],
+  );
+  const finishProjectSidebarResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (projectSidebarDrag.current?.pointerId !== event.pointerId) return;
+      const width = projectSidebarWidthForPointer(event.clientX);
+      projectSidebarDrag.current = undefined;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      setProjectSidebarResizing(false);
+      if (width !== undefined) {
+        setProjectSidebarWidth(width);
+        void persistProjectSidebarWidth(width);
+      }
+    },
+    [persistProjectSidebarWidth, projectSidebarWidthForPointer],
+  );
+  const cancelProjectSidebarResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = projectSidebarDrag.current;
+      if (drag?.pointerId !== event.pointerId) return;
+      projectSidebarDrag.current = undefined;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      setProjectSidebarResizing(false);
+      setProjectSidebarWidth(clampProjectSidebarWidth(drag.startWidth));
+    },
+    [],
+  );
+  const resizeProjectSidebarFromKeyboard = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      const currentWidth =
+        projectSidebar.current?.getBoundingClientRect().width ??
+        projectSidebarWidthRef.current ??
+        PROJECT_SIDEBAR_WIDTH_DEFAULT;
+      const logicalIncrease =
+        document.documentElement.dir === "rtl"
+          ? event.key === "ArrowLeft"
+          : event.key === "ArrowRight";
+      const width = clampProjectSidebarWidth(
+        currentWidth + (logicalIncrease ? 24 : -24),
+      );
+      setProjectSidebarWidth(width);
+      void persistProjectSidebarWidth(width);
+    },
+    [persistProjectSidebarWidth],
+  );
   const currentWorkspaceDockBounds = useCallback(
     () =>
       workspaceDockWidthBounds(
@@ -2502,6 +2678,15 @@ export function App() {
       document.documentElement.dataset.theme = theme;
     }
   }, [runtimeSettings?.theme]);
+
+  useEffect(() => {
+    if (
+      runtimeSettings?.projectSidebarWidth !== undefined &&
+      !projectSidebarResizing
+    ) {
+      setProjectSidebarWidth(runtimeSettings.projectSidebarWidth);
+    }
+  }, [projectSidebarResizing, runtimeSettings?.projectSidebarWidth]);
 
   useEffect(() => {
     if (
@@ -4333,6 +4518,7 @@ export function App() {
       if (event.key === "Escape") {
         setApprovalMenuOpen(false);
         setModelPickerOpen(false);
+        setModelPickerSection("model");
       } else if (modifier && event.altKey && event.key.toLowerCase() === "b") {
         event.preventDefault();
         toggleReviewPanel();
@@ -4365,6 +4551,13 @@ export function App() {
       className="app-shell"
       data-platform={snapshot.platform}
       data-renderer-ready="true"
+      style={
+        {
+          "--project-sidebar-width": sidebarOpen
+            ? `${projectSidebarWidth ?? PROJECT_SIDEBAR_WIDTH_DEFAULT}px`
+            : "0px",
+        } as CSSProperties
+      }
     >
       <aside className="activity-bar">
         <ArtemisMark />
@@ -4447,9 +4640,9 @@ export function App() {
         </button>
       </aside>
 
-      <aside className="sidebar">
+      <aside className="sidebar" ref={projectSidebar}>
         <div className="sidebar-header">
-          <span>{t.projects}</span>
+          <span>{t.tasks}</span>
           <div className="sidebar-header-actions">
             <label
               className={query ? "sidebar-search has-query" : "sidebar-search"}
@@ -4564,11 +4757,12 @@ export function App() {
                       <button
                         aria-label={t.moreActions}
                         className="thread-action"
-                        onClick={() =>
+                        onClick={() => {
+                          setProjectMenuId(undefined);
                           setThreadMenuId((current) =>
                             current === thread.id ? undefined : thread.id,
-                          )
-                        }
+                          );
+                        }}
                         title={t.moreActions}
                         type="button"
                       >
@@ -4618,6 +4812,30 @@ export function App() {
               )}
             </div>
           </section>
+          <section className="project-group project-collection">
+            <div className="project-row">
+              <button
+                aria-expanded={projectsOpen}
+                aria-label={
+                  projectsOpen ? t.collapseProjects : t.expandProjects
+                }
+                className="project-toggle"
+                onClick={() => setProjectsOpen((open) => !open)}
+                title={projectsOpen ? t.collapseProjects : t.expandProjects}
+                type="button"
+              >
+                <FolderIcon open={projectsOpen} />
+              </button>
+              <button
+                aria-expanded={projectsOpen}
+                className="project-select"
+                onClick={() => setProjectsOpen((open) => !open)}
+                type="button"
+              >
+                <span className="project-title">{t.projects}</span>
+              </button>
+            </div>
+          </section>
           {projects.map((project) => {
             const hasActiveTask = snapshot.threads.some(
               (thread) =>
@@ -4651,7 +4869,13 @@ export function App() {
               ? projectThreads
               : projectThreads.slice(0, PROJECT_THREAD_PREVIEW_LIMIT);
             return (
-              <section className="project-group" key={project.id}>
+              <section
+                aria-level={2}
+                className="project-group nested-project"
+                hidden={!projectsOpen && !query.trim()}
+                key={project.id}
+                role="group"
+              >
                 <div
                   className={`project-row ${project.id === activeProjectId ? "active" : ""}`}
                 >
@@ -4694,11 +4918,12 @@ export function App() {
                   <button
                     aria-label={t.moreProjectActions}
                     className="project-action"
-                    onClick={() =>
+                    onClick={() => {
+                      setThreadMenuId(undefined);
                       setProjectMenuId((current) =>
                         current === project.id ? undefined : project.id,
-                      )
-                    }
+                      );
+                    }}
                     title={t.moreProjectActions}
                   >
                     ···
@@ -4751,7 +4976,10 @@ export function App() {
                               onChange={(event) =>
                                 setThreadRename((current) =>
                                   current?.threadId === thread.id
-                                    ? { ...current, title: event.target.value }
+                                    ? {
+                                        ...current,
+                                        title: event.target.value,
+                                      }
                                     : current,
                                 )
                               }
@@ -4795,11 +5023,12 @@ export function App() {
                             <button
                               aria-label={t.moreActions}
                               className="thread-action"
-                              onClick={() =>
+                              onClick={() => {
+                                setProjectMenuId(undefined);
                                 setThreadMenuId((current) =>
                                   current === thread.id ? undefined : thread.id,
-                                )
-                              }
+                                );
+                              }}
                               title={t.moreActions}
                             >
                               ···
@@ -4890,6 +5119,23 @@ export function App() {
           )}
         </div>
       </aside>
+
+      <div
+        aria-label={t.resizeProjectsSidebar}
+        aria-orientation="vertical"
+        aria-valuemax={PROJECT_SIDEBAR_WIDTH_MAX}
+        aria-valuemin={PROJECT_SIDEBAR_WIDTH_MIN}
+        aria-valuenow={projectSidebarWidth ?? PROJECT_SIDEBAR_WIDTH_DEFAULT}
+        className="project-sidebar-resizer"
+        data-open={sidebarOpen}
+        onKeyDown={resizeProjectSidebarFromKeyboard}
+        onPointerCancel={cancelProjectSidebarResize}
+        onPointerDown={beginProjectSidebarResize}
+        onPointerMove={moveProjectSidebarResize}
+        onPointerUp={finishProjectSidebarResize}
+        role="separator"
+        tabIndex={sidebarOpen ? 0 : -1}
+      />
 
       <section className="workspace">
         {activeView === "token-usage" ? (
@@ -5924,6 +6170,8 @@ export function App() {
                                 <div
                                   aria-label={t.modelPicker}
                                   className="model-picker-menu"
+                                  onMouseEnter={cancelModelPickerHoverClose}
+                                  onMouseLeave={scheduleModelPickerHoverClose}
                                   role="menu"
                                 >
                                   <div className="model-picker-navigation">

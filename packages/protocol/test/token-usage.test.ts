@@ -98,6 +98,34 @@ describe("assistant token usage protocol", () => {
     ).toBe(false);
   });
 
+  it("accepts optional model attribution without breaking legacy usage", () => {
+    const attributed = agentPayloadSchema.parse({
+      type: "assistant.usage",
+      providerId: "openai",
+      modelId: "gpt-5.6",
+      inputTokens: 800,
+      outputTokens: 200,
+      cacheReadTokens: 100,
+      cacheWriteTokens: 50,
+      totalTokens: 1_150,
+    });
+
+    expect(attributed).toMatchObject({
+      providerId: "openai",
+      modelId: "gpt-5.6",
+    });
+    expect(
+      agentPayloadSchema.safeParse({
+        type: "assistant.usage",
+        inputTokens: 800,
+        outputTokens: 200,
+        cacheReadTokens: 100,
+        cacheWriteTokens: 50,
+        totalTokens: 1_150,
+      }).success,
+    ).toBe(true);
+  });
+
   it("emits usage at most once when the same explicit assistant end is replayed", () => {
     const adapter = new PiAdapter("turn-replayed-usage");
     const messageEnd = {

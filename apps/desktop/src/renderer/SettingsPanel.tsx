@@ -36,7 +36,9 @@ const labels = {
     title: "Settings",
     close: "Close",
     tabGeneral: "General",
-    tabProviders: "Custom providers",
+    tabProviders: "Providers & models",
+    providerConfigBuiltin: "Built-in",
+    providerConfigCustom: "Custom",
     tabAgents: "Agent configuration",
     tabCapabilities: "Execution access",
     tabMaintenance: "Updates & diagnostics",
@@ -213,7 +215,9 @@ const labels = {
     title: "设置",
     close: "关闭",
     tabGeneral: "通用",
-    tabProviders: "自定义 Provider",
+    tabProviders: "供应商及模型配置",
+    providerConfigBuiltin: "内置",
+    providerConfigCustom: "自定义",
     tabAgents: "Agent 配置",
     tabCapabilities: "执行权限",
     tabMaintenance: "更新与诊断",
@@ -418,6 +422,9 @@ export function SettingsPanel({
     ),
   } as (typeof labels)["en"];
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const [providerConfigTab, setProviderConfigTab] = useState<
+    "builtin" | "custom"
+  >("builtin");
   const [settings, setSettings] = useState<SettingsSnapshot>();
   const [selectedModel, setSelectedModel] = useState("");
   const [contextWindow, setContextWindow] = useState("");
@@ -980,169 +987,205 @@ export function SettingsPanel({
               id={`settings-tab-${activeTab}`}
               role="tabpanel"
             >
-              {activeTab === "general" && (
+              {activeTab === "providers" && (
                 <>
-                  <section className="settings-section">
-                    <h3>{t.model}</h3>
-                    <div className="settings-field">
-                      <span>{t.model}</span>
-                      <div className="settings-codex-select">
-                        <CodexSelect
-                          ariaLabel={t.model}
-                          disabled={busy || models.length === 0}
-                          onChange={selectModel}
-                          noResultsLabel={t.modelSearchEmpty}
-                          options={models.map((model) => ({
-                            value: modelKey(model.providerId, model.modelId),
-                            label: `${model.providerId} · ${model.name}`,
-                            searchText: `${model.providerId} ${model.name} ${model.modelId}`,
-                          }))}
-                          searchPlaceholder={t.modelSearch}
-                          value={selectedModel}
-                        />
-                      </div>
-                    </div>
-                    {models.length === 0 && (
-                      <p className="settings-empty">{t.modelUnavailable}</p>
-                    )}
-                    <div className="settings-field">
-                      <span>{t.contextWindow}</span>
-                      <input
-                        aria-label={t.contextWindow}
-                        disabled={busy || !selectedModelInfo}
-                        max={selectedModelInfo?.contextWindow}
-                        min={1_024}
-                        onChange={(event) =>
-                          setContextWindow(event.target.value)
-                        }
-                        step={1_024}
-                        type="number"
-                        value={contextWindow}
-                      />
-                    </div>
-                    {selectedModelInfo && (
-                      <p className="settings-security">
-                        {t.contextWindowHint.replace(
-                          "{limit}",
-                          selectedModelInfo.contextWindow.toLocaleString(
-                            locale,
-                          ),
-                        )}
-                      </p>
-                    )}
-                    {!selectedModelUsesCustomProvider && (
-                      <>
-                        <div className="settings-field">
-                          <span>
-                            {t.apiKey}
-                            {selectedModelInfo?.providerId
-                              ? ` · ${selectedModelInfo.providerId}`
-                              : ""}
-                          </span>
-                          <input
-                            aria-label={t.apiKey}
-                            autoComplete="off"
-                            disabled={
-                              busy ||
-                              !selectedModelInfo ||
-                              !settings.encryptionAvailable
-                            }
-                            onChange={(event) =>
-                              setKeyApiKey(event.target.value)
-                            }
-                            placeholder={
-                              selectedModelCredential
-                                ? t.storedApiKey
-                                : t.apiKey
-                            }
-                            type="password"
-                            value={keyApiKey}
+                  <nav
+                    aria-label={t.tabProviders}
+                    className="provider-config-tabs"
+                    role="tablist"
+                  >
+                    {(
+                      [
+                        ["builtin", t.providerConfigBuiltin],
+                        ["custom", t.providerConfigCustom],
+                      ] as const
+                    ).map(([tab, label]) => (
+                      <button
+                        aria-controls={`provider-config-${tab}`}
+                        aria-selected={providerConfigTab === tab}
+                        className={providerConfigTab === tab ? "active" : ""}
+                        id={`provider-config-${tab}-tab`}
+                        key={tab}
+                        onClick={() => setProviderConfigTab(tab)}
+                        role="tab"
+                        type="button"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </nav>
+                  {providerConfigTab === "builtin" && (
+                    <section
+                      aria-labelledby="provider-config-builtin-tab"
+                      className="settings-section"
+                      id="provider-config-builtin"
+                      role="tabpanel"
+                    >
+                      <h3>{t.model}</h3>
+                      <div className="settings-field">
+                        <span>{t.model}</span>
+                        <div className="settings-codex-select">
+                          <CodexSelect
+                            ariaLabel={t.model}
+                            disabled={busy || models.length === 0}
+                            onChange={selectModel}
+                            noResultsLabel={t.modelSearchEmpty}
+                            options={models.map((model) => ({
+                              value: modelKey(model.providerId, model.modelId),
+                              label: `${model.providerId} · ${model.name}`,
+                              searchText: `${model.providerId} ${model.name} ${model.modelId}`,
+                            }))}
+                            searchPlaceholder={t.modelSearch}
+                            value={selectedModel}
                           />
                         </div>
-                        <p className="settings-security">
-                          {settings.encryptionAvailable
-                            ? t.encrypted
-                            : t.unavailable}
-                        </p>
-                      </>
-                    )}
-                    <button
-                      className="settings-primary-action"
-                      disabled={
-                        busy ||
-                        !selectedModel ||
-                        !contextWindowValid ||
-                        !selectedModelCanBeAdded
-                      }
-                      onClick={addModel}
-                    >
-                      {t.saveModel}
-                    </button>
-                    <div
-                      aria-label={t.addedModels}
-                      className="added-model-list"
-                    >
-                      <strong>{t.addedModels}</strong>
-                      {settings.addedModels.map((model) => {
-                        const catalogModel = models.find(
-                          (candidate) =>
-                            candidate.providerId === model.providerId &&
-                            candidate.modelId === model.modelId,
-                        );
-                        return (
-                          <div
-                            className="added-model-row"
-                            key={modelKey(model.providerId, model.modelId)}
-                          >
-                            <span>
-                              <strong>
-                                {catalogModel?.name ?? model.modelId}
-                              </strong>
-                              <small>
-                                {model.providerId} · {model.modelId} ·{" "}
-                                {model.contextWindow.toLocaleString(locale)}{" "}
-                                token
-                              </small>
-                            </span>
-                            <button
-                              aria-label={`${t.removeModel}: ${catalogModel?.name ?? model.modelId}`}
-                              className="text-button danger"
-                              disabled={busy}
-                              onClick={() => {
-                                setMessage("");
-                                setModelDeleteTarget(model);
-                              }}
-                              type="button"
-                            >
-                              {t.delete}
-                            </button>
-                          </div>
-                        );
-                      })}
-                      {settings.addedModels.length === 0 && (
-                        <span className="settings-empty">
-                          {t.noAddedModels}
-                        </span>
+                      </div>
+                      {models.length === 0 && (
+                        <p className="settings-empty">{t.modelUnavailable}</p>
                       )}
-                    </div>
-                    <button
-                      className="settings-secondary-action"
-                      disabled={busy || !settings.encryptionAvailable}
-                      onClick={() =>
-                        void run(async () => {
-                          const result =
-                            await window.artemis.importPiCredentials();
-                          if (result) {
-                            setSettings(result.settings);
-                            setMessage(`${result.imported} ${t.imported}`);
+                      <div className="settings-field">
+                        <span>{t.contextWindow}</span>
+                        <input
+                          aria-label={t.contextWindow}
+                          disabled={busy || !selectedModelInfo}
+                          max={selectedModelInfo?.contextWindow}
+                          min={1_024}
+                          onChange={(event) =>
+                            setContextWindow(event.target.value)
                           }
-                        })
-                      }
-                    >
-                      {t.importPi}
-                    </button>
-                  </section>
+                          step={1_024}
+                          type="number"
+                          value={contextWindow}
+                        />
+                      </div>
+                      {selectedModelInfo && (
+                        <p className="settings-security">
+                          {t.contextWindowHint.replace(
+                            "{limit}",
+                            selectedModelInfo.contextWindow.toLocaleString(
+                              locale,
+                            ),
+                          )}
+                        </p>
+                      )}
+                      {!selectedModelUsesCustomProvider && (
+                        <>
+                          <div className="settings-field">
+                            <span>
+                              {t.apiKey}
+                              {selectedModelInfo?.providerId
+                                ? ` · ${selectedModelInfo.providerId}`
+                                : ""}
+                            </span>
+                            <input
+                              aria-label={t.apiKey}
+                              autoComplete="off"
+                              disabled={
+                                busy ||
+                                !selectedModelInfo ||
+                                !settings.encryptionAvailable
+                              }
+                              onChange={(event) =>
+                                setKeyApiKey(event.target.value)
+                              }
+                              placeholder={
+                                selectedModelCredential
+                                  ? t.storedApiKey
+                                  : t.apiKey
+                              }
+                              type="password"
+                              value={keyApiKey}
+                            />
+                          </div>
+                          <p className="settings-security">
+                            {settings.encryptionAvailable
+                              ? t.encrypted
+                              : t.unavailable}
+                          </p>
+                        </>
+                      )}
+                      <button
+                        className="settings-primary-action"
+                        disabled={
+                          busy ||
+                          !selectedModel ||
+                          !contextWindowValid ||
+                          !selectedModelCanBeAdded
+                        }
+                        onClick={addModel}
+                      >
+                        {t.saveModel}
+                      </button>
+                      <div
+                        aria-label={t.addedModels}
+                        className="added-model-list"
+                      >
+                        <strong>{t.addedModels}</strong>
+                        {settings.addedModels.map((model) => {
+                          const catalogModel = models.find(
+                            (candidate) =>
+                              candidate.providerId === model.providerId &&
+                              candidate.modelId === model.modelId,
+                          );
+                          return (
+                            <div
+                              className="added-model-row"
+                              key={modelKey(model.providerId, model.modelId)}
+                            >
+                              <span>
+                                <strong>
+                                  {catalogModel?.name ?? model.modelId}
+                                </strong>
+                                <small>
+                                  {model.providerId} · {model.modelId} ·{" "}
+                                  {model.contextWindow.toLocaleString(locale)}{" "}
+                                  token
+                                </small>
+                              </span>
+                              <button
+                                aria-label={`${t.removeModel}: ${catalogModel?.name ?? model.modelId}`}
+                                className="text-button danger"
+                                disabled={busy}
+                                onClick={() => {
+                                  setMessage("");
+                                  setModelDeleteTarget(model);
+                                }}
+                                type="button"
+                              >
+                                {t.delete}
+                              </button>
+                            </div>
+                          );
+                        })}
+                        {settings.addedModels.length === 0 && (
+                          <span className="settings-empty">
+                            {t.noAddedModels}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        className="settings-secondary-action"
+                        disabled={busy || !settings.encryptionAvailable}
+                        onClick={() =>
+                          void run(async () => {
+                            const result =
+                              await window.artemis.importPiCredentials();
+                            if (result) {
+                              setSettings(result.settings);
+                              setMessage(`${result.imported} ${t.imported}`);
+                            }
+                          })
+                        }
+                      >
+                        {t.importPi}
+                      </button>
+                    </section>
+                  )}
+                </>
+              )}
 
+              {activeTab === "general" && (
+                <>
                   <section className="settings-section">
                     <h3>{t.language}</h3>
                     <div className="settings-field">
@@ -1189,8 +1232,13 @@ export function SettingsPanel({
                 </>
               )}
 
-              {activeTab === "providers" && (
-                <section className="settings-section">
+              {activeTab === "providers" && providerConfigTab === "custom" && (
+                <section
+                  aria-labelledby="provider-config-custom-tab"
+                  className="settings-section"
+                  id="provider-config-custom"
+                  role="tabpanel"
+                >
                   <h3>{t.customProviders}</h3>
                   <p className="settings-security">{t.providerHint}</p>
                   <form
