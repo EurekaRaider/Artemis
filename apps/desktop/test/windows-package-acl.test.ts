@@ -153,4 +153,16 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     expect(helper).toContain("var writablePathSet = new HashSet<string>(");
     expect(helper).toContain("if (!writablePathSet.Contains(workspace))");
   });
+
+  it("falls back to classic AppContainer when the experimental API is unavailable", () => {
+    const helper = readFileSync(sandboxHelperPath, "utf8");
+
+    expect(helper).toContain("$experimentalSandboxUnavailable");
+    expect(helper).toContain("'failed: 120'");
+    expect(helper).toContain(
+      "'LoadLibraryEx\\(processmodel\\.dll\\) failed: 126'",
+    );
+    expect(helper).toContain("'Windows CreateProcessInSandbox is unavailable'");
+    expect(helper).toContain("[ArtemisNativeSandbox]::LaunchClassic(");
+  });
 });
