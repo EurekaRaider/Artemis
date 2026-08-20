@@ -254,18 +254,50 @@ async function cleanupWindowsAppContainerFixture(
   } as const;
   const results = await Promise.all(
     directories.map(async (directory) => {
-      let cleanupTimeout: ReturnType<typeof setTimeout> | undefined;
       try {
-        const removed = await Promise.race([
-          rm(directory, cleanupOptions).then(() => true),
-          new Promise<boolean>((resolvePromise) => {
-            cleanupTimeout = setTimeout(
-              () => resolvePromise(!existsSync(directory)),
-              WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS,
-            );
-          }),
-        ]);
-        if (removed || !existsSync(directory)) return undefined;
+        let entries: string[];
+        try {
+          entries = await readdir(directory);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            return undefined;
+          }
+          throw error;
+        }
+        const entryFailures = (
+          await Promise.all(
+            entries.map(async (entry) => {
+              const target = join(directory, entry);
+              let cleanupTimeout: ReturnType<typeof setTimeout> | undefined;
+              try {
+                const removed = await Promise.race([
+                  rm(target, cleanupOptions).then(() => true),
+                  new Promise<boolean>((resolvePromise) => {
+                    cleanupTimeout = setTimeout(
+                      () => resolvePromise(!existsSync(target)),
+                      WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS,
+                    );
+                  }),
+                ]);
+                return removed || !existsSync(target)
+                  ? undefined
+                  : new Error(`Fixture entry cleanup timed out: ${target}`);
+              } catch (error) {
+                return new Error(`Failed to remove fixture entry: ${target}`, {
+                  cause: error,
+                });
+              } finally {
+                if (cleanupTimeout) clearTimeout(cleanupTimeout);
+              }
+            }),
+          )
+        ).filter((failure) => failure !== undefined);
+        if (entryFailures.length > 0) {
+          return new AggregateError(
+            entryFailures,
+            `Failed to empty MCP fixture directory: ${directory}`,
+          );
+        }
 
         let emptyRootRemovalError: unknown;
         let emptyRootTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -289,7 +321,7 @@ async function cleanupWindowsAppContainerFixture(
 
         const emptyRootDetail = emptyRootRemovalError
           ? `; empty root removal failed: ${emptyRootRemovalError instanceof Error ? emptyRootRemovalError.message : String(emptyRootRemovalError)}`
-          : "";
+          : "; empty root removal resolved but root still exists";
         return new Error(
           `MCP fixture directory cleanup timed out: ${directory}${emptyRootDetail}\n${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
         );
@@ -300,8 +332,6 @@ async function cleanupWindowsAppContainerFixture(
             cause: error,
           },
         );
-      } finally {
-        if (cleanupTimeout) clearTimeout(cleanupTimeout);
       }
     }),
   );
