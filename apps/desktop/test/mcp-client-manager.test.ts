@@ -280,6 +280,24 @@ async function removeWindowsFixtureTree(
     return;
   }
 
+  try {
+    await runWindowsFixtureCleanupOperation(target, deadline, () =>
+      rmdir(target),
+    );
+    await waitForWindowsFixturePathRemoval(target, deadline);
+    return;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || !existsSync(target)) return;
+    if (code !== "ENOTEMPTY" && code !== "EEXIST" && code !== "EPERM") {
+      throw new WindowsFixtureCleanupPathError(
+        target,
+        `Failed to probe Windows fixture directory: ${target}`,
+        { cause: error },
+      );
+    }
+  }
+
   const entries = await retryWindowsFixtureCleanup(target, deadline, () =>
     readdir(target),
   );
