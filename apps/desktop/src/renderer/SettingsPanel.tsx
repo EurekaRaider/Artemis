@@ -23,6 +23,7 @@ import {
 } from "../shared/locales.js";
 import { I18N_RESOURCES } from "../shared/i18n-resources.js";
 import { CodexSelect } from "./CodexSelect.js";
+import { prepareProfileAvatar } from "./profile-avatar.js";
 
 interface SettingsPanelProps {
   initialTab?: SettingsTab;
@@ -72,6 +73,12 @@ const labels = {
     themeLight: "Light",
     themeDark: "Dark",
     themeHint: "Theme changes apply immediately.",
+    profileAvatar: "Profile picture",
+    profileAvatarUpload: "Choose image",
+    profileAvatarChange: "Change image",
+    profileAvatarRemove: "Remove",
+    profileAvatarHint:
+      "PNG, JPEG, or WebP up to 8 MiB. Artemis crops and stores a 256 px local copy.",
     customProviders: "Custom providers",
     provider: "Provider ID",
     providerName: "Provider display name",
@@ -250,6 +257,12 @@ const labels = {
     themeLight: "浅色",
     themeDark: "深色",
     themeHint: "主题修改后立即生效。",
+    profileAvatar: "头像",
+    profileAvatarUpload: "选择图片",
+    profileAvatarChange: "更换图片",
+    profileAvatarRemove: "移除",
+    profileAvatarHint:
+      "支持不超过 8 MiB 的 PNG、JPEG 或 WebP；Artemis 会裁剪并在本地保存 256 px 副本。",
     customProviders: "自定义 Provider",
     provider: "Provider ID",
     providerName: "Provider 显示名称",
@@ -700,6 +713,15 @@ export function SettingsPanel({
   async function setTheme(theme: AppTheme) {
     await run(async () => {
       const updated = await window.artemis.setTheme(theme);
+      setSettings(updated);
+      onSettingsChange(updated);
+    });
+  }
+
+  async function setProfileAvatar(file: File | undefined) {
+    await run(async () => {
+      const avatar = file ? await prepareProfileAvatar(file) : undefined;
+      const updated = await window.artemis.setProfileAvatar(avatar);
       setSettings(updated);
       onSettingsChange(updated);
     });
@@ -1186,6 +1208,48 @@ export function SettingsPanel({
 
               {activeTab === "general" && (
                 <>
+                  <section className="settings-section">
+                    <h3>{t.profileAvatar}</h3>
+                    <div className="settings-profile-avatar">
+                      <div className="settings-profile-avatar-preview">
+                        {settings.profileAvatar ? (
+                          <img alt="" src={settings.profileAvatar} />
+                        ) : (
+                          <span aria-hidden="true">◎</span>
+                        )}
+                      </div>
+                      <div className="settings-profile-avatar-actions">
+                        <label className="settings-secondary-action">
+                          <input
+                            accept="image/jpeg,image/png,image/webp"
+                            className="profile-avatar-input"
+                            disabled={busy}
+                            onChange={(event) => {
+                              const file = event.currentTarget.files?.[0];
+                              event.currentTarget.value = "";
+                              if (file) void setProfileAvatar(file);
+                            }}
+                            type="file"
+                          />
+                          {settings.profileAvatar
+                            ? t.profileAvatarChange
+                            : t.profileAvatarUpload}
+                        </label>
+                        {settings.profileAvatar && (
+                          <button
+                            className="settings-secondary-action"
+                            disabled={busy}
+                            onClick={() => void setProfileAvatar(undefined)}
+                            type="button"
+                          >
+                            {t.profileAvatarRemove}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="settings-security">{t.profileAvatarHint}</p>
+                  </section>
+
                   <section className="settings-section">
                     <h3>{t.language}</h3>
                     <div className="settings-field">

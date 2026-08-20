@@ -83,9 +83,11 @@ function intensity(value: number, maximum: number): number {
 
 export function TokenUsagePage({
   locale,
+  profileAvatar,
   username,
 }: {
   locale: TokenUsageLocale;
+  profileAvatar?: string;
   username: string;
 }) {
   const t = localizedCopy(
@@ -295,7 +297,15 @@ export function TokenUsagePage({
     >
       <header className="token-usage-profile">
         <div aria-hidden="true" className="token-usage-avatar">
-          {userInitials(username)}
+          {profileAvatar ? (
+            <img
+              alt=""
+              className="token-usage-avatar-image"
+              src={profileAvatar}
+            />
+          ) : (
+            userInitials(username)
+          )}
         </div>
         <h1>{username}</h1>
         <p title={t.subtitle}>

@@ -84,7 +84,7 @@ credentials are protected with operating-system encryption.
   <tr>
     <td width="50%" valign="top">
       <p><strong>01</strong>&nbsp;&nbsp;/&nbsp;&nbsp;AGENT WORKSPACE</p>
-      <p>Persistent projects and Local tasks, projectless Temporary conversations, a resizable two-level conversation sidebar, per-conversation model/thinking/context settings, collapsible history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
+      <p>Persistent projects and Local tasks, projectless Temporary conversations, a resizable and reorderable two-level conversation sidebar, per-conversation model/thinking/context settings, collapsible history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
     </td>
     <td width="50%" valign="top">
       <p><strong>02</strong>&nbsp;&nbsp;/&nbsp;&nbsp;WORKSPACE TOOLS</p>
@@ -114,7 +114,7 @@ credentials are protected with operating-system encryption.
   <tr>
     <td colspan="2" valign="top">
       <p><strong>07</strong>&nbsp;&nbsp;/&nbsp;&nbsp;OPERATIONS</p>
-      <p>Local automations, daily/weekly/cumulative Token insights with per-model filtering and breakdowns, cache hit and reporting coverage, fork-safe usage accounting, OS user identity, 14-language/system-language UI, themes, diagnostics export, update recovery and native packaging gates.</p>
+      <p>Local automations, daily/weekly/cumulative Token insights with a local profile picture, per-model filtering and breakdowns, cache hit and reporting coverage, fork-safe usage accounting, OS user identity, 14-language/system-language UI, themes, diagnostics export, update recovery and native packaging gates.</p>
     </td>
   </tr>
 </table>
@@ -254,12 +254,13 @@ other everyday tasks.
 
 - **Project and task management** — add a repository with the native picker;
   use Temporary conversations and Projects as the two sidebar roots, expand
-  individual project histories beneath Projects, and drag the persisted sidebar
-  width to fit long task names or reclaim workspace space. Preview five tasks
-  before expanding, and create, rename, search, archive, restore, fork, delete
-  or switch tasks from the sidebar. Running and approval-waiting tasks stay at
-  the top, ordered by the most recently submitted prompt when several are
-  active. Sidebar action menus dismiss on outside click or Escape.
+  individual project histories beneath Projects, drag projects into a preferred
+  order that survives restart, and drag the persisted sidebar width to fit long
+  task names or reclaim workspace space. Preview five tasks before expanding,
+  and create, rename, search, archive, restore, fork, delete or switch tasks
+  from the sidebar. Running and approval-waiting tasks stay at the top, ordered
+  by the most recently submitted prompt when several are active. Sidebar action
+  menus dismiss on outside click or Escape.
 - **Temporary conversations** — start, persist, archive, fork and delete a
   conversation without adding a project. Each conversation and fork has an
   isolated workspace under application data. Temporary conversations do not
@@ -318,10 +319,11 @@ other everyday tasks.
 - **Progress and context** — `update_plan` produces visible multi-step progress
   only while its turn remains active; run timing and context-window usage remain
   visible. The context indicator distinguishes the current local estimate from
-  the last provider-measured input and refreshes after tool results. Manual and
-  automatic context compaction immediately add an in-progress timeline row with
-  the same left-to-right highlight sweep as Thinking, followed by the completion
-  state. Post-compaction usage combines the rebuilt message estimate with the
+  the last provider-measured input, refreshes after tool results and preserves
+  sub-percent ring movement for large context windows. Manual and automatic
+  context compaction immediately add an in-progress timeline row with the same
+  left-to-right highlight sweep as Thinking, followed by the completion state.
+  Post-compaction usage combines the rebuilt message estimate with the
   system prompt, tools, MCP schemas, project instructions and Skills that remain
   in context. Usage Insights adds daily, weekly and cumulative Token totals with
   a calendar heatmap, all-model or per-model filtering, a Provider/model usage
@@ -534,7 +536,7 @@ pages:
 
 | Page                      | Functions                                                                                                                                                                                                                                                                                                                    |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **General**               | Language, theme and approval policy                                                                                                                                                                                                                                                                                          |
+| **General**               | Local profile-picture upload/removal with a bounded 256 px copy, language, theme and approval policy                                                                                                                                                                                                                         |
 | **Providers & models**    | One focused page with **Built-in** and **Custom** tabs: default model search/selection, validated context-window limits, the Pi catalog including GLM-5.3 for Z.AI endpoints, editable OpenAI-compatible Chat Completions/Responses providers, reasoning/image capabilities, encrypted API keys and explicit Pi OAuth import |
 | **Agent configuration**   | Editable global `AGENTS.md`, configuration scan/preview/import and imported source/category selection without silent credential copying                                                                                                                                                                                      |
 | **MCP & extensions**      | MCP stdio/Streamable HTTP configuration, bearer/OAuth/Registry-header authorization, enablement, trusted-extension selection, hash state, tool inventory and extension network policy                                                                                                                                        |
@@ -1030,14 +1032,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.3`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.4`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.3
-git push origin v1.4.3
+git tag v1.4.4
+git push origin v1.4.4
 ```
 
 ### Build and test matrix
@@ -1050,11 +1052,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **928 passing tests** (5 skipped):
+The current full test run contains **948 passing tests** (5 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       64 |       23 |        108 |     733 |   **928** |
+|       64 |       23 |        108 |     753 |   **948** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1062,8 +1064,9 @@ selection/storage/tool brokerage, task-turn memory integration, Execute/Office
 contracts, legacy run-mode migration, multi-Agent scheduling, dependencies,
 write-scope conflict checks, audited collaboration and lifecycle control, draft
 and deletion lifecycles, Git Review with untracked/binary staging, attachments,
-automations, usage insights, configuration import, Skills, MCP, extensions,
-Terminal behavior and Windows-native extension sandbox boundaries.
+automations, usage insights, persisted project ordering, local profile images,
+configuration import, Skills, MCP, extensions, Terminal behavior and
+Windows-native extension sandbox boundaries.
 
 The release dependency tree also reports **0 known vulnerabilities** through
 `npm audit`.
@@ -1082,13 +1085,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.3` packaging configuration produces:
+The `1.4.4` packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.3.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.3.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.3.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.4.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.4.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.4.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

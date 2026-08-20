@@ -58,11 +58,12 @@ describe("current user profile integration", () => {
     expect(footer).toContain("{username}");
     expect(footer).not.toContain("{t.local}");
     expect(appSource).toMatch(
-      /<TokenUsagePage\s+locale=\{locale\}\s+username=\{username\}\s*\/>/u,
+      /<TokenUsagePage\s+locale=\{locale\}[\s\S]*?username=\{username\}\s*\/>/u,
     );
+    expect(appSource).toContain("runtimeSettings?.profileAvatar");
   });
 
-  it("renders a centered circular initial avatar and username above the token summary", () => {
+  it("renders a centered local avatar with initials fallback above the token summary", () => {
     const profileStart = pageSource.indexOf(
       '<header className="token-usage-profile">',
     );
@@ -77,7 +78,9 @@ describe("current user profile integration", () => {
     expect(profileEnd).toBeGreaterThan(profileStart);
     expect(profileStart).toBeLessThan(summaryStart);
     expect(profile).toContain('className="token-usage-avatar"');
-    expect(profile).toContain("{userInitials(username)}");
+    expect(profile).toContain("profileAvatar ? (");
+    expect(profile).toContain('className="token-usage-avatar-image"');
+    expect(profile).toContain("userInitials(username)");
     expect(profile).toContain("<h1>{username}</h1>");
     expect(profile).toContain('className="token-usage-handle"');
     expect(profile).toContain("@{username}");

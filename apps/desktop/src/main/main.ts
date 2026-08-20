@@ -1394,6 +1394,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     128_000;
   const workspaceDockWidth = await settingsStore.workspaceDockWidth();
   const projectSidebarWidth = await settingsStore.projectSidebarWidth();
+  const profileAvatar = await settingsStore.profileAvatar();
   return {
     platform: contract.platform,
     encryptionAvailable: settingsStore.encryptionAvailable,
@@ -1418,6 +1419,8 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
       rollbackAvailable: false,
     },
     agentConcurrency: await agentConcurrencyStatus(),
+    ...(profileAvatar === undefined ? {} : { profileAvatar }),
+    projectOrder: await settingsStore.projectOrder(),
     ...(projectSidebarWidth === undefined ? {} : { projectSidebarWidth }),
     ...(workspaceDockWidth === undefined ? {} : { workspaceDockWidth }),
     ...(selection ? { selection } : {}),
@@ -4196,6 +4199,25 @@ function registerIpc(): void {
   });
 
   ipcMain.handle(IPC.settingsGet, () => getSettingsSnapshot());
+  ipcMain.handle(
+    IPC.settingsProfileAvatarSet,
+    async (_event, avatar: string | undefined): Promise<SettingsSnapshot> => {
+      if (!settingsStore) {
+        throw new Error("Agent settings are not ready.");
+      }
+      await settingsStore.setProfileAvatar(avatar);
+      return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
+    IPC.settingsProjectOrderSet,
+    async (_event, order: string[]): Promise<string[]> => {
+      if (!settingsStore) {
+        throw new Error("Agent settings are not ready.");
+      }
+      return settingsStore.setProjectOrder(order);
+    },
+  );
   ipcMain.handle(
     IPC.settingsProjectSidebarWidthSet,
     async (_event, width: number): Promise<number> => {

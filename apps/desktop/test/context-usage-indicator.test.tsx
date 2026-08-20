@@ -23,6 +23,23 @@ describe("ContextUsageIndicator", () => {
     expect(html).toContain("已用 6.1万 Token，共 25.8万");
   });
 
+  it("advances the ring for sub-percent growth in large contexts", () => {
+    const html = renderToStaticMarkup(
+      <ContextUsageIndicator
+        contextWindow={1_000_000}
+        locale="en"
+        usage={{
+          tokens: 1_000,
+          contextWindow: 1_000_000,
+          compacting: false,
+        }}
+      />,
+    );
+
+    expect(html).toContain("stroke-dashoffset:99.9");
+    expect(html).toContain("0% used (100% left)");
+  });
+
   it("lists the estimated current context by source category", () => {
     const html = renderToStaticMarkup(
       <ContextUsageIndicator
