@@ -1052,11 +1052,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **946 passing tests** (5 skipped):
+The current full test run contains **948 passing tests** (5 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       64 |       23 |        108 |     751 |   **946** |
+|       64 |       23 |        108 |     753 |   **948** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory

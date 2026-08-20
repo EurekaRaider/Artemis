@@ -41,6 +41,7 @@ describe("reported issue regressions #31-#42", () => {
     expect(status).toContain("max-width: 960px");
     expect(status).toContain("padding: 0 20px");
     expect(status).toContain("width: 100%");
+    expect(cssDeclarations(".timeline > .turn-status")).toContain("padding: 0");
   });
 
   it("adds the requested environment offset and activity/sidebar divider", () => {

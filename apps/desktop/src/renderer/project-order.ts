@@ -1,5 +1,58 @@
 export type ProjectDropEdge = "before" | "after";
 
+interface ProjectOrderPersistenceQueueOptions {
+  save(order: string[]): Promise<string[]>;
+  onPersisted(order: string[]): void;
+  onRejected(order: string[], error: unknown): void;
+}
+
+export interface ProjectOrderPersistenceQueue {
+  initialize(order: readonly string[]): void;
+  persist(
+    order: readonly string[],
+    previousOrder: readonly string[],
+  ): Promise<void>;
+}
+
+export function createProjectOrderPersistenceQueue({
+  save,
+  onPersisted,
+  onRejected,
+}: ProjectOrderPersistenceQueueOptions): ProjectOrderPersistenceQueue {
+  let persistence = Promise.resolve();
+  let persistedOrder: string[] = [];
+  let hasBaseline = false;
+  let latestRevision = 0;
+
+  return {
+    initialize(order) {
+      if (latestRevision > 0) return;
+      persistedOrder = [...order];
+      hasBaseline = true;
+    },
+    persist(order, previousOrder) {
+      if (!hasBaseline) {
+        persistedOrder = [...previousOrder];
+        hasBaseline = true;
+      }
+      const requestedOrder = [...order];
+      const revision = ++latestRevision;
+      persistence = persistence.then(async () => {
+        try {
+          const savedOrder = await save(requestedOrder);
+          persistedOrder = [...savedOrder];
+          if (revision === latestRevision) onPersisted([...savedOrder]);
+        } catch (error) {
+          if (revision === latestRevision) {
+            onRejected([...persistedOrder], error);
+          }
+        }
+      });
+      return persistence;
+    },
+  };
+}
+
 export function orderProjectsByPreference<TProject extends { id: string }>(
   projects: readonly TProject[],
   preference: readonly string[] | undefined,

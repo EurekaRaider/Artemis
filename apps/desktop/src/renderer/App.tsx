@@ -164,9 +164,11 @@ import {
   PROJECT_SIDEBAR_WIDTH_MIN,
 } from "./project-sidebar-layout.js";
 import {
+  createProjectOrderPersistenceQueue,
   orderProjectsByPreference,
   reorderProjectIds,
   type ProjectDropEdge,
+  type ProjectOrderPersistenceQueue,
 } from "./project-order.js";
 import {
   reduceTurnFailureNotices,
@@ -1527,6 +1529,28 @@ export function App() {
       id: toastSerial.current,
     });
   }, []);
+  const projectOrderPersistence = useRef<
+    ProjectOrderPersistenceQueue | undefined
+  >(undefined);
+  if (!projectOrderPersistence.current) {
+    projectOrderPersistence.current = createProjectOrderPersistenceQueue({
+      save: (order) => window.artemis.setProjectOrder(order),
+      onPersisted: (order) => {
+        setRuntimeSettings((current) =>
+          current ? { ...current, projectOrder: order } : current,
+        );
+      },
+      onRejected: (order, error) => {
+        setRuntimeSettings((current) =>
+          current ? { ...current, projectOrder: order } : current,
+        );
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      },
+    });
+  }
   const [turnFailureNotices, setTurnFailureNotices] =
     useState<TurnFailureNotices>({});
   const timelineScroll = useRef<HTMLDivElement>(null);
@@ -2458,27 +2482,13 @@ export function App() {
     return projectSidebarPersistence.current;
   }, []);
   const persistProjectOrder = useCallback(
-    async (order: string[]) => {
-      const previousOrder = runtimeSettings?.projectOrder ?? [];
+    (order: string[], previousOrder: string[]) => {
       setRuntimeSettings((current) =>
         current ? { ...current, projectOrder: order } : current,
       );
-      try {
-        const persisted = await window.artemis.setProjectOrder(order);
-        setRuntimeSettings((current) =>
-          current ? { ...current, projectOrder: persisted } : current,
-        );
-      } catch (error) {
-        setRuntimeSettings((current) =>
-          current ? { ...current, projectOrder: previousOrder } : current,
-        );
-        setToast({
-          error: true,
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
+      return projectOrderPersistence.current?.persist(order, previousOrder);
     },
-    [runtimeSettings?.projectOrder, setToast],
+    [],
   );
   const projectSidebarWidthForPointer = useCallback((clientX: number) => {
     const drag = projectSidebarDrag.current;
@@ -2806,6 +2816,7 @@ export function App() {
       .getSettings()
       .then((value) => {
         if (mounted) {
+          projectOrderPersistence.current?.initialize(value.projectOrder ?? []);
           setApprovalPolicy(value.approvalPolicy);
           setRuntimeSettings(value);
         }
@@ -4940,15 +4951,18 @@ export function App() {
                 onDrop={(event) => {
                   event.preventDefault();
                   if (!draggedProjectId || !projectDropTarget) return;
+                  const previousOrder = projects.map(
+                    (candidate) => candidate.id,
+                  );
                   const order = reorderProjectIds(
-                    projects.map((candidate) => candidate.id),
+                    previousOrder,
                     draggedProjectId,
                     projectDropTarget.projectId,
                     projectDropTarget.edge,
                   );
                   setDraggedProjectId(undefined);
                   setProjectDropTarget(undefined);
-                  void persistProjectOrder(order);
+                  void persistProjectOrder(order, previousOrder);
                 }}
                 role="group"
               >
