@@ -484,7 +484,8 @@ public static class ArtemisNativeSandbox
             return;
         if (!TerminateJobObject(job, 1))
             ThrowLastError("TerminateJobObject");
-        var deadline = Environment.TickCount64 + JOB_TEARDOWN_TIMEOUT_MS;
+        var deadline = DateTime.UtcNow.AddMilliseconds(
+            JOB_TEARDOWN_TIMEOUT_MS);
         while (true)
         {
             if (!QueryInformationJobObject(
@@ -496,7 +497,7 @@ public static class ArtemisNativeSandbox
                 ThrowLastError("QueryInformationJobObject");
             if (information.ActiveProcesses == 0)
                 return;
-            if (Environment.TickCount64 >= deadline)
+            if (DateTime.UtcNow >= deadline)
                 throw new InvalidOperationException(
                     "Windows sandbox job still has " +
                     information.ActiveProcesses +
