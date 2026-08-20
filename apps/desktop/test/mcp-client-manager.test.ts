@@ -139,22 +139,34 @@ function windowsProcessStatus(processId: unknown): string {
   }
 }
 
+interface WindowsFixtureProcesses {
+  pid?: number;
+  ppid?: number;
+}
+
+async function readWindowsFixtureProcesses(
+  directory: string,
+): Promise<WindowsFixtureProcesses | undefined> {
+  try {
+    return JSON.parse(
+      await readFile(join(directory, ".fixture-started.json"), "utf8"),
+    ) as WindowsFixtureProcesses;
+  } catch {
+    return undefined;
+  }
+}
+
 async function describeWindowsCleanupTarget(
   directory: string,
+  fixture: WindowsFixtureProcesses | undefined,
 ): Promise<string> {
   const entries = await readdir(directory, { recursive: true }).catch(() => []);
-  let fixtureProcesses = "fixture marker unavailable";
-  try {
-    const fixture = JSON.parse(
-      await readFile(join(directory, ".fixture-started.json"), "utf8"),
-    ) as { pid?: unknown; ppid?: unknown };
-    fixtureProcesses = [
-      `child ${String(fixture.pid)}: ${windowsProcessStatus(fixture.pid)}`,
-      `wrapper ${String(fixture.ppid)}: ${windowsProcessStatus(fixture.ppid)}`,
-    ].join(", ");
-  } catch {
-    // The marker may already have been removed by the pending rm operation.
-  }
+  const fixtureProcesses = fixture
+    ? [
+        `child ${String(fixture.pid)}: ${windowsProcessStatus(fixture.pid)}`,
+        `wrapper ${String(fixture.ppid)}: ${windowsProcessStatus(fixture.ppid)}`,
+      ].join(", ")
+    : "fixture marker unavailable before disposal";
   let matchingProcesses = "unavailable";
   let accessControl = "unavailable";
   if (process.platform === "win32") {
@@ -167,10 +179,17 @@ async function describeWindowsCleanupTarget(
             "-NoProfile",
             "-NonInteractive",
             "-Command",
-            '$target = $args[0]; Get-CimInstance Win32_Process | Where-Object { ($_.ExecutablePath -and $_.ExecutablePath -like "$target*") -or ($_.CommandLine -and $_.CommandLine -like "*$target*") } | Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine | ConvertTo-Json -Compress',
-            directory,
+            "$target = $env:ARTEMIS_MCP_DIAGNOSTIC_PATH; @(Get-CimInstance Win32_Process | Where-Object { ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($target, [System.StringComparison]::OrdinalIgnoreCase)) -or ($_.CommandLine -and $_.CommandLine.IndexOf($target, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) } | Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine) | ConvertTo-Json -Compress",
           ],
-          { encoding: "utf8", timeout: 5_000, windowsHide: true },
+          {
+            encoding: "utf8",
+            env: {
+              ...process.env,
+              ARTEMIS_MCP_DIAGNOSTIC_PATH: directory,
+            },
+            timeout: 5_000,
+            windowsHide: true,
+          },
         ).trim() || "none";
     } catch (error) {
       matchingProcesses =
@@ -199,6 +218,14 @@ async function cleanupWindowsAppContainerFixture(
   directories: readonly string[],
 ): Promise<unknown[]> {
   const failures: unknown[] = [];
+  const fixtureProcesses = new Map<string, WindowsFixtureProcesses | undefined>(
+    await Promise.all(
+      directories.map(async (directory) => [
+        directory,
+        await readWindowsFixtureProcesses(directory),
+      ]),
+    ),
+  );
   try {
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -239,7 +266,7 @@ async function cleanupWindowsAppContainerFixture(
         return removed
           ? undefined
           : new Error(
-              `MCP fixture directory cleanup timed out: ${directory}\n${await describeWindowsCleanupTarget(directory)}`,
+              `MCP fixture directory cleanup timed out: ${directory}\n${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
             );
       } catch (error) {
         return new Error(
