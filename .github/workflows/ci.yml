@@ -69,6 +69,9 @@ jobs:
       - name: Build core packages
         run: npm run build:core
 
+      - name: Build Electron workers
+        run: npm run build:electron -w @artemis/desktop
+
       - name: Verify native Windows sandboxes
         run: >-
           npm test --workspace @artemis/desktop -- --run
