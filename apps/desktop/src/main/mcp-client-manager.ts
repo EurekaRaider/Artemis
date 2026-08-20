@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { copyFile, cp, mkdir, readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -115,6 +115,7 @@ type ResolveWindowsCommandShim = (
 
 const MAX_STDIO_STDERR_BYTES = 64 * 1024;
 export const MCP_STARTUP_TIMEOUT_MS = 15_000;
+const WINDOWS_STDIO_GRACEFUL_EXIT_TIMEOUT_MS = 15_000;
 const STDIO_PROCESS_EXIT_TIMEOUT_MS = 5_000;
 const SECRET_ARGUMENTS = new Set([
   "--api-key",
@@ -715,11 +716,30 @@ async function waitForProcessExit(
   return true;
 }
 
+function endStdioInput(transport: StdioClientTransport): boolean {
+  // The SDK exposes the PID but no way to end stdin before its four-second
+  // force-kill path. Guard its runtime child-process field so the Windows
+  // helper can finish job, ACL, and AppContainer cleanup first.
+  const childProcess = (transport as unknown as { _process?: ChildProcess })
+    ._process;
+  if (!childProcess?.stdin) return false;
+  try {
+    childProcess.stdin.end();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function closeStdioClient(
   client: Client,
   transport: StdioClientTransport,
+  platform: NodeJS.Platform,
 ): Promise<void> {
   const processId = transport.pid;
+  if (platform === "win32" && processId !== null && endStdioInput(transport)) {
+    await waitForProcessExit(processId, WINDOWS_STDIO_GRACEFUL_EXIT_TIMEOUT_MS);
+  }
   let closeError: unknown;
   try {
     await client.close();
@@ -1217,7 +1237,7 @@ export class McpClientManager {
         },
         close: () =>
           stdioTransport
-            ? closeStdioClient(client, stdioTransport)
+            ? closeStdioClient(client, stdioTransport, this.platform)
             : client.close(),
       };
     },

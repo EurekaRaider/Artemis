@@ -30,7 +30,7 @@ interface ResolvedWindowsStdioCommand {
 }
 
 const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 90_000;
-const WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS = 15_000;
+const WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS = 30_000;
 const WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS = 30_000;
 const WINDOWS_APP_CONTAINER_DIAGNOSTIC_TIMEOUT_MS = 60_000;
 
@@ -644,6 +644,20 @@ lines.on("line", (line) => {
     expect(mcpClientManagerSource).toContain("config.fullAccess");
     expect(mcpClientManagerSource).not.toContain("localFullAccess");
     expect(mcpClientManagerSource).not.toContain("...process.env,");
+  });
+
+  it("lets the Windows sandbox wrapper finish teardown before force-closing", () => {
+    const closeSource = mcpClientManagerSource.slice(
+      mcpClientManagerSource.indexOf("async function closeStdioClient"),
+      mcpClientManagerSource.indexOf("function safeToolSegment"),
+    );
+
+    expect(closeSource).toMatch(
+      /endStdioInput\(transport\)[\s\S]*?await waitForProcessExit\([\s\S]*?await client\.close\(\)/u,
+    );
+    expect(mcpClientManagerSource).toContain(
+      "WINDOWS_STDIO_GRACEFUL_EXIT_TIMEOUT_MS = 15_000",
+    );
   });
 
   it("carries and validates the task workspace before an approved MCP call", () => {
