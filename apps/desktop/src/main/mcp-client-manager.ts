@@ -115,6 +115,7 @@ type ResolveWindowsCommandShim = (
 
 const MAX_STDIO_STDERR_BYTES = 64 * 1024;
 export const MCP_STARTUP_TIMEOUT_MS = 15_000;
+const STDIO_PROCESS_EXIT_TIMEOUT_MS = 5_000;
 const SECRET_ARGUMENTS = new Set([
   "--api-key",
   "--bearer-token",
@@ -661,7 +662,7 @@ async function connectStdioClient(
   client: Client,
   launch: SandboxLaunch,
   startupTimeoutMs: number,
-): Promise<void> {
+): Promise<StdioClientTransport> {
   const transport = new StdioClientTransport({
     command: launch.executable,
     args: launch.args,
@@ -680,6 +681,7 @@ async function connectStdioClient(
   });
   try {
     await client.connect(transport, { timeout: startupTimeoutMs });
+    return transport;
   } catch (error) {
     await transport.close().catch(() => undefined);
     throw Object.assign(
@@ -689,6 +691,59 @@ async function connectStdioClient(
       { stderr },
     );
   }
+}
+
+function processIsRunning(processId: number): boolean {
+  try {
+    process.kill(processId, 0);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ESRCH") return false;
+    throw error;
+  }
+}
+
+async function waitForProcessExit(
+  processId: number,
+  timeoutMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (processIsRunning(processId)) {
+    if (Date.now() >= deadline) return false;
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  }
+  return true;
+}
+
+async function closeStdioClient(
+  client: Client,
+  transport: StdioClientTransport,
+): Promise<void> {
+  const processId = transport.pid;
+  let closeError: unknown;
+  try {
+    await client.close();
+  } catch (error) {
+    closeError = error;
+  }
+  if (
+    processId === null ||
+    (await waitForProcessExit(processId, STDIO_PROCESS_EXIT_TIMEOUT_MS))
+  ) {
+    if (closeError) throw closeError;
+    return;
+  }
+  try {
+    process.kill(processId, "SIGKILL");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+  }
+  if (!(await waitForProcessExit(processId, STDIO_PROCESS_EXIT_TIMEOUT_MS))) {
+    throw new Error(
+      `stdio MCP wrapper ${processId} did not exit after SIGKILL`,
+    );
+  }
+  if (closeError) throw closeError;
 }
 
 function safeToolSegment(value: string): string {
@@ -817,6 +872,7 @@ export class McpClientManager {
         name: "Artemis",
         version: "1.4.8",
       });
+      let stdioTransport: StdioClientTransport | undefined;
       if (config.transport === "stdio") {
         const runtimeWorkspacePath = canonicalExistingPath(
           this.platform,
@@ -1049,7 +1105,7 @@ export class McpClientManager {
           );
         };
         try {
-          await connectStdioClient(
+          stdioTransport = await connectStdioClient(
             client,
             buildLaunch(command),
             options?.startupTimeoutMs ?? this.startupTimeoutMs,
@@ -1079,7 +1135,7 @@ export class McpClientManager {
               cachedCommand.args,
             ),
           };
-          await connectStdioClient(
+          stdioTransport = await connectStdioClient(
             client,
             buildLaunch(command),
             options?.startupTimeoutMs ?? this.startupTimeoutMs,
@@ -1159,7 +1215,10 @@ export class McpClientManager {
             isError: Boolean(result.isError),
           };
         },
-        close: () => client.close(),
+        close: () =>
+          stdioTransport
+            ? closeStdioClient(client, stdioTransport)
+            : client.close(),
       };
     },
     private readonly startupTimeoutMs = MCP_STARTUP_TIMEOUT_MS,
