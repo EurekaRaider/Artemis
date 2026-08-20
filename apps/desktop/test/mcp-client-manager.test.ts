@@ -1,5 +1,17 @@
-import { readFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import {
+  mkdir,
+  mkdtemp,
+  lstat,
+  readFile,
+  readdir,
+  rm,
+  rmdir,
+  symlink,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,7 +33,32 @@ interface ResolvedWindowsStdioCommand {
   args: string[];
 }
 
-const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 60_000;
+const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 150_000;
+const WINDOWS_APP_CONTAINER_HANGING_STARTUP_TIMEOUT_MS = 90_000;
+const WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS = 30_000;
+const WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS = 30_000;
+const WINDOWS_APP_CONTAINER_CLEANUP_RETRY_DELAY_MS = 100;
+const WINDOWS_APP_CONTAINER_DIAGNOSTIC_TIMEOUT_MS = 60_000;
+
+async function withWindowsFixtureDeadline<T>(
+  stage: string,
+  promise: Promise<T>,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error(`Windows AppContainer ${stage} timed out`)),
+          WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS + 5_000,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 type ResolveWindowsStdioCommand = (
   command: string,
@@ -82,29 +119,478 @@ function resultText(
     .join("");
 }
 
+async function describeWindowsFixture(
+  workspacePath: string,
+  fixtureStartedPath: string,
+): Promise<string> {
+  if (!existsSync(workspacePath)) return "fixture workspace already removed";
+  const fixture = await readFile(fixtureStartedPath, "utf8").catch(
+    () => "fixture module did not start",
+  );
+  const runtimeEntries = await readdir(join(workspacePath, ".artemis-mcp"), {
+    recursive: true,
+  }).catch(() => []);
+  return `${fixture}; runtime entries: ${runtimeEntries.join(", ") || "none"}`;
+}
+
+function windowsProcessStatus(processId: unknown): string {
+  if (typeof processId !== "number") return "unknown";
+  try {
+    process.kill(processId, 0);
+    return "running";
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "ESRCH" ? "exited" : `unavailable (${code ?? "error"})`;
+  }
+}
+
+interface WindowsFixtureProcesses {
+  pid?: number;
+  ppid?: number;
+}
+
+async function readWindowsFixtureProcesses(
+  directory: string,
+): Promise<WindowsFixtureProcesses | undefined> {
+  try {
+    return JSON.parse(
+      await readFile(join(directory, ".fixture-started.json"), "utf8"),
+    ) as WindowsFixtureProcesses;
+  } catch {
+    return undefined;
+  }
+}
+
+const RETRYABLE_WINDOWS_FIXTURE_CLEANUP_ERRORS = new Set([
+  "EACCES",
+  "EBUSY",
+  "ENOTEMPTY",
+  "EPERM",
+]);
+
+class WindowsFixtureCleanupPathError extends Error {
+  constructor(
+    readonly target: string,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
+
+async function runWindowsFixtureCleanupOperation<T>(
+  target: string,
+  deadline: number,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) {
+    throw new WindowsFixtureCleanupPathError(
+      target,
+      `Windows fixture cleanup deadline expired: ${target}`,
+    );
+  }
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () =>
+            reject(
+              new WindowsFixtureCleanupPathError(
+                target,
+                `Windows fixture filesystem operation timed out: ${target}`,
+              ),
+            ),
+          remaining,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+async function retryWindowsFixtureCleanup<T>(
+  target: string,
+  deadline: number,
+  operation: () => Promise<T>,
+): Promise<T | undefined> {
+  while (true) {
+    try {
+      return await runWindowsFixtureCleanupOperation(
+        target,
+        deadline,
+        operation,
+      );
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return undefined;
+      if (!existsSync(target)) return undefined;
+      if (
+        !code ||
+        !RETRYABLE_WINDOWS_FIXTURE_CLEANUP_ERRORS.has(code) ||
+        Date.now() >= deadline
+      ) {
+        throw new WindowsFixtureCleanupPathError(
+          target,
+          `Failed to remove Windows fixture path: ${target}`,
+          { cause: error },
+        );
+      }
+      await new Promise((resolvePromise) =>
+        setTimeout(
+          resolvePromise,
+          WINDOWS_APP_CONTAINER_CLEANUP_RETRY_DELAY_MS,
+        ),
+      );
+    }
+  }
+}
+
+async function waitForWindowsFixturePathRemoval(
+  target: string,
+  deadline: number,
+): Promise<void> {
+  while (existsSync(target)) {
+    if (Date.now() >= deadline) {
+      throw new WindowsFixtureCleanupPathError(
+        target,
+        `Windows fixture path remains delete-pending: ${target}`,
+      );
+    }
+    await new Promise((resolvePromise) =>
+      setTimeout(resolvePromise, WINDOWS_APP_CONTAINER_CLEANUP_RETRY_DELAY_MS),
+    );
+  }
+}
+
+async function removeWindowsFixtureTree(
+  target: string,
+  deadline: number,
+): Promise<void> {
+  const stats = await retryWindowsFixtureCleanup(target, deadline, () =>
+    lstat(target),
+  );
+  if (!stats) return;
+
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    await retryWindowsFixtureCleanup(target, deadline, () => unlink(target));
+    await waitForWindowsFixturePathRemoval(target, deadline);
+    return;
+  }
+
+  try {
+    await runWindowsFixtureCleanupOperation(target, deadline, () =>
+      rmdir(target),
+    );
+    await waitForWindowsFixturePathRemoval(target, deadline);
+    return;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || !existsSync(target)) return;
+    if (code !== "ENOTEMPTY" && code !== "EEXIST" && code !== "EPERM") {
+      throw new WindowsFixtureCleanupPathError(
+        target,
+        `Failed to probe Windows fixture directory: ${target}`,
+        { cause: error },
+      );
+    }
+  }
+
+  const entries = await retryWindowsFixtureCleanup(target, deadline, () =>
+    readdir(target),
+  );
+  if (!entries) return;
+  await Promise.all(
+    entries.map((entry) =>
+      removeWindowsFixtureTree(join(target, entry), deadline),
+    ),
+  );
+  await retryWindowsFixtureCleanup(target, deadline, () => rmdir(target));
+  await waitForWindowsFixturePathRemoval(target, deadline);
+}
+
+async function describeWindowsCleanupTarget(
+  directory: string,
+  fixture: WindowsFixtureProcesses | undefined,
+): Promise<string> {
+  let entries: string;
+  try {
+    const names = await readdir(directory, { recursive: true });
+    entries = names.slice(0, 100).join(", ") || "none";
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException;
+    entries = `inaccessible (${nodeError.code ?? "error"}: ${nodeError.message})`;
+  }
+  const fixtureProcesses = fixture
+    ? [
+        `child ${String(fixture.pid)}: ${windowsProcessStatus(fixture.pid)}`,
+        `wrapper ${String(fixture.ppid)}: ${windowsProcessStatus(fixture.ppid)}`,
+      ].join(", ")
+    : "fixture marker unavailable before disposal";
+  let matchingProcesses = "unavailable";
+  let accessControl = "unavailable";
+  let pathMetadata = "unavailable";
+  let lstatStatus = "unavailable";
+  let lstatTimeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const stats = await Promise.race([
+      lstat(directory),
+      new Promise<never>((_resolve, reject) => {
+        lstatTimeout = setTimeout(
+          () => reject(new Error("lstat diagnostic timed out")),
+          5_000,
+        );
+      }),
+    ]);
+    lstatStatus = JSON.stringify({
+      directory: stats.isDirectory(),
+      file: stats.isFile(),
+      mode: stats.mode,
+      symbolicLink: stats.isSymbolicLink(),
+    });
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException;
+    lstatStatus = `${nodeError.code ?? "error"}: ${nodeError.message}`;
+  } finally {
+    if (lstatTimeout) clearTimeout(lstatTimeout);
+  }
+  if (process.platform === "win32") {
+    try {
+      matchingProcesses =
+        execFileSync(
+          "powershell.exe",
+          [
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "$target = $env:ARTEMIS_MCP_DIAGNOSTIC_PATH; @(Get-CimInstance Win32_Process | Where-Object { ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($target, [System.StringComparison]::OrdinalIgnoreCase)) -or ($_.CommandLine -and $_.CommandLine.IndexOf($target, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) } | Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine) | ConvertTo-Json -Compress",
+          ],
+          {
+            encoding: "utf8",
+            env: {
+              ...process.env,
+              ARTEMIS_MCP_DIAGNOSTIC_PATH: directory,
+            },
+            timeout: 5_000,
+            windowsHide: true,
+          },
+        ).trim() || "none";
+    } catch (error) {
+      matchingProcesses =
+        error instanceof Error ? error.message : String(error);
+    }
+    try {
+      accessControl = execFileSync("icacls.exe", [directory], {
+        encoding: "utf8",
+        timeout: 5_000,
+        windowsHide: true,
+      }).trim();
+    } catch (error) {
+      accessControl = error instanceof Error ? error.message : String(error);
+    }
+    try {
+      pathMetadata = execFileSync(
+        "powershell.exe",
+        [
+          "-NoLogo",
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$target = $env:ARTEMIS_MCP_DIAGNOSTIC_PATH; if (Test-Path -LiteralPath $target) { $item = Get-Item -LiteralPath $target -Force; $acl = Get-Acl -LiteralPath $target; [pscustomobject]@{ Exists = $true; Owner = $acl.Owner; Attributes = $item.Attributes.ToString(); LinkType = $item.LinkType; Mode = $item.Mode; FullName = $item.FullName } | ConvertTo-Json -Compress } else { [pscustomobject]@{ Exists = $false } | ConvertTo-Json -Compress }",
+        ],
+        {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            ARTEMIS_MCP_DIAGNOSTIC_PATH: directory,
+          },
+          timeout: 5_000,
+          windowsHide: true,
+        },
+      ).trim();
+    } catch (error) {
+      pathMetadata = error instanceof Error ? error.message : String(error);
+    }
+  }
+  return [
+    `remaining entries: ${entries}`,
+    fixtureProcesses,
+    `lstat: ${lstatStatus}`,
+    `metadata: ${pathMetadata}`,
+    `matching processes: ${matchingProcesses}`,
+    `ACL: ${accessControl}`,
+  ].join("; ");
+}
+
 async function cleanupWindowsAppContainerFixture(
   manager: McpClientManager,
   directories: readonly string[],
 ): Promise<unknown[]> {
   const failures: unknown[] = [];
+  const fixtureProcesses = new Map<string, WindowsFixtureProcesses | undefined>(
+    await Promise.all(
+      directories.map(async (directory) => [
+        directory,
+        await readWindowsFixtureProcesses(directory),
+      ]),
+    ),
+  );
   try {
-    await manager.dispose();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        manager.dispose(),
+        new Promise<never>((_resolve, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error("MCP fixture disposal timed out")),
+            WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   } catch (error) {
     failures.push(error);
   }
-  const cleanupOptions = {
-    force: true,
-    maxRetries: 10,
-    recursive: true,
-    retryDelay: 250,
-  } as const;
-  const results = await Promise.allSettled(
-    directories.map((directory) => rm(directory, cleanupOptions)),
+  const results = await Promise.all(
+    directories.map(async (directory) => {
+      try {
+        await removeWindowsFixtureTree(
+          directory,
+          Date.now() + WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS,
+        );
+        if (!existsSync(directory)) return undefined;
+        return new Error(
+          `MCP fixture directory cleanup did not remove: ${directory}\n${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
+        );
+      } catch (error) {
+        const diagnosticTarget =
+          error instanceof WindowsFixtureCleanupPathError
+            ? error.target
+            : directory;
+        const targetDiagnostic =
+          diagnosticTarget === directory
+            ? ""
+            : `\nTarget diagnostics (${diagnosticTarget}): ${await describeWindowsCleanupTarget(diagnosticTarget, undefined)}`;
+        return new Error(
+          `Failed to remove MCP fixture directory: ${directory}${targetDiagnostic}\nRoot diagnostics: ${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
+          {
+            cause: error,
+          },
+        );
+      }
+    }),
   );
   for (const result of results) {
-    if (result.status === "rejected") failures.push(result.reason);
+    if (result) failures.push(result);
   }
   return failures;
+}
+
+function probeWindowsAppContainerCleanup(identity: string): {
+  deleteResult: number;
+  profileWasAbsent: boolean;
+  sid: string;
+} {
+  const output = execFileSync(
+    "powershell.exe",
+    [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
+
+public static class ArtemisAppContainerCleanupProbe
+{
+    private const uint ERROR_ALREADY_EXISTS = 183;
+
+    [DllImport("userenv.dll", CharSet = CharSet.Unicode)]
+    private static extern int CreateAppContainerProfile(
+        string name,
+        string displayName,
+        string description,
+        IntPtr capabilities,
+        uint capabilityCount,
+        out IntPtr appContainerSid);
+
+    [DllImport("userenv.dll", CharSet = CharSet.Unicode)]
+    private static extern int DeleteAppContainerProfile(string name);
+
+    [DllImport("userenv.dll", CharSet = CharSet.Unicode)]
+    private static extern int DeriveAppContainerSidFromAppContainerName(
+        string name,
+        out IntPtr appContainerSid);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern IntPtr FreeSid(IntPtr sid);
+
+    public static string Run(string identity)
+    {
+        IntPtr derivedSid;
+        var deriveResult = DeriveAppContainerSidFromAppContainerName(
+            identity,
+            out derivedSid);
+        if (deriveResult != 0)
+            Marshal.ThrowExceptionForHR(deriveResult);
+        string sid;
+        try
+        {
+            sid = new SecurityIdentifier(derivedSid).Value;
+        }
+        finally
+        {
+            FreeSid(derivedSid);
+        }
+
+        IntPtr createdSid;
+        var createResult = CreateAppContainerProfile(
+            identity,
+            "Artemis cleanup probe",
+            "Artemis cleanup probe",
+            IntPtr.Zero,
+            0,
+            out createdSid);
+        if (createdSid != IntPtr.Zero)
+            FreeSid(createdSid);
+        var profileWasAbsent = createResult == 0;
+        if (!profileWasAbsent &&
+            (uint)createResult != (0x80070000u | ERROR_ALREADY_EXISTS))
+            Marshal.ThrowExceptionForHR(createResult);
+        var deleteResult = DeleteAppContainerProfile(identity);
+        return profileWasAbsent.ToString() + "|" + sid + "|" +
+            deleteResult.ToString();
+    }
+}
+'@; [ArtemisAppContainerCleanupProbe]::Run($env:ARTEMIS_MCP_PROFILE_IDENTITY)`,
+    ],
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ARTEMIS_MCP_PROFILE_IDENTITY: identity,
+      },
+      timeout: 30_000,
+      windowsHide: true,
+    },
+  ).trim();
+  const [profileWasAbsent, sid, deleteResult] = output.split("|");
+  if (!sid || deleteResult === undefined) {
+    throw new Error(`Unexpected AppContainer cleanup probe output: ${output}`);
+  }
+  return {
+    deleteResult: Number.parseInt(deleteResult, 10),
+    profileWasAbsent: profileWasAbsent === "True",
+    sid,
+  };
 }
 
 afterEach(() => {
@@ -563,6 +1049,40 @@ lines.on("line", (line) => {
     expect(mcpClientManagerSource).not.toContain("...process.env,");
   });
 
+  it("limits MCP runtime writes and host ACL preservation to its private directory", () => {
+    expect(mcpClientManagerSource).toContain(
+      "writablePaths: [canonicalExistingPath(platform, runtimeDirectory)]",
+    );
+    expect(mcpClientManagerSource).toContain(
+      "hostAccessPath: runtimeDirectory",
+    );
+    expect(mcpClientManagerSource).toContain("hostTempPath: tmpdir()");
+    expect(mcpClientManagerSource).toContain("runtimePath: runtimeDirectory");
+  });
+
+  it("lets the Windows sandbox wrapper finish teardown before force-closing", () => {
+    const connectSource = mcpClientManagerSource.slice(
+      mcpClientManagerSource.indexOf("async function connectStdioClient"),
+      mcpClientManagerSource.indexOf("function processIsRunning"),
+    );
+    const closeSource = mcpClientManagerSource.slice(
+      mcpClientManagerSource.indexOf("async function closeStdioClient"),
+      mcpClientManagerSource.indexOf("function safeToolSegment"),
+    );
+
+    expect(closeSource).toMatch(
+      /endStdioInput\(transport\)[\s\S]*?await waitForProcessExit\([\s\S]*?await client\.close\(\)/u,
+    );
+    expect(mcpClientManagerSource).toContain(
+      "WINDOWS_STDIO_GRACEFUL_EXIT_TIMEOUT_MS = 15_000",
+    );
+    expect(mcpClientManagerSource).toContain(
+      'launch.implementation === "windows-appcontainer"',
+    );
+    expect(connectSource).toContain("await closeStdioClient(");
+    expect(connectSource).not.toContain("await transport.close()");
+  });
+
   it("carries and validates the task workspace before an approved MCP call", () => {
     const protocolMcpRequest = protocolHostMessagesSource.slice(
       protocolHostMessagesSource.indexOf('kind: "mcp.call"'),
@@ -832,6 +1352,10 @@ lines.on("line", (line) => {
       const taskWorkspacePath = await mkdtemp(
         join(tmpdir(), "artemis-mcp-task-"),
       );
+      const outsideWorkspacePath = await mkdtemp(
+        join(tmpdir(), "artemis-mcp-outside-"),
+      );
+      const fixtureStartedPath = join(workspacePath, ".fixture-started.json");
       const shimPath = join(workspacePath, "npx.cmd");
       const entryPath = join(
         workspacePath,
@@ -843,12 +1367,27 @@ lines.on("line", (line) => {
       await mkdir(dirname(entryPath), { recursive: true });
       await writeFile(
         entryPath,
-        `import { rm, writeFile } from "node:fs/promises";
+        `import { mkdir, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 
+await writeFile(
+  resolve(process.cwd(), ".fixture-started.json"),
+  JSON.stringify({
+    pid: process.pid,
+    ppid: process.ppid,
+    execPath: process.execPath,
+    argv: process.argv,
+    stdinFd: process.stdin.fd,
+    stdoutFd: process.stdout.fd,
+    stderrFd: process.stderr.fd,
+  }),
+  "utf8",
+);
+
 const send = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
 const lines = createInterface({ input: process.stdin });
+lines.on("close", () => process.exit(0));
 lines.on("line", async (line) => {
   const message = JSON.parse(line);
   if (!("id" in message)) return;
@@ -905,12 +1444,26 @@ lines.on("line", async (line) => {
   }
   const marker = process.pid + "-" + Date.now();
   const requestedWorkspace = message.params.arguments.workspacePath;
+  const retainedArtifact = ".post-dispose-" + marker;
+  const retainedDirectory = resolve(
+    typeof requestedWorkspace === "string" ? requestedWorkspace : process.cwd(),
+    retainedArtifact,
+  );
+  await mkdir(retainedDirectory);
+  await writeFile(
+    resolve(retainedDirectory, "artifact.txt"),
+    "sandbox-owned",
+    "utf8",
+  );
   const insidePath = resolve(
     typeof requestedWorkspace === "string" ? requestedWorkspace : process.cwd(),
     ".inside-" + marker,
   );
+  const requestedOutsidePath = message.params.arguments.outsidePath;
   const outsidePath = resolve(
-    process.env.USERPROFILE ?? "C:\\\\Users\\\\Public",
+    typeof requestedOutsidePath === "string"
+      ? requestedOutsidePath
+      : process.cwd(),
     ".outside-" + marker,
   );
   let insideWrite = false;
@@ -945,7 +1498,12 @@ lines.on("line", async (line) => {
       content: [
         {
           type: "text",
-          text: JSON.stringify({ insideWrite, outsideWrite, networkAccess }),
+          text: JSON.stringify({
+            insideWrite,
+            outsideWrite,
+            networkAccess,
+            retainedArtifact,
+          }),
         },
       ],
     },
@@ -967,25 +1525,44 @@ lines.on("line", async (line) => {
         undefined,
         WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS,
       );
+      let fixtureStage = "starting initial connection";
+      const diagnosticTimeout = setTimeout(() => {
+        void describeWindowsFixture(workspacePath, fixtureStartedPath).then(
+          (diagnostic) => {
+            console.error(
+              `Windows AppContainer fixture is still ${fixtureStage}. Diagnostics: ${diagnostic}`,
+            );
+          },
+        );
+      }, WINDOWS_APP_CONTAINER_DIAGNOSTIC_TIMEOUT_MS);
       let testFailed = false;
       let testFailure: unknown;
+      const retainedArtifacts: Array<{
+        directory: string;
+        file: string;
+      }> = [];
       try {
-        const status = await manager.connect({
-          id: "integration-fixture",
-          name: "Integration fixture",
-          transport: "stdio",
-          enabled: true,
-          command: shimPath,
-          args: [],
-          env: {},
-          envVars: [],
-          workspacePath,
-          allowNetwork: true,
-        });
+        const status = await withWindowsFixtureDeadline(
+          "initial connection",
+          manager.connect({
+            id: "integration-fixture",
+            name: "Integration fixture",
+            transport: "stdio",
+            enabled: true,
+            command: shimPath,
+            args: [],
+            env: { ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS: "1" },
+            envVars: [],
+            workspacePath,
+            allowNetwork: true,
+          }),
+        );
         expect(status.state, status.error).toBe("connected");
-        const echo = await manager.call("integration-fixture", "echo", {
-          value: "OK",
-        });
+        fixtureStage = "running echo call";
+        const echo = await withWindowsFixtureDeadline(
+          "echo call",
+          manager.call("integration-fixture", "echo", { value: "OK" }),
+        );
         expect(echo.isError).toBe(false);
         expect(resultText(echo)).toBe("MCP_ECHO:OK");
         expect(echo.metrics).toEqual({
@@ -994,35 +1571,114 @@ lines.on("line", async (line) => {
           imageCount: 0,
           omittedContentCount: 0,
         });
-        const securityProbe = await manager.call(
-          "integration-fixture",
-          "security_probe",
-          {},
+        fixtureStage = "running runtime security probe";
+        const securityProbe = await withWindowsFixtureDeadline(
+          "runtime security probe",
+          manager.call("integration-fixture", "security_probe", {
+            outsidePath: outsideWorkspacePath,
+          }),
         );
-        expect(JSON.parse(resultText(securityProbe))).toEqual({
+        const runtimeProbe = JSON.parse(resultText(securityProbe)) as {
+          insideWrite: boolean;
+          outsideWrite: boolean;
+          networkAccess: boolean;
+          retainedArtifact: string;
+        };
+        expect(runtimeProbe).toMatchObject({
           insideWrite: true,
           outsideWrite: false,
           networkAccess: true,
         });
-        const taskProbe = await manager.call(
-          "integration-fixture",
-          "security_probe",
-          { workspacePath: taskWorkspacePath },
-          taskWorkspacePath,
-          "execute",
+        expect(runtimeProbe.retainedArtifact).toMatch(
+          /^\.post-dispose-\d+-\d+$/u,
         );
-        expect(JSON.parse(resultText(taskProbe))).toEqual({
+        retainedArtifacts.push({
+          directory: join(workspacePath, runtimeProbe.retainedArtifact),
+          file: join(
+            workspacePath,
+            runtimeProbe.retainedArtifact,
+            "artifact.txt",
+          ),
+        });
+        fixtureStage = "running task-scoped security probe";
+        const taskProbe = await withWindowsFixtureDeadline(
+          "task-scoped security probe",
+          manager.call(
+            "integration-fixture",
+            "security_probe",
+            {
+              workspacePath: taskWorkspacePath,
+              outsidePath: outsideWorkspacePath,
+            },
+            taskWorkspacePath,
+            "execute",
+          ),
+        );
+        const taskProbeResult = JSON.parse(resultText(taskProbe)) as {
+          insideWrite: boolean;
+          outsideWrite: boolean;
+          networkAccess: boolean;
+          retainedArtifact: string;
+        };
+        expect(taskProbeResult).toMatchObject({
           insideWrite: true,
           outsideWrite: false,
           networkAccess: true,
+        });
+        expect(taskProbeResult.retainedArtifact).toMatch(
+          /^\.post-dispose-\d+-\d+$/u,
+        );
+        retainedArtifacts.push({
+          directory: join(taskWorkspacePath, taskProbeResult.retainedArtifact),
+          file: join(
+            taskWorkspacePath,
+            taskProbeResult.retainedArtifact,
+            "artifact.txt",
+          ),
         });
       } catch (error) {
+        fixtureStage = "capturing failure diagnostics";
         testFailed = true;
-        testFailure = error;
+        const fixtureDiagnostic = await describeWindowsFixture(
+          workspacePath,
+          fixtureStartedPath,
+        );
+        testFailure = new Error(
+          `${error instanceof Error ? error.message : String(error)}\nFixture diagnostics: ${fixtureDiagnostic}`,
+          { cause: error },
+        );
       }
+      if (!testFailed) {
+        try {
+          fixtureStage = "disposing before host ACL validation";
+          await withWindowsFixtureDeadline(
+            "fixture disposal",
+            manager.dispose(),
+          );
+          fixtureStage = "validating post-dispose host ACLs";
+          for (const artifact of retainedArtifacts) {
+            expect(await readFile(artifact.file, "utf8")).toBe("sandbox-owned");
+            await writeFile(artifact.file, "host-owned", "utf8");
+            expect(await readFile(artifact.file, "utf8")).toBe("host-owned");
+            await removeWindowsFixtureTree(
+              artifact.directory,
+              Date.now() + WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS,
+            );
+          }
+        } catch (error) {
+          testFailed = true;
+          testFailure = new Error(
+            `Post-dispose host ACL validation failed: ${error instanceof Error ? error.message : String(error)}`,
+            { cause: error },
+          );
+        }
+      }
+      clearTimeout(diagnosticTimeout);
+      fixtureStage = "cleaning up fixture";
       const cleanupFailures = await cleanupWindowsAppContainerFixture(manager, [
         workspacePath,
         taskWorkspacePath,
+        outsideWorkspacePath,
       ]);
       if (testFailed) {
         if (cleanupFailures.length > 0) {
@@ -1042,6 +1698,121 @@ lines.on("line", async (line) => {
       }
     },
     3 * WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS,
+  );
+
+  it.runIf(process.platform === "win32")(
+    "gracefully cleans a hanging AppContainer before startup failure returns",
+    async () => {
+      const testDirectory = dirname(fileURLToPath(import.meta.url));
+      const projectRoot = resolve(testDirectory, "..", "..", "..");
+      const workspacePath = await mkdtemp(
+        join(tmpdir(), "artemis-mcp-hanging-appcontainer-"),
+      );
+      const fixturePath = join(workspacePath, "hanging-server.mjs");
+      const fixtureStartedPath = join(workspacePath, ".fixture-started.json");
+      const serverId = "hanging-appcontainer";
+      const identity = `Artemis.Mcp.${serverId}`;
+      await writeFile(
+        fixturePath,
+        `import { writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+await writeFile(
+  resolve(process.cwd(), ".fixture-started.json"),
+  JSON.stringify({ pid: process.pid, ppid: process.ppid }),
+  "utf8",
+);
+process.stderr.write("hanging AppContainer fixture started\\n");
+process.stdin.on("end", () => process.exit(0));
+process.stdin.resume();
+setInterval(() => undefined, 1_000);
+`,
+        "utf8",
+      );
+      const manager = new McpClientManager(
+        "win32",
+        resolve(
+          projectRoot,
+          "apps",
+          "desktop",
+          "resources",
+          "windows-sandbox.ps1",
+        ),
+      );
+      let testFailure: unknown;
+      try {
+        const status = await manager.connect(
+          {
+            id: serverId,
+            name: "Hanging AppContainer",
+            transport: "stdio",
+            enabled: true,
+            command: process.execPath,
+            args: [fixturePath],
+            env: { ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS: "1" },
+            envVars: [],
+            workspacePath,
+            allowNetwork: false,
+          },
+          undefined,
+          {
+            startupTimeoutMs: WINDOWS_APP_CONTAINER_HANGING_STARTUP_TIMEOUT_MS,
+          },
+        );
+        expect(status.state).toBe("failed");
+        expect(status.error).toContain("hanging AppContainer fixture started");
+        const fixtureProcesses = JSON.parse(
+          await readFile(fixtureStartedPath, "utf8"),
+        ) as WindowsFixtureProcesses;
+        expect(windowsProcessStatus(fixtureProcesses.pid)).toBe("exited");
+        expect(windowsProcessStatus(fixtureProcesses.ppid)).toBe("exited");
+
+        const cleanupProbe = probeWindowsAppContainerCleanup(identity);
+        expect(cleanupProbe.profileWasAbsent).toBe(true);
+        expect(cleanupProbe.deleteResult).toBe(0);
+        for (const path of [
+          workspacePath,
+          join(workspacePath, ".artemis-mcp"),
+        ]) {
+          const acl = execFileSync("icacls.exe", [path], {
+            encoding: "utf8",
+            timeout: 5_000,
+            windowsHide: true,
+          });
+          expect(acl).not.toContain(cleanupProbe.sid);
+        }
+      } catch (error) {
+        testFailure = error;
+      }
+
+      if (testFailure) {
+        try {
+          probeWindowsAppContainerCleanup(identity);
+        } catch {
+          // Preserve the primary assertion with fixture cleanup diagnostics.
+        }
+      }
+      const cleanupFailures = await cleanupWindowsAppContainerFixture(manager, [
+        workspacePath,
+      ]);
+      if (testFailure) {
+        if (cleanupFailures.length > 0) {
+          throw new AggregateError(
+            [testFailure, ...cleanupFailures],
+            "Hanging AppContainer assertions and cleanup both failed",
+            { cause: testFailure },
+          );
+        }
+        throw testFailure;
+      }
+      if (cleanupFailures.length > 0) {
+        throw new AggregateError(
+          cleanupFailures,
+          "Hanging AppContainer cleanup failed",
+        );
+      }
+    },
+    WINDOWS_APP_CONTAINER_HANGING_STARTUP_TIMEOUT_MS + 90_000,
   );
 
   it("does not expose a failed connection as active", async () => {
@@ -1084,11 +1855,108 @@ lines.on("line", async (line) => {
     await manager.dispose();
   });
 
+  it("aborts a hanging stdio prelaunch stage at the startup deadline", async () => {
+    let startupSignal: AbortSignal | undefined;
+    const manager = new McpClientManager(
+      "linux",
+      undefined,
+      async (_server, _authentication, _scope, options) => {
+        startupSignal = options?.startupSignal;
+        await new Promise<never>((_resolve, reject) => {
+          startupSignal?.addEventListener(
+            "abort",
+            () => reject(startupSignal?.reason),
+            { once: true },
+          );
+        });
+      },
+      15,
+    );
+
+    const status = await manager.connect({
+      id: "prelaunch-timeout",
+      name: "Prelaunch timeout",
+      transport: "stdio",
+      enabled: true,
+      command: process.execPath,
+      args: [],
+      env: {},
+      envVars: [],
+      workspacePath: tmpdir(),
+      allowNetwork: false,
+      fullAccess: true,
+    });
+
+    expect(status.state).toBe("failed");
+    expect(status.error).toContain("connection timed out after 15 ms");
+    expect(startupSignal?.aborted).toBe(true);
+  });
+
+  it("reaps a hanging stdio child before returning its failed status", async () => {
+    const directory = await mkdtemp(
+      join(tmpdir(), "artemis-mcp-hanging-stdio-"),
+    );
+    const fixturePath = join(directory, "hanging-server.mjs");
+    const processIdPath = join(directory, "child.pid");
+    let processId: number | undefined;
+    await writeFile(
+      fixturePath,
+      `import { writeFile } from "node:fs/promises";
+
+await writeFile(process.argv[2], String(process.pid), "utf8");
+process.stderr.write("hanging stdio fixture started\\n");
+process.stdin.resume();
+setInterval(() => undefined, 1_000);
+`,
+      "utf8",
+    );
+    const manager = new McpClientManager(process.platform, undefined);
+
+    try {
+      const status = await manager.connect(
+        {
+          id: "hanging-stdio",
+          name: "Hanging stdio",
+          transport: "stdio",
+          enabled: true,
+          command: process.execPath,
+          args: [fixturePath, processIdPath],
+          env: {},
+          envVars: [],
+          workspacePath: directory,
+          allowNetwork: false,
+          fullAccess: true,
+        },
+        undefined,
+        { startupTimeoutMs: 1_000 },
+      );
+      processId = Number.parseInt(await readFile(processIdPath, "utf8"), 10);
+
+      expect(status.state).toBe("failed");
+      expect(status.error).toContain("hanging stdio fixture started");
+      expect(() => process.kill(processId!, 0)).toThrow(
+        expect.objectContaining({ code: "ESRCH" }),
+      );
+    } finally {
+      await manager.dispose();
+      if (processId !== undefined) {
+        try {
+          process.kill(processId, "SIGKILL");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
+      }
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 15_000);
+
   it("allows one cold package startup to use a longer connection timeout", async () => {
+    const startupTimeouts: Array<number | undefined> = [];
     const manager = new McpClientManager(
       "darwin",
       undefined,
-      async () => {
+      async (_config, _authentication, _scope, options) => {
+        startupTimeouts.push(options?.startupTimeoutMs);
         await new Promise((resolvePromise) => setTimeout(resolvePromise, 30));
         return {
           listTools: async () => ({ tools: [] }),
@@ -1104,6 +1972,7 @@ lines.on("line", async (line) => {
     });
 
     expect(status.state).toBe("connected");
+    expect(startupTimeouts).toEqual([60]);
     await manager.dispose();
   });
 

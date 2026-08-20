@@ -21,9 +21,14 @@ const workerPath = resolve(
 );
 
 describe("TrustedExtensionManager Windows integration", () => {
-  it.runIf(process.platform === "win32" && existsSync(workerPath))(
+  it.runIf(process.platform === "win32")(
     "loads and executes a Pi tool extension inside AppContainer",
     async () => {
+      expect(
+        existsSync(workerPath),
+        `Electron worker was not built at ${workerPath}`,
+      ).toBe(true);
+
       const extensionPath = resolve(
         testDirectory,
         "fixtures",

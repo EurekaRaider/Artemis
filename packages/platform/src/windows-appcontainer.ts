@@ -11,7 +11,10 @@ import type {
 
 export interface WindowsAppContainerOptions {
   helperPath: string;
+  hostAccessPath?: string;
+  hostTempPath?: string;
   identity?: string;
+  runtimePath?: string;
 }
 
 export function buildWindowsAppContainerLaunch(
@@ -58,6 +61,12 @@ export function buildWindowsAppContainerLaunch(
       policy.workspacePath,
       "-WorkingDirectory",
       resolve(command.cwd),
+      "-RuntimePath",
+      resolve(options.runtimePath ?? command.cwd),
+      "-HostAccessPath",
+      options.hostAccessPath ? resolve(options.hostAccessPath) : "",
+      "-HostTempPath",
+      options.hostTempPath ? resolve(options.hostTempPath) : "",
       "-Executable",
       command.executable,
       "-ArgumentsBase64",

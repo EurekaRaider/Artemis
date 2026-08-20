@@ -10,6 +10,15 @@ param(
   [string]$WorkingDirectory,
 
   [Parameter(Mandatory = $true)]
+  [string]$RuntimePath,
+
+  [AllowEmptyString()]
+  [string]$HostAccessPath = '',
+
+  [AllowEmptyString()]
+  [string]$HostTempPath = '',
+
+  [Parameter(Mandatory = $true)]
   [string]$Executable,
 
   [Parameter(Mandatory = $true)]
@@ -31,6 +40,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+function Write-SandboxDiagnostic([string]$Stage) {
+  if ($env:ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS -eq '1') {
+    [Console]::Error.WriteLine("Artemis Windows sandbox stage: $Stage")
+  }
+}
+
 try {
   [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
   $OutputEncoding = [Console]::OutputEncoding
@@ -41,19 +57,27 @@ catch {
 
 $workspace = [System.IO.Path]::GetFullPath($WorkspacePath)
 $workingDirectory = [System.IO.Path]::GetFullPath($WorkingDirectory)
+$runtime = [System.IO.Path]::GetFullPath($RuntimePath)
+$hostAccess = if ([string]::IsNullOrWhiteSpace($HostAccessPath)) {
+  ''
+}
+else {
+  [System.IO.Path]::GetFullPath($HostAccessPath)
+}
+$hostTemp = if ([string]::IsNullOrWhiteSpace($HostTempPath)) {
+  ''
+}
+else {
+  [System.IO.Path]::GetFullPath($HostTempPath)
+}
 if (-not [System.IO.Directory]::Exists($workspace)) {
   throw "Workspace does not exist: $workspace"
 }
 if (-not [System.IO.Directory]::Exists($workingDirectory)) {
   throw "Working directory does not exist: $workingDirectory"
 }
-
-$workspacePrefix = $workspace.TrimEnd('\') + '\'
-if (
-  -not $workingDirectory.Equals($workspace, [System.StringComparison]::OrdinalIgnoreCase) -and
-  -not $workingDirectory.StartsWith($workspacePrefix, [System.StringComparison]::OrdinalIgnoreCase)
-) {
-  throw 'Working directory must remain inside the workspace'
+if (-not [System.IO.Directory]::Exists($runtime)) {
+  throw "Runtime directory does not exist: $runtime"
 }
 
 function ConvertFrom-Base64Json([string]$Value) {
@@ -61,6 +85,39 @@ function ConvertFrom-Base64Json([string]$Value) {
     [System.Convert]::FromBase64String($Value)
   )
   return $json | ConvertFrom-Json
+}
+
+function Test-PathWithinRoot([string]$Path, [string]$Root) {
+  $resolvedRoot = [System.IO.Path]::GetFullPath($Root)
+  $rootPrefix = $resolvedRoot.TrimEnd('\') + '\'
+  return (
+    $Path.Equals($resolvedRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+    $Path.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+  )
+}
+
+if ($hostAccess) {
+  if (-not [System.IO.Directory]::Exists($hostAccess)) {
+    throw "Host access directory does not exist: $hostAccess"
+  }
+  if (-not (Test-PathWithinRoot $hostAccess $runtime)) {
+    throw 'Host access directory must remain inside the MCP runtime'
+  }
+}
+if ($hostTemp) {
+  if (-not [System.IO.Directory]::Exists($hostTemp)) {
+    throw "Host temp directory does not exist: $hostTemp"
+  }
+  if (Test-PathWithinRoot $hostTemp $runtime) {
+    throw 'Host temp directory must remain outside the MCP runtime'
+  }
+}
+
+if (
+  -not (Test-PathWithinRoot $workingDirectory $workspace) -and
+  -not (Test-PathWithinRoot $workingDirectory $runtime)
+) {
+  throw 'Working directory must remain inside the workspace or MCP runtime'
 }
 
 $rawCommandArguments = ConvertFrom-Base64Json $ArgumentsBase64
@@ -78,10 +135,10 @@ foreach ($pathValue in $rawWritablePaths) {
   }
   $path = [System.IO.Path]::GetFullPath([string]$pathValue)
   if (
-    -not $path.Equals($workspace, [System.StringComparison]::OrdinalIgnoreCase) -and
-    -not $path.StartsWith($workspacePrefix, [System.StringComparison]::OrdinalIgnoreCase)
+    -not (Test-PathWithinRoot $path $workspace) -and
+    -not (Test-PathWithinRoot $path $runtime)
   ) {
-    throw "Writable path escapes the workspace: $path"
+    throw "Writable path escapes the workspace and MCP runtime: $path"
   }
   $writablePathList.Add($path)
 }
@@ -160,6 +217,7 @@ using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
+using System.Threading;
 
 public static class ArtemisNativeSandbox
 {
@@ -170,13 +228,18 @@ public static class ArtemisNativeSandbox
     private const uint ERROR_ALREADY_EXISTS = 183;
     private const uint LOAD_LIBRARY_SEARCH_SYSTEM32 = 0x00000800;
     private const uint INFINITE = 0xFFFFFFFF;
+    private const int JobObjectBasicAccountingInformation = 1;
     private const int JobObjectExtendedLimitInformation = 9;
     private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
+    private const uint JOB_TEARDOWN_TIMEOUT_MS = 10000;
+    private const uint DUPLICATE_SAME_ACCESS = 0x00000002;
     private const int STD_INPUT_HANDLE = -10;
     private const int STD_OUTPUT_HANDLE = -11;
     private const int STD_ERROR_HANDLE = -12;
     private static readonly IntPtr PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES =
         new IntPtr(0x00020009);
+    private static readonly IntPtr PROC_THREAD_ATTRIBUTE_HANDLE_LIST =
+        new IntPtr(0x00020002);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SECURITY_CAPABILITIES
@@ -267,6 +330,19 @@ public static class ArtemisNativeSandbox
         public UIntPtr JobMemoryLimit;
         public UIntPtr PeakProcessMemoryUsed;
         public UIntPtr PeakJobMemoryUsed;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct JOBOBJECT_BASIC_ACCOUNTING_INFORMATION
+    {
+        public long TotalUserTime;
+        public long TotalKernelTime;
+        public long ThisPeriodTotalUserTime;
+        public long ThisPeriodTotalKernelTime;
+        public uint TotalPageFaultCount;
+        public uint TotalProcesses;
+        public uint ActiveProcesses;
+        public uint TotalTerminatedProcesses;
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Winapi, CharSet = CharSet.Unicode)]
@@ -371,6 +447,19 @@ public static class ArtemisNativeSandbox
         uint informationLength);
 
     [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool QueryInformationJobObject(
+        IntPtr job,
+        int informationClass,
+        out JOBOBJECT_BASIC_ACCOUNTING_INFORMATION information,
+        uint informationLength,
+        IntPtr returnLength);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool TerminateJobObject(
+        IntPtr job,
+        uint exitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool AssignProcessToJobObject(
         IntPtr job,
         IntPtr process);
@@ -391,6 +480,19 @@ public static class ArtemisNativeSandbox
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr GetStdHandle(int standardHandle);
 
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool DuplicateHandle(
+        IntPtr sourceProcess,
+        IntPtr sourceHandle,
+        IntPtr targetProcess,
+        out IntPtr targetHandle,
+        uint desiredAccess,
+        bool inheritHandle,
+        uint options);
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
 
@@ -406,6 +508,63 @@ public static class ArtemisNativeSandbox
         throw new InvalidOperationException(
             operation + " failed: " + error + " (" +
             new Win32Exception(error).Message + ")");
+    }
+
+    private static void TerminateAndDrainJob(IntPtr job)
+    {
+        var informationSize = (uint)Marshal.SizeOf(
+            typeof(JOBOBJECT_BASIC_ACCOUNTING_INFORMATION));
+        JOBOBJECT_BASIC_ACCOUNTING_INFORMATION information;
+        if (!QueryInformationJobObject(
+            job,
+            JobObjectBasicAccountingInformation,
+            out information,
+            informationSize,
+            IntPtr.Zero))
+            ThrowLastError("QueryInformationJobObject");
+        if (information.ActiveProcesses == 0)
+            return;
+        if (!TerminateJobObject(job, 1))
+            ThrowLastError("TerminateJobObject");
+        var deadline = DateTime.UtcNow.AddMilliseconds(
+            JOB_TEARDOWN_TIMEOUT_MS);
+        while (true)
+        {
+            if (!QueryInformationJobObject(
+                job,
+                JobObjectBasicAccountingInformation,
+                out information,
+                informationSize,
+                IntPtr.Zero))
+                ThrowLastError("QueryInformationJobObject");
+            if (information.ActiveProcesses == 0)
+                return;
+            if (DateTime.UtcNow >= deadline)
+                throw new InvalidOperationException(
+                    "Windows sandbox job still has " +
+                    information.ActiveProcesses +
+                    " active process(es) after termination");
+            Thread.Sleep(50);
+        }
+    }
+
+    private static IntPtr DuplicateStandardHandle(int standardHandle)
+    {
+        var source = GetStdHandle(standardHandle);
+        if (source == IntPtr.Zero || source == new IntPtr(-1))
+            ThrowLastError("GetStdHandle");
+        var process = GetCurrentProcess();
+        IntPtr duplicate;
+        if (!DuplicateHandle(
+            process,
+            source,
+            process,
+            out duplicate,
+            0,
+            true,
+            DUPLICATE_SAME_ACCESS))
+            ThrowLastError("DuplicateHandle");
+        return duplicate;
     }
 
     private static IntPtr DeriveCapabilitySid(string name)
@@ -511,6 +670,32 @@ public static class ArtemisNativeSandbox
         return rule;
     }
 
+    private static void PreserveHostAccess(string path)
+    {
+        if (String.IsNullOrEmpty(path))
+            return;
+        var userSid = WindowsIdentity.GetCurrent().User;
+        if (userSid == null)
+            throw new InvalidOperationException(
+                "The desktop user SID is unavailable.");
+        var rule = new FileSystemAccessRule(
+            userSid,
+            FileSystemRights.FullControl,
+            InheritanceFlags.ContainerInherit |
+                InheritanceFlags.ObjectInherit,
+            PropagationFlags.None,
+            AccessControlType.Allow);
+        var directory = new DirectoryInfo(path);
+        var security = directory.GetAccessControl(
+            AccessControlSections.Access);
+        // AppContainer rule removal propagates to descendants. Convert this
+        // private root's inherited host rules to explicit rules first so they
+        // remain when that sandbox-only rule is revoked.
+        security.SetAccessRuleProtection(true, true);
+        security.AddAccessRule(rule);
+        directory.SetAccessControl(security);
+    }
+
     private static void Revoke(
         string path,
         FileSystemAccessRule rule)
@@ -525,6 +710,7 @@ public static class ArtemisNativeSandbox
     public static int Launch(
         string identity,
         string workingDirectory,
+        string hostAccessPath,
         string executable,
         string[] arguments,
         byte[] sandboxSpecification)
@@ -572,6 +758,7 @@ public static class ArtemisNativeSandbox
             foreach (var argument in arguments)
                 commandLine.Append(' ').Append(Quote(argument));
 
+            PreserveHostAccess(hostAccessPath);
             if (!createProcess(
                 executable,
                 commandLine,
@@ -626,17 +813,33 @@ public static class ArtemisNativeSandbox
         }
         finally
         {
+            Exception jobDrainError = null;
             if (process.hThread != IntPtr.Zero)
                 CloseHandle(process.hThread);
             if (process.hProcess != IntPtr.Zero)
                 CloseHandle(process.hProcess);
             if (job != IntPtr.Zero)
-                CloseHandle(job);
+            {
+                try
+                {
+                    TerminateAndDrainJob(job);
+                }
+                catch (Exception error)
+                {
+                    jobDrainError = error;
+                }
+                finally
+                {
+                    CloseHandle(job);
+                }
+            }
             if (specification != IntPtr.Zero)
                 Marshal.FreeHGlobal(specification);
             if (module != IntPtr.Zero)
                 FreeLibrary(module);
             DeleteAppContainerProfile(identity);
+            if (jobDrainError != null)
+                throw jobDrainError;
         }
     }
 
@@ -644,6 +847,7 @@ public static class ArtemisNativeSandbox
         string identity,
         string workspace,
         string workingDirectory,
+        string hostAccessPath,
         string executable,
         string[] arguments,
         string[] writablePaths,
@@ -655,8 +859,12 @@ public static class ArtemisNativeSandbox
         IntPtr networkCapabilitySid = IntPtr.Zero;
         IntPtr capabilityBuffer = IntPtr.Zero;
         IntPtr securityCapabilitiesBuffer = IntPtr.Zero;
+        IntPtr handleListBuffer = IntPtr.Zero;
         IntPtr attributeList = IntPtr.Zero;
         IntPtr job = IntPtr.Zero;
+        IntPtr standardInput = IntPtr.Zero;
+        IntPtr standardOutput = IntPtr.Zero;
+        IntPtr standardError = IntPtr.Zero;
         var process = new PROCESS_INFORMATION();
         var grants = new List<Tuple<string, FileSystemAccessRule>>();
 
@@ -678,6 +886,7 @@ public static class ArtemisNativeSandbox
             if (hr != 0)
                 Marshal.ThrowExceptionForHR(hr);
 
+            PreserveHostAccess(hostAccessPath);
             var sid = new SecurityIdentifier(appContainerSid);
             var writablePathSet = new HashSet<string>(
                 writablePaths,
@@ -767,10 +976,21 @@ public static class ArtemisNativeSandbox
                 securityCapabilitiesBuffer,
                 false);
 
+            standardInput = DuplicateStandardHandle(STD_INPUT_HANDLE);
+            standardOutput = DuplicateStandardHandle(STD_OUTPUT_HANDLE);
+            standardError = DuplicateStandardHandle(STD_ERROR_HANDLE);
+            handleListBuffer = Marshal.AllocHGlobal(IntPtr.Size * 3);
+            Marshal.WriteIntPtr(handleListBuffer, 0, standardInput);
+            Marshal.WriteIntPtr(handleListBuffer, IntPtr.Size, standardOutput);
+            Marshal.WriteIntPtr(
+                handleListBuffer,
+                IntPtr.Size * 2,
+                standardError);
+
             var attributeSize = IntPtr.Zero;
             InitializeProcThreadAttributeList(
                 IntPtr.Zero,
-                1,
+                2,
                 0,
                 ref attributeSize);
             if (attributeSize == IntPtr.Zero)
@@ -779,7 +999,7 @@ public static class ArtemisNativeSandbox
             attributeList = Marshal.AllocHGlobal(attributeSize);
             if (!InitializeProcThreadAttributeList(
                 attributeList,
-                1,
+                2,
                 0,
                 ref attributeSize))
                 ThrowLastError(
@@ -794,6 +1014,15 @@ public static class ArtemisNativeSandbox
                 IntPtr.Zero,
                 IntPtr.Zero))
                 ThrowLastError("UpdateProcThreadAttribute");
+            if (!UpdateProcThreadAttribute(
+                attributeList,
+                0,
+                PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                handleListBuffer,
+                new IntPtr(IntPtr.Size * 3),
+                IntPtr.Zero,
+                IntPtr.Zero))
+                ThrowLastError("UpdateProcThreadAttribute(handle list)");
 
             var startup = new STARTUPINFOEX();
             startup.StartupInfo.cb = Marshal.SizeOf(
@@ -801,11 +1030,11 @@ public static class ArtemisNativeSandbox
             startup.StartupInfo.dwFlags =
                 (int)STARTF_USESTDHANDLES;
             startup.StartupInfo.hStdInput =
-                GetStdHandle(STD_INPUT_HANDLE);
+                standardInput;
             startup.StartupInfo.hStdOutput =
-                GetStdHandle(STD_OUTPUT_HANDLE);
+                standardOutput;
             startup.StartupInfo.hStdError =
-                GetStdHandle(STD_ERROR_HANDLE);
+                standardError;
             startup.AttributeList = attributeList;
 
             var commandLine = new StringBuilder(Quote(executable));
@@ -826,6 +1055,13 @@ public static class ArtemisNativeSandbox
                 ref startup,
                 out process))
                 ThrowLastError("CreateProcess(AppContainer)");
+
+            CloseHandle(standardInput);
+            standardInput = IntPtr.Zero;
+            CloseHandle(standardOutput);
+            standardOutput = IntPtr.Zero;
+            CloseHandle(standardError);
+            standardError = IntPtr.Zero;
 
             job = CreateJobObject(IntPtr.Zero, null);
             if (job == IntPtr.Zero)
@@ -867,12 +1103,26 @@ public static class ArtemisNativeSandbox
         }
         finally
         {
+            Exception jobDrainError = null;
             if (process.hThread != IntPtr.Zero)
                 CloseHandle(process.hThread);
             if (process.hProcess != IntPtr.Zero)
                 CloseHandle(process.hProcess);
             if (job != IntPtr.Zero)
-                CloseHandle(job);
+            {
+                try
+                {
+                    TerminateAndDrainJob(job);
+                }
+                catch (Exception error)
+                {
+                    jobDrainError = error;
+                }
+                finally
+                {
+                    CloseHandle(job);
+                }
+            }
             if (attributeList != IntPtr.Zero)
             {
                 DeleteProcThreadAttributeList(attributeList);
@@ -880,6 +1130,14 @@ public static class ArtemisNativeSandbox
             }
             if (securityCapabilitiesBuffer != IntPtr.Zero)
                 Marshal.FreeHGlobal(securityCapabilitiesBuffer);
+            if (handleListBuffer != IntPtr.Zero)
+                Marshal.FreeHGlobal(handleListBuffer);
+            if (standardInput != IntPtr.Zero)
+                CloseHandle(standardInput);
+            if (standardOutput != IntPtr.Zero)
+                CloseHandle(standardOutput);
+            if (standardError != IntPtr.Zero)
+                CloseHandle(standardError);
             if (capabilityBuffer != IntPtr.Zero)
                 Marshal.FreeHGlobal(capabilityBuffer);
             if (networkCapabilitySid != IntPtr.Zero)
@@ -903,12 +1161,43 @@ public static class ArtemisNativeSandbox
             if (appContainerSid != IntPtr.Zero)
                 FreeSid(appContainerSid);
             DeleteAppContainerProfile(identity);
+            if (jobDrainError != null)
+                throw jobDrainError;
         }
     }
 }
 '@
 
-Add-Type -TypeDefinition $nativeSource -Language CSharp
+$sandboxTempEnvironment = @{}
+foreach ($name in @('TEMP', 'TMP', 'TMPDIR')) {
+  $sandboxTempEnvironment[$name] = [System.Environment]::GetEnvironmentVariable(
+    $name,
+    [System.EnvironmentVariableTarget]::Process
+  )
+}
+try {
+  if ($hostTemp) {
+    foreach ($name in @('TEMP', 'TMP', 'TMPDIR')) {
+      [System.Environment]::SetEnvironmentVariable(
+        $name,
+        $hostTemp,
+        [System.EnvironmentVariableTarget]::Process
+      )
+    }
+  }
+  Write-SandboxDiagnostic 'compiling native helper'
+  Add-Type -TypeDefinition $nativeSource -Language CSharp
+}
+finally {
+  foreach ($name in @('TEMP', 'TMP', 'TMPDIR')) {
+    [System.Environment]::SetEnvironmentVariable(
+      $name,
+      $sandboxTempEnvironment[$name],
+      [System.EnvironmentVariableTarget]::Process
+    )
+  }
+}
+Write-SandboxDiagnostic 'native helper compiled'
 $workspaceRoot = [System.IO.Path]::GetPathRoot($workspace)
 $systemRoot = [System.IO.Path]::GetPathRoot(
   [System.Environment]::SystemDirectory
@@ -923,7 +1212,7 @@ if ($requiresClassicAppContainer) {
       'artemisWorkspaceTraverse'
     )
   )
-  $accessPaths = @($workspace) + @($readOnlyPaths)
+  $accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)
   $ancestors = @(
     $accessPaths |
       ForEach-Object { Get-AncestorDirectories $_ } |
@@ -976,10 +1265,12 @@ if ($requiresClassicAppContainer) {
 }
 
 if ($requiresClassicAppContainer) {
+  Write-SandboxDiagnostic 'launching classic AppContainer'
   $exitCode = [ArtemisNativeSandbox]::LaunchClassic(
     $Identity,
     $workspace,
     $workingDirectory,
+    $hostAccess,
     $Executable,
     $commandArguments,
     $writablePaths,
@@ -989,9 +1280,11 @@ if ($requiresClassicAppContainer) {
 }
 else {
   try {
+    Write-SandboxDiagnostic 'launching experimental AppContainer'
     $exitCode = [ArtemisNativeSandbox]::Launch(
       $Identity,
       $workingDirectory,
+      $hostAccess,
       $Executable,
       $commandArguments,
       $sandboxSpecification
@@ -1006,10 +1299,12 @@ else {
     if (-not $experimentalSandboxUnavailable) {
       throw
     }
+    Write-SandboxDiagnostic 'falling back to classic AppContainer'
     $exitCode = [ArtemisNativeSandbox]::LaunchClassic(
       $Identity,
       $workspace,
       $workingDirectory,
+      $hostAccess,
       $Executable,
       $commandArguments,
       $writablePaths,
@@ -1018,4 +1313,5 @@ else {
     )
   }
 }
+Write-SandboxDiagnostic 'sandbox child exited'
 exit $exitCode

@@ -141,20 +141,35 @@ describe("sandbox execution contracts", () => {
       {
         executable: "powershell.exe",
         args: ["-NoProfile", "-Command", "Write-Output 'a&b'"],
-        cwd: "C:\\repo",
+        cwd: "C:\\task",
       },
       {
-        workspacePath: "C:\\repo",
+        workspacePath: "C:\\task",
         mode: "execute",
         network: "deny",
+        writablePaths: ["C:\\runtime"],
       },
-      { helperPath },
+      {
+        helperPath,
+        hostAccessPath: "C:\\runtime\\.artemis-mcp",
+        hostTempPath: "C:\\host-temp",
+        runtimePath: "C:\\runtime",
+      },
     );
 
     expect(launch).toMatchObject({
       executable: "powershell.exe",
       implementation: "windows-appcontainer",
     });
+    expect(launch.args[launch.args.indexOf("-RuntimePath") + 1]).toBe(
+      resolve("C:\\runtime"),
+    );
+    expect(launch.args[launch.args.indexOf("-HostAccessPath") + 1]).toBe(
+      resolve("C:\\runtime\\.artemis-mcp"),
+    );
+    expect(launch.args[launch.args.indexOf("-HostTempPath") + 1]).toBe(
+      resolve("C:\\host-temp"),
+    );
     expect(launch.args).not.toContain("Write-Output 'a&b'");
     const encoded = launch.args[launch.args.indexOf("-ArgumentsBase64") + 1];
     expect(JSON.parse(Buffer.from(encoded, "base64").toString("utf8"))).toEqual(
@@ -165,7 +180,8 @@ describe("sandbox execution contracts", () => {
     const bytes = Buffer.from(specification, "base64");
     expect(bytes.subarray(4, 8).toString("ascii")).toBe("SBOX");
     expect(bytes.includes(Buffer.from("0.1.0"))).toBe(true);
-    expect(bytes.includes(Buffer.from("C:\\repo"))).toBe(true);
+    expect(bytes.includes(Buffer.from("C:\\task"))).toBe(true);
+    expect(bytes.includes(Buffer.from("C:\\runtime"))).toBe(true);
   });
 
   it("encodes network capability only when explicitly allowed", () => {

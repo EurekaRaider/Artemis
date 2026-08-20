@@ -111,7 +111,7 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     expect(helper).toContain("$requiresClassicAppContainer");
     expect(helper).toContain("Test-AppContainerAncestorAccess");
     expect(helper).toContain(
-      "$accessPaths = @($workspace) + @($readOnlyPaths)",
+      "$accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)",
     );
     expect(helper).toContain("-Verb RunAs");
     expect(helper).toContain("-WindowStyle Hidden");
@@ -154,6 +154,23 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     expect(helper).toContain("if (!writablePathSet.Contains(workspace))");
   });
 
+  it("allows a scoped task to retain its declared MCP runtime directory", () => {
+    const helper = readFileSync(sandboxHelperPath, "utf8");
+
+    expect(helper).toContain(
+      "-not (Test-PathWithinRoot $workingDirectory $workspace) -and",
+    );
+    expect(helper).toContain(
+      "-not (Test-PathWithinRoot $workingDirectory $runtime)",
+    );
+    expect(helper).toContain(
+      "Working directory must remain inside the workspace or MCP runtime",
+    );
+    expect(helper).toContain(
+      "Writable path escapes the workspace and MCP runtime",
+    );
+  });
+
   it("falls back to classic AppContainer when the experimental API is unavailable", () => {
     const helper = readFileSync(sandboxHelperPath, "utf8");
 
@@ -167,5 +184,70 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     expect(helper).toContain("'Windows CreateProcessInSandbox is unavailable'");
     expect(helper).not.toContain("($experimentalFailure -match 'failed: 120')");
     expect(helper).toContain("[ArtemisNativeSandbox]::LaunchClassic(");
+  });
+
+  it("inherits only explicit standard handles in classic AppContainer", () => {
+    const helper = readFileSync(sandboxHelperPath, "utf8");
+
+    expect(helper).toContain("PROC_THREAD_ATTRIBUTE_HANDLE_LIST");
+    expect(helper).toContain("DuplicateStandardHandle(STD_INPUT_HANDLE)");
+    expect(helper).toContain("DuplicateStandardHandle(STD_OUTPUT_HANDLE)");
+    expect(helper).toContain("DuplicateStandardHandle(STD_ERROR_HANDLE)");
+    expect(helper).toContain("new IntPtr(IntPtr.Size * 3)");
+    expect(helper).toContain(
+      'ThrowLastError("UpdateProcThreadAttribute(handle list)")',
+    );
+  });
+
+  it("keeps the private runtime reclaimable by the desktop user", () => {
+    const helper = readFileSync(sandboxHelperPath, "utf8");
+    const compilerEnvironment = helper.slice(
+      helper.indexOf("$sandboxTempEnvironment = @{}"),
+      helper.indexOf("$workspaceRoot ="),
+    );
+
+    expect(helper).toContain("[string]$HostAccessPath = ''");
+    expect(helper).toContain("[string]$HostTempPath = ''");
+    expect(helper).toContain(
+      "Host access directory must remain inside the MCP runtime",
+    );
+    expect(helper).toContain(
+      "Host temp directory must remain outside the MCP runtime",
+    );
+    expect(helper).toContain("WindowsIdentity.GetCurrent().User");
+    expect(helper).toContain("FileSystemRights.FullControl");
+    expect(helper).toContain("security.SetAccessRuleProtection(true, true)");
+    expect(helper).toContain("security.AddAccessRule(rule)");
+    expect(helper.match(/PreserveHostAccess\(hostAccessPath\)/gu)).toHaveLength(
+      2,
+    );
+    expect(helper).not.toContain("TokenDefaultDacl");
+    expect(helper).not.toContain("SetProcessDefaultDacl");
+    expect(compilerEnvironment).toMatch(
+      /SetEnvironmentVariable\([\s\S]*?\$hostTemp[\s\S]*?Add-Type[\s\S]*?finally[\s\S]*?\$sandboxTempEnvironment\[\$name\]/u,
+    );
+    expect(helper).toContain(
+      "Write-SandboxDiagnostic 'compiling native helper'",
+    );
+    expect(helper).toContain(
+      "Write-SandboxDiagnostic 'native helper compiled'",
+    );
+  });
+
+  it("terminates and drains all job descendants before the helper exits", () => {
+    const helper = readFileSync(sandboxHelperPath, "utf8");
+
+    expect(helper.match(/TerminateAndDrainJob\(job\)/gu)).toHaveLength(2);
+    expect(helper).toContain("TerminateJobObject(job, 1)");
+    expect(helper).toContain("QueryInformationJobObject(");
+    expect(helper).toContain("information.ActiveProcesses == 0");
+    expect(helper).toContain("DateTime.UtcNow.AddMilliseconds(");
+    expect(helper).not.toContain("Environment.TickCount64");
+    expect(helper.match(/Exception jobDrainError = null;/gu)).toHaveLength(2);
+    expect(
+      helper.match(
+        /DeleteAppContainerProfile\(identity\);\s+if \(jobDrainError != null\)\s+throw jobDrainError;/gu,
+      ),
+    ).toHaveLength(2);
   });
 });
