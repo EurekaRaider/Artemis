@@ -199,6 +199,20 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     );
   });
 
+  it("keeps sandbox-created objects reclaimable by the desktop user", () => {
+    const helper = readFileSync(sandboxHelperPath, "utf8");
+
+    expect(helper).toContain("TOKEN_ADJUST_DEFAULT");
+    expect(helper).toContain("TokenDefaultDacl");
+    expect(helper).toContain(
+      'ThrowLastError("GetTokenInformation(default DACL)")',
+    );
+    expect(helper).toContain("WindowsIdentity.GetCurrent().User");
+    expect(helper).toContain("AceQualifier.AccessAllowed");
+    expect(helper).toContain("appContainerSid");
+    expect(helper.match(/SetProcessDefaultDacl\(/gu)).toHaveLength(3);
+  });
+
   it("terminates and drains all job descendants before the helper exits", () => {
     const helper = readFileSync(sandboxHelperPath, "utf8");
 

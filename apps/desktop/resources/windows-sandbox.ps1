@@ -191,6 +191,9 @@ public static class ArtemisNativeSandbox
     private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
     private const uint JOB_TEARDOWN_TIMEOUT_MS = 10000;
     private const uint DUPLICATE_SAME_ACCESS = 0x00000002;
+    private const uint TOKEN_ADJUST_DEFAULT = 0x00000080;
+    private const uint TOKEN_QUERY = 0x00000008;
+    private const int TokenDefaultDacl = 6;
     private const int STD_INPUT_HANDLE = -10;
     private const int STD_OUTPUT_HANDLE = -11;
     private const int STD_ERROR_HANDLE = -12;
@@ -213,6 +216,12 @@ public static class ArtemisNativeSandbox
     {
         public IntPtr Sid;
         public uint Attributes;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TOKEN_DEFAULT_DACL
+    {
+        public IntPtr DefaultDacl;
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -460,6 +469,27 @@ public static class ArtemisNativeSandbox
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool FreeSid(IntPtr sid);
 
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(
+        IntPtr process,
+        uint desiredAccess,
+        out IntPtr token);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetTokenInformation(
+        IntPtr token,
+        int informationClass,
+        IntPtr information,
+        int informationLength,
+        out int returnLength);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool SetTokenInformation(
+        IntPtr token,
+        int informationClass,
+        IntPtr information,
+        int informationLength);
+
     private static void ThrowLastError(string operation)
     {
         var error = Marshal.GetLastWin32Error();
@@ -523,6 +553,123 @@ public static class ArtemisNativeSandbox
             DUPLICATE_SAME_ACCESS))
             ThrowLastError("DuplicateHandle");
         return duplicate;
+    }
+
+    private static void SetProcessDefaultDacl(
+        IntPtr process,
+        SecurityIdentifier appContainerSid)
+    {
+        IntPtr token = IntPtr.Zero;
+        IntPtr existingInformationBuffer = IntPtr.Zero;
+        IntPtr aclBuffer = IntPtr.Zero;
+        IntPtr informationBuffer = IntPtr.Zero;
+        try
+        {
+            if (!OpenProcessToken(
+                process,
+                TOKEN_ADJUST_DEFAULT | TOKEN_QUERY,
+                out token))
+                ThrowLastError("OpenProcessToken(default DACL)");
+            var userSid = WindowsIdentity.GetCurrent().User;
+            if (userSid == null)
+                throw new InvalidOperationException(
+                    "The desktop user SID is unavailable.");
+            var inheritance =
+                AceFlags.ContainerInherit |
+                AceFlags.ObjectInherit;
+            int existingInformationLength;
+            GetTokenInformation(
+                token,
+                TokenDefaultDacl,
+                IntPtr.Zero,
+                0,
+                out existingInformationLength);
+            if (existingInformationLength <= 0)
+                ThrowLastError("GetTokenInformation(default DACL size)");
+            existingInformationBuffer = Marshal.AllocHGlobal(
+                existingInformationLength);
+            if (!GetTokenInformation(
+                token,
+                TokenDefaultDacl,
+                existingInformationBuffer,
+                existingInformationLength,
+                out existingInformationLength))
+                ThrowLastError("GetTokenInformation(default DACL)");
+            var existingInformation = (TOKEN_DEFAULT_DACL)
+                Marshal.PtrToStructure(
+                    existingInformationBuffer,
+                    typeof(TOKEN_DEFAULT_DACL));
+            RawAcl acl;
+            if (existingInformation.DefaultDacl == IntPtr.Zero)
+            {
+                acl = new RawAcl(GenericAcl.AclRevision, 2);
+            }
+            else
+            {
+                var existingAclLength = (ushort)Marshal.ReadInt16(
+                    existingInformation.DefaultDacl,
+                    2);
+                var existingAclBytes = new byte[existingAclLength];
+                Marshal.Copy(
+                    existingInformation.DefaultDacl,
+                    existingAclBytes,
+                    0,
+                    existingAclBytes.Length);
+                acl = new RawAcl(existingAclBytes, 0);
+            }
+            acl.InsertAce(
+                acl.Count,
+                new CommonAce(
+                    inheritance,
+                    AceQualifier.AccessAllowed,
+                    (int)FileSystemRights.FullControl,
+                    userSid,
+                    false,
+                    null));
+            acl.InsertAce(
+                acl.Count,
+                new CommonAce(
+                    inheritance,
+                    AceQualifier.AccessAllowed,
+                    (int)FileSystemRights.FullControl,
+                    appContainerSid,
+                    false,
+                    null));
+            var aclBytes = new byte[acl.BinaryLength];
+            acl.GetBinaryForm(aclBytes, 0);
+            aclBuffer = Marshal.AllocHGlobal(aclBytes.Length);
+            Marshal.Copy(aclBytes, 0, aclBuffer, aclBytes.Length);
+
+            var information = new TOKEN_DEFAULT_DACL
+            {
+                DefaultDacl = aclBuffer
+            };
+            var informationLength = Marshal.SizeOf(
+                typeof(TOKEN_DEFAULT_DACL));
+            informationBuffer = Marshal.AllocHGlobal(
+                informationLength);
+            Marshal.StructureToPtr(
+                information,
+                informationBuffer,
+                false);
+            if (!SetTokenInformation(
+                token,
+                TokenDefaultDacl,
+                informationBuffer,
+                informationLength))
+                ThrowLastError("SetTokenInformation(default DACL)");
+        }
+        finally
+        {
+            if (informationBuffer != IntPtr.Zero)
+                Marshal.FreeHGlobal(informationBuffer);
+            if (aclBuffer != IntPtr.Zero)
+                Marshal.FreeHGlobal(aclBuffer);
+            if (existingInformationBuffer != IntPtr.Zero)
+                Marshal.FreeHGlobal(existingInformationBuffer);
+            if (token != IntPtr.Zero)
+                CloseHandle(token);
+        }
     }
 
     private static IntPtr DeriveCapabilitySid(string name)
@@ -648,6 +795,7 @@ public static class ArtemisNativeSandbox
     {
         IntPtr module = IntPtr.Zero;
         IntPtr specification = IntPtr.Zero;
+        IntPtr appContainerSid = IntPtr.Zero;
         IntPtr job = IntPtr.Zero;
         var process = new PROCESS_INFORMATION();
 
@@ -732,6 +880,14 @@ public static class ArtemisNativeSandbox
 
             if (!AssignProcessToJobObject(job, process.hProcess))
                 ThrowLastError("AssignProcessToJobObject");
+            var sidResult = DeriveAppContainerSidFromAppContainerName(
+                identity,
+                out appContainerSid);
+            if (sidResult != 0)
+                Marshal.ThrowExceptionForHR(sidResult);
+            SetProcessDefaultDacl(
+                process.hProcess,
+                new SecurityIdentifier(appContainerSid));
             if (ResumeThread(process.hThread) == 0xFFFFFFFF)
                 ThrowLastError("ResumeThread");
 
@@ -767,6 +923,8 @@ public static class ArtemisNativeSandbox
                 Marshal.FreeHGlobal(specification);
             if (module != IntPtr.Zero)
                 FreeLibrary(module);
+            if (appContainerSid != IntPtr.Zero)
+                FreeSid(appContainerSid);
             DeleteAppContainerProfile(identity);
             if (jobDrainError != null)
                 throw jobDrainError;
@@ -1020,6 +1178,7 @@ public static class ArtemisNativeSandbox
             }
             if (!AssignProcessToJobObject(job, process.hProcess))
                 ThrowLastError("AssignProcessToJobObject");
+            SetProcessDefaultDacl(process.hProcess, sid);
             if (ResumeThread(process.hThread) == 0xFFFFFFFF)
                 ThrowLastError("ResumeThread");
 

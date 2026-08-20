@@ -315,7 +315,14 @@ async function describeWindowsCleanupTarget(
   directory: string,
   fixture: WindowsFixtureProcesses | undefined,
 ): Promise<string> {
-  const entries = await readdir(directory, { recursive: true }).catch(() => []);
+  let entries: string;
+  try {
+    const names = await readdir(directory, { recursive: true });
+    entries = names.slice(0, 100).join(", ") || "none";
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException;
+    entries = `inaccessible (${nodeError.code ?? "error"}: ${nodeError.message})`;
+  }
   const fixtureProcesses = fixture
     ? [
         `child ${String(fixture.pid)}: ${windowsProcessStatus(fixture.pid)}`,
@@ -409,7 +416,7 @@ async function describeWindowsCleanupTarget(
     }
   }
   return [
-    `remaining entries: ${entries.slice(0, 100).join(", ") || "none"}`,
+    `remaining entries: ${entries}`,
     fixtureProcesses,
     `lstat: ${lstatStatus}`,
     `metadata: ${pathMetadata}`,
