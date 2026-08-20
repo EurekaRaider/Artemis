@@ -1037,6 +1037,7 @@ export class McpClientManager {
             return buildWindowsAppContainerLaunch(sandboxCommand, policy, {
               helperPath: this.windowsHelperPath,
               identity: `Artemis.Mcp.${safeToolSegment(config.id)}`,
+              runtimePath: runtimeWorkspacePath,
             });
           }
           throw new Error(

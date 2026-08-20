@@ -141,14 +141,15 @@ describe("sandbox execution contracts", () => {
       {
         executable: "powershell.exe",
         args: ["-NoProfile", "-Command", "Write-Output 'a&b'"],
-        cwd: "C:\\repo",
+        cwd: "C:\\task",
       },
       {
-        workspacePath: "C:\\repo",
+        workspacePath: "C:\\task",
         mode: "execute",
         network: "deny",
+        writablePaths: ["C:\\runtime"],
       },
-      { helperPath },
+      { helperPath, runtimePath: "C:\\runtime" },
     );
 
     expect(launch).toMatchObject({
@@ -156,7 +157,7 @@ describe("sandbox execution contracts", () => {
       implementation: "windows-appcontainer",
     });
     expect(launch.args[launch.args.indexOf("-RuntimePath") + 1]).toBe(
-      resolve("C:\\repo"),
+      resolve("C:\\runtime"),
     );
     expect(launch.args).not.toContain("Write-Output 'a&b'");
     const encoded = launch.args[launch.args.indexOf("-ArgumentsBase64") + 1];
@@ -168,7 +169,8 @@ describe("sandbox execution contracts", () => {
     const bytes = Buffer.from(specification, "base64");
     expect(bytes.subarray(4, 8).toString("ascii")).toBe("SBOX");
     expect(bytes.includes(Buffer.from("0.1.0"))).toBe(true);
-    expect(bytes.includes(Buffer.from("C:\\repo"))).toBe(true);
+    expect(bytes.includes(Buffer.from("C:\\task"))).toBe(true);
+    expect(bytes.includes(Buffer.from("C:\\runtime"))).toBe(true);
   });
 
   it("encodes network capability only when explicitly allowed", () => {

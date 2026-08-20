@@ -12,6 +12,7 @@ import type {
 export interface WindowsAppContainerOptions {
   helperPath: string;
   identity?: string;
+  runtimePath?: string;
 }
 
 export function buildWindowsAppContainerLaunch(
@@ -59,7 +60,7 @@ export function buildWindowsAppContainerLaunch(
       "-WorkingDirectory",
       resolve(command.cwd),
       "-RuntimePath",
-      resolve(command.cwd),
+      resolve(options.runtimePath ?? command.cwd),
       "-Executable",
       command.executable,
       "-ArgumentsBase64",
