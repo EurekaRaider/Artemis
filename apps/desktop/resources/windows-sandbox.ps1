@@ -172,11 +172,14 @@ public static class ArtemisNativeSandbox
     private const uint INFINITE = 0xFFFFFFFF;
     private const int JobObjectExtendedLimitInformation = 9;
     private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
+    private const uint DUPLICATE_SAME_ACCESS = 0x00000002;
     private const int STD_INPUT_HANDLE = -10;
     private const int STD_OUTPUT_HANDLE = -11;
     private const int STD_ERROR_HANDLE = -12;
     private static readonly IntPtr PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES =
         new IntPtr(0x00020009);
+    private static readonly IntPtr PROC_THREAD_ATTRIBUTE_HANDLE_LIST =
+        new IntPtr(0x00020002);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SECURITY_CAPABILITIES
@@ -391,6 +394,19 @@ public static class ArtemisNativeSandbox
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr GetStdHandle(int standardHandle);
 
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool DuplicateHandle(
+        IntPtr sourceProcess,
+        IntPtr sourceHandle,
+        IntPtr targetProcess,
+        out IntPtr targetHandle,
+        uint desiredAccess,
+        bool inheritHandle,
+        uint options);
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
 
@@ -406,6 +422,25 @@ public static class ArtemisNativeSandbox
         throw new InvalidOperationException(
             operation + " failed: " + error + " (" +
             new Win32Exception(error).Message + ")");
+    }
+
+    private static IntPtr DuplicateStandardHandle(int standardHandle)
+    {
+        var source = GetStdHandle(standardHandle);
+        if (source == IntPtr.Zero || source == new IntPtr(-1))
+            ThrowLastError("GetStdHandle");
+        var process = GetCurrentProcess();
+        IntPtr duplicate;
+        if (!DuplicateHandle(
+            process,
+            source,
+            process,
+            out duplicate,
+            0,
+            true,
+            DUPLICATE_SAME_ACCESS))
+            ThrowLastError("DuplicateHandle");
+        return duplicate;
     }
 
     private static IntPtr DeriveCapabilitySid(string name)
@@ -655,8 +690,12 @@ public static class ArtemisNativeSandbox
         IntPtr networkCapabilitySid = IntPtr.Zero;
         IntPtr capabilityBuffer = IntPtr.Zero;
         IntPtr securityCapabilitiesBuffer = IntPtr.Zero;
+        IntPtr handleListBuffer = IntPtr.Zero;
         IntPtr attributeList = IntPtr.Zero;
         IntPtr job = IntPtr.Zero;
+        IntPtr standardInput = IntPtr.Zero;
+        IntPtr standardOutput = IntPtr.Zero;
+        IntPtr standardError = IntPtr.Zero;
         var process = new PROCESS_INFORMATION();
         var grants = new List<Tuple<string, FileSystemAccessRule>>();
 
@@ -767,10 +806,21 @@ public static class ArtemisNativeSandbox
                 securityCapabilitiesBuffer,
                 false);
 
+            standardInput = DuplicateStandardHandle(STD_INPUT_HANDLE);
+            standardOutput = DuplicateStandardHandle(STD_OUTPUT_HANDLE);
+            standardError = DuplicateStandardHandle(STD_ERROR_HANDLE);
+            handleListBuffer = Marshal.AllocHGlobal(IntPtr.Size * 3);
+            Marshal.WriteIntPtr(handleListBuffer, 0, standardInput);
+            Marshal.WriteIntPtr(handleListBuffer, IntPtr.Size, standardOutput);
+            Marshal.WriteIntPtr(
+                handleListBuffer,
+                IntPtr.Size * 2,
+                standardError);
+
             var attributeSize = IntPtr.Zero;
             InitializeProcThreadAttributeList(
                 IntPtr.Zero,
-                1,
+                2,
                 0,
                 ref attributeSize);
             if (attributeSize == IntPtr.Zero)
@@ -779,7 +829,7 @@ public static class ArtemisNativeSandbox
             attributeList = Marshal.AllocHGlobal(attributeSize);
             if (!InitializeProcThreadAttributeList(
                 attributeList,
-                1,
+                2,
                 0,
                 ref attributeSize))
                 ThrowLastError(
@@ -794,6 +844,15 @@ public static class ArtemisNativeSandbox
                 IntPtr.Zero,
                 IntPtr.Zero))
                 ThrowLastError("UpdateProcThreadAttribute");
+            if (!UpdateProcThreadAttribute(
+                attributeList,
+                0,
+                PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+                handleListBuffer,
+                new IntPtr(IntPtr.Size * 3),
+                IntPtr.Zero,
+                IntPtr.Zero))
+                ThrowLastError("UpdateProcThreadAttribute(handle list)");
 
             var startup = new STARTUPINFOEX();
             startup.StartupInfo.cb = Marshal.SizeOf(
@@ -801,11 +860,11 @@ public static class ArtemisNativeSandbox
             startup.StartupInfo.dwFlags =
                 (int)STARTF_USESTDHANDLES;
             startup.StartupInfo.hStdInput =
-                GetStdHandle(STD_INPUT_HANDLE);
+                standardInput;
             startup.StartupInfo.hStdOutput =
-                GetStdHandle(STD_OUTPUT_HANDLE);
+                standardOutput;
             startup.StartupInfo.hStdError =
-                GetStdHandle(STD_ERROR_HANDLE);
+                standardError;
             startup.AttributeList = attributeList;
 
             var commandLine = new StringBuilder(Quote(executable));
@@ -826,6 +885,13 @@ public static class ArtemisNativeSandbox
                 ref startup,
                 out process))
                 ThrowLastError("CreateProcess(AppContainer)");
+
+            CloseHandle(standardInput);
+            standardInput = IntPtr.Zero;
+            CloseHandle(standardOutput);
+            standardOutput = IntPtr.Zero;
+            CloseHandle(standardError);
+            standardError = IntPtr.Zero;
 
             job = CreateJobObject(IntPtr.Zero, null);
             if (job == IntPtr.Zero)
@@ -880,6 +946,14 @@ public static class ArtemisNativeSandbox
             }
             if (securityCapabilitiesBuffer != IntPtr.Zero)
                 Marshal.FreeHGlobal(securityCapabilitiesBuffer);
+            if (handleListBuffer != IntPtr.Zero)
+                Marshal.FreeHGlobal(handleListBuffer);
+            if (standardInput != IntPtr.Zero)
+                CloseHandle(standardInput);
+            if (standardOutput != IntPtr.Zero)
+                CloseHandle(standardOutput);
+            if (standardError != IntPtr.Zero)
+                CloseHandle(standardError);
             if (capabilityBuffer != IntPtr.Zero)
                 Marshal.FreeHGlobal(capabilityBuffer);
             if (networkCapabilitySid != IntPtr.Zero)

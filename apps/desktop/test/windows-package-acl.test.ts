@@ -168,4 +168,17 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     expect(helper).not.toContain("($experimentalFailure -match 'failed: 120')");
     expect(helper).toContain("[ArtemisNativeSandbox]::LaunchClassic(");
   });
+
+  it("inherits only explicit standard handles in classic AppContainer", () => {
+    const helper = readFileSync(sandboxHelperPath, "utf8");
+
+    expect(helper).toContain("PROC_THREAD_ATTRIBUTE_HANDLE_LIST");
+    expect(helper).toContain("DuplicateStandardHandle(STD_INPUT_HANDLE)");
+    expect(helper).toContain("DuplicateStandardHandle(STD_OUTPUT_HANDLE)");
+    expect(helper).toContain("DuplicateStandardHandle(STD_ERROR_HANDLE)");
+    expect(helper).toContain("new IntPtr(IntPtr.Size * 3)");
+    expect(helper).toContain(
+      'ThrowLastError("UpdateProcThreadAttribute(handle list)")',
+    );
+  });
 });
