@@ -6,6 +6,7 @@ import {
   readFile,
   readdir,
   rm,
+  rmdir,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -33,6 +34,7 @@ interface ResolvedWindowsStdioCommand {
 const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 90_000;
 const WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS = 30_000;
 const WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS = 30_000;
+const WINDOWS_APP_CONTAINER_EMPTY_ROOT_CLEANUP_TIMEOUT_MS = 5_000;
 const WINDOWS_APP_CONTAINER_DIAGNOSTIC_TIMEOUT_MS = 60_000;
 
 async function withWindowsFixtureDeadline<T>(
@@ -263,11 +265,39 @@ async function cleanupWindowsAppContainerFixture(
             );
           }),
         ]);
-        return removed
-          ? undefined
-          : new Error(
-              `MCP fixture directory cleanup timed out: ${directory}\n${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
-            );
+        if (removed || !existsSync(directory)) return undefined;
+
+        const remainingEntries = await readdir(directory).catch(
+          () => undefined,
+        );
+        let emptyRootRemovalError: unknown;
+        if (remainingEntries?.length === 0) {
+          let emptyRootTimeout: ReturnType<typeof setTimeout> | undefined;
+          try {
+            emptyRootRemovalError = await Promise.race([
+              rmdir(directory).then(() => undefined),
+              new Promise<Error>((resolvePromise) => {
+                emptyRootTimeout = setTimeout(
+                  () =>
+                    resolvePromise(
+                      new Error("Empty fixture root removal timed out"),
+                    ),
+                  WINDOWS_APP_CONTAINER_EMPTY_ROOT_CLEANUP_TIMEOUT_MS,
+                );
+              }),
+            ]).catch((error: unknown) => error);
+          } finally {
+            if (emptyRootTimeout) clearTimeout(emptyRootTimeout);
+          }
+          if (!existsSync(directory)) return undefined;
+        }
+
+        const emptyRootDetail = emptyRootRemovalError
+          ? `; empty root removal failed: ${emptyRootRemovalError instanceof Error ? emptyRootRemovalError.message : String(emptyRootRemovalError)}`
+          : "";
+        return new Error(
+          `MCP fixture directory cleanup timed out: ${directory}${emptyRootDetail}\n${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
+        );
       } catch (error) {
         return new Error(
           `Failed to remove MCP fixture directory: ${directory}`,
