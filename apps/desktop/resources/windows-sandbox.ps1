@@ -742,6 +742,7 @@ public static class ArtemisNativeSandbox
         }
         finally
         {
+            Exception jobDrainError = null;
             if (process.hThread != IntPtr.Zero)
                 CloseHandle(process.hThread);
             if (process.hProcess != IntPtr.Zero)
@@ -751,6 +752,10 @@ public static class ArtemisNativeSandbox
                 try
                 {
                     TerminateAndDrainJob(job);
+                }
+                catch (Exception error)
+                {
+                    jobDrainError = error;
                 }
                 finally
                 {
@@ -762,6 +767,8 @@ public static class ArtemisNativeSandbox
             if (module != IntPtr.Zero)
                 FreeLibrary(module);
             DeleteAppContainerProfile(identity);
+            if (jobDrainError != null)
+                throw jobDrainError;
         }
     }
 
@@ -1023,6 +1030,7 @@ public static class ArtemisNativeSandbox
         }
         finally
         {
+            Exception jobDrainError = null;
             if (process.hThread != IntPtr.Zero)
                 CloseHandle(process.hThread);
             if (process.hProcess != IntPtr.Zero)
@@ -1032,6 +1040,10 @@ public static class ArtemisNativeSandbox
                 try
                 {
                     TerminateAndDrainJob(job);
+                }
+                catch (Exception error)
+                {
+                    jobDrainError = error;
                 }
                 finally
                 {
@@ -1076,6 +1088,8 @@ public static class ArtemisNativeSandbox
             if (appContainerSid != IntPtr.Zero)
                 FreeSid(appContainerSid);
             DeleteAppContainerProfile(identity);
+            if (jobDrainError != null)
+                throw jobDrainError;
         }
     }
 }

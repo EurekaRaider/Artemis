@@ -206,5 +206,11 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     expect(helper).toContain("TerminateJobObject(job, 1)");
     expect(helper).toContain("QueryInformationJobObject(");
     expect(helper).toContain("information.ActiveProcesses == 0");
+    expect(helper.match(/Exception jobDrainError = null;/gu)).toHaveLength(2);
+    expect(
+      helper.match(
+        /DeleteAppContainerProfile\(identity\);\s+if \(jobDrainError != null\)\s+throw jobDrainError;/gu,
+      ),
+    ).toHaveLength(2);
   });
 });
