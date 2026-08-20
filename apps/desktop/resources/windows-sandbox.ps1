@@ -998,7 +998,12 @@ else {
     )
   }
   catch {
-    if ($_.Exception.ToString() -notmatch 'failed: 120') {
+    $experimentalFailure = $_.Exception.ToString()
+    $experimentalSandboxUnavailable =
+      ($experimentalFailure -match 'LoadLibraryEx\(processmodel\.dll\) failed: (?:120|126)') -or
+      ($experimentalFailure -match 'Experimental_CreateProcessInSandbox failed: 120') -or
+      ($experimentalFailure -match 'Windows CreateProcessInSandbox is unavailable')
+    if (-not $experimentalSandboxUnavailable) {
       throw
     }
     $exitCode = [ArtemisNativeSandbox]::LaunchClassic(
