@@ -1000,8 +1000,8 @@ else {
   catch {
     $experimentalFailure = $_.Exception.ToString()
     $experimentalSandboxUnavailable =
-      ($experimentalFailure -match 'failed: 120') -or
-      ($experimentalFailure -match 'LoadLibraryEx\(processmodel\.dll\) failed: 126') -or
+      ($experimentalFailure -match 'LoadLibraryEx\(processmodel\.dll\) failed: (?:120|126)') -or
+      ($experimentalFailure -match 'Experimental_CreateProcessInSandbox failed: 120') -or
       ($experimentalFailure -match 'Windows CreateProcessInSandbox is unavailable')
     if (-not $experimentalSandboxUnavailable) {
       throw
