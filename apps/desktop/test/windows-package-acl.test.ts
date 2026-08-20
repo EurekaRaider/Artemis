@@ -201,10 +201,18 @@ describe("Windows ZIP package and AppContainer ACL", () => {
 
   it("keeps the private runtime reclaimable by the desktop user", () => {
     const helper = readFileSync(sandboxHelperPath, "utf8");
+    const compilerEnvironment = helper.slice(
+      helper.indexOf("$sandboxTempEnvironment = @{}"),
+      helper.indexOf("$workspaceRoot ="),
+    );
 
     expect(helper).toContain("[string]$HostAccessPath = ''");
+    expect(helper).toContain("[string]$HostTempPath = ''");
     expect(helper).toContain(
       "Host access directory must remain inside the MCP runtime",
+    );
+    expect(helper).toContain(
+      "Host temp directory must remain outside the MCP runtime",
     );
     expect(helper).toContain("WindowsIdentity.GetCurrent().User");
     expect(helper).toContain("FileSystemRights.FullControl");
@@ -215,6 +223,9 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     );
     expect(helper).not.toContain("TokenDefaultDacl");
     expect(helper).not.toContain("SetProcessDefaultDacl");
+    expect(compilerEnvironment).toMatch(
+      /SetEnvironmentVariable\([\s\S]*?\$hostTemp[\s\S]*?Add-Type[\s\S]*?finally[\s\S]*?\$sandboxTempEnvironment\[\$name\]/u,
+    );
   });
 
   it("terminates and drains all job descendants before the helper exits", () => {

@@ -15,6 +15,9 @@ param(
   [AllowEmptyString()]
   [string]$HostAccessPath = '',
 
+  [AllowEmptyString()]
+  [string]$HostTempPath = '',
+
   [Parameter(Mandatory = $true)]
   [string]$Executable,
 
@@ -54,6 +57,12 @@ $hostAccess = if ([string]::IsNullOrWhiteSpace($HostAccessPath)) {
 else {
   [System.IO.Path]::GetFullPath($HostAccessPath)
 }
+$hostTemp = if ([string]::IsNullOrWhiteSpace($HostTempPath)) {
+  ''
+}
+else {
+  [System.IO.Path]::GetFullPath($HostTempPath)
+}
 if (-not [System.IO.Directory]::Exists($workspace)) {
   throw "Workspace does not exist: $workspace"
 }
@@ -86,6 +95,14 @@ if ($hostAccess) {
   }
   if (-not (Test-PathWithinRoot $hostAccess $runtime)) {
     throw 'Host access directory must remain inside the MCP runtime'
+  }
+}
+if ($hostTemp) {
+  if (-not [System.IO.Directory]::Exists($hostTemp)) {
+    throw "Host temp directory does not exist: $hostTemp"
+  }
+  if (Test-PathWithinRoot $hostTemp $runtime) {
+    throw 'Host temp directory must remain outside the MCP runtime'
   }
 }
 
@@ -1144,7 +1161,34 @@ public static class ArtemisNativeSandbox
 }
 '@
 
-Add-Type -TypeDefinition $nativeSource -Language CSharp
+$sandboxTempEnvironment = @{}
+foreach ($name in @('TEMP', 'TMP', 'TMPDIR')) {
+  $sandboxTempEnvironment[$name] = [System.Environment]::GetEnvironmentVariable(
+    $name,
+    [System.EnvironmentVariableTarget]::Process
+  )
+}
+try {
+  if ($hostTemp) {
+    foreach ($name in @('TEMP', 'TMP', 'TMPDIR')) {
+      [System.Environment]::SetEnvironmentVariable(
+        $name,
+        $hostTemp,
+        [System.EnvironmentVariableTarget]::Process
+      )
+    }
+  }
+  Add-Type -TypeDefinition $nativeSource -Language CSharp
+}
+finally {
+  foreach ($name in @('TEMP', 'TMP', 'TMPDIR')) {
+    [System.Environment]::SetEnvironmentVariable(
+      $name,
+      $sandboxTempEnvironment[$name],
+      [System.EnvironmentVariableTarget]::Process
+    )
+  }
+}
 $workspaceRoot = [System.IO.Path]::GetPathRoot($workspace)
 $systemRoot = [System.IO.Path]::GetPathRoot(
   [System.Environment]::SystemDirectory

@@ -1,7 +1,7 @@
 import { execFileSync, type ChildProcess } from "node:child_process";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { copyFile, cp, mkdir, readFile, readdir } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import {
   basename,
   delimiter,
@@ -1127,6 +1127,7 @@ export class McpClientManager {
               {
                 helperPath: this.windowsHelperPath,
                 hostAccessPath: runtimeDirectory,
+                hostTempPath: tmpdir(),
                 identity: `Artemis.Mcp.${safeToolSegment(config.id)}`,
                 runtimePath: runtimeDirectory,
               },

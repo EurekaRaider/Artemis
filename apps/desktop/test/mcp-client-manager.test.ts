@@ -954,6 +954,7 @@ lines.on("line", (line) => {
     expect(mcpClientManagerSource).toContain(
       "hostAccessPath: runtimeDirectory",
     );
+    expect(mcpClientManagerSource).toContain("hostTempPath: tmpdir()");
     expect(mcpClientManagerSource).toContain("runtimePath: runtimeDirectory");
   });
 
@@ -1258,7 +1259,7 @@ lines.on("line", (line) => {
       await mkdir(dirname(entryPath), { recursive: true });
       await writeFile(
         entryPath,
-        `import { rm, writeFile } from "node:fs/promises";
+        `import { mkdir, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 
@@ -1335,6 +1336,17 @@ lines.on("line", async (line) => {
   }
   const marker = process.pid + "-" + Date.now();
   const requestedWorkspace = message.params.arguments.workspacePath;
+  const retainedArtifact = ".post-dispose-" + marker;
+  const retainedDirectory = resolve(
+    typeof requestedWorkspace === "string" ? requestedWorkspace : process.cwd(),
+    retainedArtifact,
+  );
+  await mkdir(retainedDirectory);
+  await writeFile(
+    resolve(retainedDirectory, "artifact.txt"),
+    "sandbox-owned",
+    "utf8",
+  );
   const insidePath = resolve(
     typeof requestedWorkspace === "string" ? requestedWorkspace : process.cwd(),
     ".inside-" + marker,
@@ -1378,7 +1390,12 @@ lines.on("line", async (line) => {
       content: [
         {
           type: "text",
-          text: JSON.stringify({ insideWrite, outsideWrite, networkAccess }),
+          text: JSON.stringify({
+            insideWrite,
+            outsideWrite,
+            networkAccess,
+            retainedArtifact,
+          }),
         },
       ],
     },
@@ -1412,6 +1429,10 @@ lines.on("line", async (line) => {
       }, WINDOWS_APP_CONTAINER_DIAGNOSTIC_TIMEOUT_MS);
       let testFailed = false;
       let testFailure: unknown;
+      const retainedArtifacts: Array<{
+        directory: string;
+        file: string;
+      }> = [];
       try {
         const status = await withWindowsFixtureDeadline(
           "initial connection",
@@ -1449,10 +1470,27 @@ lines.on("line", async (line) => {
             outsidePath: outsideWorkspacePath,
           }),
         );
-        expect(JSON.parse(resultText(securityProbe))).toEqual({
+        const runtimeProbe = JSON.parse(resultText(securityProbe)) as {
+          insideWrite: boolean;
+          outsideWrite: boolean;
+          networkAccess: boolean;
+          retainedArtifact: string;
+        };
+        expect(runtimeProbe).toMatchObject({
           insideWrite: true,
           outsideWrite: false,
           networkAccess: true,
+        });
+        expect(runtimeProbe.retainedArtifact).toMatch(
+          /^\.post-dispose-\d+-\d+$/u,
+        );
+        retainedArtifacts.push({
+          directory: join(workspacePath, runtimeProbe.retainedArtifact),
+          file: join(
+            workspacePath,
+            runtimeProbe.retainedArtifact,
+            "artifact.txt",
+          ),
         });
         fixtureStage = "running task-scoped security probe";
         const taskProbe = await withWindowsFixtureDeadline(
@@ -1468,10 +1506,27 @@ lines.on("line", async (line) => {
             "execute",
           ),
         );
-        expect(JSON.parse(resultText(taskProbe))).toEqual({
+        const taskProbeResult = JSON.parse(resultText(taskProbe)) as {
+          insideWrite: boolean;
+          outsideWrite: boolean;
+          networkAccess: boolean;
+          retainedArtifact: string;
+        };
+        expect(taskProbeResult).toMatchObject({
           insideWrite: true,
           outsideWrite: false,
           networkAccess: true,
+        });
+        expect(taskProbeResult.retainedArtifact).toMatch(
+          /^\.post-dispose-\d+-\d+$/u,
+        );
+        retainedArtifacts.push({
+          directory: join(taskWorkspacePath, taskProbeResult.retainedArtifact),
+          file: join(
+            taskWorkspacePath,
+            taskProbeResult.retainedArtifact,
+            "artifact.txt",
+          ),
         });
       } catch (error) {
         fixtureStage = "capturing failure diagnostics";
@@ -1484,6 +1539,31 @@ lines.on("line", async (line) => {
           `${error instanceof Error ? error.message : String(error)}\nFixture diagnostics: ${fixtureDiagnostic}`,
           { cause: error },
         );
+      }
+      if (!testFailed) {
+        try {
+          fixtureStage = "disposing before host ACL validation";
+          await withWindowsFixtureDeadline(
+            "fixture disposal",
+            manager.dispose(),
+          );
+          fixtureStage = "validating post-dispose host ACLs";
+          for (const artifact of retainedArtifacts) {
+            expect(await readFile(artifact.file, "utf8")).toBe("sandbox-owned");
+            await writeFile(artifact.file, "host-owned", "utf8");
+            expect(await readFile(artifact.file, "utf8")).toBe("host-owned");
+            await removeWindowsFixtureTree(
+              artifact.directory,
+              Date.now() + WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS,
+            );
+          }
+        } catch (error) {
+          testFailed = true;
+          testFailure = new Error(
+            `Post-dispose host ACL validation failed: ${error instanceof Error ? error.message : String(error)}`,
+            { cause: error },
+          );
+        }
       }
       clearTimeout(diagnosticTimeout);
       fixtureStage = "cleaning up fixture";
