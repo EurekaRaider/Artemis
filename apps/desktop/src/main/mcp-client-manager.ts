@@ -685,11 +685,34 @@ async function connectStdioClient(
     await client.connect(transport, { timeout: startupTimeoutMs });
     return transport;
   } catch (error) {
-    await transport.close().catch(() => undefined);
+    let teardownError: unknown;
+    try {
+      await closeStdioClient(
+        client,
+        transport,
+        launch.implementation === "windows-appcontainer",
+      );
+    } catch (closeError) {
+      teardownError = closeError;
+    }
+    const cause = teardownError
+      ? new AggregateError(
+          [error, teardownError],
+          "stdio MCP startup and teardown both failed",
+        )
+      : error;
     throw Object.assign(
-      new Error(error instanceof Error ? error.message : String(error), {
-        cause: error,
-      }),
+      new Error(
+        [
+          error instanceof Error ? error.message : String(error),
+          ...(teardownError
+            ? [
+                `Failed to stop stdio wrapper: ${teardownError instanceof Error ? teardownError.message : String(teardownError)}`,
+              ]
+            : []),
+        ].join("\n"),
+        { cause },
+      ),
       { stderr },
     );
   }

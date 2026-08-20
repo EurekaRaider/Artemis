@@ -226,6 +226,12 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     expect(compilerEnvironment).toMatch(
       /SetEnvironmentVariable\([\s\S]*?\$hostTemp[\s\S]*?Add-Type[\s\S]*?finally[\s\S]*?\$sandboxTempEnvironment\[\$name\]/u,
     );
+    expect(helper).toContain(
+      "Write-SandboxDiagnostic 'compiling native helper'",
+    );
+    expect(helper).toContain(
+      "Write-SandboxDiagnostic 'native helper compiled'",
+    );
   });
 
   it("terminates and drains all job descendants before the helper exits", () => {

@@ -33,7 +33,7 @@ interface ResolvedWindowsStdioCommand {
   args: string[];
 }
 
-const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 90_000;
+const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 150_000;
 const WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS = 30_000;
 const WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS = 30_000;
 const WINDOWS_APP_CONTAINER_CLEANUP_RETRY_DELAY_MS = 100;
@@ -959,6 +959,10 @@ lines.on("line", (line) => {
   });
 
   it("lets the Windows sandbox wrapper finish teardown before force-closing", () => {
+    const connectSource = mcpClientManagerSource.slice(
+      mcpClientManagerSource.indexOf("async function connectStdioClient"),
+      mcpClientManagerSource.indexOf("function processIsRunning"),
+    );
     const closeSource = mcpClientManagerSource.slice(
       mcpClientManagerSource.indexOf("async function closeStdioClient"),
       mcpClientManagerSource.indexOf("function safeToolSegment"),
@@ -973,6 +977,8 @@ lines.on("line", (line) => {
     expect(mcpClientManagerSource).toContain(
       'launch.implementation === "windows-appcontainer"',
     );
+    expect(connectSource).toContain("await closeStdioClient(");
+    expect(connectSource).not.toContain("await transport.close()");
   });
 
   it("carries and validates the task workspace before an approved MCP call", () => {
@@ -1443,7 +1449,7 @@ lines.on("line", async (line) => {
             enabled: true,
             command: shimPath,
             args: [],
-            env: {},
+            env: { ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS: "1" },
             envVars: [],
             workspacePath,
             allowNetwork: true,

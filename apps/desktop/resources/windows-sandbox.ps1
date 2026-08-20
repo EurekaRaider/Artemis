@@ -40,6 +40,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+function Write-SandboxDiagnostic([string]$Stage) {
+  if ($env:ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS -eq '1') {
+    [Console]::Error.WriteLine("Artemis Windows sandbox stage: $Stage")
+  }
+}
+
 try {
   [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
   $OutputEncoding = [Console]::OutputEncoding
@@ -1178,6 +1185,7 @@ try {
       )
     }
   }
+  Write-SandboxDiagnostic 'compiling native helper'
   Add-Type -TypeDefinition $nativeSource -Language CSharp
 }
 finally {
@@ -1189,6 +1197,7 @@ finally {
     )
   }
 }
+Write-SandboxDiagnostic 'native helper compiled'
 $workspaceRoot = [System.IO.Path]::GetPathRoot($workspace)
 $systemRoot = [System.IO.Path]::GetPathRoot(
   [System.Environment]::SystemDirectory
@@ -1256,6 +1265,7 @@ if ($requiresClassicAppContainer) {
 }
 
 if ($requiresClassicAppContainer) {
+  Write-SandboxDiagnostic 'launching classic AppContainer'
   $exitCode = [ArtemisNativeSandbox]::LaunchClassic(
     $Identity,
     $workspace,
@@ -1270,6 +1280,7 @@ if ($requiresClassicAppContainer) {
 }
 else {
   try {
+    Write-SandboxDiagnostic 'launching experimental AppContainer'
     $exitCode = [ArtemisNativeSandbox]::Launch(
       $Identity,
       $workingDirectory,
@@ -1288,6 +1299,7 @@ else {
     if (-not $experimentalSandboxUnavailable) {
       throw
     }
+    Write-SandboxDiagnostic 'falling back to classic AppContainer'
     $exitCode = [ArtemisNativeSandbox]::LaunchClassic(
       $Identity,
       $workspace,
@@ -1301,4 +1313,5 @@ else {
     )
   }
 }
+Write-SandboxDiagnostic 'sandbox child exited'
 exit $exitCode
