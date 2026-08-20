@@ -139,9 +139,24 @@ async function cleanupWindowsAppContainerFixture(
     recursive: true,
     retryDelay: 250,
   } as const;
-  const results = await Promise.allSettled(
+  const cleanupPromise = Promise.allSettled(
     directories.map((directory) => rm(directory, cleanupOptions)),
   );
+  let cleanupTimeout: ReturnType<typeof setTimeout> | undefined;
+  const results = await Promise.race([
+    cleanupPromise,
+    new Promise<undefined>((resolvePromise) => {
+      cleanupTimeout = setTimeout(
+        () => resolvePromise(undefined),
+        WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS,
+      );
+    }),
+  ]);
+  if (cleanupTimeout) clearTimeout(cleanupTimeout);
+  if (!results) {
+    failures.push(new Error("MCP fixture directory cleanup timed out"));
+    return failures;
+  }
   for (const result of results) {
     if (result.status === "rejected") failures.push(result.reason);
   }
@@ -1171,10 +1186,12 @@ lines.on("line", async (line) => {
   });
 
   it("allows one cold package startup to use a longer connection timeout", async () => {
+    const startupTimeouts: Array<number | undefined> = [];
     const manager = new McpClientManager(
       "darwin",
       undefined,
-      async () => {
+      async (_config, _authentication, _scope, options) => {
+        startupTimeouts.push(options?.startupTimeoutMs);
         await new Promise((resolvePromise) => setTimeout(resolvePromise, 30));
         return {
           listTools: async () => ({ tools: [] }),
@@ -1190,6 +1207,7 @@ lines.on("line", async (line) => {
     });
 
     expect(status.state).toBe("connected");
+    expect(startupTimeouts).toEqual([60]);
     await manager.dispose();
   });
 

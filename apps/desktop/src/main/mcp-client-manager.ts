@@ -89,6 +89,7 @@ export type McpConnectionFactory = (
   config: McpServerConfig,
   authentication: McpConnectionAuthentication | undefined,
   scope?: McpExecutionScope,
+  options?: McpConnectOptions,
 ) => Promise<McpConnection>;
 
 interface ActiveConnection {
@@ -659,6 +660,7 @@ function connectionError(config: McpServerConfig, error: unknown): string {
 async function connectStdioClient(
   client: Client,
   launch: SandboxLaunch,
+  startupTimeoutMs: number,
 ): Promise<void> {
   const transport = new StdioClientTransport({
     command: launch.executable,
@@ -677,8 +679,9 @@ async function connectStdioClient(
     stderr = appendStderr(stderr, chunk);
   });
   try {
-    await client.connect(transport);
+    await client.connect(transport, { timeout: startupTimeoutMs });
   } catch (error) {
+    await transport.close().catch(() => undefined);
     throw Object.assign(
       new Error(error instanceof Error ? error.message : String(error), {
         cause: error,
@@ -808,6 +811,7 @@ export class McpClientManager {
       config,
       authentication,
       scope,
+      options,
     ) => {
       let client = new Client({
         name: "Artemis",
@@ -1045,7 +1049,11 @@ export class McpClientManager {
           );
         };
         try {
-          await connectStdioClient(client, buildLaunch(command));
+          await connectStdioClient(
+            client,
+            buildLaunch(command),
+            options?.startupTimeoutMs ?? this.startupTimeoutMs,
+          );
         } catch (error) {
           if (!npxRuntime || npxRuntime.usedCachedCommand) throw error;
           const cachedCommand = await resolveCachedNpxCommand(
@@ -1071,7 +1079,11 @@ export class McpClientManager {
               cachedCommand.args,
             ),
           };
-          await connectStdioClient(client, buildLaunch(command));
+          await connectStdioClient(
+            client,
+            buildLaunch(command),
+            options?.startupTimeoutMs ?? this.startupTimeoutMs,
+          );
         }
       } else {
         const requestHeaders =
@@ -1186,7 +1198,9 @@ export class McpClientManager {
     scope?: McpExecutionScope,
     startupTimeoutMs = this.startupTimeoutMs,
   ): Promise<{ client: McpConnection; listed: { tools: McpTool[] } }> {
-    const clientPromise = this.factory(config, authentication, scope);
+    const clientPromise = this.factory(config, authentication, scope, {
+      startupTimeoutMs,
+    });
     let client: McpConnection;
     try {
       client = await this.withStartupDeadline(
