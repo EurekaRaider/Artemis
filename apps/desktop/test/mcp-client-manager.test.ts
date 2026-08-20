@@ -987,8 +987,14 @@ lines.on("line", async (line) => {
         });
       } finally {
         await manager.dispose();
-        await rm(workspacePath, { recursive: true, force: true });
-        await rm(taskWorkspacePath, { recursive: true, force: true });
+        const cleanupOptions = {
+          force: true,
+          maxRetries: 10,
+          recursive: true,
+          retryDelay: 250,
+        } as const;
+        await rm(workspacePath, cleanupOptions);
+        await rm(taskWorkspacePath, cleanupOptions);
       }
     },
     30_000,
