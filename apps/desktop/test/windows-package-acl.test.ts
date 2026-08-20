@@ -198,4 +198,13 @@ describe("Windows ZIP package and AppContainer ACL", () => {
       'ThrowLastError("UpdateProcThreadAttribute(handle list)")',
     );
   });
+
+  it("terminates and drains all job descendants before the helper exits", () => {
+    const helper = readFileSync(sandboxHelperPath, "utf8");
+
+    expect(helper.match(/TerminateAndDrainJob\(job\)/gu)).toHaveLength(2);
+    expect(helper).toContain("TerminateJobObject(job, 1)");
+    expect(helper).toContain("QueryInformationJobObject(");
+    expect(helper).toContain("information.ActiveProcesses == 0");
+  });
 });

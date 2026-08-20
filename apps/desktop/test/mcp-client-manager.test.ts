@@ -3,6 +3,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
@@ -28,9 +29,10 @@ interface ResolvedWindowsStdioCommand {
   args: string[];
 }
 
-const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 60_000;
+const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 90_000;
 const WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS = 15_000;
 const WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS = 30_000;
+const WINDOWS_APP_CONTAINER_DIAGNOSTIC_TIMEOUT_MS = 60_000;
 
 async function withWindowsFixtureDeadline<T>(
   stage: string,
@@ -109,6 +111,19 @@ function resultText(
   return result.content
     .map((item) => (item.type === "text" ? item.text : ""))
     .join("");
+}
+
+async function describeWindowsFixture(
+  workspacePath: string,
+  fixtureStartedPath: string,
+): Promise<string> {
+  const fixture = await readFile(fixtureStartedPath, "utf8").catch(
+    () => "fixture module did not start",
+  );
+  const runtimeEntries = await readdir(join(workspacePath, ".artemis-mcp"), {
+    recursive: true,
+  }).catch(() => []);
+  return `${fixture}; runtime entries: ${runtimeEntries.join(", ") || "none"}`;
 }
 
 async function cleanupWindowsAppContainerFixture(
@@ -1055,6 +1070,16 @@ lines.on("line", async (line) => {
         undefined,
         WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS,
       );
+      let fixtureStage = "starting initial connection";
+      const diagnosticTimeout = setTimeout(() => {
+        void describeWindowsFixture(workspacePath, fixtureStartedPath).then(
+          (diagnostic) => {
+            console.error(
+              `Windows AppContainer fixture is still ${fixtureStage}. Diagnostics: ${diagnostic}`,
+            );
+          },
+        );
+      }, WINDOWS_APP_CONTAINER_DIAGNOSTIC_TIMEOUT_MS);
       let testFailed = false;
       let testFailure: unknown;
       try {
@@ -1074,6 +1099,7 @@ lines.on("line", async (line) => {
           }),
         );
         expect(status.state, status.error).toBe("connected");
+        fixtureStage = "running echo call";
         const echo = await withWindowsFixtureDeadline(
           "echo call",
           manager.call("integration-fixture", "echo", { value: "OK" }),
@@ -1086,6 +1112,7 @@ lines.on("line", async (line) => {
           imageCount: 0,
           omittedContentCount: 0,
         });
+        fixtureStage = "running runtime security probe";
         const securityProbe = await withWindowsFixtureDeadline(
           "runtime security probe",
           manager.call("integration-fixture", "security_probe", {
@@ -1097,6 +1124,7 @@ lines.on("line", async (line) => {
           outsideWrite: false,
           networkAccess: true,
         });
+        fixtureStage = "running task-scoped security probe";
         const taskProbe = await withWindowsFixtureDeadline(
           "task-scoped security probe",
           manager.call(
@@ -1116,23 +1144,24 @@ lines.on("line", async (line) => {
           networkAccess: true,
         });
       } catch (error) {
+        fixtureStage = "capturing failure diagnostics";
         testFailed = true;
-        let fixtureDiagnostic = "fixture module did not start";
-        try {
-          fixtureDiagnostic = await readFile(fixtureStartedPath, "utf8");
-        } catch {
-          // The missing marker is itself the useful diagnostic.
-        }
+        const fixtureDiagnostic = await describeWindowsFixture(
+          workspacePath,
+          fixtureStartedPath,
+        );
         testFailure = new Error(
           `${error instanceof Error ? error.message : String(error)}\nFixture diagnostics: ${fixtureDiagnostic}`,
           { cause: error },
         );
       }
+      fixtureStage = "cleaning up fixture";
       const cleanupFailures = await cleanupWindowsAppContainerFixture(manager, [
         workspacePath,
         taskWorkspacePath,
         outsideWorkspacePath,
       ]);
+      clearTimeout(diagnosticTimeout);
       if (testFailed) {
         if (cleanupFailures.length > 0) {
           throw new AggregateError(

@@ -175,6 +175,7 @@ using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
+using System.Threading;
 
 public static class ArtemisNativeSandbox
 {
@@ -185,8 +186,10 @@ public static class ArtemisNativeSandbox
     private const uint ERROR_ALREADY_EXISTS = 183;
     private const uint LOAD_LIBRARY_SEARCH_SYSTEM32 = 0x00000800;
     private const uint INFINITE = 0xFFFFFFFF;
+    private const int JobObjectBasicAccountingInformation = 1;
     private const int JobObjectExtendedLimitInformation = 9;
     private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
+    private const uint JOB_TEARDOWN_TIMEOUT_MS = 10000;
     private const uint DUPLICATE_SAME_ACCESS = 0x00000002;
     private const int STD_INPUT_HANDLE = -10;
     private const int STD_OUTPUT_HANDLE = -11;
@@ -285,6 +288,19 @@ public static class ArtemisNativeSandbox
         public UIntPtr JobMemoryLimit;
         public UIntPtr PeakProcessMemoryUsed;
         public UIntPtr PeakJobMemoryUsed;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct JOBOBJECT_BASIC_ACCOUNTING_INFORMATION
+    {
+        public long TotalUserTime;
+        public long TotalKernelTime;
+        public long ThisPeriodTotalUserTime;
+        public long ThisPeriodTotalKernelTime;
+        public uint TotalPageFaultCount;
+        public uint TotalProcesses;
+        public uint ActiveProcesses;
+        public uint TotalTerminatedProcesses;
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Winapi, CharSet = CharSet.Unicode)]
@@ -389,6 +405,19 @@ public static class ArtemisNativeSandbox
         uint informationLength);
 
     [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool QueryInformationJobObject(
+        IntPtr job,
+        int informationClass,
+        out JOBOBJECT_BASIC_ACCOUNTING_INFORMATION information,
+        uint informationLength,
+        IntPtr returnLength);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool TerminateJobObject(
+        IntPtr job,
+        uint exitCode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool AssignProcessToJobObject(
         IntPtr job,
         IntPtr process);
@@ -437,6 +466,43 @@ public static class ArtemisNativeSandbox
         throw new InvalidOperationException(
             operation + " failed: " + error + " (" +
             new Win32Exception(error).Message + ")");
+    }
+
+    private static void TerminateAndDrainJob(IntPtr job)
+    {
+        var informationSize = (uint)Marshal.SizeOf(
+            typeof(JOBOBJECT_BASIC_ACCOUNTING_INFORMATION));
+        JOBOBJECT_BASIC_ACCOUNTING_INFORMATION information;
+        if (!QueryInformationJobObject(
+            job,
+            JobObjectBasicAccountingInformation,
+            out information,
+            informationSize,
+            IntPtr.Zero))
+            ThrowLastError("QueryInformationJobObject");
+        if (information.ActiveProcesses == 0)
+            return;
+        if (!TerminateJobObject(job, 1))
+            ThrowLastError("TerminateJobObject");
+        var deadline = Environment.TickCount64 + JOB_TEARDOWN_TIMEOUT_MS;
+        while (true)
+        {
+            if (!QueryInformationJobObject(
+                job,
+                JobObjectBasicAccountingInformation,
+                out information,
+                informationSize,
+                IntPtr.Zero))
+                ThrowLastError("QueryInformationJobObject");
+            if (information.ActiveProcesses == 0)
+                return;
+            if (Environment.TickCount64 >= deadline)
+                throw new InvalidOperationException(
+                    "Windows sandbox job still has " +
+                    information.ActiveProcesses +
+                    " active process(es) after termination");
+            Thread.Sleep(50);
+        }
     }
 
     private static IntPtr DuplicateStandardHandle(int standardHandle)
@@ -681,7 +747,16 @@ public static class ArtemisNativeSandbox
             if (process.hProcess != IntPtr.Zero)
                 CloseHandle(process.hProcess);
             if (job != IntPtr.Zero)
-                CloseHandle(job);
+            {
+                try
+                {
+                    TerminateAndDrainJob(job);
+                }
+                finally
+                {
+                    CloseHandle(job);
+                }
+            }
             if (specification != IntPtr.Zero)
                 Marshal.FreeHGlobal(specification);
             if (module != IntPtr.Zero)
@@ -953,7 +1028,16 @@ public static class ArtemisNativeSandbox
             if (process.hProcess != IntPtr.Zero)
                 CloseHandle(process.hProcess);
             if (job != IntPtr.Zero)
-                CloseHandle(job);
+            {
+                try
+                {
+                    TerminateAndDrainJob(job);
+                }
+                finally
+                {
+                    CloseHandle(job);
+                }
+            }
             if (attributeList != IntPtr.Zero)
             {
                 DeleteProcThreadAttributeList(attributeList);
