@@ -3,11 +3,13 @@ import { existsSync, readFileSync } from "node:fs";
 import {
   mkdir,
   mkdtemp,
+  lstat,
   readFile,
   readdir,
   rm,
   rmdir,
   symlink,
+  unlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -34,7 +36,7 @@ interface ResolvedWindowsStdioCommand {
 const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 90_000;
 const WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS = 30_000;
 const WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS = 30_000;
-const WINDOWS_APP_CONTAINER_EMPTY_ROOT_CLEANUP_TIMEOUT_MS = 5_000;
+const WINDOWS_APP_CONTAINER_CLEANUP_RETRY_DELAY_MS = 100;
 const WINDOWS_APP_CONTAINER_DIAGNOSTIC_TIMEOUT_MS = 60_000;
 
 async function withWindowsFixtureDeadline<T>(
@@ -158,6 +160,85 @@ async function readWindowsFixtureProcesses(
   }
 }
 
+const RETRYABLE_WINDOWS_FIXTURE_CLEANUP_ERRORS = new Set([
+  "EACCES",
+  "EBUSY",
+  "ENOTEMPTY",
+  "EPERM",
+]);
+
+async function retryWindowsFixtureCleanup<T>(
+  target: string,
+  deadline: number,
+  operation: () => Promise<T>,
+): Promise<T | undefined> {
+  while (true) {
+    try {
+      return await operation();
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return undefined;
+      if (
+        !code ||
+        !RETRYABLE_WINDOWS_FIXTURE_CLEANUP_ERRORS.has(code) ||
+        Date.now() >= deadline
+      ) {
+        throw new Error(`Failed to remove Windows fixture path: ${target}`, {
+          cause: error,
+        });
+      }
+      await new Promise((resolvePromise) =>
+        setTimeout(
+          resolvePromise,
+          WINDOWS_APP_CONTAINER_CLEANUP_RETRY_DELAY_MS,
+        ),
+      );
+    }
+  }
+}
+
+async function waitForWindowsFixturePathRemoval(
+  target: string,
+  deadline: number,
+): Promise<void> {
+  while (existsSync(target)) {
+    if (Date.now() >= deadline) {
+      throw new Error(`Windows fixture path remains delete-pending: ${target}`);
+    }
+    await new Promise((resolvePromise) =>
+      setTimeout(resolvePromise, WINDOWS_APP_CONTAINER_CLEANUP_RETRY_DELAY_MS),
+    );
+  }
+}
+
+async function removeWindowsFixtureTree(
+  target: string,
+  deadline: number,
+): Promise<void> {
+  const stats = await retryWindowsFixtureCleanup(target, deadline, () =>
+    lstat(target),
+  );
+  if (!stats) return;
+
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    await retryWindowsFixtureCleanup(target, deadline, () => unlink(target));
+    await waitForWindowsFixturePathRemoval(target, deadline);
+    return;
+  }
+
+  const entries = await retryWindowsFixtureCleanup(target, deadline, () =>
+    readdir(target),
+  );
+  if (!entries) return;
+  await Promise.all(
+    entries.map((entry) =>
+      removeWindowsFixtureTree(join(target, entry), deadline),
+    ),
+  );
+  await retryWindowsFixtureCleanup(target, deadline, () => rmdir(target));
+  await waitForWindowsFixturePathRemoval(target, deadline);
+}
+
 async function describeWindowsCleanupTarget(
   directory: string,
   fixture: WindowsFixtureProcesses | undefined,
@@ -246,88 +327,20 @@ async function cleanupWindowsAppContainerFixture(
   } catch (error) {
     failures.push(error);
   }
-  const cleanupOptions = {
-    force: true,
-    maxRetries: 10,
-    recursive: true,
-    retryDelay: 250,
-  } as const;
   const results = await Promise.all(
     directories.map(async (directory) => {
       try {
-        let entries: string[];
-        try {
-          entries = await readdir(directory);
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-            return undefined;
-          }
-          throw error;
-        }
-        const entryFailures = (
-          await Promise.all(
-            entries.map(async (entry) => {
-              const target = join(directory, entry);
-              let cleanupTimeout: ReturnType<typeof setTimeout> | undefined;
-              try {
-                const removed = await Promise.race([
-                  rm(target, cleanupOptions).then(() => true),
-                  new Promise<boolean>((resolvePromise) => {
-                    cleanupTimeout = setTimeout(
-                      () => resolvePromise(!existsSync(target)),
-                      WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS,
-                    );
-                  }),
-                ]);
-                return removed || !existsSync(target)
-                  ? undefined
-                  : new Error(`Fixture entry cleanup timed out: ${target}`);
-              } catch (error) {
-                return new Error(`Failed to remove fixture entry: ${target}`, {
-                  cause: error,
-                });
-              } finally {
-                if (cleanupTimeout) clearTimeout(cleanupTimeout);
-              }
-            }),
-          )
-        ).filter((failure) => failure !== undefined);
-        if (entryFailures.length > 0) {
-          return new AggregateError(
-            entryFailures,
-            `Failed to empty MCP fixture directory: ${directory}`,
-          );
-        }
-
-        let emptyRootRemovalError: unknown;
-        let emptyRootTimeout: ReturnType<typeof setTimeout> | undefined;
-        try {
-          emptyRootRemovalError = await Promise.race([
-            rmdir(directory).then(() => undefined),
-            new Promise<Error>((resolvePromise) => {
-              emptyRootTimeout = setTimeout(
-                () =>
-                  resolvePromise(
-                    new Error("Empty fixture root removal timed out"),
-                  ),
-                WINDOWS_APP_CONTAINER_EMPTY_ROOT_CLEANUP_TIMEOUT_MS,
-              );
-            }),
-          ]).catch((error: unknown) => error);
-        } finally {
-          if (emptyRootTimeout) clearTimeout(emptyRootTimeout);
-        }
+        await removeWindowsFixtureTree(
+          directory,
+          Date.now() + WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS,
+        );
         if (!existsSync(directory)) return undefined;
-
-        const emptyRootDetail = emptyRootRemovalError
-          ? `; empty root removal failed: ${emptyRootRemovalError instanceof Error ? emptyRootRemovalError.message : String(emptyRootRemovalError)}`
-          : "; empty root removal resolved but root still exists";
         return new Error(
-          `MCP fixture directory cleanup timed out: ${directory}${emptyRootDetail}\n${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
+          `MCP fixture directory cleanup did not remove: ${directory}\n${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
         );
       } catch (error) {
         return new Error(
-          `Failed to remove MCP fixture directory: ${directory}`,
+          `Failed to remove MCP fixture directory: ${directory}\n${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
           {
             cause: error,
           },
