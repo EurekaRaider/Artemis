@@ -58,6 +58,8 @@ export function buildWindowsAppContainerLaunch(
       policy.workspacePath,
       "-WorkingDirectory",
       resolve(command.cwd),
+      "-RuntimePath",
+      resolve(command.cwd),
       "-Executable",
       command.executable,
       "-ArgumentsBase64",

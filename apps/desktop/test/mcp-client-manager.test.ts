@@ -31,6 +31,26 @@ interface ResolvedWindowsStdioCommand {
 const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 60_000;
 const WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS = 15_000;
 
+async function withWindowsFixtureDeadline<T>(
+  stage: string,
+  promise: Promise<T>,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error(`Windows AppContainer ${stage} timed out`)),
+          WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS + 5_000,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 type ResolveWindowsStdioCommand = (
   command: string,
   args: string[],
@@ -1005,22 +1025,26 @@ lines.on("line", async (line) => {
       let testFailed = false;
       let testFailure: unknown;
       try {
-        const status = await manager.connect({
-          id: "integration-fixture",
-          name: "Integration fixture",
-          transport: "stdio",
-          enabled: true,
-          command: shimPath,
-          args: [],
-          env: {},
-          envVars: [],
-          workspacePath,
-          allowNetwork: true,
-        });
+        const status = await withWindowsFixtureDeadline(
+          "initial connection",
+          manager.connect({
+            id: "integration-fixture",
+            name: "Integration fixture",
+            transport: "stdio",
+            enabled: true,
+            command: shimPath,
+            args: [],
+            env: {},
+            envVars: [],
+            workspacePath,
+            allowNetwork: true,
+          }),
+        );
         expect(status.state, status.error).toBe("connected");
-        const echo = await manager.call("integration-fixture", "echo", {
-          value: "OK",
-        });
+        const echo = await withWindowsFixtureDeadline(
+          "echo call",
+          manager.call("integration-fixture", "echo", { value: "OK" }),
+        );
         expect(echo.isError).toBe(false);
         expect(resultText(echo)).toBe("MCP_ECHO:OK");
         expect(echo.metrics).toEqual({
@@ -1029,22 +1053,24 @@ lines.on("line", async (line) => {
           imageCount: 0,
           omittedContentCount: 0,
         });
-        const securityProbe = await manager.call(
-          "integration-fixture",
-          "security_probe",
-          {},
+        const securityProbe = await withWindowsFixtureDeadline(
+          "runtime security probe",
+          manager.call("integration-fixture", "security_probe", {}),
         );
         expect(JSON.parse(resultText(securityProbe))).toEqual({
           insideWrite: true,
           outsideWrite: false,
           networkAccess: true,
         });
-        const taskProbe = await manager.call(
-          "integration-fixture",
-          "security_probe",
-          { workspacePath: taskWorkspacePath },
-          taskWorkspacePath,
-          "execute",
+        const taskProbe = await withWindowsFixtureDeadline(
+          "task-scoped security probe",
+          manager.call(
+            "integration-fixture",
+            "security_probe",
+            { workspacePath: taskWorkspacePath },
+            taskWorkspacePath,
+            "execute",
+          ),
         );
         expect(JSON.parse(resultText(taskProbe))).toEqual({
           insideWrite: true,

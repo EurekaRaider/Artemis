@@ -155,6 +155,9 @@ describe("sandbox execution contracts", () => {
       executable: "powershell.exe",
       implementation: "windows-appcontainer",
     });
+    expect(launch.args[launch.args.indexOf("-RuntimePath") + 1]).toBe(
+      resolve("C:\\repo"),
+    );
     expect(launch.args).not.toContain("Write-Output 'a&b'");
     const encoded = launch.args[launch.args.indexOf("-ArgumentsBase64") + 1];
     expect(JSON.parse(Buffer.from(encoded, "base64").toString("utf8"))).toEqual(

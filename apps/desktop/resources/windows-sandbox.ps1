@@ -10,6 +10,9 @@ param(
   [string]$WorkingDirectory,
 
   [Parameter(Mandatory = $true)]
+  [string]$RuntimePath,
+
+  [Parameter(Mandatory = $true)]
   [string]$Executable,
 
   [Parameter(Mandatory = $true)]
@@ -41,19 +44,15 @@ catch {
 
 $workspace = [System.IO.Path]::GetFullPath($WorkspacePath)
 $workingDirectory = [System.IO.Path]::GetFullPath($WorkingDirectory)
+$runtime = [System.IO.Path]::GetFullPath($RuntimePath)
 if (-not [System.IO.Directory]::Exists($workspace)) {
   throw "Workspace does not exist: $workspace"
 }
 if (-not [System.IO.Directory]::Exists($workingDirectory)) {
   throw "Working directory does not exist: $workingDirectory"
 }
-
-$workspacePrefix = $workspace.TrimEnd('\') + '\'
-if (
-  -not $workingDirectory.Equals($workspace, [System.StringComparison]::OrdinalIgnoreCase) -and
-  -not $workingDirectory.StartsWith($workspacePrefix, [System.StringComparison]::OrdinalIgnoreCase)
-) {
-  throw 'Working directory must remain inside the workspace'
+if (-not [System.IO.Directory]::Exists($runtime)) {
+  throw "Runtime directory does not exist: $runtime"
 }
 
 function ConvertFrom-Base64Json([string]$Value) {
@@ -61,6 +60,22 @@ function ConvertFrom-Base64Json([string]$Value) {
     [System.Convert]::FromBase64String($Value)
   )
   return $json | ConvertFrom-Json
+}
+
+function Test-PathWithinRoot([string]$Path, [string]$Root) {
+  $resolvedRoot = [System.IO.Path]::GetFullPath($Root)
+  $rootPrefix = $resolvedRoot.TrimEnd('\') + '\'
+  return (
+    $Path.Equals($resolvedRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+    $Path.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+  )
+}
+
+if (
+  -not (Test-PathWithinRoot $workingDirectory $workspace) -and
+  -not (Test-PathWithinRoot $workingDirectory $runtime)
+) {
+  throw 'Working directory must remain inside the workspace or MCP runtime'
 }
 
 $rawCommandArguments = ConvertFrom-Base64Json $ArgumentsBase64
@@ -78,10 +93,10 @@ foreach ($pathValue in $rawWritablePaths) {
   }
   $path = [System.IO.Path]::GetFullPath([string]$pathValue)
   if (
-    -not $path.Equals($workspace, [System.StringComparison]::OrdinalIgnoreCase) -and
-    -not $path.StartsWith($workspacePrefix, [System.StringComparison]::OrdinalIgnoreCase)
+    -not (Test-PathWithinRoot $path $workspace) -and
+    -not (Test-PathWithinRoot $path $runtime)
   ) {
-    throw "Writable path escapes the workspace: $path"
+    throw "Writable path escapes the workspace and MCP runtime: $path"
   }
   $writablePathList.Add($path)
 }
@@ -997,7 +1012,7 @@ if ($requiresClassicAppContainer) {
       'artemisWorkspaceTraverse'
     )
   )
-  $accessPaths = @($workspace) + @($readOnlyPaths)
+  $accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)
   $ancestors = @(
     $accessPaths |
       ForEach-Object { Get-AncestorDirectories $_ } |

@@ -111,7 +111,7 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     expect(helper).toContain("$requiresClassicAppContainer");
     expect(helper).toContain("Test-AppContainerAncestorAccess");
     expect(helper).toContain(
-      "$accessPaths = @($workspace) + @($readOnlyPaths)",
+      "$accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)",
     );
     expect(helper).toContain("-Verb RunAs");
     expect(helper).toContain("-WindowStyle Hidden");
@@ -152,6 +152,23 @@ describe("Windows ZIP package and AppContainer ACL", () => {
 
     expect(helper).toContain("var writablePathSet = new HashSet<string>(");
     expect(helper).toContain("if (!writablePathSet.Contains(workspace))");
+  });
+
+  it("allows a scoped task to retain its declared MCP runtime directory", () => {
+    const helper = readFileSync(sandboxHelperPath, "utf8");
+
+    expect(helper).toContain(
+      "-not (Test-PathWithinRoot $workingDirectory $workspace) -and",
+    );
+    expect(helper).toContain(
+      "-not (Test-PathWithinRoot $workingDirectory $runtime)",
+    );
+    expect(helper).toContain(
+      "Working directory must remain inside the workspace or MCP runtime",
+    );
+    expect(helper).toContain(
+      "Writable path escapes the workspace and MCP runtime",
+    );
   });
 
   it("falls back to classic AppContainer when the experimental API is unavailable", () => {
