@@ -266,6 +266,7 @@ function resolveMcpSandboxPolicy(
   scope: McpExecutionScope | undefined,
   platform: NodeJS.Platform,
   homePath: string,
+  runtimeDirectory: string,
 ): SandboxPolicy {
   return {
     workspacePath: canonicalExistingPath(
@@ -274,7 +275,7 @@ function resolveMcpSandboxPolicy(
     ),
     mode: "execute",
     network: config.allowNetwork ? "allow" : "deny",
-    writablePaths: [canonicalExistingPath(platform, config.workspacePath)],
+    writablePaths: [canonicalExistingPath(platform, runtimeDirectory)],
     readOnlyPaths: commandReadOnlyPaths(platform, command, homePath),
   };
 }
@@ -1114,6 +1115,7 @@ export class McpClientManager {
             scope,
             this.platform,
             process.env.HOME ?? homedir(),
+            runtimeDirectory,
           );
           if (this.platform === "darwin") {
             return buildSeatbeltLaunch(sandboxCommand, policy);
@@ -1124,8 +1126,9 @@ export class McpClientManager {
               policy,
               {
                 helperPath: this.windowsHelperPath,
+                hostAccessPath: runtimeDirectory,
                 identity: `Artemis.Mcp.${safeToolSegment(config.id)}`,
-                runtimePath: runtimeWorkspacePath,
+                runtimePath: runtimeDirectory,
               },
             );
             waitForWindowsSandboxTeardown =

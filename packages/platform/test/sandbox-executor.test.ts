@@ -149,7 +149,11 @@ describe("sandbox execution contracts", () => {
         network: "deny",
         writablePaths: ["C:\\runtime"],
       },
-      { helperPath, runtimePath: "C:\\runtime" },
+      {
+        helperPath,
+        hostAccessPath: "C:\\runtime\\.artemis-mcp",
+        runtimePath: "C:\\runtime",
+      },
     );
 
     expect(launch).toMatchObject({
@@ -158,6 +162,9 @@ describe("sandbox execution contracts", () => {
     });
     expect(launch.args[launch.args.indexOf("-RuntimePath") + 1]).toBe(
       resolve("C:\\runtime"),
+    );
+    expect(launch.args[launch.args.indexOf("-HostAccessPath") + 1]).toBe(
+      resolve("C:\\runtime\\.artemis-mcp"),
     );
     expect(launch.args).not.toContain("Write-Output 'a&b'");
     const encoded = launch.args[launch.args.indexOf("-ArgumentsBase64") + 1];

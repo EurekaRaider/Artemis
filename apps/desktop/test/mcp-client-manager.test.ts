@@ -947,6 +947,16 @@ lines.on("line", (line) => {
     expect(mcpClientManagerSource).not.toContain("...process.env,");
   });
 
+  it("limits MCP runtime writes and host ACL preservation to its private directory", () => {
+    expect(mcpClientManagerSource).toContain(
+      "writablePaths: [canonicalExistingPath(platform, runtimeDirectory)]",
+    );
+    expect(mcpClientManagerSource).toContain(
+      "hostAccessPath: runtimeDirectory",
+    );
+    expect(mcpClientManagerSource).toContain("runtimePath: runtimeDirectory");
+  });
+
   it("lets the Windows sandbox wrapper finish teardown before force-closing", () => {
     const closeSource = mcpClientManagerSource.slice(
       mcpClientManagerSource.indexOf("async function closeStdioClient"),

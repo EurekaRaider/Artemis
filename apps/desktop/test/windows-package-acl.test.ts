@@ -199,18 +199,22 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     );
   });
 
-  it("keeps sandbox-created objects reclaimable by the desktop user", () => {
+  it("keeps the private runtime reclaimable by the desktop user", () => {
     const helper = readFileSync(sandboxHelperPath, "utf8");
 
-    expect(helper).toContain("TOKEN_ADJUST_DEFAULT");
-    expect(helper).toContain("TokenDefaultDacl");
+    expect(helper).toContain("[string]$HostAccessPath = ''");
     expect(helper).toContain(
-      'ThrowLastError("GetTokenInformation(default DACL)")',
+      "Host access directory must remain inside the MCP runtime",
     );
     expect(helper).toContain("WindowsIdentity.GetCurrent().User");
-    expect(helper).toContain("AceQualifier.AccessAllowed");
-    expect(helper).toContain("appContainerSid");
-    expect(helper.match(/SetProcessDefaultDacl\(/gu)).toHaveLength(3);
+    expect(helper).toContain(
+      "Grant(path, userSid, FileSystemRights.FullControl)",
+    );
+    expect(helper.match(/PreserveHostAccess\(hostAccessPath\)/gu)).toHaveLength(
+      2,
+    );
+    expect(helper).not.toContain("TokenDefaultDacl");
+    expect(helper).not.toContain("SetProcessDefaultDacl");
   });
 
   it("terminates and drains all job descendants before the helper exits", () => {
