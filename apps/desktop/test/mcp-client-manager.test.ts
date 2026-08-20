@@ -1,5 +1,12 @@
 import { readFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +29,7 @@ interface ResolvedWindowsStdioCommand {
 }
 
 const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 60_000;
+const WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS = 15_000;
 
 type ResolveWindowsStdioCommand = (
   command: string,
@@ -88,7 +96,20 @@ async function cleanupWindowsAppContainerFixture(
 ): Promise<unknown[]> {
   const failures: unknown[] = [];
   try {
-    await manager.dispose();
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        manager.dispose(),
+        new Promise<never>((_resolve, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error("MCP fixture disposal timed out")),
+            WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   } catch (error) {
     failures.push(error);
   }
@@ -832,6 +853,7 @@ lines.on("line", (line) => {
       const taskWorkspacePath = await mkdtemp(
         join(tmpdir(), "artemis-mcp-task-"),
       );
+      const fixtureStartedPath = join(workspacePath, ".fixture-started.json");
       const shimPath = join(workspacePath, "npx.cmd");
       const entryPath = join(
         workspacePath,
@@ -846,6 +868,19 @@ lines.on("line", (line) => {
         `import { rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
+
+await writeFile(
+  resolve(process.cwd(), ".fixture-started.json"),
+  JSON.stringify({
+    pid: process.pid,
+    execPath: process.execPath,
+    argv: process.argv,
+    stdinFd: process.stdin.fd,
+    stdoutFd: process.stdout.fd,
+    stderrFd: process.stderr.fd,
+  }),
+  "utf8",
+);
 
 const send = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
 const lines = createInterface({ input: process.stdin });
@@ -1018,7 +1053,16 @@ lines.on("line", async (line) => {
         });
       } catch (error) {
         testFailed = true;
-        testFailure = error;
+        let fixtureDiagnostic = "fixture module did not start";
+        try {
+          fixtureDiagnostic = await readFile(fixtureStartedPath, "utf8");
+        } catch {
+          // The missing marker is itself the useful diagnostic.
+        }
+        testFailure = new Error(
+          `${error instanceof Error ? error.message : String(error)}\nFixture diagnostics: ${fixtureDiagnostic}`,
+          { cause: error },
+        );
       }
       const cleanupFailures = await cleanupWindowsAppContainerFixture(manager, [
         workspacePath,
