@@ -167,6 +167,50 @@ const RETRYABLE_WINDOWS_FIXTURE_CLEANUP_ERRORS = new Set([
   "EPERM",
 ]);
 
+class WindowsFixtureCleanupPathError extends Error {
+  constructor(
+    readonly target: string,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
+
+async function runWindowsFixtureCleanupOperation<T>(
+  target: string,
+  deadline: number,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) {
+    throw new WindowsFixtureCleanupPathError(
+      target,
+      `Windows fixture cleanup deadline expired: ${target}`,
+    );
+  }
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () =>
+            reject(
+              new WindowsFixtureCleanupPathError(
+                target,
+                `Windows fixture filesystem operation timed out: ${target}`,
+              ),
+            ),
+          remaining,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 async function retryWindowsFixtureCleanup<T>(
   target: string,
   deadline: number,
@@ -174,18 +218,25 @@ async function retryWindowsFixtureCleanup<T>(
 ): Promise<T | undefined> {
   while (true) {
     try {
-      return await operation();
+      return await runWindowsFixtureCleanupOperation(
+        target,
+        deadline,
+        operation,
+      );
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === "ENOENT") return undefined;
+      if (!existsSync(target)) return undefined;
       if (
         !code ||
         !RETRYABLE_WINDOWS_FIXTURE_CLEANUP_ERRORS.has(code) ||
         Date.now() >= deadline
       ) {
-        throw new Error(`Failed to remove Windows fixture path: ${target}`, {
-          cause: error,
-        });
+        throw new WindowsFixtureCleanupPathError(
+          target,
+          `Failed to remove Windows fixture path: ${target}`,
+          { cause: error },
+        );
       }
       await new Promise((resolvePromise) =>
         setTimeout(
@@ -203,7 +254,10 @@ async function waitForWindowsFixturePathRemoval(
 ): Promise<void> {
   while (existsSync(target)) {
     if (Date.now() >= deadline) {
-      throw new Error(`Windows fixture path remains delete-pending: ${target}`);
+      throw new WindowsFixtureCleanupPathError(
+        target,
+        `Windows fixture path remains delete-pending: ${target}`,
+      );
     }
     await new Promise((resolvePromise) =>
       setTimeout(resolvePromise, WINDOWS_APP_CONTAINER_CLEANUP_RETRY_DELAY_MS),
@@ -252,6 +306,31 @@ async function describeWindowsCleanupTarget(
     : "fixture marker unavailable before disposal";
   let matchingProcesses = "unavailable";
   let accessControl = "unavailable";
+  let pathMetadata = "unavailable";
+  let lstatStatus = "unavailable";
+  let lstatTimeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const stats = await Promise.race([
+      lstat(directory),
+      new Promise<never>((_resolve, reject) => {
+        lstatTimeout = setTimeout(
+          () => reject(new Error("lstat diagnostic timed out")),
+          5_000,
+        );
+      }),
+    ]);
+    lstatStatus = JSON.stringify({
+      directory: stats.isDirectory(),
+      file: stats.isFile(),
+      mode: stats.mode,
+      symbolicLink: stats.isSymbolicLink(),
+    });
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException;
+    lstatStatus = `${nodeError.code ?? "error"}: ${nodeError.message}`;
+  } finally {
+    if (lstatTimeout) clearTimeout(lstatTimeout);
+  }
   if (process.platform === "win32") {
     try {
       matchingProcesses =
@@ -287,10 +366,35 @@ async function describeWindowsCleanupTarget(
     } catch (error) {
       accessControl = error instanceof Error ? error.message : String(error);
     }
+    try {
+      pathMetadata = execFileSync(
+        "powershell.exe",
+        [
+          "-NoLogo",
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$target = $env:ARTEMIS_MCP_DIAGNOSTIC_PATH; if (Test-Path -LiteralPath $target) { $item = Get-Item -LiteralPath $target -Force; $acl = Get-Acl -LiteralPath $target; [pscustomobject]@{ Exists = $true; Owner = $acl.Owner; Attributes = $item.Attributes.ToString(); LinkType = $item.LinkType; Mode = $item.Mode; FullName = $item.FullName } | ConvertTo-Json -Compress } else { [pscustomobject]@{ Exists = $false } | ConvertTo-Json -Compress }",
+        ],
+        {
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            ARTEMIS_MCP_DIAGNOSTIC_PATH: directory,
+          },
+          timeout: 5_000,
+          windowsHide: true,
+        },
+      ).trim();
+    } catch (error) {
+      pathMetadata = error instanceof Error ? error.message : String(error);
+    }
   }
   return [
     `remaining entries: ${entries.slice(0, 100).join(", ") || "none"}`,
     fixtureProcesses,
+    `lstat: ${lstatStatus}`,
+    `metadata: ${pathMetadata}`,
     `matching processes: ${matchingProcesses}`,
     `ACL: ${accessControl}`,
   ].join("; ");
@@ -339,8 +443,16 @@ async function cleanupWindowsAppContainerFixture(
           `MCP fixture directory cleanup did not remove: ${directory}\n${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
         );
       } catch (error) {
+        const diagnosticTarget =
+          error instanceof WindowsFixtureCleanupPathError
+            ? error.target
+            : directory;
+        const targetDiagnostic =
+          diagnosticTarget === directory
+            ? ""
+            : `\nTarget diagnostics (${diagnosticTarget}): ${await describeWindowsCleanupTarget(diagnosticTarget, undefined)}`;
         return new Error(
-          `Failed to remove MCP fixture directory: ${directory}\n${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
+          `Failed to remove MCP fixture directory: ${directory}${targetDiagnostic}\nRoot diagnostics: ${await describeWindowsCleanupTarget(directory, fixtureProcesses.get(directory))}`,
           {
             cause: error,
           },
