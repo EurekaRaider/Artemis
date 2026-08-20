@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {
   mkdir,
   mkdtemp,
@@ -117,6 +117,7 @@ async function describeWindowsFixture(
   workspacePath: string,
   fixtureStartedPath: string,
 ): Promise<string> {
+  if (!existsSync(workspacePath)) return "fixture workspace already removed";
   const fixture = await readFile(fixtureStartedPath, "utf8").catch(
     () => "fixture module did not start",
   );
@@ -161,9 +162,9 @@ async function cleanupWindowsAppContainerFixture(
       try {
         const removed = await Promise.race([
           rm(directory, cleanupOptions).then(() => true),
-          new Promise<false>((resolvePromise) => {
+          new Promise<boolean>((resolvePromise) => {
             cleanupTimeout = setTimeout(
-              () => resolvePromise(false),
+              () => resolvePromise(!existsSync(directory)),
               WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS,
             );
           }),
@@ -1155,13 +1156,13 @@ lines.on("line", async (line) => {
           { cause: error },
         );
       }
+      clearTimeout(diagnosticTimeout);
       fixtureStage = "cleaning up fixture";
       const cleanupFailures = await cleanupWindowsAppContainerFixture(manager, [
         workspacePath,
         taskWorkspacePath,
         outsideWorkspacePath,
       ]);
-      clearTimeout(diagnosticTimeout);
       if (testFailed) {
         if (cleanupFailures.length > 0) {
           throw new AggregateError(
