@@ -21,6 +21,8 @@ interface ResolvedWindowsStdioCommand {
   args: string[];
 }
 
+const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 60_000;
+
 type ResolveWindowsStdioCommand = (
   command: string,
   args: string[],
@@ -962,6 +964,8 @@ lines.on("line", async (line) => {
           "resources",
           "windows-sandbox.ps1",
         ),
+        undefined,
+        WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS,
       );
       let testFailed = false;
       let testFailure: unknown;
