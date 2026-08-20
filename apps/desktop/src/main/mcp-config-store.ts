@@ -6,7 +6,7 @@ import type { GoogleMcpHostAuth, McpServerConfig } from "../shared/api.js";
 export type { McpServerConfig } from "../shared/api.js";
 
 interface PersistedMcpConfig {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   servers: McpServerConfig[];
 }
 
@@ -203,6 +203,7 @@ export function validateMcpServerConfig(
     const credentialEnvVars = [
       ...new Set(credentialEnvironmentVariables.map(validateEnvironmentName)),
     ];
+    const fullAccess = Boolean(input.fullAccess);
     if (
       credentialEnvVars.some(
         (name) => Object.hasOwn(env, name) || envVars.includes(name),
@@ -220,7 +221,8 @@ export function validateMcpServerConfig(
       envVars,
       credentialEnvVars,
       workspacePath: input.workspacePath.trim(),
-      allowNetwork: true,
+      allowNetwork: fullAccess || Boolean(input.allowNetwork),
+      fullAccess,
     };
   }
   if (input.hostAuth) {
@@ -345,7 +347,7 @@ export class McpConfigStore {
           : [],
       ),
     );
-    const value: PersistedMcpConfig = { version: 2, servers };
+    const value: PersistedMcpConfig = { version: 3, servers };
     await this.save(value);
     return structuredClone(servers);
   }
@@ -356,18 +358,21 @@ export class McpConfigStore {
       const parsed = JSON.parse(
         await readFile(this.filePath, "utf8"),
       ) as PersistedMcpConfig;
-      if (![1, 2].includes(parsed.version) || !Array.isArray(parsed.servers)) {
+      if (
+        ![1, 2, 3].includes(parsed.version) ||
+        !Array.isArray(parsed.servers)
+      ) {
         throw new Error("MCP configuration file is invalid");
       }
       this.value = {
-        version: 2,
+        version: 3,
         servers: parsed.servers.map((server) =>
           validateMcpServerConfig(this.withDefaultWorkspace(server)),
         ),
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      this.value = { version: 2, servers: [] };
+      this.value = { version: 3, servers: [] };
     }
     return this.value;
   }

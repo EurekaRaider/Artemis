@@ -99,6 +99,9 @@ describe("sandbox execution contracts", () => {
     expect(profile).toContain("(deny network*)");
     expect(profile).toContain('(subpath "/Users/test/repo")');
     expect(profile).toContain("(allow file-write*");
+    expect(profile).toContain("(allow file-read-data file-write-data)");
+    expect(profile).not.toContain("(allow file-read-metadata)\n");
+    expect(profile).toContain('(literal "/Users/test")');
   });
 
   it("keeps plan mode read-only in the Seatbelt profile", () => {

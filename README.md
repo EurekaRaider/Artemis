@@ -72,7 +72,7 @@ credentials are protected with operating-system encryption.
       <p><strong>Read-only modes, user-authorized integrations and extension trust have distinct boundaries.</strong></p>
       <ul>
         <li>Plan and Review deny writes before an executor or filesystem call runs and do not expose Shell, MCP or executable extensions.</li>
-        <li>The approved platform Shell, integrated Terminal and enabled local stdio MCP servers intentionally run with the desktop user's filesystem and network permissions.</li>
+        <li>The approved platform Shell and integrated Terminal run with desktop-user permissions; local stdio MCP servers use AppContainer or Seatbelt by default with per-server network and compatibility controls.</li>
         <li>Executable extensions require project and content-hash trust; they use the native sandbox unless extension-only full local access is enabled.</li>
         <li>API keys, OAuth records, bearer tokens and PKCE material use Electron <code>safeStorage</code>.</li>
       </ul>
@@ -495,15 +495,15 @@ before a server can be saved, connected or exposed to the Agent runtime.
 
 #### Execution surfaces
 
-| Surface                  | Effective boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Platform Shell**       | Available only in Execute. Windows prefers a verified PowerShell 7 `pwsh.exe` and falls back to Windows PowerShell 5.1; macOS uses a supported user zsh/bash with safe fallbacks. After brokered model or user approval, it intentionally inherits the current desktop user's full filesystem and network permissions.                                                                                                                                                                                               |
-| **Integrated Terminal**  | Opened by the user and inherits the current desktop user's filesystem and network permissions without automatic administrator elevation.                                                                                                                                                                                                                                                                                                                                                                             |
-| **MCP Registry install** | The official Registry is a discovery source, not a security endorsement. Artemis re-fetches the selected name and version, accepts only validated fixed HTTPS endpoints or version-pinned npm/stdio packages from the official npm registry, requires an explicit install-and-connect action, and keeps declared secret headers or environment values in OS-encrypted storage.                                                                                                                                       |
-| **MCP runtime**          | Registry-installed and manually configured servers share the same runtime boundary. In **Approve for me** mode, each call carries a model risk assessment while server-provided read-only/destructive annotations set a minimum risk floor; high-risk calls require either an exact explicit user request or human approval. Other approval modes retain their documented exact trusted-host behavior. Local stdio servers intentionally inherit the current desktop user's full filesystem and network permissions. |
-| **Extensions**           | Remain disabled until project and content-hash trust are explicit. They run in AppContainer on Windows or Seatbelt on macOS by default; the **Full local access** setting opts extensions alone into desktop-user permissions.                                                                                                                                                                                                                                                                                       |
-| **Browser**              | Has normal HTTP/HTTPS access but no Node integration, preload API or local-file access.                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| **Plan and Review**      | Reject writes before an executor or filesystem call and do not expose Shell, MCP or executable extensions.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Surface                  | Effective boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Platform Shell**       | Available only in Execute. Windows prefers a verified PowerShell 7 `pwsh.exe` and falls back to Windows PowerShell 5.1; macOS uses a supported user zsh/bash with safe fallbacks. After brokered model or user approval, it intentionally inherits the current desktop user's full filesystem and network permissions.                                                                                                                                                                                                                                                                                        |
+| **Integrated Terminal**  | Opened by the user and inherits the current desktop user's filesystem and network permissions without automatic administrator elevation.                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **MCP Registry install** | The official Registry is a discovery source, not a security endorsement. Artemis re-fetches the selected name and version, accepts only validated fixed HTTPS endpoints or version-pinned npm/stdio packages from the official npm registry, requires an explicit install-and-connect action, and keeps declared secret headers or environment values in OS-encrypted storage.                                                                                                                                                                                                                                |
+| **MCP runtime**          | Registry-installed and manually configured servers share the same runtime boundary. Local stdio servers use AppContainer on Windows or Seatbelt on macOS by default, can write only the task workspace and private runtime directory, receive a minimal or explicitly forwarded environment, and use a per-server network switch. A per-server compatibility option can explicitly restore desktop-user permissions for a trusted incompatible server; those unsandboxed calls have a high approval-risk floor. Tool calls otherwise retain model auto-approval and server read-only/destructive annotations. |
+| **Extensions**           | Remain disabled until project and content-hash trust are explicit. They run in AppContainer on Windows or Seatbelt on macOS by default; the **Full local access** setting opts extensions alone into desktop-user permissions.                                                                                                                                                                                                                                                                                                                                                                                |
+| **Browser**              | Has normal HTTP/HTTPS access but no Node integration, preload API or local-file access.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Plan and Review**      | Reject writes before an executor or filesystem call and do not expose Shell, MCP or executable extensions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 > [!CAUTION]
 > **macOS validation boundary** — Lite engineering packages generate separate Apple Silicon arm64 and Intel x64 artifacts. Local checks cover archive integrity, architecture, the ad-hoc engineering signature and packaged resources; the x64 result is a static build validation only. Intel-native launch, Developer ID signing, notarization, stapling, PTY/Seatbelt and update/rollback release acceptance remain separate native gates.
@@ -852,7 +852,9 @@ provider policy and packaged GUI acceptance remain external release checks.
 - automatic approval for non-destructive tools after the server has been
   explicitly enabled, with a human approval required for tools marked
   destructive;
-- desktop-user filesystem and network permissions for local stdio servers;
+- native sandboxing for local stdio servers, with task-workspace writes,
+  isolated environment state, per-server network permission and an explicit
+  full-access compatibility option;
 - encrypted bearer tokens, Registry HTTP headers and npm/stdio credential
   environment values, with Registry credentials bound to their original
   endpoint or launch command;
@@ -1002,9 +1004,11 @@ bounded subteam and must integrate it before completing.
   Shell, MCP or executable extensions.
 - The platform-native `shell` tool runs with the current desktop user's full
   permissions in Execute after brokered model or user approval. The user-opened
-  integrated Terminal and enabled local stdio MCP servers also inherit the
-  current desktop user's filesystem and network permissions; non-destructive
-  and exact policy-exempt MCP tools are auto-approved after enablement.
+  integrated Terminal does the same. Enabled local stdio MCP servers instead
+  use the native OS sandbox by default, with task-workspace file access,
+  isolated environment state and per-server network permission. A trusted
+  server can explicitly opt into unsandboxed compatibility mode. MCP tool calls
+  continue through the model or policy approval path.
 - Executable Pi extensions require explicit project and content-hash trust,
   default to the platform-native sandbox and alone are affected by the
   extension **Full local access** setting.
@@ -1065,9 +1069,9 @@ The release dependency tree also reports **0 known vulnerabilities** through
 `npm audit`.
 
 Windows-native verification additionally exercises the desktop-user PTY with
-workspace/outside writes and network access, local stdio MCP with full
-desktop-user access, plus trusted-extension execution with its AppContainer
-boundary retained.
+workspace/outside writes and network access, local stdio MCP inside AppContainer
+with outside writes denied, plus trusted-extension execution with its
+AppContainer boundary retained.
 
 ### Lite mode and self-contained packaging
 

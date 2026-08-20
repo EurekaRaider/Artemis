@@ -109,19 +109,22 @@ full local `bash` tool:
   Main validates the versioned request and workspace path, applies mode policy,
   then invokes portable PDF/OOXML parsers and generators. Delete is always
   offered as a high-risk, one-time approval.
-- MCP tools: available only in Execute and auto-approved after the user enables
-  the server. Local stdio servers intentionally inherit the desktop user's
-  filesystem, environment, and network permissions.
+- MCP tools: available only in Execute and routed through the configured model
+  or policy approval path after the user enables the server. Local stdio
+  servers use AppContainer on Windows or Seatbelt on macOS by default, can
+  write the task workspace and private runtime directory, receive a minimal or
+  explicitly forwarded environment, and use a per-server network permission.
+  A per-server compatibility option explicitly restores desktop-user access.
 - Trusted extension tools: discovered and invoked in one-shot native sandbox
   processes after hash verification and explicit trust.
 
 The user-opened integrated PTY launches the workspace shell directly with the
 current desktop user's native token. It inherits that user's filesystem,
 environment, and network access, but never requests administrator elevation.
-Enabling an MCP server is the explicit trust boundary for its auto-approved
-tools. Trusted executable extensions instead require project and content-hash
-trust and run in a fresh platform-native sandbox process unless extension-only
-full local access is enabled.
+Enabling an MCP server is the explicit trust boundary for its advertised tools,
+but not a grant of full desktop access. Trusted executable extensions instead
+require project and content-hash trust and run in a fresh platform-native
+sandbox process unless extension-only full local access is enabled.
 
 Review mutations never accept renderer-supplied patches. Main recomputes the
 current diff, resolves the submitted SHA-256 file/hunk ID to a canonical patch,

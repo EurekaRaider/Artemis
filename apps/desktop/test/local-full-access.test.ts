@@ -81,27 +81,30 @@ describe("local full access setting", () => {
     );
   });
 
-  it("makes stdio MCP network/full access informational instead of configurable", () => {
+  it("makes stdio MCP network and compatibility access explicit per-server choices", () => {
     expect(mcpServerEditorSource).toMatch(
-      /mcpFullAccessHint:\s*"Local stdio MCP always has full local access and network access\."/u,
+      /mcpAllowNetwork:\s*"Allow network access"/u,
     );
     expect(mcpServerEditorSource).toContain(
-      'mcpFullAccessHint: "本地 stdio MCP 始终拥有完整本机访问权限并可联网。"',
+      'mcpFullAccess: "完整本机访问（兼容模式）"',
     );
     expect(mcpServerEditorSource).toContain("{t.mcpFullAccessHint}");
-    expect(mcpServerEditorSource).not.toContain("mcpAllowNetwork");
-    expect(mcpServerEditorSource).not.toContain("setMcpAllowNetwork");
+    expect(mcpServerEditorSource).toContain("setMcpAllowNetwork");
+    expect(mcpServerEditorSource).toContain("setMcpFullAccess");
     expect(mcpServerEditorSource).toMatch(
-      /transport:\s*"stdio"[\s\S]*?allowNetwork:\s*true/u,
+      /transport:\s*"stdio"[\s\S]*?allowNetwork:\s*mcpFullAccess \|\| mcpAllowNetwork[\s\S]*?fullAccess:\s*mcpFullAccess/u,
     );
     expect(settingsPanelSource).not.toContain("{t.mcpFullAccessHint}");
   });
 
-  it("keeps stdio MCP raw while the switch controls only executable extensions", () => {
-    expect(mcpManagerSource).toContain("buildDesktopUserLaunch(command)");
+  it("sandboxes stdio MCP by default while keeping extension access separate", () => {
+    expect(mcpManagerSource).toContain(
+      "buildDesktopUserLaunch(sandboxCommand)",
+    );
     expect(mcpManagerSource).not.toContain("localFullAccess");
-    expect(mcpManagerSource).not.toContain("buildWindowsAppContainerLaunch");
-    expect(mcpManagerSource).not.toContain("buildSeatbeltLaunch");
+    expect(mcpManagerSource).toContain("buildWindowsAppContainerLaunch");
+    expect(mcpManagerSource).toContain("buildSeatbeltLaunch");
+    expect(mcpManagerSource).toContain("config.fullAccess");
 
     expect(extensionManagerSource).toContain("localFullAccess");
     expect(extensionManagerSource).toContain("buildDesktopUserLaunch(command)");

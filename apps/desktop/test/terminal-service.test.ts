@@ -188,7 +188,7 @@ describe("TerminalService", () => {
     expect(options.env.TERM).toBe("xterm-256color");
   });
 
-  it("keeps Terminal and stdio MCP direct while preserving extension sandboxing", () => {
+  it("keeps Terminal direct while sandboxing MCP and extensions", () => {
     expect(
       terminalServiceSource.includes("buildWindowsAppContainerLaunch"),
       "TerminalService must not call the Windows AppContainer builder",
@@ -205,10 +205,8 @@ describe("TerminalService", () => {
     ).toBe(false);
 
     expect(mcpClientManagerSource).toContain("buildDesktopUserLaunch");
-    expect(mcpClientManagerSource).not.toContain(
-      "buildWindowsAppContainerLaunch",
-    );
-    expect(mcpClientManagerSource).not.toContain("buildSeatbeltLaunch");
+    expect(mcpClientManagerSource).toContain("buildWindowsAppContainerLaunch");
+    expect(mcpClientManagerSource).toContain("buildSeatbeltLaunch");
     expect(trustedExtensionManagerSource).toContain(
       "buildWindowsAppContainerLaunch",
     );

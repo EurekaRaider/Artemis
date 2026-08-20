@@ -3060,6 +3060,11 @@ async function handleMcpBrokerRequest(
   const googleEmail = mcpConfig?.hostAuth
     ? (await googleAccountService?.status())?.email
     : undefined;
+  const stdioFullAccess =
+    mcpConfig?.transport === "stdio" && Boolean(mcpConfig.fullAccess);
+  const stdioAllowsNetwork =
+    stdioFullAccess ||
+    (mcpConfig?.transport === "stdio" && mcpConfig.allowNetwork);
   const argumentSummary = JSON.stringify(request.arguments, (key, value) =>
     /token|secret|password|authorization/iu.test(key)
       ? "[REDACTED]"
@@ -3080,13 +3085,15 @@ async function handleMcpBrokerRequest(
     ? ["Google APIs"]
     : request.transport === "streamable-http"
       ? [request.serverName]
-      : [];
+      : stdioAllowsNetwork
+        ? [request.serverName]
+        : [];
   const automationResolution = createAutomationApproval(request, {
     summary: approvalSummary,
     network: networkTargets,
-    risk: request.destructive ? "high" : "medium",
+    risk: request.destructive || stdioFullAccess ? "high" : "medium",
   });
-  if (automationResolution && !request.destructive) {
+  if (automationResolution && !request.destructive && !stdioFullAccess) {
     await executeApprovedMcp(workerRequestId, request, automationResolution);
     return;
   }
@@ -3094,6 +3101,7 @@ async function handleMcpBrokerRequest(
   const fullAccessAvailable = getPlatformContract().sandbox.available;
   const rememberedScope =
     !request.destructive &&
+    !stdioFullAccess &&
     (approvalPolicy === "agent" || approvalPolicy === "custom")
       ? store.findApprovalGrant({
           threadId: thread.id,
@@ -3120,7 +3128,8 @@ async function handleMcpBrokerRequest(
     kind: "mcp.call" as const,
     readOnly: request.readOnly,
     destructive: request.destructive,
-    network: request.transport === "streamable-http",
+    network: request.transport === "streamable-http" || stdioAllowsNetwork,
+    fullAccess: stdioFullAccess,
     toolName: request.toolName,
     modelApproval: request.modelApproval,
     ...(mcpConfig?.hostAuth ? { googleGrant: mcpConfig.hostAuth.grant } : {}),
@@ -3139,7 +3148,9 @@ async function handleMcpBrokerRequest(
   const nonce = randomUUID();
   const allowedScopes = conversationApprovalScopes(
     thread,
-    request.destructive ? ["once"] : ["once", "session", "project"],
+    request.destructive || stdioFullAccess
+      ? ["once"]
+      : ["once", "session", "project"],
   );
   pendingApprovals.register({
     approvalId: request.approvalId,

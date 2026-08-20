@@ -22,11 +22,14 @@
 - Pi's built-in `bash` is available only in Execute and intentionally
   runs with the current desktop user's full filesystem and network permissions.
   The user-opened integrated Terminal does the same and never auto-elevates.
-- Enabled local stdio MCP servers intentionally run with the current desktop
-  user's full filesystem and network permissions, and their tools are
-  auto-approved. Enabling an MCP server is the explicit trust boundary.
+- Enabled local stdio MCP servers use AppContainer on Windows or Seatbelt on
+  macOS by default. File access is limited to the task workspace plus the
+  server's private runtime directory, network access is per-server, and the
+  child receives only a minimal or explicitly forwarded environment. A
+  per-server compatibility option may explicitly opt a trusted server into the
+  current desktop user's permissions. Tool calls retain model auto-approval.
 - The **Full local access** setting affects executable Pi extensions only. It
-  must not change Pi `bash`, Terminal, or MCP permissions.
+  must not change Pi `bash`, Terminal, or per-server MCP permissions.
 - Executable Pi extensions remain disabled until explicit project and
   content-hash trust exists. They use the platform-native sandbox by default;
   the extension-only **Full local access** setting may opt them into the current

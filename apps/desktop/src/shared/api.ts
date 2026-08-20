@@ -414,6 +414,7 @@ export type McpServerConfig = (
       credentialEnvVars?: string[];
       workspacePath: string;
       allowNetwork: boolean;
+      fullAccess?: boolean;
     }
   | {
       id: string;

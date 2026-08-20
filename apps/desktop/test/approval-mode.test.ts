@@ -34,6 +34,7 @@ describe("approval modes", () => {
           readOnly: true,
           destructive: false,
           network: false,
+          fullAccess: false,
           modelApproval: {
             risk: "low",
             explicitUserRequest: false,
@@ -45,6 +46,7 @@ describe("approval modes", () => {
           readOnly: false,
           destructive: false,
           network: true,
+          fullAccess: false,
           modelApproval: {
             risk: "medium",
             explicitUserRequest: false,
@@ -106,6 +108,7 @@ describe("approval modes", () => {
                 readOnly: false,
                 destructive: true,
                 network: false,
+                fullAccess: false,
                 toolName,
                 googleGrant,
                 modelApproval: {
@@ -141,6 +144,7 @@ describe("approval modes", () => {
             readOnly: false,
             destructive: true,
             network: false,
+            fullAccess: false,
             modelApproval: {
               risk: "high",
               explicitUserRequest: false,
@@ -227,6 +231,7 @@ describe("approval modes", () => {
         readOnly: true,
         destructive: false,
         network: true,
+        fullAccess: false,
         modelApproval: {
           risk: "low",
           explicitUserRequest: false,
@@ -242,6 +247,7 @@ describe("approval modes", () => {
           readOnly: false,
           destructive: true,
           network: true,
+          fullAccess: false,
           toolName: "gmail_send_message",
           googleGrant: "gmail",
           modelApproval: {
@@ -261,10 +267,43 @@ describe("approval modes", () => {
           readOnly: false,
           destructive: true,
           network: true,
+          fullAccess: false,
           modelApproval: {
             risk: "low",
             explicitUserRequest: true,
             reason: "The user explicitly requested the exact destructive call.",
+          },
+        },
+        true,
+      ),
+    ).toBe(true);
+  });
+
+  it("treats an unsandboxed local MCP call as high risk", () => {
+    const operation = {
+      kind: "mcp.call" as const,
+      readOnly: true,
+      destructive: false,
+      network: false,
+      fullAccess: true,
+      modelApproval: {
+        risk: "low" as const,
+        explicitUserRequest: false,
+        reason: "The model classified the advertised tool as read-only.",
+      },
+    };
+
+    expect(effectiveApprovalRisk(operation)).toBe("high");
+    expect(shouldAutoApprove("agent", operation, true)).toBe(false);
+    expect(shouldAutoApprove("ask", operation, true)).toBe(false);
+    expect(
+      shouldAutoApprove(
+        "agent",
+        {
+          ...operation,
+          modelApproval: {
+            ...operation.modelApproval,
+            explicitUserRequest: true,
           },
         },
         true,

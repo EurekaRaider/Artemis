@@ -90,7 +90,7 @@ describe("McpConfigStore", () => {
     ).toThrow("Connector ID is invalid");
   });
 
-  it("normalizes every stdio MCP server to network access", () => {
+  it("preserves explicit stdio network access and defaults missing access off", () => {
     const missingNetworkDefault = {
       ...stdioServer(),
     } as Partial<Extract<McpServerConfig, { transport: "stdio" }>>;
@@ -103,14 +103,17 @@ describe("McpConfigStore", () => {
           { transport: "stdio" }
         >,
       ).allowNetwork,
-    ).toBe(true);
+    ).toBe(false);
     expect(
       validateMcpServerConfig(stdioServer({ allowNetwork: false }))
         .allowNetwork,
+    ).toBe(false);
+    expect(
+      validateMcpServerConfig(stdioServer({ allowNetwork: true })).allowNetwork,
     ).toBe(true);
   });
 
-  it("migrates every legacy stdio server to network access", async () => {
+  it("migrates legacy stdio servers to sandboxed access", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-mcp-"));
     temporaryDirectories.push(directory);
     const filePath = join(directory, "mcp.json");
@@ -141,11 +144,34 @@ describe("McpConfigStore", () => {
     const servers = await new McpConfigStore(filePath).list();
 
     expect(servers.find((server) => server.id === "context7")).toMatchObject({
-      allowNetwork: true,
+      allowNetwork: false,
+      fullAccess: false,
     });
     expect(servers.find((server) => server.id === "local")).toMatchObject({
-      allowNetwork: true,
+      allowNetwork: false,
+      fullAccess: false,
     });
+  });
+
+  it("round-trips an explicit per-server full access compatibility choice", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-mcp-"));
+    temporaryDirectories.push(directory);
+    const store = new McpConfigStore(join(directory, "mcp.json"));
+
+    const saved = await store.upsert(
+      stdioServer({ allowNetwork: true, fullAccess: true }),
+    );
+
+    expect(saved).toMatchObject({ allowNetwork: true, fullAccess: true });
+    expect(await store.list()).toEqual([saved]);
+  });
+
+  it("treats full local access as unrestricted network access", () => {
+    expect(
+      validateMcpServerConfig(
+        stdioServer({ allowNetwork: false, fullAccess: true }),
+      ),
+    ).toMatchObject({ allowNetwork: true, fullAccess: true });
   });
 
   it("assigns a private default workspace when the stdio cwd is blank", async () => {

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { copyFile, cp, mkdir, readFile, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import {
@@ -15,8 +15,16 @@ import {
 } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { buildDesktopUserLaunch } from "@artemis/platform";
-import type { SandboxCommand, SandboxLaunch } from "@artemis/platform";
+import {
+  buildDesktopUserLaunch,
+  buildSeatbeltLaunch,
+  buildWindowsAppContainerLaunch,
+} from "@artemis/platform";
+import type {
+  SandboxCommand,
+  SandboxLaunch,
+  SandboxPolicy,
+} from "@artemis/platform";
 import type {
   McpRuntimeTool,
   McpToolCallResult,
@@ -130,6 +138,142 @@ function posixDesktopPath(
     "/sbin",
   ].filter(Boolean);
   return [...new Set(entries)].join(":");
+}
+
+function inheritedEnvironment(names: string[]): Record<string, string> {
+  return Object.fromEntries(
+    names.flatMap((name) => {
+      const value = process.env[name];
+      return typeof value === "string" ? [[name, value]] : [];
+    }),
+  );
+}
+
+function stdioBaseEnvironment(
+  platform: NodeJS.Platform,
+  fullAccess: boolean,
+): Record<string, string> {
+  if (fullAccess) {
+    return Object.fromEntries(
+      Object.entries(process.env).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+      ),
+    );
+  }
+  return inheritedEnvironment(
+    platform === "win32"
+      ? [
+          "SystemRoot",
+          "WINDIR",
+          "ComSpec",
+          "PATHEXT",
+          "PATH",
+          "Path",
+          "LANG",
+          "LC_ALL",
+          "LC_CTYPE",
+        ]
+      : ["LANG", "LC_ALL", "LC_CTYPE"],
+  );
+}
+
+function resolvePosixExecutable(
+  command: string,
+  cwd: string,
+  searchPath: string,
+): string {
+  if (isAbsolute(command)) return command;
+  if (command.includes("/")) return resolve(cwd, command);
+  for (const directory of searchPath.split(delimiter)) {
+    if (!directory) continue;
+    const candidate = resolve(directory, command);
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error(`MCP executable was not found on PATH: ${command}`);
+}
+
+function canonicalExistingPath(
+  platform: NodeJS.Platform,
+  path: string,
+): string {
+  if (platform !== "darwin") return path;
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+function posixRuntimeReadRoot(path: string, homePath: string): string {
+  if (path === "/opt/homebrew" || path.startsWith("/opt/homebrew/")) {
+    return "/opt/homebrew";
+  }
+  if (path === "/usr/local" || path.startsWith("/usr/local/")) {
+    return "/usr/local";
+  }
+  for (const directory of [
+    join(homePath, ".local"),
+    join(homePath, ".volta"),
+    join(homePath, "Library", "pnpm"),
+  ]) {
+    if (pathIsInside(directory, path)) return directory;
+  }
+  const nvmVersion = path.match(/^(.+?\/\.nvm\/versions\/[^/]+\/[^/]+)/u);
+  return nvmVersion?.[1] ?? path;
+}
+
+function commandReadOnlyPaths(
+  platform: NodeJS.Platform,
+  command: SandboxCommand,
+  homePath: string,
+): string[] {
+  const candidates = [
+    command.executable,
+    ...command.args.filter((argument) => isAbsolute(argument)),
+  ];
+  if (platform !== "win32") {
+    for (const candidate of [...candidates]) {
+      try {
+        candidates.push(realpathSync(candidate));
+      } catch {
+        // The process spawn reports actionable missing-path errors.
+      }
+    }
+  }
+  const roots = candidates.map((candidate) =>
+    platform === "darwin"
+      ? posixRuntimeReadRoot(candidate, homePath)
+      : candidate,
+  );
+  if (platform === "darwin") {
+    for (const root of [...roots]) {
+      try {
+        roots.push(realpathSync(root));
+      } catch {
+        // A missing declared argument is reported by the launched command.
+      }
+    }
+  }
+  return [...new Set(roots)];
+}
+
+function resolveMcpSandboxPolicy(
+  config: Extract<McpServerConfig, { transport: "stdio" }>,
+  command: SandboxCommand,
+  scope: McpExecutionScope | undefined,
+  platform: NodeJS.Platform,
+  homePath: string,
+): SandboxPolicy {
+  return {
+    workspacePath: canonicalExistingPath(
+      platform,
+      scope?.workspacePath ?? config.workspacePath,
+    ),
+    mode: "execute",
+    network: config.allowNetwork ? "allow" : "deny",
+    writablePaths: [canonicalExistingPath(platform, config.workspacePath)],
+    readOnlyPaths: commandReadOnlyPaths(platform, command, homePath),
+  };
 }
 
 function resolveWindowsExecutable(command: string): string {
@@ -522,7 +666,6 @@ async function connectStdioClient(
     cwd: launch.cwd,
     env: Object.fromEntries(
       Object.entries({
-        ...process.env,
         ...(launch.env ?? {}),
         ARTEMIS_SANDBOX: launch.implementation,
       }).filter((entry) => typeof entry[1] === "string"),
@@ -660,7 +803,7 @@ export class McpClientManager {
 
   constructor(
     private readonly platform: NodeJS.Platform,
-    _windowsHelperPath: string | undefined,
+    private readonly windowsHelperPath: string | undefined,
     private readonly factory: McpConnectionFactory = async (
       config,
       authentication,
@@ -671,6 +814,14 @@ export class McpClientManager {
         version: "1.4.3",
       });
       if (config.transport === "stdio") {
+        const runtimeWorkspacePath = canonicalExistingPath(
+          this.platform,
+          config.workspacePath,
+        );
+        const executionWorkspacePath = canonicalExistingPath(
+          this.platform,
+          scope?.workspacePath ?? config.workspacePath,
+        );
         const commandArguments =
           this.platform === "win32" &&
           basename(config.command).toLowerCase() === "node.exe"
@@ -687,6 +838,7 @@ export class McpClientManager {
           }),
         );
         const commandEnvironment = {
+          ...stdioBaseEnvironment(this.platform, Boolean(config.fullAccess)),
           ...forwardedEnvironment,
           ...config.env,
           ...(authentication?.stdioEnv ?? {}),
@@ -705,9 +857,60 @@ export class McpClientManager {
         let command: SandboxCommand = {
           executable: config.command,
           args: commandArguments,
-          cwd: scope?.workspacePath ?? config.workspacePath,
+          cwd: executionWorkspacePath,
           env: commandEnvironment,
         };
+        const runtimeDirectory = join(runtimeWorkspacePath, ".artemis-mcp");
+        const temporaryDirectory = join(runtimeDirectory, "tmp");
+        const npmCacheDirectory = join(runtimeDirectory, "npm-cache");
+        if (!config.fullAccess) {
+          const homeDirectory = join(runtimeDirectory, "home");
+          await Promise.all([
+            mkdir(temporaryDirectory, { recursive: true }),
+            mkdir(npmCacheDirectory, { recursive: true }),
+            mkdir(homeDirectory, { recursive: true }),
+          ]);
+          setEnvironmentDefault(commandEnvironment, "HOME", homeDirectory);
+          setEnvironmentDefault(
+            commandEnvironment,
+            "TMPDIR",
+            temporaryDirectory,
+          );
+          setEnvironmentDefault(commandEnvironment, "TEMP", temporaryDirectory);
+          setEnvironmentDefault(commandEnvironment, "TMP", temporaryDirectory);
+          setEnvironmentDefault(
+            commandEnvironment,
+            "NPM_CONFIG_CACHE",
+            npmCacheDirectory,
+          );
+          if (this.platform === "win32") {
+            const roamingDirectory = join(
+              runtimeDirectory,
+              "appdata",
+              "roaming",
+            );
+            const localDirectory = join(runtimeDirectory, "appdata", "local");
+            await Promise.all([
+              mkdir(roamingDirectory, { recursive: true }),
+              mkdir(localDirectory, { recursive: true }),
+            ]);
+            setEnvironmentDefault(
+              commandEnvironment,
+              "USERPROFILE",
+              homeDirectory,
+            );
+            setEnvironmentDefault(
+              commandEnvironment,
+              "APPDATA",
+              roamingDirectory,
+            );
+            setEnvironmentDefault(
+              commandEnvironment,
+              "LOCALAPPDATA",
+              localDirectory,
+            );
+          }
+        }
         let npxRuntime:
           | {
               cacheDirectory: string;
@@ -722,12 +925,9 @@ export class McpClientManager {
             resolveWindowsExecutable,
             resolveNpmCommandShim,
           );
-          const runtimeDirectory = join(config.workspacePath, ".artemis-mcp");
-          const temporaryDirectory = join(runtimeDirectory, "tmp");
-          const npmCacheDirectory = join(runtimeDirectory, "npm-cache");
           const isolatesUserProfile = Boolean(
             resolved.shimPath &&
-            !pathIsInside(config.workspacePath, dirname(resolved.shimPath)),
+            !pathIsInside(runtimeWorkspacePath, dirname(resolved.shimPath)),
           );
           const stagesNpxRuntime =
             basename(resolved.shimPath ?? "").toLowerCase() === "npx.cmd";
@@ -765,7 +965,7 @@ export class McpClientManager {
             "NPM_CONFIG_CACHE",
             npmCacheDirectory,
           );
-          if (isolatesUserProfile) {
+          if (isolatesUserProfile && config.fullAccess) {
             const homeDirectory = join(runtimeDirectory, "home");
             const roamingDirectory = join(
               runtimeDirectory,
@@ -801,9 +1001,46 @@ export class McpClientManager {
               resolved.args,
             ),
           };
+        } else {
+          command = {
+            ...command,
+            executable: canonicalExistingPath(
+              this.platform,
+              resolvePosixExecutable(
+                command.executable,
+                command.cwd,
+                commandEnvironment.PATH ?? "",
+              ),
+            ),
+            args: command.args.map((argument) =>
+              isAbsolute(argument)
+                ? canonicalExistingPath(this.platform, argument)
+                : argument,
+            ),
+          };
         }
-        const buildLaunch = (command: SandboxCommand) =>
-          buildDesktopUserLaunch(command);
+        const buildLaunch = (sandboxCommand: SandboxCommand) => {
+          if (config.fullAccess) return buildDesktopUserLaunch(sandboxCommand);
+          const policy = resolveMcpSandboxPolicy(
+            config,
+            sandboxCommand,
+            scope,
+            this.platform,
+            process.env.HOME ?? homedir(),
+          );
+          if (this.platform === "darwin") {
+            return buildSeatbeltLaunch(sandboxCommand, policy);
+          }
+          if (this.platform === "win32" && this.windowsHelperPath) {
+            return buildWindowsAppContainerLaunch(sandboxCommand, policy, {
+              helperPath: this.windowsHelperPath,
+              identity: `Artemis.Mcp.${safeToolSegment(config.id)}`,
+            });
+          }
+          throw new Error(
+            `Local MCP sandbox is unavailable on ${this.platform}; enable full local access only for a trusted server.`,
+          );
+        };
         try {
           await connectStdioClient(client, buildLaunch(command));
         } catch (error) {

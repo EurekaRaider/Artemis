@@ -1,3 +1,5 @@
+import { dirname } from "node:path";
+
 import { normalizeSandboxPolicy } from "./sandbox-executor.js";
 
 import type {
@@ -22,6 +24,30 @@ function subpathRule(operation: string, paths: string[]): string[] {
   ];
 }
 
+function literalRule(operation: string, paths: string[]): string[] {
+  if (paths.length === 0) return [];
+  return [
+    `(allow ${operation}`,
+    ...paths.map((path) => `  (literal ${quoteSeatbelt(path)})`),
+    ")",
+  ];
+}
+
+function pathAncestors(paths: string[]): string[] {
+  const ancestors = new Set<string>();
+  for (const path of paths) {
+    let current = dirname(path);
+    while (current !== ".") {
+      ancestors.add(current);
+      if (current === "/") break;
+      const parent = dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+  }
+  return [...ancestors];
+}
+
 export function buildSeatbeltProfile(input: SandboxPolicy): string {
   const policy = normalizeSandboxPolicy(input);
   const readablePaths = [
@@ -44,7 +70,13 @@ export function buildSeatbeltProfile(input: SandboxPolicy): string {
     "(allow sysctl-read)",
     "(allow mach-lookup)",
     "(allow ipc-posix-shm)",
-    "(allow file-read-metadata)",
+    // Permit data transfer over inherited stdio pipes. Opening filesystem
+    // paths still requires one of the path-scoped metadata rules below.
+    "(allow file-read-data file-write-data)",
+    ...literalRule(
+      "file-read-metadata",
+      pathAncestors([...readablePaths, ...(policy.writablePaths ?? [])]),
+    ),
     ...subpathRule("file-read*", readablePaths),
     ...subpathRule("file-write*", policy.writablePaths ?? []),
     policy.network === "allow" ? "(allow network-outbound)" : "(deny network*)",

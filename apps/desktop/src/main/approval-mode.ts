@@ -21,6 +21,7 @@ export type ApprovalOperation =
       readOnly: boolean;
       destructive: boolean;
       network: boolean;
+      fullAccess: boolean;
       modelApproval: ModelApprovalDecision;
       toolName?: string;
       googleGrant?: "gmail" | "google-workspace";
@@ -49,7 +50,7 @@ export function effectiveApprovalRisk(
 ): ModelRiskLevel {
   const minimumRisk =
     operation.kind === "mcp.call"
-      ? operation.destructive
+      ? operation.fullAccess || operation.destructive
         ? "high"
         : operation.network
           ? "medium"
@@ -106,12 +107,13 @@ export function shouldAutoApprove(
   }
   if (operation.kind === "mcp.call") {
     return (
-      !operation.destructive ||
-      (operation.googleGrant !== undefined &&
-        operation.toolName !== undefined &&
-        TRUSTED_GOOGLE_TOOL_ALLOWLISTS[operation.googleGrant].has(
-          operation.toolName,
-        ))
+      !operation.fullAccess &&
+      (!operation.destructive ||
+        (operation.googleGrant !== undefined &&
+          operation.toolName !== undefined &&
+          TRUSTED_GOOGLE_TOOL_ALLOWLISTS[operation.googleGrant].has(
+            operation.toolName,
+          )))
     );
   }
   if (policy === "full-access") {

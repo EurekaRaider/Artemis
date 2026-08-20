@@ -191,7 +191,9 @@ bearer and OAuth credentials are configured through Artemis's encrypted
 credential flow after installation.
 
 All plugin-provided MCP servers install disabled. The user must inspect,
-configure and explicitly enable them before their tools are auto-approved.
+configure and explicitly enable them. Local stdio servers then run in the
+native OS sandbox by default, while tool calls retain the configured model or
+policy auto-approval behavior.
 
 ## 6. Add Connectors
 
@@ -273,9 +275,10 @@ make installed-state matching and safe updates predictable.
 - Literal environment values, bearer tokens, OAuth material and other
   credentials are never imported from a plugin.
 - Adding a marketplace trusts Artemis to download and parse that public
-  repository; enabling an installed local stdio MCP server is the separate
-  decision that grants it the current desktop user's filesystem and network
-  permissions.
+  repository. Enabling an installed local stdio MCP server is separate; it
+  grants task-workspace access and only the configured network permission by
+  default. Desktop-user permissions require the server's explicit full-access
+  compatibility option.
 
 ## Common validation errors
 

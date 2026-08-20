@@ -50,8 +50,13 @@ const labels = {
       "Registry headers are encrypted. Reinstall from the Registry to change their values.",
     registryCredentialsHint:
       "This Registry command is locked to prevent sending its encrypted credentials to another program. Uninstall and reinstall to change it.",
+    mcpSecurity: "Permissions",
+    mcpAllowNetwork: "Allow network access",
+    mcpAllowNetworkHint:
+      "Off by default for manually added servers. The OS sandbox still limits file access to the task workspace.",
+    mcpFullAccess: "Full local access (compatibility mode)",
     mcpFullAccessHint:
-      "Local stdio MCP always has full local access and network access.",
+      "Disables the OS sandbox and restores desktop filesystem, environment, and unrestricted network access for this server. Enable only when a trusted server cannot run sandboxed.",
     saveServer: "Save and connect",
     uninstall: "Uninstall",
     cancel: "Back to MCP servers",
@@ -85,7 +90,13 @@ const labels = {
       "Registry Header 已加密保存；如需更改，请从 Registry 重新安装。",
     registryCredentialsHint:
       "这个 Registry 启动命令已锁定，避免把加密凭据交给其他程序；如需更改，请卸载后重新安装。",
-    mcpFullAccessHint: "本地 stdio MCP 始终拥有完整本机访问权限并可联网。",
+    mcpSecurity: "权限",
+    mcpAllowNetwork: "允许网络访问",
+    mcpAllowNetworkHint:
+      "手动添加的服务器默认关闭；即使开启，操作系统沙盒仍只允许访问任务工作区。",
+    mcpFullAccess: "完整本机访问（兼容模式）",
+    mcpFullAccessHint:
+      "关闭该服务器的操作系统沙盒，并恢复桌面文件、进程环境和不受限网络访问。仅在可信服务器无法受限运行时开启。",
     saveServer: "保存并连接",
     uninstall: "卸载",
     cancel: "返回 MCP 服务器",
@@ -170,6 +181,14 @@ export function McpServerEditor({
   const [workspace, setWorkspace] = useState(
     server?.config.transport === "stdio" ? server.config.workspacePath : "",
   );
+  const [mcpAllowNetwork, setMcpAllowNetwork] = useState(
+    server?.config.transport === "stdio" ? server.config.allowNetwork : false,
+  );
+  const [mcpFullAccess, setMcpFullAccess] = useState(
+    server?.config.transport === "stdio"
+      ? Boolean(server.config.fullAccess)
+      : false,
+  );
   const [auth, setAuth] = useState<"none" | "bearer" | "oauth" | "headers">(
     server?.config.transport === "streamable-http"
       ? (server.config.auth ?? "none")
@@ -238,7 +257,8 @@ export function McpServerEditor({
             ? (server.config.credentialEnvVars ?? [])
             : [],
         workspacePath: workspace,
-        allowNetwork: true,
+        allowNetwork: mcpFullAccess || mcpAllowNetwork,
+        fullAccess: mcpFullAccess,
       };
     } else {
       config = {
@@ -486,7 +506,34 @@ export function McpServerEditor({
                 value={workspace}
               />
             </label>
-            <p className="settings-security">{t.mcpFullAccessHint}</p>
+          </div>
+          <div className="mcp-editor-card">
+            <strong>{t.mcpSecurity}</strong>
+            <label className="settings-checkbox">
+              <input
+                checked={mcpAllowNetwork}
+                disabled={busy || mcpFullAccess}
+                onChange={(event) => setMcpAllowNetwork(event.target.checked)}
+                type="checkbox"
+              />
+              <span>{t.mcpAllowNetwork}</span>
+            </label>
+            <p className="settings-security">{t.mcpAllowNetworkHint}</p>
+            <label className="settings-checkbox">
+              <input
+                checked={mcpFullAccess}
+                disabled={busy}
+                onChange={(event) => {
+                  setMcpFullAccess(event.target.checked);
+                  if (event.target.checked) setMcpAllowNetwork(true);
+                }}
+                type="checkbox"
+              />
+              <span>{t.mcpFullAccess}</span>
+            </label>
+            {mcpFullAccess && (
+              <p className="settings-security warning">{t.mcpFullAccessHint}</p>
+            )}
           </div>
         </>
       ) : (

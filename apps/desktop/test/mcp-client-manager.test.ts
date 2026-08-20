@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -328,6 +328,7 @@ lines.on("line", (line) => {
           envVars: [],
           workspacePath,
           allowNetwork: true,
+          fullAccess: process.platform !== "darwin",
         });
         expect(status.state, status.error).toBe("connected");
         expect(status.tools.map((tool) => tool.toolName)).toEqual([
@@ -340,12 +341,139 @@ lines.on("line", (line) => {
     },
   );
 
-  it("injects decrypted catalog secrets only into the stdio child process", async () => {
+  it("isolates a real stdio child while injecting only declared secrets", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-mcp-secret-env-"));
-    const fixturePath = fileURLToPath(
-      new URL("fixtures/mcp-echo-server.mjs", import.meta.url),
+    const fixturePath = join(directory, "environment-server.mjs");
+    await writeFile(
+      fixturePath,
+      `import { readFile, rm, writeFile } from "node:fs/promises";
+import { createInterface } from "node:readline";
+import { join } from "node:path";
+
+const send = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
+const lines = createInterface({ input: process.stdin });
+lines.on("line", (line) => {
+  const message = JSON.parse(line);
+  if (!("id" in message)) return;
+  if (message.method === "initialize") {
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        protocolVersion: message.params.protocolVersion,
+        capabilities: { tools: {} },
+        serverInfo: { name: "environment-fixture", version: "1.0.0" },
+      },
+    });
+    return;
+  }
+  if (message.method === "tools/list") {
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        tools: [
+          {
+            name: "environment_value",
+            inputSchema: {
+              type: "object",
+              properties: { name: { type: "string" } },
+              required: ["name"],
+            },
+          },
+          {
+            name: "security_probe",
+            inputSchema: {
+              type: "object",
+              properties: { outsidePath: { type: "string" } },
+              required: ["outsidePath"],
+            },
+          },
+        ],
+      },
+    });
+    return;
+  }
+  if (message.method !== "tools/call") return;
+  if (message.params.name === "environment_value") {
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        content: [
+          {
+            type: "text",
+            text: process.env[message.params.arguments.name] ?? "",
+          },
+        ],
+      },
+    });
+    return;
+  }
+  void (async () => {
+    const insidePath = join(process.cwd(), ".inside-probe");
+    const outsidePath = message.params.arguments.outsidePath;
+    let insideWrite = false;
+    let outsideRead = false;
+    let outsideWrite = false;
+    let networkAccess = false;
+    try {
+      await writeFile(insidePath, "inside", "utf8");
+      insideWrite = true;
+    } finally {
+      await rm(insidePath, { force: true }).catch(() => undefined);
+    }
+    try {
+      await readFile(outsidePath, "utf8");
+      outsideRead = true;
+    } catch {
+      outsideRead = false;
+    }
+    try {
+      await writeFile(outsidePath, "outside", "utf8");
+      outsideWrite = true;
+    } catch {
+      outsideWrite = false;
+    } finally {
+      await rm(outsidePath, { force: true }).catch(() => undefined);
+    }
+    try {
+      const response = await fetch("https://example.com", {
+        signal: AbortSignal.timeout(1_000),
+      });
+      networkAccess = response.ok;
+    } catch {
+      networkAccess = false;
+    }
+    send({
+      jsonrpc: "2.0",
+      id: message.id,
+      result: {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              insideWrite,
+              outsideRead,
+              outsideWrite,
+              networkAccess,
+            }),
+          },
+        ],
+      },
+    });
+  })();
+});
+`,
+      "utf8",
     );
     const manager = new McpClientManager(process.platform, undefined);
+    const outsideProbePath = join(
+      dirname(directory),
+      `${basename(directory)}-outside-probe`,
+    );
+    await writeFile(outsideProbePath, "must-not-read", "utf8");
+    vi.stubEnv("ARTEMIS_AMBIENT_SECRET", "must-not-leak");
     try {
       const status = await manager.connect(
         {
@@ -359,7 +487,8 @@ lines.on("line", (line) => {
           envVars: [],
           credentialEnvVars: ["CONTEXT7_API_KEY"],
           workspacePath: directory,
-          allowNetwork: true,
+          allowNetwork: false,
+          fullAccess: process.platform !== "darwin",
         },
         { stdioEnv: { CONTEXT7_API_KEY: "ctx-secret" } },
       );
@@ -372,20 +501,39 @@ lines.on("line", (line) => {
       ).resolves.toMatchObject({
         content: [{ type: "text", text: "ctx-secret" }],
       });
+      if (process.platform === "darwin") {
+        await expect(
+          manager.call("context7", "environment_value", {
+            name: "ARTEMIS_AMBIENT_SECRET",
+          }),
+        ).resolves.toMatchObject({
+          content: [{ type: "text", text: "" }],
+        });
+        const securityProbe = await manager.call("context7", "security_probe", {
+          outsidePath: outsideProbePath,
+        });
+        expect(JSON.parse(resultText(securityProbe))).toEqual({
+          insideWrite: true,
+          outsideRead: false,
+          outsideWrite: false,
+          networkAccess: false,
+        });
+      }
     } finally {
       await manager.dispose();
       await rm(directory, { recursive: true, force: true });
+      await rm(outsideProbePath, { force: true });
     }
   });
 
-  it("launches every local stdio server directly as the desktop user", () => {
-    expect(mcpClientManagerSource).toContain("buildDesktopUserLaunch(command)");
-    expect(mcpClientManagerSource).not.toContain(
-      "buildWindowsAppContainerLaunch",
-    );
-    expect(mcpClientManagerSource).not.toContain("buildSeatbeltLaunch");
-    expect(mcpClientManagerSource).not.toContain("resolveMcpSandboxPolicy");
+  it("sandboxes local stdio servers unless full access is explicit", () => {
+    expect(mcpClientManagerSource).toContain("buildDesktopUserLaunch(");
+    expect(mcpClientManagerSource).toContain("buildWindowsAppContainerLaunch");
+    expect(mcpClientManagerSource).toContain("buildSeatbeltLaunch");
+    expect(mcpClientManagerSource).toContain("resolveMcpSandboxPolicy");
+    expect(mcpClientManagerSource).toContain("config.fullAccess");
     expect(mcpClientManagerSource).not.toContain("localFullAccess");
+    expect(mcpClientManagerSource).not.toContain("...process.env,");
   });
 
   it("carries and validates the task workspace before an approved MCP call", () => {
@@ -430,6 +578,23 @@ lines.on("line", (line) => {
     expect(approvalCard).toBeGreaterThan(autoApproval);
     expect(automaticPath).toContain("executeApprovedMcp");
     expect(automaticPath).toContain("return;");
+  });
+
+  it("does not reuse automation or remembered grants for full-access MCP", () => {
+    const brokerHandler = mainProcessSource.slice(
+      mainProcessSource.indexOf("async function handleMcpBrokerRequest"),
+      mainProcessSource.indexOf("async function handleExtensionBrokerRequest"),
+    );
+
+    expect(brokerHandler).toContain(
+      "automationResolution && !request.destructive && !stdioFullAccess",
+    );
+    expect(brokerHandler).toMatch(
+      /const rememberedScope =\s*!request\.destructive &&\s*!stdioFullAccess/u,
+    );
+    expect(brokerHandler).toContain(
+      'risk: request.destructive || stdioFullAccess ? "high" : "medium"',
+    );
   });
 
   it("discovers tools and maps OpenCode-style server-qualified Pi names", async () => {
@@ -630,7 +795,7 @@ lines.on("line", (line) => {
   });
 
   it.runIf(process.platform === "win32")(
-    "runs a real npx-style .cmd MCP shim with desktop-user permissions",
+    "runs a real npx-style .cmd MCP shim inside AppContainer",
     async () => {
       const testDirectory = dirname(fileURLToPath(import.meta.url));
       const projectRoot = resolve(testDirectory, "..", "..", "..");
@@ -805,7 +970,7 @@ lines.on("line", async (line) => {
         );
         expect(JSON.parse(resultText(securityProbe))).toEqual({
           insideWrite: true,
-          outsideWrite: true,
+          outsideWrite: false,
           networkAccess: true,
         });
         const taskProbe = await manager.call(
@@ -817,7 +982,7 @@ lines.on("line", async (line) => {
         );
         expect(JSON.parse(resultText(taskProbe))).toEqual({
           insideWrite: true,
-          outsideWrite: true,
+          outsideWrite: false,
           networkAccess: true,
         });
       } finally {
