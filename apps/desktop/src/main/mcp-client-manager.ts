@@ -843,10 +843,12 @@ export class McpClientManager {
           ...config.env,
           ...(authentication?.stdioEnv ?? {}),
         };
-        if (
-          this.platform !== "win32" &&
-          !Object.hasOwn(commandEnvironment, "PATH")
-        ) {
+        const explicitlyConfiguresPath = Object.keys({
+          ...forwardedEnvironment,
+          ...config.env,
+          ...(authentication?.stdioEnv ?? {}),
+        }).some((name) => name.toLowerCase() === "path");
+        if (this.platform !== "win32" && !explicitlyConfiguresPath) {
           // Finder-launched apps do not load shell profiles such as .zshrc.
           commandEnvironment.PATH = posixDesktopPath(
             this.platform,

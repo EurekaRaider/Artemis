@@ -314,7 +314,7 @@ lines.on("line", (line) => {
       );
       vi.stubEnv("HOME", homePath);
       vi.stubEnv("PATH", "/usr/bin:/bin");
-      const manager = new McpClientManager(process.platform, undefined);
+      const manager = new McpClientManager("linux", undefined);
 
       try {
         const status = await manager.connect({
@@ -328,7 +328,7 @@ lines.on("line", (line) => {
           envVars: [],
           workspacePath,
           allowNetwork: true,
-          fullAccess: process.platform !== "darwin",
+          fullAccess: true,
         });
         expect(status.state, status.error).toBe("connected");
         expect(status.tools.map((tool) => tool.toolName)).toEqual([
