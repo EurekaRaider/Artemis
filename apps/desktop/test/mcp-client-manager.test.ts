@@ -34,6 +34,7 @@ interface ResolvedWindowsStdioCommand {
 }
 
 const WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS = 150_000;
+const WINDOWS_APP_CONTAINER_HANGING_STARTUP_TIMEOUT_MS = 90_000;
 const WINDOWS_APP_CONTAINER_DISPOSE_TIMEOUT_MS = 30_000;
 const WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS = 30_000;
 const WINDOWS_APP_CONTAINER_CLEANUP_RETRY_DELAY_MS = 100;
@@ -489,6 +490,107 @@ async function cleanupWindowsAppContainerFixture(
     if (result) failures.push(result);
   }
   return failures;
+}
+
+function probeWindowsAppContainerCleanup(identity: string): {
+  deleteResult: number;
+  profileWasAbsent: boolean;
+  sid: string;
+} {
+  const output = execFileSync(
+    "powershell.exe",
+    [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
+
+public static class ArtemisAppContainerCleanupProbe
+{
+    private const uint ERROR_ALREADY_EXISTS = 183;
+
+    [DllImport("userenv.dll", CharSet = CharSet.Unicode)]
+    private static extern int CreateAppContainerProfile(
+        string name,
+        string displayName,
+        string description,
+        IntPtr capabilities,
+        uint capabilityCount,
+        out IntPtr appContainerSid);
+
+    [DllImport("userenv.dll", CharSet = CharSet.Unicode)]
+    private static extern int DeleteAppContainerProfile(string name);
+
+    [DllImport("userenv.dll", CharSet = CharSet.Unicode)]
+    private static extern int DeriveAppContainerSidFromAppContainerName(
+        string name,
+        out IntPtr appContainerSid);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern IntPtr FreeSid(IntPtr sid);
+
+    public static string Run(string identity)
+    {
+        IntPtr derivedSid;
+        var deriveResult = DeriveAppContainerSidFromAppContainerName(
+            identity,
+            out derivedSid);
+        if (deriveResult != 0)
+            Marshal.ThrowExceptionForHR(deriveResult);
+        string sid;
+        try
+        {
+            sid = new SecurityIdentifier(derivedSid).Value;
+        }
+        finally
+        {
+            FreeSid(derivedSid);
+        }
+
+        IntPtr createdSid;
+        var createResult = CreateAppContainerProfile(
+            identity,
+            "Artemis cleanup probe",
+            "Artemis cleanup probe",
+            IntPtr.Zero,
+            0,
+            out createdSid);
+        if (createdSid != IntPtr.Zero)
+            FreeSid(createdSid);
+        var profileWasAbsent = createResult == 0;
+        if (!profileWasAbsent &&
+            (uint)createResult != (0x80070000u | ERROR_ALREADY_EXISTS))
+            Marshal.ThrowExceptionForHR(createResult);
+        var deleteResult = DeleteAppContainerProfile(identity);
+        return profileWasAbsent.ToString() + "|" + sid + "|" +
+            deleteResult.ToString();
+    }
+}
+'@; [ArtemisAppContainerCleanupProbe]::Run($env:ARTEMIS_MCP_PROFILE_IDENTITY)`,
+    ],
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ARTEMIS_MCP_PROFILE_IDENTITY: identity,
+      },
+      timeout: 30_000,
+      windowsHide: true,
+    },
+  ).trim();
+  const [profileWasAbsent, sid, deleteResult] = output.split("|");
+  if (!sid || deleteResult === undefined) {
+    throw new Error(`Unexpected AppContainer cleanup probe output: ${output}`);
+  }
+  return {
+    deleteResult: Number.parseInt(deleteResult, 10),
+    profileWasAbsent: profileWasAbsent === "True",
+    sid,
+  };
 }
 
 afterEach(() => {
@@ -1598,6 +1700,121 @@ lines.on("line", async (line) => {
     3 * WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS,
   );
 
+  it.runIf(process.platform === "win32")(
+    "gracefully cleans a hanging AppContainer before startup failure returns",
+    async () => {
+      const testDirectory = dirname(fileURLToPath(import.meta.url));
+      const projectRoot = resolve(testDirectory, "..", "..", "..");
+      const workspacePath = await mkdtemp(
+        join(tmpdir(), "artemis-mcp-hanging-appcontainer-"),
+      );
+      const fixturePath = join(workspacePath, "hanging-server.mjs");
+      const fixtureStartedPath = join(workspacePath, ".fixture-started.json");
+      const serverId = "hanging-appcontainer";
+      const identity = `Artemis.Mcp.${serverId}`;
+      await writeFile(
+        fixturePath,
+        `import { writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+await writeFile(
+  resolve(process.cwd(), ".fixture-started.json"),
+  JSON.stringify({ pid: process.pid, ppid: process.ppid }),
+  "utf8",
+);
+process.stderr.write("hanging AppContainer fixture started\\n");
+process.stdin.on("end", () => process.exit(0));
+process.stdin.resume();
+setInterval(() => undefined, 1_000);
+`,
+        "utf8",
+      );
+      const manager = new McpClientManager(
+        "win32",
+        resolve(
+          projectRoot,
+          "apps",
+          "desktop",
+          "resources",
+          "windows-sandbox.ps1",
+        ),
+      );
+      let testFailure: unknown;
+      try {
+        const status = await manager.connect(
+          {
+            id: serverId,
+            name: "Hanging AppContainer",
+            transport: "stdio",
+            enabled: true,
+            command: process.execPath,
+            args: [fixturePath],
+            env: { ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS: "1" },
+            envVars: [],
+            workspacePath,
+            allowNetwork: false,
+          },
+          undefined,
+          {
+            startupTimeoutMs: WINDOWS_APP_CONTAINER_HANGING_STARTUP_TIMEOUT_MS,
+          },
+        );
+        expect(status.state).toBe("failed");
+        expect(status.error).toContain("hanging AppContainer fixture started");
+        const fixtureProcesses = JSON.parse(
+          await readFile(fixtureStartedPath, "utf8"),
+        ) as WindowsFixtureProcesses;
+        expect(windowsProcessStatus(fixtureProcesses.pid)).toBe("exited");
+        expect(windowsProcessStatus(fixtureProcesses.ppid)).toBe("exited");
+
+        const cleanupProbe = probeWindowsAppContainerCleanup(identity);
+        expect(cleanupProbe.profileWasAbsent).toBe(true);
+        expect(cleanupProbe.deleteResult).toBe(0);
+        for (const path of [
+          workspacePath,
+          join(workspacePath, ".artemis-mcp"),
+        ]) {
+          const acl = execFileSync("icacls.exe", [path], {
+            encoding: "utf8",
+            timeout: 5_000,
+            windowsHide: true,
+          });
+          expect(acl).not.toContain(cleanupProbe.sid);
+        }
+      } catch (error) {
+        testFailure = error;
+      }
+
+      if (testFailure) {
+        try {
+          probeWindowsAppContainerCleanup(identity);
+        } catch {
+          // Preserve the primary assertion with fixture cleanup diagnostics.
+        }
+      }
+      const cleanupFailures = await cleanupWindowsAppContainerFixture(manager, [
+        workspacePath,
+      ]);
+      if (testFailure) {
+        if (cleanupFailures.length > 0) {
+          throw new AggregateError(
+            [testFailure, ...cleanupFailures],
+            "Hanging AppContainer assertions and cleanup both failed",
+            { cause: testFailure },
+          );
+        }
+        throw testFailure;
+      }
+      if (cleanupFailures.length > 0) {
+        throw new AggregateError(
+          cleanupFailures,
+          "Hanging AppContainer cleanup failed",
+        );
+      }
+    },
+    WINDOWS_APP_CONTAINER_HANGING_STARTUP_TIMEOUT_MS + 90_000,
+  );
+
   it("does not expose a failed connection as active", async () => {
     const manager = new McpClientManager("darwin", undefined, async () => {
       throw new Error("connection failed");
@@ -1636,6 +1853,43 @@ lines.on("line", async (line) => {
     expect(hanging.error).toContain("connection timed out after 15 ms");
     expect(healthy.state).toBe("connected");
     await manager.dispose();
+  });
+
+  it("aborts a hanging stdio prelaunch stage at the startup deadline", async () => {
+    let startupSignal: AbortSignal | undefined;
+    const manager = new McpClientManager(
+      "linux",
+      undefined,
+      async (_server, _authentication, _scope, options) => {
+        startupSignal = options?.startupSignal;
+        await new Promise<never>((_resolve, reject) => {
+          startupSignal?.addEventListener(
+            "abort",
+            () => reject(startupSignal?.reason),
+            { once: true },
+          );
+        });
+      },
+      15,
+    );
+
+    const status = await manager.connect({
+      id: "prelaunch-timeout",
+      name: "Prelaunch timeout",
+      transport: "stdio",
+      enabled: true,
+      command: process.execPath,
+      args: [],
+      env: {},
+      envVars: [],
+      workspacePath: tmpdir(),
+      allowNetwork: false,
+      fullAccess: true,
+    });
+
+    expect(status.state).toBe("failed");
+    expect(status.error).toContain("connection timed out after 15 ms");
+    expect(startupSignal?.aborted).toBe(true);
   });
 
   it("reaps a hanging stdio child before returning its failed status", async () => {

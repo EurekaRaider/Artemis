@@ -85,11 +85,15 @@ export interface McpConnectOptions {
   startupTimeoutMs?: number;
 }
 
+interface McpConnectionFactoryOptions extends McpConnectOptions {
+  startupSignal?: AbortSignal;
+}
+
 export type McpConnectionFactory = (
   config: McpServerConfig,
   authentication: McpConnectionAuthentication | undefined,
   scope?: McpExecutionScope,
-  options?: McpConnectOptions,
+  options?: McpConnectionFactoryOptions,
 ) => Promise<McpConnection>;
 
 interface ActiveConnection {
@@ -117,6 +121,7 @@ const MAX_STDIO_STDERR_BYTES = 64 * 1024;
 export const MCP_STARTUP_TIMEOUT_MS = 15_000;
 const WINDOWS_STDIO_GRACEFUL_EXIT_TIMEOUT_MS = 15_000;
 const STDIO_PROCESS_EXIT_TIMEOUT_MS = 5_000;
+const STDIO_STARTUP_TEARDOWN_TIMEOUT_MS = 35_000;
 const SECRET_ARGUMENTS = new Set([
   "--api-key",
   "--bearer-token",
@@ -664,6 +669,7 @@ async function connectStdioClient(
   client: Client,
   launch: SandboxLaunch,
   startupTimeoutMs: number,
+  startupSignal?: AbortSignal,
 ): Promise<StdioClientTransport> {
   const transport = new StdioClientTransport({
     command: launch.executable,
@@ -682,14 +688,34 @@ async function connectStdioClient(
     stderr = appendStderr(stderr, chunk);
   });
   const connectionPromise = client.connect(transport, {
-    timeout: startupTimeoutMs,
+    // The manager owns the earlier whole-startup deadline. Keep the SDK's
+    // auto-close timeout behind the graceful sandbox teardown window so it
+    // cannot clear the child handle and force-kill the helper first.
+    timeout: startupTimeoutMs + STDIO_STARTUP_TEARDOWN_TIMEOUT_MS,
   });
   // The SDK clears its process reference before its final force-kill settles.
   // Retain the PID while the transport still exposes it so failed startup can
   // confirm that the child has actually exited before returning.
   const processId = transport.pid;
+  let removeAbortListener: () => void = () => undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    if (!startupSignal) return;
+    const rejectWithReason = () =>
+      reject(
+        startupSignal.reason instanceof Error
+          ? startupSignal.reason
+          : new Error("stdio MCP startup was cancelled"),
+      );
+    if (startupSignal.aborted) {
+      rejectWithReason();
+      return;
+    }
+    startupSignal.addEventListener("abort", rejectWithReason, { once: true });
+    removeAbortListener = () =>
+      startupSignal.removeEventListener("abort", rejectWithReason);
+  });
   try {
-    await connectionPromise;
+    await Promise.race([connectionPromise, aborted]);
     return transport;
   } catch (error) {
     let teardownError: unknown;
@@ -703,6 +729,7 @@ async function connectStdioClient(
     } catch (closeError) {
       teardownError = closeError;
     }
+    await connectionPromise.catch(() => undefined);
     const cause = teardownError
       ? new AggregateError(
           [error, teardownError],
@@ -723,6 +750,8 @@ async function connectStdioClient(
       ),
       { stderr },
     );
+  } finally {
+    removeAbortListener();
   }
 }
 
@@ -932,6 +961,7 @@ export class McpClientManager {
       let stdioTransport: StdioClientTransport | undefined;
       let waitForWindowsSandboxTeardown = false;
       if (config.transport === "stdio") {
+        options?.startupSignal?.throwIfAborted();
         const runtimeWorkspacePath = canonicalExistingPath(
           this.platform,
           config.workspacePath,
@@ -990,6 +1020,7 @@ export class McpClientManager {
             mkdir(npmCacheDirectory, { recursive: true }),
             mkdir(homeDirectory, { recursive: true }),
           ]);
+          options?.startupSignal?.throwIfAborted();
           setEnvironmentDefault(commandEnvironment, "HOME", homeDirectory);
           setEnvironmentDefault(
             commandEnvironment,
@@ -1014,6 +1045,7 @@ export class McpClientManager {
               mkdir(roamingDirectory, { recursive: true }),
               mkdir(localDirectory, { recursive: true }),
             ]);
+            options?.startupSignal?.throwIfAborted();
             setEnvironmentDefault(
               commandEnvironment,
               "USERPROFILE",
@@ -1053,13 +1085,16 @@ export class McpClientManager {
             basename(resolved.shimPath ?? "").toLowerCase() === "npx.cmd";
           await mkdir(temporaryDirectory, { recursive: true });
           await mkdir(npmCacheDirectory, { recursive: true });
+          options?.startupSignal?.throwIfAborted();
           resolved = await stageNpxRuntime(resolved, runtimeDirectory);
+          options?.startupSignal?.throwIfAborted();
           if (stagesNpxRuntime) {
             const cachedCommand = await resolveCachedNpxCommand(
               config.args,
               npmCacheDirectory,
               resolved.executable,
             );
+            options?.startupSignal?.throwIfAborted();
             npxRuntime = {
               cacheDirectory: npmCacheDirectory,
               nodeExecutable: resolved.executable,
@@ -1096,6 +1131,7 @@ export class McpClientManager {
             await mkdir(homeDirectory, { recursive: true });
             await mkdir(roamingDirectory, { recursive: true });
             await mkdir(localDirectory, { recursive: true });
+            options?.startupSignal?.throwIfAborted();
             setEnvironmentDefault(commandEnvironment, "HOME", homeDirectory);
             setEnvironmentDefault(
               commandEnvironment,
@@ -1172,19 +1208,23 @@ export class McpClientManager {
             `Local MCP sandbox is unavailable on ${this.platform}; enable full local access only for a trusted server.`,
           );
         };
+        options?.startupSignal?.throwIfAborted();
         try {
           stdioTransport = await connectStdioClient(
             client,
             buildLaunch(command),
             options?.startupTimeoutMs ?? this.startupTimeoutMs,
+            options?.startupSignal,
           );
         } catch (error) {
+          if (options?.startupSignal?.aborted) throw error;
           if (!npxRuntime || npxRuntime.usedCachedCommand) throw error;
           const cachedCommand = await resolveCachedNpxCommand(
             config.args,
             npxRuntime.cacheDirectory,
             npxRuntime.nodeExecutable,
           );
+          options?.startupSignal?.throwIfAborted();
           if (!cachedCommand) throw error;
           try {
             await client.close();
@@ -1207,6 +1247,7 @@ export class McpClientManager {
             client,
             buildLaunch(command),
             options?.startupTimeoutMs ?? this.startupTimeoutMs,
+            options?.startupSignal,
           );
         }
       } else {
@@ -1323,35 +1364,85 @@ export class McpClientManager {
     });
   }
 
+  private async finishAbortedStdioStartup(
+    clientPromise: Promise<McpConnection>,
+    serverId: string,
+    startupError: unknown,
+  ): Promise<never> {
+    const cleanup = clientPromise.then(
+      async (lateClient) => {
+        try {
+          await lateClient.close();
+          return { kind: "closed" as const };
+        } catch (error) {
+          return { kind: "close-failed" as const, error };
+        }
+      },
+      (error) => ({ kind: "factory-failed" as const, error }),
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const outcome = await Promise.race([
+      cleanup,
+      new Promise<{ kind: "timed-out" }>((resolvePromise) => {
+        timer = setTimeout(
+          () => resolvePromise({ kind: "timed-out" }),
+          STDIO_STARTUP_TEARDOWN_TIMEOUT_MS,
+        );
+      }),
+    ]);
+    if (timer) clearTimeout(timer);
+    if (outcome.kind === "factory-failed") throw outcome.error;
+    if (outcome.kind === "close-failed") {
+      throw new AggregateError(
+        [startupError, outcome.error],
+        `MCP server ${serverId} timed out while starting and its late connection could not be closed`,
+        { cause: startupError },
+      );
+    }
+    if (outcome.kind === "timed-out") {
+      void cleanup;
+      throw new AggregateError(
+        [
+          startupError,
+          new Error(
+            `stdio MCP startup teardown timed out after ${STDIO_STARTUP_TEARDOWN_TIMEOUT_MS} ms`,
+          ),
+        ],
+        `MCP server ${serverId} timed out while starting and its teardown did not finish`,
+        { cause: startupError },
+      );
+    }
+    throw startupError;
+  }
+
   private async startConnection(
     config: McpServerConfig,
     authentication: McpConnectionAuthentication | undefined,
     scope?: McpExecutionScope,
     startupTimeoutMs = this.startupTimeoutMs,
   ): Promise<{ client: McpConnection; listed: { tools: McpTool[] } }> {
+    const startupController =
+      config.transport === "stdio" ? new AbortController() : undefined;
     const clientPromise = this.factory(config, authentication, scope, {
       startupTimeoutMs,
+      ...(startupController ? { startupSignal: startupController.signal } : {}),
     });
     let client: McpConnection;
     try {
-      // The stdio transport owns its startup deadline because it must stop and
-      // reap the child before reporting failure. Racing that work here can
-      // expose a failed status while the sandbox wrapper is still running.
-      client =
-        config.transport === "stdio"
-          ? await clientPromise
-          : await this.withStartupDeadline(
-              clientPromise,
-              config.id,
-              "connection",
-              startupTimeoutMs,
-            );
+      client = await this.withStartupDeadline(
+        clientPromise,
+        config.id,
+        "connection",
+        startupTimeoutMs,
+      );
     } catch (error) {
-      if (config.transport !== "stdio") {
-        void clientPromise
-          .then((lateClient) => lateClient.close())
-          .catch(() => undefined);
+      if (startupController) {
+        startupController.abort(error);
+        return this.finishAbortedStdioStartup(clientPromise, config.id, error);
       }
+      void clientPromise
+        .then((lateClient) => lateClient.close())
+        .catch(() => undefined);
       throw error;
     }
     try {
