@@ -190,15 +190,24 @@ function readablePattern(value: string): string {
 function bashSummary(command: string, locale: ToolPresentationLocale): string {
   const t = toolCopy(locale);
   const normalized = command.replace(/\s+/gu, " ").trim();
-  const pattern = searchPattern(normalized);
-  if (pattern) {
-    const target = readablePattern(pattern) || "files";
+  const search = searchCommandDetails(normalized);
+  if (search) {
+    const target = readablePattern(search.pattern) || "files";
     const searchesStyles = /\bstyles?\.(?:css|scss|sass|less)\b/iu.test(
       normalized,
     );
-    return fillToolText(searchesStyles ? t.stylesFor : t.filesFor, {
-      target: isolateDynamicText(locale, target),
-    });
+    if (searchesStyles) {
+      return fillToolText(t.stylesFor, {
+        target: isolateDynamicText(locale, target),
+      });
+    }
+    if (search.scope) {
+      return fillToolText(t.searchingIn, {
+        target: isolateDynamicText(locale, target),
+        scope: isolateDynamicText(locale, compactLabel(search.scope, 42)),
+      });
+    }
+    return `${t.searchingFor} “${isolateDynamicText(locale, target)}”`;
   }
   if (/(?:^|[;&|]\s*|\s)git(?:\.exe)?\s+status\b/iu.test(normalized)) {
     return t.workspaceChanges;

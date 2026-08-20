@@ -1956,7 +1956,7 @@ describe("renderer layout contract", () => {
     expect(temporaryRoot).toBeGreaterThan(-1);
     expect(projectsRoot).toBeGreaterThan(temporaryRoot);
     expect(nestedProjects).toBeGreaterThan(projectsRoot);
-    expect(appSource).toContain('className="project-group nested-project"');
+    expect(appSource).toContain("`project-group nested-project${");
     expect(appSource).toContain("aria-level={2}");
     expect(appSource).toContain("setProjectsOpen((open) => !open)");
   });

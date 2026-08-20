@@ -164,6 +164,11 @@ import {
   PROJECT_SIDEBAR_WIDTH_MIN,
 } from "./project-sidebar-layout.js";
 import {
+  orderProjectsByPreference,
+  reorderProjectIds,
+  type ProjectDropEdge,
+} from "./project-order.js";
+import {
   reduceTurnFailureNotices,
   type TurnFailureNotices,
 } from "./turn-failure-notices.js";
@@ -1437,6 +1442,11 @@ export function App() {
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [draggedProjectId, setDraggedProjectId] = useState<string>();
+  const [projectDropTarget, setProjectDropTarget] = useState<{
+    projectId: string;
+    edge: ProjectDropEdge;
+  }>();
   const [activeView, setActiveView] = useState<ActiveView>("workspace");
   const [projectMenuId, setProjectMenuId] = useState<string>();
   const [threadMenuId, setThreadMenuId] = useState<string>();
@@ -2447,6 +2457,29 @@ export function App() {
     );
     return projectSidebarPersistence.current;
   }, []);
+  const persistProjectOrder = useCallback(
+    async (order: string[]) => {
+      const previousOrder = runtimeSettings?.projectOrder ?? [];
+      setRuntimeSettings((current) =>
+        current ? { ...current, projectOrder: order } : current,
+      );
+      try {
+        const persisted = await window.artemis.setProjectOrder(order);
+        setRuntimeSettings((current) =>
+          current ? { ...current, projectOrder: persisted } : current,
+        );
+      } catch (error) {
+        setRuntimeSettings((current) =>
+          current ? { ...current, projectOrder: previousOrder } : current,
+        );
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [runtimeSettings?.projectOrder, setToast],
+  );
   const projectSidebarWidthForPointer = useCallback((clientX: number) => {
     const drag = projectSidebarDrag.current;
     if (!drag) return projectSidebarWidthRef.current;
@@ -3045,7 +3078,14 @@ export function App() {
     };
   }, [Boolean(snapshot)]);
 
-  const projects = snapshot?.projects ?? [];
+  const projects = useMemo(
+    () =>
+      orderProjectsByPreference(
+        snapshot?.projects ?? [],
+        runtimeSettings?.projectOrder,
+      ),
+    [runtimeSettings?.projectOrder, snapshot?.projects],
+  );
   const temporaryThreads = sortProjectThreads(
     (snapshot?.threads ?? [])
       .filter((thread) => !thread.projectId && !thread.archived)
@@ -4871,13 +4911,60 @@ export function App() {
             return (
               <section
                 aria-level={2}
-                className="project-group nested-project"
+                className={`project-group nested-project${
+                  draggedProjectId === project.id ? " dragging" : ""
+                }${
+                  projectDropTarget?.projectId === project.id
+                    ? ` drop-${projectDropTarget.edge}`
+                    : ""
+                }`}
                 hidden={!projectsOpen && !query.trim()}
                 key={project.id}
+                onDragOver={(event) => {
+                  if (!draggedProjectId || draggedProjectId === project.id)
+                    return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  const bounds = event.currentTarget
+                    .querySelector(":scope > .project-row")
+                    ?.getBoundingClientRect();
+                  if (!bounds) return;
+                  setProjectDropTarget({
+                    projectId: project.id,
+                    edge:
+                      event.clientY < bounds.top + bounds.height / 2
+                        ? "before"
+                        : "after",
+                  });
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (!draggedProjectId || !projectDropTarget) return;
+                  const order = reorderProjectIds(
+                    projects.map((candidate) => candidate.id),
+                    draggedProjectId,
+                    projectDropTarget.projectId,
+                    projectDropTarget.edge,
+                  );
+                  setDraggedProjectId(undefined);
+                  setProjectDropTarget(undefined);
+                  void persistProjectOrder(order);
+                }}
                 role="group"
               >
                 <div
                   className={`project-row ${project.id === activeProjectId ? "active" : ""}`}
+                  draggable
+                  onDragEnd={() => {
+                    setDraggedProjectId(undefined);
+                    setProjectDropTarget(undefined);
+                  }}
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", project.id);
+                    setDraggedProjectId(project.id);
+                    setProjectDropTarget(undefined);
+                  }}
                 >
                   <button
                     aria-controls={`project-thread-list-${project.id}`}
@@ -5140,7 +5227,13 @@ export function App() {
       <section className="workspace">
         {activeView === "token-usage" ? (
           <Suspense fallback={<div className="view-loading">…</div>}>
-            <TokenUsagePage locale={locale} username={username} />
+            <TokenUsagePage
+              locale={locale}
+              {...(runtimeSettings?.profileAvatar
+                ? { profileAvatar: runtimeSettings.profileAvatar }
+                : {})}
+              username={username}
+            />
           </Suspense>
         ) : activeView === "automations" ? (
           <Suspense fallback={<div className="view-loading">…</div>}>
@@ -6240,10 +6333,9 @@ export function App() {
                                       ? switchableModels.map((model) => {
                                           const selected =
                                             model.providerId ===
-                                              runtimeSettings?.selection
-                                                ?.providerId &&
+                                              activeSelection?.providerId &&
                                             model.modelId ===
-                                              runtimeSettings.selection.modelId;
+                                              activeSelection.modelId;
                                           return (
                                             <button
                                               aria-checked={selected}
@@ -6272,11 +6364,10 @@ export function App() {
                                       : modelPickerThinkingLevels.map(
                                           (level) => {
                                             const selected =
-                                              runtimeSettings?.selection
-                                                ?.ultraMode !== true &&
+                                              activeSelection?.ultraMode !==
+                                                true &&
                                               level ===
-                                                runtimeSettings?.selection
-                                                  ?.thinkingLevel;
+                                                activeSelection?.thinkingLevel;
                                             return (
                                               <button
                                                 aria-checked={selected}

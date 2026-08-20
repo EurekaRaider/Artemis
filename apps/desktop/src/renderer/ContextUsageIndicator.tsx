@@ -88,11 +88,12 @@ export function ContextUsageIndicator({
   const reportedTokens = usage?.tokens;
   const hasTokens = typeof reportedTokens === "number";
   const tokens = hasTokens ? reportedTokens : 0;
-  const percent = hasTokens
-    ? Math.round((tokens / effectiveContextWindow) * 100)
+  const exactPercent = hasTokens
+    ? (tokens / effectiveContextWindow) * 100
     : null;
+  const percent = exactPercent === null ? null : Math.round(exactPercent);
   const remaining = percent === null ? null : Math.max(0, 100 - percent);
-  const ringPercent = Math.min(100, Math.max(0, percent ?? 0));
+  const ringPercent = Math.min(100, Math.max(0, exactPercent ?? 0));
   const templates = localizedCopy(
     locale,
     "usage",

@@ -57,6 +57,8 @@ interface PersistedSettings {
   providers?: Record<string, ProviderConnection>;
   disabledSkillFiles?: string[];
   agentConcurrency?: AgentConcurrencyPreference;
+  profileAvatar?: string;
+  projectOrder?: string[];
   projectSidebarWidth?: number;
   workspaceDockWidth?: number;
 }
@@ -77,6 +79,43 @@ export const WORKSPACE_DOCK_WIDTH_MIN = 320;
 export const WORKSPACE_DOCK_WIDTH_MAX = 1_080;
 export const PROJECT_SIDEBAR_WIDTH_MIN = 208;
 export const PROJECT_SIDEBAR_WIDTH_MAX = 420;
+const PROFILE_AVATAR_MAX_BYTES = 512 * 1024;
+const PROJECT_ORDER_MAXIMUM = 10_000;
+
+function validateProjectOrder(order: readonly string[]): string[] {
+  if (
+    !Array.isArray(order) ||
+    order.length > PROJECT_ORDER_MAXIMUM ||
+    !order.every(
+      (projectId) =>
+        typeof projectId === "string" &&
+        projectId.length > 0 &&
+        Buffer.byteLength(projectId, "utf8") <= 1_024,
+    )
+  ) {
+    throw new Error("Project order is invalid");
+  }
+  if (new Set(order).size !== order.length) {
+    throw new Error("Project order entries must be unique");
+  }
+  return [...order];
+}
+
+function validateProfileAvatar(avatar: string): string {
+  const match = avatar.match(
+    /^data:image\/(?:jpeg|png|webp);base64,(?<data>[A-Za-z0-9+/]+={0,2})$/u,
+  );
+  if (!match?.groups?.data) {
+    throw new Error("Profile avatar must be a PNG, JPEG, or WebP image");
+  }
+  if (
+    Buffer.from(match.groups.data, "base64").byteLength >
+    PROFILE_AVATAR_MAX_BYTES
+  ) {
+    throw new Error("Profile avatar must not exceed 512 KiB");
+  }
+  return avatar;
+}
 
 function validateProviderId(providerId: string): string {
   const normalized = providerId.trim();
@@ -277,6 +316,35 @@ export class EncryptedSettingsStore {
 
   async addedModels(): Promise<AddedModelConfiguration[]> {
     return structuredClone((await this.load()).addedModels ?? []);
+  }
+
+  async profileAvatar(): Promise<string | undefined> {
+    return (await this.load()).profileAvatar;
+  }
+
+  async setProfileAvatar(
+    avatar: string | undefined,
+  ): Promise<string | undefined> {
+    const settings = await this.load();
+    if (avatar === undefined) {
+      delete settings.profileAvatar;
+    } else {
+      settings.profileAvatar = validateProfileAvatar(avatar);
+    }
+    await this.save(settings);
+    return settings.profileAvatar;
+  }
+
+  async projectOrder(): Promise<string[]> {
+    return [...((await this.load()).projectOrder ?? [])];
+  }
+
+  async setProjectOrder(order: readonly string[]): Promise<string[]> {
+    const validated = validateProjectOrder(order);
+    const settings = await this.load();
+    settings.projectOrder = validated;
+    await this.save(settings);
+    return [...validated];
   }
 
   async workspaceDockWidth(): Promise<number | undefined> {
@@ -626,6 +694,24 @@ export class EncryptedSettingsStore {
           !shellRuntimeConfigurationSchema.safeParse(parsed.shell).success) ||
         (parsed.contextWindow !== undefined &&
           !contextWindowSchema.safeParse(parsed.contextWindow).success) ||
+        (parsed.profileAvatar !== undefined &&
+          (() => {
+            try {
+              validateProfileAvatar(parsed.profileAvatar);
+              return false;
+            } catch {
+              return true;
+            }
+          })()) ||
+        (parsed.projectOrder !== undefined &&
+          (() => {
+            try {
+              validateProjectOrder(parsed.projectOrder);
+              return false;
+            } catch {
+              return true;
+            }
+          })()) ||
         (parsed.projectSidebarWidth !== undefined &&
           (() => {
             try {

@@ -41,6 +41,46 @@ async function createStore() {
 }
 
 describe("EncryptedSettingsStore", () => {
+  it("persists validated project ordering", async () => {
+    const { filePath, store } = await createStore();
+    await expect(store.projectOrder()).resolves.toEqual([]);
+    await expect(
+      store.setProjectOrder(["project-c", "project-a", "project-b"]),
+    ).resolves.toEqual(["project-c", "project-a", "project-b"]);
+
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.projectOrder()).resolves.toEqual([
+      "project-c",
+      "project-a",
+      "project-b",
+    ]);
+    await expect(
+      reopened.setProjectOrder(["project-a", "project-a"]),
+    ).rejects.toThrow("unique");
+  });
+
+  it("persists a bounded local profile avatar and supports removal", async () => {
+    const { filePath, store } = await createStore();
+    const avatar = `data:image/webp;base64,${Buffer.from("avatar").toString("base64")}`;
+
+    await expect(store.profileAvatar()).resolves.toBeUndefined();
+    await expect(store.setProfileAvatar(avatar)).resolves.toBe(avatar);
+
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.profileAvatar()).resolves.toBe(avatar);
+    await expect(
+      reopened.setProfileAvatar("data:text/plain;base64,YXZhdGFy"),
+    ).rejects.toThrow("avatar");
+    await expect(reopened.setProfileAvatar(undefined)).resolves.toBeUndefined();
+    await expect(reopened.profileAvatar()).resolves.toBeUndefined();
+  });
+
   it("persists a validated project sidebar width", async () => {
     const { filePath, store } = await createStore();
     await expect(store.projectSidebarWidth()).resolves.toBeUndefined();

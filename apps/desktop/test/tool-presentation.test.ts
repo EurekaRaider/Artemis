@@ -148,6 +148,21 @@ describe("tool presentation", () => {
     ).toBe("已在 apps/desktop/src/renderer 中搜索“thinking-card”");
   });
 
+  it("does not describe a search pattern as a folder name", () => {
+    expect(toolPresentation.summarizeToolActivity).toBeTypeOf("function");
+    if (!toolPresentation.summarizeToolActivity) return;
+
+    const search = {
+      command: 'rg -n "ContextUsageIndicator" apps/desktop/src/renderer',
+    };
+    expect(
+      toolPresentation.summarizeToolActivity("bash", search, "zh-CN"),
+    ).toBe("正在 apps/desktop/src/renderer 中搜索“ContextUsageIndicator”");
+    expect(toolPresentation.summarizeToolActivity("bash", search, "en")).toBe(
+      "Searching for “ContextUsageIndicator” in apps/desktop/src/renderer",
+    );
+  });
+
   it("renders Bash input as a shell command instead of a JSON object", () => {
     expect(toolPresentation.formatToolInput).toBeTypeOf("function");
     if (!toolPresentation.formatToolInput) return;

@@ -293,6 +293,8 @@ export interface SettingsSnapshot {
   trustedExtensions: TrustedExtensionStatus[];
   update: ReleaseUpdateStatus;
   agentConcurrency: AgentConcurrencyStatus;
+  profileAvatar?: string;
+  projectOrder?: string[];
   projectSidebarWidth?: number;
   workspaceDockWidth?: number;
   selection?: ModelSelection;
@@ -814,6 +816,8 @@ export interface ArtemisApi {
   removeModel(
     model: Pick<AddedModelConfiguration, "providerId" | "modelId">,
   ): Promise<SettingsSnapshot>;
+  setProfileAvatar(avatar?: string): Promise<SettingsSnapshot>;
+  setProjectOrder(order: string[]): Promise<string[]>;
   setWorkspaceDockWidth(width: number): Promise<number>;
   setProjectSidebarWidth(width: number): Promise<number>;
   saveApiKey(providerId: string, apiKey: string): Promise<SettingsSnapshot>;
@@ -1020,6 +1024,8 @@ export const IPC = {
   settingsModelAdd: "artemis:settings-model-add",
   settingsModelDelete: "artemis:settings-model-delete",
   settingsModelSet: "artemis:settings-model-set",
+  settingsProfileAvatarSet: "artemis:settings-profile-avatar-set",
+  settingsProjectOrderSet: "artemis:settings-project-order-set",
   settingsProjectSidebarWidthSet: "artemis:settings-project-sidebar-width-set",
   settingsWorkspaceDockWidthSet: "artemis:settings-workspace-dock-width-set",
   settingsApiKeySave: "artemis:settings-api-key-save",
