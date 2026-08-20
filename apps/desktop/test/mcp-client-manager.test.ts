@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import {
   mkdir,
@@ -127,6 +128,72 @@ async function describeWindowsFixture(
   return `${fixture}; runtime entries: ${runtimeEntries.join(", ") || "none"}`;
 }
 
+function windowsProcessStatus(processId: unknown): string {
+  if (typeof processId !== "number") return "unknown";
+  try {
+    process.kill(processId, 0);
+    return "running";
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "ESRCH" ? "exited" : `unavailable (${code ?? "error"})`;
+  }
+}
+
+async function describeWindowsCleanupTarget(
+  directory: string,
+): Promise<string> {
+  const entries = await readdir(directory, { recursive: true }).catch(() => []);
+  let fixtureProcesses = "fixture marker unavailable";
+  try {
+    const fixture = JSON.parse(
+      await readFile(join(directory, ".fixture-started.json"), "utf8"),
+    ) as { pid?: unknown; ppid?: unknown };
+    fixtureProcesses = [
+      `child ${String(fixture.pid)}: ${windowsProcessStatus(fixture.pid)}`,
+      `wrapper ${String(fixture.ppid)}: ${windowsProcessStatus(fixture.ppid)}`,
+    ].join(", ");
+  } catch {
+    // The marker may already have been removed by the pending rm operation.
+  }
+  let matchingProcesses = "unavailable";
+  let accessControl = "unavailable";
+  if (process.platform === "win32") {
+    try {
+      matchingProcesses =
+        execFileSync(
+          "powershell.exe",
+          [
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            '$target = $args[0]; Get-CimInstance Win32_Process | Where-Object { ($_.ExecutablePath -and $_.ExecutablePath -like "$target*") -or ($_.CommandLine -and $_.CommandLine -like "*$target*") } | Select-Object ProcessId, ParentProcessId, Name, ExecutablePath, CommandLine | ConvertTo-Json -Compress',
+            directory,
+          ],
+          { encoding: "utf8", timeout: 5_000, windowsHide: true },
+        ).trim() || "none";
+    } catch (error) {
+      matchingProcesses =
+        error instanceof Error ? error.message : String(error);
+    }
+    try {
+      accessControl = execFileSync("icacls.exe", [directory], {
+        encoding: "utf8",
+        timeout: 5_000,
+        windowsHide: true,
+      }).trim();
+    } catch (error) {
+      accessControl = error instanceof Error ? error.message : String(error);
+    }
+  }
+  return [
+    `remaining entries: ${entries.slice(0, 100).join(", ") || "none"}`,
+    fixtureProcesses,
+    `matching processes: ${matchingProcesses}`,
+    `ACL: ${accessControl}`,
+  ].join("; ");
+}
+
 async function cleanupWindowsAppContainerFixture(
   manager: McpClientManager,
   directories: readonly string[],
@@ -171,7 +238,9 @@ async function cleanupWindowsAppContainerFixture(
         ]);
         return removed
           ? undefined
-          : new Error(`MCP fixture directory cleanup timed out: ${directory}`);
+          : new Error(
+              `MCP fixture directory cleanup timed out: ${directory}\n${await describeWindowsCleanupTarget(directory)}`,
+            );
       } catch (error) {
         return new Error(
           `Failed to remove MCP fixture directory: ${directory}`,
@@ -658,6 +727,9 @@ lines.on("line", (line) => {
     expect(mcpClientManagerSource).toContain(
       "WINDOWS_STDIO_GRACEFUL_EXIT_TIMEOUT_MS = 15_000",
     );
+    expect(mcpClientManagerSource).toContain(
+      'launch.implementation === "windows-appcontainer"',
+    );
   });
 
   it("carries and validates the task workspace before an approved MCP call", () => {
@@ -952,6 +1024,7 @@ await writeFile(
   resolve(process.cwd(), ".fixture-started.json"),
   JSON.stringify({
     pid: process.pid,
+    ppid: process.ppid,
     execPath: process.execPath,
     argv: process.argv,
     stdinFd: process.stdin.fd,

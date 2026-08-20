@@ -734,10 +734,14 @@ function endStdioInput(transport: StdioClientTransport): boolean {
 async function closeStdioClient(
   client: Client,
   transport: StdioClientTransport,
-  platform: NodeJS.Platform,
+  waitForWindowsSandboxTeardown: boolean,
 ): Promise<void> {
   const processId = transport.pid;
-  if (platform === "win32" && processId !== null && endStdioInput(transport)) {
+  if (
+    waitForWindowsSandboxTeardown &&
+    processId !== null &&
+    endStdioInput(transport)
+  ) {
     await waitForProcessExit(processId, WINDOWS_STDIO_GRACEFUL_EXIT_TIMEOUT_MS);
   }
   let closeError: unknown;
@@ -893,6 +897,7 @@ export class McpClientManager {
         version: "1.4.8",
       });
       let stdioTransport: StdioClientTransport | undefined;
+      let waitForWindowsSandboxTeardown = false;
       if (config.transport === "stdio") {
         const runtimeWorkspacePath = canonicalExistingPath(
           this.platform,
@@ -1114,11 +1119,18 @@ export class McpClientManager {
             return buildSeatbeltLaunch(sandboxCommand, policy);
           }
           if (this.platform === "win32" && this.windowsHelperPath) {
-            return buildWindowsAppContainerLaunch(sandboxCommand, policy, {
-              helperPath: this.windowsHelperPath,
-              identity: `Artemis.Mcp.${safeToolSegment(config.id)}`,
-              runtimePath: runtimeWorkspacePath,
-            });
+            const launch = buildWindowsAppContainerLaunch(
+              sandboxCommand,
+              policy,
+              {
+                helperPath: this.windowsHelperPath,
+                identity: `Artemis.Mcp.${safeToolSegment(config.id)}`,
+                runtimePath: runtimeWorkspacePath,
+              },
+            );
+            waitForWindowsSandboxTeardown =
+              launch.implementation === "windows-appcontainer";
+            return launch;
           }
           throw new Error(
             `Local MCP sandbox is unavailable on ${this.platform}; enable full local access only for a trusted server.`,
@@ -1237,7 +1249,11 @@ export class McpClientManager {
         },
         close: () =>
           stdioTransport
-            ? closeStdioClient(client, stdioTransport, this.platform)
+            ? closeStdioClient(
+                client,
+                stdioTransport,
+                waitForWindowsSandboxTeardown,
+              )
             : client.close(),
       };
     },
