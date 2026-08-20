@@ -1638,6 +1638,64 @@ lines.on("line", async (line) => {
     await manager.dispose();
   });
 
+  it("reaps a hanging stdio child before returning its failed status", async () => {
+    const directory = await mkdtemp(
+      join(tmpdir(), "artemis-mcp-hanging-stdio-"),
+    );
+    const fixturePath = join(directory, "hanging-server.mjs");
+    const processIdPath = join(directory, "child.pid");
+    let processId: number | undefined;
+    await writeFile(
+      fixturePath,
+      `import { writeFile } from "node:fs/promises";
+
+await writeFile(process.argv[2], String(process.pid), "utf8");
+process.stderr.write("hanging stdio fixture started\\n");
+process.stdin.resume();
+setInterval(() => undefined, 1_000);
+`,
+      "utf8",
+    );
+    const manager = new McpClientManager(process.platform, undefined);
+
+    try {
+      const status = await manager.connect(
+        {
+          id: "hanging-stdio",
+          name: "Hanging stdio",
+          transport: "stdio",
+          enabled: true,
+          command: process.execPath,
+          args: [fixturePath, processIdPath],
+          env: {},
+          envVars: [],
+          workspacePath: directory,
+          allowNetwork: false,
+          fullAccess: true,
+        },
+        undefined,
+        { startupTimeoutMs: 1_000 },
+      );
+      processId = Number.parseInt(await readFile(processIdPath, "utf8"), 10);
+
+      expect(status.state).toBe("failed");
+      expect(status.error).toContain("hanging stdio fixture started");
+      expect(() => process.kill(processId!, 0)).toThrow(
+        expect.objectContaining({ code: "ESRCH" }),
+      );
+    } finally {
+      await manager.dispose();
+      if (processId !== undefined) {
+        try {
+          process.kill(processId, "SIGKILL");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
+      }
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 15_000);
+
   it("allows one cold package startup to use a longer connection timeout", async () => {
     const startupTimeouts: Array<number | undefined> = [];
     const manager = new McpClientManager(

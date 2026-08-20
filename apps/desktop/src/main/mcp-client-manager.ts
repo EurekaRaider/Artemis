@@ -681,8 +681,15 @@ async function connectStdioClient(
   transport.stderr?.on("data", (chunk) => {
     stderr = appendStderr(stderr, chunk);
   });
+  const connectionPromise = client.connect(transport, {
+    timeout: startupTimeoutMs,
+  });
+  // The SDK clears its process reference before its final force-kill settles.
+  // Retain the PID while the transport still exposes it so failed startup can
+  // confirm that the child has actually exited before returning.
+  const processId = transport.pid;
   try {
-    await client.connect(transport, { timeout: startupTimeoutMs });
+    await connectionPromise;
     return transport;
   } catch (error) {
     let teardownError: unknown;
@@ -691,6 +698,7 @@ async function connectStdioClient(
         client,
         transport,
         launch.implementation === "windows-appcontainer",
+        processId,
       );
     } catch (closeError) {
       teardownError = closeError;
@@ -759,8 +767,9 @@ async function closeStdioClient(
   client: Client,
   transport: StdioClientTransport,
   waitForWindowsSandboxTeardown: boolean,
+  retainedProcessId: number | null = transport.pid,
 ): Promise<void> {
-  const processId = transport.pid;
+  const processId = retainedProcessId;
   if (
     waitForWindowsSandboxTeardown &&
     processId !== null &&
@@ -1325,16 +1334,24 @@ export class McpClientManager {
     });
     let client: McpConnection;
     try {
-      client = await this.withStartupDeadline(
-        clientPromise,
-        config.id,
-        "connection",
-        startupTimeoutMs,
-      );
+      // The stdio transport owns its startup deadline because it must stop and
+      // reap the child before reporting failure. Racing that work here can
+      // expose a failed status while the sandbox wrapper is still running.
+      client =
+        config.transport === "stdio"
+          ? await clientPromise
+          : await this.withStartupDeadline(
+              clientPromise,
+              config.id,
+              "connection",
+              startupTimeoutMs,
+            );
     } catch (error) {
-      void clientPromise
-        .then((lateClient) => lateClient.close())
-        .catch(() => undefined);
+      if (config.transport !== "stdio") {
+        void clientPromise
+          .then((lateClient) => lateClient.close())
+          .catch(() => undefined);
+      }
       throw error;
     }
     try {
@@ -1346,7 +1363,15 @@ export class McpClientManager {
       );
       return { client, listed };
     } catch (error) {
-      void client.close().catch(() => undefined);
+      try {
+        await client.close();
+      } catch (closeError) {
+        throw new AggregateError(
+          [error, closeError],
+          `MCP server ${config.id} listTools failed and its connection could not be closed`,
+          { cause: error },
+        );
+      }
       throw error;
     }
   }
