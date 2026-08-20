@@ -888,6 +888,9 @@ lines.on("line", (line) => {
       const taskWorkspacePath = await mkdtemp(
         join(tmpdir(), "artemis-mcp-task-"),
       );
+      const outsideWorkspacePath = await mkdtemp(
+        join(tmpdir(), "artemis-mcp-outside-"),
+      );
       const fixtureStartedPath = join(workspacePath, ".fixture-started.json");
       const shimPath = join(workspacePath, "npx.cmd");
       const entryPath = join(
@@ -979,8 +982,11 @@ lines.on("line", async (line) => {
     typeof requestedWorkspace === "string" ? requestedWorkspace : process.cwd(),
     ".inside-" + marker,
   );
+  const requestedOutsidePath = message.params.arguments.outsidePath;
   const outsidePath = resolve(
-    process.env.USERPROFILE ?? "C:\\\\Users\\\\Public",
+    typeof requestedOutsidePath === "string"
+      ? requestedOutsidePath
+      : process.cwd(),
     ".outside-" + marker,
   );
   let insideWrite = false;
@@ -1082,7 +1088,9 @@ lines.on("line", async (line) => {
         fixtureStage = "running runtime security probe";
         const securityProbe = await withWindowsFixtureDeadline(
           "runtime security probe",
-          manager.call("integration-fixture", "security_probe", {}),
+          manager.call("integration-fixture", "security_probe", {
+            outsidePath: outsideWorkspacePath,
+          }),
         );
         expect(JSON.parse(resultText(securityProbe))).toEqual({
           insideWrite: true,
@@ -1095,7 +1103,10 @@ lines.on("line", async (line) => {
           manager.call(
             "integration-fixture",
             "security_probe",
-            { workspacePath: taskWorkspacePath },
+            {
+              workspacePath: taskWorkspacePath,
+              outsidePath: outsideWorkspacePath,
+            },
             taskWorkspacePath,
             "execute",
           ),
@@ -1123,6 +1134,7 @@ lines.on("line", async (line) => {
       const cleanupFailures = await cleanupWindowsAppContainerFixture(manager, [
         workspacePath,
         taskWorkspacePath,
+        outsideWorkspacePath,
       ]);
       clearTimeout(diagnosticTimeout);
       if (testFailed) {
