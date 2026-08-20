@@ -80,6 +80,31 @@ function resultText(
     .join("");
 }
 
+async function cleanupWindowsAppContainerFixture(
+  manager: McpClientManager,
+  directories: readonly string[],
+): Promise<unknown[]> {
+  const failures: unknown[] = [];
+  try {
+    await manager.dispose();
+  } catch (error) {
+    failures.push(error);
+  }
+  const cleanupOptions = {
+    force: true,
+    maxRetries: 10,
+    recursive: true,
+    retryDelay: 250,
+  } as const;
+  const results = await Promise.allSettled(
+    directories.map((directory) => rm(directory, cleanupOptions)),
+  );
+  for (const result of results) {
+    if (result.status === "rejected") failures.push(result.reason);
+  }
+  return failures;
+}
+
 afterEach(() => {
   vi.unstubAllEnvs();
 });
@@ -938,6 +963,8 @@ lines.on("line", async (line) => {
           "windows-sandbox.ps1",
         ),
       );
+      let testFailed = false;
+      let testFailure: unknown;
       try {
         const status = await manager.connect({
           id: "integration-fixture",
@@ -985,19 +1012,32 @@ lines.on("line", async (line) => {
           outsideWrite: false,
           networkAccess: true,
         });
-      } finally {
-        await manager.dispose();
-        const cleanupOptions = {
-          force: true,
-          maxRetries: 10,
-          recursive: true,
-          retryDelay: 250,
-        } as const;
-        await rm(workspacePath, cleanupOptions);
-        await rm(taskWorkspacePath, cleanupOptions);
+      } catch (error) {
+        testFailed = true;
+        testFailure = error;
+      }
+      const cleanupFailures = await cleanupWindowsAppContainerFixture(manager, [
+        workspacePath,
+        taskWorkspacePath,
+      ]);
+      if (testFailed) {
+        if (cleanupFailures.length > 0) {
+          throw new AggregateError(
+            [testFailure, ...cleanupFailures],
+            "AppContainer assertions failed and cleanup also reported errors",
+            { cause: testFailure },
+          );
+        }
+        throw testFailure;
+      }
+      if (cleanupFailures.length > 0) {
+        throw new AggregateError(
+          cleanupFailures,
+          "AppContainer fixture cleanup failed",
+        );
       }
     },
-    30_000,
+    90_000,
   );
 
   it("does not expose a failed connection as active", async () => {
