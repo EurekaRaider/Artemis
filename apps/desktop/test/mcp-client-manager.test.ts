@@ -1041,7 +1041,7 @@ lines.on("line", async (line) => {
         );
       }
     },
-    90_000,
+    3 * WINDOWS_APP_CONTAINER_COLD_START_TIMEOUT_MS,
   );
 
   it("does not expose a failed connection as active", async () => {
