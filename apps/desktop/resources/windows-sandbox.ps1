@@ -654,7 +654,22 @@ public static class ArtemisNativeSandbox
         if (userSid == null)
             throw new InvalidOperationException(
                 "The desktop user SID is unavailable.");
-        Grant(path, userSid, FileSystemRights.FullControl);
+        var rule = new FileSystemAccessRule(
+            userSid,
+            FileSystemRights.FullControl,
+            InheritanceFlags.ContainerInherit |
+                InheritanceFlags.ObjectInherit,
+            PropagationFlags.None,
+            AccessControlType.Allow);
+        var directory = new DirectoryInfo(path);
+        var security = directory.GetAccessControl(
+            AccessControlSections.Access);
+        // AppContainer rule removal propagates to descendants. Convert this
+        // private root's inherited host rules to explicit rules first so they
+        // remain when that sandbox-only rule is revoked.
+        security.SetAccessRuleProtection(true, true);
+        security.AddAccessRule(rule);
+        directory.SetAccessControl(security);
     }
 
     private static void Revoke(

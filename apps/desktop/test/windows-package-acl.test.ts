@@ -207,9 +207,9 @@ describe("Windows ZIP package and AppContainer ACL", () => {
       "Host access directory must remain inside the MCP runtime",
     );
     expect(helper).toContain("WindowsIdentity.GetCurrent().User");
-    expect(helper).toContain(
-      "Grant(path, userSid, FileSystemRights.FullControl)",
-    );
+    expect(helper).toContain("FileSystemRights.FullControl");
+    expect(helper).toContain("security.SetAccessRuleProtection(true, true)");
+    expect(helper).toContain("security.AddAccessRule(rule)");
     expect(helper.match(/PreserveHostAccess\(hostAccessPath\)/gu)).toHaveLength(
       2,
     );
