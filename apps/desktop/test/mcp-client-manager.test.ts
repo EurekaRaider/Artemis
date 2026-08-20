@@ -140,35 +140,36 @@ async function cleanupWindowsAppContainerFixture(
     recursive: true,
     retryDelay: 250,
   } as const;
-  const cleanupPromise = Promise.allSettled(
-    directories.map((directory) => rm(directory, cleanupOptions)),
-  );
-  let cleanupTimeout: ReturnType<typeof setTimeout> | undefined;
-  const results = await Promise.race([
-    cleanupPromise,
-    new Promise<undefined>((resolvePromise) => {
-      cleanupTimeout = setTimeout(
-        () => resolvePromise(undefined),
-        WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS,
-      );
-    }),
-  ]);
-  if (cleanupTimeout) clearTimeout(cleanupTimeout);
-  if (!results) {
-    failures.push(new Error("MCP fixture directory cleanup timed out"));
-    return failures;
-  }
-  for (const [index, result] of results.entries()) {
-    if (result.status === "rejected") {
-      failures.push(
-        new Error(
-          `Failed to remove MCP fixture directory: ${directories[index]}`,
+  const results = await Promise.all(
+    directories.map(async (directory) => {
+      let cleanupTimeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const removed = await Promise.race([
+          rm(directory, cleanupOptions).then(() => true),
+          new Promise<false>((resolvePromise) => {
+            cleanupTimeout = setTimeout(
+              () => resolvePromise(false),
+              WINDOWS_APP_CONTAINER_DIRECTORY_CLEANUP_TIMEOUT_MS,
+            );
+          }),
+        ]);
+        return removed
+          ? undefined
+          : new Error(`MCP fixture directory cleanup timed out: ${directory}`);
+      } catch (error) {
+        return new Error(
+          `Failed to remove MCP fixture directory: ${directory}`,
           {
-            cause: result.reason,
+            cause: error,
           },
-        ),
-      );
-    }
+        );
+      } finally {
+        if (cleanupTimeout) clearTimeout(cleanupTimeout);
+      }
+    }),
+  );
+  for (const result of results) {
+    if (result) failures.push(result);
   }
   return failures;
 }
@@ -932,6 +933,7 @@ await writeFile(
 
 const send = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
 const lines = createInterface({ input: process.stdin });
+lines.on("close", () => process.exit(0));
 lines.on("line", async (line) => {
   const message = JSON.parse(line);
   if (!("id" in message)) return;
