@@ -267,30 +267,25 @@ async function cleanupWindowsAppContainerFixture(
         ]);
         if (removed || !existsSync(directory)) return undefined;
 
-        const remainingEntries = await readdir(directory).catch(
-          () => undefined,
-        );
         let emptyRootRemovalError: unknown;
-        if (remainingEntries?.length === 0) {
-          let emptyRootTimeout: ReturnType<typeof setTimeout> | undefined;
-          try {
-            emptyRootRemovalError = await Promise.race([
-              rmdir(directory).then(() => undefined),
-              new Promise<Error>((resolvePromise) => {
-                emptyRootTimeout = setTimeout(
-                  () =>
-                    resolvePromise(
-                      new Error("Empty fixture root removal timed out"),
-                    ),
-                  WINDOWS_APP_CONTAINER_EMPTY_ROOT_CLEANUP_TIMEOUT_MS,
-                );
-              }),
-            ]).catch((error: unknown) => error);
-          } finally {
-            if (emptyRootTimeout) clearTimeout(emptyRootTimeout);
-          }
-          if (!existsSync(directory)) return undefined;
+        let emptyRootTimeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          emptyRootRemovalError = await Promise.race([
+            rmdir(directory).then(() => undefined),
+            new Promise<Error>((resolvePromise) => {
+              emptyRootTimeout = setTimeout(
+                () =>
+                  resolvePromise(
+                    new Error("Empty fixture root removal timed out"),
+                  ),
+                WINDOWS_APP_CONTAINER_EMPTY_ROOT_CLEANUP_TIMEOUT_MS,
+              );
+            }),
+          ]).catch((error: unknown) => error);
+        } finally {
+          if (emptyRootTimeout) clearTimeout(emptyRootTimeout);
         }
+        if (!existsSync(directory)) return undefined;
 
         const emptyRootDetail = emptyRootRemovalError
           ? `; empty root removal failed: ${emptyRootRemovalError instanceof Error ? emptyRootRemovalError.message : String(emptyRootRemovalError)}`
