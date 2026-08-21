@@ -147,6 +147,20 @@ describe("approval schemas", () => {
     ).toBe(false);
     expect(
       threadCommandSchema.safeParse({
+        type: "turn.queue.replace",
+        threadId: "thread-1",
+        followUp: ["First queued message", "Second queued message"],
+      }).success,
+    ).toBe(true);
+    expect(
+      threadCommandSchema.safeParse({
+        type: "turn.queue.replace",
+        threadId: "thread-1",
+        followUp: ["   "],
+      }).success,
+    ).toBe(false);
+    expect(
+      threadCommandSchema.safeParse({
         type: "turn.steer",
         threadId: "thread-1",
         text: "Inspect this",

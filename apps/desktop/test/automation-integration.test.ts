@@ -66,9 +66,13 @@ describe("automation desktop integration", () => {
   });
 
   it("edits persisted interval schedules with value and unit controls", () => {
-    expect(page).toContain('type SchedulePreset = "once" | "interval"');
+    expect(page).toMatch(
+      /type SchedulePreset =\s*"once" \| "interval" \| "windowed-interval"/u,
+    );
     expect(page).toContain('kind: "interval"');
+    expect(page).toContain('kind: "windowed-interval"');
     expect(page).toContain('draft.preset === "interval"');
+    expect(page).toContain('draft.preset === "windowed-interval"');
     expect(page).toContain('className="automation-interval-field"');
     expect(page).toContain("intervalEvery");
     expect(page).toContain("intervalUnit");

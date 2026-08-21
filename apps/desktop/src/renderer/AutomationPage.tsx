@@ -23,8 +23,13 @@ import { legacyLocale } from "../shared/locales.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
 
 type Locale = AppLocale;
-type SchedulePreset = "once" | "interval" | "daily" | "weekdays" | "weekly";
+type SchedulePreset =
+  "once" | "interval" | "windowed-interval" | "daily" | "weekdays" | "weekly";
 type IntervalUnit = Extract<AutomationSchedule, { kind: "interval" }>["unit"];
+type WindowedIntervalUnit = Extract<
+  AutomationSchedule,
+  { kind: "windowed-interval" }
+>["unit"];
 
 interface AutomationDraft {
   id?: string;
@@ -40,6 +45,9 @@ interface AutomationDraft {
   daysOfWeek: number[];
   intervalEvery: number;
   intervalUnit: IntervalUnit;
+  windowStart: string;
+  windowEnd: string;
+  windowIntervalUnit: WindowedIntervalUnit;
   enabled: boolean;
 }
 
@@ -82,6 +90,9 @@ const text = {
     weekdays: "Weekdays",
     weekly: "Weekly",
     interval: "Every",
+    windowedInterval: "Within a time window",
+    windowStart: "Window starts",
+    windowEnd: "Window ends",
     intervalUnit: "Unit",
     minutes: "Minutes",
     hours: "Hours",
@@ -130,6 +141,9 @@ const text = {
     weekdays: "工作日",
     weekly: "每周",
     interval: "每隔",
+    windowedInterval: "指定时间段内按间隔",
+    windowStart: "开始时间",
+    windowEnd: "结束时间",
     intervalUnit: "单位",
     minutes: "分钟",
     hours: "小时",
@@ -367,6 +381,9 @@ function defaultDraft(projectId: string): AutomationDraft {
     daysOfWeek: [1],
     intervalEvery: 30,
     intervalUnit: "minutes",
+    windowStart: "09:00",
+    windowEnd: "18:00",
+    windowIntervalUnit: "minutes",
     enabled: true,
   };
 }
@@ -377,6 +394,17 @@ function scheduleForDraft(draft: AutomationDraft): AutomationSchedule {
       kind: "interval",
       every: draft.intervalEvery,
       unit: draft.intervalUnit,
+    };
+  }
+  if (draft.preset === "windowed-interval") {
+    return {
+      kind: "windowed-interval",
+      every: draft.intervalEvery,
+      unit: draft.windowIntervalUnit,
+      startTime: draft.windowStart,
+      endTime: draft.windowEnd,
+      daysOfWeek: draft.daysOfWeek,
+      timeZone: draft.timeZone,
     };
   }
   if (draft.preset === "once") {
@@ -403,6 +431,30 @@ function scheduleForDraft(draft: AutomationDraft): AutomationSchedule {
 }
 
 function draftForAutomation(automation: Automation): AutomationDraft {
+  if (automation.schedule.kind === "windowed-interval") {
+    const tomorrow = Temporal.Now.instant()
+      .toZonedDateTimeISO(automation.schedule.timeZone)
+      .add({ days: 1 });
+    return {
+      id: automation.id,
+      projectId: automation.projectId,
+      name: automation.name,
+      prompt: automation.prompt,
+      mode: automation.mode,
+      target: automation.target,
+      preset: "windowed-interval",
+      date: tomorrow.toPlainDate().toString(),
+      time: automation.schedule.startTime,
+      timeZone: automation.schedule.timeZone,
+      daysOfWeek: automation.schedule.daysOfWeek,
+      intervalEvery: automation.schedule.every,
+      intervalUnit: "minutes",
+      windowStart: automation.schedule.startTime,
+      windowEnd: automation.schedule.endTime,
+      windowIntervalUnit: automation.schedule.unit,
+      enabled: automation.enabled,
+    };
+  }
   if (automation.schedule.kind === "interval") {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
     const tomorrow = Temporal.Now.instant()
@@ -422,6 +474,9 @@ function draftForAutomation(automation: Automation): AutomationDraft {
       daysOfWeek: [1],
       intervalEvery: automation.schedule.every,
       intervalUnit: automation.schedule.unit,
+      windowStart: "09:00",
+      windowEnd: "18:00",
+      windowIntervalUnit: "minutes",
       enabled: automation.enabled,
     };
   }
@@ -443,6 +498,9 @@ function draftForAutomation(automation: Automation): AutomationDraft {
       daysOfWeek: [local.dayOfWeek],
       intervalEvery: 30,
       intervalUnit: "minutes",
+      windowStart: "09:00",
+      windowEnd: "18:00",
+      windowIntervalUnit: "minutes",
       enabled: automation.enabled,
     };
   }
@@ -473,6 +531,9 @@ function draftForAutomation(automation: Automation): AutomationDraft {
     daysOfWeek: days,
     intervalEvery: 30,
     intervalUnit: "minutes",
+    windowStart: "09:00",
+    windowEnd: "18:00",
+    windowIntervalUnit: "minutes",
     enabled: automation.enabled,
   };
 }
@@ -494,6 +555,12 @@ function scheduleLabel(automation: Automation, locale: Locale): string {
   );
   if (schedule.kind === "interval") {
     return `${labels.interval} ${schedule.every} ${labels[schedule.unit]}`;
+  }
+  if (schedule.kind === "windowed-interval") {
+    const days = schedule.daysOfWeek
+      .map((day) => weekLabels[legacyLocale(locale)][day - 1])
+      .join(" ");
+    return `${days} · ${schedule.startTime}–${schedule.endTime} · ${labels.interval} ${schedule.every} ${labels[schedule.unit]} · ${schedule.timeZone}`;
   }
   if (schedule.kind === "once") {
     return `${labels.once} · ${formatDate(schedule.at, locale)} · ${schedule.timeZone}`;
@@ -877,10 +944,19 @@ export function AutomationPage(props: {
                   value={draft.preset}
                 >
                   {(
-                    ["once", "interval", "daily", "weekdays", "weekly"] as const
+                    [
+                      "once",
+                      "interval",
+                      "windowed-interval",
+                      "daily",
+                      "weekdays",
+                      "weekly",
+                    ] as const
                   ).map((preset) => (
                     <option key={preset} value={preset}>
-                      {t[preset]}
+                      {preset === "windowed-interval"
+                        ? t.windowedInterval
+                        : t[preset]}
                     </option>
                   ))}
                 </select>
@@ -898,7 +974,8 @@ export function AutomationPage(props: {
                   />
                 </label>
               )}
-              {draft.preset === "interval" ? (
+              {(draft.preset === "interval" ||
+                draft.preset === "windowed-interval") && (
                 <label className="automation-interval-field">
                   <span>{t.interval}</span>
                   <div className="automation-interval-controls">
@@ -917,15 +994,28 @@ export function AutomationPage(props: {
                     />
                     <select
                       aria-label={t.intervalUnit}
-                      onChange={(event) =>
-                        setDraft({
-                          ...draft,
-                          intervalUnit: event.target.value as IntervalUnit,
-                        })
+                      onChange={(event) => {
+                        const unit = event.target.value;
+                        setDraft(
+                          draft.preset === "windowed-interval"
+                            ? {
+                                ...draft,
+                                windowIntervalUnit:
+                                  unit as WindowedIntervalUnit,
+                              }
+                            : { ...draft, intervalUnit: unit as IntervalUnit },
+                        );
+                      }}
+                      value={
+                        draft.preset === "windowed-interval"
+                          ? draft.windowIntervalUnit
+                          : draft.intervalUnit
                       }
-                      value={draft.intervalUnit}
                     >
-                      {(["minutes", "hours", "days"] as const).map((unit) => (
+                      {(draft.preset === "windowed-interval"
+                        ? (["minutes", "hours"] as const)
+                        : (["minutes", "hours", "days"] as const)
+                      ).map((unit) => (
                         <option key={unit} value={unit}>
                           {t[unit]}
                         </option>
@@ -933,18 +1023,48 @@ export function AutomationPage(props: {
                     </select>
                   </div>
                 </label>
-              ) : (
+              )}
+              {draft.preset !== "interval" && (
                 <>
-                  <div className="automation-time-field">
-                    <span>{t.time}</span>
-                    <TimePicker
-                      hourLabel={t.hour}
-                      label={t.chooseTime}
-                      minuteLabel={t.minute}
-                      onChange={(time) => setDraft({ ...draft, time })}
-                      value={draft.time}
-                    />
-                  </div>
+                  {draft.preset === "windowed-interval" ? (
+                    <div className="automation-window-fields">
+                      <div className="automation-time-field">
+                        <span>{t.windowStart}</span>
+                        <TimePicker
+                          hourLabel={t.hour}
+                          label={t.windowStart}
+                          minuteLabel={t.minute}
+                          onChange={(windowStart) =>
+                            setDraft({ ...draft, windowStart })
+                          }
+                          value={draft.windowStart}
+                        />
+                      </div>
+                      <div className="automation-time-field">
+                        <span>{t.windowEnd}</span>
+                        <TimePicker
+                          hourLabel={t.hour}
+                          label={t.windowEnd}
+                          minuteLabel={t.minute}
+                          onChange={(windowEnd) =>
+                            setDraft({ ...draft, windowEnd })
+                          }
+                          value={draft.windowEnd}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="automation-time-field">
+                      <span>{t.time}</span>
+                      <TimePicker
+                        hourLabel={t.hour}
+                        label={t.chooseTime}
+                        minuteLabel={t.minute}
+                        onChange={(time) => setDraft({ ...draft, time })}
+                        value={draft.time}
+                      />
+                    </div>
+                  )}
                   <label>
                     <span>{t.timeZone}</span>
                     <input
@@ -958,7 +1078,8 @@ export function AutomationPage(props: {
                 </>
               )}
             </div>
-            {draft.preset === "weekly" && (
+            {(draft.preset === "weekly" ||
+              draft.preset === "windowed-interval") && (
               <div className="automation-weekdays">
                 {weekLabels[legacyLocale(props.locale)].map((label, index) => {
                   const day = index + 1;
@@ -999,12 +1120,16 @@ export function AutomationPage(props: {
                 className="automation-primary"
                 disabled={
                   busy ||
-                  (draft.preset === "weekly" &&
+                  ((draft.preset === "weekly" ||
+                    draft.preset === "windowed-interval") &&
                     draft.daysOfWeek.length === 0) ||
-                  (draft.preset === "interval" &&
+                  ((draft.preset === "interval" ||
+                    draft.preset === "windowed-interval") &&
                     (!Number.isInteger(draft.intervalEvery) ||
                       draft.intervalEvery < 1 ||
-                      draft.intervalEvery > 10_000))
+                      draft.intervalEvery > 10_000)) ||
+                  (draft.preset === "windowed-interval" &&
+                    draft.windowStart === draft.windowEnd)
                 }
                 type="submit"
               >

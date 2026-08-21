@@ -30,35 +30,45 @@ function sourceForQueuedButton(className: string): string {
 }
 
 describe("Codex-style queued message composer", () => {
-  it("renders the queued-message bar immediately above the input with steer delete edit controls", () => {
+  it("renders each queued message as a numbered card above the composer", () => {
     const barIndex = appSource.indexOf('className="queued-message-bar"');
-    const textareaIndex = appSource.indexOf("<textarea", barIndex);
-    const barSource = appSource.slice(barIndex, textareaIndex);
-    const steerIndex = barSource.indexOf('className="queued-message-steer"');
-    const deleteIndex = barSource.indexOf('className="queued-message-delete"');
-    const editIndex = barSource.indexOf('className="queued-message-edit"');
+    const listEnd = appSource.indexOf("</ol>", barIndex);
+    const barSource = appSource.slice(barIndex, listEnd);
 
     expect(barIndex).toBeGreaterThan(-1);
-    expect(textareaIndex).toBeGreaterThan(barIndex);
-    expect(barSource).toContain("{queuedMessage");
+    expect(listEnd).toBeGreaterThan(barIndex);
+    expect(barSource).toContain("{queuedFollowUps.map");
+    expect(barSource).toContain('className="queued-message-heading"');
+    expect(barSource).toContain('className="queued-message-list"');
+    expect(barSource).toContain('className="queued-message-item"');
+    expect(barSource).toContain('className="queued-message-index"');
     expect(barSource).toContain('className="queued-message-actions"');
-    expect(steerIndex).toBeGreaterThan(-1);
-    expect(deleteIndex).toBeGreaterThan(steerIndex);
-    expect(editIndex).toBeGreaterThan(deleteIndex);
 
-    const steerButton = sourceForQueuedButton("queued-message-steer");
+    const prioritizeButton = sourceForQueuedButton("queued-message-prioritize");
     const deleteButton = sourceForQueuedButton("queued-message-delete");
     const editButton = sourceForQueuedButton("queued-message-edit");
 
-    expect(steerButton).toContain("<SteerIcon />");
-    expect(steerButton).toContain("{t.queueSteer}");
-    expect(steerButton).toContain('type="button"');
+    expect(prioritizeButton).toContain("<MoveToFrontIcon />");
+    expect(prioritizeButton).toContain("moveQueuedMessageToFront");
+    expect(prioritizeButton).toContain('type="button"');
     expect(deleteButton).toContain("<TrashIcon />");
     expect(deleteButton).toContain('type="button"');
-    expect(editButton).toContain("<EllipsisIcon />");
+    expect(editButton).toContain("<EditIcon />");
     expect(editButton).toContain('type="button"');
+  });
+
+  it("keeps individual cards visually distinct while the composer stays stacked", () => {
     expect(stylesSource).toMatch(
-      /\.queued-message-bar\s*\{[^}]*\bdisplay:\s*flex/gu,
+      /\.queued-message-bar\s*\{[^}]*\bborder-radius:\s*12px 12px 0 0\s*;/gu,
+    );
+    expect(stylesSource).toMatch(
+      /\.queued-message-bar\s*\{[^}]*\bmargin:\s*0 20px -18px\s*;/gu,
+    );
+    expect(stylesSource).toMatch(
+      /\.queued-message-list\s*\{[^}]*\bgap:\s*8px\s*;/gu,
+    );
+    expect(stylesSource).toMatch(
+      /\.queued-message-item\s*\{[^}]*\bborder-radius:\s*9px\s*;/gu,
     );
     expect(stylesSource).toMatch(
       /\.queued-message-actions\s*\{[^}]*\bmargin-left:\s*auto/gu,
@@ -66,47 +76,35 @@ describe("Codex-style queued message composer", () => {
     expect(stylesSource).toMatch(
       /\.queued-message-actions button\s*\{[^}]*\bcursor:\s*pointer/gu,
     );
-  });
-
-  it("keeps stacked composer edges continuous and hides the upper border behind the rounded composer", () => {
-    expect(stylesSource).toMatch(
-      /\.queued-message-bar\s*\{[^}]*\bborder-radius:\s*0\s*;/gu,
-    );
-    expect(stylesSource).toMatch(
-      /\.queued-message-bar\s*\{[^}]*\bmargin:\s*0 20px -18px\s*;/gu,
-    );
-    expect(stylesSource).toMatch(
-      /\.queued-message-bar\s*\{[^}]*\bmin-height:\s*58px\s*;/gu,
-    );
-    expect(stylesSource).toMatch(
-      /\.queued-message-bar\s*\{[^}]*\bpadding:\s*0 12px 18px\s*;/gu,
-    );
     expect(stylesSource).toMatch(
       /\.queued-message-bar \+ \.composer\s*\{[^}]*\bz-index:\s*1/gu,
     );
   });
 
   it("localizes queued-message titles and aria labels in English and zh-CN", () => {
-    expect(appSource).toContain('queueSteer: "Steer"');
     expect(appSource).toContain(
-      'queueSteerHint: "Steer this queued message into the active turn"',
+      'queuedMessages: "{{count}} queued after the current task"',
     );
+    expect(appSource).toContain('queueMoveToFront: "Move to front"');
     expect(appSource).toContain('queueDelete: "Delete queued message"');
     expect(appSource).toContain('queueEdit: "Edit queued message"');
-    expect(appSource).toContain('queueSteer: "引导"');
-    expect(appSource).toContain('queueSteerHint: "将此排队消息引导到当前执行"');
+    expect(appSource).toContain('queueSave: "Save queued message"');
+    expect(appSource).toContain(
+      'queuedMessages: "当前任务后等待 {{count}} 条"',
+    );
+    expect(appSource).toContain('queueMoveToFront: "移到队首"');
     expect(appSource).toContain('queueDelete: "删除排队消息"');
     expect(appSource).toContain('queueEdit: "编辑排队消息"');
 
-    const steerButton = sourceForQueuedButton("queued-message-steer");
+    const prioritizeButton = sourceForQueuedButton("queued-message-prioritize");
     const deleteButton = sourceForQueuedButton("queued-message-delete");
     const editButton = sourceForQueuedButton("queued-message-edit");
 
-    expect(steerButton).toContain("aria-label={t.queueSteerHint}");
-    expect(steerButton).toContain("title={t.queueSteerHint}");
-    expect(deleteButton).toContain("aria-label={t.queueDelete}");
+    expect(prioritizeButton).toContain("aria-label={`${t.queueMoveToFront}");
+    expect(prioritizeButton).toContain("title={t.queueMoveToFrontHint}");
+    expect(deleteButton).toContain("aria-label={`${t.queueDelete}");
     expect(deleteButton).toContain("title={t.queueDelete}");
-    expect(editButton).toContain("aria-label={t.queueEdit}");
+    expect(editButton).toContain("aria-label={`${t.queueEdit}");
     expect(editButton).toContain("title={t.queueEdit}");
   });
 
@@ -121,48 +119,30 @@ describe("Codex-style queued message composer", () => {
     expect(appSource).not.toContain("setQueueBehavior");
   });
 
-  it("deletes, edits, and atomically steers the queued message through queue IPC", () => {
+  it("edits, deletes, and reprioritizes individual messages through one atomic queue replacement", () => {
+    const replaceQueuedMessages = sourceForConstant("replaceQueuedMessages");
     const deleteQueuedMessage = sourceForConstant("deleteQueuedMessage");
-    const editQueuedMessage = sourceForConstant("editQueuedMessage");
-    const steerQueuedMessage = sourceForConstant("steerQueuedMessage");
 
-    expect(deleteQueuedMessage).toContain(
-      "await window.artemis.clearTurnQueue(activeThread.id)",
-    );
-    expect(deleteQueuedMessage).not.toContain("setPrompt(");
-
-    expect(editQueuedMessage).toMatch(
-      /const\s+queue\s*=\s*await\s+window\.artemis\.clearTurnQueue\(activeThread\.id\)/u,
-    );
-    expect(editQueuedMessage).toMatch(
-      /setPrompt\([\s\S]*(?:queue\.followUp|queue\.steering)/u,
-    );
-
-    expect(steerQueuedMessage).toContain(
-      "await window.artemis.steerTurnQueue(activeThread.id)",
-    );
-    expect(steerQueuedMessage).not.toContain("clearTurnQueue");
-
-    expect(sourceForQueuedButton("queued-message-steer")).toContain(
-      "steerQueuedMessage",
-    );
-    expect(appSource).toContain(
-      "const canSteerQueuedMessage = (threadState?.queue.followUp.length ?? 0) > 0;",
-    );
-    expect(appSource).toMatch(
-      /\{canSteerQueuedMessage && \(\s*<button[\s\S]*?className="queued-message-steer"/u,
-    );
+    expect(replaceQueuedMessages).toContain("window.artemis.replaceTurnQueue");
+    expect(replaceQueuedMessages).toContain("followUp");
+    expect(replaceQueuedMessages).not.toContain("clearTurnQueue");
+    expect(deleteQueuedMessage).toContain("queuedFollowUps.filter");
+    expect(deleteQueuedMessage).toContain("replaceQueuedMessages");
+    expect(appSource).toContain("const moveQueuedMessageToFront =");
+    expect(appSource).toContain("queuedFollowUps.slice(0, index)");
+    expect(appSource).toContain("const saveQueuedMessage =");
+    expect(appSource).toContain("queuedFollowUps.map");
     expect(sourceForQueuedButton("queued-message-delete")).toContain(
       "deleteQueuedMessage",
     );
     expect(sourceForQueuedButton("queued-message-edit")).toContain(
-      "editQueuedMessage",
+      "setEditingQueuedMessage",
     );
   });
 
-  it("moves steered messages into the conversation and removes the entire follow-up bar", () => {
+  it("keeps only truly steered messages in the conversation timeline", () => {
     expect(appSource).toContain(
-      'const queuedMessage = (threadState?.queue.followUp ?? []).join("\\n\\n");',
+      "const queuedFollowUps = threadState?.queue.followUp ?? [];",
     );
     expect(appSource).not.toContain("...(threadState?.queue.steering ?? []),");
 

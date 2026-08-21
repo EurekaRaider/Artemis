@@ -3,7 +3,11 @@ import type { AppLocale } from "@artemis/protocol";
 
 import { legacyLocale } from "../shared/locales.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
-import type { TaskPlan, TaskPlanStepStatus } from "./task-plan.js";
+import {
+  isTaskPlanCompleted,
+  type TaskPlan,
+  type TaskPlanStepStatus,
+} from "./task-plan.js";
 
 interface TaskPlanProgressProps {
   locale: AppLocale;
@@ -78,6 +82,7 @@ function visibleStepStatus(
 
 export function TaskPlanProgress({ locale, plan }: TaskPlanProgressProps) {
   const [open, setOpen] = useState(false);
+  const [visible, setVisible] = useState(true);
   const root = useRef<HTMLDivElement>(null);
   const detailsId = useId();
   const current = plan.steps[plan.currentIndex] ?? plan.steps[0];
@@ -102,6 +107,17 @@ export function TaskPlanProgress({ locale, plan }: TaskPlanProgressProps) {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [open]);
+
+  const completed = isTaskPlanCompleted(plan);
+  useEffect(() => {
+    setVisible(true);
+    if (!completed) return;
+    setOpen(false);
+    const timeout = window.setTimeout(() => setVisible(false), 2_500);
+    return () => window.clearTimeout(timeout);
+  }, [completed, plan]);
+
+  if (!visible) return null;
 
   return (
     <div

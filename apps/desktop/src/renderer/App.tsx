@@ -122,6 +122,7 @@ import {
 import {
   addPromptHistoryEntry,
   navigatePromptHistory,
+  promptHistoryForConversation,
   type PromptHistoryNavigation,
 } from "./prompt-history.js";
 import { deriveTaskPlan } from "./task-plan.js";
@@ -141,6 +142,7 @@ import {
 } from "./thread-list-order.js";
 import { moveUserInputOptionFocus } from "./user-input-navigation.js";
 import { formatUserInputCountdown } from "./user-input-countdown.js";
+import { userInitials } from "./user-profile.js";
 import {
   agentTeamWorkspaceTab,
   childAgentWorkspaceTab,
@@ -447,11 +449,15 @@ const copy = {
     modelSwitchFailed: "The model setting could not be changed.",
     steer: "Steer",
     followUp: "Follow-up",
-    queuedMessage: "Queued message",
-    queueSteer: "Steer",
-    queueSteerHint: "Steer this queued message into the active turn",
+    queuedMessages: "{{count}} queued after the current task",
+    queueItem: "Queued message {{number}}",
+    queueMoveToFront: "Move to front",
+    queueMoveToFrontHint: "Run this queued message next",
     queueDelete: "Delete queued message",
     queueEdit: "Edit queued message",
+    queueSave: "Save queued message",
+    queueCancel: "Cancel edit",
+    emptyConversationPrompt: "What should we build in {{workspace}}?",
     sandboxUnavailable: "Native command sandbox is not installed",
     sandboxDetail:
       "The platform Shell and Terminal use your desktop permissions. Sandboxed MCP and extension execution remain locked.",
@@ -673,11 +679,15 @@ const copy = {
     modelSwitchFailed: "无法切换模型设置。",
     steer: "引导当前执行",
     followUp: "完成后继续",
-    queuedMessage: "排队消息",
-    queueSteer: "引导",
-    queueSteerHint: "将此排队消息引导到当前执行",
+    queuedMessages: "当前任务后等待 {{count}} 条",
+    queueItem: "第 {{number}} 条排队消息",
+    queueMoveToFront: "移到队首",
+    queueMoveToFrontHint: "让此排队消息下一条执行",
     queueDelete: "删除排队消息",
     queueEdit: "编辑排队消息",
+    queueSave: "保存排队消息",
+    queueCancel: "取消编辑",
+    emptyConversationPrompt: "想在 {{workspace}} 中构建什么？",
     sandboxUnavailable: "尚未安装原生命令沙箱",
     sandboxDetail:
       "平台 Shell 与终端使用当前桌面用户权限；MCP 与扩展的沙箱执行保持锁定。",
@@ -834,15 +844,28 @@ function CloseIcon() {
   );
 }
 
-function SteerIcon() {
+function QueueIcon() {
   return (
     <Icon size={18}>
       <path
-        d="M5 5.5v5a4 4 0 0 0 4 4h9m-3.5-3.5 3.5 3.5-3.5 3.5"
+        d="M6 7h12M6 12h12M6 17h8M3.5 7h.1M3.5 12h.1M3.5 17h.1"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </Icon>
+  );
+}
+
+function MoveToFrontIcon() {
+  return (
+    <Icon size={18}>
+      <path
+        d="M12 18V6m-4 4 4-4 4 4M6 20h12"
         stroke="currentColor"
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth="1.6"
+        strokeWidth="1.7"
       />
     </Icon>
   );
@@ -862,12 +885,16 @@ function TrashIcon() {
   );
 }
 
-function EllipsisIcon() {
+function EditIcon() {
   return (
     <Icon size={18}>
-      <circle cx="6" cy="12" fill="currentColor" r="1.25" />
-      <circle cx="12" cy="12" fill="currentColor" r="1.25" />
-      <circle cx="18" cy="12" fill="currentColor" r="1.25" />
+      <path
+        d="m5 17.5 1.3-4.2L16.8 2.8a2.1 2.1 0 0 1 3 3L9.3 16.3 5 17.5Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+      <path d="m14.7 4.9 3 3" stroke="currentColor" strokeWidth="1.5" />
     </Icon>
   );
 }
@@ -1553,6 +1580,10 @@ export function App() {
   }
   const [turnFailureNotices, setTurnFailureNotices] =
     useState<TurnFailureNotices>({});
+  const [editingQueuedMessage, setEditingQueuedMessage] = useState<{
+    index: number;
+    value: string;
+  }>();
   const timelineScroll = useRef<HTMLDivElement>(null);
   const timelinePinned = useRef(true);
   const timelineScrollIntent = useRef(false);
@@ -1661,6 +1692,7 @@ export function App() {
   useEffect(() => {
     promptHistoryNavigation.current = { index: -1, draft: prompt };
     setSkillMenuDismissed(false);
+    setEditingQueuedMessage(undefined);
   }, [activeComposerDraftKey]);
 
   const beginNewConversation = useCallback(
@@ -3116,6 +3148,9 @@ export function App() {
     (thread) => thread.id === activeThreadId,
   );
   const activeWorkspaceLabel = activeProject?.name ?? t.temporaryConversation;
+  const [emptyConversationPrefix, emptyConversationSuffix = ""] =
+    t.emptyConversationPrompt.split("{{workspace}}");
+  const emptyConversationLabel = `${emptyConversationPrefix}${activeWorkspaceLabel}${emptyConversationSuffix}`;
   const activeTurnFailure = activeThreadId
     ? turnFailureNotices[activeThreadId]
     : undefined;
@@ -3278,6 +3313,18 @@ export function App() {
     }
     return { ...state, childAgents };
   }, [activeEvents, activeThread?.id, activeThread?.mode, liveChildActivities]);
+  const activePromptHistory = useMemo(() => {
+    if (!threadState?.order.length) {
+      return promptHistoryForConversation(promptHistory, undefined);
+    }
+    const conversationMessages = threadState.order.flatMap((entry) => {
+      const separator = entry.indexOf(":");
+      if (entry.slice(0, separator) !== "user") return [];
+      const message = threadState.userMessages[entry.slice(separator + 1)];
+      return message ? [message.text] : [];
+    });
+    return promptHistoryForConversation(promptHistory, conversationMessages);
+  }, [promptHistory, threadState]);
   const latestAgentTeam = useMemo(
     () =>
       Object.values(threadState?.agentTeams ?? {})
@@ -3366,8 +3413,7 @@ export function App() {
     );
   const latestTimelineEntryIsCompaction =
     threadState?.order.at(-1)?.startsWith("compaction:") ?? false;
-  const queuedMessage = (threadState?.queue.followUp ?? []).join("\n\n");
-  const canSteerQueuedMessage = (threadState?.queue.followUp.length ?? 0) > 0;
+  const queuedFollowUps = threadState?.queue.followUp ?? [];
   const approvalChangeLocked =
     busy ||
     (snapshot?.threads.some(
@@ -4514,54 +4560,62 @@ export function App() {
     updateThreadInSnapshot,
   ]);
 
-  const deleteQueuedMessage = useCallback(async () => {
-    if (!activeThread || busy) return;
-    setBusy(true);
-    try {
-      await window.artemis.clearTurnQueue(activeThread.id);
-    } catch (error) {
-      setToast(
-        `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [activeThread, busy, t.taskError]);
+  const replaceQueuedMessages = useCallback(
+    async (followUp: string[]) => {
+      if (!activeThread || busy) return;
+      setBusy(true);
+      try {
+        await window.artemis.replaceTurnQueue({
+          threadId: activeThread.id,
+          followUp,
+        });
+        setEditingQueuedMessage(undefined);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [activeThread, busy, t.taskError],
+  );
 
-  const editQueuedMessage = useCallback(async () => {
-    if (!activeThread || busy) return;
-    setBusy(true);
-    try {
-      const queue = await window.artemis.clearTurnQueue(activeThread.id);
-      setPrompt((current) => {
-        const restored = [...queue.steering, ...queue.followUp].join("\n\n");
-        if (!restored) return current;
-        return current.trim() ? `${restored}\n\n${current}` : restored;
-      });
-      setSkillMenuDismissed(true);
-      window.requestAnimationFrame(() => promptInput.current?.focus());
-    } catch (error) {
-      setToast(
-        `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+  const deleteQueuedMessage = useCallback(
+    (index: number) => {
+      if (!queuedFollowUps[index]) return;
+      return replaceQueuedMessages(
+        queuedFollowUps.filter((_message, candidate) => candidate !== index),
       );
-    } finally {
-      setBusy(false);
-    }
-  }, [activeThread, busy, setPrompt, t.taskError]);
+    },
+    [queuedFollowUps, replaceQueuedMessages],
+  );
 
-  const steerQueuedMessage = useCallback(async () => {
-    if (!activeThread || busy) return;
-    setBusy(true);
-    try {
-      await window.artemis.steerTurnQueue(activeThread.id);
-    } catch (error) {
-      setToast(
-        `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+  const moveQueuedMessageToFront = useCallback(
+    (index: number) => {
+      const message = queuedFollowUps[index];
+      if (!message || index === 0) return;
+      return replaceQueuedMessages([
+        message,
+        ...queuedFollowUps.slice(0, index),
+        ...queuedFollowUps.slice(index + 1),
+      ]);
+    },
+    [queuedFollowUps, replaceQueuedMessages],
+  );
+
+  const saveQueuedMessage = useCallback(
+    (index: number, value: string) => {
+      const message = value.trim();
+      if (!message || !queuedFollowUps[index]) return;
+      return replaceQueuedMessages(
+        queuedFollowUps.map((candidate, candidateIndex) =>
+          candidateIndex === index ? message : candidate,
+        ),
       );
-    } finally {
-      setBusy(false);
-    }
-  }, [activeThread, busy, t.taskError]);
+    },
+    [queuedFollowUps, replaceQueuedMessages],
+  );
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -5204,7 +5258,13 @@ export function App() {
         </div>
         <div className="sidebar-footer">
           <span className="local-indicator" title={username}>
-            <span className="status-dot idle" />
+            <span aria-hidden="true" className="sidebar-profile-avatar">
+              {runtimeSettings?.profileAvatar ? (
+                <img alt="" src={runtimeSettings.profileAvatar} />
+              ) : (
+                userInitials(username)
+              )}
+            </span>
             <span className="local-user-name">{username}</span>
           </span>
           {runtimeSettings?.update.currentVersion && (
@@ -5440,14 +5500,12 @@ export function App() {
                     !busy) ? (
                     <div className="conversation-empty-state">
                       <ArtemisMark />
-                      <h1
-                        aria-label={`What should we build in ${activeWorkspaceLabel}?`}
-                      >
-                        What should we build in{" "}
+                      <h1 aria-label={emptyConversationLabel}>
+                        {emptyConversationPrefix}
                         <span className="conversation-project-name">
                           {activeWorkspaceLabel}
                         </span>
-                        ?
+                        {emptyConversationSuffix}
                       </h1>
                     </div>
                   ) : (
@@ -5592,54 +5650,142 @@ export function App() {
                           </span>
                         </div>
                       )}
-                      {queuedMessage && (
+                      {queuedFollowUps.length > 0 && (
                         <div
-                          aria-label={t.queuedMessage}
+                          aria-label={t.queuedMessages.replace(
+                            "{{count}}",
+                            String(queuedFollowUps.length),
+                          )}
                           className="queued-message-bar"
                           role="status"
                         >
-                          <span
-                            className="queued-message-content"
-                            title={queuedMessage}
-                          >
-                            <SteerIcon />
-                            <span>{queuedMessage}</span>
-                          </span>
-                          <div className="queued-message-actions">
-                            {canSteerQueuedMessage && (
-                              <button
-                                aria-label={t.queueSteerHint}
-                                className="queued-message-steer"
-                                disabled={busy}
-                                onClick={() => void steerQueuedMessage()}
-                                title={t.queueSteerHint}
-                                type="button"
-                              >
-                                <SteerIcon />
-                                <span>{t.queueSteer}</span>
-                              </button>
-                            )}
-                            <button
-                              aria-label={t.queueDelete}
-                              className="queued-message-delete"
-                              disabled={busy}
-                              onClick={() => void deleteQueuedMessage()}
-                              title={t.queueDelete}
-                              type="button"
-                            >
-                              <TrashIcon />
-                            </button>
-                            <button
-                              aria-label={t.queueEdit}
-                              className="queued-message-edit"
-                              disabled={busy}
-                              onClick={() => void editQueuedMessage()}
-                              title={t.queueEdit}
-                              type="button"
-                            >
-                              <EllipsisIcon />
-                            </button>
+                          <div className="queued-message-heading">
+                            <QueueIcon />
+                            <strong>
+                              {t.queuedMessages.replace(
+                                "{{count}}",
+                                String(queuedFollowUps.length),
+                              )}
+                            </strong>
                           </div>
+                          <ol className="queued-message-list">
+                            {queuedFollowUps.map((message, index) => {
+                              const editing =
+                                editingQueuedMessage?.index === index;
+                              const itemLabel = t.queueItem.replace(
+                                "{{number}}",
+                                String(index + 1),
+                              );
+                              return (
+                                <li
+                                  className="queued-message-item"
+                                  key={`${index}:${message}`}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className="queued-message-index"
+                                  >
+                                    {index + 1}
+                                  </span>
+                                  {editing ? (
+                                    <div className="queued-message-editor">
+                                      <textarea
+                                        aria-label={t.queueEdit}
+                                        onChange={(event) =>
+                                          setEditingQueuedMessage({
+                                            index,
+                                            value: event.target.value,
+                                          })
+                                        }
+                                        rows={2}
+                                        value={editingQueuedMessage.value}
+                                      />
+                                      <div className="queued-message-editor-actions">
+                                        <button
+                                          disabled={
+                                            busy ||
+                                            !editingQueuedMessage.value.trim()
+                                          }
+                                          onClick={() =>
+                                            void saveQueuedMessage(
+                                              index,
+                                              editingQueuedMessage.value,
+                                            )
+                                          }
+                                          type="button"
+                                        >
+                                          {t.queueSave}
+                                        </button>
+                                        <button
+                                          disabled={busy}
+                                          onClick={() =>
+                                            setEditingQueuedMessage(undefined)
+                                          }
+                                          type="button"
+                                        >
+                                          {t.queueCancel}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <span
+                                        className="queued-message-content"
+                                        title={message}
+                                      >
+                                        {message}
+                                      </span>
+                                      <div className="queued-message-actions">
+                                        {index > 0 && (
+                                          <button
+                                            aria-label={`${t.queueMoveToFront}: ${itemLabel}`}
+                                            className="queued-message-prioritize"
+                                            disabled={busy}
+                                            onClick={() =>
+                                              void moveQueuedMessageToFront(
+                                                index,
+                                              )
+                                            }
+                                            title={t.queueMoveToFrontHint}
+                                            type="button"
+                                          >
+                                            <MoveToFrontIcon />
+                                          </button>
+                                        )}
+                                        <button
+                                          aria-label={`${t.queueEdit}: ${itemLabel}`}
+                                          className="queued-message-edit"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            setEditingQueuedMessage({
+                                              index,
+                                              value: message,
+                                            })
+                                          }
+                                          title={t.queueEdit}
+                                          type="button"
+                                        >
+                                          <EditIcon />
+                                        </button>
+                                        <button
+                                          aria-label={`${t.queueDelete}: ${itemLabel}`}
+                                          className="queued-message-delete"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            void deleteQueuedMessage(index)
+                                          }
+                                          title={t.queueDelete}
+                                          type="button"
+                                        >
+                                          <TrashIcon />
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ol>
                         </div>
                       )}
                       <div
@@ -6056,7 +6202,7 @@ export function App() {
                                 event.key === "ArrowDown")
                             ) {
                               const navigation = navigatePromptHistory(
-                                promptHistory,
+                                activePromptHistory,
                                 prompt,
                                 promptHistoryNavigation.current,
                                 event.key === "ArrowUp" ? "previous" : "next",

@@ -4546,6 +4546,20 @@ export class ArtemisAgentHost {
     }
   }
 
+  async replaceFollowUpQueue(
+    threadId: string,
+    followUp: string[],
+  ): Promise<void> {
+    const hosted = this.requireActiveThread(threadId);
+    const queue = hosted.session.clearQueue();
+    for (const message of queue.steering) {
+      await hosted.session.steer(message);
+    }
+    for (const message of followUp) {
+      await hosted.session.followUp(message);
+    }
+  }
+
   forkThread(threadId: string, entryId?: string): { sessionFile: string } {
     const hosted = this.threads.get(threadId);
     if (!hosted) {

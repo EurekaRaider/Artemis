@@ -861,6 +861,28 @@ summary:focus-visible {
   min-width: 0;
 }
 
+.sidebar-profile-avatar {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel-3));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 50%;
+  color: var(--text);
+  display: inline-flex;
+  flex: 0 0 22px;
+  font-size: 10px;
+  font-weight: 650;
+  height: 22px;
+  justify-content: center;
+  overflow: hidden;
+  width: 22px;
+}
+
+.sidebar-profile-avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
 .local-user-name {
   min-width: 0;
   overflow: hidden;
@@ -4107,36 +4129,76 @@ button.environment-row:disabled {
 }
 
 .queued-message-bar {
-  align-items: center;
+  align-items: stretch;
   background: var(--panel);
   border: 1px solid var(--border-soft);
   border-bottom: 0;
-  border-radius: 0;
+  border-radius: 12px 12px 0 0;
   color: var(--text);
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   margin: 0 20px -18px;
-  min-height: 58px;
-  padding: 0 12px 18px;
+  max-height: min(280px, 42vh);
+  overflow: auto;
+  padding: 10px 12px 18px;
   position: relative;
 }
 
-.queued-message-content {
+.queued-message-heading,
+.queued-message-item {
   align-items: center;
   display: flex;
-  flex: 1 1 auto;
   gap: 8px;
   min-width: 0;
 }
 
-.queued-message-content > svg {
+.queued-message-heading > svg {
   color: var(--muted);
   flex: 0 0 auto;
 }
 
-.queued-message-content > span {
+.queued-message-heading strong {
   font-size: 13px;
   font-weight: 540;
+}
+
+.queued-message-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.queued-message-item {
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  min-height: 44px;
+  padding: 6px 7px 6px 9px;
+}
+
+.queued-message-index {
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  display: inline-flex;
+  flex: 0 0 21px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  height: 21px;
+  justify-content: center;
+  width: 21px;
+}
+
+.queued-message-content {
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 540;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4171,18 +4233,56 @@ button.environment-row:disabled {
   opacity: 0.45;
 }
 
-.queued-message-steer {
-  gap: 5px;
-}
-
-.queued-message-steer > span {
-  font-size: 13px;
-  font-weight: 520;
-}
-
 .queued-message-delete,
-.queued-message-edit {
+.queued-message-edit,
+.queued-message-prioritize {
   width: 30px;
+}
+
+.queued-message-editor {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-width: 0;
+}
+
+.queued-message-editor textarea {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  min-height: 46px;
+  padding: 6px 7px;
+  resize: vertical;
+  width: 100%;
+}
+
+.queued-message-editor-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.queued-message-editor-actions button {
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  min-height: 26px;
+  padding: 0 8px;
+}
+
+.queued-message-editor-actions button:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.queued-message-editor-actions button:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .queued-message-bar + .composer {
@@ -11110,6 +11210,13 @@ body.sidebar-collapsed .sidebar {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.automation-window-fields {
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .automation-time-picker {
   position: relative;
 }
@@ -11360,7 +11467,8 @@ body.sidebar-collapsed .sidebar {
   }
 
   .automation-meta,
-  .automation-form-grid {
+  .automation-form-grid,
+  .automation-window-fields {
     grid-template-columns: 1fr;
   }
 }

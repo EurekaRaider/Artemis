@@ -91,6 +91,52 @@ describe("AutomationScheduler", () => {
     store.close();
   });
 
+  it("uses the persisted windowed-interval anchor when a run is due", async () => {
+    const store = await storeWithProject();
+    store.createAutomation({
+      ...reviewAutomation(),
+      schedule: {
+        kind: "windowed-interval",
+        every: 30,
+        unit: "minutes",
+        startTime: "09:00",
+        endTime: "18:00",
+        daysOfWeek: [1, 2, 3, 4, 5],
+        timeZone: "Asia/Shanghai",
+      },
+      nextRunAt: "2026-07-30T01:30:00.000Z",
+    });
+    const launches: string[] = [];
+    const scheduler = new AutomationScheduler({
+      store,
+      now: () => new Date("2026-07-30T01:35:00.000Z"),
+      launch: async (_automation, run, linkThread) => {
+        launches.push(run.scheduledFor);
+        store.createThread({
+          id: "thread-windowed",
+          projectId: "project-1",
+          title: "Windowed review",
+          mode: "review",
+          target: "local",
+          status: "idle",
+          pinned: false,
+          archived: false,
+          createdAt: "2026-07-30T01:35:00.000Z",
+          updatedAt: "2026-07-30T01:35:00.000Z",
+        });
+        linkThread("thread-windowed");
+      },
+    });
+
+    await scheduler.runDue();
+
+    expect(launches).toEqual(["2026-07-30T01:30:00.000Z"]);
+    expect(store.getAutomation("automation-1")?.nextRunAt).toBe(
+      "2026-07-30T02:00:00.000Z",
+    );
+    store.close();
+  });
+
   it("coalesces missed runs and dispatches the latest occurrence once", async () => {
     const store = await storeWithProject();
     store.createAutomation(reviewAutomation());

@@ -16,7 +16,7 @@ export interface AutomationAuthorizationInput {
 }
 
 function canonicalSchedule(schedule: AutomationSchedule): unknown {
-  return schedule.kind === "weekly"
+  return schedule.kind === "weekly" || schedule.kind === "windowed-interval"
     ? {
         ...schedule,
         daysOfWeek: [...schedule.daysOfWeek].sort(

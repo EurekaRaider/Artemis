@@ -13,6 +13,13 @@ export interface TaskPlan {
   steps: TaskPlanStep[];
 }
 
+export function isTaskPlanCompleted(plan: TaskPlan): boolean {
+  return (
+    plan.steps.length > 0 &&
+    plan.steps.every((step) => step.status === "completed")
+  );
+}
+
 function parseSteps(input: unknown): TaskPlanStep[] | undefined {
   if (!input || typeof input !== "object" || !("steps" in input)) {
     return undefined;

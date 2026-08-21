@@ -19,6 +19,17 @@ export function addPromptHistoryEntry(
   );
 }
 
+export function promptHistoryForConversation(
+  globalHistory: string[],
+  conversationMessages: string[] | undefined,
+): string[] {
+  if (!conversationMessages) return globalHistory;
+  return conversationMessages.reduce(
+    (history, message) => addPromptHistoryEntry(history, message),
+    [] as string[],
+  );
+}
+
 export function navigatePromptHistory(
   history: string[],
   currentValue: string,
