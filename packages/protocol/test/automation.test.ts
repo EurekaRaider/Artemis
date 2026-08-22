@@ -67,6 +67,41 @@ describe("automation protocol", () => {
     ).toThrow();
   });
 
+  it("accepts a weekday-aware interval within a local time window", () => {
+    expect(
+      automationSchema.parse({
+        ...automation,
+        schedule: {
+          kind: "windowed-interval",
+          every: 30,
+          unit: "minutes",
+          startTime: "09:00",
+          endTime: "18:00",
+          daysOfWeek: [1, 2, 3, 4, 5],
+          timeZone: "Asia/Shanghai",
+        },
+      }).schedule,
+    ).toMatchObject({
+      kind: "windowed-interval",
+      startTime: "09:00",
+      endTime: "18:00",
+    });
+    expect(() =>
+      automationSchema.parse({
+        ...automation,
+        schedule: {
+          kind: "windowed-interval",
+          every: 30,
+          unit: "minutes",
+          startTime: "09:00",
+          endTime: "09:00",
+          daysOfWeek: [1],
+          timeZone: "Asia/Shanghai",
+        },
+      }),
+    ).toThrow();
+  });
+
   it("reduces replayed update events idempotently", () => {
     const event = automationEventSchema.parse({
       protocolVersion: PROTOCOL_VERSION,

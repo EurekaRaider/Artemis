@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { PROTOCOL_VERSION, type AgentEvent } from "@artemis/protocol";
-import { deriveTaskPlan } from "../src/renderer/task-plan.js";
+import {
+  deriveTaskPlan,
+  isTaskPlanCompleted,
+} from "../src/renderer/task-plan.js";
 
 function event(
   eventId: string,
@@ -20,6 +23,24 @@ function event(
 }
 
 describe("deriveTaskPlan", () => {
+  it("identifies a plan only when every step is completed", () => {
+    expect(
+      isTaskPlanCompleted({
+        currentIndex: 1,
+        steps: [
+          { step: "Inspect", status: "completed" },
+          { step: "Build", status: "completed" },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      isTaskPlanCompleted({
+        currentIndex: 0,
+        steps: [{ step: "Inspect", status: "in_progress" }],
+      }),
+    ).toBe(false);
+  });
+
   it("uses the latest valid update from the active turn", () => {
     const events = [
       event("1", "turn-1", { type: "turn.started", mode: "execute" }),

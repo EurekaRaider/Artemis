@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   addPromptHistoryEntry,
   navigatePromptHistory,
+  promptHistoryForConversation,
 } from "../src/renderer/prompt-history.js";
 
 describe("prompt history", () => {
@@ -82,5 +83,18 @@ describe("prompt history", () => {
         "next",
       ),
     ).toBeUndefined();
+  });
+
+  it("uses only the active conversation history after its first message", () => {
+    expect(
+      promptHistoryForConversation(
+        ["global newest", "global older"],
+        ["first task prompt", "second task prompt", "first task prompt"],
+      ),
+    ).toEqual(["first task prompt", "second task prompt"]);
+    expect(promptHistoryForConversation(["global newest"], undefined)).toEqual([
+      "global newest",
+    ]);
+    expect(promptHistoryForConversation(["global newest"], [])).toEqual([]);
   });
 });

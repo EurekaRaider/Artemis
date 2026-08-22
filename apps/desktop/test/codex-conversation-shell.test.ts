@@ -183,9 +183,16 @@ describe("Codex conversation shell contract", () => {
     expect(createThread).toContain("setActiveThreadId(thread.id)");
     expect(conversation).toContain("activeEvents.length === 0");
     expect(conversation).toContain("<ArtemisMark />");
-    expect(conversation).toContain(
-      "What should we build in ${activeWorkspaceLabel}?",
+    expect(appSource).toContain(
+      'emptyConversationPrompt: "What should we build in {{workspace}}?"',
     );
+    expect(appSource).toContain(
+      'emptyConversationPrompt: "想在 {{workspace}} 中构建什么？"',
+    );
+    expect(conversation).toContain("emptyConversationLabel");
+    expect(conversation).toContain("emptyConversationPrefix");
+    expect(conversation).toContain("emptyConversationSuffix");
+    expect(conversation).not.toContain("What should we build in");
     expect(conversation).toContain('className="conversation-empty-state"');
     expect(conversation.indexOf("activeEvents.length === 0")).toBeLessThan(
       conversation.indexOf("<Timeline"),

@@ -257,6 +257,7 @@ import {
   type McpCatalogInstallRequest,
   type McpCatalogItem,
   type QueueTurnInput,
+  type ReplaceQueuedTurnInput,
   type McpServerConfig,
   type ProjectGitInfo,
   type ProjectGitCommitResult,
@@ -3951,6 +3952,29 @@ async function controlTurnQueue(
   });
 }
 
+async function replaceTurnQueue(input: ReplaceQueuedTurnInput): Promise<void> {
+  if (!store || !agentProcess) {
+    throw new Error("Agent process is not ready.");
+  }
+  const command = parseThreadCommand({ type: "turn.queue.replace", ...input });
+  const thread = store.getThread(command.threadId);
+  if (
+    !thread ||
+    (thread.status !== "running" && thread.status !== "waiting-approval") ||
+    !activeTurns.has(thread.id) ||
+    !openedThreads.has(thread.id)
+  ) {
+    throw new Error("Task has no active turn.");
+  }
+
+  await agentProcess.request({
+    type: "turn.queue.replace",
+    requestId: randomUUID(),
+    threadId: thread.id,
+    followUp: command.followUp,
+  });
+}
+
 function automationUpserted(automation: Automation): void {
   publishAutomationEvent({
     protocolVersion: PROTOCOL_VERSION,
@@ -7080,6 +7104,11 @@ function registerIpc(): void {
 
   ipcMain.handle(IPC.turnQueueSteer, (_event, threadId: string) =>
     controlTurnQueue("turn.queue.steer", threadId),
+  );
+
+  ipcMain.handle(
+    IPC.turnQueueReplace,
+    (_event, input: ReplaceQueuedTurnInput) => replaceTurnQueue(input),
   );
 
   ipcMain.handle(IPC.turnCancel, async (_event, threadId: string) => {

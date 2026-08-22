@@ -184,6 +184,12 @@ export type AgentHostCommand =
       threadId: string;
     }
   | {
+      type: "turn.queue.replace";
+      requestId: string;
+      threadId: string;
+      followUp: string[];
+    }
+  | {
       type: "turn.steer" | "turn.follow-up";
       requestId: string;
       threadId: string;

@@ -17,6 +17,13 @@ import type { AppStore } from "./store.js";
 
 const MAX_TIMER_DELAY = 2_147_483_647;
 
+function usesPersistedOccurrence(automation: Automation): boolean {
+  return (
+    automation.schedule.kind === "interval" ||
+    automation.schedule.kind === "windowed-interval"
+  );
+}
+
 export interface AutomationSchedulerOptions {
   store: AppStore;
   launch(
@@ -90,10 +97,9 @@ export class AutomationScheduler {
   private async drainDue(): Promise<void> {
     const now = this.now().toISOString();
     for (const automation of this.options.store.listDueAutomations(now)) {
-      const scheduledFor =
-        automation.schedule.kind === "interval"
-          ? automation.nextRunAt
-          : latestAutomationOccurrence(automation.schedule, now);
+      const scheduledFor = usesPersistedOccurrence(automation)
+        ? automation.nextRunAt
+        : latestAutomationOccurrence(automation.schedule, now);
       if (!scheduledFor) continue;
       const nextRunAt = nextAutomationOccurrence(automation.schedule, now);
       const trigger: AutomationRunTrigger =

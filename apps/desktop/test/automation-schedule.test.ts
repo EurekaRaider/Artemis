@@ -67,4 +67,48 @@ describe("automation schedule", () => {
       ),
     ).toBe("2026-11-01T05:30:00.000Z");
   });
+
+  it("runs only on the interval grid inside the selected local window", () => {
+    const schedule = {
+      kind: "windowed-interval" as const,
+      every: 30,
+      unit: "minutes" as const,
+      startTime: "09:00",
+      endTime: "18:00",
+      daysOfWeek: [1, 2, 3, 4, 5],
+      timeZone: "Asia/Shanghai",
+    };
+
+    expect(nextAutomationOccurrence(schedule, "2026-07-30T01:14:00.000Z")).toBe(
+      "2026-07-30T01:30:00.000Z",
+    );
+    expect(nextAutomationOccurrence(schedule, "2026-07-30T10:01:00.000Z")).toBe(
+      "2026-07-31T01:00:00.000Z",
+    );
+    expect(
+      latestAutomationOccurrence(schedule, "2026-07-30T01:44:00.000Z"),
+    ).toBe("2026-07-30T01:30:00.000Z");
+  });
+
+  it("continues a cross-midnight window from its selected start day", () => {
+    const schedule = {
+      kind: "windowed-interval" as const,
+      every: 2,
+      unit: "hours" as const,
+      startTime: "22:00",
+      endTime: "06:00",
+      daysOfWeek: [5],
+      timeZone: "Asia/Shanghai",
+    };
+
+    expect(nextAutomationOccurrence(schedule, "2026-07-31T13:00:00.000Z")).toBe(
+      "2026-07-31T14:00:00.000Z",
+    );
+    expect(nextAutomationOccurrence(schedule, "2026-07-31T17:00:00.000Z")).toBe(
+      "2026-07-31T18:00:00.000Z",
+    );
+    expect(nextAutomationOccurrence(schedule, "2026-08-01T00:00:00.000Z")).toBe(
+      "2026-08-07T14:00:00.000Z",
+    );
+  });
 });

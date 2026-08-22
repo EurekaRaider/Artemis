@@ -5,6 +5,16 @@ import { PROTOCOL_VERSION, runModeSchema } from "./schema.js";
 export const AUTOMATION_AUTHORIZATION_VERSION = 1 as const;
 
 const automationTimeZoneSchema = z.string().trim().min(1).max(120);
+const automationLocalTimeSchema = z
+  .string()
+  .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/u, "Invalid local time.");
+const automationDaysOfWeekSchema = z
+  .array(z.number().int().min(1).max(7))
+  .min(1)
+  .max(7)
+  .refine((days) => new Set(days).size === days.length, {
+    message: "Schedule days must be unique.",
+  });
 
 export const automationScheduleSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -14,16 +24,8 @@ export const automationScheduleSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("weekly"),
-    daysOfWeek: z
-      .array(z.number().int().min(1).max(7))
-      .min(1)
-      .max(7)
-      .refine((days) => new Set(days).size === days.length, {
-        message: "Schedule days must be unique.",
-      }),
-    localTime: z
-      .string()
-      .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/u, "Invalid local time."),
+    daysOfWeek: automationDaysOfWeekSchema,
+    localTime: automationLocalTimeSchema,
     timeZone: automationTimeZoneSchema,
   }),
   z.object({
@@ -31,6 +33,19 @@ export const automationScheduleSchema = z.discriminatedUnion("kind", [
     every: z.number().int().min(1).max(10_000),
     unit: z.enum(["minutes", "hours", "days"]),
   }),
+  z
+    .object({
+      kind: z.literal("windowed-interval"),
+      every: z.number().int().min(1).max(10_000),
+      unit: z.enum(["minutes", "hours"]),
+      startTime: automationLocalTimeSchema,
+      endTime: automationLocalTimeSchema,
+      daysOfWeek: automationDaysOfWeekSchema,
+      timeZone: automationTimeZoneSchema,
+    })
+    .refine((schedule) => schedule.startTime !== schedule.endTime, {
+      message: "Window start and end times must differ.",
+    }),
 ]);
 export type AutomationSchedule = z.infer<typeof automationScheduleSchema>;
 
