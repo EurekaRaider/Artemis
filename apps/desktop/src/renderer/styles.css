@@ -7927,54 +7927,62 @@ button.environment-row:disabled {
 }
 
 .archive-page {
-  align-items: center;
-  background: var(--codex-workspace-bg);
+  background:
+    radial-gradient(
+      circle at 8% -8%,
+      color-mix(in srgb, var(--blue) 7%, transparent),
+      transparent 32%
+    ),
+    var(--codex-workspace-bg);
   display: flex;
   flex: 1;
   height: 100%;
-  justify-content: center;
   min-height: 0;
-  padding: 24px;
+  overflow: hidden;
 }
 
 .archive-panel {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 18px 54px rgb(0 0 0 / 20%);
+  background: transparent;
   display: flex;
+  flex: 1;
   flex-direction: column;
-  height: min(700px, 100%);
-  max-width: 920px;
-  min-height: min(520px, 100%);
-  overflow: hidden;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   width: 100%;
 }
 
 .archive-header {
   align-items: center;
-  border-bottom: 1px solid var(--border);
   display: flex;
   flex: 0 0 auto;
-  gap: 12px;
-  min-height: 72px;
-  padding: 12px 18px;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 1240px;
+  padding: clamp(32px, 5vh, 52px) clamp(28px, 5vw, 72px) 26px;
+  width: 100%;
 }
 
 .archive-header-icon,
 .archive-empty-icon {
   align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  color: var(--muted);
   display: flex;
   justify-content: center;
 }
 
 .archive-header-icon {
-  border-radius: 9px;
-  flex: 0 0 38px;
-  height: 38px;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--blue) 20%, var(--panel-3)),
+    color-mix(in srgb, var(--blue) 7%, var(--panel-2))
+  );
+  border: 1px solid color-mix(in srgb, var(--blue) 24%, var(--border));
+  border-radius: 15px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+  color: color-mix(in srgb, var(--blue) 68%, var(--text));
+  flex: 0 0 52px;
+  height: 52px;
 }
 
 .archive-header-icon svg,
@@ -7988,8 +7996,8 @@ button.environment-row:disabled {
 }
 
 .archive-header-icon svg {
-  height: 18px;
-  width: 18px;
+  height: 23px;
+  width: 23px;
 }
 
 .archive-heading {
@@ -7997,41 +8005,68 @@ button.environment-row:disabled {
 }
 
 .archive-heading h1 {
-  font-size: 16px;
-  letter-spacing: -0.01em;
+  font-size: clamp(25px, 2.5vw, 32px);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
   margin: 0;
 }
 
 .archive-heading p {
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.45;
-  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 8px 0 0;
 }
 
 .archive-content {
   display: flex;
   flex: 1;
   flex-direction: column;
+  margin: 0 auto;
+  max-width: 1240px;
   min-height: 0;
-  overflow: auto;
-  padding: 24px 26px 30px;
+  padding: 0 clamp(28px, 5vw, 72px) 48px;
+  width: 100%;
+}
+
+.archive-toolbar {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  flex: 0 0 auto;
+  gap: 24px;
+  justify-content: space-between;
+  padding: 0 0 18px;
+}
+
+.archive-summary h2 {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.archive-summary p {
+  color: var(--muted-2);
+  font-size: 11px;
+  margin: 5px 0 0;
 }
 
 .archive-search {
   align-items: center;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 7px;
+  background: color-mix(in srgb, var(--panel-3) 82%, transparent);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
   color: var(--muted);
   display: flex;
   flex: 0 0 auto;
   gap: 8px;
-  margin-bottom: 14px;
-  padding: 0 10px;
+  max-width: 480px;
+  padding: 0 12px;
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease;
+  width: min(48%, 480px);
 }
 
 .archive-search:focus-within {
@@ -8049,7 +8084,8 @@ button.environment-row:disabled {
   background: transparent;
   border: 0;
   color: var(--text);
-  height: 34px;
+  font-size: 12px;
+  height: 40px;
   min-width: 0;
   outline: 0;
   width: 100%;
@@ -8060,14 +8096,10 @@ button.environment-row:disabled {
 }
 
 .archive-results {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
   display: flex;
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  overflow: auto;
 }
 
 .archive-card {
@@ -8076,7 +8108,8 @@ button.environment-row:disabled {
   display: grid;
   gap: 20px;
   grid-template-columns: minmax(0, 1fr) auto;
-  padding: 14px 16px;
+  margin: 0 -12px;
+  padding: 18px 16px;
   transition: background 120ms ease;
 }
 
@@ -8085,7 +8118,7 @@ button.environment-row:disabled {
 }
 
 .archive-card:hover {
-  background: var(--hover);
+  background: color-mix(in srgb, var(--hover) 78%, transparent);
 }
 
 .archive-card-copy {
@@ -8100,7 +8133,7 @@ button.environment-row:disabled {
 
 .archive-project {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
   max-width: 60%;
   overflow: hidden;
@@ -8110,12 +8143,12 @@ button.environment-row:disabled {
 
 .archive-card time {
   color: var(--muted-2);
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
 .archive-card h2 {
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: -0.005em;
   line-height: 1.4;
   margin: 5px 0 0;
@@ -8123,7 +8156,7 @@ button.environment-row:disabled {
 
 .archive-goal {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.45;
   margin: 6px 0 0;
 }
@@ -8190,27 +8223,54 @@ button.environment-row:disabled {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 10px;
-  justify-content: center;
-  min-height: 250px;
-  padding: 28px;
+  gap: 16px;
+  justify-content: flex-start;
+  min-height: min(500px, 58vh);
+  padding: clamp(68px, 13vh, 124px) 28px 48px;
   text-align: center;
 }
 
 .archive-empty-icon {
-  border-radius: 10px;
-  height: 38px;
-  width: 38px;
+  background: color-mix(in srgb, var(--blue) 9%, var(--panel-3));
+  border: 1px solid color-mix(in srgb, var(--blue) 18%, var(--border-soft));
+  border-radius: 16px;
+  color: color-mix(in srgb, var(--blue) 55%, var(--muted));
+  height: 56px;
+  width: 56px;
 }
 
 .archive-empty-icon svg {
-  height: 17px;
-  width: 17px;
+  height: 23px;
+  width: 23px;
 }
 
-.archive-empty p {
-  font-size: 11px;
+.archive-empty-copy h2 {
+  font-size: 16px;
+  letter-spacing: -0.015em;
   margin: 0;
+}
+
+.archive-empty-copy p {
+  color: var(--muted-2);
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 7px 0 0;
+  max-width: 430px;
+}
+
+.archive-clear-search {
+  background: var(--button);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+  min-height: 32px;
+  padding: 0 13px;
+}
+
+.archive-clear-search:hover {
+  background: var(--hover);
 }
 
 .catalog-tabs-row {
@@ -10832,12 +10892,23 @@ body.sidebar-collapsed .sidebar {
     align-items: flex-start;
   }
 
-  .archive-page {
-    padding: 16px;
+  .archive-header {
+    padding: 28px 20px 22px;
   }
 
   .archive-content {
-    padding: 18px;
+    padding: 0 20px 40px;
+  }
+
+  .archive-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .archive-search {
+    max-width: none;
+    width: 100%;
   }
 
   .archive-card {
@@ -10862,16 +10933,30 @@ body.sidebar-collapsed .sidebar {
 }
 
 @media (max-width: 680px) {
-  .archive-page {
-    padding: 0;
+  .archive-header {
+    align-items: flex-start;
+    gap: 13px;
+    padding: 24px 16px 20px;
   }
 
-  .archive-panel {
-    border-bottom: 0;
-    border-left: 0;
-    border-radius: 0;
-    border-right: 0;
-    height: 100%;
+  .archive-header-icon {
+    border-radius: 12px;
+    flex-basis: 44px;
+    height: 44px;
+  }
+
+  .archive-heading h1 {
+    font-size: 23px;
+  }
+
+  .archive-content {
+    padding: 0 16px 32px;
+  }
+
+  .archive-empty {
+    min-height: 360px;
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
   .user-input-options-scroll {

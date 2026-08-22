@@ -468,16 +468,19 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("setThreadArchived(thread, false)");
     expect(archivePageSource).toContain('className="archive-panel"');
     expect(archivePageSource).toContain('className="archive-header"');
+    expect(archivePageSource).toContain('className="archive-toolbar"');
     expect(archivePageSource).toContain('className="archive-search"');
     expect(archivePageSource).toContain('className="archive-empty"');
+    expect(archivePageSource).toContain("t.archiveNoResultsTitle");
+    expect(archivePageSource).toContain("t.archiveSearch");
+    expect(archivePageSource).toContain('onClick={() => setQuery("")}');
     expect(archivePageSource).not.toContain('className="library-hero"');
-    expect(cssRule(".archive-page")).toContain(
-      "background: var(--codex-workspace-bg)",
-    );
-    expect(cssRule(".archive-panel")).toContain("border-radius: 14px");
-    expect(cssRule(".archive-results")).toContain(
-      "border: 1px solid var(--border)",
-    );
+    expect(cssRule(".archive-page")).toContain("overflow: hidden");
+    expect(cssRule(".archive-page")).not.toContain("justify-content: center");
+    expect(cssRule(".archive-panel")).toContain("background: transparent");
+    expect(cssRule(".archive-panel")).toContain("flex: 1");
+    expect(cssRule(".archive-panel")).not.toContain("border-radius");
+    expect(cssRule(".archive-results")).not.toContain("border:");
     expect(cssRule(".archive-empty")).not.toContain("border: 1px dashed");
   });
 
@@ -494,7 +497,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("if (!activeProjectId) return;");
     expect(appSource).toContain("...(activeProject");
     expect(appSource).toContain("{activeProject && (");
-    expect(archivePageSource).toContain("t.temporary");
+    expect(archivePageSource).toContain("t.archiveTemporary");
   });
 
   it("routes composer model changes to only the selected conversation", () => {
