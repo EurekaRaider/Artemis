@@ -6985,7 +6985,7 @@ button.environment-row:disabled {
   justify-content: center;
   padding: 24px;
   position: fixed;
-  z-index: 40;
+  z-index: 56;
 }
 
 .confirmation-backdrop {

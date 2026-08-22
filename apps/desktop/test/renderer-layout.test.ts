@@ -1429,6 +1429,24 @@ describe("renderer layout contract", () => {
     expect(cssRule(".settings-tabs")).toMatch(/\bflex:\s*0\s+0\s+190px/u);
   });
 
+  it("keeps the settings modal above the project sidebar resizer", () => {
+    const settingsBackdrop = cssRule(".settings-backdrop");
+    const confirmationBackdrop = cssRule(".confirmation-backdrop");
+    const projectSidebarResizer = cssRule(".project-sidebar-resizer");
+    const settingsZIndex = Number(
+      settingsBackdrop.match(/\bz-index:\s*(\d+)/u)?.[1],
+    );
+    const confirmationZIndex = Number(
+      confirmationBackdrop.match(/\bz-index:\s*(\d+)/u)?.[1],
+    );
+    const resizerZIndex = Number(
+      projectSidebarResizer.match(/\bz-index:\s*(\d+)/u)?.[1],
+    );
+
+    expect(settingsZIndex).toBeGreaterThan(resizerZIndex);
+    expect(confirmationZIndex).toBeGreaterThan(settingsZIndex);
+  });
+
   it("loads task history lazily and batches live renderer updates", () => {
     const agentWarmupIndex = mainProcessSource.indexOf(
       "agentRuntimeReady = applyAgentRuntime()",
