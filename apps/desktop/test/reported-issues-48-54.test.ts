@@ -30,10 +30,17 @@ describe("reported issues #48–#54", () => {
       'emptyConversationPrompt: "What should we build in {{workspace}}?"',
     );
     expect(appSource).toContain(
+      'temporaryConversationPrompt: "What should we build in Artemis?"',
+    );
+    expect(appSource).toContain(
       'emptyConversationPrompt: "想在 {{workspace}} 中构建什么？"',
+    );
+    expect(appSource).toContain(
+      'temporaryConversationPrompt: "想在 Artemis 中构建什么？"',
     );
     expect(emptyState).toContain("emptyConversationLabel");
     expect(emptyState).toContain("emptyConversationPrefix");
+    expect(emptyState).toContain("t.temporaryConversationPrompt");
     expect(emptyState).not.toContain("What should we build in");
   });
 

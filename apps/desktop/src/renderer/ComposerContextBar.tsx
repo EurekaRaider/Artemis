@@ -37,7 +37,7 @@ const labels = {
     searchProjects: "Search projects",
     addProject: "Add project",
     clearProject: "Work without a project",
-    temporaryConversation: "Temporary conversation",
+    temporaryConversation: "Temporary chat",
     noProjects: "No matching projects",
     branchMenu: "Branch menu",
     searchBranches: "Search branches",

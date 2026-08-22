@@ -1978,7 +1978,7 @@ describe("renderer layout contract", () => {
     expect(reducedMotion).toMatch(/transition:\s*none/u);
   });
 
-  it("keeps temporary conversations and projects as the two sidebar roots", () => {
+  it("keeps temporary chats as a natural root after projects", () => {
     const temporaryRoot = appSource.indexOf(
       'className="project-group temporary-conversations"',
     );
@@ -1991,8 +1991,19 @@ describe("renderer layout contract", () => {
     );
 
     expect(temporaryRoot).toBeGreaterThan(-1);
-    expect(projectsRoot).toBeGreaterThan(temporaryRoot);
+    expect(temporaryRoot).toBeGreaterThan(projectsRoot);
     expect(nestedProjects).toBeGreaterThan(projectsRoot);
+    expect(temporaryRoot).toBeGreaterThan(nestedProjects);
+    expect(cssRule(".project-tree")).not.toContain("display: flex");
+    expect(stylesSource).not.toContain(
+      ".project-tree > .temporary-conversations",
+    );
+    expect(appSource).toContain('temporaryConversations: "Temporary chats"');
+    expect(appSource).toContain('temporaryConversation: "Temporary chat"');
+    expect(composerContextSource).toContain(
+      'temporaryConversation: "Temporary chat"',
+    );
+    expect(archivePageSource).toContain('archiveTemporary: "Temporary chat"');
     expect(appSource).toContain("`project-group nested-project${");
     expect(appSource).toContain("aria-level={2}");
     expect(appSource).toContain("setProjectsOpen((open) => !open)");

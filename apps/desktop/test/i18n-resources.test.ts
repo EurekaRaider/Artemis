@@ -49,6 +49,7 @@ describe("i18n resources", () => {
   it("does not expose English fallback copy for localized core prose", () => {
     const critical = [
       ["app", "emptyTitle"],
+      ["app", "temporaryConversationPrompt"],
       ["app", "goalCommandDetail"],
       ["app", "compactCommandDetail"],
       ["app", "initCommandDetail"],
@@ -69,6 +70,15 @@ describe("i18n resources", () => {
           (I18N_RESOURCES.en[namespace] as Record<string, string>)[key],
         );
       }
+    }
+  });
+
+  it("keeps the Artemis brand unchanged in every temporary welcome", () => {
+    for (const locale of APP_LOCALES) {
+      expect(
+        I18N_RESOURCES[locale].app.temporaryConversationPrompt,
+        locale,
+      ).toContain("Artemis");
     }
   });
 

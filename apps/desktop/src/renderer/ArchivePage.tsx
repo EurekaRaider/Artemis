@@ -46,7 +46,7 @@ const labels = {
     archiveNoResultsDescription: "Try another title, goal, or project name.",
     archiveClearSearch: "Clear search",
     archiveGoal: "Goal",
-    archiveTemporary: "Temporary conversation",
+    archiveTemporary: "Temporary chat",
   },
   "zh-CN": {
     archiveTitle: "已归档对话",

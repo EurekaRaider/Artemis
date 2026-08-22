@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="985 passing tests" src="https://img.shields.io/badge/Tests-985_passing-2EA44F" />
+  <img alt="986 passing tests" src="https://img.shields.io/badge/Tests-986_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -48,7 +48,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 
 Artemis is an independent local desktop Agent for software development and
 everyday work. Repository-backed projects support coding and Git workflows,
-while projectless Temporary conversations support research, documents,
+while projectless Temporary chats support research, documents,
 spreadsheets and presentations; persistent project tasks can also run recurring
 automations. Pi runs the single agent loop; Electron owns lifecycle, policy and
 persistence; the Renderer consumes only Artemis's versioned protocol. Projects,
@@ -84,7 +84,7 @@ credentials are protected with operating-system encryption.
   <tr>
     <td width="50%" valign="top">
       <p><strong>01</strong>&nbsp;&nbsp;/&nbsp;&nbsp;AGENT WORKSPACE</p>
-      <p>Persistent projects and Local tasks, projectless Temporary conversations, a resizable and reorderable two-level conversation sidebar, per-conversation model/thinking/context settings, collapsible history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
+      <p>Persistent projects and Local tasks, projectless Temporary chats, a resizable and reorderable two-level conversation sidebar, per-conversation model/thinking/context settings, collapsible history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
     </td>
     <td width="50%" valign="top">
       <p><strong>02</strong>&nbsp;&nbsp;/&nbsp;&nbsp;WORKSPACE TOOLS</p>
@@ -131,7 +131,7 @@ credentials are protected with operating-system encryption.
     </td>
     <td width="50%" valign="top">
       <p><strong>EVERYDAY WORK</strong></p>
-      <p>Research with the Browser and local files, create or update portable documents, spreadsheets, presentations and PDFs, use installed Skills and connected services, handle projectless work in Temporary conversations, and schedule recurring tasks for persistent projects.</p>
+      <p>Research with the Browser and local files, create or update portable documents, spreadsheets, presentations and PDFs, use installed Skills and connected services, handle projectless work in Temporary chats, and schedule recurring tasks for persistent projects.</p>
     </td>
   </tr>
 </table>
@@ -246,14 +246,14 @@ account action reports that the build has no application-level OAuth client.
 
 Artemis supports two workspace shapes. Repository-backed projects keep software
 and file-based work in a persistent local checkout, while projectless Temporary
-conversations use an isolated generated workspace for research, documents and
+chats use an isolated generated workspace for research, documents and
 other everyday tasks.
 
 <details open>
 <summary><strong>01 · Projects and persistent conversations</strong></summary>
 
 - **Project and task management** — add a repository with the native picker;
-  use Temporary conversations and Projects as the two sidebar roots, expand
+  use Temporary chats and Projects as the two sidebar roots, expand
   individual project histories beneath Projects, drag projects into a preferred
   order that survives restart, and drag the persisted sidebar width to fit long
   task names or reclaim workspace space. Preview five tasks before expanding,
@@ -261,9 +261,9 @@ other everyday tasks.
   from the sidebar. Running and approval-waiting tasks stay at the top, ordered
   by the most recently submitted prompt when several are active. Sidebar action
   menus dismiss on outside click or Escape.
-- **Temporary conversations** — start, persist, archive, fork and delete a
+- **Temporary chats** — start, persist, archive, fork and delete a
   conversation without adding a project. Each conversation and fork has an
-  isolated workspace under application data. Temporary conversations do not
+  isolated workspace under application data. Temporary chats do not
   receive project memory, Review, worktrees, handoff or project-scoped
   approvals; deletion stops Agent Host and Terminal processes before removing
   files, and retains the thread record when cleanup must be retried.
@@ -1015,7 +1015,7 @@ bounded subteam and must integrate it before completing.
   default to the platform-native sandbox and alone are affected by the
   extension **Full local access** setting.
 - Project-backed interactive tasks always use the project's Local checkout;
-  Temporary conversations use only their generated workspace and cannot enter
+  Temporary chats use only their generated workspace and cannot enter
   Review, worktree or handoff flows.
 
 </details>
@@ -1032,14 +1032,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.10`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.11`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.10
-git push origin v1.4.10
+git tag v1.4.11
+git push origin v1.4.11
 ```
 
 ### Build and test matrix
@@ -1052,11 +1052,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **985 passing tests** (6 skipped):
+The current full test run contains **986 passing tests** (6 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       65 |       23 |        111 |     786 |   **985** |
+|       65 |       23 |        111 |     787 |   **986** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1085,13 +1085,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.10` packaging configuration produces:
+The `1.4.11` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.10.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.10.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.10.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.11.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.11.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.11.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They
