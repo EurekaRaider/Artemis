@@ -553,6 +553,30 @@ describe("provider and language schemas", () => {
     expect(
       providerConnectionSchema.safeParse({
         ...ollama,
+        models: [
+          {
+            ...ollama.models[0],
+            reasoning: true,
+            highestThinkingLevel: "max",
+          },
+        ],
+      }).success,
+    ).toBe(true);
+    expect(
+      providerConnectionSchema.safeParse({
+        ...ollama,
+        models: [
+          {
+            ...ollama.models[0],
+            reasoning: true,
+            highestThinkingLevel: "off",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      providerConnectionSchema.safeParse({
+        ...ollama,
         api: "openai-responses",
       }).success,
     ).toBe(true);

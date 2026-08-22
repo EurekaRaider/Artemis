@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="912 passing tests" src="https://img.shields.io/badge/Tests-912_passing-2EA44F" />
+  <img alt="985 passing tests" src="https://img.shields.io/badge/Tests-985_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -1032,14 +1032,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.9`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.10`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.9
-git push origin v1.4.9
+git tag v1.4.10
+git push origin v1.4.10
 ```
 
 ### Build and test matrix
@@ -1052,11 +1052,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **948 passing tests** (5 skipped):
+The current full test run contains **985 passing tests** (6 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       64 |       23 |        108 |     753 |   **948** |
+|       65 |       23 |        111 |     786 |   **985** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1085,13 +1085,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.9` packaging configuration produces:
+The `1.4.10` packaging configuration produces:
 
-| Target                    | Artifacts                                                       |
-| ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.9.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.9.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.9.dmg` and `.zip`   |
+| Target                    | Artifacts                                                        |
+| ------------------------- | ---------------------------------------------------------------- |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.10.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.10.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.10.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

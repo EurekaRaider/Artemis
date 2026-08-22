@@ -423,7 +423,8 @@ describe("EncryptedSettingsStore", () => {
         {
           id: "local-model",
           name: "Local model",
-          reasoning: false,
+          reasoning: true,
+          highestThinkingLevel: "max",
           input: ["text"],
           contextWindow: 128_000,
           maxTokens: 32_000,

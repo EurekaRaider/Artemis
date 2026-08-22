@@ -102,6 +102,7 @@ export interface AgentModelInfo {
   modelId: string;
   name: string;
   reasoning: boolean;
+  thinkingLevels?: ThinkingLevel[];
   highestThinkingLevel?: ThinkingLevel;
   contextWindow: number;
   configured: boolean;

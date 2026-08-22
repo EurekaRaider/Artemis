@@ -1,6 +1,6 @@
 {
   "name": "@artemis/desktop",
-  "version": "1.4.9",
+  "version": "1.4.10",
   "private": true,
   "type": "module",
   "description": "Artemis desktop application",
@@ -24,9 +24,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@artemis/agent-host": "1.4.9",
-    "@artemis/platform": "1.4.9",
-    "@artemis/protocol": "1.4.9",
+    "@artemis/agent-host": "1.4.10",
+    "@artemis/platform": "1.4.10",
+    "@artemis/protocol": "1.4.10",
     "@earendil-works/pi-ai": "0.84.2",
     "@earendil-works/pi-coding-agent": "0.84.2",
     "@js-temporal/polyfill": "^0.5.1",
@@ -100,7 +100,7 @@
     "mac": {
       "artifactName": "Artemis-macOS-${arch}-${version}.${ext}",
       "category": "public.app-category.developer-tools",
-      "icon": "build/icon.icon",
+      "icon": "build/icon.icns",
       "hardenedRuntime": true,
       "target": [
         {

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { AgentModelInfo } from "@artemis/protocol";
 
 import {
+  customModelThinkingLevels,
   filterVisibleModels,
   loadBundledModelCatalog,
+  mergeBundledModelCatalog,
 } from "../src/main/model-catalog.js";
 
 function model(
@@ -22,6 +24,54 @@ function model(
 }
 
 describe("visible model catalog", () => {
+  it("uses the configured custom-model reasoning ceiling with a high default", () => {
+    expect(customModelThinkingLevels({ reasoning: true })).toEqual([
+      "off",
+      "minimal",
+      "low",
+      "medium",
+      "high",
+    ]);
+    expect(
+      customModelThinkingLevels({
+        reasoning: true,
+        highestThinkingLevel: "max",
+      }),
+    ).toEqual(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+    expect(customModelThinkingLevels({ reasoning: false })).toEqual(["off"]);
+  });
+
+  it("keeps bundled reasoning capabilities when the runtime catalog is stale", () => {
+    const bundled = [
+      {
+        ...model("zai", "glm-5.3", "GLM-5.3"),
+        highestThinkingLevel: "high" as const,
+        contextWindow: 1_000_000,
+      },
+    ];
+    const runtime = [
+      {
+        ...model("zai", "glm-5.3", "GLM-5.3"),
+        reasoning: false,
+        highestThinkingLevel: "off" as const,
+        contextWindow: 128_000,
+        configured: true,
+      },
+      {
+        ...model("runtime-only", "dynamic-model"),
+        configured: true,
+      },
+    ];
+
+    expect(mergeBundledModelCatalog(bundled, runtime)).toEqual([
+      {
+        ...bundled[0],
+        configured: true,
+      },
+      runtime[1],
+    ]);
+  });
+
   it("loads the bundled Pi catalog without credentials or an Agent Host", async () => {
     const models = filterVisibleModels(await loadBundledModelCatalog());
 
@@ -49,6 +99,8 @@ describe("visible model catalog", () => {
       ).toMatchObject({
         name: "GLM-5.3",
         reasoning: true,
+        thinkingLevels: ["off", "minimal", "low", "medium", "high"],
+        highestThinkingLevel: "high",
         contextWindow: 1_000_000,
       });
     }

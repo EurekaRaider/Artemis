@@ -66,4 +66,31 @@ describe("toPiProviderConfig", () => {
     expect(responses.streamSimple).toBe(streamOpenAIResponsesWithAiSdk);
     expect(completions).not.toHaveProperty("streamSimple");
   });
+
+  it("maps a custom model's configured reasoning ceiling into Pi", () => {
+    const reasoningProvider: ProviderConnection = {
+      ...provider,
+      models: [
+        {
+          ...provider.models[0]!,
+          reasoning: true,
+          highestThinkingLevel: "xhigh",
+        },
+      ],
+    };
+
+    expect(
+      toPiProviderConfig(reasoningProvider, false).models[0],
+    ).toMatchObject({
+      reasoning: true,
+      thinkingLevelMap: {
+        minimal: "minimal",
+        low: "low",
+        medium: "medium",
+        high: "high",
+        xhigh: "xhigh",
+        max: null,
+      },
+    });
+  });
 });

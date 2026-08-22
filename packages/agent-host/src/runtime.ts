@@ -2275,15 +2275,19 @@ export class ArtemisAgentHost {
   async catalog(): Promise<AgentRuntimeCatalog> {
     const modelRuntime = await this.getModelRuntime();
     return {
-      models: modelRuntime.getModels().map((model) => ({
-        providerId: model.provider,
-        modelId: model.id,
-        name: model.name,
-        reasoning: model.reasoning,
-        highestThinkingLevel: getSupportedThinkingLevels(model).at(-1) ?? "off",
-        contextWindow: model.contextWindow,
-        configured: modelRuntime.hasConfiguredAuth(model.provider),
-      })),
+      models: modelRuntime.getModels().map((model) => {
+        const thinkingLevels = getSupportedThinkingLevels(model);
+        return {
+          providerId: model.provider,
+          modelId: model.id,
+          name: model.name,
+          reasoning: model.reasoning,
+          thinkingLevels,
+          highestThinkingLevel: thinkingLevels.at(-1) ?? "off",
+          contextWindow: model.contextWindow,
+          configured: modelRuntime.hasConfiguredAuth(model.provider),
+        };
+      }),
       ...(this.configuration.selection
         ? { selection: structuredClone(this.configuration.selection) }
         : {}),

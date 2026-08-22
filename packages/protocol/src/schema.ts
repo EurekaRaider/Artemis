@@ -73,6 +73,15 @@ export const DEFAULT_SHELL_RUNTIME_CONFIGURATION: ShellRuntimeConfiguration = {
 
 export const contextWindowSchema = z.number().int().min(1_024).max(10_000_000);
 
+const providerThinkingLevelSchema = z.enum([
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
+
 const providerModelSchema = z.object({
   id: z
     .string()
@@ -82,6 +91,7 @@ const providerModelSchema = z.object({
     .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/u),
   name: z.string().trim().min(1).max(160),
   reasoning: z.boolean(),
+  highestThinkingLevel: providerThinkingLevelSchema.optional(),
   input: z
     .array(z.enum(["text", "image"]))
     .min(1)

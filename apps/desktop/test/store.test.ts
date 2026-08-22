@@ -19,6 +19,41 @@ afterEach(async () => {
 });
 
 describe("AppStore", () => {
+  it("clears a deleted model from an existing conversation", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
+    temporaryDirectories.push(directory);
+    const store = new AppStore(join(directory, "state.sqlite"));
+    const now = "2026-08-22T00:00:00.000Z";
+    store.createThread({
+      id: "model-thread",
+      title: "Model conversation",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      modelSelection: {
+        providerId: "zai",
+        modelId: "glm-5.3",
+        thinkingLevel: "medium",
+      },
+      contextWindow: 1_000_000,
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    store.updateThread("model-thread", {
+      modelSelection: null,
+      contextWindow: null,
+    });
+
+    expect(store.getThread("model-thread")).not.toHaveProperty(
+      "modelSelection",
+    );
+    expect(store.getThread("model-thread")).not.toHaveProperty("contextWindow");
+    store.close();
+  });
+
   it("persists projectless threads with their independent model selection", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
     temporaryDirectories.push(directory);

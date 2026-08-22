@@ -9,11 +9,12 @@ const source = (relativePath: string) =>
 const mainSource = source("../src/main/main.ts");
 const preloadSource = source("../src/preload/preload.ts");
 const resourceCenterSource = source("../src/renderer/ResourceCenter.tsx");
+const settingsPanelSource = source("../src/renderer/SettingsPanel.tsx");
 const appSource = source("../src/renderer/App.tsx");
 const apiSource = source("../src/shared/api.ts");
 const packageJson = JSON.parse(source("../package.json")) as {
   build: {
-    mac?: { artifactName?: string };
+    mac?: { artifactName?: string; icon?: string };
     nsis?: unknown;
     portable?: unknown;
     win?: { artifactName?: string };
@@ -72,6 +73,46 @@ describe("desktop startup latency guardrails", () => {
     expect(resourceCenterSource).toContain("visibleMcp.map((server)");
   });
 
+  it("opens settings from cached state without waiting for optional capabilities", () => {
+    const modelSettingsSnapshot = mainSource.slice(
+      mainSource.indexOf("async function getModelSettingsSnapshot"),
+      mainSource.indexOf("async function getSettingsSnapshot"),
+    );
+    const settingsSnapshot = mainSource.slice(
+      mainSource.indexOf("async function getSettingsSnapshot"),
+      mainSource.indexOf("async function getMcpServerStatuses"),
+    );
+
+    expect(settingsSnapshot).not.toContain("optionalCapabilitiesReady");
+    expect(settingsSnapshot).not.toContain("agentProcess.request");
+    expect(modelSettingsSnapshot).toContain("mergeBundledModelCatalog(");
+    expect(settingsSnapshot).toContain("getModelSettingsSnapshot()");
+    expect(settingsSnapshot).toContain("agentConcurrencyStatus(false)");
+    expect(settingsPanelSource).toContain("initialSettings?: SettingsSnapshot");
+    expect(settingsPanelSource).toContain("useState(initialSettings)");
+    expect(appSource).toContain("initialSettings={runtimeSettings}");
+  });
+
+  it("switches models without refreshing unrelated settings and updates the UI optimistically", () => {
+    const selectionResolver = mainSource.slice(
+      mainSource.indexOf("async function resolveModelSelection"),
+      mainSource.indexOf("async function applyAgentRuntime"),
+    );
+    const rendererModelSwitch = appSource.slice(
+      appSource.indexOf("const switchComposerModel"),
+      appSource.indexOf("const switchComposerThinking"),
+    );
+
+    expect(selectionResolver).not.toContain("getSettingsSnapshot()");
+    expect(
+      rendererModelSwitch.indexOf("setPendingModelSelection("),
+    ).toBeLessThan(
+      rendererModelSwitch.indexOf(
+        "await window.artemis.setThreadModelSelection(",
+      ),
+    );
+  });
+
   it("ships Windows as an archive without installer wrappers", () => {
     expect(packageJson.build.nsis).toBeUndefined();
     expect(packageJson.build.portable).toBeUndefined();
@@ -84,5 +125,13 @@ describe("desktop startup latency guardrails", () => {
     expect(packageJson.build.win?.artifactName).toBe(
       "Artemis-Windows-${arch}-${version}.${ext}",
     );
+    expect(packageJson.build.mac?.icon).toBe("build/icon.icns");
+    expect(
+      readFileSync(
+        fileURLToPath(new URL("../build/icon.icns", import.meta.url)),
+      )
+        .subarray(0, 4)
+        .toString("hex"),
+    ).toBe("69636e73");
   });
 });

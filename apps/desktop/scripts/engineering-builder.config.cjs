@@ -5,7 +5,7 @@ module.exports = {
   afterPack: "scripts/apply-engineering-package-permissions.cjs",
   mac: {
     ...packageJson.build.mac,
-    icon: "build/icon.png",
+    icon: "build/icon.icns",
     identity: null,
   },
 };

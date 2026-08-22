@@ -336,4 +336,36 @@ describe("agent runtime configuration", () => {
     });
     host.dispose();
   });
+
+  it("reports a custom model's configured highest reasoning level", async () => {
+    const host = new ArtemisAgentHost(
+      {
+        async request() {
+          throw new Error("model configuration must not execute tools");
+        },
+      },
+      { emit() {} },
+    );
+    const configuredProvider = provider(
+      "reasoning-model",
+      "Reasoning Model",
+      true,
+    );
+    configuredProvider.models[0]!.highestThinkingLevel = "xhigh";
+
+    await host.configure({ credentials: {}, providers: [configuredProvider] });
+
+    const catalog = await host.catalog();
+    expect(
+      catalog.models.find(
+        (model) =>
+          model.providerId === "local-proxy" &&
+          model.modelId === "reasoning-model",
+      ),
+    ).toMatchObject({
+      thinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh"],
+      highestThinkingLevel: "xhigh",
+    });
+    host.dispose();
+  });
 });

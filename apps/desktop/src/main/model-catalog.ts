@@ -1,5 +1,12 @@
-import type { AgentModelInfo } from "@artemis/protocol";
-import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
+import type {
+  AgentModelInfo,
+  ProviderModel,
+  ThinkingLevel,
+} from "@artemis/protocol";
+import type {
+  ModelThinkingLevel,
+  ThinkingLevelMap,
+} from "@earendil-works/pi-ai";
 import {
   getBuiltinModels,
   getBuiltinProviders,
@@ -29,18 +36,92 @@ const visibleProviderIds = new Set([
   "groq",
 ]);
 
+const thinkingLevels: ModelThinkingLevel[] = [
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+];
+
+const customThinkingLevels: Exclude<ThinkingLevel, "off">[] = [
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+];
+
+export function customModelThinkingLevels(
+  model: Pick<ProviderModel, "reasoning" | "highestThinkingLevel">,
+): ThinkingLevel[] {
+  if (!model.reasoning) return ["off"];
+  const highestIndex = customThinkingLevels.indexOf(
+    model.highestThinkingLevel ?? "high",
+  );
+  return ["off", ...customThinkingLevels.slice(0, highestIndex + 1)];
+}
+
+function supportedThinkingLevels(model: {
+  reasoning: boolean;
+  thinkingLevelMap?: ThinkingLevelMap;
+}): ModelThinkingLevel[] {
+  if (!model.reasoning) return ["off"];
+  return thinkingLevels.filter((level) => {
+    const mapped = model.thinkingLevelMap?.[level];
+    if (mapped === null) return false;
+    if (level === "xhigh" || level === "max") return mapped !== undefined;
+    return true;
+  });
+}
+
 export async function loadBundledModelCatalog(): Promise<AgentModelInfo[]> {
   return getBuiltinProviders().flatMap((providerId) =>
-    getBuiltinModels(providerId).map((model) => ({
-      providerId: model.provider,
-      modelId: model.id,
-      name: model.name,
-      reasoning: model.reasoning,
-      highestThinkingLevel: getSupportedThinkingLevels(model).at(-1) ?? "off",
-      contextWindow: model.contextWindow,
-      configured: false,
-    })),
+    getBuiltinModels(providerId).map((model) => {
+      const supported = supportedThinkingLevels(model);
+      return {
+        providerId: model.provider,
+        modelId: model.id,
+        name: model.name,
+        reasoning: model.reasoning,
+        thinkingLevels: supported,
+        highestThinkingLevel: supported.at(-1) ?? "off",
+        contextWindow: model.contextWindow,
+        configured: false,
+      };
+    }),
   );
+}
+
+export function mergeBundledModelCatalog(
+  bundledModels: AgentModelInfo[],
+  runtimeModels: AgentModelInfo[],
+): AgentModelInfo[] {
+  const runtimeByKey = new Map(
+    runtimeModels.map((model) => [
+      `${model.providerId}\0${model.modelId}`,
+      model,
+    ]),
+  );
+  const bundledKeys = new Set<string>();
+  const merged = bundledModels.map((model) => {
+    const key = `${model.providerId}\0${model.modelId}`;
+    bundledKeys.add(key);
+    return {
+      ...model,
+      configured:
+        model.configured || Boolean(runtimeByKey.get(key)?.configured),
+    };
+  });
+  for (const model of runtimeModels) {
+    if (!bundledKeys.has(`${model.providerId}\0${model.modelId}`)) {
+      merged.push(model);
+    }
+  }
+  return merged;
 }
 
 export function filterVisibleModels(

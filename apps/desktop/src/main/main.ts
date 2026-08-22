@@ -169,8 +169,10 @@ import type {
 import { McpConfigStore } from "./mcp-config-store.js";
 import { importMcpServers } from "./mcp-import.js";
 import {
+  customModelThinkingLevels,
   filterVisibleModels,
   loadBundledModelCatalog,
+  mergeBundledModelCatalog,
 } from "./model-catalog.js";
 import {
   SecureMcpOAuthProvider,
@@ -340,6 +342,7 @@ let automationScheduler: AutomationScheduler | undefined;
 let agentRuntimeReady: Promise<void> = Promise.resolve();
 let optionalCapabilitiesReady: Promise<void> = Promise.resolve();
 let activeRuntimeSelection: ModelSelection | undefined;
+let cachedAgentCatalog: AgentRuntimeCatalog = { models: [] };
 let runtimeToolCount = 0;
 let runtimeMcpToolCount = 0;
 let enabledMcpServerCount = 0;
@@ -446,11 +449,13 @@ function scheduleAgentCapacityChange(change: AgentCapacityChange): void {
     });
 }
 
-async function agentConcurrencyStatus(): Promise<AgentConcurrencyStatus> {
+async function agentConcurrencyStatus(
+  refreshRuntime = true,
+): Promise<AgentConcurrencyStatus> {
   if (!agentCapacityController) {
     throw new Error("Agent capacity controller is not ready.");
   }
-  if (agentProcess?.available) {
+  if (refreshRuntime && agentProcess?.available) {
     try {
       agentCapacityRuntime =
         await agentProcess.request<AgentConcurrencyRuntimeStatus>(
@@ -988,7 +993,7 @@ async function resolveModelSelection(
   if (!allowedThinking.includes(selection.thinkingLevel)) {
     throw new Error("Thinking level is invalid.");
   }
-  const snapshot = await getSettingsSnapshot();
+  const snapshot = await getModelSettingsSnapshot();
   const selectedModel = snapshot.models.find(
     (model) =>
       model.providerId === selection.providerId &&
@@ -1023,11 +1028,19 @@ async function resolveModelSelection(
   ) {
     throw new Error("This model no longer has configured credentials.");
   }
+  const selectedHighestThinkingLevel =
+    selectedModel.highestThinkingLevel ?? "high";
+  const supportedSelection =
+    selectedModel.reasoning &&
+    selectedModel.thinkingLevels &&
+    !selectedModel.thinkingLevels.includes(selection.thinkingLevel)
+      ? { ...selection, thinkingLevel: selectedHighestThinkingLevel }
+      : selection;
   return {
     selection: normalizeModelSelection(
-      selection,
+      supportedSelection,
       selectedModel.reasoning,
-      selectedModel.highestThinkingLevel,
+      selectedHighestThinkingLevel,
     ),
     contextWindow: Math.min(
       addedModel?.contextWindow ??
@@ -1062,6 +1075,26 @@ async function applyAgentRuntime(
   activeRuntimeSelection = resolved.selection
     ? structuredClone(resolved.selection)
     : undefined;
+  void agentProcess
+    .request<AgentRuntimeCatalog>(
+      {
+        type: "runtime.catalog",
+        requestId: randomUUID(),
+      },
+      10_000,
+    )
+    .then((catalog) => {
+      cachedAgentCatalog = catalog;
+    })
+    .catch((error) => {
+      diagnosticBundleService?.record({
+        source: "main",
+        severity: "warning",
+        message: `Agent model catalog refresh failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    });
   runtimeMcpToolCount = resolved.mcpTools.length;
   runtimeToolCount =
     resolved.mcpTools.length + (resolved.extensionTools?.length ?? 0);
@@ -1286,50 +1319,29 @@ async function resetAgentThreadsForToolChange(): Promise<void> {
   }
 }
 
-async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
-  try {
-    await optionalCapabilitiesReady;
-  } catch {
-    // Settings remain useful even when the optional Agent runtime is offline.
-  }
-  if (
-    !settingsStore ||
-    !globalInstructionsStore ||
-    !mcpConfigStore ||
-    !mcpClientManager ||
-    !trustedExtensionManager
-  ) {
-    throw new Error("Agent settings are not ready.");
-  }
-  const providers = await settingsStore.providerConnections();
-  const credentials = await settingsStore.credentialSummaries();
-  let catalog: AgentRuntimeCatalog = { models: [] };
-  if (agentProcess) {
-    try {
-      if (!agentProcess.available) {
-        throw new Error("Agent host is unavailable.");
-      }
-      catalog = await agentProcess.request<AgentRuntimeCatalog>({
-        type: "runtime.catalog",
-        requestId: randomUUID(),
-      });
-    } catch (error) {
-      diagnosticBundleService?.record({
-        source: "main",
-        severity: "warning",
-        message: `Settings opened without the Agent model catalog: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      });
-    }
-  }
-  if (catalog.models.length === 0) {
-    try {
-      catalog = {
-        ...catalog,
-        models: await loadBundledModelCatalog(),
-      };
-    } catch (error) {
+type ModelSettingsSnapshot = Pick<
+  SettingsSnapshot,
+  | "models"
+  | "addedModels"
+  | "credentials"
+  | "providers"
+  | "contextWindow"
+  | "selection"
+>;
+
+async function getModelSettingsSnapshot(): Promise<ModelSettingsSnapshot> {
+  if (!settingsStore) throw new Error("Agent settings are not ready.");
+  const [
+    providers,
+    credentials,
+    bundledModels,
+    addedModels,
+    persistedSelection,
+    contextWindowPreference,
+  ] = await Promise.all([
+    settingsStore.providerConnections(),
+    settingsStore.credentialSummaries(),
+    loadBundledModelCatalog().catch((error): AgentModelInfo[] => {
       diagnosticBundleService?.record({
         source: "main",
         severity: "error",
@@ -1337,15 +1349,21 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
           error instanceof Error ? error.message : String(error)
         }`,
       });
-    }
-  }
-  const contract = getPlatformContract();
-  const addedModels = await settingsStore.addedModels();
+      return [];
+    }),
+    settingsStore.addedModels(),
+    settingsStore.modelSelection(),
+    settingsStore.contextWindowPreference(),
+  ]);
+  const catalogModels = mergeBundledModelCatalog(
+    bundledModels,
+    cachedAgentCatalog.models,
+  );
   const configuredProviderIds = new Set(
     credentials.map((credential) => credential.providerId),
   );
   const modelsByKey = new Map<string, AgentModelInfo>();
-  for (const model of catalog.models) {
+  for (const model of catalogModels) {
     modelsByKey.set(`${model.providerId}\0${model.modelId}`, {
       ...model,
       configured:
@@ -1354,12 +1372,14 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
   }
   for (const provider of providers) {
     for (const model of provider.models) {
+      const thinkingLevels = customModelThinkingLevels(model);
       modelsByKey.set(`${provider.id}\0${model.id}`, {
         providerId: provider.id,
         modelId: model.id,
         name: model.name,
         reasoning: model.reasoning,
-        highestThinkingLevel: model.reasoning ? "high" : "off",
+        thinkingLevels,
+        highestThinkingLevel: thinkingLevels.at(-1) ?? "off",
         contextWindow: model.contextWindow,
         configured: true,
       });
@@ -1369,8 +1389,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     [...modelsByKey.values()],
     providers.map((provider) => provider.id),
   );
-  const persistedSelection = await settingsStore.modelSelection();
-  const availableSelection = catalog.selection ?? persistedSelection;
+  const availableSelection = persistedSelection;
   const selection =
     availableSelection &&
     (models.length === 0 ||
@@ -1389,42 +1408,85 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
       )
     : undefined;
   const contextWindow =
-    (await settingsStore.contextWindowPreference()) ??
+    contextWindowPreference ??
     selectedModel?.contextWindow ??
     models[0]?.contextWindow ??
     128_000;
-  const workspaceDockWidth = await settingsStore.workspaceDockWidth();
-  const projectSidebarWidth = await settingsStore.projectSidebarWidth();
-  const profileAvatar = await settingsStore.profileAvatar();
+
   return {
-    platform: contract.platform,
-    encryptionAvailable: settingsStore.encryptionAvailable,
-    language: await settingsStore.languagePreference(),
-    theme: await settingsStore.themePreference(),
-    resolvedLocale: currentLocale(),
-    approvalPolicy: await settingsStore.approvalPolicy(),
-    localFullAccess: await settingsStore.localFullAccess(),
-    shell: await settingsStore.shellRuntimeConfiguration(),
-    fullAccessAvailable: contract.sandbox.available,
     contextWindow,
     models,
     addedModels,
     credentials,
     providers,
-    mcpServers: await getMcpServerStatuses(),
-    globalAgents: await globalInstructionsStore.snapshot(),
+    ...(selection ? { selection } : {}),
+  };
+}
+
+async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
+  if (
+    !settingsStore ||
+    !globalInstructionsStore ||
+    !mcpConfigStore ||
+    !mcpClientManager ||
+    !trustedExtensionManager
+  ) {
+    throw new Error("Agent settings are not ready.");
+  }
+  const contract = getPlatformContract();
+  const [
+    modelSettings,
+    language,
+    theme,
+    approvalPolicy,
+    localFullAccess,
+    shellConfiguration,
+    mcpServers,
+    globalAgents,
+    agentConcurrency,
+    profileAvatar,
+    projectOrder,
+    projectSidebarWidth,
+    workspaceDockWidth,
+  ] = await Promise.all([
+    getModelSettingsSnapshot(),
+    settingsStore.languagePreference(),
+    settingsStore.themePreference(),
+    settingsStore.approvalPolicy(),
+    settingsStore.localFullAccess(),
+    settingsStore.shellRuntimeConfiguration(),
+    getMcpServerStatuses(),
+    globalInstructionsStore.snapshot(),
+    agentConcurrencyStatus(false),
+    settingsStore.profileAvatar(),
+    settingsStore.projectOrder(),
+    settingsStore.projectSidebarWidth(),
+    settingsStore.workspaceDockWidth(),
+  ]);
+  return {
+    platform: contract.platform,
+    encryptionAvailable: settingsStore.encryptionAvailable,
+    language,
+    theme,
+    resolvedLocale: currentLocale(),
+    approvalPolicy,
+    localFullAccess,
+    shell: shellConfiguration,
+    fullAccessAvailable: contract.sandbox.available,
+    ...modelSettings,
+    mcpServers,
+    globalAgents,
     trustedExtensions: trustedExtensionManager.status(),
     update: releaseUpdateManager?.getStatus() ?? {
       state: "disabled",
       currentVersion: app.getVersion(),
       rollbackAvailable: false,
     },
-    agentConcurrency: await agentConcurrencyStatus(),
+    agentConcurrency,
     ...(profileAvatar === undefined ? {} : { profileAvatar }),
-    projectOrder: await settingsStore.projectOrder(),
+    projectOrder,
     ...(projectSidebarWidth === undefined ? {} : { projectSidebarWidth }),
     ...(workspaceDockWidth === undefined ? {} : { workspaceDockWidth }),
-    ...(selection ? { selection } : {}),
   };
 }
 
@@ -4539,23 +4601,19 @@ function registerIpc(): void {
       const customProviderExists = snapshot.providers.some(
         (provider) => provider.id === target.providerId,
       );
-      if (
-        !customProviderExists &&
-        store
-          ?.listThreads()
-          .some(
+      const referencingThreads = customProviderExists
+        ? []
+        : (store?.listThreads() ?? []).filter(
             (thread) =>
               thread.modelSelection?.providerId === target.providerId &&
               thread.modelSelection.modelId === target.modelId,
-          )
-      ) {
-        throw new Error(
-          "Switch conversations using this model before deleting it.",
-        );
-      }
+          );
       const removesActiveSelection =
         deletesActiveModel && !customProviderExists;
-      if (removesActiveSelection && activeTurns.size > 0) {
+      if (
+        (removesActiveSelection || referencingThreads.length > 0) &&
+        activeTurns.size > 0
+      ) {
         throw new Error("Stop the active turn before deleting its model.");
       }
       const deleteCredential =
@@ -4567,7 +4625,7 @@ function registerIpc(): void {
       let replacement:
         { selection: ModelSelection; contextWindow: number } | undefined;
 
-      if (removesActiveSelection) {
+      if (removesActiveSelection || referencingThreads.length > 0) {
         const fallbackProvider = snapshot.providers.find(
           (provider) => provider.models.length > 0,
         );
@@ -4614,15 +4672,22 @@ function registerIpc(): void {
             };
           }
         }
+      }
 
+      if (removesActiveSelection) {
         if (replacement) {
           configuration.selection = replacement.selection;
           configuration.contextWindow = replacement.contextWindow;
         } else {
           delete configuration.selection;
           delete configuration.contextWindow;
-          await resetAgentThreadsForToolChange();
         }
+      }
+      if (
+        referencingThreads.length > 0 ||
+        (removesActiveSelection && !replacement)
+      ) {
+        await resetAgentThreadsForToolChange();
       }
       if (deleteCredential) {
         delete configuration.credentials[target.providerId];
@@ -4634,6 +4699,12 @@ function registerIpc(): void {
         deleteCredential,
         ...(replacement ? { replacement } : {}),
       });
+      for (const thread of referencingThreads) {
+        store?.updateThread(thread.id, {
+          modelSelection: replacement?.selection ?? null,
+          contextWindow: replacement?.contextWindow ?? null,
+        });
+      }
       return getSettingsSnapshot();
     },
   );

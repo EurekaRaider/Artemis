@@ -51,9 +51,8 @@ describe("local full access setting", () => {
     expect(preloadSource).toContain(
       "setLocalFullAccess: (enabled) =>\n    ipcRenderer.invoke(IPC.settingsLocalFullAccessSet, enabled)",
     );
-    expect(mainSource).toContain(
-      "localFullAccess: await settingsStore.localFullAccess()",
-    );
+    expect(mainSource).toContain("settingsStore.localFullAccess(),");
+    expect(mainSource).toMatch(/\n\s*localFullAccess,\n/u);
     expect(mainSource).toContain(
       "ipcMain.handle(\n    IPC.settingsLocalFullAccessSet",
     );

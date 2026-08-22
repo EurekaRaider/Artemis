@@ -1,4 +1,4 @@
-import type { ProviderConnection } from "@artemis/protocol";
+import type { ProviderConnection, ProviderModel } from "@artemis/protocol";
 
 import { streamOpenAIResponsesWithAiSdk } from "./responses-ai-sdk-stream.js";
 
@@ -8,6 +8,21 @@ const zeroCost = {
   cacheRead: 0,
   cacheWrite: 0,
 };
+
+const customThinkingLevels: NonNullable<
+  ProviderModel["highestThinkingLevel"]
+>[] = ["minimal", "low", "medium", "high", "xhigh", "max"];
+
+function customThinkingLevelMap(model: ProviderModel) {
+  const highest = model.highestThinkingLevel ?? "high";
+  const highestIndex = customThinkingLevels.indexOf(highest);
+  return Object.fromEntries(
+    customThinkingLevels.map((level, index) => [
+      level,
+      index <= highestIndex ? level : null,
+    ]),
+  );
+}
 
 export function toPiProviderConfig(
   provider: ProviderConnection,
@@ -25,6 +40,9 @@ export function toPiProviderConfig(
       id: model.id,
       name: model.name,
       reasoning: model.reasoning,
+      ...(model.reasoning
+        ? { thinkingLevelMap: customThinkingLevelMap(model) }
+        : {}),
       input: [...model.input],
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens,

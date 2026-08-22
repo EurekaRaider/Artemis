@@ -33,6 +33,7 @@ import {
   type AppLocale,
   type ChildAgentState,
   type ChildAgentPayload,
+  type ModelSelection,
   type PromptAttachment,
   type PromptImage,
   type Project,
@@ -176,6 +177,10 @@ import {
   reduceTurnFailureNotices,
   type TurnFailureNotices,
 } from "./turn-failure-notices.js";
+import {
+  selectionForModelSwitch,
+  thinkingLevelsForModel,
+} from "./model-selection.js";
 
 type Locale = AppLocale;
 type ModelPickerSection = "model" | "thinking";
@@ -240,14 +245,6 @@ const TOAST_VISIBLE_MILLISECONDS = 10_000;
 const TOAST_FADE_MILLISECONDS = 600;
 
 const PROJECT_THREAD_PREVIEW_LIMIT = 5;
-const MODEL_PICKER_THINKING_LEVELS: ThinkingLevel[] = [
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-];
 
 function TransientNotice({
   notice,
@@ -1458,6 +1455,8 @@ export function App() {
   const [attachmentDragActive, setAttachmentDragActive] = useState(false);
   const [approvalPolicy, setApprovalPolicy] = useState<ApprovalPolicy>("agent");
   const [runtimeSettings, setRuntimeSettings] = useState<SettingsSnapshot>();
+  const [pendingModelSelection, setPendingModelSelection] =
+    useState<ModelSelection>();
   const [approvalMenuOpen, setApprovalMenuOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [modelPickerSection, setModelPickerSection] =
@@ -3428,7 +3427,9 @@ export function App() {
     custom: t.customApproval,
   }[approvalPolicy];
   const activeSelection =
-    activeThread?.modelSelection ?? runtimeSettings?.selection;
+    pendingModelSelection ??
+    activeThread?.modelSelection ??
+    runtimeSettings?.selection;
   const activeModel = activeSelection
     ? runtimeSettings?.models.find(
         (model) =>
@@ -3452,7 +3453,9 @@ export function App() {
   const activeModelSupportsReasoning =
     activeModel?.reasoning ?? activeProviderModel?.reasoning ?? false;
   const activeModelHighestThinkingLevel =
-    activeModel?.highestThinkingLevel ?? "high";
+    activeModel?.thinkingLevels?.at(-1) ??
+    activeModel?.highestThinkingLevel ??
+    "high";
   const activeUltraMode =
     activeModelSupportsReasoning && activeSelection?.ultraMode === true;
   const activeThinkingLevel = activeUltraMode
@@ -3490,36 +3493,22 @@ export function App() {
           left.providerId.localeCompare(right.providerId, locale),
       );
   }, [activeSelection, locale, runtimeSettings]);
-  const modelPickerThinkingLevels = activeModelSupportsReasoning
-    ? MODEL_PICKER_THINKING_LEVELS
-    : [];
+  const modelPickerThinkingLevels = thinkingLevelsForModel(activeModel);
 
   const switchComposerModel = useCallback(
     async (model: SettingsSnapshot["models"][number]) => {
       if (!runtimeSettings || turnActive || busy) return;
       setModelPickerOpen(false);
       setBusy(true);
+      const nextSelection = selectionForModelSwitch(model, activeSelection);
+      setPendingModelSelection(nextSelection);
       try {
         const thread =
           activeThread ?? (await createThread(activeProjectId, true));
         if (!thread) return;
-        const preserveUltraMode =
-          model.reasoning && activeSelection?.ultraMode === true;
         const updated = await window.artemis.setThreadModelSelection(
           thread.id,
-          {
-            providerId: model.providerId,
-            modelId: model.modelId,
-            thinkingLevel: model.reasoning
-              ? preserveUltraMode
-                ? (model.highestThinkingLevel ?? "high")
-                : activeSelection?.ultraMode === true ||
-                    activeSelection?.thinkingLevel === "off"
-                  ? "medium"
-                  : (activeSelection?.thinkingLevel ?? "medium")
-              : "off",
-            ...(preserveUltraMode ? { ultraMode: true } : {}),
-          },
+          nextSelection,
         );
         setSnapshot((current) =>
           current
@@ -3536,6 +3525,7 @@ export function App() {
           `${t.modelSwitchFailed} ${error instanceof Error ? error.message : String(error)}`,
         );
       } finally {
+        setPendingModelSelection(undefined);
         setBusy(false);
       }
     },
@@ -3556,17 +3546,19 @@ export function App() {
       if (!activeSelection || turnActive || busy) return;
       setModelPickerOpen(false);
       setBusy(true);
+      const nextSelection = {
+        ...activeSelection,
+        thinkingLevel,
+        ultraMode,
+      };
+      setPendingModelSelection(nextSelection);
       try {
         const thread =
           activeThread ?? (await createThread(activeProjectId, true));
         if (!thread) return;
         const updated = await window.artemis.setThreadModelSelection(
           thread.id,
-          {
-            ...activeSelection,
-            thinkingLevel,
-            ultraMode,
-          },
+          nextSelection,
         );
         setSnapshot((current) =>
           current
@@ -3583,6 +3575,7 @@ export function App() {
           `${t.modelSwitchFailed} ${error instanceof Error ? error.message : String(error)}`,
         );
       } finally {
+        setPendingModelSelection(undefined);
         setBusy(false);
       }
     },
@@ -6456,7 +6449,7 @@ export function App() {
                                           : ""
                                       }
                                       disabled={
-                                        !runtimeSettings?.selection ||
+                                        !activeSelection ||
                                         !activeModelSupportsReasoning
                                       }
                                       onClick={() =>
@@ -7486,10 +7479,11 @@ export function App() {
           }
         >
           <SettingsPanel
+            initialSettings={runtimeSettings}
             initialTab={settingsTab}
             locale={locale}
             onClose={() => setSettingsOpen(false)}
-            onSettingsChange={(value) => {
+            onSettingsChange={(value, options) => {
               setRuntimeSettings(value);
               setApprovalPolicy(value.approvalPolicy);
               setSnapshot((current) =>
@@ -7500,6 +7494,20 @@ export function App() {
                     }
                   : current,
               );
+              if (options?.refreshThreads) {
+                void window.artemis
+                  .getSnapshot()
+                  .then((refreshed) => {
+                    setSnapshot((current) =>
+                      preserveLoadedEvents(refreshed, current),
+                    );
+                  })
+                  .catch((error) => {
+                    setToast(
+                      error instanceof Error ? error.message : String(error),
+                    );
+                  });
+              }
             }}
           />
         </Suspense>

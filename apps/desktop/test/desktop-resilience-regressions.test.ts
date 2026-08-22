@@ -123,38 +123,47 @@ describe("desktop resilience regressions", () => {
   it("keeps the bundled model catalog available when the Agent Host is unavailable", () => {
     const settingsSnapshot = sourceBetween(
       mainSource,
-      "async function getSettingsSnapshot",
+      "async function getModelSettingsSnapshot",
       "async function getMcpServerStatuses",
     );
 
     expect(settingsSnapshot).not.toContain("!agentProcess ||");
-    expect(settingsSnapshot).toMatch(
-      /(?:let|const)\s+catalog\s*:\s*AgentRuntimeCatalog\s*=\s*\{\s*models:\s*\[\]\s*\}/u,
-    );
-    expect(settingsSnapshot).toContain('type: "runtime.catalog"');
+    expect(settingsSnapshot).not.toContain("optionalCapabilitiesReady");
+    expect(settingsSnapshot).not.toContain("agentProcess.request");
     expect(settingsSnapshot).toContain("loadBundledModelCatalog()");
-    expect(settingsSnapshot).toMatch(
-      /if\s*\(\s*agentProcess\s*\)[\s\S]*?try\s*\{[\s\S]*?runtime\.catalog[\s\S]*?\}\s*catch/u,
-    );
-    expect(settingsSnapshot.indexOf("catch")).toBeLessThan(
-      settingsSnapshot.indexOf("return {"),
-    );
+    expect(settingsSnapshot).toContain("mergeBundledModelCatalog(");
+    expect(settingsSnapshot).toContain("cachedAgentCatalog.models");
+    expect(settingsSnapshot).toContain("settingsStore.providerConnections(),");
+    expect(settingsSnapshot).toContain("settingsStore.credentialSummaries(),");
+    expect(settingsSnapshot).toContain("settingsStore.modelSelection(),");
     expect(settingsSnapshot).toContain(
-      "const providers = await settingsStore.providerConnections()",
-    );
-    expect(settingsSnapshot).toContain(
-      "const credentials = await settingsStore.credentialSummaries()",
-    );
-    expect(settingsSnapshot).toContain(
-      "const persistedSelection = await settingsStore.modelSelection()",
-    );
-    expect(settingsSnapshot).toContain(
-      "catalog.selection ?? persistedSelection",
+      "const availableSelection = persistedSelection",
     );
     expect(settingsSnapshot).toMatch(/\n\s*providers,\n/u);
     expect(settingsSnapshot).toMatch(/\n\s*credentials,\n/u);
-    expect(settingsSnapshot).toContain(
-      "mcpServers: await getMcpServerStatuses()",
+    expect(settingsSnapshot).toContain("getMcpServerStatuses(),");
+  });
+
+  it("removes a model by migrating or clearing conversations that reference it", () => {
+    const modelDeleteHandler = sourceBetween(
+      mainSource,
+      "IPC.settingsModelDelete,",
+      "IPC.settingsModelSet,",
+    );
+
+    expect(modelDeleteHandler).not.toContain(
+      "Switch conversations using this model before deleting it.",
+    );
+    expect(modelDeleteHandler).toContain("const referencingThreads =");
+    expect(modelDeleteHandler).toContain(
+      "await resetAgentThreadsForToolChange()",
+    );
+    expect(modelDeleteHandler).toContain("store?.updateThread(thread.id, {");
+    expect(modelDeleteHandler).toContain(
+      "modelSelection: replacement?.selection ?? null",
+    );
+    expect(modelDeleteHandler).toContain(
+      "contextWindow: replacement?.contextWindow ?? null",
     );
   });
 

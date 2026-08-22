@@ -26,10 +26,14 @@ import { CodexSelect } from "./CodexSelect.js";
 import { prepareProfileAvatar } from "./profile-avatar.js";
 
 interface SettingsPanelProps {
+  initialSettings?: SettingsSnapshot | undefined;
   initialTab?: SettingsTab;
   locale: AppLocale;
   onClose(): void;
-  onSettingsChange(settings: SettingsSnapshot): void;
+  onSettingsChange(
+    settings: SettingsSnapshot,
+    options?: { refreshThreads?: boolean },
+  ): void;
 }
 
 const labels = {
@@ -90,6 +94,13 @@ const labels = {
     modelName: "Model display name",
     maxTokens: "Max output tokens",
     reasoningModel: "Supports reasoning",
+    highestReasoningLevel: "Highest supported reasoning level",
+    thinkingMinimal: "Minimal",
+    thinkingLow: "Low",
+    thinkingMedium: "Medium",
+    thinkingHigh: "High",
+    thinkingXHigh: "Extra high",
+    thinkingMax: "Max",
     imageInput: "Supports image input",
     saveProvider: "Save provider connection",
     cancelEdit: "Cancel edit",
@@ -274,6 +285,13 @@ const labels = {
     modelName: "模型显示名称",
     maxTokens: "最大输出 Token",
     reasoningModel: "支持推理",
+    highestReasoningLevel: "支持的最高推理档位",
+    thinkingMinimal: "最低",
+    thinkingLow: "低",
+    thinkingMedium: "中",
+    thinkingHigh: "高",
+    thinkingXHigh: "极高",
+    thinkingMax: "最高",
     imageInput: "支持图片输入",
     saveProvider: "保存 Provider 连接",
     cancelEdit: "取消编辑",
@@ -401,6 +419,9 @@ const labels = {
 const DEFAULT_PROVIDER_CONTEXT_WINDOW = 1_000_000;
 const DEFAULT_PROVIDER_MAX_TOKENS = 128_000;
 const providerIdPattern = /^[a-z0-9][a-z0-9._-]*$/u;
+type ProviderThinkingLevel = NonNullable<
+  ProviderConnection["models"][number]["highestThinkingLevel"]
+>;
 
 type SettingsTab =
   "general" | "providers" | "agents" | "capabilities" | "maintenance";
@@ -417,7 +438,34 @@ function parseModelKey(value: string): [string, string] {
   ];
 }
 
+function modelFormState(settings: SettingsSnapshot | undefined): {
+  contextWindow: string;
+  selectedModel: string;
+} {
+  if (!settings) return { contextWindow: "", selectedModel: "" };
+  const selected =
+    (settings.selection
+      ? settings.models.find(
+          (model) =>
+            model.providerId === settings.selection?.providerId &&
+            model.modelId === settings.selection.modelId,
+        )
+      : undefined) ?? settings.models[0];
+  return {
+    contextWindow: String(
+      Math.min(
+        settings.contextWindow,
+        selected?.contextWindow ?? settings.contextWindow,
+      ),
+    ),
+    selectedModel: selected
+      ? modelKey(selected.providerId, selected.modelId)
+      : "",
+  };
+}
+
 export function SettingsPanel({
+  initialSettings,
   initialTab = "general",
   locale,
   onClose,
@@ -438,9 +486,13 @@ export function SettingsPanel({
   const [providerConfigTab, setProviderConfigTab] = useState<
     "builtin" | "custom"
   >("builtin");
-  const [settings, setSettings] = useState<SettingsSnapshot>();
-  const [selectedModel, setSelectedModel] = useState("");
-  const [contextWindow, setContextWindow] = useState("");
+  const [settings, setSettings] = useState(initialSettings);
+  const [selectedModel, setSelectedModel] = useState(
+    () => modelFormState(initialSettings).selectedModel,
+  );
+  const [contextWindow, setContextWindow] = useState(
+    () => modelFormState(initialSettings).contextWindow,
+  );
   const [editingProviderId, setEditingProviderId] = useState<string>();
   const [providerId, setProviderId] = useState("");
   const [providerName, setProviderName] = useState("");
@@ -456,6 +508,8 @@ export function SettingsPanel({
     String(DEFAULT_PROVIDER_MAX_TOKENS),
   );
   const [providerReasoning, setProviderReasoning] = useState(false);
+  const [providerHighestThinkingLevel, setProviderHighestThinkingLevel] =
+    useState<ProviderThinkingLevel>("high");
   const [providerImages, setProviderImages] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [keyApiKey, setKeyApiKey] = useState("");
@@ -467,8 +521,18 @@ export function SettingsPanel({
   }>();
   const [modelDeleteTarget, setModelDeleteTarget] =
     useState<AddedModelConfiguration>();
-  const [globalAgentsContent, setGlobalAgentsContent] = useState("");
-  const [agentConcurrencyLimit, setAgentConcurrencyLimit] = useState("");
+  const [globalAgentsContent, setGlobalAgentsContent] = useState(
+    initialSettings?.globalAgents.content ?? "",
+  );
+  const [agentConcurrencyLimit, setAgentConcurrencyLimit] = useState(
+    initialSettings
+      ? String(
+          initialSettings.agentConcurrency.preference.mode === "manual"
+            ? initialSettings.agentConcurrency.preference.limit
+            : initialSettings.agentConcurrency.configuredLimit,
+        )
+      : "",
+  );
   const [importPreview, setImportPreview] =
     useState<ConfigurationImportPreview>();
   const [importSources, setImportSources] = useState<
@@ -493,45 +557,9 @@ export function SettingsPanel({
               : snapshot.agentConcurrency.configuredLimit,
           ),
         );
-        const selectedModelAvailable =
-          snapshot.selection &&
-          snapshot.models.some(
-            (model) =>
-              model.providerId === snapshot.selection?.providerId &&
-              model.modelId === snapshot.selection.modelId,
-          );
-        if (snapshot.selection && selectedModelAvailable) {
-          const model = snapshot.models.find(
-            (candidate) =>
-              candidate.providerId === snapshot.selection?.providerId &&
-              candidate.modelId === snapshot.selection.modelId,
-          );
-          setSelectedModel(
-            modelKey(snapshot.selection.providerId, snapshot.selection.modelId),
-          );
-          setContextWindow(
-            String(
-              Math.min(
-                snapshot.contextWindow,
-                model?.contextWindow ?? snapshot.contextWindow,
-              ),
-            ),
-          );
-        } else if (snapshot.models[0]) {
-          setSelectedModel(
-            modelKey(snapshot.models[0].providerId, snapshot.models[0].modelId),
-          );
-          setContextWindow(
-            String(
-              Math.min(
-                snapshot.contextWindow,
-                snapshot.models[0].contextWindow,
-              ),
-            ),
-          );
-        } else {
-          setContextWindow(String(snapshot.contextWindow));
-        }
+        const modelState = modelFormState(snapshot);
+        setSelectedModel(modelState.selectedModel);
+        setContextWindow(modelState.contextWindow);
       })
       .catch(
         (error) =>
@@ -681,7 +709,7 @@ export function SettingsPanel({
         modelId: modelDeleteTarget.modelId,
       });
       setSettings(updated);
-      onSettingsChange(updated);
+      onSettingsChange(updated, { refreshThreads: true });
       setModelDeleteTarget(undefined);
       const selected = updated.selection
         ? updated.models.find(
@@ -790,6 +818,9 @@ export function SettingsPanel({
           id: providerModelId.trim(),
           name: providerModelName.trim() || providerModelId.trim(),
           reasoning: providerReasoning,
+          ...(providerReasoning
+            ? { highestThinkingLevel: providerHighestThinkingLevel }
+            : {}),
           input: providerImages ? ["text", "image"] : ["text"],
           contextWindow: parsedProviderContextWindow,
           maxTokens: parsedProviderMaxTokens,
@@ -832,6 +863,7 @@ export function SettingsPanel({
     setProviderContextWindow(String(DEFAULT_PROVIDER_CONTEXT_WINDOW));
     setProviderMaxTokens(String(DEFAULT_PROVIDER_MAX_TOKENS));
     setProviderReasoning(false);
+    setProviderHighestThinkingLevel("high");
     setProviderImages(false);
     setApiKey("");
   }
@@ -852,6 +884,7 @@ export function SettingsPanel({
       String(model?.maxTokens ?? DEFAULT_PROVIDER_MAX_TOKENS),
     );
     setProviderReasoning(model?.reasoning ?? false);
+    setProviderHighestThinkingLevel(model?.highestThinkingLevel ?? "high");
     setProviderImages(model?.input.includes("image") ?? false);
     setApiKey("");
   }
@@ -1439,6 +1472,27 @@ export function SettingsPanel({
                         <span>{t.imageInput}</span>
                       </label>
                     </span>
+                    {providerReasoning && (
+                      <div className="settings-field">
+                        <span>{t.highestReasoningLevel}</span>
+                        <div className="settings-codex-select">
+                          <CodexSelect<ProviderThinkingLevel>
+                            ariaLabel={t.highestReasoningLevel}
+                            disabled={busy}
+                            onChange={setProviderHighestThinkingLevel}
+                            options={[
+                              { value: "minimal", label: t.thinkingMinimal },
+                              { value: "low", label: t.thinkingLow },
+                              { value: "medium", label: t.thinkingMedium },
+                              { value: "high", label: t.thinkingHigh },
+                              { value: "xhigh", label: t.thinkingXHigh },
+                              { value: "max", label: t.thinkingMax },
+                            ]}
+                            value={providerHighestThinkingLevel}
+                          />
+                        </div>
+                      </div>
+                    )}
                     <button
                       className="settings-primary-action"
                       disabled={

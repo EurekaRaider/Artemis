@@ -17,6 +17,7 @@ import {
   type AutomationRunState,
   type AutomationRunTrigger,
   type AutomationTarget,
+  type ModelSelection,
   type Project,
   type RunMode,
   type TaskWorktree,
@@ -844,15 +845,25 @@ export class AppStore {
         | "pinned"
         | "archived"
         | "target"
-        | "modelSelection"
-        | "contextWindow"
       >
-    > & { goal?: string | null },
+    > & {
+      goal?: string | null;
+      modelSelection?: ModelSelection | null;
+      contextWindow?: number | null;
+    },
   ): Thread {
     const current = this.getThread(id);
     if (!current) {
       throw new Error(`Thread not found: ${id}`);
     }
+    const modelSelection =
+      changes.modelSelection === undefined
+        ? current.modelSelection
+        : changes.modelSelection;
+    const contextWindow =
+      changes.contextWindow === undefined
+        ? (current.contextWindow ?? null)
+        : changes.contextWindow;
     const updatedAt = new Date().toISOString();
     this.database
       .prepare(
@@ -871,10 +882,8 @@ export class AppStore {
         (changes.pinned ?? current.pinned) ? 1 : 0,
         (changes.archived ?? current.archived) ? 1 : 0,
         changes.target ?? current.target,
-        (changes.modelSelection ?? current.modelSelection)
-          ? JSON.stringify(changes.modelSelection ?? current.modelSelection)
-          : null,
-        changes.contextWindow ?? current.contextWindow ?? null,
+        modelSelection ? JSON.stringify(modelSelection) : null,
+        contextWindow,
         updatedAt,
         id,
       );

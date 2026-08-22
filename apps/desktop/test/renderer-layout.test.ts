@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -96,6 +96,15 @@ const macPackageScriptPath = fileURLToPath(
   new URL("../scripts/package-mac-lite.mjs", import.meta.url),
 );
 const macPackageScriptSource = readFileSync(macPackageScriptPath, "utf8");
+const macIconBuildScriptPath = fileURLToPath(
+  new URL("../scripts/build-macos-icon.mjs", import.meta.url),
+);
+const macIconBuildSource = existsSync(macIconBuildScriptPath)
+  ? readFileSync(macIconBuildScriptPath, "utf8")
+  : "";
+const macIconPngPath = fileURLToPath(
+  new URL("../build/icon-macos.png", import.meta.url),
+);
 const windowsPackageScriptSource = readFileSync(
   fileURLToPath(
     new URL("../scripts/package-windows-lite.mjs", import.meta.url),
@@ -168,26 +177,9 @@ const rootPackage = JSON.parse(
     "utf8",
   ),
 ) as { scripts: Record<string, string> };
-const appIconSource = readFileSync(
-  fileURLToPath(new URL("../build/icon.png", import.meta.url)),
+const macIconSource = readFileSync(
+  fileURLToPath(new URL("../build/icon.icns", import.meta.url)),
 );
-const composerIconSource = readFileSync(
-  fileURLToPath(
-    new URL(
-      "../build/icon.icon/Assets/ArtemisForeground-v2.png",
-      import.meta.url,
-    ),
-  ),
-);
-const composerIconManifest = JSON.parse(
-  readFileSync(
-    fileURLToPath(new URL("../build/icon.icon/icon.json", import.meta.url)),
-    "utf8",
-  ),
-) as {
-  groups?: Array<{ layers?: Array<{ "image-name"?: string }> }>;
-  "supported-platforms"?: { squares?: string[] };
-};
 
 function cssRule(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
@@ -304,7 +296,7 @@ describe("renderer layout contract", () => {
     expect(dragRegion).toMatch(/\bposition:\s*absolute/u);
   });
 
-  it("uses an Icon Composer asset without a packaged PNG Dock override", () => {
+  it("uses a prebuilt multi-resolution icon for macOS packages", () => {
     expect(mainProcessSource).toContain("function applyMacDockIcon()");
     expect(mainProcessSource).toContain('process.platform !== "darwin"');
     expect(mainProcessSource).toContain("app.isPackaged");
@@ -312,18 +304,20 @@ describe("renderer layout contract", () => {
     expect(mainProcessSource).not.toContain(
       'join(process.resourcesPath, "icon.png")',
     );
-    expect(desktopPackage.build.mac.icon).toBe("build/icon.icon");
+    expect(desktopPackage.build.mac.icon).toBe("build/icon.icns");
     expect(desktopPackage.build.extraResources).not.toContainEqual({
       from: "build/icon.png",
       to: "icon.png",
     });
-    expect(composerIconManifest["supported-platforms"]?.squares).toEqual([
-      "macOS",
-    ]);
-    expect(composerIconManifest.groups?.[0]?.layers?.[0]?.["image-name"]).toBe(
-      "ArtemisForeground-v2.png",
+    expect(macIconSource.subarray(0, 4).toString("ascii")).toBe("icns");
+    expect(existsSync(macIconPngPath)).toBe(true);
+    expect(macIconBuildSource).toContain('"icon-macos.png"');
+    expect(macIconBuildSource).toContain('"icon.icns"');
+    expect(macIconBuildSource).toContain('type: "ic10"');
+    expect(macIconBuildSource).toContain("writeUInt32BE");
+    expect(macPackageScriptSource).toContain(
+      '["scripts/build-macos-icon.mjs"]',
     );
-    expect(composerIconSource.equals(appIconSource)).toBe(false);
   });
 
   it("makes the timeline container independently scrollable", () => {
@@ -505,9 +499,9 @@ describe("renderer layout contract", () => {
 
   it("routes composer model changes to only the selected conversation", () => {
     expect(appSource).toContain("window.artemis.setThreadModelSelection(");
-    expect(appSource).toContain(
-      "activeThread?.modelSelection ?? runtimeSettings?.selection",
-    );
+    expect(appSource).toContain("pendingModelSelection ??");
+    expect(appSource).toContain("activeThread?.modelSelection ??");
+    expect(appSource).toContain("runtimeSettings?.selection");
     expect(apiSource).toContain("setThreadModelSelection(");
     expect(preloadSource).toContain("IPC.threadModelSet");
     expect(mainProcessSource).toContain('type: "thread.model.set"');
@@ -936,7 +930,7 @@ describe("renderer layout contract", () => {
 
     expect(rendererSources).not.toMatch(/<select\b/gu);
     expect(settingsSource).toContain('from "./CodexSelect.js"');
-    expect(settingsSelectors).toHaveLength(7);
+    expect(settingsSelectors).toHaveLength(8);
     expect(mcpEditorSelectors).toHaveLength(1);
     expect(cssRule(".settings-codex-select .codex-select-trigger")).toMatch(
       /\bwidth:\s*100%/u,
@@ -1148,6 +1142,10 @@ describe("renderer layout contract", () => {
     expect(modelPickerSource).toContain('className="model-picker-menu"');
     expect(modelPickerSource).toContain('modelPickerSection === "model"');
     expect(modelPickerSource).toContain('modelPickerSection === "thinking"');
+    expect(modelPickerSource).toContain(
+      "!activeSelection ||\n                                        !activeModelSupportsReasoning",
+    );
+    expect(modelPickerSource).not.toContain("!runtimeSettings?.selection ||");
     expect(modelPickerSource).toMatch(/switchComposerModel\(\s*model,?\s*\)/u);
     expect(modelPickerSource).toMatch(
       /switchComposerThinking\(\s*level,?\s*\)/u,
@@ -1162,15 +1160,15 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('ultraModeQuota: "Uses your quota faster"');
     expect(appSource).toContain('ultraModeQuota: "更快消耗使用额度"');
     expect(appSource).toContain("activeSelection?.ultraMode === true");
-    expect(appSource).toContain("preserveUltraMode");
+    expect(appSource).toContain(
+      "selectionForModelSwitch(model, activeSelection)",
+    );
     expect(modelPickerSource).toContain(
       'className="model-picker-options-heading"',
     );
     expect(modelPickerSource).not.toContain("{model.providerId}");
     expect(modelPickerSource).not.toContain("setSettingsOpen(true)");
-    expect(appSource).toContain(
-      'const MODEL_PICKER_THINKING_LEVELS: ThinkingLevel[] = [\n  "minimal",',
-    );
+    expect(appSource).toContain("thinkingLevelsForModel(activeModel)");
     expect(appSource).toContain("runtimeSettings.addedModels.map");
     expect(appSource).toContain(
       "runtimeSettings.providers.map((provider) => provider.id)",
@@ -1245,6 +1243,18 @@ describe("renderer layout contract", () => {
       "contextWindow: parsedProviderContextWindow",
     );
     expect(settingsSource).toContain("maxTokens: parsedProviderMaxTokens");
+    expect(settingsSource).toContain(
+      "highestThinkingLevel: providerHighestThinkingLevel",
+    );
+    expect(settingsSource).toContain(
+      'highestReasoningLevel: "支持的最高推理档位"',
+    );
+    expect(settingsSource).toContain("<CodexSelect<ProviderThinkingLevel>");
+    expect(settingsSource).toContain(
+      '{ value: "xhigh", label: t.thinkingXHigh }',
+    );
+    expect(settingsSource).toContain('{ value: "max", label: t.thinkingMax }');
+    expect(mainProcessSource).toContain("customModelThinkingLevels(model)");
     expect(settingsSource).toContain("editProviderConnection(provider)");
     expect(settingsSource).toContain("saveProviderConnection");
     const providerSaveHandler = mainProcessSource.slice(
@@ -1382,6 +1392,12 @@ describe("renderer layout contract", () => {
     expect(modelAddHandler).toContain("await settingsStore.addModel(");
     expect(modelDeleteHandler).toContain("activeTurns.size > 0");
     expect(modelDeleteHandler).toContain("await settingsStore.removeModel(");
+    expect(modelDeleteHandler).not.toContain(
+      "Switch conversations using this model before deleting it.",
+    );
+    expect(settingsSource).toContain(
+      "onSettingsChange(updated, { refreshThreads: true })",
+    );
     expect(modelDeleteHandler).toContain(
       "delete configuration.credentials[target.providerId]",
     );
@@ -2697,11 +2713,9 @@ describe("renderer layout contract", () => {
     }
     expect(macPackageScriptSource).toContain('"build:core"');
     expect(macPackageScriptSource).toContain('"verify:bundled-plugins"');
-    expect(macPackageScriptSource).toContain(
-      'output("/usr/bin/xcrun", ["--find", "actool"])',
-    );
-    expect(macPackageScriptSource).toContain("Xcode 26 or later is required");
-    expect(engineeringBuilderSource).toContain('icon: "build/icon.png"');
+    expect(macPackageScriptSource).not.toContain("actool");
+    expect(macPackageScriptSource).not.toContain("Xcode 26");
+    expect(engineeringBuilderSource).toContain('icon: "build/icon.icns"');
     expect(engineeringBuilderSource).toContain("identity: null");
     expect(engineeringBuilderSource).toContain(
       'afterPack: "scripts/apply-engineering-package-permissions.cjs"',
