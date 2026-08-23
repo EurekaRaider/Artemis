@@ -119,12 +119,13 @@ describe("EncryptedSettingsStore", () => {
     ).rejects.toThrow("disclosure state");
   });
 
-  it("serializes concurrent preference writes without losing either value", async () => {
+  it("preserves queued preference changes when another write starts", async () => {
     const { filePath, store } = await createStore();
-    await Promise.all([
-      store.setTemporaryConversationsOpen(false),
-      store.setProjectSidebarWidth(319),
-    ]);
+    const temporaryWrite = store.setTemporaryConversationsOpen(false);
+    const sidebarWidthWrite = store.setProjectSidebarWidth(319);
+    await temporaryWrite;
+    const themeWrite = store.setThemePreference("dark");
+    await Promise.all([sidebarWidthWrite, themeWrite]);
 
     const reopened = new EncryptedSettingsStore(
       filePath,
@@ -132,6 +133,7 @@ describe("EncryptedSettingsStore", () => {
     );
     await expect(reopened.temporaryConversationsOpen()).resolves.toBe(false);
     await expect(reopened.projectSidebarWidth()).resolves.toBe(319);
+    await expect(reopened.themePreference()).resolves.toBe("dark");
   });
 
   it("persists a validated workspace dock width", async () => {

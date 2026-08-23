@@ -832,7 +832,6 @@ export class EncryptedSettingsStore {
         { encoding: "utf8", mode: 0o600 },
       );
       await rename(temporaryPath, this.filePath);
-      this.settings = snapshot;
     });
     this.persistence = operation.catch(() => undefined);
     await operation;
