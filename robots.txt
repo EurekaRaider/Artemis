@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /Artemis/
+Sitemap: https://eurekaraider.github.io/Artemis/sitemap.xml
