@@ -8222,6 +8222,15 @@ function createMainWindow(): BrowserWindow {
                   return;
                 }
                 if (view.startsWith('temporary')) {
+                  if (view === 'temporary-double-toggle') {
+                    const disclosure = document.querySelector(
+                      '.temporary-conversations .project-select',
+                    );
+                    disclosure?.click();
+                    disclosure?.click();
+                    await wait(800);
+                    return;
+                  }
                   if (view === 'temporary-collapsed') {
                     document
                       .querySelector('.temporary-conversations .project-select')

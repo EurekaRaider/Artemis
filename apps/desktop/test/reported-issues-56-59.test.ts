@@ -11,6 +11,7 @@ const appSource = source("../src/renderer/App.tsx");
 const apiSource = source("../src/shared/api.ts");
 const mainSource = source("../src/main/main.ts");
 const preloadSource = source("../src/preload/preload.ts");
+const settingsStoreSource = source("../src/main/encrypted-settings-store.ts");
 const stylesSource = source("../src/renderer/styles.css");
 
 function sectionBetween(start: string, end: string): string {
@@ -31,8 +32,9 @@ describe("reported issues #56–#59", () => {
     expect(appSource).toContain(
       "const [temporaryConversationsOpen, setTemporaryConversationsOpen] =",
     );
+    expect(appSource).toContain("createBooleanPreferencePersistenceQueue");
     expect(appSource).toContain(
-      "window.artemis.setTemporaryConversationsOpen(nextOpen)",
+      "window.artemis.setTemporaryConversationsOpen(open)",
     );
     expect(apiSource).toContain(
       "setTemporaryConversationsOpen(open: boolean): Promise<boolean>;",
@@ -45,7 +47,14 @@ describe("reported issues #56–#59", () => {
       ".temporary-conversations .project-new-thread",
     );
     expect(mainSource).toContain("view === 'temporary-collapsed'");
+    expect(mainSource).toContain("view === 'temporary-double-toggle'");
     expect(mainSource).toContain("temporaryConversationsOpen:");
+    expect(settingsStoreSource).toContain(
+      "const snapshot = structuredClone(settings);",
+    );
+    expect(settingsStoreSource).toContain(
+      "const operation = this.persistence.then(async () =>",
+    );
     expect(temporarySection).toContain(
       "aria-expanded={temporaryConversationsOpen}",
     );

@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="990 passing tests" src="https://img.shields.io/badge/Tests-990_passing-2EA44F" />
+  <img alt="993 passing tests" src="https://img.shields.io/badge/Tests-993_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -1053,11 +1053,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **990 passing tests** (6 skipped):
+The current full test run contains **993 passing tests** (6 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       65 |       23 |        111 |     791 |   **990** |
+|       65 |       23 |        111 |     794 |   **993** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory

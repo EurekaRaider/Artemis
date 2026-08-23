@@ -174,6 +174,10 @@ import {
   type ProjectOrderPersistenceQueue,
 } from "./project-order.js";
 import {
+  createBooleanPreferencePersistenceQueue,
+  type BooleanPreferencePersistenceQueue,
+} from "./boolean-preference-persistence.js";
+import {
   reduceTurnFailureNotices,
   type TurnFailureNotices,
 } from "./turn-failure-notices.js";
@@ -1585,6 +1589,30 @@ export function App() {
       },
     });
   }
+  const temporaryConversationsPersistence = useRef<
+    BooleanPreferencePersistenceQueue | undefined
+  >(undefined);
+  if (!temporaryConversationsPersistence.current) {
+    temporaryConversationsPersistence.current =
+      createBooleanPreferencePersistenceQueue({
+        save: (open) => window.artemis.setTemporaryConversationsOpen(open),
+        onPersisted: (open) => {
+          setTemporaryConversationsOpen(open);
+          setRuntimeSettings((current) =>
+            current
+              ? { ...current, temporaryConversationsOpen: open }
+              : current,
+          );
+        },
+        onRejected: (open, error) => {
+          setTemporaryConversationsOpen(open);
+          setToast({
+            error: true,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        },
+      });
+  }
   const [turnFailureNotices, setTurnFailureNotices] =
     useState<TurnFailureNotices>({});
   const [editingQueuedMessage, setEditingQueuedMessage] = useState<{
@@ -1758,24 +1786,11 @@ export function App() {
     });
   }, []);
 
-  const toggleTemporaryConversations = useCallback(async () => {
-    const nextOpen = !temporaryConversationsOpen;
-    try {
-      const persisted =
-        await window.artemis.setTemporaryConversationsOpen(nextOpen);
-      setTemporaryConversationsOpen(persisted);
-      setRuntimeSettings((current) =>
-        current
-          ? { ...current, temporaryConversationsOpen: persisted }
-          : current,
-      );
-    } catch (error) {
-      setToast({
-        error: true,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [setToast, temporaryConversationsOpen]);
+  const toggleTemporaryConversations = useCallback(() => {
+    setTemporaryConversationsOpen(
+      temporaryConversationsPersistence.current!.toggle(),
+    );
+  }, []);
 
   const requestConfirmation = useCallback(
     (message: string, tone: ConfirmationTone = "default") =>
@@ -2791,7 +2806,9 @@ export function App() {
 
   useEffect(() => {
     setTemporaryConversationsOpen(
-      runtimeSettings?.temporaryConversationsOpen ?? true,
+      temporaryConversationsPersistence.current!.initialize(
+        runtimeSettings?.temporaryConversationsOpen ?? true,
+      ),
     );
   }, [runtimeSettings?.temporaryConversationsOpen]);
 

@@ -214,6 +214,8 @@ export function parseRuntimeCredential(value: unknown): RuntimeCredential {
 
 export class EncryptedSettingsStore {
   private settings: PersistedSettings | undefined;
+  private loading: Promise<PersistedSettings> | undefined;
+  private persistence = Promise.resolve();
 
   constructor(
     private readonly filePath: string,
@@ -689,6 +691,15 @@ export class EncryptedSettingsStore {
     if (this.settings) {
       return this.settings;
     }
+    this.loading ??= this.loadUncached();
+    try {
+      return await this.loading;
+    } finally {
+      this.loading = undefined;
+    }
+  }
+
+  private async loadUncached(): Promise<PersistedSettings> {
     try {
       const parsed = JSON.parse(
         await readFile(this.filePath, "utf8"),
@@ -811,14 +822,19 @@ export class EncryptedSettingsStore {
   }
 
   private async save(settings: PersistedSettings): Promise<void> {
-    await mkdir(dirname(this.filePath), { recursive: true });
-    const temporaryPath = `${this.filePath}.tmp`;
-    await writeFile(
-      temporaryPath,
-      `${JSON.stringify(settings, undefined, 2)}\n`,
-      { encoding: "utf8", mode: 0o600 },
-    );
-    await rename(temporaryPath, this.filePath);
-    this.settings = settings;
+    const snapshot = structuredClone(settings);
+    const operation = this.persistence.then(async () => {
+      await mkdir(dirname(this.filePath), { recursive: true });
+      const temporaryPath = `${this.filePath}.tmp`;
+      await writeFile(
+        temporaryPath,
+        `${JSON.stringify(snapshot, undefined, 2)}\n`,
+        { encoding: "utf8", mode: 0o600 },
+      );
+      await rename(temporaryPath, this.filePath);
+      this.settings = snapshot;
+    });
+    this.persistence = operation.catch(() => undefined);
+    await operation;
   }
 }

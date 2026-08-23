@@ -119,6 +119,21 @@ describe("EncryptedSettingsStore", () => {
     ).rejects.toThrow("disclosure state");
   });
 
+  it("serializes concurrent preference writes without losing either value", async () => {
+    const { filePath, store } = await createStore();
+    await Promise.all([
+      store.setTemporaryConversationsOpen(false),
+      store.setProjectSidebarWidth(319),
+    ]);
+
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.temporaryConversationsOpen()).resolves.toBe(false);
+    await expect(reopened.projectSidebarWidth()).resolves.toBe(319);
+  });
+
   it("persists a validated workspace dock width", async () => {
     const { filePath, store } = await createStore();
     await expect(store.workspaceDockWidth()).resolves.toBeUndefined();
