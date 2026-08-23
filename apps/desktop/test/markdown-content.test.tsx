@@ -112,10 +112,10 @@ describe("MarkdownContent", () => {
     );
     expect(html).toContain('width="92"');
     expect(html).toContain(
-      'href="https://github.com/williamjinj-eng/Artemis/actions/workflows/ci.yml"',
+      'href="https://github.com/EurekaRaider/Artemis/actions/workflows/ci.yml"',
     );
     expect(html).toContain(
-      'src="https://github.com/williamjinj-eng/Artemis/actions/workflows/ci.yml/badge.svg"',
+      'src="https://github.com/EurekaRaider/Artemis/actions/workflows/ci.yml/badge.svg"',
     );
     expect(html).toContain(
       'src="https://img.shields.io/badge/React-19-149ECA?logo=react&amp;logoColor=white"',
