@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Node.js 24
         uses: actions/setup-node@v7
@@ -63,7 +63,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Node.js 24
         uses: actions/setup-node@v7
@@ -81,7 +81,7 @@ jobs:
         run: npm run verify:win-native -w @artemis/desktop
 
       - name: Upload Windows x64 package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-windows-x64
           path: apps/desktop/release/Artemis-Windows-x64-*.zip
@@ -111,7 +111,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Verify native runner architecture
         shell: bash
@@ -153,7 +153,7 @@ jobs:
           /usr/bin/unzip -t "$zip"
 
       - name: Upload macOS ${{ matrix.arch }} packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-macos-${{ matrix.arch }}
           path: |
@@ -175,10 +175,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download release packages
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: release-assets
