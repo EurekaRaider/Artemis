@@ -333,6 +333,7 @@ summary:focus-visible {
   border-inline-start: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   min-height: 0;
   min-width: 0;
   opacity: 1;
@@ -461,7 +462,7 @@ summary:focus-visible {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 10px 16px;
+  padding: 4px 10px 16px;
 }
 
 .project-group + .project-group {
@@ -573,6 +574,10 @@ summary:focus-visible {
   flex-direction: column;
   gap: 2px;
   padding-left: 0;
+}
+
+.project-thread-list[hidden] {
+  display: none;
 }
 
 .nested-project {
@@ -735,6 +740,11 @@ summary:focus-visible {
 .project-new-thread .icon {
   height: 14px;
   width: 14px;
+}
+
+.project-collection .project-new-thread,
+.temporary-conversations > .project-row .project-new-thread {
+  opacity: 1;
 }
 
 .project-row:hover .project-new-thread,

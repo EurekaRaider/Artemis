@@ -60,6 +60,7 @@ interface PersistedSettings {
   profileAvatar?: string;
   projectOrder?: string[];
   projectSidebarWidth?: number;
+  temporaryConversationsOpen?: boolean;
   workspaceDockWidth?: number;
 }
 
@@ -361,6 +362,20 @@ export class EncryptedSettingsStore {
     settings.projectSidebarWidth = validated;
     await this.save(settings);
     return validated;
+  }
+
+  async temporaryConversationsOpen(): Promise<boolean> {
+    return (await this.load()).temporaryConversationsOpen ?? true;
+  }
+
+  async setTemporaryConversationsOpen(open: boolean): Promise<boolean> {
+    if (typeof open !== "boolean") {
+      throw new Error("Temporary conversation disclosure state is invalid");
+    }
+    const settings = await this.load();
+    settings.temporaryConversationsOpen = open;
+    await this.save(settings);
+    return open;
   }
 
   async setWorkspaceDockWidth(width: number): Promise<number> {
@@ -721,6 +736,8 @@ export class EncryptedSettingsStore {
               return true;
             }
           })()) ||
+        (parsed.temporaryConversationsOpen !== undefined &&
+          typeof parsed.temporaryConversationsOpen !== "boolean") ||
         (parsed.workspaceDockWidth !== undefined &&
           (() => {
             try {
