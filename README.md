@@ -10,7 +10,7 @@
 persistent tasks, guarded execution modes, Git-native Review, real terminals, automations, reusable memory, Skills, MCP, and parallel Agents.**
 
 <p>
-  <a href="https://github.com/williamjinj-eng/Artemis/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/williamjinj-eng/Artemis/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://github.com/EurekaRaider/Artemis/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/EurekaRaider/Artemis/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://www.electronjs.org/"><img alt="Electron 43" src="https://img.shields.io/badge/Electron-43-47848F?logo=electron&logoColor=white" /></a>
   <a href="https://react.dev/"><img alt="React 19" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white" /></a>
   <a href="https://pi.dev/"><img alt="Pi 0.84.2" src="https://img.shields.io/badge/Agent_core-Pi_0.84.2-8257E5" /></a>
