@@ -174,6 +174,10 @@ import {
   type ProjectOrderPersistenceQueue,
 } from "./project-order.js";
 import {
+  createBooleanPreferencePersistenceQueue,
+  type BooleanPreferencePersistenceQueue,
+} from "./boolean-preference-persistence.js";
+import {
   reduceTurnFailureNotices,
   type TurnFailureNotices,
 } from "./turn-failure-notices.js";
@@ -302,6 +306,8 @@ const copy = {
     projects: "Projects",
     expandProjects: "Expand projects",
     collapseProjects: "Collapse projects",
+    expandTemporaryConversations: "Expand temporary chats",
+    collapseTemporaryConversations: "Collapse temporary chats",
     resizeProjectsSidebar: "Resize conversations sidebar",
     temporaryConversations: "Temporary chats",
     temporaryConversation: "Temporary chat",
@@ -536,6 +542,8 @@ const copy = {
     projects: "项目",
     expandProjects: "展开项目",
     collapseProjects: "收起项目",
+    expandTemporaryConversations: "展开临时会话",
+    collapseTemporaryConversations: "收起临时会话",
     resizeProjectsSidebar: "调整会话侧栏宽度",
     temporaryConversations: "临时会话",
     temporaryConversation: "临时会话",
@@ -1466,6 +1474,8 @@ export function App() {
   const [mode, setMode] = useState<RunMode>("execute");
   const [query, setQuery] = useState("");
   const [projectsOpen, setProjectsOpen] = useState(true);
+  const [temporaryConversationsOpen, setTemporaryConversationsOpen] =
+    useState(true);
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -1578,6 +1588,30 @@ export function App() {
         });
       },
     });
+  }
+  const temporaryConversationsPersistence = useRef<
+    BooleanPreferencePersistenceQueue | undefined
+  >(undefined);
+  if (!temporaryConversationsPersistence.current) {
+    temporaryConversationsPersistence.current =
+      createBooleanPreferencePersistenceQueue({
+        save: (open) => window.artemis.setTemporaryConversationsOpen(open),
+        onPersisted: (open) => {
+          setTemporaryConversationsOpen(open);
+          setRuntimeSettings((current) =>
+            current
+              ? { ...current, temporaryConversationsOpen: open }
+              : current,
+          );
+        },
+        onRejected: (open, error) => {
+          setTemporaryConversationsOpen(open);
+          setToast({
+            error: true,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        },
+      });
   }
   const [turnFailureNotices, setTurnFailureNotices] =
     useState<TurnFailureNotices>({});
@@ -1750,6 +1784,12 @@ export function App() {
       else next.add(projectId);
       return next;
     });
+  }, []);
+
+  const toggleTemporaryConversations = useCallback(() => {
+    setTemporaryConversationsOpen(
+      temporaryConversationsPersistence.current!.toggle(),
+    );
   }, []);
 
   const requestConfirmation = useCallback(
@@ -2763,6 +2803,14 @@ export function App() {
       setProjectSidebarWidth(runtimeSettings.projectSidebarWidth);
     }
   }, [projectSidebarResizing, runtimeSettings?.projectSidebarWidth]);
+
+  useEffect(() => {
+    setTemporaryConversationsOpen(
+      temporaryConversationsPersistence.current!.initialize(
+        runtimeSettings?.temporaryConversationsOpen ?? true,
+      ),
+    );
+  }, [runtimeSettings?.temporaryConversationsOpen]);
 
   useEffect(() => {
     if (
@@ -4757,13 +4805,6 @@ export function App() {
                 value={query}
               />
             </label>
-            <button
-              className="icon-button"
-              onClick={() => void openProject()}
-              title={t.openProject}
-            >
-              <PlusIcon />
-            </button>
           </div>
         </div>
         <div className="project-tree">
@@ -4788,6 +4829,15 @@ export function App() {
                 type="button"
               >
                 <span className="project-title">{t.projects}</span>
+              </button>
+              <button
+                aria-label={t.openProject}
+                className="project-new-thread"
+                onClick={() => void openProject()}
+                title={t.openProject}
+                type="button"
+              >
+                <PlusIcon />
               </button>
             </div>
           </section>
@@ -5107,12 +5157,30 @@ export function App() {
           })}
           <section className="project-group temporary-conversations">
             <div className={`project-row ${!activeProjectId ? "active" : ""}`}>
-              <span className="project-toggle" aria-hidden="true">
-                <FolderIcon open />
-              </span>
               <button
+                aria-controls="temporary-conversation-list"
+                aria-expanded={temporaryConversationsOpen}
+                aria-label={
+                  temporaryConversationsOpen
+                    ? t.collapseTemporaryConversations
+                    : t.expandTemporaryConversations
+                }
+                className="project-toggle"
+                onClick={() => void toggleTemporaryConversations()}
+                title={
+                  temporaryConversationsOpen
+                    ? t.collapseTemporaryConversations
+                    : t.expandTemporaryConversations
+                }
+                type="button"
+              >
+                <FolderIcon open={temporaryConversationsOpen} />
+              </button>
+              <button
+                aria-controls="temporary-conversation-list"
+                aria-expanded={temporaryConversationsOpen}
                 className="project-select"
-                onClick={beginTemporaryConversation}
+                onClick={() => void toggleTemporaryConversations()}
                 title={t.temporaryConversations}
                 type="button"
               >
@@ -5130,7 +5198,11 @@ export function App() {
                 <PlusIcon />
               </button>
             </div>
-            <div className="project-thread-list">
+            <div
+              className="project-thread-list"
+              hidden={!temporaryConversationsOpen}
+              id="temporary-conversation-list"
+            >
               {temporaryThreads.map((thread) => (
                 <div
                   className={`project-thread-row ${thread.id === activeThreadId ? "selected" : ""}`}

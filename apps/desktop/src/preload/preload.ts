@@ -160,6 +160,8 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.settingsProjectOrderSet, order),
   setProjectSidebarWidth: (width) =>
     ipcRenderer.invoke(IPC.settingsProjectSidebarWidthSet, width),
+  setTemporaryConversationsOpen: (open) =>
+    ipcRenderer.invoke(IPC.settingsTemporaryConversationsOpenSet, open),
   setWorkspaceDockWidth: (width) =>
     ipcRenderer.invoke(IPC.settingsWorkspaceDockWidthSet, width),
   saveApiKey: (providerId, apiKey) =>

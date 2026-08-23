@@ -1447,6 +1447,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     profileAvatar,
     projectOrder,
     projectSidebarWidth,
+    temporaryConversationsOpen,
     workspaceDockWidth,
   ] = await Promise.all([
     getModelSettingsSnapshot(),
@@ -1461,6 +1462,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     settingsStore.profileAvatar(),
     settingsStore.projectOrder(),
     settingsStore.projectSidebarWidth(),
+    settingsStore.temporaryConversationsOpen(),
     settingsStore.workspaceDockWidth(),
   ]);
   return {
@@ -1486,6 +1488,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     ...(profileAvatar === undefined ? {} : { profileAvatar }),
     projectOrder,
     ...(projectSidebarWidth === undefined ? {} : { projectSidebarWidth }),
+    temporaryConversationsOpen,
     ...(workspaceDockWidth === undefined ? {} : { workspaceDockWidth }),
   };
 }
@@ -4311,6 +4314,15 @@ function registerIpc(): void {
         throw new Error("Agent settings are not ready.");
       }
       return settingsStore.setProjectSidebarWidth(width);
+    },
+  );
+  ipcMain.handle(
+    IPC.settingsTemporaryConversationsOpenSet,
+    async (_event, open: boolean): Promise<boolean> => {
+      if (!settingsStore) {
+        throw new Error("Agent settings are not ready.");
+      }
+      return settingsStore.setTemporaryConversationsOpen(open);
     },
   );
   ipcMain.handle(
@@ -8210,8 +8222,24 @@ function createMainWindow(): BrowserWindow {
                   return;
                 }
                 if (view.startsWith('temporary')) {
+                  if (view === 'temporary-double-toggle') {
+                    const disclosure = document.querySelector(
+                      '.temporary-conversations .project-select',
+                    );
+                    disclosure?.click();
+                    disclosure?.click();
+                    await wait(800);
+                    return;
+                  }
+                  if (view === 'temporary-collapsed') {
+                    document
+                      .querySelector('.temporary-conversations .project-select')
+                      ?.click();
+                    await wait(600);
+                    return;
+                  }
                   document
-                    .querySelector('.temporary-conversations .project-select')
+                    .querySelector('.temporary-conversations .project-new-thread')
                     ?.click();
                   await wait(600);
                   if (view === 'temporary-dock') {
@@ -8422,6 +8450,16 @@ function createMainWindow(): BrowserWindow {
                 );
                 const workspaceDockBounds = workspaceDock
                   ?.getBoundingClientRect();
+                const sidebarHeader = document.querySelector(".sidebar-header");
+                const sidebarHeaderBounds = sidebarHeader?.getBoundingClientRect();
+                const projectTree = document.querySelector(".project-tree");
+                const projectTreeBounds = projectTree?.getBoundingClientRect();
+                const temporaryDisclosure = document.querySelector(
+                  ".temporary-conversations .project-select",
+                );
+                const temporaryList = document.querySelector(
+                  "#temporary-conversation-list",
+                );
                 if (
                   environmentPanel &&
                   environmentBounds &&
@@ -8480,6 +8518,21 @@ function createMainWindow(): BrowserWindow {
                         width: workspaceDockBounds.width,
                       }
                     : null,
+                  sidebarHeaderBottom: sidebarHeaderBounds?.bottom ?? null,
+                  projectTreeTop: projectTreeBounds?.top ?? null,
+                  sidebarHeaderButtonCount:
+                    sidebarHeader?.querySelectorAll("button").length ?? 0,
+                  projectCreateButtonCount: document.querySelectorAll(
+                    ".project-collection > .project-row > .project-new-thread",
+                  ).length,
+                  temporaryCreateButtonCount: document.querySelectorAll(
+                    ".temporary-conversations > .project-row > .project-new-thread",
+                  ).length,
+                  temporaryConversationsOpen:
+                    temporaryDisclosure?.getAttribute("aria-expanded") === "true",
+                  temporaryConversationListVisible: temporaryList
+                    ? visible(temporaryList)
+                    : false,
                   interactiveCount: document.querySelectorAll(
                     "button, a[href], input, select, textarea, [role='button'], [role='tab']",
                   ).length,

@@ -301,6 +301,7 @@ export interface SettingsSnapshot {
   profileAvatar?: string;
   projectOrder?: string[];
   projectSidebarWidth?: number;
+  temporaryConversationsOpen?: boolean;
   workspaceDockWidth?: number;
   selection?: ModelSelection;
 }
@@ -826,6 +827,7 @@ export interface ArtemisApi {
   setProjectOrder(order: string[]): Promise<string[]>;
   setWorkspaceDockWidth(width: number): Promise<number>;
   setProjectSidebarWidth(width: number): Promise<number>;
+  setTemporaryConversationsOpen(open: boolean): Promise<boolean>;
   saveApiKey(providerId: string, apiKey: string): Promise<SettingsSnapshot>;
   saveProviderConnection(
     provider: ProviderConnection,
@@ -1034,6 +1036,8 @@ export const IPC = {
   settingsProfileAvatarSet: "artemis:settings-profile-avatar-set",
   settingsProjectOrderSet: "artemis:settings-project-order-set",
   settingsProjectSidebarWidthSet: "artemis:settings-project-sidebar-width-set",
+  settingsTemporaryConversationsOpenSet:
+    "artemis:settings-temporary-conversations-open-set",
   settingsWorkspaceDockWidthSet: "artemis:settings-workspace-dock-width-set",
   settingsApiKeySave: "artemis:settings-api-key-save",
   settingsProviderSave: "artemis:settings-provider-save",
