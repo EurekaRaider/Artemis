@@ -167,6 +167,33 @@ describe("desktop resilience regressions", () => {
     );
   });
 
+  it("removes a provider by migrating or clearing conversations that reference it", () => {
+    const providerDeleteHandler = sourceBetween(
+      mainSource,
+      "IPC.settingsProviderDelete,",
+      "IPC.settingsCredentialDelete,",
+    );
+
+    expect(providerDeleteHandler).not.toContain(
+      "Switch conversations using this provider before deleting it.",
+    );
+    expect(providerDeleteHandler).toContain("const referencingThreads =");
+    expect(providerDeleteHandler).toContain("activeTurns.size > 0");
+    expect(providerDeleteHandler).toContain(
+      "Stop the active turn before deleting its provider.",
+    );
+    expect(providerDeleteHandler).toContain(
+      "await resetAgentThreadsForToolChange()",
+    );
+    expect(providerDeleteHandler).toContain("store?.updateThread(thread.id, {");
+    expect(providerDeleteHandler).toContain(
+      "modelSelection: replacement?.selection ?? null",
+    );
+    expect(providerDeleteHandler).toContain(
+      "contextWindow: replacement?.contextWindow ?? null",
+    );
+  });
+
   it("builds the packaged ESM agent worker with a Node require bridge for @vercel/oidc", () => {
     const agentWorkerBuild = sourceBetween(
       buildSource,

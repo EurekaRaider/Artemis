@@ -4868,15 +4868,9 @@ function registerIpc(): void {
       if (!provider) {
         throw new Error("Provider connection was not found.");
       }
-      if (
-        store
-          ?.listThreads()
-          .some((thread) => thread.modelSelection?.providerId === provider.id)
-      ) {
-        throw new Error(
-          "Switch conversations using this provider before deleting it.",
-        );
-      }
+      const referencingThreads = (store?.listThreads() ?? []).filter(
+        (thread) => thread.modelSelection?.providerId === provider.id,
+      );
 
       const configuration = await settingsStore.runtimeConfiguration();
       configuration.providers = (configuration.providers ?? []).filter(
@@ -4886,9 +4880,15 @@ function registerIpc(): void {
 
       const deletesActiveProvider =
         configuration.selection?.providerId === provider.id;
+      if (
+        (deletesActiveProvider || referencingThreads.length > 0) &&
+        activeTurns.size > 0
+      ) {
+        throw new Error("Stop the active turn before deleting its provider.");
+      }
       let replacement:
         { selection: ModelSelection; contextWindow: number } | undefined;
-      if (deletesActiveProvider) {
+      if (deletesActiveProvider || referencingThreads.length > 0) {
         const fallbackProvider = configuration.providers.find(
           (candidate) => candidate.models.length > 0,
         );
@@ -4938,19 +4938,32 @@ function registerIpc(): void {
             };
           }
         }
+      }
 
+      if (deletesActiveProvider) {
         if (replacement) {
           configuration.selection = replacement.selection;
           configuration.contextWindow = replacement.contextWindow;
         } else {
           delete configuration.selection;
           delete configuration.contextWindow;
-          await resetAgentThreadsForToolChange();
         }
+      }
+      if (
+        referencingThreads.length > 0 ||
+        (deletesActiveProvider && !replacement)
+      ) {
+        await resetAgentThreadsForToolChange();
       }
 
       await applyAgentRuntime(configuration);
       await settingsStore.deleteProviderConnection(provider.id, replacement);
+      for (const thread of referencingThreads) {
+        store?.updateThread(thread.id, {
+          modelSelection: replacement?.selection ?? null,
+          contextWindow: replacement?.contextWindow ?? null,
+        });
+      }
       return getSettingsSnapshot();
     },
   );

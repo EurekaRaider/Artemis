@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="993 passing tests" src="https://img.shields.io/badge/Tests-993_passing-2EA44F" />
+  <img alt="994 passing tests" src="https://img.shields.io/badge/Tests-994_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -550,7 +550,10 @@ accepting a model that is missing from the live catalog.
 Stored conversations persist their own model, thinking level and usable context
 window. Applying a selection from the composer reconfigures only the active Pi
 session, while Settings continues to define defaults for new conversations.
-Providers or models still referenced by stored conversations cannot be removed.
+Deleting a custom provider or removing an added built-in model migrates idle
+conversations that reference it to an available fallback, or clears their
+per-conversation selection when no fallback exists. Active turns must be
+stopped first; editing a custom provider must retain models still in use.
 
 #### Ultra Mode
 
@@ -1033,14 +1036,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.12`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.13`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.12
-git push origin v1.4.12
+git tag v1.4.13
+git push origin v1.4.13
 ```
 
 ### Build and test matrix
@@ -1053,11 +1056,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **993 passing tests** (6 skipped):
+The current full test run contains **994 passing tests** (6 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       65 |       23 |        111 |     794 |   **993** |
+|       65 |       23 |        111 |     795 |   **994** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1086,13 +1089,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.12` packaging configuration produces:
+The `1.4.13` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.12.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.12.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.12.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.13.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.13.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.13.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They
