@@ -4262,7 +4262,10 @@ function registerIpc(): void {
         includeEvents: false,
       },
     );
-    return { ...snapshot, userName: userInfo().username };
+    return {
+      ...snapshot,
+      userName: smokeMode ? "Artemis" : userInfo().username,
+    };
   });
   ipcMain.handle(IPC.threadEvents, (_event, threadId: string) => {
     if (!store) {

@@ -15,7 +15,7 @@ const mainSource = source("../src/main/main.ts");
 const stylesSource = source("../src/renderer/styles.css");
 
 describe("current user profile integration", () => {
-  it("adds the OS login username to the existing isolated desktop snapshot", () => {
+  it("keeps the OS username private in smoke screenshots", () => {
     const snapshotHandlerStart = mainSource.indexOf(
       "ipcMain.handle(IPC.snapshot",
     );
@@ -42,7 +42,9 @@ describe("current user profile integration", () => {
     );
     expect(snapshotHandlerStart).toBeGreaterThan(-1);
     expect(snapshotHandlerEnd).toBeGreaterThan(snapshotHandlerStart);
-    expect(snapshotHandler).toContain("userName: userInfo().username");
+    expect(snapshotHandler).toContain(
+      'userName: smokeMode ? "Artemis" : userInfo().username',
+    );
   });
 
   it("replaces the sidebar Local label and passes the resolved username to Token Usage", () => {
