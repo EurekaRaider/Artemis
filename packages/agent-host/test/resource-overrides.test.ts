@@ -11,6 +11,16 @@ describe("agent resource overrides", () => {
 
     expect(prompts?.[0]).toBe(existingPrompt);
     expect(prompts?.at(-1)).toContain("You are Artemis");
+    expect(prompts?.at(-1)).toContain(
+      "a local desktop Agent for software development and everyday work",
+    );
+    expect(prompts?.at(-1)).toContain(
+      "coding, research, documents, connected services, and recurring work",
+    );
+    expect(prompts?.at(-1)).toContain(
+      "Do not present Artemis as only a coding or programming assistant",
+    );
+    expect(prompts?.at(-1)).not.toContain("the AI coding assistant");
     expect(prompts?.at(-1)).toContain('"Who are you?", "你是谁？"');
     expect(prompts?.at(-1)).toContain("Do not identify yourself as Pi");
     expect(prompts?.at(-1)).toContain(

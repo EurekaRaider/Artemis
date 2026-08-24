@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -20,7 +20,7 @@ const workerPath = resolve(
   "extension-worker.js",
 );
 
-describe("TrustedExtensionManager Windows integration", () => {
+describe("TrustedExtensionManager platform integration", () => {
   it.runIf(process.platform === "win32")(
     "loads and executes a Pi tool extension inside AppContainer",
     async () => {
@@ -94,6 +94,87 @@ describe("TrustedExtensionManager Windows integration", () => {
         insideWrite: true,
         outsideWrite: true,
       });
+    },
+    120_000,
+  );
+
+  it.runIf(
+    process.platform === "darwin" && Boolean(process.env.ARTEMIS_PACKAGED_APP),
+  )(
+    "loads and executes an extension with the packaged Electron runtime inside Seatbelt",
+    async () => {
+      const appPath = resolve(process.env.ARTEMIS_PACKAGED_APP!);
+      const executablePath = join(appPath, "Contents", "MacOS", "Artemis");
+      expect(
+        existsSync(executablePath),
+        `Packaged Electron runtime was not found at ${executablePath}`,
+      ).toBe(true);
+
+      const extensionPath = resolve(
+        testDirectory,
+        "fixtures",
+        "trusted-extension.mjs",
+      );
+      const config: TrustedExtensionConfig = {
+        id: "1234567890abcdef12345678",
+        name: "Integration fixture",
+        path: extensionPath,
+        sha256: await hashExtensionFile(extensionPath),
+        enabled: true,
+        allowNetwork: false,
+        trustedAt: new Date().toISOString(),
+      };
+      const originalExecPath = process.execPath;
+      const originalRunAsNode = process.env.ELECTRON_RUN_AS_NODE;
+      Object.defineProperty(process, "execPath", {
+        configurable: true,
+        enumerable: true,
+        value: executablePath,
+        writable: true,
+      });
+      process.env.ELECTRON_RUN_AS_NODE = "1";
+
+      try {
+        const manager = new TrustedExtensionManager(
+          "darwin",
+          undefined,
+          join(
+            appPath,
+            "Contents",
+            "Resources",
+            "app.asar",
+            "dist-electron",
+            "extension-worker.js",
+          ),
+        );
+        const status = (await manager.refresh([config], workspacePath))[0];
+        expect(status?.state, status?.error).toBe("ready");
+        expect(status?.tools.map((tool) => tool.toolName)).toContain("greet");
+        expect(
+          await manager.call(
+            config.id,
+            "greet",
+            { name: "PACKAGED_MACOS" },
+            workspacePath,
+            "execute",
+          ),
+        ).toEqual({
+          output: "EXTENSION_HELLO:PACKAGED_MACOS",
+          isError: false,
+        });
+      } finally {
+        Object.defineProperty(process, "execPath", {
+          configurable: true,
+          enumerable: true,
+          value: originalExecPath,
+          writable: true,
+        });
+        if (originalRunAsNode === undefined) {
+          delete process.env.ELECTRON_RUN_AS_NODE;
+        } else {
+          process.env.ELECTRON_RUN_AS_NODE = originalRunAsNode;
+        }
+      }
     },
     120_000,
   );

@@ -13,6 +13,7 @@ const settingsPanelSource = source("../src/renderer/SettingsPanel.tsx");
 const appSource = source("../src/renderer/App.tsx");
 const apiSource = source("../src/shared/api.ts");
 const packageJson = JSON.parse(source("../package.json")) as {
+  scripts: Record<string, string>;
   build: {
     mac?: { artifactName?: string; icon?: string };
     nsis?: unknown;
@@ -46,6 +47,45 @@ describe("desktop startup latency guardrails", () => {
       "await agentRuntimeReady",
     );
     expect(startup).not.toContain("await applyAgentRuntime();");
+  });
+
+  it("shows the first window before update recovery and terminal runtime preparation", () => {
+    const startup = mainSource.slice(mainSource.indexOf("app\n  .whenReady()"));
+    const createWindow = startup.indexOf("mainWindow = createMainWindow();");
+    const updateRecovery = startup.indexOf(
+      "releaseUpdateReady = releaseUpdateManager.initialize();",
+    );
+
+    expect(createWindow).toBeGreaterThanOrEqual(0);
+    expect(updateRecovery).toBeGreaterThan(createWindow);
+    expect(startup.slice(0, createWindow)).not.toContain(
+      "preparePackagedNodePtyRuntime(",
+    );
+    expect(mainSource).toContain("show: !smokeArtifacts");
+    expect(mainSource).toContain("await releaseUpdateReady");
+
+    const terminalOpen = mainSource.slice(
+      mainSource.indexOf("IPC.terminalOpen"),
+      mainSource.indexOf("IPC.terminalWrite"),
+    );
+    expect(terminalOpen).toContain("ensureNodePtyRuntime()");
+  });
+
+  it("records startup phases and exposes a native responsive-window check", () => {
+    for (const stage of [
+      "app-ready",
+      "diagnostics-ready",
+      "core-state-ready",
+      "window-created",
+      "renderer-ready",
+      "update-ready",
+    ]) {
+      expect(mainSource).toContain(`markStartupStage("${stage}")`);
+    }
+    expect(mainSource).toContain("startupTimings");
+    expect(packageJson.scripts["verify:environment-panel"]).toContain(
+      "verify-environment-panel-responsive.mjs",
+    );
   });
 
   it("loads installed MCP configuration without waiting for full settings", () => {

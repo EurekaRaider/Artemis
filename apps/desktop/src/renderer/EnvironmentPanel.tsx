@@ -23,25 +23,53 @@ import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
 
-// Preserve the centered 800px timeline and breathing room for the 304px panel.
-export const ENVIRONMENT_PANEL_MIN_WORKSPACE_WIDTH = 1_472;
 export const ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH = 328;
+export const ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH = 720;
 
-export function shouldAutoHideEnvironmentPanel(workspaceWidth: number) {
-  return workspaceWidth < ENVIRONMENT_PANEL_MIN_WORKSPACE_WIDTH;
+export interface EnvironmentPanelLayoutSpace {
+  workspaceWidth: number;
+  panelWidth: number;
+  layoutGap: number;
+  minimumConversationWidth: number;
+}
+
+export function environmentPanelConversationWidth(
+  layout: Readonly<EnvironmentPanelLayoutSpace>,
+) {
+  return Math.max(
+    0,
+    layout.workspaceWidth - layout.panelWidth - layout.layoutGap,
+  );
+}
+
+export function shouldAutoHideEnvironmentPanel(
+  layout: Readonly<EnvironmentPanelLayoutSpace>,
+) {
+  return (
+    environmentPanelConversationWidth(layout) < layout.minimumConversationWidth
+  );
 }
 
 export function environmentPanelVisibilityAfterResize(
   current: Readonly<{ open: boolean; autoHidden: boolean }>,
-  workspaceWidth: number,
+  layout: Readonly<EnvironmentPanelLayoutSpace>,
 ) {
-  if (shouldAutoHideEnvironmentPanel(workspaceWidth) && current.open) {
+  if (shouldAutoHideEnvironmentPanel(layout) && current.open) {
     return { open: false, autoHidden: true };
   }
-  if (!shouldAutoHideEnvironmentPanel(workspaceWidth) && current.autoHidden) {
+  if (!shouldAutoHideEnvironmentPanel(layout) && current.autoHidden) {
     return { open: true, autoHidden: false };
   }
   return current;
+}
+
+function cssPixels(
+  styles: CSSStyleDeclaration,
+  property: string,
+  fallback: number,
+) {
+  const value = Number.parseFloat(styles.getPropertyValue(property));
+  return Number.isFinite(value) ? value : fallback;
 }
 
 const labels = {
@@ -551,6 +579,30 @@ export function EnvironmentPanel({
     setOpen(openRef.current);
   }, []);
 
+  const syncVisibility = useCallback(() => {
+    const workspace = control.current?.closest(".workspace");
+    if (!(workspace instanceof HTMLElement)) return;
+    const styles = window.getComputedStyle(workspace);
+    const current = {
+      open: openRef.current,
+      autoHidden: autoHidden.current,
+    };
+    const next = environmentPanelVisibilityAfterResize(current, {
+      workspaceWidth: workspace.getBoundingClientRect().width,
+      panelWidth: cssPixels(styles, "--environment-panel-inline-size", 304),
+      layoutGap: cssPixels(styles, "--environment-panel-layout-gap", 24),
+      minimumConversationWidth: cssPixels(
+        styles,
+        "--environment-panel-min-conversation-inline-size",
+        ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH,
+      ),
+    });
+    if (next === current) return;
+    autoHidden.current = next.autoHidden;
+    openRef.current = next.open;
+    setOpen(next.open);
+  }, []);
+
   useLayoutEffect(() => {
     const workspace = control.current?.closest(".workspace");
     if (
@@ -560,32 +612,18 @@ export function EnvironmentPanel({
       return;
     }
 
-    const syncVisibility = (width: number) => {
-      const current = {
-        open: openRef.current,
-        autoHidden: autoHidden.current,
-      };
-      const next = environmentPanelVisibilityAfterResize(current, width);
-      if (next === current) return;
-      autoHidden.current = next.autoHidden;
-      openRef.current = next.open;
-      setOpen(next.open);
-    };
-    syncVisibility(workspace.getBoundingClientRect().width);
-    const observer = new window.ResizeObserver(([entry]) => {
-      syncVisibility(
-        entry?.contentRect.width ?? workspace.getBoundingClientRect().width,
-      );
-    });
+    syncVisibility();
+    const observer = new window.ResizeObserver(syncVisibility);
     observer.observe(workspace);
     return () => observer.disconnect();
-  }, []);
+  }, [syncVisibility]);
 
   useLayoutEffect(() => {
     autoHidden.current = false;
     openRef.current = !dockOpen;
     setOpen(!dockOpen);
-  }, [dockOpen]);
+    if (!dockOpen) syncVisibility();
+  }, [dockOpen, syncVisibility]);
 
   const loadGit = useCallback(async () => {
     const id = ++request.current;

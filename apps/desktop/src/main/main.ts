@@ -289,6 +289,10 @@ import {
   withBrowserAcceptLanguage,
 } from "../shared/browser-locale.js";
 import { resolveAppLocale } from "../shared/locales.js";
+import {
+  createStartupTiming,
+  type StartupTimingMark,
+} from "./startup-timing.js";
 
 const { autoUpdater } = electronUpdater;
 const smokeMode = Boolean(process.env.ARTEMIS_SMOKE_SCREENSHOT);
@@ -316,6 +320,7 @@ let store: AppStore | undefined;
 let agentProcess: AgentProcess | undefined;
 let terminalService: TerminalService | undefined;
 let packagedNodePtyRuntime: PreparedNodePtyRuntime | undefined;
+let packagedNodePtyRuntimeReady: Promise<void> | undefined;
 let settingsStore: EncryptedSettingsStore | undefined;
 let globalInstructionsStore: GlobalInstructionsStore | undefined;
 let configurationImportService: ConfigurationImportService | undefined;
@@ -331,6 +336,7 @@ let codexPluginService: CodexPluginService | undefined;
 let trustedExtensionStore: TrustedExtensionStore | undefined;
 let trustedExtensionManager: TrustedExtensionManager | undefined;
 let releaseUpdateManager: ReleaseUpdateManager | undefined;
+let releaseUpdateReady: Promise<void> = Promise.resolve();
 let diagnosticBundleService: DiagnosticBundleService | undefined;
 let agentCapacityController: AgentCapacityController | undefined;
 let agentCapacityTimer: ReturnType<typeof setInterval> | undefined;
@@ -349,6 +355,47 @@ let enabledMcpServerCount = 0;
 const AGENT_RUNTIME_CONFIGURATION_TIMEOUT_MS = 120_000;
 const MCP_REGISTRY_NPM_STARTUP_TIMEOUT_MS = 60_000;
 const memoryStores = new Map<string, MemoryStore>();
+const startupTiming = createStartupTiming();
+const startupTimings: StartupTimingMark[] = [];
+let recordedStartupTimingCount = 0;
+
+function markStartupStage(stage: string): void {
+  startupTimings.push(startupTiming.mark(stage));
+  while (
+    diagnosticBundleService &&
+    recordedStartupTimingCount < startupTimings.length
+  ) {
+    const timing = startupTimings[recordedStartupTimingCount];
+    if (!timing) break;
+    recordedStartupTimingCount += 1;
+    diagnosticBundleService.record({
+      source: "main",
+      severity: "info",
+      message: `Startup ${timing.stage}: ${timing.elapsedMs} ms total (+${timing.deltaMs} ms).`,
+    });
+  }
+}
+
+async function ensureNodePtyRuntime(): Promise<void> {
+  if (process.platform !== "darwin" || !app.isPackaged) return;
+  if (process.arch !== "arm64" && process.arch !== "x64") {
+    throw new Error(`Packaged terminals do not support macOS ${process.arch}.`);
+  }
+  packagedNodePtyRuntimeReady ??= preparePackagedNodePtyRuntime(
+    join(
+      process.resourcesPath,
+      "app.asar.unpacked",
+      "node_modules",
+      "node-pty",
+    ),
+    process.arch,
+  ).then((runtime) => {
+    packagedNodePtyRuntime = runtime;
+    configureNodePtyRuntime(runtime.moduleRoot);
+    markStartupStage("terminal-runtime-ready");
+  });
+  return packagedNodePtyRuntimeReady;
+}
 
 interface TurnLatencyTrace {
   turnId: string;
@@ -4446,12 +4493,14 @@ function registerIpc(): void {
     if (!releaseUpdateManager) {
       throw new Error("Update service is not ready.");
     }
+    await releaseUpdateReady;
     return releaseUpdateManager.check();
   });
   ipcMain.handle(IPC.updateInstall, async () => {
     if (!releaseUpdateManager) {
       throw new Error("Update service is not ready.");
     }
+    await releaseUpdateReady;
     await releaseUpdateManager.install();
   });
   ipcMain.handle(
@@ -6151,9 +6200,12 @@ function registerIpc(): void {
     if (!thread || thread.archived) {
       throw new Error("Active task not found.");
     }
-    const context = await resolveThreadWorkspace(thread);
+    const [context, shellConfiguration] = await Promise.all([
+      resolveThreadWorkspace(thread),
+      settingsStore.shellRuntimeConfiguration(),
+      ensureNodePtyRuntime(),
+    ]);
     const contract = getPlatformContract();
-    const shellConfiguration = await settingsStore.shellRuntimeConfiguration();
     return terminalService.open({
       threadId: thread.id,
       workspacePath: context.workspacePath,
@@ -7974,6 +8026,7 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
 function createMainWindow(): BrowserWindow {
   const smokeScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT;
   const smokeAccessibility = process.env.ARTEMIS_SMOKE_ACCESSIBILITY;
+  const smokeArtifacts = Boolean(smokeScreenshot || smokeAccessibility);
   const requestedSmokeWidth = Number(process.env.ARTEMIS_SMOKE_WINDOW_WIDTH);
   const requestedSmokeResizeWidth = Number(
     process.env.ARTEMIS_SMOKE_RESIZE_WIDTH,
@@ -7993,7 +8046,8 @@ function createMainWindow(): BrowserWindow {
     minHeight: 680,
     backgroundColor: windowBackgroundColor(),
     title: "Artemis",
-    show: false,
+    show: !smokeArtifacts,
+    enableLargerThanScreen: smokeArtifacts && process.platform === "darwin",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     webPreferences: {
       preload: join(import.meta.dirname, "preload.cjs"),
@@ -8007,14 +8061,16 @@ function createMainWindow(): BrowserWindow {
   if (smokeMode) {
     window.webContents.setZoomFactor(smokeScale);
   }
-  window.once("ready-to-show", () => {
-    if (smokeScreenshot) {
-      window.setPosition(-10_000, -10_000);
-      window.showInactive();
-    } else {
-      window.show();
-    }
-  });
+  if (smokeArtifacts) {
+    window.once("ready-to-show", () => {
+      if (smokeScreenshot) {
+        window.setPosition(-10_000, -10_000);
+        window.showInactive();
+      } else {
+        window.show();
+      }
+    });
+  }
   window.on("unresponsive", () => {
     diagnosticBundleService?.record({
       source: "renderer",
@@ -8095,6 +8151,12 @@ function createMainWindow(): BrowserWindow {
   } else {
     void window.loadFile(productionEntry);
   }
+
+  ipcMain.once(IPC.rendererReady, (event) => {
+    if (event.sender.id === window.webContents.id) {
+      markStartupStage("renderer-ready");
+    }
+  });
 
   if (smokeScreenshot || smokeAccessibility) {
     const readyTimeout = setTimeout(() => {
@@ -8461,6 +8523,11 @@ function createMainWindow(): BrowserWindow {
                 const conversation = document.querySelector(".conversation");
                 const conversationBounds = conversation
                   ?.getBoundingClientRect();
+                const workspace = document.querySelector(".workspace");
+                const workspaceBounds = workspace?.getBoundingClientRect();
+                const environmentTrigger = document.querySelector(
+                  ".environment-trigger",
+                );
                 const workspaceDock = document.querySelector(
                   ".workspace-tool-dock",
                 );
@@ -8494,6 +8561,10 @@ function createMainWindow(): BrowserWindow {
                   documentLanguage: document.documentElement.lang,
                   documentDirection: document.documentElement.dir,
                   title: document.title,
+                  windowInnerWidth: window.innerWidth,
+                  workspaceWidth: workspaceBounds?.width ?? null,
+                  environmentPanelOpen:
+                    environmentTrigger?.getAttribute("aria-expanded") === "true",
                   environmentPanel: environmentBounds
                     ? {
                         visible: visible(environmentPanel),
@@ -8558,7 +8629,11 @@ function createMainWindow(): BrowserWindow {
             `)) as Record<string, unknown>;
             await writeFile(
               smokeAccessibility,
-              `${JSON.stringify({ ...result, zoomFactor: smokeScale }, undefined, 2)}\n`,
+              `${JSON.stringify(
+                { ...result, zoomFactor: smokeScale, startupTimings },
+                undefined,
+                2,
+              )}\n`,
               "utf8",
             );
           }
@@ -8594,6 +8669,7 @@ app.on("render-process-gone", (_event, _contents, details) => {
 app
   .whenReady()
   .then(async () => {
+    markStartupStage("app-ready");
     applyMacDockIcon();
     if (app.isPackaged && process.platform === "win32") {
       await ensureWindowsPackageAccess({
@@ -8617,6 +8693,7 @@ app
       join(app.getPath("userData"), "diagnostics", "events.json"),
       [app.getPath("home"), app.getPath("userData"), app.getPath("temp")],
     );
+    markStartupStage("diagnostics-ready");
     store = new AppStore(join(app.getPath("userData"), "artemis.sqlite"));
     store.recoverInterruptedThreads();
     store.recoverInterruptedAutomationRuns();
@@ -8644,6 +8721,7 @@ app
       languagePreference,
       app.getPreferredSystemLanguages(),
     );
+    markStartupStage("core-state-ready");
     configureBrowserLocaleSession();
     await seedSmokeEnvironmentFixture();
     seedSmokeUserInputFixture();
@@ -8740,26 +8818,6 @@ app
         mainWindow?.webContents.send(IPC.updateStatus, status);
       },
     );
-    await releaseUpdateManager.initialize();
-    if (process.platform === "darwin" && app.isPackaged) {
-      if (process.arch !== "arm64" && process.arch !== "x64") {
-        throw new Error(
-          `Packaged terminals do not support macOS ${process.arch}.`,
-        );
-      }
-      packagedNodePtyRuntime = await preparePackagedNodePtyRuntime(
-        join(
-          process.resourcesPath,
-          "app.asar.unpacked",
-          "node_modules",
-          "node-pty",
-        ),
-        process.arch,
-      );
-      configureNodePtyRuntime(packagedNodePtyRuntime.moduleRoot);
-    } else {
-      configureNodePtyRuntime();
-    }
     terminalService = new TerminalService(process.platform, {
       onData(terminalId, data) {
         mainWindow?.webContents.send(IPC.terminalData, { terminalId, data });
@@ -8874,17 +8932,43 @@ app
     });
     registerIpc();
     mainWindow = createMainWindow();
+    markStartupStage("window-created");
+    releaseUpdateReady = releaseUpdateManager.initialize();
+    void releaseUpdateReady.then(
+      () => markStartupStage("update-ready"),
+      (error) => {
+        diagnosticBundleService?.record({
+          source: "main",
+          severity: "error",
+          message: `Update recovery did not finish initializing: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        });
+      },
+    );
     automationScheduler.start();
     mainWindow.webContents.once("did-finish-load", () => {
-      void releaseUpdateManager?.markHealthy();
-      if (
-        app.isPackaged &&
-        releaseUpdateManager?.getStatus().state !== "disabled"
-      ) {
-        setTimeout(() => {
-          void releaseUpdateManager?.check();
-        }, 5_000);
-      }
+      void releaseUpdateReady
+        .then(async () => {
+          await releaseUpdateManager?.markHealthy();
+          if (
+            app.isPackaged &&
+            releaseUpdateManager?.getStatus().state !== "disabled"
+          ) {
+            setTimeout(() => {
+              void releaseUpdateManager?.check().catch((error) => {
+                diagnosticBundleService?.record({
+                  source: "main",
+                  severity: "warning",
+                  message: `Background update check failed: ${
+                    error instanceof Error ? error.message : String(error)
+                  }`,
+                });
+              });
+            }, 5_000);
+          }
+        })
+        .catch(() => undefined);
     });
 
     app.on("activate", () => {
@@ -8915,7 +8999,12 @@ app.on("before-quit", () => {
   automationScheduler?.stop();
   stopAgentCapacityMonitoring();
   terminalService?.dispose();
-  void packagedNodePtyRuntime?.dispose();
+  if (packagedNodePtyRuntimeReady) {
+    void packagedNodePtyRuntimeReady.then(
+      () => packagedNodePtyRuntime?.dispose(),
+      () => undefined,
+    );
+  }
   void mcpClientManager?.dispose();
   agentProcess?.dispose();
   store?.close();

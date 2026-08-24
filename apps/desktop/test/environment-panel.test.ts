@@ -12,7 +12,8 @@ import type {
 import type { ProjectGitInfo } from "../src/shared/api.js";
 import { childAgentMarkForIdentity } from "../src/renderer/ChildAgentIcon.js";
 import {
-  ENVIRONMENT_PANEL_MIN_WORKSPACE_WIDTH,
+  ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH,
+  environmentPanelConversationWidth,
   environmentPanelVisibilityAfterResize,
   environmentAgentCounts,
   environmentDisplayAgents,
@@ -38,6 +39,13 @@ const copy = {
   synced: "synced",
   detachedBlocked: "switch branch",
 };
+
+const panelLayout = (workspaceWidth: number) => ({
+  workspaceWidth,
+  panelWidth: 304,
+  layoutGap: 24,
+  minimumConversationWidth: ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH,
+});
 
 function gitInfo(overrides: Partial<ProjectGitInfo> = {}): ProjectGitInfo {
   return {
@@ -177,11 +185,15 @@ describe("task environment panel state", () => {
   });
 
   it("keeps the timeline centered and auto-hides the panel before they overlap", () => {
-    expect(ENVIRONMENT_PANEL_MIN_WORKSPACE_WIDTH).toBe(1_472);
-    expect(shouldAutoHideEnvironmentPanel(1_471)).toBe(true);
-    expect(shouldAutoHideEnvironmentPanel(1_472)).toBe(false);
+    expect(environmentPanelConversationWidth(panelLayout(1_047))).toBe(719);
+    expect(shouldAutoHideEnvironmentPanel(panelLayout(1_047))).toBe(true);
+    expect(shouldAutoHideEnvironmentPanel(panelLayout(1_048))).toBe(false);
     expect(panelSource).toContain('closest(".workspace")');
     expect(panelSource).toContain("new window.ResizeObserver");
+    expect(panelSource).toContain("window.getComputedStyle(workspace)");
+    expect(stylesSource).toContain(
+      "--environment-panel-min-conversation-inline-size: 720px",
+    );
     expect(stylesSource).not.toContain(
       '.workspace:has(.environment-trigger[aria-expanded="true"]) .timeline-scroll',
     );
@@ -210,17 +222,16 @@ describe("task environment panel state", () => {
   it("restores the panel after an auto-hidden narrow layout becomes wide", () => {
     const autoHidden = environmentPanelVisibilityAfterResize(
       { open: true, autoHidden: false },
-      1_471,
+      panelLayout(1_047),
     );
     expect(autoHidden).toEqual({ open: false, autoHidden: true });
-    expect(environmentPanelVisibilityAfterResize(autoHidden, 1_472)).toEqual({
-      open: true,
-      autoHidden: false,
-    });
+    expect(
+      environmentPanelVisibilityAfterResize(autoHidden, panelLayout(1_048)),
+    ).toEqual({ open: true, autoHidden: false });
     expect(
       environmentPanelVisibilityAfterResize(
         { open: false, autoHidden: false },
-        1_472,
+        panelLayout(1_048),
       ),
     ).toEqual({ open: false, autoHidden: false });
   });
@@ -252,6 +263,8 @@ describe("task environment panel state", () => {
       "document.querySelector('.environment-trigger')?.click()",
     );
     expect(mainSource).toContain("environment-conversation-overlap");
+    expect(mainSource).toContain("environmentPanelOpen");
+    expect(mainSource).toContain("workspaceWidth");
     expect(mainSource).toContain('type: "mcp.tool.used"');
     expect(mainSource).toContain('type: "task.source.added"');
   });

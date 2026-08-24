@@ -15,6 +15,7 @@ import {
   hashExtensionFile,
   type TrustedExtensionConfig,
 } from "./trusted-extension-store.js";
+import { macosAppRuntimeReadOnlyPaths } from "./macos-app-runtime.js";
 
 const RESULT_PREFIX = "ARTEMIS_EXTENSION_RESULT:";
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
@@ -278,6 +279,7 @@ export class TrustedExtensionManager {
       mode,
       network: config.allowNetwork && mode === "execute" ? "allow" : "deny",
       readOnlyPaths: [
+        ...macosAppRuntimeReadOnlyPaths(this.platform, process.execPath),
         readableRoot(this.workerPath),
         dirname(config.path),
       ].filter((path) => !pathIsInside(request.workspacePath, path)),

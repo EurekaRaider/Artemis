@@ -16,6 +16,10 @@ type FormatBashTranscript = (
   }>,
 ) => string | undefined;
 type SanitizeToolOutput = (output: string) => string;
+type ToolActivityKind = (
+  toolName: string,
+  input?: unknown,
+) => "read" | "write" | "search" | "bash" | "generic";
 type SummarizeToolActivity = (
   toolName: string,
   input: unknown,
@@ -46,6 +50,7 @@ const toolPresentation = (await import(modulePath).catch(() => ({}))) as {
   formatToolOutput?: FormatToolOutput;
   formatBashTranscript?: FormatBashTranscript;
   sanitizeToolOutput?: SanitizeToolOutput;
+  toolActivityKind?: ToolActivityKind;
   summarizeToolActivity?: SummarizeToolActivity;
   summarizeToolDetail?: SummarizeToolDetail;
   summarizeToolGroup?: SummarizeToolGroup;
@@ -267,7 +272,16 @@ describe("tool presentation", () => {
     expect(toolCard).not.toContain("JSON.stringify(tool.input, null, 2)");
   });
 
-  it("renders compact summaries with right-side disclosure and running shimmer", () => {
+  it("renders every operation kind with adjacent disclosure and running shimmer", () => {
+    expect(toolPresentation.toolActivityKind).toBeTypeOf("function");
+    if (!toolPresentation.toolActivityKind) return;
+
+    expect(
+      ["read", "write", "grep", "shell", "mcp_lookup"].map((toolName) =>
+        toolPresentation.toolActivityKind?.(toolName),
+      ),
+    ).toEqual(["read", "write", "search", "bash", "generic"]);
+
     const toolCard = appSource.slice(
       appSource.indexOf("function ToolActivityGroupCard"),
       appSource.indexOf("function Timeline"),
@@ -296,7 +310,13 @@ describe("tool presentation", () => {
     expect(toolCard).not.toContain("<strong>{tool.name}</strong>");
     expect(toolCard).not.toContain("<span>{tool.status}</span>");
     expect(toolCard).not.toContain("defaultOpen");
-    expect(stylesSource).toContain(
+    expect(stylesSource).toMatch(
+      /\.tool-summary-row\s*\{[\s\S]*?display: flex;[\s\S]*?gap: 9px;/u,
+    );
+    expect(stylesSource).toMatch(
+      /\.tool-disclosure\s*\{[\s\S]*?flex: 0 0 24px;/u,
+    );
+    expect(stylesSource).not.toContain(
       "grid-template-columns: 20px minmax(0, 1fr) 24px",
     );
     expect(stylesSource).toMatch(

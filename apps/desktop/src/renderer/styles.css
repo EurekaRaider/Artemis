@@ -924,6 +924,7 @@ summary:focus-visible {
 .workspace {
   --environment-panel-inline-size: 304px;
   --environment-panel-layout-gap: 24px;
+  --environment-panel-min-conversation-inline-size: 720px;
   background: var(--codex-workspace-bg);
   border-left: 1px solid var(--border);
   border-top: 1px solid var(--border);
@@ -2198,9 +2199,8 @@ button.environment-row:disabled {
 
 .tool-summary-row {
   align-items: center;
-  display: grid;
+  display: flex;
   gap: 9px;
-  grid-template-columns: 20px minmax(0, 1fr) 24px;
   list-style: none;
   min-height: 34px;
   padding: 3px 0;
@@ -2228,6 +2228,7 @@ button.environment-row:disabled {
 }
 
 .tool-activity-icon {
+  flex: 0 0 20px;
   height: 20px;
   width: 20px;
 }
@@ -2267,6 +2268,7 @@ button.environment-row:disabled {
   color: var(--muted-2);
   cursor: pointer;
   display: inline-flex;
+  flex: 0 0 24px;
   height: 24px;
   justify-content: center;
   transition:

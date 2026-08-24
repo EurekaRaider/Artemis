@@ -40,6 +40,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 import type { McpServerConfig, McpServerStatus } from "../shared/api.js";
+import { macosAppRuntimeReadOnlyPaths } from "./macos-app-runtime.js";
 
 interface McpTool {
   name: string;
@@ -248,11 +249,14 @@ function commandReadOnlyPaths(
       }
     }
   }
-  const roots = candidates.map((candidate) =>
-    platform === "darwin"
-      ? posixRuntimeReadRoot(candidate, homePath)
-      : candidate,
-  );
+  const roots = [
+    ...candidates.map((candidate) =>
+      platform === "darwin"
+        ? posixRuntimeReadRoot(candidate, homePath)
+        : candidate,
+    ),
+    ...macosAppRuntimeReadOnlyPaths(platform, command.executable),
+  ];
   if (platform === "darwin") {
     for (const root of [...roots]) {
       try {
