@@ -8326,6 +8326,29 @@ function createMainWindow(): BrowserWindow {
                   }
                   return;
                 }
+                if (view.startsWith('workspace-tab-menu')) {
+                  document.querySelector('.right-sidebar-toggle')?.click();
+                  await wait(500);
+                  document.querySelector('.workspace-tab-add')?.click();
+                  await wait(300);
+                  if (view === 'workspace-tab-menu-outside-click') {
+                    document
+                      .querySelector('.workspace-tab-content')
+                      ?.dispatchEvent(
+                        new PointerEvent('pointerdown', {
+                          bubbles: true,
+                          pointerId: 1,
+                          pointerType: 'mouse',
+                        }),
+                      );
+                  } else if (view === 'workspace-tab-menu-escape') {
+                    window.dispatchEvent(new KeyboardEvent('keydown', {
+                      key: 'Escape',
+                    }));
+                  }
+                  await wait(500);
+                  return;
+                }
                 if (view === 'token-usage') {
                   document.querySelectorAll('.activity-button')[2]?.click();
                   await wait(1_000);

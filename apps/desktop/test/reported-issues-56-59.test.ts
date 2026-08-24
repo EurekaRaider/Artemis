@@ -58,9 +58,8 @@ describe("reported issues #56–#59", () => {
     expect(temporarySection).toContain(
       "aria-expanded={temporaryConversationsOpen}",
     );
-    expect(temporarySection).toContain(
-      "<FolderIcon open={temporaryConversationsOpen} />",
-    );
+    expect(temporarySection).toContain('className="project-group-select"');
+    expect(temporarySection).not.toContain("<FolderIcon");
     expect(temporarySection).toContain("toggleTemporaryConversations");
     expect(temporarySection).toContain("hidden={!temporaryConversationsOpen}");
     expect(stylesSource).toMatch(

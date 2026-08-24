@@ -94,6 +94,31 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
     expect(selectedRow?.groups?.body).toContain("background: var(--selected)");
   });
 
+  it("keeps root groups icon-free and aligns their contents at the first project level", () => {
+    const projects = sourceBetween(
+      appSource,
+      '<section className="project-group project-collection">',
+      "{projects.map((project) => {",
+    );
+    const temporary = sourceBetween(
+      appSource,
+      '<section className="project-group temporary-conversations">',
+      '<div className="sidebar-footer">',
+    );
+
+    expect(projects).toContain('className="project-group-select"');
+    expect(projects).toContain(
+      '<span className="project-group-title">{t.projects}</span>',
+    );
+    expect(projects).not.toContain("<FolderIcon");
+    expect(temporary).toContain('className="project-group-select"');
+    expect(temporary).toContain('className="project-group-title"');
+    expect(temporary).not.toContain("<FolderIcon");
+    expect(cssDeclarations(".nested-project")).toContain(
+      "margin-inline-start: 0",
+    );
+  });
+
   it("scrolls only overflowing conversation titles while their text is hovered", () => {
     const projectTree = sourceBetween(
       appSource,

@@ -239,6 +239,36 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(cssRule(".workspace-tab-add")).toMatch(/\bflex:\s*0\s+0\s+auto/u);
   });
 
+  it("dismisses the additional-tab menu on an outside press or Escape", () => {
+    const effectStart = appSource.indexOf("if (!workspaceTabMenuOpen) return;");
+    const effectEnd = appSource.indexOf(
+      "const skillCommandMenuOpen",
+      effectStart,
+    );
+    const effectSource = appSource.slice(effectStart, effectEnd);
+
+    expect(appSource).toContain(
+      "const workspaceTabMenuRoot = useRef<HTMLDivElement>(null);",
+    );
+    expect(appSource).toContain("ref={workspaceTabMenuRoot}");
+    expect(effectStart).toBeGreaterThan(-1);
+    expect(effectEnd).toBeGreaterThan(effectStart);
+    expect(effectSource).toContain(
+      "workspaceTabMenuRoot.current?.contains(event.target as Node)",
+    );
+    expect(effectSource).toContain(
+      'document.addEventListener("pointerdown", closeOutside)',
+    );
+    expect(effectSource).toContain(
+      'window.addEventListener("keydown", closeOnEscape)',
+    );
+    expect(effectSource).toContain('event.key === "Escape"');
+    expect(effectSource).toContain("setWorkspaceTabMenuOpen(false)");
+    expect(mainSource).toContain("view.startsWith('workspace-tab-menu')");
+    expect(mainSource).toContain("workspace-tab-menu-outside-click");
+    expect(mainSource).toContain("workspace-tab-menu-escape");
+  });
+
   it("renders file types with the Seti icon set instead of hand-built glyphs", () => {
     const directoryTreeStart = workspaceFilesSource.indexOf(
       "function DirectoryTree(",
