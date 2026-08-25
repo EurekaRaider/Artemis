@@ -17,6 +17,11 @@ export type ApprovalOperation =
       modelApproval: ModelApprovalDecision;
     }
   | {
+      kind: "local.file.read" | "local.file.write";
+      minimumRisk: RiskLevel;
+      modelApproval: ModelApprovalDecision;
+    }
+  | {
       kind: "mcp.call";
       readOnly: boolean;
       destructive: boolean;

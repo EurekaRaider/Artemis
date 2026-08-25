@@ -7,6 +7,8 @@ import {
 } from "@artemis/protocol";
 import {
   isWorkspaceDraftThread,
+  orderProjectThreadsByPreference,
+  reorderThreadIds,
   sortProjectThreads,
 } from "../src/renderer/thread-list-order.js";
 
@@ -46,6 +48,42 @@ function promptEvent(threadId: string, timestamp: string): AgentEvent {
 }
 
 describe("sidebar conversation order", () => {
+  it("uses a persisted manual order without changing the default order", () => {
+    const threads = [
+      thread("first", "idle", "2026-08-02T03:00:00.000Z"),
+      thread("second", "idle", "2026-08-02T02:00:00.000Z"),
+      thread("third", "idle", "2026-08-02T01:00:00.000Z"),
+    ];
+
+    expect(orderProjectThreadsByPreference(threads, undefined)).toEqual(
+      threads,
+    );
+    expect(
+      orderProjectThreadsByPreference(threads, ["third", "first"]).map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["third", "first", "second"]);
+  });
+
+  it("moves a conversation to the indicated insertion edge", () => {
+    expect(
+      reorderThreadIds(
+        ["first", "second", "third"],
+        "third",
+        "first",
+        "before",
+      ),
+    ).toEqual(["third", "first", "second"]);
+    expect(
+      reorderThreadIds(
+        ["first", "second", "third"],
+        "first",
+        "second",
+        "after",
+      ),
+    ).toEqual(["second", "first", "third"]);
+  });
+
   it("recognizes only untouched workspace-support threads as hidden drafts", () => {
     const draft = {
       ...thread("draft", "idle", "2026-08-02T04:00:00.000Z"),

@@ -634,6 +634,40 @@ summary:focus-visible {
   margin-left: 0;
   min-height: 31px;
   padding-left: 0;
+  transition:
+    opacity 120ms ease,
+    transform 160ms ease;
+}
+
+.project-thread-row[draggable="true"] {
+  cursor: grab;
+}
+
+.project-thread-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.project-thread-row.dragging {
+  opacity: 0.52;
+}
+
+.project-thread-row.drop-before::before,
+.project-thread-row.drop-after::after {
+  background: var(--blue);
+  border-radius: 999px;
+  content: "";
+  height: 2px;
+  inset-inline: 5px;
+  position: absolute;
+  z-index: 3;
+}
+
+.project-thread-row.drop-before::before {
+  top: -2px;
+}
+
+.project-thread-row.drop-after::after {
+  bottom: -2px;
 }
 
 .project-expand-toggle {

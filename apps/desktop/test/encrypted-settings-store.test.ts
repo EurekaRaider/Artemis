@@ -62,6 +62,28 @@ describe("EncryptedSettingsStore", () => {
     ).rejects.toThrow("unique");
   });
 
+  it("persists a validated conversation order for each project", async () => {
+    const { filePath, store } = await createStore();
+    await expect(store.projectThreadOrder()).resolves.toEqual({});
+    await expect(
+      store.setProjectThreadOrder("project-a", ["thread-3", "thread-1"]),
+    ).resolves.toEqual(["thread-3", "thread-1"]);
+
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.projectThreadOrder()).resolves.toEqual({
+      "project-a": ["thread-3", "thread-1"],
+    });
+    await expect(
+      reopened.setProjectThreadOrder("project-a", ["thread-1", "thread-1"]),
+    ).rejects.toThrow("unique");
+    await expect(
+      reopened.setProjectThreadOrder("", ["thread-1"]),
+    ).rejects.toThrow("Project ID");
+  });
+
   it("persists a bounded local profile avatar and supports removal", async () => {
     const { filePath, store } = await createStore();
     const avatar = `data:image/webp;base64,${Buffer.from("avatar").toString("base64")}`;

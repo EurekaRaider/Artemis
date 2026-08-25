@@ -126,6 +126,11 @@ import {
 } from "./navigation-policy.js";
 import { OfficeDocumentService } from "./office-document-service.js";
 import {
+  readLocalTextFile,
+  resolveLocalFilePath,
+  writeLocalTextFile,
+} from "./local-file-access.js";
+import {
   deletePiSessionTranscript,
   piSessionsRoot,
 } from "./pi-session-delete.js";
@@ -1493,6 +1498,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     agentConcurrency,
     profileAvatar,
     projectOrder,
+    projectThreadOrder,
     projectSidebarWidth,
     temporaryConversationsOpen,
     workspaceDockWidth,
@@ -1508,6 +1514,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     agentConcurrencyStatus(false),
     settingsStore.profileAvatar(),
     settingsStore.projectOrder(),
+    settingsStore.projectThreadOrder(),
     settingsStore.projectSidebarWidth(),
     settingsStore.temporaryConversationsOpen(),
     settingsStore.workspaceDockWidth(),
@@ -1534,6 +1541,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     agentConcurrency,
     ...(profileAvatar === undefined ? {} : { profileAvatar }),
     projectOrder,
+    projectThreadOrder,
     ...(projectSidebarWidth === undefined ? {} : { projectSidebarWidth }),
     temporaryConversationsOpen,
     ...(workspaceDockWidth === undefined ? {} : { workspaceDockWidth }),
@@ -2575,6 +2583,192 @@ async function handleShellBrokerRequest(
   });
 }
 
+type LocalFileBrokerRequest = Extract<
+  BrokerExecutionRequest,
+  { kind: "local.file.read" | "local.file.write" }
+>;
+
+function localFileRequestSummary(request: LocalFileBrokerRequest): string {
+  return `${request.kind === "local.file.read" ? "Read" : "Write"} local file ${request.path}`;
+}
+
+async function executeApprovedLocalFile(
+  workerRequestId: string,
+  request: LocalFileBrokerRequest,
+  resolution: ApprovalResolution,
+): Promise<void> {
+  if (!agentProcess) return;
+  emitPayload(request.threadId, request.turnId, {
+    type: "approval.resolved",
+    approvalId: resolution.approvalId,
+    nonce: resolution.nonce,
+    approved: true,
+    scope: resolution.scope,
+    ...(resolution.source ? { source: resolution.source } : {}),
+  });
+  try {
+    const result =
+      request.kind === "local.file.read"
+        ? {
+            path: resolveLocalFilePath(request.path),
+            content: await readLocalTextFile(request.path),
+          }
+        : await writeLocalTextFile(request.path, request.content);
+    agentProcess.post({
+      type: "broker.resolve",
+      requestId: workerRequestId,
+      resolution,
+      result,
+    });
+  } catch (error) {
+    agentProcess.post({
+      type: "broker.resolve",
+      requestId: workerRequestId,
+      resolution: { ...resolution, approved: false },
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function handleLocalFileBrokerRequest(
+  workerRequestId: string,
+  request: LocalFileBrokerRequest,
+): Promise<void> {
+  if (!agentProcess || !store) return;
+  if (request.mode !== "execute") {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      `${request.mode} mode rejects local file access.`,
+    );
+    return;
+  }
+  const thread = store.getThread(request.threadId);
+  if (
+    !thread ||
+    cancellingTurns.has(request.threadId) ||
+    thread.mode !== request.mode ||
+    activeTurns.get(request.threadId) !== request.turnId
+  ) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "Local file access requires the active Execute turn.",
+    );
+    return;
+  }
+  let context: Awaited<ReturnType<typeof resolveThreadWorkspace>>;
+  try {
+    context = await resolveThreadWorkspace(thread);
+  } catch (error) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      error instanceof Error ? error.message : String(error),
+    );
+    return;
+  }
+  if (
+    !conversationWorkspaceMatches(context.workspacePath, request.workspacePath)
+  ) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "Agent workspace does not match the task project.",
+    );
+    return;
+  }
+  let path: string;
+  try {
+    path = resolveLocalFilePath(request.path);
+  } catch (error) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      error instanceof Error ? error.message : String(error),
+    );
+    return;
+  }
+
+  const approvalPolicy = await settingsStore?.approvalPolicy();
+  const fullAccessAvailable = getPlatformContract().sandbox.available;
+  const fingerprint = createApprovalFingerprint(request.kind, path);
+  const rememberedScope =
+    approvalPolicy === "custom"
+      ? store.findApprovalGrant({
+          threadId: thread.id,
+          projectId: approvalProjectId(thread),
+          operation: request.kind,
+          fingerprint,
+        })
+      : undefined;
+  if (rememberedScope) {
+    await executeApprovedLocalFile(workerRequestId, request, {
+      approvalId: request.approvalId,
+      nonce: randomUUID(),
+      approved: true,
+      scope: rememberedScope,
+      source: "user",
+    });
+    return;
+  }
+
+  const approvalOperation = {
+    kind: request.kind,
+    minimumRisk: "high" as const,
+    modelApproval: request.modelApproval,
+  };
+  if (
+    shouldAutoApprove(
+      approvalPolicy ?? "ask",
+      approvalOperation,
+      fullAccessAvailable,
+    )
+  ) {
+    await executeApprovedLocalFile(workerRequestId, request, {
+      approvalId: request.approvalId,
+      nonce: randomUUID(),
+      approved: true,
+      scope: "once",
+      source: approvalPolicy === "agent" ? "model" : "policy",
+    });
+    return;
+  }
+
+  const nonce = randomUUID();
+  const allowedScopes = conversationApprovalScopes(thread, [
+    "once",
+    "session",
+    "project",
+  ]);
+  pendingApprovals.register({
+    approvalId: request.approvalId,
+    nonce,
+    allowedScopes: [...allowedScopes],
+    value: {
+      workerRequestId,
+      request,
+      projectId: approvalProjectId(thread),
+      fingerprint,
+    },
+  });
+  emitPayload(request.threadId, request.turnId, {
+    type: "approval.requested",
+    approvalId: request.approvalId,
+    nonce,
+    summary: localFileRequestSummary(request),
+    paths: [path],
+    network: [],
+    risk: effectiveApprovalRisk(approvalOperation),
+    allowedScopes: [...allowedScopes],
+    source: modelMayAutoApprove(approvalOperation) ? "policy" : "model",
+    modelRecommendation: modelMayAutoApprove(approvalOperation)
+      ? "approve"
+      : "deny",
+    modelReason: request.modelApproval.reason,
+  });
+}
+
 async function openAgentThread(
   thread: Thread,
   resolvedWorkspacePath?: string,
@@ -2651,6 +2845,10 @@ async function handleBrokerRequest(
       return;
     case "shell.execute":
       await handleShellBrokerRequest(workerRequestId, request);
+      return;
+    case "local.file.read":
+    case "local.file.write":
+      await handleLocalFileBrokerRequest(workerRequestId, request);
       return;
     case "memory.append":
       await handleMemoryAppendBrokerRequest(workerRequestId, request);
@@ -3701,6 +3899,15 @@ async function resolveApproval(resolution: ApprovalResolution): Promise<void> {
       pending.request,
       resolution,
     );
+  } else if (
+    pending.request.kind === "local.file.read" ||
+    pending.request.kind === "local.file.write"
+  ) {
+    await executeApprovedLocalFile(
+      pending.workerRequestId,
+      pending.request,
+      resolution,
+    );
   } else if (pending.request.kind === "workspace.write") {
     await executeApprovedWrite(
       pending.workerRequestId,
@@ -4355,6 +4562,15 @@ function registerIpc(): void {
         throw new Error("Agent settings are not ready.");
       }
       return settingsStore.setProjectOrder(order);
+    },
+  );
+  ipcMain.handle(
+    IPC.settingsProjectThreadOrderSet,
+    async (_event, projectId: string, order: string[]): Promise<string[]> => {
+      if (!settingsStore) {
+        throw new Error("Agent settings are not ready.");
+      }
+      return settingsStore.setProjectThreadOrder(projectId, order);
     },
   );
   ipcMain.handle(

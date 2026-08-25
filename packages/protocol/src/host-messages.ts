@@ -265,6 +265,27 @@ export type BrokerExecutionRequest =
       mode: RunMode;
     }
   | {
+      kind: "local.file.read";
+      approvalId: string;
+      threadId: string;
+      turnId: string;
+      workspacePath: string;
+      path: string;
+      modelApproval: ModelApprovalDecision;
+      mode: RunMode;
+    }
+  | {
+      kind: "local.file.write";
+      approvalId: string;
+      threadId: string;
+      turnId: string;
+      workspacePath: string;
+      path: string;
+      content: string;
+      modelApproval: ModelApprovalDecision;
+      mode: RunMode;
+    }
+  | {
       kind: "memory.append";
       approvalId: string;
       threadId: string;

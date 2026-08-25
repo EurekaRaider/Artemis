@@ -94,7 +94,13 @@ describe("Codex conversation shell contract", () => {
     expect(appSource).toContain("const PROJECT_THREAD_PREVIEW_LIMIT = 5;");
     expect(projectTree).toContain("thread.projectId === project.id");
     expect(projectTree).toContain("!thread.archived");
-    expect(projectTree).toContain("const projectThreads = sortProjectThreads(");
+    expect(projectTree).toContain(
+      "const projectThreads = orderProjectThreadsByPreference(",
+    );
+    expect(projectTree).toContain("sortProjectThreads(");
+    expect(projectTree).toContain(
+      "runtimeSettings?.projectThreadOrder?.[project.id]",
+    );
     expect(projectTree).toContain("promptSubmittedAtByThread");
     expect(projectTree).toContain("PROJECT_THREAD_PREVIEW_LIMIT");
     expect(projectTree).toContain("expandedProjectIds");

@@ -139,7 +139,10 @@ import {
 } from "./composer-drafts.js";
 import {
   isWorkspaceDraftThread,
+  orderProjectThreadsByPreference,
+  reorderThreadIds,
   sortProjectThreads,
+  type ThreadDropEdge,
 } from "./thread-list-order.js";
 import { moveUserInputOptionFocus } from "./user-input-navigation.js";
 import { formatUserInputCountdown } from "./user-input-countdown.js";
@@ -484,7 +487,7 @@ const copy = {
       "Low and medium risk run automatically; high risk runs only when you explicitly requested it",
     fullAccess: "Full access",
     fullAccessDetail:
-      "Auto-approve supported operations within the native sandbox",
+      "Auto-approve supported Execute operations, including explicitly requested local paths",
     fullAccessUnavailable: "Requires the native command sandbox",
     customApproval: "Custom",
     customApprovalDetail:
@@ -715,7 +718,7 @@ const copy = {
     agentApprovalDetail:
       "低、中风险自动批准；高风险仅在你明确要求该操作时自动批准",
     fullAccess: "完全访问权限",
-    fullAccessDetail: "在原生沙箱边界内自动批准支持的操作",
+    fullAccessDetail: "自动批准 Execute 中支持的操作，包括明确要求的本机路径",
     fullAccessUnavailable: "需要先安装原生命令沙箱",
     customApproval: "自定义",
     customApprovalDetail: "使用已保存的批准；沙箱内 MCP 自动调用",
@@ -1487,6 +1490,15 @@ export function App() {
     projectId: string;
     edge: ProjectDropEdge;
   }>();
+  const [draggedThread, setDraggedThread] = useState<{
+    projectId: string;
+    threadId: string;
+  }>();
+  const [threadDropTarget, setThreadDropTarget] = useState<{
+    projectId: string;
+    threadId: string;
+    edge: ThreadDropEdge;
+  }>();
   const [activeView, setActiveView] = useState<ActiveView>("workspace");
   const [projectMenuId, setProjectMenuId] = useState<string>();
   const [threadMenuId, setThreadMenuId] = useState<string>();
@@ -1571,6 +1583,9 @@ export function App() {
   const projectOrderPersistence = useRef<
     ProjectOrderPersistenceQueue | undefined
   >(undefined);
+  const projectThreadOrderPersistence = useRef(
+    new Map<string, ProjectOrderPersistenceQueue>(),
+  );
   if (!projectOrderPersistence.current) {
     projectOrderPersistence.current = createProjectOrderPersistenceQueue({
       save: (order) => window.artemis.setProjectOrder(order),
@@ -2579,6 +2594,44 @@ export function App() {
         current ? { ...current, projectOrder: order } : current,
       );
       return projectOrderPersistence.current?.persist(order, previousOrder);
+    },
+    [],
+  );
+  const persistProjectThreadOrder = useCallback(
+    (projectId: string, order: string[], previousOrder: string[]) => {
+      const applyOrder = (
+        current: SettingsSnapshot | undefined,
+        value: string[],
+      ) =>
+        current
+          ? {
+              ...current,
+              projectThreadOrder: {
+                ...(current.projectThreadOrder ?? {}),
+                [projectId]: value,
+              },
+            }
+          : current;
+      let persistence = projectThreadOrderPersistence.current.get(projectId);
+      if (!persistence) {
+        persistence = createProjectOrderPersistenceQueue({
+          save: (value) =>
+            window.artemis.setProjectThreadOrder(projectId, value),
+          onPersisted: (value) => {
+            setRuntimeSettings((current) => applyOrder(current, value));
+          },
+          onRejected: (value, error) => {
+            setRuntimeSettings((current) => applyOrder(current, value));
+            setToast({
+              error: true,
+              message: error instanceof Error ? error.message : String(error),
+            });
+          },
+        });
+        projectThreadOrderPersistence.current.set(projectId, persistence);
+      }
+      setRuntimeSettings((current) => applyOrder(current, order));
+      return persistence.persist(order, previousOrder);
     },
     [],
   );
@@ -4862,22 +4915,25 @@ export function App() {
             const matchesProject = project.name
               .toLowerCase()
               .includes(query.trim().toLowerCase());
-            const projectThreads = sortProjectThreads(
-              snapshot.threads
-                .filter(
-                  (thread) =>
-                    thread.projectId === project.id && !thread.archived,
-                )
-                .filter((thread) => !isWorkspaceDraftThread(thread))
-                .filter(
-                  (thread) =>
-                    matchesProject ||
-                    thread.title
-                      .toLowerCase()
-                      .includes(query.trim().toLowerCase()),
-                ),
-              snapshot.events,
-              promptSubmittedAtByThread,
+            const projectThreads = orderProjectThreadsByPreference(
+              sortProjectThreads(
+                snapshot.threads
+                  .filter(
+                    (thread) =>
+                      thread.projectId === project.id && !thread.archived,
+                  )
+                  .filter((thread) => !isWorkspaceDraftThread(thread))
+                  .filter(
+                    (thread) =>
+                      matchesProject ||
+                      thread.title
+                        .toLowerCase()
+                        .includes(query.trim().toLowerCase()),
+                  ),
+                snapshot.events,
+                promptSubmittedAtByThread,
+              ),
+              runtimeSettings?.projectThreadOrder?.[project.id],
             );
             const expanded = expandedProjectIds.has(project.id);
             const projectOpen = !collapsedProjectIds.has(project.id);
@@ -5018,8 +5074,89 @@ export function App() {
                   >
                     {visibleThreads.map((thread) => (
                       <div
-                        className={`project-thread-row ${thread.id === activeThreadId ? "selected" : ""}`}
+                        className={`project-thread-row${
+                          thread.id === activeThreadId ? " selected" : ""
+                        }${
+                          draggedThread?.threadId === thread.id
+                            ? " dragging"
+                            : ""
+                        }${
+                          threadDropTarget?.threadId === thread.id
+                            ? ` drop-${threadDropTarget.edge}`
+                            : ""
+                        }`}
+                        draggable={
+                          threadRename?.threadId !== thread.id && !query.trim()
+                        }
                         key={thread.id}
+                        onDragEnd={() => {
+                          setDraggedThread(undefined);
+                          setThreadDropTarget(undefined);
+                        }}
+                        onDragOver={(event) => {
+                          if (
+                            !draggedThread ||
+                            draggedThread.projectId !== project.id ||
+                            draggedThread.threadId === thread.id
+                          ) {
+                            return;
+                          }
+                          event.preventDefault();
+                          event.stopPropagation();
+                          event.dataTransfer.dropEffect = "move";
+                          const bounds =
+                            event.currentTarget.getBoundingClientRect();
+                          setThreadDropTarget({
+                            projectId: project.id,
+                            threadId: thread.id,
+                            edge:
+                              event.clientY < bounds.top + bounds.height / 2
+                                ? "before"
+                                : "after",
+                          });
+                        }}
+                        onDragStart={(event) => {
+                          if (query.trim()) {
+                            event.preventDefault();
+                            return;
+                          }
+                          event.stopPropagation();
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", thread.id);
+                          setDraggedThread({
+                            projectId: project.id,
+                            threadId: thread.id,
+                          });
+                          setThreadDropTarget(undefined);
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          if (
+                            !draggedThread ||
+                            !threadDropTarget ||
+                            draggedThread.projectId !== project.id ||
+                            threadDropTarget.projectId !== project.id
+                          ) {
+                            return;
+                          }
+                          const previousOrder = projectThreads.map(
+                            (candidate) => candidate.id,
+                          );
+                          const order = reorderThreadIds(
+                            previousOrder,
+                            draggedThread.threadId,
+                            threadDropTarget.threadId,
+                            threadDropTarget.edge,
+                          );
+                          setDraggedThread(undefined);
+                          setThreadDropTarget(undefined);
+                          void persistProjectThreadOrder(
+                            project.id,
+                            order,
+                            previousOrder,
+                          );
+                        }}
                       >
                         {threadRename?.threadId === thread.id ? (
                           <form
