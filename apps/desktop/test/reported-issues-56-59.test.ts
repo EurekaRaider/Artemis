@@ -48,6 +48,12 @@ describe("reported issues #56–#59", () => {
     );
     expect(mainSource).toContain("view === 'temporary-collapsed'");
     expect(mainSource).toContain("view === 'temporary-double-toggle'");
+    expect(
+      mainSource.match(/\.temporary-conversations \.project-group-select/gu),
+    ).toHaveLength(3);
+    expect(mainSource).not.toContain(
+      ".temporary-conversations .project-select",
+    );
     expect(mainSource).toContain("temporaryConversationsOpen:");
     expect(settingsStoreSource).toContain(
       "const snapshot = structuredClone(settings);",
@@ -58,9 +64,8 @@ describe("reported issues #56–#59", () => {
     expect(temporarySection).toContain(
       "aria-expanded={temporaryConversationsOpen}",
     );
-    expect(temporarySection).toContain(
-      "<FolderIcon open={temporaryConversationsOpen} />",
-    );
+    expect(temporarySection).toContain('className="project-group-select"');
+    expect(temporarySection).not.toContain("<FolderIcon");
     expect(temporarySection).toContain("toggleTemporaryConversations");
     expect(temporarySection).toContain("hidden={!temporaryConversationsOpen}");
     expect(stylesSource).toMatch(

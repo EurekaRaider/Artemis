@@ -8302,7 +8302,7 @@ function createMainWindow(): BrowserWindow {
                 if (view.startsWith('temporary')) {
                   if (view === 'temporary-double-toggle') {
                     const disclosure = document.querySelector(
-                      '.temporary-conversations .project-select',
+                      '.temporary-conversations .project-group-select',
                     );
                     disclosure?.click();
                     disclosure?.click();
@@ -8311,7 +8311,9 @@ function createMainWindow(): BrowserWindow {
                   }
                   if (view === 'temporary-collapsed') {
                     document
-                      .querySelector('.temporary-conversations .project-select')
+                      .querySelector(
+                        '.temporary-conversations .project-group-select',
+                      )
                       ?.click();
                     await wait(600);
                     return;
@@ -8323,6 +8325,51 @@ function createMainWindow(): BrowserWindow {
                   if (view === 'temporary-dock') {
                     document.querySelector('.right-sidebar-toggle')?.click();
                     await wait(500);
+                  }
+                  return;
+                }
+                if (view.startsWith('workspace-tab-menu')) {
+                  document.querySelector('.right-sidebar-toggle')?.click();
+                  await wait(500);
+                  const addButton = document.querySelector('.workspace-tab-add');
+                  addButton?.click();
+                  await wait(300);
+                  if (
+                    !addButton ||
+                    addButton.getAttribute('aria-expanded') !== 'true' ||
+                    !document.querySelector('.workspace-tab-menu')
+                  ) {
+                    throw new Error('Workspace tab menu did not open.');
+                  }
+                  if (view === 'workspace-tab-menu-outside-click') {
+                    const outsideTarget = document.querySelector(
+                      '.workspace-tab-content',
+                    );
+                    if (!outsideTarget) {
+                      throw new Error('Workspace tab outside-click target missing.');
+                    }
+                    outsideTarget.dispatchEvent(
+                      new PointerEvent('pointerdown', {
+                        bubbles: true,
+                        pointerId: 1,
+                        pointerType: 'mouse',
+                      }),
+                    );
+                  } else if (view === 'workspace-tab-menu-escape') {
+                    window.dispatchEvent(new KeyboardEvent('keydown', {
+                      key: 'Escape',
+                    }));
+                  }
+                  await wait(500);
+                  if (
+                    document.querySelector('.workspace-tab-menu') ||
+                    document
+                      .querySelector('.workspace-tab-add')
+                      ?.getAttribute('aria-expanded') !== 'false'
+                  ) {
+                    throw new Error(
+                      'Workspace tab menu remained open after dismissal.',
+                    );
                   }
                   return;
                 }
@@ -8538,7 +8585,7 @@ function createMainWindow(): BrowserWindow {
                 const projectTree = document.querySelector(".project-tree");
                 const projectTreeBounds = projectTree?.getBoundingClientRect();
                 const temporaryDisclosure = document.querySelector(
-                  ".temporary-conversations .project-select",
+                  ".temporary-conversations .project-group-select",
                 );
                 const temporaryList = document.querySelector(
                   "#temporary-conversation-list",

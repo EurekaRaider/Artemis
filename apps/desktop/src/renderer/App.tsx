@@ -1507,6 +1507,7 @@ export function App() {
   const [fileLinkContextMenu, setFileLinkContextMenu] =
     useState<FileLinkContextMenuState>();
   const workspaceTabSerial = useRef(0);
+  const workspaceTabMenuRoot = useRef<HTMLDivElement>(null);
   const workspaceTabScroll = useRef<HTMLDivElement>(null);
   const workspaceTabTrack = useRef<HTMLDivElement>(null);
   const activeWorkspaceTabElement = useRef<HTMLDivElement>(null);
@@ -1904,6 +1905,24 @@ export function App() {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [projectMenuId, threadMenuId]);
+
+  useEffect(() => {
+    if (!workspaceTabMenuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!workspaceTabMenuRoot.current?.contains(event.target as Node)) {
+        setWorkspaceTabMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setWorkspaceTabMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [workspaceTabMenuOpen]);
   const skillCommandMenuOpen =
     !skillMenuDismissed && isSkillCommandPrompt(prompt);
   const installedPluginBySkillName = useMemo(() => {
@@ -4809,26 +4828,18 @@ export function App() {
         </div>
         <div className="project-tree">
           <section className="project-group project-collection">
-            <div className="project-row">
+            <div className="project-row project-group-row">
               <button
                 aria-expanded={projectsOpen}
                 aria-label={
                   projectsOpen ? t.collapseProjects : t.expandProjects
                 }
-                className="project-toggle"
+                className="project-group-select"
                 onClick={() => setProjectsOpen((open) => !open)}
                 title={projectsOpen ? t.collapseProjects : t.expandProjects}
                 type="button"
               >
-                <FolderIcon open={projectsOpen} />
-              </button>
-              <button
-                aria-expanded={projectsOpen}
-                className="project-select"
-                onClick={() => setProjectsOpen((open) => !open)}
-                type="button"
-              >
-                <span className="project-title">{t.projects}</span>
+                <span className="project-group-title">{t.projects}</span>
               </button>
               <button
                 aria-label={t.openProject}
@@ -5156,7 +5167,11 @@ export function App() {
             );
           })}
           <section className="project-group temporary-conversations">
-            <div className={`project-row ${!activeProjectId ? "active" : ""}`}>
+            <div
+              className={`project-row project-group-row ${
+                !activeProjectId ? "active" : ""
+              }`}
+            >
               <button
                 aria-controls="temporary-conversation-list"
                 aria-expanded={temporaryConversationsOpen}
@@ -5165,26 +5180,12 @@ export function App() {
                     ? t.collapseTemporaryConversations
                     : t.expandTemporaryConversations
                 }
-                className="project-toggle"
-                onClick={() => void toggleTemporaryConversations()}
-                title={
-                  temporaryConversationsOpen
-                    ? t.collapseTemporaryConversations
-                    : t.expandTemporaryConversations
-                }
-                type="button"
-              >
-                <FolderIcon open={temporaryConversationsOpen} />
-              </button>
-              <button
-                aria-controls="temporary-conversation-list"
-                aria-expanded={temporaryConversationsOpen}
-                className="project-select"
+                className="project-group-select"
                 onClick={() => void toggleTemporaryConversations()}
                 title={t.temporaryConversations}
                 type="button"
               >
-                <span className="project-title">
+                <span className="project-group-title">
                   {t.temporaryConversations}
                 </span>
               </button>
@@ -6848,7 +6849,10 @@ export function App() {
                           </button>
                         )}
                       </div>
-                      <div className="workspace-tab-add-wrap">
+                      <div
+                        className="workspace-tab-add-wrap"
+                        ref={workspaceTabMenuRoot}
+                      >
                         <button
                           aria-expanded={workspaceTabMenuOpen}
                           aria-label={t.addTab}
