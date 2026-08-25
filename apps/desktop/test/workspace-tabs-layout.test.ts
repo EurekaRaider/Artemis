@@ -267,6 +267,10 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(mainSource).toContain("view.startsWith('workspace-tab-menu')");
     expect(mainSource).toContain("workspace-tab-menu-outside-click");
     expect(mainSource).toContain("workspace-tab-menu-escape");
+    expect(mainSource).toContain("Workspace tab menu did not open.");
+    expect(mainSource).toContain(
+      "Workspace tab menu remained open after dismissal.",
+    );
   });
 
   it("renders file types with the Seti icon set instead of hand-built glyphs", () => {

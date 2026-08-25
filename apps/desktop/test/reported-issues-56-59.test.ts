@@ -48,6 +48,12 @@ describe("reported issues #56–#59", () => {
     );
     expect(mainSource).toContain("view === 'temporary-collapsed'");
     expect(mainSource).toContain("view === 'temporary-double-toggle'");
+    expect(
+      mainSource.match(/\.temporary-conversations \.project-group-select/gu),
+    ).toHaveLength(3);
+    expect(mainSource).not.toContain(
+      ".temporary-conversations .project-select",
+    );
     expect(mainSource).toContain("temporaryConversationsOpen:");
     expect(settingsStoreSource).toContain(
       "const snapshot = structuredClone(settings);",
