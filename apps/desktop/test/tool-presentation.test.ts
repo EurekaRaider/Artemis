@@ -277,10 +277,16 @@ describe("tool presentation", () => {
     if (!toolPresentation.toolActivityKind) return;
 
     expect(
-      ["read", "write", "grep", "shell", "mcp_lookup"].map((toolName) =>
-        toolPresentation.toolActivityKind?.(toolName),
-      ),
-    ).toEqual(["read", "write", "search", "bash", "generic"]);
+      [
+        "read",
+        "local_file_read",
+        "write",
+        "local_file_write",
+        "grep",
+        "shell",
+        "mcp_lookup",
+      ].map((toolName) => toolPresentation.toolActivityKind?.(toolName)),
+    ).toEqual(["read", "read", "write", "write", "search", "bash", "generic"]);
 
     const toolCard = appSource.slice(
       appSource.indexOf("function ToolActivityGroupCard"),

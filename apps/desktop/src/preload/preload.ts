@@ -158,6 +158,8 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.settingsProfileAvatarSet, avatar),
   setProjectOrder: (order) =>
     ipcRenderer.invoke(IPC.settingsProjectOrderSet, order),
+  setProjectThreadOrder: (projectId, order) =>
+    ipcRenderer.invoke(IPC.settingsProjectThreadOrderSet, projectId, order),
   setProjectSidebarWidth: (width) =>
     ipcRenderer.invoke(IPC.settingsProjectSidebarWidthSet, width),
   setTemporaryConversationsOpen: (open) =>

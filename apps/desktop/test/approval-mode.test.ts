@@ -343,4 +343,31 @@ describe("approval modes", () => {
       ),
     ).toBe(true);
   });
+
+  it("treats desktop-user local file access as high risk", () => {
+    const operation = {
+      kind: "local.file.write" as const,
+      minimumRisk: "high" as const,
+      modelApproval: {
+        risk: "high" as const,
+        explicitUserRequest: false,
+        reason: "The target is outside the task workspace.",
+      },
+    };
+    expect(shouldAutoApprove("agent", operation, true)).toBe(false);
+    expect(
+      shouldAutoApprove(
+        "agent",
+        {
+          ...operation,
+          modelApproval: {
+            ...operation.modelApproval,
+            explicitUserRequest: true,
+          },
+        },
+        true,
+      ),
+    ).toBe(true);
+    expect(shouldAutoApprove("full-access", operation, true)).toBe(true);
+  });
 });

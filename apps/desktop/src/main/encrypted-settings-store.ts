@@ -59,6 +59,7 @@ interface PersistedSettings {
   agentConcurrency?: AgentConcurrencyPreference;
   profileAvatar?: string;
   projectOrder?: string[];
+  projectThreadOrder?: Record<string, string[]>;
   projectSidebarWidth?: number;
   temporaryConversationsOpen?: boolean;
   workspaceDockWidth?: number;
@@ -100,6 +101,31 @@ function validateProjectOrder(order: readonly string[]): string[] {
     throw new Error("Project order entries must be unique");
   }
   return [...order];
+}
+
+function validateProjectThreadOrder(
+  input: Record<string, string[]>,
+): Record<string, string[]> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("Project conversation order is invalid");
+  }
+  const entries = Object.entries(input);
+  if (entries.length > PROJECT_ORDER_MAXIMUM) {
+    throw new Error("Project conversation order is invalid");
+  }
+  let conversationCount = 0;
+  return Object.fromEntries(
+    entries.map(([projectId, order]) => {
+      if (!projectId || Buffer.byteLength(projectId, "utf8") > 1_024) {
+        throw new Error("Project ID for conversation order is invalid");
+      }
+      conversationCount += order.length;
+      if (conversationCount > PROJECT_ORDER_MAXIMUM) {
+        throw new Error("Project conversation order is invalid");
+      }
+      return [projectId, validateProjectOrder(order)];
+    }),
+  );
 }
 
 function validateProfileAvatar(avatar: string): string {
@@ -348,6 +374,24 @@ export class EncryptedSettingsStore {
     settings.projectOrder = validated;
     await this.save(settings);
     return [...validated];
+  }
+
+  async projectThreadOrder(): Promise<Record<string, string[]>> {
+    return structuredClone((await this.load()).projectThreadOrder ?? {});
+  }
+
+  async setProjectThreadOrder(
+    projectId: string,
+    order: readonly string[],
+  ): Promise<string[]> {
+    const settings = await this.load();
+    const updated = validateProjectThreadOrder({
+      ...(settings.projectThreadOrder ?? {}),
+      [projectId]: [...order],
+    });
+    settings.projectThreadOrder = updated;
+    await this.save(settings);
+    return [...updated[projectId]!];
   }
 
   async workspaceDockWidth(): Promise<number | undefined> {
@@ -733,6 +777,15 @@ export class EncryptedSettingsStore {
           (() => {
             try {
               validateProjectOrder(parsed.projectOrder);
+              return false;
+            } catch {
+              return true;
+            }
+          })()) ||
+        (parsed.projectThreadOrder !== undefined &&
+          (() => {
+            try {
+              validateProjectThreadOrder(parsed.projectThreadOrder);
               return false;
             } catch {
               return true;

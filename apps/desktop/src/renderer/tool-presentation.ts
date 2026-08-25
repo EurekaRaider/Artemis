@@ -267,8 +267,14 @@ export function toolActivityKind(
   ) {
     return "search";
   }
-  if (["read", "read_file"].includes(normalized)) return "read";
-  if (["write", "write_file", "edit", "apply_patch"].includes(normalized)) {
+  if (["read", "read_file", "local_file_read"].includes(normalized)) {
+    return "read";
+  }
+  if (
+    ["write", "write_file", "local_file_write", "edit", "apply_patch"].includes(
+      normalized,
+    )
+  ) {
     return "write";
   }
   if (["grep", "find", "search"].includes(normalized)) return "search";
@@ -402,9 +408,11 @@ export function summarizeToolActivity(
   const pattern = inputText(input, "pattern") ?? inputText(input, "query");
   const label = compactLabel(path ?? pattern ?? toolName.replaceAll("_", " "));
   const action =
-    toolName === "read"
+    toolName === "read" || toolName === "local_file_read"
       ? t.reading
-      : toolName === "write" || toolName === "edit"
+      : toolName === "write" ||
+          toolName === "local_file_write" ||
+          toolName === "edit"
         ? t.updating
         : toolName === "grep" || toolName === "find"
           ? t.searching

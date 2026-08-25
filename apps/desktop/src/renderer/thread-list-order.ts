@@ -4,6 +4,8 @@ type EventsByThread = Readonly<
   Record<string, readonly AgentEvent[] | undefined>
 >;
 
+export type ThreadDropEdge = "before" | "after";
+
 const WORKSPACE_DRAFT_TITLES = new Set([
   "New task",
   "Waiting for task",
@@ -73,4 +75,46 @@ export function sortProjectThreads(
       return left.index - right.index;
     })
     .map(({ thread }) => thread);
+}
+
+export function orderProjectThreadsByPreference(
+  threads: readonly Thread[],
+  preference: readonly string[] | undefined,
+): Thread[] {
+  if (!preference?.length) return [...threads];
+  const preferredIndex = new Map(
+    preference.map((threadId, index) => [threadId, index]),
+  );
+  return threads
+    .map((thread, index) => ({ index, thread }))
+    .sort((left, right) => {
+      const leftIndex = preferredIndex.get(left.thread.id);
+      const rightIndex = preferredIndex.get(right.thread.id);
+      if (leftIndex === undefined && rightIndex === undefined) {
+        return left.index - right.index;
+      }
+      if (leftIndex === undefined) return 1;
+      if (rightIndex === undefined) return -1;
+      return leftIndex - rightIndex;
+    })
+    .map(({ thread }) => thread);
+}
+
+export function reorderThreadIds(
+  order: readonly string[],
+  draggedThreadId: string,
+  targetThreadId: string,
+  edge: ThreadDropEdge,
+): string[] {
+  if (
+    draggedThreadId === targetThreadId ||
+    !order.includes(draggedThreadId) ||
+    !order.includes(targetThreadId)
+  ) {
+    return [...order];
+  }
+  const next = order.filter((threadId) => threadId !== draggedThreadId);
+  const targetIndex = next.indexOf(targetThreadId);
+  next.splice(targetIndex + (edge === "after" ? 1 : 0), 0, draggedThreadId);
+  return next;
 }
