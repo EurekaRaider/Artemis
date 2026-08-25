@@ -99,8 +99,8 @@ describe("visible model catalog", () => {
       ).toMatchObject({
         name: "GLM-5.3",
         reasoning: true,
-        thinkingLevels: ["off", "minimal", "low", "medium", "high"],
-        highestThinkingLevel: "high",
+        thinkingLevels: ["low", "high", "max"],
+        highestThinkingLevel: "max",
         contextWindow: 1_000_000,
       });
     }
