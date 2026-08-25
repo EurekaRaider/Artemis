@@ -84,7 +84,7 @@ credentials are protected with operating-system encryption.
   <tr>
     <td width="50%" valign="top">
       <p><strong>01</strong>&nbsp;&nbsp;/&nbsp;&nbsp;AGENT WORKSPACE</p>
-      <p>Persistent projects and Local tasks, projectless Temporary chats, a resizable and reorderable two-level conversation sidebar, per-conversation model/thinking/context settings, collapsible history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
+      <p>Persistent projects and Local tasks, projectless Temporary chats, a resizable two-level conversation sidebar with persistent drag-and-drop ordering, per-conversation model/thinking/context settings, collapsible history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
     </td>
     <td width="50%" valign="top">
       <p><strong>02</strong>&nbsp;&nbsp;/&nbsp;&nbsp;WORKSPACE TOOLS</p>
@@ -131,7 +131,7 @@ credentials are protected with operating-system encryption.
     </td>
     <td width="50%" valign="top">
       <p><strong>EVERYDAY WORK</strong></p>
-      <p>Research with the Browser and local files, create or update portable documents, spreadsheets, presentations and PDFs, use installed Skills and connected services, handle projectless work in Temporary chats, and schedule recurring tasks for persistent projects.</p>
+      <p>Research with the Browser, read or write files anywhere through brokered high-risk approvals, create or update portable documents, spreadsheets, presentations and PDFs, use installed Skills and connected services, handle projectless work in Temporary chats, and schedule recurring tasks for persistent projects.</p>
     </td>
   </tr>
 </table>
@@ -1036,14 +1036,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.14`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.15`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.14
-git push origin v1.4.14
+git tag v1.4.15
+git push origin v1.4.15
 ```
 
 ### Build and test matrix
@@ -1089,13 +1089,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.14` packaging configuration produces:
+The `1.4.15` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.14.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.14.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.14.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.15.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.15.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.15.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They
