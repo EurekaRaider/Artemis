@@ -44,10 +44,14 @@ describe("Codex-style queued message composer", () => {
     expect(barSource).toContain('className="queued-message-index"');
     expect(barSource).toContain('className="queued-message-actions"');
 
+    const steerButton = sourceForQueuedButton("queued-message-steer");
     const prioritizeButton = sourceForQueuedButton("queued-message-prioritize");
     const deleteButton = sourceForQueuedButton("queued-message-delete");
     const editButton = sourceForQueuedButton("queued-message-edit");
 
+    expect(steerButton).toContain("<SteerIcon />");
+    expect(steerButton).toContain("steerQueuedMessage(index)");
+    expect(steerButton).toContain('type="button"');
     expect(prioritizeButton).toContain("<MoveToFrontIcon />");
     expect(prioritizeButton).toContain("moveQueuedMessageToFront");
     expect(prioritizeButton).toContain('type="button"');
@@ -85,6 +89,10 @@ describe("Codex-style queued message composer", () => {
     expect(appSource).toContain(
       'queuedMessages: "{{count}} queued after the current task"',
     );
+    expect(appSource).toContain('queueSteer: "Steer"');
+    expect(appSource).toContain(
+      'queueSteerHint: "Steer this queued message into the active task"',
+    );
     expect(appSource).toContain('queueMoveToFront: "Move to front"');
     expect(appSource).toContain('queueDelete: "Delete queued message"');
     expect(appSource).toContain('queueEdit: "Edit queued message"');
@@ -92,14 +100,19 @@ describe("Codex-style queued message composer", () => {
     expect(appSource).toContain(
       'queuedMessages: "当前任务后等待 {{count}} 条"',
     );
+    expect(appSource).toContain('queueSteer: "引导"');
+    expect(appSource).toContain('queueSteerHint: "将此排队消息引导到当前任务"');
     expect(appSource).toContain('queueMoveToFront: "移到队首"');
     expect(appSource).toContain('queueDelete: "删除排队消息"');
     expect(appSource).toContain('queueEdit: "编辑排队消息"');
 
+    const steerButton = sourceForQueuedButton("queued-message-steer");
     const prioritizeButton = sourceForQueuedButton("queued-message-prioritize");
     const deleteButton = sourceForQueuedButton("queued-message-delete");
     const editButton = sourceForQueuedButton("queued-message-edit");
 
+    expect(steerButton).toContain("aria-label={`${t.queueSteer}:");
+    expect(steerButton).toContain("title={t.queueSteerHint}");
     expect(prioritizeButton).toContain("aria-label={`${t.queueMoveToFront}");
     expect(prioritizeButton).toContain("title={t.queueMoveToFrontHint}");
     expect(deleteButton).toContain("aria-label={`${t.queueDelete}");
@@ -119,10 +132,19 @@ describe("Codex-style queued message composer", () => {
     expect(appSource).not.toContain("setQueueBehavior");
   });
 
-  it("edits, deletes, and reprioritizes individual messages through one atomic queue replacement", () => {
+  it("steers, edits, deletes, and reprioritizes individual messages", () => {
+    const steerQueuedMessage = sourceForConstant("steerQueuedMessage");
     const replaceQueuedMessages = sourceForConstant("replaceQueuedMessages");
     const deleteQueuedMessage = sourceForConstant("deleteQueuedMessage");
 
+    expect(steerQueuedMessage).toContain("window.artemis.steerQueuedTurn({");
+    expect(steerQueuedMessage).toContain("followUpIndex: index");
+    expect(steerQueuedMessage).toContain(
+      "const expectedText = queuedFollowUps[index]",
+    );
+    expect(steerQueuedMessage).toContain(
+      "expectedFollowUp: [...queuedFollowUps]",
+    );
     expect(replaceQueuedMessages).toContain("window.artemis.replaceTurnQueue");
     expect(replaceQueuedMessages).toContain("followUp");
     expect(replaceQueuedMessages).not.toContain("clearTurnQueue");

@@ -366,6 +366,105 @@ function record(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+function queuedUserMessageText(message: unknown): string | undefined {
+  const value = record(message);
+  if (value?.role !== "user") return undefined;
+  if (typeof value.content === "string") return value.content;
+  if (!Array.isArray(value.content)) return undefined;
+  return value.content
+    .flatMap((part) => {
+      const content = record(part);
+      return content?.type === "text" && typeof content.text === "string"
+        ? [content.text]
+        : [];
+    })
+    .join("\n");
+}
+
+function steerPiQueuedFollowUp(
+  session: AgentSession,
+  followUpIndex: number,
+  expectedFollowUp: readonly string[],
+): void {
+  const visibleFollowUp = session.getFollowUpMessages();
+  if (
+    visibleFollowUp.length !== expectedFollowUp.length ||
+    visibleFollowUp.some((text, index) => text !== expectedFollowUp[index])
+  ) {
+    throw new Error(
+      "Queued follow-ups changed. Refresh the queue and try again.",
+    );
+  }
+  const selectedText = visibleFollowUp[followUpIndex];
+  if (selectedText === undefined) {
+    throw new Error(`Queued follow-up ${followUpIndex} does not exist.`);
+  }
+
+  // Pi 0.84.3 exposes only string snapshots publicly. Its complete queued
+  // AgentMessage objects (including images and hidden custom messages) remain
+  // on these runtime queues, so move the original object instead of clearing
+  // and rebuilding a lossy string queue.
+  const mutableSession = session as unknown as {
+    _steeringMessages?: string[];
+    _followUpMessages?: string[];
+    _emitQueueUpdate?: () => void;
+    agent?: {
+      steeringQueue?: { messages?: unknown[] };
+      followUpQueue?: { messages?: unknown[] };
+    };
+  };
+  const visibleSteering = session.getSteeringMessages();
+  const steeringMessages = mutableSession.agent?.steeringQueue?.messages;
+  const followUpMessages = mutableSession.agent?.followUpQueue?.messages;
+  if (
+    mutableSession._steeringMessages !== visibleSteering ||
+    mutableSession._followUpMessages !== visibleFollowUp ||
+    !Array.isArray(steeringMessages) ||
+    !Array.isArray(followUpMessages) ||
+    typeof mutableSession._emitQueueUpdate !== "function"
+  ) {
+    throw new Error(
+      "Installed Pi runtime does not support queued message steering.",
+    );
+  }
+
+  const visibleMessageIndexes: number[] = [];
+  const visibleMessageTexts: string[] = [];
+  for (const [index, message] of followUpMessages.entries()) {
+    const text = queuedUserMessageText(message);
+    if (text !== undefined) {
+      visibleMessageIndexes.push(index);
+      visibleMessageTexts.push(text);
+    }
+  }
+  if (
+    visibleMessageTexts.length !== visibleFollowUp.length ||
+    visibleMessageTexts.some((text, index) => text !== visibleFollowUp[index])
+  ) {
+    throw new Error(
+      "Pi follow-up queue is out of sync; no messages were changed.",
+    );
+  }
+
+  const rawIndex = visibleMessageIndexes[followUpIndex];
+  if (rawIndex === undefined) {
+    throw new Error(
+      "Pi follow-up queue is out of sync; no messages were changed.",
+    );
+  }
+  const selectedMessage = followUpMessages[rawIndex];
+  if (selectedMessage === undefined) {
+    throw new Error(
+      "Pi follow-up queue is out of sync; no messages were changed.",
+    );
+  }
+  followUpMessages.splice(rawIndex, 1);
+  steeringMessages.push(selectedMessage);
+  mutableSession._followUpMessages.splice(followUpIndex, 1);
+  mutableSession._steeringMessages.push(selectedText);
+  mutableSession._emitQueueUpdate();
+}
+
 function base64ByteLength(value: string): number {
   try {
     return Buffer.from(value, "base64").byteLength;
@@ -4646,6 +4745,15 @@ export class ArtemisAgentHost {
     for (const message of [...queue.steering, ...queue.followUp]) {
       await hosted.session.steer(message);
     }
+  }
+
+  async steerQueuedFollowUp(
+    threadId: string,
+    followUpIndex: number,
+    expectedFollowUp: readonly string[],
+  ): Promise<void> {
+    const hosted = this.requireActiveThread(threadId);
+    steerPiQueuedFollowUp(hosted.session, followUpIndex, expectedFollowUp);
   }
 
   async replaceFollowUpQueue(

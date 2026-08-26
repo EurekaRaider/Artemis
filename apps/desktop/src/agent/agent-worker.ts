@@ -177,6 +177,13 @@ async function handle(command: AgentHostCommand): Promise<void> {
       case "turn.queue.steer":
         await host.steerQueue(command.threadId);
         break;
+      case "turn.queue.steer-item":
+        await host.steerQueuedFollowUp(
+          command.threadId,
+          command.followUpIndex,
+          command.expectedFollowUp,
+        );
+        break;
       case "turn.queue.replace":
         await host.replaceFollowUpQueue(command.threadId, command.followUp);
         break;

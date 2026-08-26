@@ -96,6 +96,12 @@ export interface ReplaceQueuedTurnInput {
   followUp: string[];
 }
 
+export interface SteerQueuedTurnInput {
+  threadId: string;
+  followUpIndex: number;
+  expectedFollowUp: string[];
+}
+
 export interface ChildAgentControlInput {
   threadId: string;
   agentId: string;
@@ -746,6 +752,7 @@ export interface ArtemisApi {
   followUpTurn(input: QueueTurnInput): Promise<void>;
   clearTurnQueue(threadId: string): Promise<QueuedTurnMessages>;
   steerTurnQueue(threadId: string): Promise<void>;
+  steerQueuedTurn(input: SteerQueuedTurnInput): Promise<void>;
   replaceTurnQueue(input: ReplaceQueuedTurnInput): Promise<void>;
   cancelTurn(threadId: string): Promise<void>;
   controlChildAgent(
@@ -991,6 +998,7 @@ export const IPC = {
   turnFollowUp: "artemis:turn-follow-up",
   turnQueueClear: "artemis:turn-queue-clear",
   turnQueueSteer: "artemis:turn-queue-steer",
+  turnQueueSteerItem: "artemis:turn-queue-steer-item",
   turnQueueReplace: "artemis:turn-queue-replace",
   turnCancel: "artemis:turn-cancel",
   childAgentControl: "artemis:child-agent-control",

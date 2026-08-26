@@ -461,6 +461,8 @@ const copy = {
     followUp: "Follow-up",
     queuedMessages: "{{count}} queued after the current task",
     queueItem: "Queued message {{number}}",
+    queueSteer: "Steer",
+    queueSteerHint: "Steer this queued message into the active task",
     queueMoveToFront: "Move to front",
     queueMoveToFrontHint: "Run this queued message next",
     queueDelete: "Delete queued message",
@@ -694,6 +696,8 @@ const copy = {
     followUp: "完成后继续",
     queuedMessages: "当前任务后等待 {{count}} 条",
     queueItem: "第 {{number}} 条排队消息",
+    queueSteer: "引导",
+    queueSteerHint: "将此排队消息引导到当前任务",
     queueMoveToFront: "移到队首",
     queueMoveToFrontHint: "让此排队消息下一条执行",
     queueDelete: "删除排队消息",
@@ -866,6 +870,20 @@ function QueueIcon() {
         stroke="currentColor"
         strokeLinecap="round"
         strokeWidth="1.8"
+      />
+    </Icon>
+  );
+}
+
+function SteerIcon() {
+  return (
+    <Icon size={18}>
+      <path
+        d="M5 5.5v5a4 4 0 0 0 4 4h9m-3.5-3.5 3.5 3.5-3.5 3.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
       />
     </Icon>
   );
@@ -4715,6 +4733,29 @@ export function App() {
     updateThreadInSnapshot,
   ]);
 
+  const steerQueuedMessage = useCallback(
+    async (index: number) => {
+      const expectedText = queuedFollowUps[index];
+      if (!activeThread || busy || !expectedText) return;
+      setBusy(true);
+      try {
+        await window.artemis.steerQueuedTurn({
+          threadId: activeThread.id,
+          followUpIndex: index,
+          expectedFollowUp: [...queuedFollowUps],
+        });
+        setEditingQueuedMessage(undefined);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [activeThread, busy, queuedFollowUps, t.taskError],
+  );
+
   const replaceQueuedMessages = useCallback(
     async (followUp: string[]) => {
       if (!activeThread || busy) return;
@@ -5997,6 +6038,19 @@ export function App() {
                                         {message}
                                       </span>
                                       <div className="queued-message-actions">
+                                        <button
+                                          aria-label={`${t.queueSteer}: ${itemLabel}`}
+                                          className="queued-message-steer"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            void steerQueuedMessage(index)
+                                          }
+                                          title={t.queueSteerHint}
+                                          type="button"
+                                        >
+                                          <SteerIcon />
+                                          <span>{t.queueSteer}</span>
+                                        </button>
                                         {index > 0 && (
                                           <button
                                             aria-label={`${t.queueMoveToFront}: ${itemLabel}`}

@@ -72,6 +72,7 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.turnQueueClear, threadId),
   steerTurnQueue: (threadId) =>
     ipcRenderer.invoke(IPC.turnQueueSteer, threadId),
+  steerQueuedTurn: (input) => ipcRenderer.invoke(IPC.turnQueueSteerItem, input),
   replaceTurnQueue: (input) => ipcRenderer.invoke(IPC.turnQueueReplace, input),
   cancelTurn: (threadId) => ipcRenderer.invoke(IPC.turnCancel, threadId),
   controlChildAgent: (input) =>

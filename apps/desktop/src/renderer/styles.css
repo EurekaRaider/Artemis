@@ -4293,6 +4293,15 @@ button.environment-row:disabled {
   opacity: 0.45;
 }
 
+.queued-message-steer {
+  gap: 5px;
+}
+
+.queued-message-steer > span {
+  font-size: 13px;
+  font-weight: 520;
+}
+
 .queued-message-delete,
 .queued-message-edit,
 .queued-message-prioritize {

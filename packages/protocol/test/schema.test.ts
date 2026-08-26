@@ -161,6 +161,30 @@ describe("approval schemas", () => {
     ).toBe(false);
     expect(
       threadCommandSchema.safeParse({
+        type: "turn.queue.steer-item",
+        threadId: "thread-1",
+        followUpIndex: 1,
+        expectedFollowUp: ["First", "Steer this queued message"],
+      }).success,
+    ).toBe(true);
+    expect(
+      threadCommandSchema.safeParse({
+        type: "turn.queue.steer-item",
+        threadId: "thread-1",
+        followUpIndex: -1,
+        expectedFollowUp: ["Steer this queued message"],
+      }).success,
+    ).toBe(false);
+    expect(
+      threadCommandSchema.safeParse({
+        type: "turn.queue.steer-item",
+        threadId: "thread-1",
+        followUpIndex: 1,
+        expectedFollowUp: [],
+      }).success,
+    ).toBe(false);
+    expect(
+      threadCommandSchema.safeParse({
         type: "turn.steer",
         threadId: "thread-1",
         text: "Inspect this",
