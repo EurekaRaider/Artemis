@@ -57,7 +57,7 @@ describe("release version", () => {
       "utf8",
     );
     const readme = readFileSync(join(root, "README.md"), "utf8");
-    expect(mcp.match(/version: "1\.4\.16"/gu)).toHaveLength(3);
+    expect(mcp.match(/version: "1\.4\.17"/gu)).toHaveLength(3);
     expect(readme).toContain("The `1.4.17` packaging configuration produces:");
     expect(new Set(readme.match(/\b1\.4\.\d+\b/gu) ?? [])).toEqual(
       new Set([releaseVersion]),
