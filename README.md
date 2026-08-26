@@ -1004,6 +1004,10 @@ bounded subteam and must integrate it before completing.
 - Prompt caching wraps Pi's `ModelRuntime`; it does not replace or fork the Pi
   loop. Cache keys change with the session, Provider, model, System Prompt or
   normalized tools, and one-shot `none` requests always win.
+- Main-turn model streams have a 120-second idle watchdog. Text, thinking and
+  tool-call deltas refresh it, tool execution pauses it, and a silent provider
+  stream is cancelled with a readable retry error instead of leaving the task
+  permanently running.
 - Every persisted UI event uses a versioned envelope and an idempotent reducer.
 - The Renderer never imports Electron main-process or Node APIs.
 - Plan and Review writes are denied before an executor runs and do not expose
@@ -1036,14 +1040,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.17`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.18`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.17
-git push origin v1.4.17
+git tag v1.4.18
+git push origin v1.4.18
 ```
 
 ### Build and test matrix
@@ -1056,11 +1060,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **1002 passing tests** (7 skipped):
+The current full test run contains **1030 passing tests** (7 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       65 |       23 |        111 |     803 |  **1002** |
+|       65 |       23 |        125 |     817 |  **1030** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1089,13 +1093,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.17` packaging configuration produces:
+The `1.4.18` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.17.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.17.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.17.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.18.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.18.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.18.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They
