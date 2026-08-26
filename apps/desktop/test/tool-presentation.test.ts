@@ -283,10 +283,20 @@ describe("tool presentation", () => {
         "write",
         "local_file_write",
         "grep",
+        "web_search",
         "shell",
         "mcp_lookup",
       ].map((toolName) => toolPresentation.toolActivityKind?.(toolName)),
-    ).toEqual(["read", "read", "write", "write", "search", "bash", "generic"]);
+    ).toEqual([
+      "read",
+      "read",
+      "write",
+      "write",
+      "search",
+      "search",
+      "bash",
+      "generic",
+    ]);
 
     const toolCard = appSource.slice(
       appSource.indexOf("function ToolActivityGroupCard"),

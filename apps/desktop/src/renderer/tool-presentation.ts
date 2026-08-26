@@ -277,7 +277,9 @@ export function toolActivityKind(
   ) {
     return "write";
   }
-  if (["grep", "find", "search"].includes(normalized)) return "search";
+  if (["grep", "find", "search", "web_search"].includes(normalized)) {
+    return "search";
+  }
   if (isBashTool(normalized)) return "bash";
   return "generic";
 }
