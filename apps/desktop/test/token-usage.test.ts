@@ -107,6 +107,8 @@ describe("token usage activity", () => {
       insights: "Activity insights",
       tokenComposition: "Token composition",
       cacheHitRate: "Cache hit rate",
+      cacheHitRateDescription:
+        "Cache read Tokens divided by cache-reported input Tokens (input + cache read + cache write).",
       cacheDataCoverage: "Cache data coverage",
       automaticPolicyDistribution: "Automatic cache policies",
     });
@@ -119,6 +121,8 @@ describe("token usage activity", () => {
       insights: "活动观察",
       tokenComposition: "Token 构成",
       cacheHitRate: "缓存命中率",
+      cacheHitRateDescription:
+        "缓存读取 Token ÷ 已报告缓存数据的输入 Token（输入 + 缓存读取 + 缓存写入）。",
       cacheDataCoverage: "缓存数据覆盖率",
       automaticPolicyDistribution: "自动缓存策略分布",
     });
@@ -202,6 +206,40 @@ describe("token usage activity", () => {
     expect(
       filterTokenUsageEvents([first, second, legacy], ALL_USAGE_MODELS),
     ).toHaveLength(3);
+  });
+
+  it("computes a cache hit rate for each provider and model", () => {
+    const cached = usageEvent("usage-23", "2026-07-27T09:00:00.000Z", 520);
+    cached.payload = {
+      type: "assistant.usage",
+      providerId: "openai",
+      modelId: "gpt-5.6",
+      inputTokens: 100,
+      outputTokens: 20,
+      cacheReadTokens: 300,
+      cacheWriteTokens: 100,
+      totalTokens: 520,
+      cacheReadReported: true,
+    };
+    const uncached = usageEvent("usage-24", "2026-07-27T10:00:00.000Z", 120);
+    uncached.payload = {
+      type: "assistant.usage",
+      providerId: "openai",
+      modelId: "gpt-5.6",
+      inputTokens: 100,
+      outputTokens: 20,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalTokens: 120,
+      cacheReadReported: true,
+    };
+
+    expect(buildTokenUsageByModel([cached, uncached])).toEqual([
+      expect.objectContaining({
+        key: "openai:gpt-5.6",
+        cacheHitRate: 0.5,
+      }),
+    ]);
   });
 
   it("infers compatible endpoint reporting from cache reads on the same key", () => {

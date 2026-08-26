@@ -3680,8 +3680,10 @@ button.environment-row:disabled {
   align-items: center;
   display: flex;
   justify-content: center;
-  margin: 0 20px 10px;
+  margin: 0 auto 10px;
+  max-width: calc(100% - 40px);
   position: relative;
+  width: fit-content;
   z-index: 15;
 }
 
