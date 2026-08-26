@@ -442,11 +442,11 @@ export function TokenUsagePage({
               <thead>
                 <tr>
                   <th>{t.modelColumn}</th>
-                  <th>{t.responsesColumn}</th>
                   <th>{t.inputTokens}</th>
                   <th>{t.outputTokens}</th>
                   <th>{t.cacheReadTokens}</th>
                   <th>{t.cacheWriteTokens}</th>
+                  <th title={t.cacheHitRateDescription}>{t.cacheHitRate}</th>
                   <th>{t.totalTokens}</th>
                 </tr>
               </thead>
@@ -468,11 +468,15 @@ export function TokenUsagePage({
                         {modelLabel(model)}
                       </button>
                     </td>
-                    <td>{exactNumber.format(model.usageEvents)}</td>
                     <td>{number.format(model.inputTokens)}</td>
                     <td>{number.format(model.outputTokens)}</td>
                     <td>{number.format(model.cacheReadTokens)}</td>
                     <td>{number.format(model.cacheWriteTokens)}</td>
+                    <td title={t.cacheHitRateDescription}>
+                      {model.cacheHitRate === undefined
+                        ? "—"
+                        : percent.format(model.cacheHitRate)}
+                    </td>
                     <td>{number.format(model.totalTokens)}</td>
                   </tr>
                 ))}

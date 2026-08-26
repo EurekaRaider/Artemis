@@ -14,6 +14,8 @@ interface TaskPlanProgressProps {
   plan: TaskPlan;
 }
 
+const HOVER_INTENT_MILLISECONDS = 175;
+
 const statusLabels = {
   en: {
     pending: "Not started",
@@ -84,6 +86,7 @@ export function TaskPlanProgress({ locale, plan }: TaskPlanProgressProps) {
   const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState(true);
   const root = useRef<HTMLDivElement>(null);
+  const openTimer = useRef<number | undefined>(undefined);
   const detailsId = useId();
   const current = plan.steps[plan.currentIndex] ?? plan.steps[0];
   const t = localizedCopy(locale, "app", planLabels[legacyLocale(locale)]);
@@ -91,6 +94,28 @@ export function TaskPlanProgress({ locale, plan }: TaskPlanProgressProps) {
   const progressLabel = t.progress
     .replace("{{current}}", number.format(plan.currentIndex + 1))
     .replace("{{total}}", number.format(plan.steps.length));
+
+  const cancelScheduledOpen = () => {
+    if (openTimer.current === undefined) return;
+    window.clearTimeout(openTimer.current);
+    openTimer.current = undefined;
+  };
+  const scheduleOpen = () => {
+    cancelScheduledOpen();
+    openTimer.current = window.setTimeout(() => {
+      openTimer.current = undefined;
+      setOpen(true);
+    }, HOVER_INTENT_MILLISECONDS);
+  };
+
+  useEffect(
+    () => () => {
+      if (openTimer.current !== undefined) {
+        window.clearTimeout(openTimer.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -124,12 +149,14 @@ export function TaskPlanProgress({ locale, plan }: TaskPlanProgressProps) {
       className="task-plan-progress"
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          cancelScheduledOpen();
           setOpen(false);
         }
       }}
-      onFocus={() => setOpen(true)}
-      onPointerEnter={() => setOpen(true)}
-      onPointerLeave={() => setOpen(false)}
+      onPointerLeave={() => {
+        cancelScheduledOpen();
+        setOpen(false);
+      }}
       ref={root}
     >
       {open && (
@@ -155,7 +182,16 @@ export function TaskPlanProgress({ locale, plan }: TaskPlanProgressProps) {
         aria-controls={detailsId}
         aria-expanded={open}
         className="task-plan-trigger"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          cancelScheduledOpen();
+          setOpen(true);
+        }}
+        onFocus={() => {
+          cancelScheduledOpen();
+          setOpen(true);
+        }}
+        onPointerEnter={scheduleOpen}
+        onPointerLeave={cancelScheduledOpen}
         type="button"
       >
         <StepMarker

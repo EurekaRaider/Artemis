@@ -1000,10 +1000,11 @@ describe("renderer layout contract", () => {
     expect(runtimeSource).toContain('"update_plan"');
   });
 
-  it("opens task-plan details on hover and preserves keyboard access", () => {
-    expect(taskPlanSource).toContain("onPointerEnter={() => setOpen(true)}");
-    expect(taskPlanSource).toContain("onPointerLeave={() => setOpen(false)}");
-    expect(taskPlanSource).toContain("onFocus={() => setOpen(true)}");
+  it("opens task-plan details with capsule hover intent and keyboard access", () => {
+    expect(taskPlanSource).toContain("onPointerEnter={scheduleOpen}");
+    expect(taskPlanSource).toContain("onPointerLeave={cancelScheduledOpen}");
+    expect(taskPlanSource).toContain("HOVER_INTENT_MILLISECONDS = 175");
+    expect(taskPlanSource).toContain("onFocus={() => {");
     expect(taskPlanSource).toContain("aria-expanded={open}");
   });
 

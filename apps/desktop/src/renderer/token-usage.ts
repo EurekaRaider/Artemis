@@ -33,6 +33,7 @@ export interface TokenUsageModelSummary {
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  cacheHitRate?: number;
   totalTokens: number;
 }
 
@@ -49,7 +50,6 @@ export const TOKEN_USAGE_COPY = {
     unattributedModel: "Earlier usage (model unavailable)",
     usageByModel: "Usage by model",
     modelColumn: "Model",
-    responsesColumn: "Responses",
     dailyTab: "Daily",
     weeklyTab: "Weekly",
     cumulativeTab: "Cumulative",
@@ -70,6 +70,8 @@ export const TOKEN_USAGE_COPY = {
     cacheReadTokens: "Cache read Tokens",
     cacheWriteTokens: "Cache write Tokens",
     cacheHitRate: "Cache hit rate",
+    cacheHitRateDescription:
+      "Cache read Tokens divided by cache-reported input Tokens (input + cache read + cache write).",
     cacheDataCoverage: "Cache data coverage",
     automaticPolicyDistribution: "Automatic cache policies",
     policyDisabled: "Disabled",
@@ -91,7 +93,6 @@ export const TOKEN_USAGE_COPY = {
     unattributedModel: "较早用量（模型信息不可用）",
     usageByModel: "按模型统计",
     modelColumn: "模型",
-    responsesColumn: "回复次数",
     dailyTab: "每日",
     weeklyTab: "每周",
     cumulativeTab: "累计",
@@ -112,6 +113,8 @@ export const TOKEN_USAGE_COPY = {
     cacheReadTokens: "缓存读取 Token",
     cacheWriteTokens: "缓存写入 Token",
     cacheHitRate: "缓存命中率",
+    cacheHitRateDescription:
+      "缓存读取 Token ÷ 已报告缓存数据的输入 Token（输入 + 缓存读取 + 缓存写入）。",
     cacheDataCoverage: "缓存数据覆盖率",
     automaticPolicyDistribution: "自动缓存策略分布",
     policyDisabled: "禁用",
@@ -148,6 +151,7 @@ export function buildTokenUsageByModel(
   events: readonly AgentEvent[],
 ): TokenUsageModelSummary[] {
   const models = new Map<string, TokenUsageModelSummary>();
+  const eventsByModel = new Map<string, AgentEvent[]>();
   const seen = new Set<string>();
   for (const event of events) {
     if (seen.has(event.eventId) || event.payload.type !== "assistant.usage") {
@@ -155,6 +159,9 @@ export function buildTokenUsageByModel(
     }
     seen.add(event.eventId);
     const key = tokenUsageModelKey(event)!;
+    const modelEvents = eventsByModel.get(key) ?? [];
+    modelEvents.push(event);
+    eventsByModel.set(key, modelEvents);
     const current = models.get(key) ?? {
       key,
       ...(event.payload.providerId
@@ -176,10 +183,18 @@ export function buildTokenUsageByModel(
     current.totalTokens += event.payload.totalTokens;
     models.set(key, current);
   }
-  return [...models.values()].sort(
-    (left, right) =>
-      right.totalTokens - left.totalTokens || left.key.localeCompare(right.key),
-  );
+  return [...models.values()]
+    .map((model) => {
+      const cacheHitRate = buildCacheUsageMetrics(
+        eventsByModel.get(model.key) ?? [],
+      ).hitRate;
+      return cacheHitRate === undefined ? model : { ...model, cacheHitRate };
+    })
+    .sort(
+      (left, right) =>
+        right.totalTokens - left.totalTokens ||
+        left.key.localeCompare(right.key),
+    );
 }
 
 export function buildCacheUsageMetrics(

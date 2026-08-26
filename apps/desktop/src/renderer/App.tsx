@@ -81,7 +81,11 @@ import {
   EnvironmentPanel,
 } from "./EnvironmentPanel.js";
 import { TaskPlanProgress } from "./TaskPlanProgress.js";
-import { resolveTimelinePinned } from "./timeline-scroll.js";
+import {
+  resolveTimelinePinned,
+  resolveTimelineScrollTarget,
+  type TimelineScrollSnapshot,
+} from "./timeline-scroll.js";
 import { HighlightedCodeLine } from "./WorkspaceFileEditor.js";
 import {
   WorkspaceFileIcon,
@@ -1637,6 +1641,16 @@ export function App() {
   }>();
   const timelineScroll = useRef<HTMLDivElement>(null);
   const timelinePinned = useRef(true);
+  const timelineScrollSnapshots = useRef(
+    new Map<string, TimelineScrollSnapshot>(),
+  );
+  const pendingTimelineRestore = useRef<
+    | {
+        threadId: string;
+        snapshot?: TimelineScrollSnapshot;
+      }
+    | undefined
+  >(undefined);
   const timelineScrollIntent = useRef(false);
   const timelineScrollbarPointerActive = useRef(false);
   const loadedEventThreads = useRef(new Set<string>());
@@ -3314,12 +3328,10 @@ export function App() {
       return;
     }
     const threadId = activeThreadId;
-    let mounted = true;
     loadingEventThreads.current.add(threadId);
     void window.artemis
       .getThreadEvents(threadId)
       .then((history) => {
-        if (!mounted) return;
         loadedEventThreads.current.add(threadId);
         setSnapshot((current) => {
           if (!current) return current;
@@ -3336,16 +3348,13 @@ export function App() {
         });
       })
       .catch((error) => {
-        if (mounted) {
+        if (activeThreadIdRef.current === threadId) {
           setToast(error instanceof Error ? error.message : String(error));
         }
       })
       .finally(() => {
         loadingEventThreads.current.delete(threadId);
       });
-    return () => {
-      mounted = false;
-    };
   }, [activeThreadId]);
   const activeEvents = activeThread
     ? (snapshot?.events[activeThread.id] ?? [])
@@ -3741,14 +3750,43 @@ export function App() {
     return () => document.body.classList.remove("sidebar-collapsed");
   }, [sidebarOpen]);
 
-  useEffect(() => {
-    timelinePinned.current = true;
+  useLayoutEffect(() => {
+    if (!activeThreadId) {
+      timelinePinned.current = true;
+      pendingTimelineRestore.current = undefined;
+      return;
+    }
+    const snapshot = timelineScrollSnapshots.current.get(activeThreadId);
+    timelinePinned.current = snapshot?.pinned ?? true;
+    pendingTimelineRestore.current = {
+      threadId: activeThreadId,
+      ...(snapshot ? { snapshot } : {}),
+    };
+  }, [activeThreadId]);
+
+  useLayoutEffect(() => {
+    const pending = pendingTimelineRestore.current;
+    if (
+      !activeThreadId ||
+      pending?.threadId !== activeThreadId ||
+      !loadedEventThreads.current.has(activeThreadId)
+    ) {
+      return;
+    }
     const frame = window.requestAnimationFrame(() => {
+      if (activeThreadIdRef.current !== activeThreadId) return;
       const container = timelineScroll.current;
-      if (container) container.scrollTop = container.scrollHeight;
+      if (!container) return;
+      timelinePinned.current = pending.snapshot?.pinned ?? true;
+      pendingTimelineRestore.current = undefined;
+      container.scrollTop = resolveTimelineScrollTarget({
+        clientHeight: container.clientHeight,
+        scrollHeight: container.scrollHeight,
+        ...(pending.snapshot ? { snapshot: pending.snapshot } : {}),
+      });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activeThreadId]);
+  }, [activeEvents.length, activeThreadId, threadState?.lastSeq]);
 
   useLayoutEffect(() => {
     const container = timelineScroll.current;
@@ -5690,6 +5728,16 @@ export function App() {
                         timelineScrollIntent.current ||
                         timelineScrollbarPointerActive.current,
                     });
+                    const threadId = activeThreadIdRef.current;
+                    if (
+                      threadId &&
+                      pendingTimelineRestore.current?.threadId !== threadId
+                    ) {
+                      timelineScrollSnapshots.current.set(threadId, {
+                        pinned: timelinePinned.current,
+                        scrollTop: container.scrollTop,
+                      });
+                    }
                     timelineScrollIntent.current = false;
                   }}
                   onWheel={() => {
