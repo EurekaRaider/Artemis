@@ -11,6 +11,7 @@ import {
   getBuiltinModels,
   getBuiltinProviders,
 } from "@earendil-works/pi-ai/providers/all";
+import { withArtemisBuiltinModels } from "@artemis/agent-host/builtin-models";
 
 const visibleProviderIds = new Set([
   "anthropic",
@@ -80,26 +81,32 @@ function supportedThinkingLevels(model: {
 
 export async function loadBundledModelCatalog(): Promise<AgentModelInfo[]> {
   return getBuiltinProviders().flatMap((providerId) =>
-    getBuiltinModels(providerId).map((model) => {
-      const supported = supportedThinkingLevels(model);
-      return {
-        providerId: model.provider,
-        modelId: model.id,
-        name: model.name,
-        reasoning: model.reasoning,
-        thinkingLevels: supported,
-        highestThinkingLevel: supported.at(-1) ?? "off",
-        contextWindow: model.contextWindow,
-        configured: false,
-      };
-    }),
+    withArtemisBuiltinModels(providerId, getBuiltinModels(providerId)).map(
+      (model) => {
+        const supported = supportedThinkingLevels(model);
+        return {
+          providerId: model.provider,
+          modelId: model.id,
+          name: model.name,
+          reasoning: model.reasoning,
+          thinkingLevels: supported,
+          highestThinkingLevel: supported.at(-1) ?? "off",
+          contextWindow: model.contextWindow,
+          configured: false,
+        };
+      },
+    ),
   );
 }
 
 export function mergeBundledModelCatalog(
   bundledModels: AgentModelInfo[],
   runtimeModels: AgentModelInfo[],
+  customProviderIds: Iterable<string> = [],
 ): AgentModelInfo[] {
+  const customProviders = new Set(
+    [...customProviderIds].map((providerId) => providerId.toLowerCase()),
+  );
   const runtimeByKey = new Map(
     runtimeModels.map((model) => [
       `${model.providerId}\0${model.modelId}`,
@@ -107,15 +114,17 @@ export function mergeBundledModelCatalog(
     ]),
   );
   const bundledKeys = new Set<string>();
-  const merged = bundledModels.map((model) => {
-    const key = `${model.providerId}\0${model.modelId}`;
-    bundledKeys.add(key);
-    return {
-      ...model,
-      configured:
-        model.configured || Boolean(runtimeByKey.get(key)?.configured),
-    };
-  });
+  const merged = bundledModels
+    .filter((model) => !customProviders.has(model.providerId.toLowerCase()))
+    .map((model) => {
+      const key = `${model.providerId}\0${model.modelId}`;
+      bundledKeys.add(key);
+      return {
+        ...model,
+        configured:
+          model.configured || Boolean(runtimeByKey.get(key)?.configured),
+      };
+    });
   for (const model of runtimeModels) {
     if (!bundledKeys.has(`${model.providerId}\0${model.modelId}`)) {
       merged.push(model);

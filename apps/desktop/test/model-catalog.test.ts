@@ -72,6 +72,25 @@ describe("visible model catalog", () => {
     ]);
   });
 
+  it("does not expose bundled models shadowed by a custom provider", () => {
+    const bundled = [
+      model("zai", "glm-5.3"),
+      model("zai", "glm-5.3-flash"),
+      model("openai", "gpt-5.6"),
+    ];
+    const runtime = [
+      {
+        ...model("zai", "custom-model"),
+        configured: true,
+      },
+    ];
+
+    expect(mergeBundledModelCatalog(bundled, runtime, ["zai"])).toEqual([
+      bundled[2],
+      runtime[0],
+    ]);
+  });
+
   it("loads the bundled Pi catalog without credentials or an Agent Host", async () => {
     const models = filterVisibleModels(await loadBundledModelCatalog());
 
@@ -90,19 +109,24 @@ describe("visible model catalog", () => {
       )?.highestThinkingLevel,
     ).toBe("max");
     for (const providerId of ["zai", "zai-coding-cn"]) {
-      expect(
-        models.find(
-          (candidate) =>
-            candidate.providerId === providerId &&
-            candidate.modelId === "glm-5.3",
-        ),
-      ).toMatchObject({
-        name: "GLM-5.3",
-        reasoning: true,
-        thinkingLevels: ["low", "high", "max"],
-        highestThinkingLevel: "max",
-        contextWindow: 1_000_000,
-      });
+      for (const [modelId, name] of [
+        ["glm-5.3", "GLM-5.3"],
+        ["glm-5.3-flash", "GLM-5.3-Flash"],
+      ]) {
+        expect(
+          models.find(
+            (candidate) =>
+              candidate.providerId === providerId &&
+              candidate.modelId === modelId,
+          ),
+        ).toMatchObject({
+          name,
+          reasoning: true,
+          thinkingLevels: ["low", "high", "max"],
+          highestThinkingLevel: "max",
+          contextWindow: 1_000_000,
+        });
+      }
     }
     expect(models.every((candidate) => candidate.configured === false)).toBe(
       true,

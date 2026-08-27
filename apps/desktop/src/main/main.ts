@@ -1411,6 +1411,7 @@ async function getModelSettingsSnapshot(): Promise<ModelSettingsSnapshot> {
   const catalogModels = mergeBundledModelCatalog(
     bundledModels,
     cachedAgentCatalog.models,
+    providers.map((provider) => provider.id),
   );
   const configuredProviderIds = new Set(
     credentials.map((credential) => credential.providerId),

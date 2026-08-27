@@ -65,6 +65,57 @@ describe("agent runtime configuration", () => {
     expect.soft(createModelRuntime).not.toHaveBeenCalled();
   });
 
+  it("keeps GLM-5.3-Flash available after removing a same-id custom provider", async () => {
+    const host = new ArtemisAgentHost(
+      {
+        async request() {
+          throw new Error("model configuration must not execute tools");
+        },
+      },
+      { emit() {} },
+    );
+    const customZai = provider("temporary-model", "Temporary Model");
+    customZai.id = "zai";
+    customZai.name = "Temporary Z.AI Proxy";
+    await host.configure({
+      credentials: {},
+      providers: [customZai],
+      selection: {
+        providerId: "zai",
+        modelId: "temporary-model",
+        thinkingLevel: "off",
+      },
+    });
+
+    await expect(
+      host.configure({
+        credentials: { zai: { type: "api_key", key: "test-key" } },
+        selection: {
+          providerId: "zai",
+          modelId: "glm-5.3-flash",
+          thinkingLevel: "max",
+        },
+      }),
+    ).resolves.toBeUndefined();
+    const catalog = await host.catalog();
+    for (const providerId of ["zai", "zai-coding-cn"]) {
+      expect(
+        catalog.models.find(
+          (model) =>
+            model.providerId === providerId &&
+            model.modelId === "glm-5.3-flash",
+        ),
+      ).toMatchObject({
+        name: "GLM-5.3-Flash",
+        reasoning: true,
+        thinkingLevels: ["low", "high", "max"],
+        highestThinkingLevel: "max",
+        contextWindow: 1_000_000,
+      });
+    }
+    host.dispose();
+  });
+
   it("keeps open sessions on their own model until that thread changes it", async () => {
     const workspacePath = await mkdtemp(
       join(tmpdir(), "artemis-runtime-model-"),

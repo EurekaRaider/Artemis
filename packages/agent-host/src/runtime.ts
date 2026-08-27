@@ -47,6 +47,7 @@ import {
 } from "@artemis/protocol";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
+import { registerArtemisBuiltinModels } from "./builtin-models.js";
 import { modeInstruction } from "./mode-instructions.js";
 import { toPiProviderConfig } from "./provider-configuration.js";
 import { forkPiSession } from "./session-fork.js";
@@ -810,6 +811,81 @@ const CHILD_CONTROL_OBSERVATION_MILLISECONDS = 5_000;
 const ROOT_AGENT_ID = "parent";
 const PROVIDER_BACKOFF_DEFAULT_MILLISECONDS = 2_000;
 const PROVIDER_BACKOFF_MAX_MILLISECONDS = 5 * 60_000;
+const MODEL_STREAM_IDLE_TIMEOUT_MILLISECONDS = 120_000;
+const MODEL_STREAM_STALLED_CODE = "MODEL_STREAM_STALLED";
+
+class ModelStreamIdleTimeoutError extends Error {
+  readonly code = MODEL_STREAM_STALLED_CODE;
+
+  constructor(timeoutMilliseconds: number) {
+    const duration =
+      timeoutMilliseconds % 1_000 === 0
+        ? `${timeoutMilliseconds / 1_000} seconds`
+        : `${timeoutMilliseconds} ms`;
+    super(
+      `The model produced no streaming activity for ${duration}. Artemis cancelled the stalled request; retry the turn or choose another model.`,
+    );
+    this.name = "ModelStreamIdleTimeoutError";
+  }
+}
+
+function createModelStreamIdleWatchdog(
+  timeoutMilliseconds: number,
+  onTimeout: () => void,
+): {
+  stalled: Promise<never>;
+  observe(event: AgentSessionEvent): void;
+  dispose(): void;
+} {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let activeToolExecutions = 0;
+  let rejectStalled!: (error: ModelStreamIdleTimeoutError) => void;
+  const stalled = new Promise<never>((_resolve, reject) => {
+    rejectStalled = reject;
+  });
+  const clear = () => {
+    if (timer) clearTimeout(timer);
+    timer = undefined;
+  };
+  const arm = () => {
+    if (activeToolExecutions > 0) return;
+    clear();
+    timer = setTimeout(() => {
+      timer = undefined;
+      onTimeout();
+      rejectStalled(new ModelStreamIdleTimeoutError(timeoutMilliseconds));
+    }, timeoutMilliseconds);
+  };
+  const observe = (event: AgentSessionEvent) => {
+    if (event.type === "tool_execution_start") {
+      activeToolExecutions += 1;
+      clear();
+      return;
+    }
+    if (event.type === "tool_execution_end") {
+      activeToolExecutions = Math.max(0, activeToolExecutions - 1);
+      if (activeToolExecutions === 0) arm();
+      return;
+    }
+    if (
+      (event.type === "message_start" || event.type === "message_end") &&
+      event.message.role === "assistant"
+    ) {
+      arm();
+      return;
+    }
+    if (
+      event.type === "message_update" &&
+      "delta" in event.assistantMessageEvent &&
+      typeof event.assistantMessageEvent.delta === "string" &&
+      event.assistantMessageEvent.delta.length > 0
+    ) {
+      arm();
+    }
+  };
+  arm();
+  return { stalled, observe, dispose: clear };
+}
 
 function retryAfterHeader(error: unknown): string | undefined {
   if (!error || typeof error !== "object") return undefined;
@@ -1102,6 +1178,7 @@ export class ArtemisAgentHost {
     options: {
       agentConcurrencyLimit?: number;
       agentDir?: string;
+      modelStreamIdleTimeoutMs?: number;
       onSessionFile?: (threadId: string, path: string) => void;
     } = {},
   ) {
@@ -1114,7 +1191,12 @@ export class ArtemisAgentHost {
       limit,
       parentConcurrencyLimit(limit),
     );
+    this.modelStreamIdleTimeoutMs =
+      options.modelStreamIdleTimeoutMs ??
+      MODEL_STREAM_IDLE_TIMEOUT_MILLISECONDS;
   }
+
+  private readonly modelStreamIdleTimeoutMs: number;
 
   setConcurrencyLimit(limit: number): AgentConcurrencySnapshot {
     if (
@@ -1133,8 +1215,13 @@ export class ArtemisAgentHost {
     return this.concurrency.snapshot;
   }
 
-  private recordProviderBackoff(providerId: string, error: unknown): void {
-    const delay = providerRetryDelayMilliseconds(error);
+  private recordProviderBackoff(
+    providerId: string,
+    error: unknown,
+    fallbackDelayMilliseconds?: number,
+  ): void {
+    const delay =
+      providerRetryDelayMilliseconds(error) ?? fallbackDelayMilliseconds;
     if (delay === undefined) return;
     this.providerAdmissionBlockedUntil.set(
       providerId,
@@ -1205,7 +1292,10 @@ export class ArtemisAgentHost {
     this.modelRuntimePromise ??= ModelRuntime.create({
       credentials: this.credentials,
       allowModelNetwork: false,
-    }).then((runtime) => withPromptCacheController(runtime, this.promptCache));
+    }).then((runtime) => {
+      registerArtemisBuiltinModels(runtime);
+      return withPromptCacheController(runtime, this.promptCache);
+    });
     return this.modelRuntimePromise;
   }
 
@@ -1227,6 +1317,7 @@ export class ArtemisAgentHost {
     for (const providerId of this.registeredProviderIds) {
       if (!nextProviderIds.has(providerId)) {
         modelRuntime.unregisterProvider(providerId);
+        registerArtemisBuiltinModels(modelRuntime);
         this.registeredProviderIds.delete(providerId);
       }
     }
@@ -4674,16 +4765,49 @@ export class ArtemisAgentHost {
                 ),
               );
             }
-            await (images || expandedPrompt.expanded
-              ? hosted.session.prompt(expandedPrompt.text, {
-                  ...(images ? { images } : {}),
-                  ...(expandedPrompt.expanded
-                    ? { expandPromptTemplates: false }
-                    : {}),
-                })
-              : hosted.session.prompt(expandedPrompt.text));
+            const watchdog = createModelStreamIdleWatchdog(
+              this.modelStreamIdleTimeoutMs,
+              () => {
+                void hosted.session.abort().catch(() => undefined);
+              },
+            );
+            const stopWatching = hosted.session.subscribe(watchdog.observe);
+            try {
+              await Promise.race([
+                images || expandedPrompt.expanded
+                  ? hosted.session.prompt(expandedPrompt.text, {
+                      ...(images ? { images } : {}),
+                      ...(expandedPrompt.expanded
+                        ? { expandPromptTemplates: false }
+                        : {}),
+                    })
+                  : hosted.session.prompt(expandedPrompt.text),
+                watchdog.stalled,
+              ]);
+            } finally {
+              stopWatching();
+              watchdog.dispose();
+            }
           } catch (error) {
-            if (providerId) this.recordProviderBackoff(providerId, error);
+            if (providerId) {
+              this.recordProviderBackoff(
+                providerId,
+                error,
+                error instanceof ModelStreamIdleTimeoutError
+                  ? PROVIDER_BACKOFF_DEFAULT_MILLISECONDS
+                  : undefined,
+              );
+            }
+            if (error instanceof ModelStreamIdleTimeoutError) {
+              if (!this.cancelledTurns.has(`${threadId}\0${turnId}`)) {
+                this.sink.emit(hosted.threadId, turnId, {
+                  type: "turn.failed",
+                  code: error.code,
+                  message: error.message,
+                });
+              }
+              return;
+            }
             throw error;
           } finally {
             hosted.activeLeases.delete(ROOT_AGENT_ID);
