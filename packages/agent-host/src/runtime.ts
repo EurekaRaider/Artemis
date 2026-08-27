@@ -838,6 +838,7 @@ function createModelStreamIdleWatchdog(
   dispose(): void;
 } {
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let activeToolExecutions = 0;
   let rejectStalled!: (error: ModelStreamIdleTimeoutError) => void;
   const stalled = new Promise<never>((_resolve, reject) => {
     rejectStalled = reject;
@@ -847,6 +848,7 @@ function createModelStreamIdleWatchdog(
     timer = undefined;
   };
   const arm = () => {
+    if (activeToolExecutions > 0) return;
     clear();
     timer = setTimeout(() => {
       timer = undefined;
@@ -856,11 +858,13 @@ function createModelStreamIdleWatchdog(
   };
   const observe = (event: AgentSessionEvent) => {
     if (event.type === "tool_execution_start") {
+      activeToolExecutions += 1;
       clear();
       return;
     }
     if (event.type === "tool_execution_end") {
-      arm();
+      activeToolExecutions = Math.max(0, activeToolExecutions - 1);
+      if (activeToolExecutions === 0) arm();
       return;
     }
     if (

@@ -102,7 +102,11 @@ export async function loadBundledModelCatalog(): Promise<AgentModelInfo[]> {
 export function mergeBundledModelCatalog(
   bundledModels: AgentModelInfo[],
   runtimeModels: AgentModelInfo[],
+  customProviderIds: Iterable<string> = [],
 ): AgentModelInfo[] {
+  const customProviders = new Set(
+    [...customProviderIds].map((providerId) => providerId.toLowerCase()),
+  );
   const runtimeByKey = new Map(
     runtimeModels.map((model) => [
       `${model.providerId}\0${model.modelId}`,
@@ -110,15 +114,17 @@ export function mergeBundledModelCatalog(
     ]),
   );
   const bundledKeys = new Set<string>();
-  const merged = bundledModels.map((model) => {
-    const key = `${model.providerId}\0${model.modelId}`;
-    bundledKeys.add(key);
-    return {
-      ...model,
-      configured:
-        model.configured || Boolean(runtimeByKey.get(key)?.configured),
-    };
-  });
+  const merged = bundledModels
+    .filter((model) => !customProviders.has(model.providerId.toLowerCase()))
+    .map((model) => {
+      const key = `${model.providerId}\0${model.modelId}`;
+      bundledKeys.add(key);
+      return {
+        ...model,
+        configured:
+          model.configured || Boolean(runtimeByKey.get(key)?.configured),
+      };
+    });
   for (const model of runtimeModels) {
     if (!bundledKeys.has(`${model.providerId}\0${model.modelId}`)) {
       merged.push(model);

@@ -10,6 +10,7 @@ import { ArtemisAgentHost } from "../src/runtime.js";
 const cleanupPaths: string[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   await Promise.all(
     cleanupPaths
       .splice(0)
@@ -61,18 +62,34 @@ async function createHost(modelStreamIdleTimeoutMs: number) {
   return { host, payloads, thread };
 }
 
+function deferredSignal(): { promise: Promise<void>; resolve(): void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe("main model stream idle timeout", () => {
   it("aborts and fails a main turn that never produces model activity", async () => {
     const { host, payloads, thread } = await createHost(20);
-    thread.session.prompt = () => new Promise(() => {});
+    vi.useFakeTimers();
+    const promptStarted = deferredSignal();
+    thread.session.prompt = () => {
+      promptStarted.resolve();
+      return new Promise(() => {});
+    };
     thread.session.abort = vi.fn(async () => {});
 
-    await host.prompt(
+    const prompt = host.prompt(
       "thread-idle-timeout",
       "turn-stalled",
       "Wait for a response.",
       "execute",
     );
+    await promptStarted.promise;
+    await vi.advanceTimersByTimeAsync(20);
+    await prompt;
 
     expect(thread.session.abort).toHaveBeenCalledOnce();
     expect(payloads).toContainEqual({
@@ -87,8 +104,11 @@ describe("main model stream idle timeout", () => {
 
   it("resets the timeout for text, thinking, and tool-call stream deltas", async () => {
     const { host, payloads, thread } = await createHost(30);
+    vi.useFakeTimers();
+    const promptStarted = deferredSignal();
     thread.session.abort = vi.fn(async () => {});
     thread.session.prompt = async () => {
+      promptStarted.resolve();
       await new Promise((resolve) => setTimeout(resolve, 20));
       thread.session._emit({
         type: "message_update",
@@ -109,12 +129,15 @@ describe("main model stream idle timeout", () => {
       });
     };
 
-    await host.prompt(
+    const prompt = host.prompt(
       "thread-idle-timeout",
       "turn-active",
       "Produce a streamed response.",
       "execute",
     );
+    await promptStarted.promise;
+    await vi.advanceTimersByTimeAsync(60);
+    await prompt;
 
     expect(thread.session.abort).not.toHaveBeenCalled();
     expect(
@@ -129,8 +152,11 @@ describe("main model stream idle timeout", () => {
 
   it("pauses the model watchdog while a tool is running", async () => {
     const { host, payloads, thread } = await createHost(20);
+    vi.useFakeTimers();
+    const promptStarted = deferredSignal();
     thread.session.abort = vi.fn(async () => {});
     thread.session.prompt = async () => {
+      promptStarted.resolve();
       thread.session._emit({
         type: "tool_execution_start",
         toolCallId: "tool-1",
@@ -147,12 +173,76 @@ describe("main model stream idle timeout", () => {
       });
     };
 
-    await host.prompt(
+    const prompt = host.prompt(
       "thread-idle-timeout",
       "turn-tool",
       "Read the README.",
       "execute",
     );
+    await promptStarted.promise;
+    await vi.advanceTimersByTimeAsync(40);
+    await prompt;
+
+    expect(thread.session.abort).not.toHaveBeenCalled();
+    expect(
+      payloads.some(
+        (payload) =>
+          payload.type === "turn.failed" &&
+          payload.code === "MODEL_STREAM_STALLED",
+      ),
+    ).toBe(false);
+    host.dispose();
+  });
+
+  it("keeps the watchdog paused until every parallel tool finishes", async () => {
+    const { host, payloads, thread } = await createHost(20);
+    vi.useFakeTimers();
+    const promptStarted = deferredSignal();
+    thread.session.abort = vi.fn(async () => {});
+    thread.session.prompt = async () => {
+      promptStarted.resolve();
+      for (const toolCallId of ["tool-fast", "tool-slow"]) {
+        thread.session._emit({
+          type: "tool_execution_start",
+          toolCallId,
+          toolName: "read",
+          args: { path: `${toolCallId}.md` },
+        });
+      }
+      thread.session._emit({
+        type: "tool_execution_end",
+        toolCallId: "tool-fast",
+        toolName: "read",
+        result: "done",
+        isError: false,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      thread.session._emit({
+        type: "tool_execution_update",
+        toolCallId: "tool-slow",
+        toolName: "read",
+        args: { path: "tool-slow.md" },
+        partialResult: "still reading",
+      });
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      thread.session._emit({
+        type: "tool_execution_end",
+        toolCallId: "tool-slow",
+        toolName: "read",
+        result: "done",
+        isError: false,
+      });
+    };
+
+    const prompt = host.prompt(
+      "thread-idle-timeout",
+      "turn-parallel-tools",
+      "Read both files.",
+      "execute",
+    );
+    await promptStarted.promise;
+    await vi.advanceTimersByTimeAsync(50);
+    await prompt;
 
     expect(thread.session.abort).not.toHaveBeenCalled();
     expect(

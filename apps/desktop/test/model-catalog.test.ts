@@ -72,6 +72,25 @@ describe("visible model catalog", () => {
     ]);
   });
 
+  it("does not expose bundled models shadowed by a custom provider", () => {
+    const bundled = [
+      model("zai", "glm-5.3"),
+      model("zai", "glm-5.3-flash"),
+      model("openai", "gpt-5.6"),
+    ];
+    const runtime = [
+      {
+        ...model("zai", "custom-model"),
+        configured: true,
+      },
+    ];
+
+    expect(mergeBundledModelCatalog(bundled, runtime, ["zai"])).toEqual([
+      bundled[2],
+      runtime[0],
+    ]);
+  });
+
   it("loads the bundled Pi catalog without credentials or an Agent Host", async () => {
     const models = filterVisibleModels(await loadBundledModelCatalog());
 
