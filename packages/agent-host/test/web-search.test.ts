@@ -43,10 +43,8 @@ describe("native web search", () => {
     const brokerRequest = vi.fn(async () => {
       throw new Error("Anonymous web search must not use the approval broker.");
     });
-    const host = new ArtemisAgentHost(
-      { request: brokerRequest },
-      { emit() {} },
-    );
+    const emit = vi.fn();
+    const host = new ArtemisAgentHost({ request: brokerRequest }, { emit });
     try {
       await host.openThread({
         threadId: "web-search-thread",
@@ -73,6 +71,7 @@ describe("native web search", () => {
                 }>;
               }>;
               executeTools: Array<{ name: string }>;
+              currentTurnId?: string;
             }
           >;
         }
@@ -90,6 +89,7 @@ describe("native web search", () => {
       expect(thread?.executeTools.map((tool) => tool.name)).toContain(
         "web_search",
       );
+      if (thread) thread.currentTurnId = "turn-1";
 
       vi.stubGlobal(
         "fetch",
@@ -112,6 +112,22 @@ describe("native web search", () => {
           resultCount: 1,
         },
       });
+      expect(emit).toHaveBeenCalledWith(
+        "web-search-thread",
+        "turn-1",
+        expect.objectContaining({
+          type: "task.source.added",
+          kind: "web-search",
+          query: "anonymous search",
+          resultCount: 1,
+          links: [
+            {
+              title: "Anonymous result",
+              url: "https://example.org/anonymous",
+            },
+          ],
+        }),
+      );
       expect(brokerRequest).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
@@ -158,6 +174,12 @@ describe("native web search", () => {
     });
     expect(result.engine).toBe("DuckDuckGo HTML");
     expect(result.resultCount).toBe(1);
+    expect(result.sources).toEqual([
+      {
+        title: "Example & documentation",
+        url: "https://example.org/docs?version=current",
+      },
+    ]);
     expect(result.text).toContain("Example & documentation");
     expect(result.text).toContain("https://example.org/docs?version=current");
     expect(result.text).toContain("Read the current documentation.");
@@ -211,8 +233,37 @@ describe("native web search", () => {
     );
 
     expect(result.resultCount).toBe(0);
+    expect(result.sources).toEqual([]);
     expect(result.text).toContain("No web results were found");
     expect(result.text).toContain("DuckDuckGo HTML");
+  });
+
+  it("bounds structured source metadata before it reaches persisted events", async () => {
+    const result = await runNativeWebSearch(
+      { query: "bounded source" },
+      undefined,
+      {
+        fetch: vi.fn(async () =>
+          htmlResponse(
+            searchHtml([
+              {
+                title: "T".repeat(600),
+                url: "https://example.org/bounded",
+              },
+              {
+                title: "Oversized URL",
+                url: `https://example.org/${"x".repeat(4_100)}`,
+              },
+            ]),
+          ),
+        ) as typeof globalThis.fetch,
+      },
+    );
+
+    expect(result.resultCount).toBe(1);
+    expect(result.sources).toEqual([
+      { title: "T".repeat(500), url: "https://example.org/bounded" },
+    ]);
   });
 
   it("reports an anti-bot challenge instead of treating it as results", async () => {

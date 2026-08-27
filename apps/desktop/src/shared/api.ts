@@ -668,6 +668,7 @@ export interface ProjectGitInfo {
   root?: string;
   currentBranch?: string;
   head?: string;
+  headOid?: string;
   detached: boolean;
   changeCount: number;
   additions: number;
@@ -683,6 +684,36 @@ export interface ProjectGitInfo {
   behind: number;
   branches: ProjectGitBranch[];
 }
+
+export type ProjectPullRequestState = "OPEN" | "CLOSED" | "MERGED";
+export type ProjectPullRequestCheckStatus =
+  "passed" | "failed" | "pending" | "skipped" | "cancelled";
+
+export interface ProjectPullRequestCheck {
+  name: string;
+  status: ProjectPullRequestCheckStatus;
+  detailsUrl?: string;
+  workflowName?: string;
+}
+
+export interface ProjectPullRequest {
+  number: number;
+  title: string;
+  url: string;
+  state: ProjectPullRequestState;
+  isDraft: boolean;
+  headRefName: string;
+  headRefOid: string;
+  checks: ProjectPullRequestCheck[];
+}
+
+export type ProjectPullRequestLookup =
+  | { status: "found"; pullRequest: ProjectPullRequest }
+  | { status: "not-found" }
+  | {
+      status: "unavailable";
+      reason: "gh-not-installed" | "authentication-required";
+    };
 
 export interface ProjectGitCommitResult {
   commit: string;
@@ -703,6 +734,7 @@ export interface ArtemisApi {
   openProject(): Promise<Project | undefined>;
   removeProject(projectId: string): Promise<void>;
   getProjectGitInfo(projectId: string): Promise<ProjectGitInfo>;
+  getProjectPullRequest(projectId: string): Promise<ProjectPullRequestLookup>;
   switchProjectBranch(
     projectId: string,
     branchName: string,
@@ -973,6 +1005,7 @@ export const IPC = {
   projectOpen: "artemis:project-open",
   projectRemove: "artemis:project-remove",
   projectGitInfo: "artemis:project-git-info",
+  projectPullRequest: "artemis:project-pull-request",
   projectGitBranchSwitch: "artemis:project-git-branch-switch",
   projectGitBranchCreate: "artemis:project-git-branch-create",
   projectGitCommit: "artemis:project-git-commit",

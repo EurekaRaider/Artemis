@@ -84,6 +84,8 @@ describe("project Git branches", () => {
     expect(info.managed).toBe(true);
     expect(info.root).toBe(await realpath(path));
     expect(info.currentBranch).toBe("main");
+    expect(info.head).toMatch(/^[a-f\d]+$/u);
+    expect(info.headOid).toBe((await git(path, "rev-parse", "HEAD")).trim());
     expect(info.detached).toBe(false);
     expect(info.changeCount).toBe(2);
     expect(info.additions).toBe(2);

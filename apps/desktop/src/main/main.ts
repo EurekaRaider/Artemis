@@ -142,6 +142,7 @@ import {
   pushProjectBranch,
   switchGitBranch,
 } from "./git-branches.js";
+import { inspectProjectPullRequest } from "./github-pull-request.js";
 import { getReviewDiff, mutateReviewDiff } from "./git-review.js";
 import {
   attachPermanentWorktree,
@@ -270,6 +271,7 @@ import {
   type ProjectGitInfo,
   type ProjectGitCommitResult,
   type ProjectGitPushResult,
+  type ProjectPullRequestLookup,
   type ResourceInstallProgress,
   type ReviewDiff,
   type ReviewComment,
@@ -6664,6 +6666,46 @@ function registerIpc(): void {
   );
 
   ipcMain.handle(
+    IPC.projectPullRequest,
+    async (_event, projectId: string): Promise<ProjectPullRequestLookup> => {
+      const project = projectForGitRequest(projectId);
+      if (
+        smokeMode &&
+        process.env.ARTEMIS_SMOKE_VIEW === "environment-pr-checks"
+      ) {
+        const gitInfo = await inspectGitBranches(project.path);
+        return {
+          status: "found",
+          pullRequest: {
+            number: 80,
+            title: "Stop stalled model streams",
+            url: "https://github.com/EurekaRaider/Artemis/pull/80",
+            state: "OPEN",
+            isDraft: false,
+            headRefName: gitInfo.currentBranch ?? "main",
+            headRefOid: gitInfo.headOid ?? "0".repeat(40),
+            checks: [
+              {
+                name: "Test, typecheck, build and format",
+                status: "passed",
+                workflowName: "CI",
+                detailsUrl: "https://github.com/EurekaRaider/Artemis/actions",
+              },
+              {
+                name: "Windows native sandbox integration",
+                status: "passed",
+                workflowName: "CI",
+                detailsUrl: "https://github.com/EurekaRaider/Artemis/actions",
+              },
+            ],
+          },
+        };
+      }
+      return inspectProjectPullRequest(project.path);
+    },
+  );
+
+  ipcMain.handle(
     IPC.projectGitBranchSwitch,
     (
       _event,
@@ -8266,6 +8308,29 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
               kind: "file",
             },
           },
+          {
+            id: "environment-source-web-search",
+            payload: {
+              type: "task.source.added",
+              sourceId: "source-web-search",
+              kind: "web-search",
+              query: "Artemis task environment GitHub checks",
+              engine: "DuckDuckGo HTML",
+              resultCount: 2,
+              searchUrl:
+                "https://html.duckduckgo.com/html/?q=Artemis+task+environment",
+              links: [
+                {
+                  title: "Artemis repository",
+                  url: "https://github.com/EurekaRaider/Artemis",
+                },
+                {
+                  title: "GitHub checks documentation",
+                  url: "https://docs.github.com/actions",
+                },
+              ],
+            },
+          },
         ] satisfies SmokeEnvironmentEvent[])),
   ];
   for (const event of events) {
@@ -8459,6 +8524,21 @@ function createMainWindow(): BrowserWindow {
                     const popover = document.querySelector('.environment-popover');
                     if (popover) popover.scrollTop = 220;
                     await wait(500);
+                    return;
+                  }
+                  if (view === 'environment-pr-checks') {
+                    document.querySelector('.environment-pr-check-summary')?.click();
+                    await wait(500);
+                    return;
+                  }
+                  if (view === 'environment-sources') {
+                    const popover = document.querySelector('.environment-popover');
+                    if (popover) popover.scrollTop = popover.scrollHeight;
+                    await wait(350);
+                    document
+                      .querySelector('.sources-section .environment-view-all')
+                      ?.click();
+                    await wait(700);
                     return;
                   }
                   if (

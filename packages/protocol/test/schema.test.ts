@@ -375,6 +375,45 @@ describe("child-agent schemas", () => {
       data: "must-not-be-persisted",
     });
     expect("data" in parsed).toBe(false);
+
+    const webSource = agentPayloadSchema.parse({
+      type: "task.source.added",
+      sourceId: "search-1",
+      kind: "web-search",
+      query: "Artemis current release",
+      engine: "DuckDuckGo HTML",
+      resultCount: 1,
+      searchUrl: "https://html.duckduckgo.com/html/?q=Artemis",
+      links: [
+        {
+          title: "Artemis releases",
+          url: "https://github.com/EurekaRaider/Artemis/releases",
+          snippet: "must-not-be-persisted",
+        },
+      ],
+      body: "must-not-be-persisted",
+    });
+    expect(webSource).toMatchObject({
+      kind: "web-search",
+      query: "Artemis current release",
+      links: [{ title: "Artemis releases" }],
+    });
+    expect("body" in webSource).toBe(false);
+    expect(
+      webSource.kind === "web-search" && "snippet" in webSource.links[0]!,
+    ).toBe(false);
+    expect(
+      agentPayloadSchema.safeParse({
+        type: "task.source.added",
+        sourceId: "search-unsafe",
+        kind: "web-search",
+        query: "unsafe",
+        engine: "DuckDuckGo HTML",
+        resultCount: 1,
+        searchUrl: "https://example.org/search",
+        links: [{ title: "Local file", url: "file:///tmp/private" }],
+      }).success,
+    ).toBe(false);
   });
 
   it("carries the task and bounded live activity while remaining backward compatible", () => {

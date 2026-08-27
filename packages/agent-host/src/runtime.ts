@@ -2563,6 +2563,19 @@ export class ArtemisAgentHost {
           },
           signal,
         );
+        const hosted = this.threads.get(request.threadId);
+        if (hosted?.currentTurnId) {
+          this.sink.emit(request.threadId, hosted.currentTurnId, {
+            type: "task.source.added",
+            sourceId: randomUUID(),
+            kind: "web-search",
+            query: params.query.trim(),
+            engine: result.engine,
+            resultCount: result.resultCount,
+            searchUrl: result.searchUrl,
+            links: result.sources,
+          });
+        }
         return {
           content: [{ type: "text" as const, text: result.text }],
           details: {

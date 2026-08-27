@@ -16,6 +16,12 @@ export interface NativeWebSearchResult {
   engine: string;
   resultCount: number;
   searchUrl: string;
+  sources: NativeWebSearchSource[];
+}
+
+export interface NativeWebSearchSource {
+  title: string;
+  url: string;
 }
 
 interface NativeWebSearchDependencies {
@@ -152,9 +158,12 @@ function parseSearchResults(
     if (/\bresult--ad\b/iu.test(resultPrefix)) continue;
 
     const url = resultUrl(match[3] ?? "");
-    const title = plainText(match[4] ?? "");
+    const title = plainText(match[4] ?? "")
+      .slice(0, 500)
+      .trim();
     if (
       !url ||
+      url.length > 4096 ||
       !title ||
       seen.has(url) ||
       !domainAllowed(url, allowedDomains)
@@ -318,5 +327,6 @@ export async function runNativeWebSearch(
     engine: SEARCH_ENGINE,
     resultCount: results.length,
     searchUrl: searchUrl.toString(),
+    sources: results.map(({ title, url }) => ({ title, url })),
   };
 }

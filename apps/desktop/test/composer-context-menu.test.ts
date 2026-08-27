@@ -26,11 +26,15 @@ describe("composer project and Git context menus", () => {
 
   it("exposes Git inspection and branch mutations only through preload IPC", () => {
     expect(apiSource).toContain("getProjectGitInfo(projectId: string)");
+    expect(apiSource).toContain("getProjectPullRequest(projectId: string)");
     expect(apiSource).toContain("switchProjectBranch(");
     expect(apiSource).toContain("createProjectBranch(");
     expect(apiSource).toContain("commitProjectChanges(");
     expect(apiSource).toContain("pushProjectBranch(projectId: string)");
     expect(preloadSource).toContain("ipcRenderer.invoke(IPC.projectGitInfo");
+    expect(preloadSource).toContain(
+      "ipcRenderer.invoke(IPC.projectPullRequest",
+    );
     expect(preloadSource).toContain(
       "ipcRenderer.invoke(IPC.projectGitBranchSwitch",
     );

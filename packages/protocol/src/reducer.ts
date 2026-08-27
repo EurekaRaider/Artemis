@@ -48,10 +48,10 @@ export interface McpToolUsageState extends McpToolUsedPayload {
   turnId?: string;
   timestamp: string;
 }
-export interface TaskSourceState extends TaskSourceAddedPayload {
+export type TaskSourceState = TaskSourceAddedPayload & {
   turnId?: string;
   timestamp: string;
-}
+};
 
 export type ContextUsageState = Omit<ContextUsagePayload, "type">;
 export interface AssistantUsageState {

@@ -126,7 +126,7 @@ function numericCssProperty(
 }
 
 describe("Codex-like workspace tab layout contract", () => {
-  it("renders Review, Terminal, file, and Markdown as closable top workspace tabs", () => {
+  it("renders Review, Terminal, file, Markdown, and Sources as closable top workspace tabs", () => {
     const tabBarIndex = appSource.indexOf('className="workspace-tab-bar"');
     const tabContentIndex = appSource.indexOf(
       'className="workspace-tab-content"',
@@ -148,6 +148,8 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(tabContentSources).toContain('tab.kind === "terminal"');
     expect(tabContentSources).toContain('tab.kind === "file"');
     expect(tabContentSources).toContain('tab.kind === "markdown"');
+    expect(tabContentSources).toContain('tab.kind === "sources"');
+    expect(stylesSource).toContain(".sources-panel");
     expect(appSource).not.toContain("type RightSidebarView");
     expect(cssRule(".workspace-tab-bar")).toMatch(/\bdisplay:\s*flex/u);
   });
@@ -234,6 +236,7 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(menuSource).not.toContain(
       '["markdown", t.markdownReader, <MarkdownIcon />]',
     );
+    expect(menuSource).not.toContain('["sources", t.sources');
     expect(menuSource).toContain('["file", t.files, <FilesIcon />]');
     expect(appSource).toMatch(/type:\s*"open"/u);
     expect(cssRule(".workspace-tab-add")).toMatch(/\bflex:\s*0\s+0\s+auto/u);

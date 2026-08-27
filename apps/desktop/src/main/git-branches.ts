@@ -249,6 +249,7 @@ export async function inspectGitBranches(
   const [
     symbolicBranch,
     shortHead,
+    fullHead,
     branchOutput,
     statusOutput,
     lineCounts,
@@ -258,6 +259,7 @@ export async function inspectGitBranches(
       () => "",
     ),
     runGit(root, ["rev-parse", "--short", "HEAD"]).catch(() => ""),
+    runGit(root, ["rev-parse", "HEAD"]).catch(() => ""),
     runGit(root, [
       "for-each-ref",
       "--sort=refname",
@@ -302,6 +304,7 @@ export async function inspectGitBranches(
     root,
     ...(currentBranch ? { currentBranch } : {}),
     ...(shortHead.trim() ? { head: shortHead.trim() } : {}),
+    ...(fullHead.trim() ? { headOid: fullHead.trim() } : {}),
     detached: !currentBranch,
     ...counts,
     additions: lineCounts.additions,

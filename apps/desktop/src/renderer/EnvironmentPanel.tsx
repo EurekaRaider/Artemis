@@ -18,7 +18,13 @@ import {
   type TaskSourceState,
 } from "@artemis/protocol";
 
-import type { ProjectGitInfo, ReviewScope } from "../shared/api.js";
+import type {
+  ProjectGitInfo,
+  ProjectPullRequest,
+  ProjectPullRequestCheck,
+  ProjectPullRequestLookup,
+  ReviewScope,
+} from "../shared/api.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
@@ -116,6 +122,24 @@ const labels = {
     loading: "Loading environment…",
     retry: "Retry",
     notGit: "This project is not a Git repository.",
+    githubChecking: "Checking GitHub pull request…",
+    githubUnavailable: "Install GitHub CLI to show pull request checks.",
+    githubAuthentication: "Sign in with gh to show pull request checks.",
+    githubStale: "Last known GitHub state · refresh failed",
+    pullRequestDraft: "Draft",
+    pullRequestOpen: "Open",
+    pullRequestMerged: "Merged",
+    pullRequestClosed: "Closed",
+    checksPassed: "Checks passed",
+    checksFailed: "Checks failed",
+    checksPending: "Checks running",
+    checksSkipped: "Checks skipped",
+    checksCancelled: "Checks cancelled",
+    checksNone: "No checks reported",
+    checkDetails: "Pull request checks",
+    localChangesNotChecked: "Checks do not include local working tree changes.",
+    unpushedCommitNotChecked: "Checks do not include unpushed commits.",
+    differentHeadNotChecked: "Checks ran against a different commit.",
     agents: "Sub-agents",
     agentSummary: (total: number, active: number) =>
       `${total} total · ${active} active`,
@@ -151,6 +175,8 @@ const labels = {
     noSources: "No sources have been attached to this task.",
     draft: "Draft",
     sent: "Sent",
+    webSearchSummary: (engine: string, count: number) =>
+      `${engine} · ${count} ${count === 1 ? "result" : "results"}`,
   },
   "zh-CN": {
     trigger: "任务环境",
@@ -193,6 +219,24 @@ const labels = {
     loading: "正在加载环境信息…",
     retry: "重试",
     notGit: "当前项目不是 Git 仓库。",
+    githubChecking: "正在检查 GitHub 拉取请求…",
+    githubUnavailable: "安装 GitHub CLI 后可显示拉取请求检查。",
+    githubAuthentication: "登录 gh 后可显示拉取请求检查。",
+    githubStale: "GitHub 上次状态 · 刷新失败",
+    pullRequestDraft: "草稿",
+    pullRequestOpen: "开放",
+    pullRequestMerged: "已合并",
+    pullRequestClosed: "已关闭",
+    checksPassed: "检查通过",
+    checksFailed: "检查失败",
+    checksPending: "检查运行中",
+    checksSkipped: "检查已跳过",
+    checksCancelled: "检查已取消",
+    checksNone: "未报告检查",
+    checkDetails: "拉取请求检查",
+    localChangesNotChecked: "检查不包含本地工作区更改。",
+    unpushedCommitNotChecked: "检查不包含尚未推送的提交。",
+    differentHeadNotChecked: "检查运行于另一个提交。",
     agents: "子代理",
     agentSummary: (total: number, active: number) =>
       `共 ${total} 个 · ${active} 个活跃`,
@@ -228,10 +272,12 @@ const labels = {
     noSources: "当前任务尚未添加来源。",
     draft: "草稿",
     sent: "已发送",
+    webSearchSummary: (engine: string, count: number) =>
+      `${engine} · ${count} 个结果`,
   },
 } satisfies Record<"en" | "zh-CN", Record<string, unknown>>;
 
-interface McpGroup {
+export interface McpGroup {
   id: string;
   name: string;
   calls: number;
@@ -254,7 +300,76 @@ type EnvironmentSourceItem =
       mimeType: string;
       kind: "file" | "image";
       draft: false;
+    }
+  | {
+      id: string;
+      kind: "web-search";
+      query: string;
+      engine: string;
+      resultCount: number;
+      draft: false;
     };
+
+export type ProjectPullRequestCheckSummary =
+  "passed" | "failed" | "pending" | "skipped" | "cancelled" | "none";
+
+export type ProjectPullRequestCoverageWarning =
+  "working-tree" | "unpushed" | "head-mismatch";
+
+export function projectPullRequestCheckSummary(
+  checks: readonly ProjectPullRequestCheck[],
+): ProjectPullRequestCheckSummary {
+  if (checks.length === 0) return "none";
+  if (checks.some((check) => check.status === "failed")) return "failed";
+  if (checks.some((check) => check.status === "pending")) return "pending";
+  if (checks.some((check) => check.status === "cancelled")) return "cancelled";
+  if (checks.every((check) => check.status === "skipped")) return "skipped";
+  return "passed";
+}
+
+export function projectPullRequestCoverageWarning(
+  gitInfo: ProjectGitInfo,
+  pullRequest: ProjectPullRequest,
+): ProjectPullRequestCoverageWarning | undefined {
+  if (gitInfo.changeCount > 0) return "working-tree";
+  if (
+    gitInfo.ahead > 0 &&
+    (!gitInfo.headOid || gitInfo.headOid !== pullRequest.headRefOid)
+  ) {
+    return "unpushed";
+  }
+  if (gitInfo.headOid && gitInfo.headOid !== pullRequest.headRefOid) {
+    return "head-mismatch";
+  }
+  return undefined;
+}
+
+export function environmentChecksPopoverPosition(
+  anchor: Readonly<{
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+  }>,
+  viewport: Readonly<{ width: number; height: number }>,
+): { left: number; top: number } {
+  const margin = 12;
+  const gap = 10;
+  const width = Math.min(360, Math.max(0, viewport.width - margin * 2));
+  const height = Math.min(340, Math.max(0, viewport.height - margin * 2));
+  const left =
+    anchor.left >= width + gap + margin
+      ? anchor.left - width - gap
+      : Math.min(
+          Math.max(margin, anchor.right + gap),
+          Math.max(margin, viewport.width - width - margin),
+        );
+  const top = Math.min(
+    Math.max(margin, anchor.top),
+    Math.max(margin, viewport.height - height - margin),
+  );
+  return { left, top };
+}
 
 export interface AgentEnvironmentCounts {
   total: number;
@@ -476,6 +591,26 @@ function PushIcon() {
   );
 }
 
+function PullRequestIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <circle cx="6" cy="5" r="2" />
+      <circle cx="6" cy="19" r="2" />
+      <circle cx="18" cy="5" r="2" />
+      <path d="M6 7v10m12-10v3c0 4-3 7-7 7H9m6-9 3-3 3 3" />
+    </svg>
+  );
+}
+
+function WebSourceIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="8" />
+      <path d="M4 12h16M12 4c2.5 2.2 3.7 4.8 3.7 8s-1.2 5.8-3.7 8c-2.5-2.2-3.7-4.8-3.7-8S9.5 6.2 12 4Z" />
+    </svg>
+  );
+}
+
 function SourceIcon({ image }: { image: boolean }) {
   return image ? (
     <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -507,6 +642,8 @@ export function EnvironmentPanel({
   onOpenAgent,
   onOpenReview,
   onOpenTeam,
+  onOpenUrl,
+  onViewAllSources,
   project,
   refreshKey,
   sources,
@@ -529,6 +666,8 @@ export function EnvironmentPanel({
   onOpenAgent: (agent: ChildAgentState) => void;
   onOpenReview: (scope: ReviewScope) => void;
   onOpenTeam: (team: AgentTeamState) => void;
+  onOpenUrl: (url: string) => void;
+  onViewAllSources: () => void;
   project: Project;
   refreshKey?: string;
   sources: TaskSourceState[];
@@ -539,13 +678,23 @@ export function EnvironmentPanel({
   const control = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const request = useRef(0);
+  const gitRequest = useRef(0);
+  const pullRequestRequest = useRef(0);
+  const checksTrigger = useRef<HTMLButtonElement>(null);
+  const checksPopover = useRef<HTMLDivElement>(null);
+  const checksCloseTimer = useRef<number | undefined>(undefined);
   const autoHidden = useRef(false);
   const openRef = useRef(defaultOpen);
   const [open, setOpen] = useState(defaultOpen);
   const [gitInfo, setGitInfo] = useState<ProjectGitInfo>();
   const [gitError, setGitError] = useState<string>();
   const [gitLoading, setGitLoading] = useState(false);
+  const [pullRequestLookup, setPullRequestLookup] =
+    useState<ProjectPullRequestLookup>();
+  const [pullRequestError, setPullRequestError] = useState<string>();
+  const [pullRequestLoading, setPullRequestLoading] = useState(false);
+  const [checksOpen, setChecksOpen] = useState(false);
+  const [checksPosition, setChecksPosition] = useState({ left: 12, top: 12 });
   const [gitBusy, setGitBusy] = useState<
     "commit" | "push" | "commit-push" | "branch"
   >();
@@ -559,8 +708,6 @@ export function EnvironmentPanel({
   );
   const [branchOpen, setBranchOpen] = useState(false);
   const [showAllAgents, setShowAllAgents] = useState(false);
-  const [showAllMcp, setShowAllMcp] = useState(false);
-  const [showAllSources, setShowAllSources] = useState(false);
 
   useLayoutEffect(() => {
     onOpenChange(open);
@@ -578,6 +725,45 @@ export function EnvironmentPanel({
     openRef.current = !openRef.current;
     setOpen(openRef.current);
   }, []);
+
+  const cancelChecksClose = useCallback(() => {
+    if (checksCloseTimer.current !== undefined) {
+      window.clearTimeout(checksCloseTimer.current);
+      checksCloseTimer.current = undefined;
+    }
+  }, []);
+
+  const closeChecks = useCallback(() => {
+    cancelChecksClose();
+    setChecksOpen(false);
+  }, [cancelChecksClose]);
+
+  const showChecks = useCallback(() => {
+    cancelChecksClose();
+    const anchor = checksTrigger.current?.getBoundingClientRect();
+    if (anchor) {
+      setChecksPosition(
+        environmentChecksPopoverPosition(anchor, {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        }),
+      );
+    }
+    setChecksOpen(true);
+  }, [cancelChecksClose]);
+
+  const showChecksWithFocus = useCallback(() => {
+    showChecks();
+    window.requestAnimationFrame(() => checksPopover.current?.focus());
+  }, [showChecks]);
+
+  const scheduleChecksClose = useCallback(() => {
+    cancelChecksClose();
+    checksCloseTimer.current = window.setTimeout(() => {
+      checksCloseTimer.current = undefined;
+      setChecksOpen(false);
+    }, 140);
+  }, [cancelChecksClose]);
 
   const syncVisibility = useCallback(() => {
     const workspace = control.current?.closest(".workspace");
@@ -626,23 +812,46 @@ export function EnvironmentPanel({
   }, [dockOpen, syncVisibility]);
 
   const loadGit = useCallback(async () => {
-    const id = ++request.current;
+    const id = ++gitRequest.current;
     setGitLoading(true);
     setGitError(undefined);
     try {
       const info = await window.artemis.getProjectGitInfo(project.id);
-      if (request.current === id) setGitInfo(info);
+      if (gitRequest.current === id) setGitInfo(info);
     } catch (error) {
-      if (request.current === id) {
+      if (gitRequest.current === id) {
         setGitError(error instanceof Error ? error.message : String(error));
       }
     } finally {
-      if (request.current === id) setGitLoading(false);
+      if (gitRequest.current === id) setGitLoading(false);
+    }
+  }, [project.id]);
+
+  const loadPullRequest = useCallback(async () => {
+    const id = ++pullRequestRequest.current;
+    setPullRequestLoading(true);
+    setPullRequestError(undefined);
+    try {
+      const lookup = await window.artemis.getProjectPullRequest(project.id);
+      if (pullRequestRequest.current !== id) return;
+      setPullRequestLookup(lookup);
+      if (lookup.status !== "found") setChecksOpen(false);
+    } catch (error) {
+      if (pullRequestRequest.current === id) {
+        setPullRequestError(
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    } finally {
+      if (pullRequestRequest.current === id) setPullRequestLoading(false);
     }
   }, [project.id]);
 
   useEffect(() => {
     setGitInfo(undefined);
+    setPullRequestLookup(undefined);
+    setPullRequestError(undefined);
+    setChecksOpen(false);
     setCommitOpen(false);
     setCommitMessage("");
     setIncludeUnstaged(true);
@@ -655,28 +864,76 @@ export function EnvironmentPanel({
   useEffect(() => {
     if (open) return;
     setBranchOpen(false);
+    setChecksOpen(false);
   }, [open]);
 
   useEffect(() => {
-    if (open) void loadGit();
-  }, [loadGit, open, refreshKey]);
+    if (!open) return;
+    void loadGit();
+    void loadPullRequest();
+  }, [loadGit, loadPullRequest, open, refreshKey]);
 
   useEffect(() => {
     if (!open) return;
-    const refreshOnFocus = () => void loadGit();
+    const refreshOnFocus = () => {
+      void loadGit();
+      void loadPullRequest();
+    };
     window.addEventListener("focus", refreshOnFocus);
     const frame = window.requestAnimationFrame(() => panel.current?.focus());
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("focus", refreshOnFocus);
     };
-  }, [loadGit, open]);
+  }, [loadGit, loadPullRequest, open]);
+
+  useEffect(() => {
+    if (
+      !open ||
+      pullRequestLookup?.status !== "found" ||
+      pullRequestLookup.pullRequest.state !== "OPEN" ||
+      !pullRequestLookup.pullRequest.checks.some(
+        (check) => check.status === "pending",
+      )
+    ) {
+      return;
+    }
+    const interval = window.setInterval(() => void loadPullRequest(), 15_000);
+    return () => window.clearInterval(interval);
+  }, [loadPullRequest, open, pullRequestLookup]);
+
+  useEffect(
+    () => () => {
+      cancelChecksClose();
+    },
+    [cancelChecksClose],
+  );
+
+  useEffect(() => {
+    if (!checksOpen) return;
+    const closeOutside = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (
+        checksTrigger.current?.contains(target) ||
+        checksPopover.current?.contains(target)
+      ) {
+        return;
+      }
+      closeChecks();
+    };
+    window.addEventListener("mousedown", closeOutside);
+    return () => window.removeEventListener("mousedown", closeOutside);
+  }, [checksOpen, closeChecks]);
 
   useEffect(() => {
     if (!open && !commitOpen) return;
     const closeEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (commitBranchOpen) {
+      if (checksOpen) {
+        closeChecks();
+        checksTrigger.current?.focus();
+      } else if (commitBranchOpen) {
         setCommitBranchOpen(false);
       } else if (commitOpen) {
         setCommitOpen(false);
@@ -691,7 +948,15 @@ export function EnvironmentPanel({
     };
     window.addEventListener("keydown", closeEscape);
     return () => window.removeEventListener("keydown", closeEscape);
-  }, [branchOpen, closePanel, commitBranchOpen, commitOpen, open]);
+  }, [
+    branchOpen,
+    checksOpen,
+    closeChecks,
+    closePanel,
+    commitBranchOpen,
+    commitOpen,
+    open,
+  ]);
 
   const displayAgents = useMemo(
     () => environmentDisplayAgents(agents, teams),
@@ -727,6 +992,39 @@ export function EnvironmentPanel({
     completed: t.teamCompleted,
     aborted: t.teamAborted,
   };
+  const pullRequest =
+    pullRequestLookup?.status === "found"
+      ? pullRequestLookup.pullRequest
+      : undefined;
+  const checkSummary = projectPullRequestCheckSummary(
+    pullRequest?.checks ?? [],
+  );
+  const checkSummaryLabels: Record<ProjectPullRequestCheckSummary, string> = {
+    passed: t.checksPassed,
+    failed: t.checksFailed,
+    pending: t.checksPending,
+    skipped: t.checksSkipped,
+    cancelled: t.checksCancelled,
+    none: t.checksNone,
+  };
+  const pullRequestStateLabel = pullRequest?.isDraft
+    ? t.pullRequestDraft
+    : pullRequest?.state === "OPEN"
+      ? t.pullRequestOpen
+      : pullRequest?.state === "MERGED"
+        ? t.pullRequestMerged
+        : t.pullRequestClosed;
+  const coverageWarning =
+    gitInfo && pullRequest
+      ? projectPullRequestCoverageWarning(gitInfo, pullRequest)
+      : undefined;
+  const coverageWarningLabel = coverageWarning
+    ? {
+        "working-tree": t.localChangesNotChecked,
+        unpushed: t.unpushedCommitNotChecked,
+        "head-mismatch": t.differentHeadNotChecked,
+      }[coverageWarning]
+    : undefined;
   const selectedChangeCount = gitInfo
     ? includeUnstaged
       ? gitInfo.changeCount
@@ -776,10 +1074,17 @@ export function EnvironmentPanel({
                 : gitInfo.ahead === 0
                   ? t.synced
                   : undefined;
+  const activityPreviewLimit = 2;
+  const visibleTeams = showAllAgents
+    ? teams
+    : teams.slice(0, activityPreviewLimit);
   const visibleAgents = showAllAgents
     ? displayAgents
-    : displayAgents.slice(0, 4);
-  const visibleMcp = showAllMcp ? mcpGroups : mcpGroups.slice(0, 3);
+    : displayAgents.slice(
+        0,
+        Math.max(0, activityPreviewLimit - visibleTeams.length),
+      );
+  const visibleMcp = mcpGroups.slice(0, 3);
   const combinedSources: EnvironmentSourceItem[] = [
     ...attachments.map((attachment, index) => ({
       id: `draft:${index}:${attachment.name}`,
@@ -789,17 +1094,41 @@ export function EnvironmentPanel({
       draft: true as const,
       attachment,
     })),
-    ...sources.map((source) => ({
-      id: source.sourceId,
-      name: source.name,
-      mimeType: source.mimeType,
-      kind: source.kind,
-      draft: false as const,
-    })),
+    ...sources.map((source): EnvironmentSourceItem =>
+      source.kind === "web-search"
+        ? {
+            id: source.sourceId,
+            kind: "web-search",
+            query: source.query,
+            engine: source.engine,
+            resultCount: source.resultCount,
+            draft: false,
+          }
+        : {
+            id: source.sourceId,
+            name: source.name,
+            mimeType: source.mimeType,
+            kind: source.kind,
+            draft: false,
+          },
+    ),
   ];
-  const visibleSources = showAllSources
-    ? combinedSources
-    : combinedSources.slice(0, 4);
+  const sourcePreviewLimit =
+    displayAgents.length > 0 || teams.length > 0 || mcpGroups.length > 0
+      ? 1
+      : 3;
+  const visibleSources = combinedSources.slice(0, sourcePreviewLimit);
+  const hasSourcePanelDetails =
+    combinedSources.length > visibleSources.length ||
+    mcpGroups.length > 0 ||
+    sources.some(
+      (source) => source.kind === "web-search" && source.links.length > 0,
+    );
+
+  const viewAllSources = () => {
+    closePanel();
+    onViewAllSources();
+  };
 
   const closeCommitDialog = () => {
     setCommitOpen(false);
@@ -838,6 +1167,7 @@ export function EnvironmentPanel({
       setGitInfo(result.gitInfo);
       closeCommitDialog();
       onMessage(t.commitCreated(result.commit.slice(0, 7)));
+      void loadPullRequest();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setGitError(message);
@@ -863,6 +1193,7 @@ export function EnvironmentPanel({
       setGitInfo(result.gitInfo);
       closeCommitDialog();
       onMessage(t.pushCompleted(result.upstream));
+      void loadPullRequest();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setGitError(message);
@@ -895,6 +1226,7 @@ export function EnvironmentPanel({
       setGitInfo(pushed.gitInfo);
       closeCommitDialog();
       onMessage(t.pushCompleted(pushed.upstream));
+      void loadPullRequest();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setGitError(message);
@@ -914,6 +1246,7 @@ export function EnvironmentPanel({
       setBranchOpen(false);
       setCommitBranchOpen(false);
       setCreatingCommitBranch(false);
+      await loadPullRequest();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setGitError(message);
@@ -1089,6 +1422,118 @@ export function EnvironmentPanel({
                     <small>{gitInfo.upstream ?? commitDisabledReason}</small>
                   </span>
                 </button>
+                {pullRequestLoading && !pullRequestLookup && (
+                  <div className="environment-pr-notice" role="status">
+                    <span className="environment-row-icon">
+                      <PullRequestIcon />
+                    </span>
+                    <span>{t.githubChecking}</span>
+                  </div>
+                )}
+                {pullRequestLookup?.status === "unavailable" && (
+                  <div className="environment-pr-notice">
+                    <span className="environment-row-icon">
+                      <PullRequestIcon />
+                    </span>
+                    <span>
+                      {pullRequestLookup.reason === "gh-not-installed"
+                        ? t.githubUnavailable
+                        : t.githubAuthentication}
+                    </span>
+                    <button
+                      onClick={() => void loadPullRequest()}
+                      type="button"
+                    >
+                      {t.retry}
+                    </button>
+                  </div>
+                )}
+                {pullRequest && (
+                  <div className="environment-pr-card">
+                    <button
+                      className="environment-pr-title"
+                      onClick={() => onOpenUrl(pullRequest.url)}
+                      type="button"
+                    >
+                      <span className="environment-row-icon">
+                        <PullRequestIcon />
+                      </span>
+                      <span>
+                        <strong>{pullRequest.title}</strong>
+                        <small>
+                          #{pullRequest.number} · {pullRequestStateLabel}
+                        </small>
+                      </span>
+                      <span className="environment-external">↗</span>
+                    </button>
+                    <button
+                      aria-controls="environment-pr-checks"
+                      aria-expanded={checksOpen}
+                      aria-haspopup="dialog"
+                      className="environment-pr-check-summary"
+                      onBlur={(event) => {
+                        const related = event.relatedTarget;
+                        if (
+                          related instanceof Node &&
+                          checksPopover.current?.contains(related)
+                        ) {
+                          return;
+                        }
+                        scheduleChecksClose();
+                      }}
+                      onClick={() =>
+                        checksOpen ? closeChecks() : showChecksWithFocus()
+                      }
+                      onFocus={showChecks}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "ArrowDown" ||
+                          event.key === "Enter" ||
+                          event.key === " "
+                        ) {
+                          event.preventDefault();
+                          showChecksWithFocus();
+                        }
+                      }}
+                      onMouseEnter={showChecks}
+                      onMouseLeave={scheduleChecksClose}
+                      ref={checksTrigger}
+                      type="button"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="environment-check-indicator"
+                        data-status={checkSummary}
+                      />
+                      <span>{checkSummaryLabels[checkSummary]}</span>
+                      <span aria-hidden="true">⌄</span>
+                    </button>
+                    {coverageWarningLabel && (
+                      <p className="environment-pr-warning">
+                        {coverageWarningLabel}
+                      </p>
+                    )}
+                    {pullRequestError && (
+                      <p
+                        className="environment-pr-stale"
+                        title={pullRequestError}
+                      >
+                        {t.githubStale}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {pullRequestError && !pullRequest && (
+                  <div className="environment-pr-notice error" role="alert">
+                    <span>{pullRequestError}</span>
+                    <button
+                      onClick={() => void loadPullRequest()}
+                      type="button"
+                    >
+                      {t.retry}
+                    </button>
+                  </div>
+                )}
                 {gitError && (
                   <p className="environment-inline-error" role="alert">
                     {gitError}
@@ -1102,7 +1547,7 @@ export function EnvironmentPanel({
             <section className="environment-section">
               <header>
                 <h2>{t.agents}</h2>
-                {displayAgents.length > 4 && (
+                {displayAgents.length + teams.length > activityPreviewLimit && (
                   <button
                     className="environment-text-action"
                     onClick={() => setShowAllAgents((current) => !current)}
@@ -1131,7 +1576,7 @@ export function EnvironmentPanel({
                     {t.completed} {counts.completed}
                   </span>
                 </div>
-                {teams.map((team) => (
+                {visibleTeams.map((team) => (
                   <button
                     className="environment-activity-row"
                     key={team.teamId}
@@ -1193,10 +1638,10 @@ export function EnvironmentPanel({
                 {mcpGroups.length > 3 && (
                   <button
                     className="environment-text-action"
-                    onClick={() => setShowAllMcp((current) => !current)}
+                    onClick={viewAllSources}
                     type="button"
                   >
-                    {showAllMcp ? t.showLess : t.viewAll}
+                    {t.viewAll}
                   </button>
                 )}
               </header>
@@ -1243,36 +1688,57 @@ export function EnvironmentPanel({
                 </button>
               </header>
               <div className="environment-source-list">
-                {visibleSources.map((source) => (
-                  <div className="environment-source-row" key={source.id}>
-                    {source.draft &&
-                    source.kind === "image" &&
-                    source.attachment &&
-                    !("type" in source.attachment) ? (
-                      <img
-                        alt=""
-                        src={`data:${source.attachment.mimeType};base64,${source.attachment.data}`}
-                      />
-                    ) : (
+                {visibleSources.map((source) =>
+                  source.kind === "web-search" ? (
+                    <div
+                      className="environment-source-row web-search-source"
+                      key={source.id}
+                    >
                       <span className="environment-row-icon">
-                        <SourceIcon image={source.kind === "image"} />
+                        <WebSourceIcon />
                       </span>
-                    )}
-                    <span>
-                      <strong title={source.name}>{source.name}</strong>
-                      <small>
-                        {source.draft ? t.draft : t.sent} · {source.mimeType}
-                      </small>
-                    </span>
-                  </div>
-                ))}
-                {combinedSources.length > 4 && (
+                      <span>
+                        <strong title={source.query}>{source.query}</strong>
+                        <small>
+                          {t.webSearchSummary(
+                            source.engine,
+                            source.resultCount,
+                          )}
+                        </small>
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="environment-source-row" key={source.id}>
+                      {source.draft &&
+                      source.kind === "image" &&
+                      source.attachment &&
+                      !("type" in source.attachment) ? (
+                        <img
+                          alt=""
+                          src={`data:${source.attachment.mimeType};base64,${source.attachment.data}`}
+                        />
+                      ) : (
+                        <span className="environment-row-icon">
+                          <SourceIcon image={source.kind === "image"} />
+                        </span>
+                      )}
+                      <span>
+                        <strong title={source.name}>{source.name}</strong>
+                        <small>
+                          {source.draft ? t.draft : t.sent} · {source.mimeType}
+                        </small>
+                      </span>
+                    </div>
+                  ),
+                )}
+                {hasSourcePanelDetails && (
                   <button
                     className="environment-view-all"
-                    onClick={() => setShowAllSources((current) => !current)}
+                    onClick={viewAllSources}
                     type="button"
                   >
-                    {showAllSources ? t.showLess : t.viewAll}
+                    <McpIcon />
+                    <span>{t.viewAll}</span>
                   </button>
                 )}
               </div>
@@ -1280,6 +1746,78 @@ export function EnvironmentPanel({
           )}
         </div>
       )}
+      {open &&
+        checksOpen &&
+        pullRequest &&
+        createPortal(
+          <div
+            aria-label={t.checkDetails}
+            className="environment-checks-popover"
+            id="environment-pr-checks"
+            onBlur={(event) => {
+              const related = event.relatedTarget;
+              if (
+                related instanceof Node &&
+                (event.currentTarget.contains(related) ||
+                  checksTrigger.current?.contains(related))
+              ) {
+                return;
+              }
+              scheduleChecksClose();
+            }}
+            onFocus={cancelChecksClose}
+            onMouseEnter={cancelChecksClose}
+            onMouseLeave={scheduleChecksClose}
+            ref={checksPopover}
+            role="dialog"
+            style={{ left: checksPosition.left, top: checksPosition.top }}
+            tabIndex={-1}
+          >
+            <header>
+              <strong>{t.checkDetails}</strong>
+              <small>
+                #{pullRequest.number} · {pullRequestStateLabel}
+              </small>
+            </header>
+            <div className="environment-check-list">
+              {pullRequest.checks.length === 0 ? (
+                <p>{t.checksNone}</p>
+              ) : (
+                pullRequest.checks.map((check, index) => {
+                  const content = (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className="environment-check-indicator"
+                        data-status={check.status}
+                      />
+                      <span>
+                        <strong>{check.name}</strong>
+                        <small>
+                          {check.workflowName ? `${check.workflowName} · ` : ""}
+                          {checkSummaryLabels[check.status]}
+                        </small>
+                      </span>
+                      {check.detailsUrl && <i aria-hidden="true">↗</i>}
+                    </>
+                  );
+                  return check.detailsUrl ? (
+                    <button
+                      key={`${check.name}:${index}`}
+                      onClick={() => onOpenUrl(check.detailsUrl!)}
+                      type="button"
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    <div key={`${check.name}:${index}`}>{content}</div>
+                  );
+                })
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
       {commitOpen &&
         gitInfo?.managed &&
         createPortal(

@@ -19,6 +19,8 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.projectRemove, projectId),
   getProjectGitInfo: (projectId) =>
     ipcRenderer.invoke(IPC.projectGitInfo, projectId),
+  getProjectPullRequest: (projectId) =>
+    ipcRenderer.invoke(IPC.projectPullRequest, projectId),
   switchProjectBranch: (projectId, branchName) =>
     ipcRenderer.invoke(IPC.projectGitBranchSwitch, projectId, branchName),
   createProjectBranch: (projectId, branchName) =>

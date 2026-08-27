@@ -374,8 +374,28 @@ describe("reduceAgentEvent", () => {
       mimeType: "image/png",
       kind: "image",
     });
+    const webSource = event("web-source", 3, {
+      type: "task.source.added",
+      sourceId: "search-1",
+      kind: "web-search",
+      query: "Artemis release",
+      engine: "DuckDuckGo HTML",
+      resultCount: 1,
+      searchUrl: "https://html.duckduckgo.com/html/?q=Artemis",
+      links: [
+        {
+          title: "Artemis releases",
+          url: "https://github.com/EurekaRaider/Artemis/releases",
+        },
+      ],
+    });
     const initial = createThreadViewState("thread-1");
-    const state = reduceAgentEventBatch(initial, [usage, source]);
+    const state = reduceAgentEventBatch(initial, [
+      usage,
+      source,
+      webSource,
+      webSource,
+    ]);
 
     expect(state.order).toEqual([]);
     expect(initial.mcpToolUseOrder).toEqual([]);
@@ -390,10 +410,15 @@ describe("reduceAgentEvent", () => {
       toolName: "explore",
       agentId: "child-1",
     });
-    expect(state.taskSourceOrder).toEqual(["source-1"]);
+    expect(state.taskSourceOrder).toEqual(["source-1", "search-1"]);
     expect(state.taskSources["source-1"]).toMatchObject({
       name: "screenshot.png",
       mimeType: "image/png",
+    });
+    expect(state.taskSources["search-1"]).toMatchObject({
+      kind: "web-search",
+      query: "Artemis release",
+      resultCount: 1,
     });
   });
 

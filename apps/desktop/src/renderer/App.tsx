@@ -80,6 +80,7 @@ import {
   ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH,
   EnvironmentPanel,
 } from "./EnvironmentPanel.js";
+import { SourcesIcon, SourcesPanel } from "./SourcesPanel.js";
 import { TaskPlanProgress } from "./TaskPlanProgress.js";
 import {
   resolveTimelinePinned,
@@ -372,6 +373,7 @@ const copy = {
     browserGo: "Go",
     markdownReader: "Markdown",
     files: "Files",
+    sources: "Sources",
     addTab: "Add tab",
     closeTab: "Close tab",
     scrollTabsLeft: "Scroll tabs left",
@@ -608,6 +610,7 @@ const copy = {
     browserGo: "打开",
     markdownReader: "Markdown 阅读器",
     files: "文件",
+    sources: "来源",
     addTab: "添加选项卡",
     closeTab: "关闭选项卡",
     scrollTabsLeft: "向左滚动选项卡",
@@ -1230,6 +1233,7 @@ function WorkspaceTabIcon({
   if (kind === "terminal") return <TerminalIcon />;
   if (kind === "browser") return <BrowserIcon />;
   if (kind === "markdown") return <MarkdownIcon />;
+  if (kind === "sources") return <SourcesIcon />;
   if (kind === "agent-team" || kind === "child-agent") {
     return <ChildAgentIcon identity={identity ?? kind} />;
   }
@@ -2249,6 +2253,7 @@ export function App() {
       if (kind === "terminal") return t.terminal;
       if (kind === "browser") return t.browser;
       if (kind === "markdown") return t.markdownReader;
+      if (kind === "sources") return t.sources;
       if (kind === "agent-team") return t.agentTeam;
       return t.files;
     },
@@ -2583,6 +2588,10 @@ export function App() {
   );
   const openFilesPanel = useCallback(
     () => openWorkspaceTab("file"),
+    [openWorkspaceTab],
+  );
+  const openSourcesPanel = useCallback(
+    () => openWorkspaceTab("sources"),
     [openWorkspaceTab],
   );
   const openAutomationThread = useCallback(
@@ -5712,6 +5721,8 @@ export function App() {
                     onOpenAgent={openChildAgentPanel}
                     onOpenReview={openReviewScopePanel}
                     onOpenTeam={openAgentTeamPanel}
+                    onOpenUrl={openConversationExternalLink}
+                    onViewAllSources={openSourcesPanel}
                     project={activeProject}
                     {...(environmentRefreshKey
                       ? { refreshKey: environmentRefreshKey }
@@ -7643,6 +7654,16 @@ export function App() {
                                 </aside>
                               </div>
                             </section>
+                          )}
+                          {tab.kind === "sources" && (
+                            <SourcesPanel
+                              agents={environmentAgents}
+                              attachments={attachments}
+                              locale={locale}
+                              mcpUsages={environmentMcpUsages}
+                              onOpenUrl={openConversationExternalLink}
+                              sources={environmentSources}
+                            />
                           )}
                           {tab.kind === "terminal" && (
                             <Suspense

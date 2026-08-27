@@ -9,16 +9,19 @@ import type {
   McpToolUsageState,
 } from "@artemis/protocol";
 
-import type { ProjectGitInfo } from "../src/shared/api.js";
+import type { ProjectGitInfo, ProjectPullRequest } from "../src/shared/api.js";
 import { childAgentMarkForIdentity } from "../src/renderer/ChildAgentIcon.js";
 import {
   ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH,
   environmentPanelConversationWidth,
+  environmentChecksPopoverPosition,
   environmentPanelVisibilityAfterResize,
   environmentAgentCounts,
   environmentDisplayAgents,
   environmentGitAction,
   groupMcpUsage,
+  projectPullRequestCheckSummary,
+  projectPullRequestCoverageWarning,
   shouldAutoHideEnvironmentPanel,
   suggestedEnvironmentBranchName,
 } from "../src/renderer/EnvironmentPanel.js";
@@ -70,6 +73,22 @@ function gitInfo(overrides: Partial<ProjectGitInfo> = {}): ProjectGitInfo {
   };
 }
 
+function pullRequest(
+  overrides: Partial<ProjectPullRequest> = {},
+): ProjectPullRequest {
+  return {
+    number: 80,
+    title: "Stop stalled model streams",
+    url: "https://github.com/EurekaRaider/Artemis/pull/80",
+    state: "OPEN",
+    isDraft: false,
+    headRefName: "codex/fix-stall",
+    headRefOid: "a".repeat(40),
+    checks: [],
+    ...overrides,
+  };
+}
+
 describe("task environment panel state", () => {
   it("mounts the popover between task status and the existing right dock", () => {
     const status = appSource.indexOf('className="status-pill"');
@@ -112,10 +131,10 @@ describe("task environment panel state", () => {
     expect(stylesSource).toContain(
       "width: min(var(--environment-panel-inline-size), calc(100vw - 24px))",
     );
-    expect(stylesSource).toContain(
-      "max-height: min(440px, calc(100vh - 64px))",
-    );
+    expect(stylesSource).toContain("max-height: calc(100vh - 96px)");
+    expect(stylesSource).toContain("scrollbar-width: none");
     expect(stylesSource).toContain("min-height: 42px");
+    expect(stylesSource).toContain(".environment-checks-popover");
   });
 
   it("hides optional task sections until they contain activity", () => {
@@ -241,6 +260,8 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain("ARTEMIS_SMOKE_WINDOW_WIDTH");
     expect(mainSource).toContain("ARTEMIS_SMOKE_RESIZE_WIDTH");
     expect(mainSource).toContain("view === 'environment-agents'");
+    expect(mainSource).toContain("view === 'environment-pr-checks'");
+    expect(mainSource).toContain("view === 'environment-sources'");
     expect(mainSource).toContain("view === 'environment-open'");
     expect(mainSource).toContain(
       'ARTEMIS_SMOKE_VIEW?.startsWith("environment")',
@@ -267,6 +288,15 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain("workspaceWidth");
     expect(mainSource).toContain('type: "mcp.tool.used"');
     expect(mainSource).toContain('type: "task.source.added"');
+    expect(panelSource).toContain('source.kind === "web-search"');
+    expect(panelSource).toContain("onViewAllSources()");
+    expect(panelSource).toContain(
+      "combinedSources.slice(0, sourcePreviewLimit)",
+    );
+    expect(panelSource).toContain("const activityPreviewLimit = 2");
+    expect(panelSource).not.toContain("environment-web-source-links");
+    expect(appSource).toContain('tab.kind === "sources"');
+    expect(appSource).toContain("onViewAllSources={openSourcesPanel}");
   });
 
   it("summarizes all child agent states", () => {
@@ -461,5 +491,62 @@ describe("task environment panel state", () => {
       kind: "commit",
       disabledReason: "switch branch",
     });
+  });
+
+  it("summarizes checks and refuses to imply coverage of local-only state", () => {
+    expect(
+      projectPullRequestCheckSummary([
+        { name: "build", status: "passed" },
+        { name: "optional", status: "skipped" },
+      ]),
+    ).toBe("passed");
+    expect(
+      projectPullRequestCheckSummary([
+        { name: "build", status: "failed" },
+        { name: "windows", status: "pending" },
+      ]),
+    ).toBe("failed");
+    expect(projectPullRequestCheckSummary([])).toBe("none");
+
+    const pr = pullRequest();
+    expect(
+      projectPullRequestCoverageWarning(
+        gitInfo({ changeCount: 1, headOid: pr.headRefOid }),
+        pr,
+      ),
+    ).toBe("working-tree");
+    expect(
+      projectPullRequestCoverageWarning(
+        gitInfo({ headOid: "b".repeat(40) }),
+        pr,
+      ),
+    ).toBe("head-mismatch");
+    expect(
+      projectPullRequestCoverageWarning(
+        gitInfo({ headOid: "b".repeat(40), ahead: 1 }),
+        pr,
+      ),
+    ).toBe("unpushed");
+    expect(
+      projectPullRequestCoverageWarning(
+        gitInfo({ headOid: pr.headRefOid, ahead: 1 }),
+        pr,
+      ),
+    ).toBeUndefined();
+  });
+
+  it("keeps the checks popover on screen", () => {
+    expect(
+      environmentChecksPopoverPosition(
+        { left: 800, right: 1100, top: 100, bottom: 140 },
+        { width: 1200, height: 800 },
+      ),
+    ).toEqual({ left: 430, top: 100 });
+    expect(
+      environmentChecksPopoverPosition(
+        { left: 250, right: 280, top: 700, bottom: 740 },
+        { width: 320, height: 760 },
+      ),
+    ).toEqual({ left: 12, top: 408 });
   });
 });

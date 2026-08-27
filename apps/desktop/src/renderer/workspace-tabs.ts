@@ -4,6 +4,7 @@ export type WorkspaceTabKind =
   | "browser"
   | "file"
   | "markdown"
+  | "sources"
   | "child-agent"
   | "agent-team";
 

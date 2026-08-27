@@ -6,6 +6,7 @@ type WorkspaceTabKind =
   | "browser"
   | "file"
   | "markdown"
+  | "sources"
   | "child-agent"
   | "agent-team";
 
@@ -75,7 +76,7 @@ function emptyState(): WorkspaceTabsState {
 }
 
 describe("workspace tab state", () => {
-  it("opens Review, Terminal, file, and Markdown as independently closable tabs", async () => {
+  it("opens Review, Terminal, file, Markdown, and Sources as independently closable tabs", async () => {
     const reduce = await loadReducer();
     const tabs: WorkspaceTab[] = [
       { id: "review-1", kind: "review", title: "Review" },
@@ -92,6 +93,7 @@ describe("workspace tab state", () => {
         title: "README.md",
         path: "README.md",
       },
+      { id: "sources-1", kind: "sources", title: "Sources" },
     ];
 
     const opened = tabs.reduce(
@@ -104,13 +106,14 @@ describe("workspace tab state", () => {
     });
 
     expect(opened.tabs).toEqual(tabs);
-    expect(opened.activeTabId).toBe("markdown-1");
+    expect(opened.activeTabId).toBe("sources-1");
     expect(afterClose.tabs.map((tab) => tab.id)).toEqual([
       "terminal-1",
       "file-1",
       "markdown-1",
+      "sources-1",
     ]);
-    expect(afterClose.activeTabId).toBe("markdown-1");
+    expect(afterClose.activeTabId).toBe("sources-1");
   });
 
   it("keeps multiple instances created through add-tab actions", async () => {
