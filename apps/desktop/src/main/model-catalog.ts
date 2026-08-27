@@ -11,6 +11,7 @@ import {
   getBuiltinModels,
   getBuiltinProviders,
 } from "@earendil-works/pi-ai/providers/all";
+import { withArtemisBuiltinModels } from "@artemis/agent-host/builtin-models";
 
 const visibleProviderIds = new Set([
   "anthropic",
@@ -80,19 +81,21 @@ function supportedThinkingLevels(model: {
 
 export async function loadBundledModelCatalog(): Promise<AgentModelInfo[]> {
   return getBuiltinProviders().flatMap((providerId) =>
-    getBuiltinModels(providerId).map((model) => {
-      const supported = supportedThinkingLevels(model);
-      return {
-        providerId: model.provider,
-        modelId: model.id,
-        name: model.name,
-        reasoning: model.reasoning,
-        thinkingLevels: supported,
-        highestThinkingLevel: supported.at(-1) ?? "off",
-        contextWindow: model.contextWindow,
-        configured: false,
-      };
-    }),
+    withArtemisBuiltinModels(providerId, getBuiltinModels(providerId)).map(
+      (model) => {
+        const supported = supportedThinkingLevels(model);
+        return {
+          providerId: model.provider,
+          modelId: model.id,
+          name: model.name,
+          reasoning: model.reasoning,
+          thinkingLevels: supported,
+          highestThinkingLevel: supported.at(-1) ?? "off",
+          contextWindow: model.contextWindow,
+          configured: false,
+        };
+      },
+    ),
   );
 }
 

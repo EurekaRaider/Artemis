@@ -90,19 +90,24 @@ describe("visible model catalog", () => {
       )?.highestThinkingLevel,
     ).toBe("max");
     for (const providerId of ["zai", "zai-coding-cn"]) {
-      expect(
-        models.find(
-          (candidate) =>
-            candidate.providerId === providerId &&
-            candidate.modelId === "glm-5.3",
-        ),
-      ).toMatchObject({
-        name: "GLM-5.3",
-        reasoning: true,
-        thinkingLevels: ["low", "high", "max"],
-        highestThinkingLevel: "max",
-        contextWindow: 1_000_000,
-      });
+      for (const [modelId, name] of [
+        ["glm-5.3", "GLM-5.3"],
+        ["glm-5.3-flash", "GLM-5.3-Flash"],
+      ]) {
+        expect(
+          models.find(
+            (candidate) =>
+              candidate.providerId === providerId &&
+              candidate.modelId === modelId,
+          ),
+        ).toMatchObject({
+          name,
+          reasoning: true,
+          thinkingLevels: ["low", "high", "max"],
+          highestThinkingLevel: "max",
+          contextWindow: 1_000_000,
+        });
+      }
     }
     expect(models.every((candidate) => candidate.configured === false)).toBe(
       true,

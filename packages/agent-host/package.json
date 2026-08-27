@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./builtin-models": {
+      "types": "./dist/builtin-models.d.ts",
+      "import": "./dist/builtin-models.js"
     }
   },
   "files": [

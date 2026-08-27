@@ -47,6 +47,7 @@ import {
 } from "@artemis/protocol";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
+import { registerArtemisBuiltinModels } from "./builtin-models.js";
 import { modeInstruction } from "./mode-instructions.js";
 import { toPiProviderConfig } from "./provider-configuration.js";
 import { forkPiSession } from "./session-fork.js";
@@ -1287,7 +1288,10 @@ export class ArtemisAgentHost {
     this.modelRuntimePromise ??= ModelRuntime.create({
       credentials: this.credentials,
       allowModelNetwork: false,
-    }).then((runtime) => withPromptCacheController(runtime, this.promptCache));
+    }).then((runtime) => {
+      registerArtemisBuiltinModels(runtime);
+      return withPromptCacheController(runtime, this.promptCache);
+    });
     return this.modelRuntimePromise;
   }
 
@@ -1309,6 +1313,7 @@ export class ArtemisAgentHost {
     for (const providerId of this.registeredProviderIds) {
       if (!nextProviderIds.has(providerId)) {
         modelRuntime.unregisterProvider(providerId);
+        registerArtemisBuiltinModels(modelRuntime);
         this.registeredProviderIds.delete(providerId);
       }
     }
