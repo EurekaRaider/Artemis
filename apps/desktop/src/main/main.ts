@@ -9248,12 +9248,19 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
   await git("init", "--bare", remote);
   await git("remote", "add", "origin", remote);
   await git("push", "-u", "origin", "main");
-  await writeFile(
-    join(workspace, "README.md"),
-    "# Artemis environment fixture\n\nUpdated line\nSecond line\n",
-    "utf8",
-  );
-  await writeFile(join(workspace, "设计说明.md"), "任务环境面板\n", "utf8");
+  await git("branch", "codex/fix-issues-81-87");
+  await git("branch", "codex/fix-issue-77-model-stream-stall");
+  await git("branch", "codex/native-web-search");
+  await git("branch", "codex/fix-issues-70-72");
+  await git("branch", "gh-pages");
+  if (process.env.ARTEMIS_SMOKE_VIEW !== "environment-branch-menu") {
+    await writeFile(
+      join(workspace, "README.md"),
+      "# Artemis environment fixture\n\nUpdated line\nSecond line\n",
+      "utf8",
+    );
+    await writeFile(join(workspace, "设计说明.md"), "任务环境面板\n", "utf8");
+  }
   if (process.env.ARTEMIS_SMOKE_VIEW === "environment-push-execute") {
     await git("add", "--all", "--");
     await git("commit", "-m", "Ahead fixture");
@@ -9261,7 +9268,7 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
 
   store.upsertProject({
     id: projectId,
-    name: "Artemis 环境面板",
+    name: "Artemis",
     path: workspace,
     createdAt: now,
     updatedAt: now,
@@ -9387,6 +9394,14 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
         ] satisfies SmokeEnvironmentEvent[])),
   ];
   for (const event of events) {
+    if (
+      process.env.ARTEMIS_SMOKE_VIEW === "environment-branch-menu" &&
+      (event.payload.type === "agent-team.status" ||
+        event.payload.type === "child-agent.status" ||
+        event.payload.type === "mcp.tool.used")
+    ) {
+      continue;
+    }
     store.appendEvent(event.id, threadId, turnId, event.payload);
   }
 }
@@ -9586,6 +9601,13 @@ function createMainWindow(): BrowserWindow {
                       trigger?.click();
                       await wait(500);
                     }
+                    return;
+                  }
+                  if (view === 'environment-branch-menu') {
+                    document
+                      .querySelector('.environment-branch-control > .environment-row')
+                      ?.click();
+                    await wait(500);
                     return;
                   }
                   if (view === 'environment-agents') {

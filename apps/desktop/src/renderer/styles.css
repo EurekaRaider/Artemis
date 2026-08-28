@@ -12,6 +12,9 @@
   --panel: #161719;
   --panel-2: #1b1c1f;
   --panel-3: #202226;
+  --environment-panel-bg: #2d2d2d;
+  --environment-menu-bg: #2c2c2c;
+  --environment-selected-bg: #393939;
   --border: #2b2d31;
   --border-soft: #24262a;
   --text: #ececee;
@@ -73,6 +76,9 @@
     --panel: #f0f0ef;
     --panel-2: #ffffff;
     --panel-3: #e9e9e7;
+    --environment-panel-bg: #ffffff;
+    --environment-menu-bg: #ffffff;
+    --environment-selected-bg: #dfdfdc;
     --border: #d8d8d5;
     --border-soft: #e3e3e0;
     --text: #1f2023;
@@ -139,6 +145,9 @@
   --panel: #f0f0ef;
   --panel-2: #ffffff;
   --panel-3: #e9e9e7;
+  --environment-panel-bg: #ffffff;
+  --environment-menu-bg: #ffffff;
+  --environment-selected-bg: #dfdfdc;
   --border: #d8d8d5;
   --border-soft: #e3e3e0;
   --text: #1f2023;
@@ -1131,21 +1140,20 @@ summary:focus-visible {
 }
 
 .environment-trigger svg,
-.environment-row-icon svg:not(.child-agent-mark),
-.environment-branch-menu svg {
-  fill: none;
+.environment-row-icon svg:not(.child-agent-mark) {
+  height: 18px;
+  width: 18px;
+}
+
+.environment-trigger svg {
   height: 20px;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
   width: 20px;
 }
 
 .environment-popover {
-  background: color-mix(in srgb, var(--panel-2) 97%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
-  border-radius: 17px;
+  background: var(--environment-panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 18px;
   box-shadow: 0 20px 52px rgb(0 0 0 / 30%);
   color: var(--text);
   inset-inline-end: -38px;
@@ -1176,7 +1184,11 @@ summary:focus-visible {
 }
 
 .environment-section {
-  padding: 14px 15px;
+  padding: 14px;
+}
+
+.git-environment-section {
+  padding-top: 12px;
 }
 
 .environment-section + .environment-section {
@@ -1187,14 +1199,14 @@ summary:focus-visible {
   align-items: center;
   display: flex;
   justify-content: space-between;
-  margin-bottom: 6px;
-  min-height: 24px;
+  margin-bottom: 4px;
+  min-height: 22px;
 }
 
 .environment-section h2 {
   color: var(--muted);
-  font-size: 14px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 600;
   letter-spacing: -0.01em;
   margin: 0;
 }
@@ -1211,13 +1223,16 @@ summary:focus-visible {
   align-items: center;
   border-radius: 7px;
   display: inline-flex;
-  font-size: 23px;
-  font-weight: 300;
   height: 24px;
   justify-content: center;
   line-height: 1;
   padding: 0;
   width: 24px;
+}
+
+.environment-header-action svg {
+  height: 18px;
+  width: 18px;
 }
 
 .environment-text-action {
@@ -1239,7 +1254,12 @@ summary:focus-visible {
 .environment-source-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
+}
+
+.environment-rows {
+  margin-inline: -8px;
+  width: calc(100% + 16px);
 }
 
 .environment-row,
@@ -1250,10 +1270,10 @@ summary:focus-visible {
   border-radius: 10px;
   color: var(--text);
   display: grid;
-  gap: 8px;
+  gap: 4px;
   grid-template-columns: 24px minmax(0, 1fr) auto;
-  min-height: 42px;
-  padding: 5px 6px;
+  min-height: 28px;
+  padding: 2px 6px;
   text-align: start;
   width: 100%;
 }
@@ -1268,7 +1288,11 @@ button.environment-row:hover:not(:disabled),
 button.environment-row:focus-visible:not(:disabled),
 button.environment-activity-row:hover,
 button.environment-activity-row:focus-visible {
-  background: var(--hover);
+  background: var(--environment-selected-bg);
+}
+
+.environment-branch-control > .environment-row[aria-expanded="true"] {
+  background: var(--environment-selected-bg);
 }
 
 .environment-pr-notice {
@@ -1530,8 +1554,8 @@ button.environment-row:disabled {
 .environment-row strong,
 .environment-activity-row strong,
 .environment-source-row strong {
-  font-size: 12.5px;
-  font-weight: 560;
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1552,7 +1576,7 @@ button.environment-row:disabled {
 
 .environment-diff-total {
   display: flex;
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   gap: 5px;
 }
@@ -1575,110 +1599,230 @@ button.environment-row:disabled {
   font-style: normal;
 }
 
+.environment-chevron,
+.environment-external {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  margin-inline-end: 3px;
+}
+
+.environment-chevron svg,
+.environment-external svg {
+  height: 16px;
+  width: 16px;
+}
+
 .environment-branch-control {
-  position: relative;
+  position: static;
 }
 
 .environment-branch-menu {
-  background: var(--panel-3);
+  backdrop-filter: blur(22px) saturate(1.15);
+  background: var(--environment-menu-bg);
   border: 1px solid var(--border);
-  border-radius: 11px;
-  box-shadow: 0 12px 30px rgb(0 0 0 / 28%);
-  inset-inline: 34px 4px;
-  max-height: 220px;
-  overflow-y: auto;
-  padding: 4px;
-  position: absolute;
-  top: calc(100% - 2px);
-  z-index: 2;
+  border-radius: 16px;
+  box-shadow: 0 18px 46px rgb(0 0 0 / 38%);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: fixed;
+  z-index: 120;
 }
 
-.environment-branch-menu > input,
-.environment-branch-menu form > input {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 7px;
+.environment-branch-search {
+  align-items: center;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--muted);
+  display: flex;
+  flex: 0 0 auto;
+  gap: 5px;
+  min-height: 48px;
+  padding: 0 10px;
+}
+
+.environment-branch-search > svg {
+  flex: 0 0 auto;
+  height: 14px;
+  width: 14px;
+}
+
+.environment-branch-search > input {
+  appearance: none;
+  background: transparent;
+  border: 0;
   color: var(--text);
-  font-size: 11px;
-  height: 30px;
+  font: inherit;
+  font-size: 14px;
   min-width: 0;
-  padding: 0 8px;
+  outline: 0;
+  padding: 0;
   width: 100%;
 }
 
-.environment-branch-menu form {
-  display: grid;
-  gap: 4px;
-  grid-template-columns: minmax(0, 1fr) 30px;
-  margin-top: 4px;
+.environment-branch-search > input::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 
-.environment-branch-menu form > button {
+.environment-branch-heading {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 14px;
+  line-height: 22px;
+  padding: 0 12px 3px;
+}
+
+.environment-branch-list {
   display: flex;
-  font-size: 16px;
-  justify-content: center;
-  min-height: 30px;
-  padding: 0;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 6px 8px;
+  scrollbar-width: none;
 }
 
-.environment-branch-option {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
-  margin-top: 2px;
+.environment-branch-list::-webkit-scrollbar {
+  display: none;
 }
 
-.environment-branch-menu button {
+.environment-branch-list > button,
+.environment-branch-actions > button {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px;
   color: var(--text);
   cursor: pointer;
   display: grid;
-  font-size: 12px;
-  gap: 8px;
-  grid-template-columns: 20px minmax(0, 1fr) 16px;
-  min-height: 34px;
-  padding: 5px 7px;
+  font-size: 14px;
+  gap: 4px;
+  grid-template-columns: 20px minmax(0, 1fr) 18px;
+  min-height: 30px;
+  padding: 4px 6px;
   text-align: start;
   width: 100%;
 }
 
-.environment-branch-menu button:hover:not(:disabled),
-.environment-branch-menu button:focus-visible:not(:disabled),
-.environment-branch-menu button.selected {
-  background: var(--selected);
+.environment-branch-list > button:hover:not(:disabled),
+.environment-branch-list > button:focus-visible:not(:disabled),
+.environment-branch-actions > button:hover:not(:disabled),
+.environment-branch-actions > button:focus-visible:not(:disabled) {
+  background: var(--environment-selected-bg);
 }
 
-.environment-branch-menu button:disabled {
+.environment-branch-list > button:disabled,
+.environment-branch-actions > button:disabled {
   color: var(--muted-2);
   cursor: default;
 }
 
-.environment-branch-menu span {
-  display: flex;
-  flex-direction: column;
+.environment-branch-list > button[data-remote="true"] {
+  color: var(--muted);
+}
+
+.environment-branch-list > button > span,
+.environment-branch-actions > button > span {
+  display: block;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.environment-branch-menu span small {
-  color: var(--muted-2);
-  font-size: 9px;
-}
-
-.environment-branch-menu .environment-branch-copy {
-  display: flex;
-  font-size: 12px;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0;
-}
-
-.environment-branch-menu i {
-  color: var(--success);
+.environment-branch-list > button > i {
+  align-items: center;
+  color: var(--text);
+  display: inline-flex;
   font-style: normal;
+  justify-content: center;
+}
+
+.environment-branch-list > button > svg {
+  height: 16px;
+  width: 16px;
+}
+
+.environment-branch-list > button > i > svg {
+  height: 16px;
+  width: 16px;
+}
+
+.environment-branch-empty,
+.environment-branch-error,
+.environment-branch-hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+  padding: 9px 14px;
+}
+
+.environment-branch-error {
+  color: var(--danger);
+}
+
+.environment-branch-actions {
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  flex: 0 0 auto;
+  padding: 7px 8px 8px;
+}
+
+.environment-branch-actions > button {
+  grid-template-columns: 20px minmax(0, 1fr);
+}
+
+.environment-branch-actions > button > svg {
+  height: 18px;
+  width: 18px;
+}
+
+.environment-branch-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px;
+}
+
+.environment-branch-create-form > label {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.environment-branch-create-form > input {
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  height: 36px;
+  min-width: 0;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.environment-branch-create-form > input:focus {
+  border-color: color-mix(in srgb, var(--blue) 68%, var(--border));
+  outline: 2px solid color-mix(in srgb, var(--blue) 28%, transparent);
+  outline-offset: 1px;
+}
+
+.environment-branch-create-form > small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.environment-branch-create-form > div {
+  display: flex;
+  gap: 7px;
+  justify-content: flex-end;
+  margin-top: 3px;
 }
 
 .environment-commit-form {
@@ -2109,13 +2253,8 @@ button.environment-row:disabled {
 }
 
 .environment-view-all svg {
-  fill: none;
-  height: 17px;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.7;
-  width: 17px;
+  height: 18px;
+  width: 18px;
 }
 
 .environment-view-all:hover,

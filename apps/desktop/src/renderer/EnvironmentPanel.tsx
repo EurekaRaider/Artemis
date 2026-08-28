@@ -5,9 +5,16 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import {
+  FileIcon,
+  GitPullRequestIcon,
+  ImageIcon,
+  SlidersHorizontalIcon,
+} from "@phosphor-icons/react";
 import {
   type AgentTeamState,
   type AppLocale,
@@ -19,6 +26,7 @@ import {
 } from "@artemis/protocol";
 
 import type {
+  ProjectGitBranch,
   ProjectGitInfo,
   ProjectPullRequest,
   ProjectPullRequestCheck,
@@ -28,6 +36,20 @@ import type {
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
+import {
+  EnvironmentAddIcon,
+  EnvironmentBranchIcon as CodexBranchIcon,
+  EnvironmentChangesIcon as CodexChangesIcon,
+  EnvironmentCheckIcon,
+  EnvironmentChevronIcon,
+  EnvironmentCommitIcon as CodexCommitIcon,
+  EnvironmentExternalIcon,
+  EnvironmentGithubIcon,
+  EnvironmentLocalIcon as CodexLocalIcon,
+  EnvironmentSearchIcon,
+  EnvironmentSourcesIcon,
+  EnvironmentWebIcon,
+} from "./EnvironmentPanelIcons.js";
 
 export const ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH = 328;
 export const ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH = 720;
@@ -84,15 +106,17 @@ const labels = {
     title: "Environment",
     addProject: "Add project",
     changes: "Changes",
-    filesChanged: (count: number) =>
-      `${count} changed ${count === 1 ? "file" : "files"}`,
     local: "Local",
     branch: "Branch",
-    branchSearch: "Search local and remote branches",
-    createBranch: "Create and checkout branch",
-    copyBranch: "Copy branch name",
-    localBranch: "Local",
-    remoteBranch: "Remote",
+    branchMenu: "Branch menu",
+    branchSearch: (project: string) => `Search ${project} branches`,
+    branches: "Branches",
+    noBranches: "No matching branches",
+    createBranch: "Create and checkout new branch…",
+    branchName: "Branch name",
+    branchNameHelp: "The new branch starts at the current HEAD.",
+    create: "Create branch",
+    changingBranch: "Changing branch…",
     detached: "Detached HEAD",
     detachedBlocked: "Switch to a branch first",
     compareBranch: "Compare branch",
@@ -130,8 +154,6 @@ const labels = {
     retry: "Retry",
     notGit: "This project is not a Git repository.",
     githubChecking: "Checking GitHub pull request…",
-    githubUnavailable: "Install GitHub CLI to show pull request checks.",
-    githubAuthentication: "Sign in with gh to show pull request checks.",
     githubStale: "Last known GitHub state · refresh failed",
     pullRequestDraft: "Draft",
     pullRequestOpen: "Open",
@@ -152,8 +174,6 @@ const labels = {
       `${total} total · ${active} active`,
     noAgents: "No sub-agents have been used in this task.",
     teams: "Teams",
-    parentAgent: "Parent agent",
-    usedBy: "Used by",
     agentQueued: "Waiting to start",
     agentRunning: "Started working",
     agentBlocked: "Blocked",
@@ -173,31 +193,27 @@ const labels = {
     completed: "Completed",
     viewAll: "View all",
     showLess: "Show less",
-    usedMcp: "Used MCP",
-    noMcp: "No MCP server has been used in this task.",
-    mcpSummary: (calls: number, agents: number) =>
-      `${calls} ${calls === 1 ? "call" : "calls"} · ${agents} ${agents === 1 ? "agent" : "agents"}`,
     sources: "Sources",
     addSources: "Add sources",
     noSources: "No sources have been attached to this task.",
-    draft: "Draft",
-    sent: "Sent",
-    webSearchSummary: (engine: string, count: number) =>
-      `${engine} · ${count} ${count === 1 ? "result" : "results"}`,
+    webSearch: "Web search",
   },
   "zh-CN": {
     trigger: "任务环境",
     title: "环境信息",
     addProject: "添加项目",
     changes: "变更",
-    filesChanged: (count: number) => `${count} 个文件发生变更`,
     local: "本地",
     branch: "分支",
-    branchSearch: "搜索本地和远端分支",
-    createBranch: "创建并切换分支",
-    copyBranch: "复制分支名称",
-    localBranch: "本地",
-    remoteBranch: "远端",
+    branchMenu: "分支菜单",
+    branchSearch: (project: string) => `搜索${project}分支`,
+    branches: "分支",
+    noBranches: "没有匹配的分支",
+    createBranch: "创建并检出新分支…",
+    branchName: "分支名称",
+    branchNameHelp: "新分支将从当前 HEAD 创建。",
+    create: "创建分支",
+    changingBranch: "正在切换分支…",
     detached: "分离的 HEAD",
     detachedBlocked: "请先切换到一个分支",
     compareBranch: "比较分支",
@@ -234,8 +250,6 @@ const labels = {
     retry: "重试",
     notGit: "当前项目不是 Git 仓库。",
     githubChecking: "正在检查 GitHub 拉取请求…",
-    githubUnavailable: "安装 GitHub CLI 后可显示拉取请求检查。",
-    githubAuthentication: "登录 gh 后可显示拉取请求检查。",
     githubStale: "GitHub 上次状态 · 刷新失败",
     pullRequestDraft: "草稿",
     pullRequestOpen: "开放",
@@ -256,8 +270,6 @@ const labels = {
       `共 ${total} 个 · ${active} 个活跃`,
     noAgents: "当前任务尚未使用子代理。",
     teams: "团队",
-    parentAgent: "父 Agent",
-    usedBy: "使用 Agent",
     agentQueued: "等待开始",
     agentRunning: "已开始工作",
     agentBlocked: "被阻塞",
@@ -277,17 +289,10 @@ const labels = {
     completed: "完成",
     viewAll: "查看全部",
     showLess: "收起",
-    usedMcp: "已使用的 MCP",
-    noMcp: "当前任务尚未使用 MCP。",
-    mcpSummary: (calls: number, agents: number) =>
-      `${calls} 次调用 · ${agents} 个 Agent`,
     sources: "来源",
     addSources: "添加来源",
     noSources: "当前任务尚未添加来源。",
-    draft: "草稿",
-    sent: "已发送",
-    webSearchSummary: (engine: string, count: number) =>
-      `${engine} · ${count} 个结果`,
+    webSearch: "网页搜索",
   },
 } satisfies Record<"en" | "zh-CN", Record<string, unknown>>;
 
@@ -317,10 +322,13 @@ type EnvironmentSourceItem =
     }
   | {
       id: string;
+      kind: "mcp";
+      name: string;
+      draft: false;
+    }
+  | {
+      id: string;
       kind: "web-search";
-      query: string;
-      engine: string;
-      resultCount: number;
       draft: false;
     };
 
@@ -383,6 +391,68 @@ export function environmentChecksPopoverPosition(
     Math.max(margin, viewport.height - height - margin),
   );
   return { left, top };
+}
+
+export interface EnvironmentBranchMenuLayout extends CSSProperties {
+  left: number;
+  maxHeight: number;
+  top: number;
+  width: number;
+}
+
+export function environmentBranchMenuLayout(
+  anchor: Readonly<{
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+  }>,
+  viewport: Readonly<{ width: number; height: number }>,
+): EnvironmentBranchMenuLayout {
+  const margin = 12;
+  const width = Math.min(296, Math.max(0, viewport.width - margin * 2));
+  const left = Math.min(
+    Math.max(margin, anchor.left - width),
+    Math.max(margin, viewport.width - width - margin),
+  );
+  const top = Math.min(
+    Math.max(margin, anchor.top),
+    Math.max(margin, viewport.height - margin - 160),
+  );
+  return {
+    left,
+    maxHeight: Math.max(160, viewport.height - top - margin),
+    top,
+    width,
+  };
+}
+
+export function environmentBranchDisplayName(branch: ProjectGitBranch): string {
+  return branch.remote ? branch.name.replace(/^[^/]+\//u, "") : branch.name;
+}
+
+export function environmentBranchMenuBranches(
+  branches: readonly ProjectGitBranch[],
+  query: string,
+): ProjectGitBranch[] {
+  const deduplicated = new Map<string, ProjectGitBranch>();
+  for (const branch of branches) {
+    const displayName = environmentBranchDisplayName(branch);
+    const existing = deduplicated.get(displayName);
+    if (!existing || (existing.remote && !branch.remote)) {
+      deduplicated.set(displayName, branch);
+    }
+  }
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  return [...deduplicated.values()]
+    .filter(
+      (branch) =>
+        !normalizedQuery ||
+        environmentBranchDisplayName(branch)
+          .toLocaleLowerCase()
+          .includes(normalizedQuery),
+    )
+    .sort((left, right) => Number(right.current) - Number(left.current));
 }
 
 export interface AgentEnvironmentCounts {
@@ -536,104 +606,46 @@ export function environmentGitAction(
 }
 
 function EnvironmentIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M4 7h8m4 0h4M4 17h4m4 0h8" />
-      <circle cx="14" cy="7" r="2" />
-      <circle cx="10" cy="17" r="2" />
-    </svg>
-  );
+  return <SlidersHorizontalIcon aria-hidden="true" size={20} />;
 }
 
 function BranchIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <circle cx="7" cy="5" r="2" />
-      <circle cx="17" cy="5" r="2" />
-      <circle cx="7" cy="19" r="2" />
-      <path d="M7 7v10m0-5c6 0 10-1 10-5" />
-    </svg>
-  );
+  return <CodexBranchIcon aria-hidden="true" />;
 }
 
 function ChangesIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <rect height="16" rx="3" width="14" x="5" y="4" />
-      <path d="M9 9h6m-3-3v6m-3 4h6" />
-    </svg>
-  );
+  return <CodexChangesIcon aria-hidden="true" />;
 }
 
 function LocalIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M4 6.5h16v10H4zM2.5 19h19" />
-    </svg>
-  );
+  return <CodexLocalIcon aria-hidden="true" />;
 }
 
 function McpIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <circle cx="6" cy="12" r="2" />
-      <circle cx="18" cy="6" r="2" />
-      <circle cx="18" cy="18" r="2" />
-      <path d="m8 11 8-4m-8 6 8 4" />
-    </svg>
-  );
+  return <EnvironmentSourcesIcon aria-hidden="true" />;
 }
 
 function CompareIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <circle cx="7" cy="6" r="2" />
-      <circle cx="17" cy="18" r="2" />
-      <path d="M7 8v5c0 3 2 5 5 5h3M17 16v-5c0-3-2-5-5-5H9" />
-    </svg>
-  );
+  return <EnvironmentGithubIcon aria-hidden="true" />;
 }
 
 function PushIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M8 17H6.5a4.5 4.5 0 0 1-.7-8.95A6.5 6.5 0 0 1 18.3 7a4 4 0 0 1-.8 7.92H16" />
-      <path d="m9 13 3-3 3 3M12 10v9" />
-    </svg>
-  );
+  return <CodexCommitIcon aria-hidden="true" />;
 }
 
 function PullRequestIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <circle cx="6" cy="5" r="2" />
-      <circle cx="6" cy="19" r="2" />
-      <circle cx="18" cy="5" r="2" />
-      <path d="M6 7v10m12-10v3c0 4-3 7-7 7H9m6-9 3-3 3 3" />
-    </svg>
-  );
+  return <GitPullRequestIcon aria-hidden="true" size={20} />;
 }
 
 function WebSourceIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="8" />
-      <path d="M4 12h16M12 4c2.5 2.2 3.7 4.8 3.7 8s-1.2 5.8-3.7 8c-2.5-2.2-3.7-4.8-3.7-8S9.5 6.2 12 4Z" />
-    </svg>
-  );
+  return <EnvironmentWebIcon aria-hidden="true" />;
 }
 
 function SourceIcon({ image }: { image: boolean }) {
   return image ? (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <rect height="16" rx="3" width="18" x="3" y="4" />
-      <circle cx="9" cy="10" r="2" />
-      <path d="m5 18 5-5 3 3 2-2 4 4" />
-    </svg>
+    <ImageIcon aria-hidden="true" size={20} />
   ) : (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M6 3h8l4 4v14H6zM14 3v5h4" />
-    </svg>
+    <FileIcon aria-hidden="true" size={20} />
   );
 }
 
@@ -646,6 +658,7 @@ export function EnvironmentPanel({
   dockOpen,
   locale,
   mcpUsages,
+  onAddProject,
   onAddSources,
   onConfirm,
   onMessage,
@@ -670,6 +683,7 @@ export function EnvironmentPanel({
   dockOpen: boolean;
   locale: AppLocale;
   mcpUsages: McpToolUsageState[];
+  onAddProject: () => void;
   onAddSources: () => void;
   onConfirm: (message: string) => Promise<boolean>;
   onMessage: (message: string, error?: boolean) => void;
@@ -694,6 +708,9 @@ export function EnvironmentPanel({
   const pullRequestRequest = useRef(0);
   const checksTrigger = useRef<HTMLButtonElement>(null);
   const checksPopover = useRef<HTMLDivElement>(null);
+  const branchTrigger = useRef<HTMLButtonElement>(null);
+  const branchMenu = useRef<HTMLDivElement>(null);
+  const branchSearch = useRef<HTMLInputElement>(null);
   const checksCloseTimer = useRef<number | undefined>(undefined);
   const autoHidden = useRef(false);
   const openRef = useRef(defaultOpen);
@@ -720,6 +737,9 @@ export function EnvironmentPanel({
   );
   const [branchOpen, setBranchOpen] = useState(false);
   const [branchQuery, setBranchQuery] = useState("");
+  const [branchMenuPosition, setBranchMenuPosition] =
+    useState<EnvironmentBranchMenuLayout>();
+  const [creatingMenuBranch, setCreatingMenuBranch] = useState(false);
   const [menuBranchName, setMenuBranchName] = useState("");
   const [pendingSwitchBranch, setPendingSwitchBranch] = useState<string>();
   const [showAllAgents, setShowAllAgents] = useState(false);
@@ -753,6 +773,25 @@ export function EnvironmentPanel({
     setChecksOpen(false);
   }, [cancelChecksClose]);
 
+  const closeBranchMenu = useCallback(() => {
+    setBranchOpen(false);
+    setBranchQuery("");
+    setBranchMenuPosition(undefined);
+    setCreatingMenuBranch(false);
+    setMenuBranchName("");
+  }, []);
+
+  const updateBranchMenuPosition = useCallback(() => {
+    const anchor = branchTrigger.current?.getBoundingClientRect();
+    if (!anchor) return;
+    setBranchMenuPosition(
+      environmentBranchMenuLayout(anchor, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }),
+    );
+  }, []);
+
   const showChecks = useCallback(() => {
     cancelChecksClose();
     const anchor = checksTrigger.current?.getBoundingClientRect();
@@ -779,6 +818,28 @@ export function EnvironmentPanel({
       setChecksOpen(false);
     }, 140);
   }, [cancelChecksClose]);
+
+  useLayoutEffect(() => {
+    if (!branchOpen) return;
+    updateBranchMenuPosition();
+    const observer =
+      typeof window.ResizeObserver === "function" && branchTrigger.current
+        ? new window.ResizeObserver(updateBranchMenuPosition)
+        : undefined;
+    if (branchTrigger.current) observer?.observe(branchTrigger.current);
+    window.addEventListener("resize", updateBranchMenuPosition);
+    window.addEventListener("scroll", updateBranchMenuPosition, true);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateBranchMenuPosition);
+      window.removeEventListener("scroll", updateBranchMenuPosition, true);
+    };
+  }, [branchOpen, updateBranchMenuPosition]);
+
+  useEffect(() => {
+    if (!branchOpen || creatingMenuBranch || !branchMenuPosition) return;
+    branchSearch.current?.focus({ preventScroll: true });
+  }, [branchMenuPosition, branchOpen, creatingMenuBranch]);
 
   const syncVisibility = useCallback(() => {
     const workspace = control.current?.closest(".workspace");
@@ -878,15 +939,17 @@ export function EnvironmentPanel({
     setNewCommitBranch(suggestedEnvironmentBranchName(taskTitle));
     setBranchOpen(false);
     setBranchQuery("");
+    setBranchMenuPosition(undefined);
+    setCreatingMenuBranch(false);
     setMenuBranchName("");
     setPendingSwitchBranch(undefined);
   }, [project.id, taskTitle, threadId]);
 
   useEffect(() => {
     if (open) return;
-    setBranchOpen(false);
+    closeBranchMenu();
     setChecksOpen(false);
-  }, [open]);
+  }, [closeBranchMenu, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -964,6 +1027,23 @@ export function EnvironmentPanel({
   }, [checksOpen, closeChecks]);
 
   useEffect(() => {
+    if (!branchOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (
+        branchTrigger.current?.contains(target) ||
+        branchMenu.current?.contains(target)
+      ) {
+        return;
+      }
+      closeBranchMenu();
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [branchOpen, closeBranchMenu]);
+
+  useEffect(() => {
     if (!open && !commitOpen) return;
     const closeEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -976,8 +1056,12 @@ export function EnvironmentPanel({
         setCommitOpen(false);
         setCreatingCommitBranch(false);
         setCommitMessage("");
+      } else if (creatingMenuBranch) {
+        setCreatingMenuBranch(false);
+        setMenuBranchName("");
+        setGitError(undefined);
       } else if (branchOpen) {
-        setBranchOpen(false);
+        closeBranchMenu();
       } else {
         closePanel();
         window.requestAnimationFrame(() => trigger.current?.focus());
@@ -989,9 +1073,11 @@ export function EnvironmentPanel({
     branchOpen,
     checksOpen,
     closeChecks,
+    closeBranchMenu,
     closePanel,
     commitBranchOpen,
     commitOpen,
+    creatingMenuBranch,
     open,
   ]);
 
@@ -1004,14 +1090,6 @@ export function EnvironmentPanel({
     [displayAgents],
   );
   const mcpGroups = useMemo(() => groupMcpUsage(mcpUsages), [mcpUsages]);
-  const agentNames = useMemo(
-    () =>
-      new Map<string, string>([
-        ["parent", t.parentAgent],
-        ...displayAgents.map((agent) => [agent.agentId, agent.label] as const),
-      ]),
-    [displayAgents, t.parentAgent],
-  );
   const agentStatusLabels: Record<ChildAgentState["status"], string> = {
     queued: t.agentQueued,
     running: t.agentRunning,
@@ -1108,6 +1186,16 @@ export function EnvironmentPanel({
                 : gitInfo.upstream && gitInfo.ahead === 0
                   ? t.synced
                   : undefined;
+  const panelGitAction = gitInfo
+    ? environmentGitAction(gitInfo, actionsDisabled, {
+        stopTasks: t.stopTasks,
+        conflicts: t.conflicts,
+        behind: t.behind,
+        noUpstream: t.noUpstream,
+        synced: t.synced,
+        detachedBlocked: t.detachedBlocked,
+      })
+    : ({ kind: "idle", disabledReason: t.loading } as const);
   const activityPreviewLimit = 2;
   const visibleTeams = showAllAgents
     ? teams
@@ -1118,9 +1206,9 @@ export function EnvironmentPanel({
         0,
         Math.max(0, activityPreviewLimit - visibleTeams.length),
       );
-  const visibleMcp = mcpGroups.slice(0, 3);
-  const visibleBranches = (gitInfo?.branches ?? []).filter((branch) =>
-    branch.name.toLocaleLowerCase().includes(branchQuery.toLocaleLowerCase()),
+  const visibleBranches = environmentBranchMenuBranches(
+    gitInfo?.branches ?? [],
+    branchQuery,
   );
   const combinedSources: EnvironmentSourceItem[] = [
     ...attachments.map((attachment, index) => ({
@@ -1131,36 +1219,38 @@ export function EnvironmentPanel({
       draft: true as const,
       attachment,
     })),
-    ...sources.map((source): EnvironmentSourceItem =>
+    ...sources.flatMap((source): EnvironmentSourceItem[] =>
       source.kind === "web-search"
-        ? {
-            id: source.sourceId,
-            kind: "web-search",
-            query: source.query,
-            engine: source.engine,
-            resultCount: source.resultCount,
-            draft: false,
-          }
-        : {
-            id: source.sourceId,
-            name: source.name,
-            mimeType: source.mimeType,
-            kind: source.kind,
-            draft: false,
-          },
+        ? []
+        : [
+            {
+              id: source.sourceId,
+              name: source.name,
+              mimeType: source.mimeType,
+              kind: source.kind,
+              draft: false,
+            },
+          ],
     ),
+    ...mcpGroups.map((group) => ({
+      id: `mcp:${group.id}`,
+      kind: "mcp" as const,
+      name: group.name,
+      draft: false as const,
+    })),
+    ...(sources.some((source) => source.kind === "web-search")
+      ? [
+          {
+            id: "web-search",
+            kind: "web-search" as const,
+            draft: false as const,
+          },
+        ]
+      : []),
   ];
-  const sourcePreviewLimit =
-    displayAgents.length > 0 || teams.length > 0 || mcpGroups.length > 0
-      ? 1
-      : 3;
+  const sourcePreviewLimit = 3;
   const visibleSources = combinedSources.slice(0, sourcePreviewLimit);
-  const hasSourcePanelDetails =
-    combinedSources.length > visibleSources.length ||
-    mcpGroups.length > 0 ||
-    sources.some(
-      (source) => source.kind === "web-search" && source.links.length > 0,
-    );
+  const hasSourcePanelDetails = combinedSources.length > 0;
 
   const viewAllSources = () => {
     closePanel();
@@ -1298,13 +1388,17 @@ export function EnvironmentPanel({
 
   const switchBranch = async (branch: string) => {
     if (actionsDisabled || gitBusy) return;
+    if (branch === gitInfo?.currentBranch) {
+      closeBranchMenu();
+      return;
+    }
     setGitBusy("branch");
     setGitError(undefined);
     try {
       setGitInfo(
         await window.artemis.switchProjectBranch(project.id, branch, threadId),
       );
-      setBranchOpen(false);
+      closeBranchMenu();
       setCommitBranchOpen(false);
       setCreatingCommitBranch(false);
       await loadPullRequest();
@@ -1315,6 +1409,8 @@ export function EnvironmentPanel({
         /would be overwritten|local changes|uncommitted changes/iu.test(message)
       ) {
         setPendingSwitchBranch(branch);
+        closeBranchMenu();
+        setCommitOpen(true);
       }
       onMessage(message, true);
     } finally {
@@ -1331,13 +1427,11 @@ export function EnvironmentPanel({
       setGitInfo(
         await window.artemis.createProjectBranch(
           project.id,
-          menuBranchName,
+          menuBranchName.trim(),
           threadId,
         ),
       );
-      setBranchOpen(false);
-      setBranchQuery("");
-      setMenuBranchName("");
+      closeBranchMenu();
       await loadPullRequest();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1378,6 +1472,15 @@ export function EnvironmentPanel({
           <section className="environment-section git-environment-section">
             <header>
               <h2>{t.title}</h2>
+              <button
+                aria-label={t.addProject}
+                className="environment-header-action"
+                onClick={onAddProject}
+                title={t.addProject}
+                type="button"
+              >
+                <EnvironmentAddIcon aria-hidden="true" />
+              </button>
             </header>
             {gitLoading && !gitInfo ? (
               <div className="environment-empty" role="status">
@@ -1396,7 +1499,6 @@ export function EnvironmentPanel({
               <div className="environment-rows">
                 <button
                   className="environment-row"
-                  disabled={gitInfo.changeCount === 0}
                   onClick={() => {
                     closePanel();
                     onOpenReview(
@@ -1412,7 +1514,6 @@ export function EnvironmentPanel({
                   </span>
                   <span className="environment-row-copy">
                     <strong>{t.changes}</strong>
-                    <small>{t.filesChanged(gitInfo.changeCount)}</small>
                   </span>
                   <span className="environment-diff-total">
                     <i>+{gitInfo.additions}</i>
@@ -1425,14 +1526,26 @@ export function EnvironmentPanel({
                   </span>
                   <span className="environment-row-copy">
                     <strong>{t.local}</strong>
-                    <small>{gitInfo.root}</small>
+                  </span>
+                  <span className="environment-chevron" aria-hidden="true">
+                    <EnvironmentChevronIcon />
                   </span>
                 </div>
                 <div className="environment-branch-control">
                   <button
+                    aria-controls="environment-branch-menu"
                     aria-expanded={branchOpen}
+                    aria-haspopup="menu"
                     className="environment-row"
-                    onClick={() => setBranchOpen((current) => !current)}
+                    onClick={() => {
+                      if (branchOpen) closeBranchMenu();
+                      else {
+                        setCreatingMenuBranch(false);
+                        setMenuBranchName("");
+                        setBranchOpen(true);
+                      }
+                    }}
+                    ref={branchTrigger}
                     type="button"
                   >
                     <span className="environment-row-icon">
@@ -1440,88 +1553,31 @@ export function EnvironmentPanel({
                     </span>
                     <span className="environment-row-copy">
                       <strong>{gitInfo.currentBranch ?? t.detached}</strong>
-                      <small>{gitInfo.upstream ?? t.branch}</small>
                     </span>
-                    <span className="environment-chevron">⌄</span>
+                    <span className="environment-chevron" aria-hidden="true">
+                      <EnvironmentChevronIcon />
+                    </span>
                   </button>
-                  {branchOpen && (
-                    <div className="environment-branch-menu" role="menu">
-                      <input
-                        aria-label={t.branchSearch}
-                        autoFocus
-                        onChange={(event) => setBranchQuery(event.target.value)}
-                        placeholder={t.branchSearch}
-                        value={branchQuery}
-                      />
-                      <form
-                        onSubmit={(event) => void createBranchFromMenu(event)}
-                      >
-                        <input
-                          aria-label={t.createBranch}
-                          onChange={(event) =>
-                            setMenuBranchName(event.target.value)
-                          }
-                          placeholder={t.newBranchPlaceholder}
-                          value={menuBranchName}
-                        />
-                        <button
-                          aria-label={t.createBranch}
-                          disabled={
-                            actionsDisabled ||
-                            Boolean(gitBusy) ||
-                            !menuBranchName.trim()
-                          }
-                          title={t.createBranch}
-                          type="submit"
-                        >
-                          +
-                        </button>
-                      </form>
-                      {visibleBranches.map((branch) => (
-                        <div
-                          className="environment-branch-option"
-                          key={branch.name}
-                        >
-                          <button
-                            aria-checked={branch.current}
-                            className={branch.current ? "selected" : ""}
-                            disabled={
-                              Boolean(gitBusy) ||
-                              (actionsDisabled && !branch.current)
-                            }
-                            onClick={() =>
-                              branch.current
-                                ? setBranchOpen(false)
-                                : void switchBranch(branch.name)
-                            }
-                            role="menuitemradio"
-                            type="button"
-                          >
-                            <BranchIcon />
-                            <span>
-                              {branch.name}
-                              <small>
-                                {branch.remote ? t.remoteBranch : t.localBranch}
-                              </small>
-                            </span>
-                            <i>{branch.current ? "✓" : ""}</i>
-                          </button>
-                          <button
-                            aria-label={`${t.copyBranch}: ${branch.name}`}
-                            className="environment-branch-copy"
-                            onClick={() =>
-                              void navigator.clipboard.writeText(branch.name)
-                            }
-                            title={t.copyBranch}
-                            type="button"
-                          >
-                            ⧉
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
+                <button
+                  className="environment-row commit-push-row"
+                  disabled={
+                    Boolean(gitBusy) || Boolean(panelGitAction.disabledReason)
+                  }
+                  onClick={() => {
+                    setGitError(undefined);
+                    setCommitOpen(true);
+                  }}
+                  title={panelGitAction.disabledReason}
+                  type="button"
+                >
+                  <span className="environment-row-icon">
+                    <PushIcon />
+                  </span>
+                  <span className="environment-row-copy">
+                    <strong>{t.commitOrPush}</strong>
+                  </span>
+                </button>
                 <button
                   className="environment-row"
                   onClick={() => {
@@ -1535,25 +1591,9 @@ export function EnvironmentPanel({
                   </span>
                   <span className="environment-row-copy">
                     <strong>{t.compareBranch}</strong>
-                    <small>{gitInfo.compareBase ?? t.noCompareBase}</small>
                   </span>
-                  <span className="environment-external">↗</span>
-                </button>
-                <button
-                  className="environment-row commit-push-row"
-                  disabled={Boolean(gitBusy)}
-                  onClick={() => {
-                    setGitError(undefined);
-                    setCommitOpen(true);
-                  }}
-                  type="button"
-                >
-                  <span className="environment-row-icon">
-                    <ChangesIcon />
-                  </span>
-                  <span className="environment-row-copy">
-                    <strong>{t.commitOrPush}</strong>
-                    <small>{gitInfo.upstream ?? commitDisabledReason}</small>
+                  <span className="environment-external" aria-hidden="true">
+                    <EnvironmentExternalIcon />
                   </span>
                 </button>
                 {pullRequestLoading && !pullRequestLookup && (
@@ -1562,24 +1602,6 @@ export function EnvironmentPanel({
                       <PullRequestIcon />
                     </span>
                     <span>{t.githubChecking}</span>
-                  </div>
-                )}
-                {pullRequestLookup?.status === "unavailable" && (
-                  <div className="environment-pr-notice">
-                    <span className="environment-row-icon">
-                      <PullRequestIcon />
-                    </span>
-                    <span>
-                      {pullRequestLookup.reason === "gh-not-installed"
-                        ? t.githubUnavailable
-                        : t.githubAuthentication}
-                    </span>
-                    <button
-                      onClick={() => void loadPullRequest()}
-                      type="button"
-                    >
-                      {t.retry}
-                    </button>
                   </div>
                 )}
                 {pullRequest && (
@@ -1598,7 +1620,9 @@ export function EnvironmentPanel({
                           #{pullRequest.number} · {pullRequestStateLabel}
                         </small>
                       </span>
-                      <span className="environment-external">↗</span>
+                      <span className="environment-external" aria-hidden="true">
+                        <EnvironmentExternalIcon />
+                      </span>
                     </button>
                     <button
                       aria-controls="environment-pr-checks"
@@ -1640,7 +1664,7 @@ export function EnvironmentPanel({
                         data-status={checkSummary}
                       />
                       <span>{checkSummaryLabels[checkSummary]}</span>
-                      <span aria-hidden="true">⌄</span>
+                      <EnvironmentChevronIcon aria-hidden="true" />
                     </button>
                     {coverageWarningLabel && (
                       <p className="environment-pr-warning">
@@ -1776,48 +1800,6 @@ export function EnvironmentPanel({
             </section>
           )}
 
-          {mcpGroups.length > 0 && (
-            <section className="environment-section">
-              <header>
-                <h2>{t.usedMcp}</h2>
-                {mcpGroups.length > 3 && (
-                  <button
-                    className="environment-text-action"
-                    onClick={viewAllSources}
-                    type="button"
-                  >
-                    {t.viewAll}
-                  </button>
-                )}
-              </header>
-              <div className="environment-activity-list">
-                {visibleMcp.map((group) => (
-                  <div
-                    className="environment-activity-row static"
-                    key={group.id}
-                  >
-                    <span className="environment-row-icon">
-                      <McpIcon />
-                    </span>
-                    <span>
-                      <strong>{group.name}</strong>
-                      <small>
-                        {t.mcpSummary(group.calls, group.agents.length)} ·{" "}
-                        {group.tools.join(", ")}
-                      </small>
-                      <small>
-                        {t.usedBy} ·{" "}
-                        {group.agents
-                          .map((agentId) => agentNames.get(agentId) ?? agentId)
-                          .join(", ")}
-                      </small>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
           {combinedSources.length > 0 && (
             <section className="environment-section sources-section">
               <header>
@@ -1829,7 +1811,7 @@ export function EnvironmentPanel({
                   title={t.addSources}
                   type="button"
                 >
-                  +
+                  <EnvironmentAddIcon aria-hidden="true" />
                 </button>
               </header>
               <div className="environment-source-list">
@@ -1843,13 +1825,19 @@ export function EnvironmentPanel({
                         <WebSourceIcon />
                       </span>
                       <span>
-                        <strong title={source.query}>{source.query}</strong>
-                        <small>
-                          {t.webSearchSummary(
-                            source.engine,
-                            source.resultCount,
-                          )}
-                        </small>
+                        <strong>{t.webSearch}</strong>
+                      </span>
+                    </div>
+                  ) : source.kind === "mcp" ? (
+                    <div
+                      className="environment-source-row web-search-source"
+                      key={source.id}
+                    >
+                      <span className="environment-row-icon">
+                        <McpIcon />
+                      </span>
+                      <span>
+                        <strong title={source.name}>{source.name}</strong>
                       </span>
                     </div>
                   ) : (
@@ -1869,9 +1857,6 @@ export function EnvironmentPanel({
                       )}
                       <span>
                         <strong title={source.name}>{source.name}</strong>
-                        <small>
-                          {source.draft ? t.draft : t.sent} · {source.mimeType}
-                        </small>
                       </span>
                     </div>
                   ),
@@ -1882,7 +1867,7 @@ export function EnvironmentPanel({
                     onClick={viewAllSources}
                     type="button"
                   >
-                    <McpIcon />
+                    <EnvironmentSourcesIcon aria-hidden="true" />
                     <span>{t.viewAll}</span>
                   </button>
                 )}
@@ -1891,6 +1876,133 @@ export function EnvironmentPanel({
           )}
         </div>
       )}
+      {open &&
+        branchOpen &&
+        branchMenuPosition &&
+        createPortal(
+          <div
+            aria-label={t.branchMenu}
+            className="environment-branch-menu"
+            id="environment-branch-menu"
+            ref={branchMenu}
+            role="menu"
+            style={branchMenuPosition}
+          >
+            {creatingMenuBranch ? (
+              <form
+                className="environment-branch-create-form"
+                onSubmit={(event) => void createBranchFromMenu(event)}
+              >
+                <label htmlFor="environment-new-branch">{t.branchName}</label>
+                <input
+                  autoFocus
+                  disabled={Boolean(gitBusy)}
+                  id="environment-new-branch"
+                  maxLength={240}
+                  onChange={(event) => setMenuBranchName(event.target.value)}
+                  placeholder={t.newBranchPlaceholder}
+                  value={menuBranchName}
+                />
+                <small>{t.branchNameHelp}</small>
+                {gitError && (
+                  <p className="environment-branch-error" role="alert">
+                    {gitError}
+                  </p>
+                )}
+                <div>
+                  <button
+                    className="secondary-button"
+                    disabled={Boolean(gitBusy)}
+                    onClick={() => {
+                      setCreatingMenuBranch(false);
+                      setMenuBranchName("");
+                      setGitError(undefined);
+                    }}
+                    type="button"
+                  >
+                    {t.cancel}
+                  </button>
+                  <button
+                    className="primary-button"
+                    disabled={Boolean(gitBusy) || !menuBranchName.trim()}
+                    type="submit"
+                  >
+                    {gitBusy === "branch" ? t.changingBranch : t.create}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <label className="environment-branch-search">
+                  <EnvironmentSearchIcon aria-hidden="true" />
+                  <input
+                    aria-label={t.branchSearch(project.name)}
+                    onChange={(event) => setBranchQuery(event.target.value)}
+                    placeholder={t.branchSearch(project.name)}
+                    ref={branchSearch}
+                    value={branchQuery}
+                  />
+                </label>
+                <div className="environment-branch-heading">{t.branches}</div>
+                <div className="environment-branch-list">
+                  {visibleBranches.length === 0 ? (
+                    <p className="environment-branch-empty">{t.noBranches}</p>
+                  ) : (
+                    visibleBranches.map((branch) => (
+                      <button
+                        aria-checked={branch.current}
+                        className={branch.current ? "selected" : ""}
+                        data-remote={branch.remote || undefined}
+                        disabled={
+                          Boolean(gitBusy) ||
+                          (actionsDisabled && !branch.current)
+                        }
+                        key={branch.name}
+                        onClick={() =>
+                          branch.current
+                            ? closeBranchMenu()
+                            : void switchBranch(branch.name)
+                        }
+                        role="menuitemradio"
+                        type="button"
+                      >
+                        <BranchIcon />
+                        <span>{environmentBranchDisplayName(branch)}</span>
+                        <i aria-hidden="true">
+                          {branch.current ? <EnvironmentCheckIcon /> : null}
+                        </i>
+                      </button>
+                    ))
+                  )}
+                </div>
+                {gitError && (
+                  <p className="environment-branch-error" role="alert">
+                    {gitError}
+                  </p>
+                )}
+                {actionsDisabled && (
+                  <p className="environment-branch-hint">{t.stopTasks}</p>
+                )}
+                <div className="environment-branch-actions">
+                  <button
+                    disabled={actionsDisabled || Boolean(gitBusy)}
+                    onClick={() => {
+                      setCreatingMenuBranch(true);
+                      setMenuBranchName("");
+                      setGitError(undefined);
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <EnvironmentAddIcon aria-hidden="true" />
+                    <span>{t.createBranch}</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>,
+          document.body,
+        )}
       {open &&
         checksOpen &&
         pullRequest &&
@@ -1943,7 +2055,11 @@ export function EnvironmentPanel({
                           {checkSummaryLabels[check.status]}
                         </small>
                       </span>
-                      {check.detailsUrl && <i aria-hidden="true">↗</i>}
+                      {check.detailsUrl && (
+                        <i aria-hidden="true">
+                          <EnvironmentExternalIcon />
+                        </i>
+                      )}
                     </>
                   );
                   return check.detailsUrl ? (
@@ -2025,7 +2141,7 @@ export function EnvironmentPanel({
                       ? t.newBranch
                       : (gitInfo.currentBranch ?? t.detached)}
                   </strong>
-                  <span>⌄</span>
+                  <EnvironmentChevronIcon aria-hidden="true" />
                 </button>
                 {commitBranchOpen && (
                   <div
@@ -2057,8 +2173,10 @@ export function EnvironmentPanel({
                       >
                         <BranchIcon />
                         <span>{branch.name}</span>
-                        <i>
-                          {!creatingCommitBranch && branch.current ? "✓" : ""}
+                        <i aria-hidden="true">
+                          {!creatingCommitBranch && branch.current ? (
+                            <EnvironmentCheckIcon />
+                          ) : null}
                         </i>
                       </button>
                     ))}
@@ -2077,7 +2195,7 @@ export function EnvironmentPanel({
                       type="button"
                     >
                       <span className="environment-git-new-branch-icon">
-                        ＋
+                        <EnvironmentAddIcon aria-hidden="true" />
                       </span>
                       <span>{t.newBranch}</span>
                       <i />

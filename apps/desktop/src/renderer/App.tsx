@@ -5978,6 +5978,7 @@ export function App() {
                     key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}
                     locale={locale}
                     mcpUsages={environmentMcpUsages}
+                    onAddProject={() => void openProject()}
                     onAddSources={() => void selectPromptAttachments()}
                     onConfirm={requestConfirmation}
                     onMessage={(message, error) =>

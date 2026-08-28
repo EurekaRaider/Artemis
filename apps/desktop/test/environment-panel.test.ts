@@ -13,6 +13,9 @@ import type { ProjectGitInfo, ProjectPullRequest } from "../src/shared/api.js";
 import { childAgentMarkForIdentity } from "../src/renderer/ChildAgentIcon.js";
 import {
   ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH,
+  environmentBranchDisplayName,
+  environmentBranchMenuBranches,
+  environmentBranchMenuLayout,
   environmentPanelConversationWidth,
   environmentChecksPopoverPosition,
   environmentPanelVisibilityAfterResize,
@@ -133,7 +136,7 @@ describe("task environment panel state", () => {
     );
     expect(stylesSource).toContain("max-height: calc(100vh - 96px)");
     expect(stylesSource).toContain("scrollbar-width: none");
-    expect(stylesSource).toContain("min-height: 42px");
+    expect(stylesSource).toContain("min-height: 28px");
     expect(stylesSource).toContain(".environment-checks-popover");
   });
 
@@ -141,8 +144,9 @@ describe("task environment panel state", () => {
     expect(panelSource).toContain(
       "(displayAgents.length > 0 || teams.length > 0) &&",
     );
-    expect(panelSource).toContain("mcpGroups.length > 0 &&");
     expect(panelSource).toContain("combinedSources.length > 0 &&");
+    expect(panelSource).toContain("...mcpGroups.map((group) => ({");
+    expect(panelSource).not.toContain("mcpGroups.length > 0 &&");
   });
 
   it("shows stable identity marks instead of generic person icons", () => {
@@ -181,6 +185,8 @@ describe("task environment panel state", () => {
     expect(panelSource).not.toContain("commitChanges:");
     expect(panelSource).toContain("onOpenAgent(agent)");
     expect(panelSource).toContain("onOpenTeam(team)");
+    expect(panelSource).toContain("onClick={onAddProject}");
+    expect(appSource).toContain("onAddProject={() => void openProject()}");
     expect(panelSource).toContain("onClick={onAddSources}");
     expect(panelSource).not.toMatch(/picture.?in.?picture|画中画/iu);
   });
@@ -202,10 +208,11 @@ describe("task environment panel state", () => {
     expect(suggestedEnvironmentBranchName("---")).toBe("codex/changes");
   });
 
-  it("stays open on outside clicks while supporting Escape, scrolling, RTL, and narrow windows", () => {
-    expect(panelSource).not.toContain(
-      'document.addEventListener("pointerdown"',
-    );
+  it("keeps the panel open while its portaled branch menu handles outside clicks and Escape", () => {
+    expect(panelSource).toContain('document.addEventListener("pointerdown"');
+    expect(panelSource).toContain("branchTrigger.current?.contains(target)");
+    expect(panelSource).toContain("branchMenu.current?.contains(target)");
+    expect(panelSource).toContain("closeBranchMenu()");
     expect(panelSource).toContain('event.key !== "Escape"');
     expect(panelSource).toContain("trigger.current?.focus()");
     expect(panelSource).toContain('role="dialog"');
@@ -275,6 +282,7 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain("view === 'environment-pr-checks'");
     expect(mainSource).toContain("view === 'environment-sources'");
     expect(mainSource).toContain("view === 'environment-open'");
+    expect(mainSource).toContain("view === 'environment-branch-menu'");
     expect(mainSource).toContain(
       'ARTEMIS_SMOKE_VIEW?.startsWith("environment")',
     );
@@ -567,5 +575,49 @@ describe("task environment panel state", () => {
         { width: 320, height: 760 },
       ),
     ).toEqual({ left: 12, top: 408 });
+  });
+
+  it("positions the branch menu beside the branch row instead of clipping it inside the panel", () => {
+    expect(
+      environmentBranchMenuLayout(
+        { left: 800, right: 1100, top: 100, bottom: 140 },
+        { width: 1200, height: 800 },
+      ),
+    ).toEqual({ left: 504, top: 100, width: 296, maxHeight: 688 });
+    expect(
+      environmentBranchMenuLayout(
+        { left: 250, right: 280, top: 700, bottom: 740 },
+        { width: 320, height: 760 },
+      ),
+    ).toEqual({ left: 12, top: 588, width: 296, maxHeight: 160 });
+    expect(stylesSource).toMatch(
+      /\.environment-branch-menu\s*\{[^}]*position:\s*fixed;[^}]*z-index:\s*120;/su,
+    );
+  });
+
+  it("shows Codex-like branch names without duplicate upstream rows", () => {
+    const branches = environmentBranchMenuBranches(
+      [
+        { name: "main", current: true },
+        { name: "origin/main", current: false, remote: true },
+        { name: "codex/native-search", current: false },
+        {
+          name: "origin/release-preview",
+          current: false,
+          remote: true,
+        },
+      ],
+      "",
+    );
+
+    expect(branches.map(environmentBranchDisplayName)).toEqual([
+      "main",
+      "codex/native-search",
+      "release-preview",
+    ]);
+    expect(branches[0]).toMatchObject({ name: "main", current: true });
+    expect(environmentBranchMenuBranches(branches, "release")).toHaveLength(1);
+    expect(panelSource).toContain("t.branchSearch(project.name)");
+    expect(panelSource).toContain("t.createBranch");
   });
 });
