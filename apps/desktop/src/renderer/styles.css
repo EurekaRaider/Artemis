@@ -2669,6 +2669,68 @@ button.environment-row:disabled {
   text-underline-offset: 2px;
 }
 
+.markdown-body a.external-http-link.with-icon {
+  color: color-mix(in srgb, var(--blue) 80%, var(--text));
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+  white-space: normal;
+}
+
+.markdown-body a.external-http-link.with-icon:hover {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.markdown-body a.external-http-link.with-icon:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid color-mix(in srgb, var(--blue) 68%, transparent);
+  outline-offset: 2px;
+}
+
+.external-link-icon {
+  background:
+    linear-gradient(currentColor, currentColor) center / 100% 1px no-repeat,
+    radial-gradient(
+        ellipse at center,
+        transparent 42%,
+        currentColor 45%,
+        currentColor 52%,
+        transparent 55%
+      )
+      center / 42% 100% no-repeat;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  box-sizing: border-box;
+  display: inline-block;
+  height: 1rem;
+  margin-right: 0.24em;
+  overflow: hidden;
+  position: relative;
+  vertical-align: -0.14em;
+  width: 1rem;
+}
+
+.external-link-icon.favicon-loaded {
+  background: none;
+  border-color: transparent;
+  border-radius: 2px;
+}
+
+.external-link-favicon {
+  display: block;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  width: 100%;
+}
+
+.external-link-icon.favicon-loaded .external-link-favicon {
+  opacity: 1;
+}
+
 .markdown-body a.workspace-file-link.with-icon {
   display: inline;
   font-family: inherit;

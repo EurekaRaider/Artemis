@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  externalLinkFaviconUrl,
   isWorkspaceFileHref,
   MarkdownContent,
 } from "../src/renderer/MarkdownContent.js";
@@ -182,7 +183,28 @@ describe("MarkdownContent", () => {
     expect(isWorkspaceFileHref("javascript:alert(1)")).toBe(false);
   });
 
-  it("delegates assistant HTTP links without opening a new system window", () => {
+  it("renders assistant HTTP links with a trusted icon placeholder and URL tooltip", () => {
+    const html = renderToStaticMarkup(
+      <MarkdownContent
+        externalLinkIcons
+        onExternalLink={() => undefined}
+        text="[OpenAI](https://openai.com)"
+      />,
+    );
+
+    expect(html).toContain('class="external-http-link with-icon"');
+    expect(html).toContain('data-external-http="https://openai.com"');
+    expect(html).toContain('href="https://openai.com"');
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain('title="https://openai.com"');
+    expect(html).toContain(
+      '<span aria-hidden="true" class="external-link-icon" data-external-link-icon></span>OpenAI',
+    );
+    expect(html).not.toContain('target="_blank"');
+    expect(html).not.toMatch(/<img\b/iu);
+  });
+
+  it("keeps ordinary delegated HTTP links free of external-link icons", () => {
     const html = renderToStaticMarkup(
       <MarkdownContent
         onExternalLink={() => undefined}
@@ -190,10 +212,31 @@ describe("MarkdownContent", () => {
       />,
     );
 
-    expect(html).toMatch(
-      /<a(?=[^>]*\bdata-external-http="https:\/\/openai\.com")(?=[^>]*\bhref="https:\/\/openai\.com")(?=[^>]*\brel="noopener noreferrer")[^>]*>OpenAI<\/a>/u,
+    expect(html).toContain('data-external-http="https://openai.com"');
+    expect(html).not.toContain("external-http-link");
+    expect(html).not.toContain("data-external-link-icon");
+  });
+
+  it("derives favicon URLs from safe HTTP origins only", () => {
+    expect(
+      externalLinkFaviconUrl(
+        "https://github.com/openai/codex/pull/12870?tab=files#diff",
+      ),
+    ).toBe("https://github.com/favicon.ico");
+    expect(externalLinkFaviconUrl("//github.com/openai/codex")).toBe(
+      "https://github.com/favicon.ico",
     );
-    expect(html).not.toContain('target="_blank"');
+    expect(externalLinkFaviconUrl("http://127.0.0.1:4173/deep/path")).toBe(
+      "http://127.0.0.1:4173/favicon.ico",
+    );
+
+    expect(externalLinkFaviconUrl("https://user:secret@example.com/path")).toBe(
+      undefined,
+    );
+    expect(externalLinkFaviconUrl("javascript:alert(1)")).toBe(undefined);
+    expect(externalLinkFaviconUrl("data:text/plain,hello")).toBe(undefined);
+    expect(externalLinkFaviconUrl("mailto:test@example.com")).toBe(undefined);
+    expect(externalLinkFaviconUrl("not a URL")).toBe(undefined);
   });
 
   it("selects file-type icons from link paths without treating line locations as extensions", () => {
@@ -214,7 +257,7 @@ describe("MarkdownContent", () => {
     );
   });
 
-  it("uses iconified file links only for assistant timeline messages", () => {
+  it("uses iconified file and external links only for assistant timeline messages", () => {
     const appSource = readFileSync(
       fileURLToPath(new URL("../src/renderer/App.tsx", import.meta.url)),
       "utf8",
@@ -228,6 +271,7 @@ describe("MarkdownContent", () => {
     )?.[0];
 
     expect(assistantMessage).toContain("fileLinkIcons");
+    expect(assistantMessage).toContain("externalLinkIcons");
     expect(stylesSource).toMatch(
       /\.markdown-body a\.workspace-file-link\s*\{[\s\S]*?text-decoration:\s*none;[\s\S]*?\}/u,
     );
@@ -237,7 +281,17 @@ describe("MarkdownContent", () => {
     expect(stylesSource).toMatch(
       /\.markdown-body a\[data-external-http\][\s\S]*?text-decoration:\s*underline;[\s\S]*?\}/u,
     );
+    expect(stylesSource).toMatch(
+      /\.markdown-body a\.external-http-link\.with-icon\s*\{[\s\S]*?font-weight:\s*500;[\s\S]*?text-decoration:\s*none;[\s\S]*?white-space:\s*normal;[\s\S]*?\}/u,
+    );
+    expect(stylesSource).toMatch(
+      /\.markdown-body a\.external-http-link\.with-icon:hover\s*\{[\s\S]*?text-decoration-style:\s*dashed;[\s\S]*?\}/u,
+    );
+    expect(stylesSource).toMatch(
+      /\.markdown-body a\.external-http-link\.with-icon:focus-visible\s*\{[\s\S]*?outline:[\s\S]*?\}/u,
+    );
     expect(stylesSource).toMatch(/\.workspace-file-link-icon\s*\{[\s\S]*?\}/u);
+    expect(stylesSource).toMatch(/\.external-link-icon\s*\{[\s\S]*?\}/u);
   });
 
   it("is used for assistant message content in the timeline", () => {
@@ -252,6 +306,7 @@ describe("MarkdownContent", () => {
     expect(assistantMessage).toBeDefined();
     expect(assistantMessage).toContain("<MarkdownContent");
     expect(assistantMessage).toContain("fileLinkIcons");
+    expect(assistantMessage).toContain("externalLinkIcons");
     expect(assistantMessage).toContain("onExternalLink={onExternalLink}");
     expect(assistantMessage).toContain("onFileLink={onFileLink}");
     expect(assistantMessage).toContain(

@@ -17,6 +17,9 @@ You are Artemis, a local desktop Agent for software development and everyday wor
 const WORKSPACE_FILE_LINK_PROMPT = `## Workspace file links
 Every file you create for the user must be linked at least once in your final response. Use a Markdown link whose destination is relative to the active workspace, for example [report.md](reports/report.md). For a specific location, include the line in both the label and destination, for example [security.md (line 1)](docs/security.md:1); you may also append :line:column. The desktop adds the file-type icon, so do not add emoji or icon characters. Wrap destinations containing spaces in angle brackets. Do not use file:// URLs.`;
 
+const EXTERNAL_LINK_PROMPT = `## External links
+When you know the exact HTTP(S) URL for a web resource you reference, use a descriptive Markdown link instead of a bare URL or plain reference. Apply this to pull requests, issues, CI or workflow runs, releases, documentation, and cited sources. Never guess or construct an uncertain URL; leave the reference as plain text when the exact URL is unavailable. The desktop adds the site icon, so do not add emoji or icon characters.`;
+
 const USER_DECISION_PROMPT = `## User decisions and model approvals
 When progress requires the user to choose among requirements, designs, tradeoffs, or workflow branches, call request_user_input instead of printing questions for a typed reply. Ask exactly one question per call, offer two or three mutually exclusive options, explain their impact, and mark exactly one as recommended. If more decisions remain, wait for the answer and ask the next question in a later call. The desktop may select the recommended option after five minutes without a response.
 
@@ -61,7 +64,7 @@ function modelIdentityPrompt(
       : CHILD_COORDINATION_PROMPT;
   const selection = configuration.selection;
   if (!selection) {
-    return `${ARTEMIS_IDENTITY_PROMPT}\n\n${WORKSPACE_FILE_LINK_PROMPT}\n\n${scopedPrompts}`;
+    return `${ARTEMIS_IDENTITY_PROMPT}\n\n${WORKSPACE_FILE_LINK_PROMPT}\n\n${EXTERNAL_LINK_PROMPT}\n\n${scopedPrompts}`;
   }
 
   const provider = configuration.providers?.find(
@@ -81,6 +84,8 @@ The configured inference backend for this session is provider ${providerName} (I
 When the user asks which provider, backend, base model, or model is running, answer using these configured values. Do not infer a different model identity from pretrained knowledge. In particular, do not claim the backend is Claude unless the configured provider or model above says so.
 
 ${WORKSPACE_FILE_LINK_PROMPT}
+
+${EXTERNAL_LINK_PROMPT}
 
 ${scopedPrompts}`;
 }

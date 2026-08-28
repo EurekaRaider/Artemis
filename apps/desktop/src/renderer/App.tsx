@@ -9593,6 +9593,7 @@ function Timeline({
       return (
         <article className="assistant-message" key={entry}>
           <MarkdownContent
+            externalLinkIcons
             fileLinkIcons
             onExternalLink={onExternalLink}
             onFileLink={onFileLink}

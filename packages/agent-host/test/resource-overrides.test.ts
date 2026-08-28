@@ -33,6 +33,16 @@ describe("agent resource overrides", () => {
     expect(prompts?.at(-1)).toContain("The desktop adds the file-type icon");
     expect(prompts?.at(-1)).toContain("Do not use file:// URLs");
     expect(prompts?.at(-1)).toContain(
+      "When you know the exact HTTP(S) URL for a web resource",
+    );
+    expect(prompts?.at(-1)).toContain(
+      "pull requests, issues, CI or workflow runs, releases, documentation, and cited sources",
+    );
+    expect(prompts?.at(-1)).toContain(
+      "Never guess or construct an uncertain URL",
+    );
+    expect(prompts?.at(-1)).toContain("The desktop adds the site icon");
+    expect(prompts?.at(-1)).toContain(
       "call request_user_input instead of printing questions",
     );
     expect(prompts?.at(-1)).toContain("exactly one question per call");

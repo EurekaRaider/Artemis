@@ -67,6 +67,24 @@ export function isWorkspaceFileHref(href: string): boolean {
   return true;
 }
 
+export function externalLinkFaviconUrl(href: string): string | undefined {
+  const value = href.trim();
+  if (!value) return undefined;
+  try {
+    const url = new URL(value.startsWith("//") ? `https:${value}` : value);
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      url.username ||
+      url.password
+    ) {
+      return undefined;
+    }
+    return `${url.origin}/favicon.ico`;
+  } catch {
+    return undefined;
+  }
+}
+
 function remoteImageHref(href: string): string | undefined {
   const value = href.trim();
   if (/^https?:\/\//iu.test(value)) return value;
@@ -140,6 +158,7 @@ function linkMarkup(
   label: string,
   fileLinkIcons = false,
   delegateExternalLinks = false,
+  externalLinkIcons = false,
 ): string {
   const externalHref = href.startsWith("//") ? `https:${href}` : href;
   if (
@@ -162,7 +181,16 @@ function linkMarkup(
   }
   if (/^https?:/iu.test(externalHref)) {
     if (delegateExternalLinks) {
-      return `<a data-external-http="${escapedHref}" href="${escapedHref}" rel="noopener noreferrer"${titleAttribute}>${label}</a>`;
+      const icon = externalLinkIcons
+        ? '<span aria-hidden="true" class="external-link-icon" data-external-link-icon></span>'
+        : "";
+      const classAttribute = externalLinkIcons
+        ? ' class="external-http-link with-icon"'
+        : "";
+      const externalTitleAttribute = titleAttribute
+        ? titleAttribute
+        : ` title="${escapedHref}"`;
+      return `<a${classAttribute} data-external-http="${escapedHref}" href="${escapedHref}" rel="noopener noreferrer"${externalTitleAttribute}>${icon}${label}</a>`;
     }
     return `<a href="${escapedHref}" rel="noopener noreferrer" target="_blank"${titleAttribute}>${label}</a>`;
   }
@@ -224,6 +252,7 @@ function markdownRenderer(
   imagesEnabled: boolean,
   fileLinkIcons: boolean,
   delegateExternalLinks: boolean,
+  externalLinkIcons: boolean,
 ) {
   const renderer = new marked.Renderer();
   const headingCounts = new Map<string, number>();
@@ -248,6 +277,7 @@ function markdownRenderer(
       label,
       fileLinkIcons,
       delegateExternalLinks,
+      externalLinkIcons,
     );
   };
   return renderer;
@@ -273,6 +303,7 @@ function externalHttpAnchor(
 
 export const MarkdownContent = memo(function MarkdownContent({
   className,
+  externalLinkIcons = false,
   fileLinkIcons = false,
   onExternalLink,
   onFileLink,
@@ -281,6 +312,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   text,
 }: {
   className?: string;
+  externalLinkIcons?: boolean;
   fileLinkIcons?: boolean;
   onExternalLink?: (href: string) => void;
   onFileLink?: (href: string) => void;
@@ -299,6 +331,7 @@ export const MarkdownContent = memo(function MarkdownContent({
       imagesEnabled,
       fileLinkIcons,
       delegateExternalLinks,
+      externalLinkIcons,
     );
     const parsed = marked.parse(text, { async: false, renderer });
     return typeof DOMPurify.sanitize === "function"
@@ -307,6 +340,7 @@ export const MarkdownContent = memo(function MarkdownContent({
             "alt",
             "aria-hidden",
             "class",
+            "data-external-link-icon",
             "data-external-http",
             "data-workspace-file",
             "data-workspace-image",
@@ -324,7 +358,13 @@ export const MarkdownContent = memo(function MarkdownContent({
           ALLOWED_TAGS: allowedTags,
         })
       : parsed;
-  }, [delegateExternalLinks, fileLinkIcons, imagesEnabled, text]);
+  }, [
+    delegateExternalLinks,
+    externalLinkIcons,
+    fileLinkIcons,
+    imagesEnabled,
+    text,
+  ]);
 
   useLayoutEffect(() => {
     const root = contentRoot.current;
@@ -343,6 +383,43 @@ export const MarkdownContent = memo(function MarkdownContent({
       iconRoot.innerHTML = icon.svg;
     }
   }, [fileLinkIcons, html]);
+
+  useEffect(() => {
+    const root = contentRoot.current;
+    if (!root || !externalLinkIcons) return;
+    const faviconImages: HTMLImageElement[] = [];
+    for (const anchor of root.querySelectorAll<HTMLAnchorElement>(
+      "a.external-http-link.with-icon[data-external-http]",
+    )) {
+      const faviconUrl = externalLinkFaviconUrl(
+        anchor.dataset.externalHttp ?? "",
+      );
+      const iconRoot = anchor.querySelector<HTMLElement>(
+        "[data-external-link-icon]",
+      );
+      if (!faviconUrl || !iconRoot) continue;
+
+      const image = document.createElement("img");
+      image.alt = "";
+      image.className = "external-link-favicon";
+      image.decoding = "async";
+      image.draggable = false;
+      image.referrerPolicy = "no-referrer";
+      image.onload = () => iconRoot.classList.add("favicon-loaded");
+      image.onerror = () => image.remove();
+      image.src = faviconUrl;
+      iconRoot.append(image);
+      faviconImages.push(image);
+    }
+    return () => {
+      for (const image of faviconImages) {
+        image.onload = null;
+        image.onerror = null;
+        image.parentElement?.classList.remove("favicon-loaded");
+        image.remove();
+      }
+    };
+  }, [externalLinkIcons, html]);
 
   useEffect(() => {
     const root = contentRoot.current;
