@@ -153,6 +153,7 @@ import {
 import {
   commitProjectChanges,
   createGitBranch,
+  gitRepositoryMetadataSignature,
   gitRepositoryWatchPaths,
   inspectGitBranches,
   pushProjectBranch,
@@ -657,7 +658,14 @@ const goalCreationAuthorizations = new Set<string>();
 const goalBlockerRecordedTurns = new Set<string>();
 const projectGitWatchers = new Map<
   string,
-  { watchers: FSWatcher[]; signature: string; timer?: NodeJS.Timeout }
+  {
+    watchers: FSWatcher[];
+    signature: string;
+    metadataSignature: string;
+    pendingKinds: Set<"metadata" | "worktree">;
+    refreshing: boolean;
+    timer?: NodeJS.Timeout;
+  }
 >();
 const projectGitWatcherSenders = new Set<number>();
 const interruptedAgentHostTurns = new Set<string>();
@@ -2194,26 +2202,44 @@ async function ensureProjectGitWatcher(
 ): Promise<void> {
   const key = `${sender.id}\0${projectId}\0${threadId ?? ""}`;
   if (projectGitWatchers.has(key)) return;
-  const paths = await gitRepositoryWatchPaths(workspacePath);
-  if (paths.length === 0) return;
+  const plan = await gitRepositoryWatchPaths(workspacePath);
+  if (!plan) return;
   const registration: {
     watchers: FSWatcher[];
     signature: string;
+    metadataSignature: string;
+    pendingKinds: Set<"metadata" | "worktree">;
+    refreshing: boolean;
     timer?: NodeJS.Timeout;
   } = {
     watchers: [],
     signature: JSON.stringify(initialInfo),
+    metadataSignature: await gitRepositoryMetadataSignature(plan),
+    pendingKinds: new Set(),
+    refreshing: false,
   };
-  const changed = () => {
-    if (registration.timer) clearTimeout(registration.timer);
-    registration.timer = setTimeout(async () => {
-      delete registration.timer;
+  const refresh = async () => {
+    if (registration.refreshing) return;
+    registration.refreshing = true;
+    const pendingKinds = new Set(registration.pendingKinds);
+    registration.pendingKinds.clear();
+    try {
+      const metadataSignature = await gitRepositoryMetadataSignature(plan);
+      if (
+        pendingKinds.size === 1 &&
+        pendingKinds.has("metadata") &&
+        metadataSignature === registration.metadataSignature
+      ) {
+        return;
+      }
       let signature: string;
       try {
         signature = JSON.stringify(await inspectGitBranches(workspacePath));
       } catch {
         signature = "unavailable";
       }
+      registration.metadataSignature =
+        await gitRepositoryMetadataSignature(plan);
       if (signature === registration.signature) return;
       registration.signature = signature;
       if (!sender.isDestroyed()) {
@@ -2222,19 +2248,93 @@ async function ensureProjectGitWatcher(
           ...(threadId ? { threadId } : {}),
         });
       }
-    }, 120);
+    } finally {
+      registration.refreshing = false;
+      if (registration.pendingKinds.size > 0 && !registration.timer) {
+        registration.timer = setTimeout(() => {
+          delete registration.timer;
+          void refresh();
+        }, 1_000);
+      }
+    }
   };
-  for (const path of paths) {
+  const changed = (kind: "metadata" | "worktree") => {
+    registration.pendingKinds.add(kind);
+    if (registration.timer) clearTimeout(registration.timer);
+    registration.timer = setTimeout(() => {
+      delete registration.timer;
+      void refresh();
+    }, 1_000);
+  };
+  const insideMetadataDirectory = (path: string) =>
+    [plan.gitDirectory, plan.commonDirectory].some((directory) => {
+      const pathFromDirectory = relative(directory, path);
+      return (
+        pathFromDirectory === "" ||
+        (!pathFromDirectory.startsWith(`..${sep}`) &&
+          pathFromDirectory !== ".." &&
+          !isAbsolute(pathFromDirectory))
+      );
+    });
+  const worktreeChanged = (
+    _eventType: string,
+    filename: string | Buffer | null,
+  ) => {
+    if (filename) {
+      const changedPath = resolve(plan.root, filename.toString());
+      if (insideMetadataDirectory(changedPath)) return;
+    }
+    changed("worktree");
+  };
+  const metadataNames = new Set([
+    "HEAD",
+    "index",
+    "MERGE_HEAD",
+    "CHERRY_PICK_HEAD",
+    "REVERT_HEAD",
+    "config.worktree",
+  ]);
+  const commonMetadataNames = new Set(["config", "packed-refs"]);
+  const metadataChanged =
+    (acceptedNames: ReadonlySet<string> | undefined) =>
+    (_eventType: string, filename: string | Buffer | null) => {
+      if (acceptedNames && filename) {
+        const topLevelName = filename.toString().split(/[\\/]/u, 1)[0];
+        if (!topLevelName || !acceptedNames.has(topLevelName)) return;
+      }
+      changed("metadata");
+    };
+  const watchPath = (
+    path: string,
+    recursive: boolean,
+    listener: (eventType: string, filename: string | Buffer | null) => void,
+  ) => {
     try {
-      registration.watchers.push(watch(path, { recursive: true }, changed));
+      registration.watchers.push(watch(path, { recursive }, listener));
     } catch {
       try {
-        registration.watchers.push(watch(path, changed));
+        registration.watchers.push(watch(path, listener));
       } catch {
         // A disappearing Git metadata path will be recovered on the next read.
       }
     }
+  };
+  watchPath(plan.root, true, worktreeChanged);
+  watchPath(plan.gitDirectory, false, metadataChanged(metadataNames));
+  if (plan.commonDirectory !== plan.gitDirectory) {
+    watchPath(
+      plan.commonDirectory,
+      false,
+      metadataChanged(commonMetadataNames),
+    );
+  } else {
+    for (const name of commonMetadataNames) metadataNames.add(name);
   }
+  watchPath(
+    join(plan.commonDirectory, "refs"),
+    true,
+    metadataChanged(undefined),
+  );
   if (registration.watchers.length === 0) return;
   projectGitWatchers.set(key, registration);
   if (!projectGitWatcherSenders.has(sender.id)) {

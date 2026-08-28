@@ -72,7 +72,12 @@ describe("Codex-style child-agent workspace tabs", () => {
     expect(panelSource).toContain("clockMs");
     expect(panelSource).toContain("child.lastActivityAt");
     expect(panelSource).toContain("child.currentTool");
-    expect(panelSource).toContain('"疑似卡住"');
+    expect(panelSource).toContain('"长时间运行"');
+    expect(panelSource).toContain('"疑似无响应"');
+    expect(panelSource).toContain('"Long-running"');
+    expect(panelSource).toContain('"Possibly unresponsive"');
+    expect(panelSource).toContain("CHILD_UNRESPONSIVE_SILENCE_MILLISECONDS");
+    expect(panelSource).toContain("!child?.currentTool");
     expect(panelSource).toContain('"催办"');
     expect(panelSource).toContain('"停止此子代理"');
     expect(panelSource).toContain('"重试"');

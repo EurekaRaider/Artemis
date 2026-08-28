@@ -75,6 +75,7 @@ export interface AssistantUsageState {
 export interface ContextCompactionState {
   id: string;
   status: "running" | "completed";
+  completedAt?: string;
 }
 
 export interface TurnViewState {
@@ -577,6 +578,7 @@ function applyAgentPayload(
           state.contextCompactions[runningCompaction.id] = {
             ...runningCompaction,
             status: "completed",
+            completedAt: event.timestamp,
           };
         }
       }

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 
 import {
@@ -49,6 +49,7 @@ interface InspectableThread {
 const cleanupPaths: string[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   await Promise.all(
     cleanupPaths
       .splice(0)
@@ -57,6 +58,55 @@ afterEach(async () => {
 });
 
 describe("sub-agent control tools", () => {
+  it("separates long-running work from a genuinely silent agent", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-29T00:00:00.000Z"));
+    const host = new ArtemisAgentHost(
+      { request: async () => ({ approved: false }) },
+      { emit() {} },
+    );
+    const childHealth = (
+      child: Record<string, unknown>,
+    ): "healthy" | "suspect" | "stalled" =>
+      (
+        host as unknown as {
+          childHealth(
+            value: Record<string, unknown>,
+          ): "healthy" | "suspect" | "stalled";
+        }
+      ).childHealth(child);
+    const now = Date.now();
+    const child = {
+      status: "running",
+      lastActivityAt: now - 61_000,
+      longestObservationMilliseconds: 5_000,
+    };
+
+    expect(childHealth(child)).toBe("suspect");
+    expect(
+      childHealth({
+        ...child,
+        lastActivityAt: now - 6 * 60_000,
+      }),
+    ).toBe("stalled");
+    expect(
+      childHealth({
+        ...child,
+        currentTool: "shell_wait",
+        lastActivityAt: now - 60 * 60_000,
+      }),
+    ).toBe("suspect");
+    expect(
+      childHealth({
+        ...child,
+        status: "queued",
+        lastActivityAt: now - 60 * 60_000,
+      }),
+    ).toBe("healthy");
+
+    host.dispose();
+  });
+
   it("delivers team handoffs as hidden internal messages", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "artemis-team-handoff-"));
     cleanupPaths.push(workspace);
