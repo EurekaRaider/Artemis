@@ -7,7 +7,9 @@ import {
   conversationDraftKey,
   moveComposerDraft,
   PromptAttachmentReadQueue,
+  PromptAttachmentReadQueues,
   restoreComposerMessages,
+  restoreComposerQueueItems,
   updateComposerDraft,
   type ComposerDrafts,
 } from "../src/renderer/composer-drafts.js";
@@ -30,6 +32,27 @@ describe("conversation composer drafts", () => {
     finishRead();
     await submit;
     expect(submitted).toBe(true);
+  });
+
+  it("waits only for attachment reads owned by the submitted conversation", async () => {
+    const queues = new PromptAttachmentReadQueues();
+    let finishFirst!: () => void;
+    queues.track(
+      "thread:first",
+      new Promise<void>((resolve) => {
+        finishFirst = resolve;
+      }),
+    );
+
+    await expect(queues.waitForIdle("thread:second")).resolves.toBeUndefined();
+    let firstSettled = false;
+    const first = queues.waitForIdle("thread:first").then(() => {
+      firstSettled = true;
+    });
+    await Promise.resolve();
+    expect(firstSettled).toBe(false);
+    finishFirst();
+    await first;
   });
 
   it("adds pasted images without replacing text-era draft attachments", () => {
@@ -139,5 +162,26 @@ describe("conversation composer drafts", () => {
     expect(composerDraftFor(restored, key).prompt).toBe(
       "first unexecuted message\n\nsecond unexecuted message\n\nnew draft text",
     );
+  });
+
+  it("restores queued image attachments only to their owning conversation", () => {
+    const firstKey = conversationDraftKey("project-1", "thread-1");
+    const secondKey = conversationDraftKey("project-1", "thread-2");
+
+    const restored = restoreComposerQueueItems({}, firstKey, [
+      {
+        text: "inspect screenshot",
+        attachments: [
+          {
+            name: "screenshot.png",
+            mimeType: "image/png",
+            data: "iVBORw==",
+          },
+        ],
+      },
+    ]);
+
+    expect(composerDraftFor(restored, firstKey).attachments).toHaveLength(1);
+    expect(composerDraftFor(restored, secondKey).attachments).toEqual([]);
   });
 });

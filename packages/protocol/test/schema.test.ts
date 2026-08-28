@@ -60,10 +60,34 @@ describe("queued message recovery schema", () => {
       agentPayloadSchema.parse({
         type: "queue.recovered",
         messages: ["Discuss the unrelated follow-up instead"],
+        items: [
+          {
+            text: "Discuss the unrelated follow-up instead",
+            attachments: [
+              {
+                name: "screenshot.png",
+                mimeType: "image/png",
+                data: "iVBORw==",
+              },
+            ],
+          },
+        ],
       }),
     ).toEqual({
       type: "queue.recovered",
       messages: ["Discuss the unrelated follow-up instead"],
+      items: [
+        {
+          text: "Discuss the unrelated follow-up instead",
+          attachments: [
+            {
+              name: "screenshot.png",
+              mimeType: "image/png",
+              data: "iVBORw==",
+            },
+          ],
+        },
+      ],
     });
     expect(
       agentPayloadSchema.safeParse({

@@ -1345,11 +1345,9 @@ export class ArtemisAgentHost {
       allowModelNetwork: false,
     }).then((runtime) => {
       registerArtemisBuiltinModels(runtime);
-      return withPromptCacheController(
-        withConnectionRecovery(runtime, (sessionId, update) =>
-          this.handleConnectionRecovery(sessionId, update),
-        ),
-        this.promptCache,
+      return withConnectionRecovery(
+        withPromptCacheController(runtime, this.promptCache),
+        (sessionId, update) => this.handleConnectionRecovery(sessionId, update),
       );
     });
     return this.modelRuntimePromise;

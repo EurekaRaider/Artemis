@@ -15,6 +15,10 @@ import {
   withConnectionRecovery,
   type ConnectionRecoveryUpdate,
 } from "../src/connection-recovery.js";
+import {
+  PromptCacheController,
+  withPromptCacheController,
+} from "../src/prompt-cache.js";
 
 const model = {
   id: "test-model",
@@ -117,6 +121,59 @@ describe("connection recovery", () => {
       "recovered",
     ]);
     expect(updates[0]).toMatchObject({ attempt: 1, delayMs: 5_000 });
+  });
+
+  it("keeps the real session identity when prompt caching rewrites the provider cache key", async () => {
+    const failed = message(
+      "error",
+      "getaddrinfo ENOTFOUND api.example.invalid",
+    );
+    const recovered = message("stop");
+    const streamSimple = vi
+      .fn()
+      .mockReturnValueOnce(
+        eventStream([
+          { type: "start", partial: { ...failed, stopReason: "pending" } },
+          { type: "error", reason: "error", error: failed },
+        ]),
+      )
+      .mockReturnValueOnce(
+        eventStream([
+          { type: "start", partial: { ...recovered, stopReason: "pending" } },
+          { type: "done", reason: "stop", message: recovered },
+        ]),
+      );
+    const cache = new PromptCacheController();
+    cache.registerSession("real-session", {
+      scope: "parent",
+      priorTopLevelUserTurns: 1,
+    });
+    const updates: Array<{
+      sessionId: string | undefined;
+      update: ConnectionRecoveryUpdate;
+    }> = [];
+    const runtime = withConnectionRecovery(
+      withPromptCacheController(
+        { streamSimple } as unknown as ModelRuntime,
+        cache,
+      ),
+      (sessionId, update) => updates.push({ sessionId, update }),
+      { wait: async () => undefined },
+    );
+
+    await collect(
+      runtime.streamSimple(
+        model,
+        { messages: [] },
+        { sessionId: "real-session" },
+      ),
+    );
+
+    expect(streamSimple.mock.calls[0]?.[2]?.sessionId).not.toBe("real-session");
+    expect(updates.map(({ sessionId }) => sessionId)).toEqual([
+      "real-session",
+      "real-session",
+    ]);
   });
 
   it("caps connection backoff at 60 seconds without a total attempt limit", async () => {

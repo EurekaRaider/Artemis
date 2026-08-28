@@ -138,6 +138,11 @@ import {
   piSessionsRoot,
 } from "./pi-session-delete.js";
 import { loadPromptAttachments } from "./prompt-attachments.js";
+import { RecoverableTurnQueues } from "./recoverable-turn-queue.js";
+import {
+  GOAL_CONTINUATION_RETRY_DELAY_MILLISECONDS,
+  goalFailureDisposition,
+} from "./goal-continuation.js";
 import {
   commitProjectChanges,
   createGitBranch,
@@ -645,6 +650,7 @@ const projectGitWatchers = new Map<
 >();
 const projectGitWatcherSenders = new Set<number>();
 const interruptedAgentHostTurns = new Set<string>();
+const recoverableTurnQueues = new RecoverableTurnQueues();
 let agentHostRestart: Promise<void> | undefined;
 
 function elapsed(
@@ -1212,6 +1218,19 @@ function interruptTurnsAfterAgentHostExit(): void {
   }
   for (const [threadId, turnId] of [...activeTurns]) {
     interruptedAgentHostTurns.add(turnId);
+    const recoveredItems = recoverableTurnQueues.recover(threadId);
+    if (recoveredItems.length > 0) {
+      emitPayload(threadId, turnId, {
+        type: "queue.recovered",
+        messages: recoveredItems.map((item) => item.text),
+        items: recoveredItems,
+      });
+    }
+    emitPayload(threadId, turnId, {
+      type: "queue.updated",
+      steering: [],
+      followUp: [],
+    });
     emitPayload(threadId, turnId, {
       type: "turn.failed",
       code: "AGENT_HOST_INTERRUPTED",
@@ -2340,16 +2359,11 @@ function applyPayloadSideEffects(
   }
 }
 
-function isUsageLimitFailure(
-  payload: Extract<AgentPayload, { type: "turn.failed" }>,
-): boolean {
-  return (
-    payload.code === "RATE_LIMITED" ||
-    /(?:usage|rate|token)\s+limit|quota|\b429\b/iu.test(payload.message)
-  );
-}
-
-function scheduleGoalContinuation(threadId: string, goalId: string): void {
+function scheduleGoalContinuation(
+  threadId: string,
+  goalId: string,
+  delayMs = 0,
+): void {
   if (scheduledGoalContinuations.has(threadId)) return;
   scheduledGoalContinuations.add(threadId);
   setTimeout(() => {
@@ -2384,8 +2398,11 @@ function scheduleGoalContinuation(threadId: string, goalId: string): void {
     ).catch((error) => {
       const current = store?.getThreadGoal(threadId);
       if (current?.goalId === goalId && current.status === "active") {
-        const blocked = store!.markThreadGoalBlocked(threadId, goalId);
-        emitGoalUpdated(blocked);
+        scheduleGoalContinuation(
+          threadId,
+          goalId,
+          GOAL_CONTINUATION_RETRY_DELAY_MILLISECONDS,
+        );
       }
       diagnosticBundleService?.record({
         source: "main",
@@ -2393,7 +2410,7 @@ function scheduleGoalContinuation(threadId: string, goalId: string): void {
         message: `Goal continuation could not start: ${error instanceof Error ? error.message : String(error)}`,
       });
     });
-  }, 0);
+  }, delayMs);
 }
 
 function accountGoalPayload(
@@ -2435,10 +2452,13 @@ function accountGoalPayload(
     (Date.now() - context.startedAt) / 1_000,
   );
   if (!goal) return;
+  let continuationDelayMs = 0;
   if (goal.status === "active" && payload.type === "turn.failed") {
-    goal = isUsageLimitFailure(payload)
-      ? store.markThreadGoalUsageLimited(context.threadId, context.goalId)
-      : store.markThreadGoalBlocked(context.threadId, context.goalId);
+    if (goalFailureDisposition(payload) === "usage-limited") {
+      goal = store.markThreadGoalUsageLimited(context.threadId, context.goalId);
+    } else {
+      continuationDelayMs = GOAL_CONTINUATION_RETRY_DELAY_MILLISECONDS;
+    }
   } else if (
     goal.status === "active" &&
     payload.type === "turn.completed" &&
@@ -2448,7 +2468,11 @@ function accountGoalPayload(
   }
   emitGoalUpdated(goal, turnId);
   if (goal.status === "active") {
-    scheduleGoalContinuation(context.threadId, context.goalId);
+    scheduleGoalContinuation(
+      context.threadId,
+      context.goalId,
+      continuationDelayMs,
+    );
   }
 }
 
@@ -2460,18 +2484,28 @@ function emitPayload(
   if (!store) {
     throw new Error("Application store is not ready.");
   }
-  observeTurnPayload(turnId, payload);
-  const event = store.appendEvent(randomUUID(), threadId, turnId, payload);
+  const preparedPayload = prepareRecoverableQueuePayload(threadId, payload);
+  observeTurnPayload(turnId, preparedPayload);
+  const event = store.appendEvent(
+    randomUUID(),
+    threadId,
+    turnId,
+    preparedPayload,
+  );
   mainWindow?.webContents.send(IPC.agentEvent, event);
-  applyPayloadSideEffects(threadId, payload);
-  accountGoalPayload(turnId, payload);
+  applyPayloadSideEffects(threadId, preparedPayload);
+  accountGoalPayload(turnId, preparedPayload);
   return event;
 }
 
 function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
   if (!store || events.length === 0) return [];
+  const preparedEvents = events.map((event) => ({
+    ...event,
+    payload: prepareRecoverableQueuePayload(event.threadId, event.payload),
+  }));
   const { durable: durableEvents, liveActivities } =
-    partitionAgentHostEvents(events);
+    partitionAgentHostEvents(preparedEvents);
   if (liveActivities.length > 0) {
     mainWindow?.webContents.send(IPC.agentActivities, liveActivities);
   }
@@ -2499,6 +2533,32 @@ function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
     accountGoalPayload(event.turnId, event.payload);
   }
   return persisted;
+}
+
+function prepareRecoverableQueuePayload(
+  threadId: string,
+  payload: AgentPayload,
+): AgentPayload {
+  if (payload.type === "queue.updated") {
+    recoverableTurnQueues.reconcile(
+      threadId,
+      payload.steering,
+      payload.followUp,
+    );
+    return payload;
+  }
+  if (payload.type === "queue.recovered") {
+    if (payload.items) {
+      recoverableTurnQueues.discard(threadId);
+      return payload;
+    }
+    const items = recoverableTurnQueues.recover(threadId, payload.messages);
+    return { ...payload, items };
+  }
+  if (payload.type === "turn.completed" || payload.type === "turn.failed") {
+    recoverableTurnQueues.discard(threadId);
+  }
+  return payload;
 }
 
 function emitInitialTurn(
@@ -4753,15 +4813,26 @@ async function queueTurn(
     throw new Error("Active Pi turn is not available.");
   }
 
-  await agentProcess.request({
-    type,
-    requestId: randomUUID(),
-    threadId: thread.id,
-    text: command.text,
-    ...(command.attachments?.length
-      ? { attachments: command.attachments }
-      : {}),
-  });
+  const recoverableId = recoverableTurnQueues.add(
+    thread.id,
+    type === "turn.steer" ? "steering" : "followUp",
+    command.text,
+    command.attachments,
+  );
+  try {
+    await agentProcess.request({
+      type,
+      requestId: randomUUID(),
+      threadId: thread.id,
+      text: command.text,
+      ...(command.attachments?.length
+        ? { attachments: command.attachments }
+        : {}),
+    });
+  } catch (error) {
+    recoverableTurnQueues.remove(thread.id, recoverableId);
+    throw error;
+  }
   for (const attachment of command.attachments ?? []) {
     emitPayload(thread.id, turnId, {
       type: "task.source.added",
@@ -4791,11 +4862,18 @@ async function controlTurnQueue(
     throw new Error("Task has no active turn.");
   }
 
-  return agentProcess.request({
+  const result = await agentProcess.request<{
+    steering: string[];
+    followUp: string[];
+  }>({
     type,
     requestId: randomUUID(),
     threadId: thread.id,
   });
+  if (type === "turn.queue.clear") {
+    recoverableTurnQueues.discard(thread.id);
+  }
+  return result;
 }
 
 async function replaceTurnQueue(input: ReplaceQueuedTurnInput): Promise<void> {
@@ -4819,6 +4897,7 @@ async function replaceTurnQueue(input: ReplaceQueuedTurnInput): Promise<void> {
     threadId: thread.id,
     followUp: command.followUp,
   });
+  recoverableTurnQueues.replaceFollowUp(thread.id, command.followUp);
 }
 
 async function steerQueuedTurn(input: SteerQueuedTurnInput): Promise<void> {

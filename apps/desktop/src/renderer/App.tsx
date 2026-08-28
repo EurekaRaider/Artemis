@@ -139,8 +139,8 @@ import {
   composerDraftFor,
   conversationDraftKey,
   moveComposerDraft,
-  restoreComposerMessages,
-  PromptAttachmentReadQueue,
+  restoreComposerQueueItems,
+  PromptAttachmentReadQueues,
   updateComposerDraft,
   type ComposerDraft,
   type ComposerDrafts,
@@ -1836,9 +1836,9 @@ export function App() {
     prompt,
     selectedSkillNames: selectedComposerSkillNames,
   } = activeComposerDraft;
-  const attachmentsRef = useRef(attachments);
-  attachmentsRef.current = attachments;
-  const pendingAttachmentReads = useRef(new PromptAttachmentReadQueue());
+  const draftAttachments = useRef(new Map<string, PromptAttachment[]>());
+  draftAttachments.current.set(activeComposerDraftKey, attachments);
+  const pendingAttachmentReads = useRef(new PromptAttachmentReadQueues());
   const updateActiveComposerDraft = useCallback(
     (update: (current: ComposerDraft) => ComposerDraft) => {
       setComposerDrafts((current) =>
@@ -1870,13 +1870,16 @@ export function App() {
   );
   const setAttachments = useCallback(
     (action: SetStateAction<PromptAttachment[]>) => {
+      const current =
+        draftAttachments.current.get(activeComposerDraftKey) ?? [];
+      const next = typeof action === "function" ? action(current) : action;
+      draftAttachments.current.set(activeComposerDraftKey, next);
       updateActiveComposerDraft((current) => ({
         ...current,
-        attachments:
-          typeof action === "function" ? action(current.attachments) : action,
+        attachments: next,
       }));
     },
-    [updateActiveComposerDraft],
+    [activeComposerDraftKey, updateActiveComposerDraft],
   );
 
   useEffect(() => {
@@ -3258,13 +3261,15 @@ export function App() {
           event.payload.type === "queue.recovered" &&
           !recoveredQueueEventIds.current.has(event.eventId)
         ) {
-          const recoveredMessages = event.payload.messages;
+          const recoveredItems =
+            event.payload.items ??
+            event.payload.messages.map((text) => ({ text }));
           recoveredQueueEventIds.current.add(event.eventId);
           setComposerDrafts((current) =>
-            restoreComposerMessages(
+            restoreComposerQueueItems(
               current,
               conversationDraftKey(undefined, event.threadId),
-              recoveredMessages,
+              recoveredItems,
             ),
           );
         }
@@ -4464,16 +4469,16 @@ export function App() {
   const addPromptAttachments = useCallback(
     (selected: PromptAttachment[]) => {
       const { attachments: next, limited } = appendPromptAttachments(
-        attachmentsRef.current,
+        draftAttachments.current.get(activeComposerDraftKey) ?? [],
         selected,
       );
-      attachmentsRef.current = next;
+      draftAttachments.current.set(activeComposerDraftKey, next);
       setAttachments(next);
       if (limited) {
         setToast(t.attachmentLimit);
       }
     },
-    [setAttachments, t.attachmentLimit],
+    [activeComposerDraftKey, setAttachments, t.attachmentLimit],
   );
 
   const selectPromptAttachments = useCallback(async () => {
@@ -4559,6 +4564,7 @@ export function App() {
       event.preventDefault();
       try {
         await pendingAttachmentReads.current.track(
+          activeComposerDraftKey,
           window.artemis
             .readPromptAttachments(files)
             .then(addPromptAttachments),
@@ -4569,7 +4575,7 @@ export function App() {
         );
       }
     },
-    [addPromptAttachments, t.taskError],
+    [activeComposerDraftKey, addPromptAttachments, t.taskError],
   );
 
   const changeApprovalPolicy = useCallback(
@@ -4664,8 +4670,9 @@ export function App() {
 
   const sendPrompt = useCallback(async () => {
     if (busy) return;
-    await pendingAttachmentReads.current.waitForIdle();
-    const pendingAttachments = attachmentsRef.current;
+    await pendingAttachmentReads.current.waitForIdle(activeComposerDraftKey);
+    const pendingAttachments =
+      draftAttachments.current.get(activeComposerDraftKey) ?? [];
     const rawPrompt = prompt.trim();
     const runModeCommand = parseRunModeCommand(rawPrompt);
     if (runModeCommand && runModeCommand.kind === "multiple") {
@@ -4798,7 +4805,7 @@ export function App() {
         });
         recordPromptSubmission(currentThread.id, submittedAt);
         clearSubmittedPrompt(rawPrompt);
-        attachmentsRef.current = [];
+        draftAttachments.current.set(activeComposerDraftKey, []);
         setAttachments([]);
         return;
       }
@@ -4814,7 +4821,7 @@ export function App() {
       recordPromptSubmission(currentThread.id, submittedAt);
       updateThreadInSnapshot(result.thread);
       clearSubmittedPrompt(rawPrompt);
-      attachmentsRef.current = [];
+      draftAttachments.current.set(activeComposerDraftKey, []);
       setAttachments([]);
     } catch (error) {
       if (createdThread) {

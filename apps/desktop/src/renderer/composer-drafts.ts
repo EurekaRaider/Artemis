@@ -62,6 +62,23 @@ export class PromptAttachmentReadQueue {
   }
 }
 
+export class PromptAttachmentReadQueues {
+  readonly #queues = new Map<string, PromptAttachmentReadQueue>();
+
+  track<T>(draftKey: string, read: Promise<T>): Promise<T> {
+    let queue = this.#queues.get(draftKey);
+    if (!queue) {
+      queue = new PromptAttachmentReadQueue();
+      this.#queues.set(draftKey, queue);
+    }
+    return queue.track(read);
+  }
+
+  async waitForIdle(draftKey: string): Promise<void> {
+    await this.#queues.get(draftKey)?.waitForIdle();
+  }
+}
+
 export function conversationDraftKey(
   projectId: string | undefined,
   threadId: string | undefined,
@@ -97,6 +114,28 @@ export function restoreComposerMessages(
   return updateComposerDraft(drafts, key, (current) => ({
     ...current,
     prompt: current.prompt ? `${restored}\n\n${current.prompt}` : restored,
+  }));
+}
+
+export function restoreComposerQueueItems(
+  drafts: ComposerDrafts,
+  key: string,
+  items: readonly {
+    text: string;
+    attachments?: readonly PromptAttachment[];
+  }[],
+): ComposerDrafts {
+  const restored = restoreComposerMessages(
+    drafts,
+    key,
+    items.map((item) => item.text),
+  );
+  const attachments = items.flatMap((item) => item.attachments ?? []);
+  if (attachments.length === 0) return restored;
+  return updateComposerDraft(restored, key, (current) => ({
+    ...current,
+    attachments: appendPromptAttachments(current.attachments, attachments)
+      .attachments,
   }));
 }
 

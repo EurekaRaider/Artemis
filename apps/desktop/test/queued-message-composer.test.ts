@@ -187,6 +187,6 @@ describe("Codex-style queued message composer", () => {
     expect(appSource).toContain(
       "conversationDraftKey(undefined, event.threadId)",
     );
-    expect(appSource).toContain("restoreComposerMessages(");
+    expect(appSource).toContain("restoreComposerQueueItems(");
   });
 });

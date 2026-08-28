@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="1068 passing tests" src="https://img.shields.io/badge/Tests-1068_passing-2EA44F" />
+  <img alt="1078 passing tests" src="https://img.shields.io/badge/Tests-1078_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -296,8 +296,10 @@ other everyday tasks.
 - **Continuation controls** — resume, true Pi fork, queued prompts, live
   steering, follow-up turns and active-turn cancellation are wired to the live
   Agent session. Messages left unexecuted after a terminal model failure return
-  to the owning composer, and interrupted Agent-team context is injected only
-  for an explicit continuation request.
+  to the owning composer; the main process mirrors their original text and
+  attachments so an unexpected Agent Host exit cannot leave a stale visible
+  queue or move an attachment to another task. Interrupted Agent-team context
+  is injected only for an explicit continuation request.
 - **Composer and commands** — send text, local files, images, PDF and Office
   attachments through the picker, drag/drop or clipboard; pasted images finish
   loading before the matching text submission captures its attachments; reuse prompt history;
@@ -349,6 +351,8 @@ other everyday tasks.
   Goals continue only after the existing Pi turn becomes truly idle; waiting
   approvals, structured questions, user work, Plan/Review, compaction, limits,
   cancellation and terminal states retain priority and stop continuation.
+  Transient continuation failures retry after a bounded delay and do not bypass
+  the model-facing three-consecutive-turn blocker rule.
 
 </details>
 
@@ -1028,7 +1032,8 @@ bounded subteam and must integrate it before completing.
   from Pi's finite service retry budget. Once output has begun, Artemis stops
   with an explicit interruption instead of blindly replaying the prompt. An
   unexpected Agent Host exit rebuilds the host and reopens persisted sessions,
-  but likewise never replays an active prompt without a provider resume cursor.
+  restores unexecuted queued inputs to their owning composer, but likewise never
+  replays an active prompt without a provider resume cursor.
 - Every persisted UI event uses a versioned envelope and an idempotent reducer.
 - The Renderer never imports Electron main-process or Node APIs.
 - Plan and Review writes are denied before an executor runs and do not expose
@@ -1081,11 +1086,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **1068 passing tests** (7 skipped):
+The current full test run contains **1078 passing tests** (7 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       69 |       23 |        135 |     841 |  **1068** |
+|       69 |       23 |        136 |     850 |  **1078** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
