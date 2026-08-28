@@ -226,11 +226,7 @@ describe("AppStore", () => {
     });
     expect(store.getThread("scratch-thread")?.projectId).toBeUndefined();
     expect(
-      store.setThreadGoal(
-        "thread-1",
-        "Finish the migrated task",
-        undefined,
-      ),
+      store.setThreadGoal("thread-1", "Finish the migrated task", undefined),
     ).toMatchObject({
       threadId: "thread-1",
       objective: "Finish the migrated task",

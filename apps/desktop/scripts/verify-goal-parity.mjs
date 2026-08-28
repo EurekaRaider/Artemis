@@ -1,6 +1,13 @@
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -82,7 +89,9 @@ try {
   for (const testCase of cases) {
     const { id, view, actions, locale, theme, width, scale, editorMode } =
       testCase;
-    const expectedActions = actions.map((action) => actionLabels[locale][action]);
+    const expectedActions = actions.map(
+      (action) => actionLabels[locale][action],
+    );
     const expectEditor = editorMode !== undefined;
     const screenshotPath = join(outputDirectory, `${id}.png`);
     const accessibilityPath = join(outputDirectory, `${id}.a11y.json`);

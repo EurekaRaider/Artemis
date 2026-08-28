@@ -854,21 +854,23 @@ export const threadCommandSchema = z.discriminatedUnion("type", [
     threadId: z.string().min(1),
     title: z.string().trim().min(1).max(160),
   }),
-  z.object({
-    type: z.literal("thread.goal.set"),
-    threadId: z.string().min(1),
-    objective: z.string().trim().min(1).max(100_000).optional(),
-    status: threadGoalStatusSchema.optional(),
-    tokenBudget: z.number().int().positive().nullable().optional(),
-    expectedGoalId: z.string().min(1).optional(),
-    expectedRevision: z.number().int().positive().optional(),
-  }).refine(
-    (command) =>
-      command.objective !== undefined ||
-      command.status !== undefined ||
-      command.tokenBudget !== undefined,
-    { message: "A Goal mutation must set at least one field." },
-  ),
+  z
+    .object({
+      type: z.literal("thread.goal.set"),
+      threadId: z.string().min(1),
+      objective: z.string().trim().min(1).max(100_000).optional(),
+      status: threadGoalStatusSchema.optional(),
+      tokenBudget: z.number().int().positive().nullable().optional(),
+      expectedGoalId: z.string().min(1).optional(),
+      expectedRevision: z.number().int().positive().optional(),
+    })
+    .refine(
+      (command) =>
+        command.objective !== undefined ||
+        command.status !== undefined ||
+        command.tokenBudget !== undefined,
+      { message: "A Goal mutation must set at least one field." },
+    ),
   z.object({
     type: z.literal("thread.goal.pause"),
     threadId: z.string().min(1),
