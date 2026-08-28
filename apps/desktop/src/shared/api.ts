@@ -783,6 +783,18 @@ export interface ArtemisApi {
     objective: string,
     tokenBudget?: number,
   ): Promise<Thread>;
+  getThreadGoalObjective(threadId: string): Promise<{
+    goalId: string;
+    objective: string;
+    revision: number;
+    updatedAt: string;
+  }>;
+  updateThreadGoalObjective(
+    threadId: string,
+    objective: string,
+    expectedGoalId: string,
+    expectedRevision: number,
+  ): Promise<Thread>;
   pauseThreadGoal(threadId: string): Promise<Thread>;
   resumeThreadGoal(threadId: string): Promise<Thread>;
   clearThreadGoal(threadId: string): Promise<Thread>;
@@ -1052,6 +1064,8 @@ export const IPC = {
   threadModelSet: "artemis:thread-model-set",
   threadRename: "artemis:thread-rename",
   threadGoalSet: "artemis:thread-goal-set",
+  threadGoalObjectiveGet: "artemis:thread-goal-objective-get",
+  threadGoalObjectiveUpdate: "artemis:thread-goal-objective-update",
   threadGoalPause: "artemis:thread-goal-pause",
   threadGoalResume: "artemis:thread-goal-resume",
   threadGoalClear: "artemis:thread-goal-clear",

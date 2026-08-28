@@ -60,6 +60,21 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.threadRename, threadId, title),
   setThreadGoal: (threadId, objective, tokenBudget) =>
     ipcRenderer.invoke(IPC.threadGoalSet, threadId, objective, tokenBudget),
+  getThreadGoalObjective: (threadId) =>
+    ipcRenderer.invoke(IPC.threadGoalObjectiveGet, threadId),
+  updateThreadGoalObjective: (
+    threadId,
+    objective,
+    expectedGoalId,
+    expectedRevision,
+  ) =>
+    ipcRenderer.invoke(
+      IPC.threadGoalObjectiveUpdate,
+      threadId,
+      objective,
+      expectedGoalId,
+      expectedRevision,
+    ),
   pauseThreadGoal: (threadId) =>
     ipcRenderer.invoke(IPC.threadGoalPause, threadId),
   resumeThreadGoal: (threadId) =>

@@ -5,6 +5,7 @@ export type WorkspaceTabKind =
   | "file"
   | "markdown"
   | "sources"
+  | "goal"
   | "child-agent"
   | "agent-team";
 

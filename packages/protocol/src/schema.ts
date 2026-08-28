@@ -669,7 +669,7 @@ export type ThreadGoalStatus = z.infer<typeof threadGoalStatusSchema>;
 export const threadGoalSchema = z.object({
   threadId: z.string().min(1),
   goalId: z.string().min(1),
-  objective: z.string().trim().min(1).max(2_000),
+  objective: z.string().trim().min(1).max(4_000),
   status: threadGoalStatusSchema,
   tokenBudget: z.number().int().positive().optional(),
   tokensUsed: z.number().int().nonnegative(),
@@ -857,9 +857,18 @@ export const threadCommandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("thread.goal.set"),
     threadId: z.string().min(1),
-    objective: z.string().trim().min(1).max(2_000),
-    tokenBudget: z.number().int().positive().optional(),
-  }),
+    objective: z.string().trim().min(1).max(100_000).optional(),
+    status: threadGoalStatusSchema.optional(),
+    tokenBudget: z.number().int().positive().nullable().optional(),
+    expectedGoalId: z.string().min(1).optional(),
+    expectedRevision: z.number().int().positive().optional(),
+  }).refine(
+    (command) =>
+      command.objective !== undefined ||
+      command.status !== undefined ||
+      command.tokenBudget !== undefined,
+    { message: "A Goal mutation must set at least one field." },
+  ),
   z.object({
     type: z.literal("thread.goal.pause"),
     threadId: z.string().min(1),

@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import { parseGoalCommand } from "../src/renderer/goal-command.js";
 
 describe("Goal composer commands", () => {
-  it("supports show, pause, resume, and clear without creating a turn", () => {
+  it("supports show, edit, pause, resume, and clear without creating a turn", () => {
     expect(parseGoalCommand("/goal")).toEqual({ kind: "show" });
+    expect(parseGoalCommand("/goal edit")).toEqual({ kind: "edit" });
     expect(parseGoalCommand("/goal pause")).toEqual({ kind: "pause" });
     expect(parseGoalCommand("/goal resume")).toEqual({ kind: "resume" });
     expect(parseGoalCommand("/goal clear")).toEqual({ kind: "clear" });

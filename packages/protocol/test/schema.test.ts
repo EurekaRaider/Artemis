@@ -264,6 +264,26 @@ describe("approval schemas", () => {
     ).toBe(false);
     expect(
       threadCommandSchema.safeParse({
+        type: "thread.goal.set",
+        threadId: "thread-1",
+        status: "paused",
+      }).success,
+    ).toBe(true);
+    expect(
+      threadCommandSchema.safeParse({
+        type: "thread.goal.set",
+        threadId: "thread-1",
+        tokenBudget: null,
+      }).success,
+    ).toBe(true);
+    expect(
+      threadCommandSchema.safeParse({
+        type: "thread.goal.set",
+        threadId: "thread-1",
+      }).success,
+    ).toBe(false);
+    expect(
+      threadCommandSchema.safeParse({
         type: "thread.goal.clear",
         threadId: "thread-1",
       }).success,

@@ -1,6 +1,6 @@
 export type GoalCommand =
   | { kind: "show" }
-  | { kind: "pause" | "resume" | "clear" }
+  | { kind: "pause" | "resume" | "clear" | "edit" }
   | { kind: "set"; objective: string; tokenBudget?: number }
   | { kind: "invalid"; message: string };
 
@@ -10,7 +10,12 @@ export function parseGoalCommand(prompt: string): GoalCommand | undefined {
   const argument = match[1]?.trim();
   if (!argument) return { kind: "show" };
   const action = argument.toLocaleLowerCase();
-  if (action === "pause" || action === "resume" || action === "clear") {
+  if (
+    action === "pause" ||
+    action === "resume" ||
+    action === "clear" ||
+    action === "edit"
+  ) {
     return { kind: action };
   }
   const budgetMatch = argument.match(/^(.*?)(?:\s+--token-budget\s+(\S+))$/iu);

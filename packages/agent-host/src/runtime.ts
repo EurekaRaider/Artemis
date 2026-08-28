@@ -3397,7 +3397,7 @@ export class ArtemisAgentHost {
         "Create a thread Goal only when the user or system explicitly asked for one. Never infer a Goal from an ordinary task, and set a Token budget only when the user explicitly supplied it.",
       parameters: Type.Object(
         {
-          objective: Type.String({ minLength: 1, maxLength: 2_000 }),
+          objective: Type.String({ minLength: 1, maxLength: 100_000 }),
           token_budget: Type.Optional(Type.Integer({ minimum: 1 })),
         },
         { additionalProperties: false },

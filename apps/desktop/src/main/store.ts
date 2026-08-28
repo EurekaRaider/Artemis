@@ -1107,7 +1107,7 @@ export class AppStore {
     threadId: string,
     objective: string,
     tokenBudget: number | undefined,
-    replace: boolean,
+    status: ThreadGoalStatus = "active",
   ): ThreadGoal {
     if (!this.getThread(threadId)) {
       throw new Error(`Thread not found: ${threadId}`);
@@ -1116,13 +1116,7 @@ export class AppStore {
     if (!normalizedObjective)
       throw new Error("Goal objective cannot be empty.");
     const existing = this.getThreadGoal(threadId);
-    if (
-      !replace &&
-      existing &&
-      !["complete", "budgetLimited"].includes(existing.status)
-    ) {
-      throw new Error("This task already has an unfinished Goal.");
-    }
+    if (existing) throw new Error("This task already has a Goal.");
     const now = new Date().toISOString();
     this.database.exec("BEGIN IMMEDIATE");
     try {
@@ -1132,28 +1126,117 @@ export class AppStore {
           thread_id, goal_id, objective, status, token_budget, tokens_used,
           time_used_seconds, revision, blocker, blocker_turns, created_at,
           updated_at
-        ) VALUES (?, ?, ?, 'active', ?, 0, 0, 1, NULL, 0, ?, ?)
-        ON CONFLICT(thread_id) DO UPDATE SET
-          goal_id = excluded.goal_id,
-          objective = excluded.objective,
-          status = 'active',
-          token_budget = excluded.token_budget,
-          tokens_used = 0,
-          time_used_seconds = 0,
-          revision = 1,
-          blocker = NULL,
-          blocker_turns = 0,
-          created_at = excluded.created_at,
-          updated_at = excluded.updated_at`,
+        ) VALUES (?, ?, ?, ?, ?, 0, 0, 1, NULL, 0, ?, ?)`,
         )
         .run(
           threadId,
           randomUUID(),
           normalizedObjective,
+          status,
           tokenBudget ?? null,
           now,
           now,
         );
+      this.database
+        .prepare("UPDATE threads SET updated_at = ? WHERE id = ?")
+        .run(now, threadId);
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+    return this.getThreadGoal(threadId)!;
+  }
+
+  updateThreadGoalObjective(
+    threadId: string,
+    objective: string,
+    expectedGoalId: string,
+    expectedRevision: number,
+  ): ThreadGoal {
+    return this.mutateThreadGoal(
+      threadId,
+      { objective },
+      expectedGoalId,
+      expectedRevision,
+    );
+  }
+
+  mutateThreadGoal(
+    threadId: string,
+    changes: {
+      objective?: string;
+      status?: ThreadGoalStatus;
+      tokenBudget?: number | null;
+    },
+    expectedGoalId?: string,
+    expectedRevision?: number,
+    clearBlocker = false,
+  ): ThreadGoal {
+    const goal = this.getThreadGoal(threadId);
+    if (!goal) {
+      if (expectedGoalId !== undefined || expectedRevision !== undefined) {
+        throw new Error("The Goal changed while it was being edited.");
+      }
+      const objective = changes.objective?.trim();
+      if (!objective) throw new Error("A new Goal requires an objective.");
+      return this.setThreadGoal(
+        threadId,
+        objective,
+        changes.tokenBudget ?? undefined,
+        changes.status ?? "active",
+      );
+    }
+    if (
+      (expectedGoalId !== undefined && goal.goalId !== expectedGoalId) ||
+      (expectedRevision !== undefined && goal.revision !== expectedRevision)
+    ) {
+      throw new Error("The Goal changed while it was being edited.");
+    }
+    const normalizedObjective = changes.objective?.trim() ?? goal.objective;
+    if (!normalizedObjective) {
+      throw new Error("Goal objective cannot be empty.");
+    }
+    const status =
+      changes.status ??
+      (changes.objective !== undefined && goal.status === "complete"
+        ? "active"
+        : goal.status);
+    const tokenBudget =
+      changes.tokenBudget === undefined
+        ? goal.tokenBudget
+        : (changes.tokenBudget ?? undefined);
+    const shouldClearBlocker =
+      clearBlocker || (goal.status === "complete" && status === "active");
+    const matchedGoalId = expectedGoalId ?? goal.goalId;
+    const matchedRevision = expectedRevision ?? goal.revision;
+    const now = new Date().toISOString();
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const result = this.database
+        .prepare(
+          `UPDATE thread_goals
+           SET objective = ?, status = ?, token_budget = ?,
+               revision = revision + 1,
+               blocker = CASE WHEN ? THEN NULL ELSE blocker END,
+               blocker_turns = CASE WHEN ? THEN 0 ELSE blocker_turns END,
+               updated_at = ?
+           WHERE thread_id = ? AND goal_id = ? AND revision = ?`,
+        )
+        .run(
+          normalizedObjective,
+          status,
+          tokenBudget ?? null,
+          shouldClearBlocker ? 1 : 0,
+          shouldClearBlocker ? 1 : 0,
+          now,
+          threadId,
+          matchedGoalId,
+          matchedRevision,
+        );
+      if (result.changes !== 1) {
+        throw new Error("The Goal changed while it was being edited.");
+      }
       this.database
         .prepare("UPDATE threads SET updated_at = ? WHERE id = ?")
         .run(now, threadId);
@@ -1172,7 +1255,12 @@ export class AppStore {
     if (goal.status !== "active") {
       throw new Error(`A ${goal.status} Goal cannot be paused.`);
     }
-    return this.updateThreadGoalStatus(threadId, goal.goalId, "paused");
+    return this.mutateThreadGoal(
+      threadId,
+      { status: "paused" },
+      goal.goalId,
+      goal.revision,
+    );
   }
 
   resumeThreadGoal(threadId: string): ThreadGoal {
@@ -1182,7 +1270,13 @@ export class AppStore {
     if (!["paused", "blocked", "usageLimited"].includes(goal.status)) {
       throw new Error(`A ${goal.status} Goal cannot be resumed.`);
     }
-    return this.updateThreadGoalStatus(threadId, goal.goalId, "active", true);
+    return this.mutateThreadGoal(
+      threadId,
+      { status: "active" },
+      goal.goalId,
+      goal.revision,
+      true,
+    );
   }
 
   clearThreadGoal(

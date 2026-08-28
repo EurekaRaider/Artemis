@@ -103,6 +103,11 @@ import {
 } from "./agent-capacity-controller.js";
 import { partitionAgentHostEvents } from "./agent-event-routing.js";
 import {
+  cleanupGoalObjective as cleanupGoalObjectiveFile,
+  materializeGoalObjective as materializeGoalObjectiveFile,
+  readGoalObjective as readGoalObjectiveFile,
+} from "./goal-objective.js";
+import {
   automationAuthorizationFingerprint,
   automationMayAutoApprove,
 } from "./automation-authorization.js";
@@ -2472,6 +2477,48 @@ function scheduleGoalContinuation(
   }, delayMs);
 }
 
+function goalObjectiveRoot(): string {
+  return join(app.getPath("userData"), "goal-attachments");
+}
+
+async function materializeGoalObjective(objective: string): Promise<string> {
+  return materializeGoalObjectiveFile(goalObjectiveRoot(), objective);
+}
+
+async function readGoalObjective(objective: string): Promise<string> {
+  return readGoalObjectiveFile(goalObjectiveRoot(), objective);
+}
+
+async function cleanupGoalObjective(
+  objective: string | undefined,
+): Promise<void> {
+  try {
+    await cleanupGoalObjectiveFile(goalObjectiveRoot(), objective);
+  } catch (error) {
+    console.warn(
+      `Managed Goal objective cleanup skipped: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+async function steerGoalObjectiveUpdate(goal: ThreadGoal): Promise<void> {
+  if (!agentProcess || !store) return;
+  if (goal.status !== "active") return;
+  const thread = store.getThread(goal.threadId);
+  if (!thread) return;
+  if (activeTurns.has(goal.threadId) && openedThreads.has(goal.threadId)) {
+    const objective = await readGoalObjective(goal.objective);
+    await agentProcess.request({
+      type: "turn.steer",
+      requestId: randomUUID(),
+      threadId: goal.threadId,
+      text: `The persistent Goal objective was edited by the user. Pursue the updated objective now:\n\n${objective}`,
+    });
+    return;
+  }
+  scheduleGoalContinuation(goal.threadId, goal.goalId);
+}
+
 function accountGoalPayload(
   turnId: string | undefined,
   payload: AgentPayload,
@@ -3362,7 +3409,7 @@ async function handleBrokerRequest(
     case "goal.get":
     case "goal.create":
     case "goal.update":
-      handleGoalBrokerRequest(workerRequestId, request);
+      await handleGoalBrokerRequest(workerRequestId, request);
       return;
     case "user.input":
       handleUserInputBrokerRequest(workerRequestId, request);
@@ -3576,10 +3623,10 @@ function resolveGoalBrokerRequest(
   });
 }
 
-function handleGoalBrokerRequest(
+async function handleGoalBrokerRequest(
   workerRequestId: string,
   request: GoalBrokerRequest,
-): void {
+): Promise<void> {
   if (!agentProcess || !store) return;
   const thread = store.getThread(request.threadId);
   if (
@@ -3597,7 +3644,9 @@ function handleGoalBrokerRequest(
   if (request.kind === "goal.get") {
     const goal = store.getThreadGoal(request.threadId);
     resolveGoalBrokerRequest(workerRequestId, request, {
-      goal: goal ?? null,
+      goal: goal
+        ? { ...goal, objective: await readGoalObjective(goal.objective) }
+        : null,
       remainingTokens:
         goal?.tokenBudget === undefined
           ? null
@@ -3620,12 +3669,20 @@ function handleGoalBrokerRequest(
           "A Goal can be created only when the user or system explicitly requested it.",
         );
       }
-      const goal = store.setThreadGoal(
-        request.threadId,
+      const persistedObjective = await materializeGoalObjective(
         request.objective,
-        request.tokenBudget,
-        false,
       );
+      let goal: ThreadGoal;
+      try {
+        goal = store.setThreadGoal(
+          request.threadId,
+          persistedObjective,
+          request.tokenBudget,
+        );
+      } catch (error) {
+        await cleanupGoalObjective(persistedObjective);
+        throw error;
+      }
       goalTurnContexts.set(request.turnId, {
         threadId: request.threadId,
         goalId: goal.goalId,
@@ -7767,12 +7824,12 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.threadGoalSet,
-    (
+    async (
       _event,
       threadId: string,
       objective: string,
       tokenBudget?: number,
-    ): Thread => {
+    ): Promise<Thread> => {
       if (!store) throw new Error("Application store is not ready.");
       const command = parseThreadCommand({
         type: "thread.goal.set",
@@ -7780,13 +7837,109 @@ function registerIpc(): void {
         objective,
         ...(tokenBudget === undefined ? {} : { tokenBudget }),
       });
-      const goal = store.setThreadGoal(
-        command.threadId,
+      if (command.objective === undefined) {
+        throw new Error("A new Goal requires an objective.");
+      }
+      if (store.getThreadGoal(command.threadId)) {
+        throw new Error("Clear the current Goal before creating a new one.");
+      }
+      const persistedObjective = await materializeGoalObjective(
         command.objective,
-        command.tokenBudget,
-        true,
       );
+      let goal: ThreadGoal;
+      try {
+        goal = store.setThreadGoal(
+          command.threadId,
+          persistedObjective,
+          command.tokenBudget ?? undefined,
+        );
+      } catch (error) {
+        await cleanupGoalObjective(persistedObjective);
+        throw error;
+      }
       emitGoalUpdated(goal, activeTurns.get(command.threadId));
+      return store.getThread(command.threadId)!;
+    },
+  );
+
+  ipcMain.handle(
+    IPC.threadGoalObjectiveGet,
+    async (_event, threadId: string) => {
+      if (!store) throw new Error("Application store is not ready.");
+      if (
+        smokeMode &&
+        process.env.ARTEMIS_SMOKE_VIEW === "goal-editor-load-error"
+      ) {
+        throw new Error("Simulated Goal load failure.");
+      }
+      const goal = store.getThreadGoal(String(threadId ?? ""));
+      if (!goal) throw new Error("This task has no Goal.");
+      return {
+        goalId: goal.goalId,
+        objective: await readGoalObjective(goal.objective),
+        revision: goal.revision,
+        updatedAt: goal.updatedAt,
+      };
+    },
+  );
+
+  ipcMain.handle(
+    IPC.threadGoalObjectiveUpdate,
+    async (
+      _event,
+      threadId: string,
+      objective: string,
+      expectedGoalId: string,
+      expectedRevision: number,
+    ): Promise<Thread> => {
+      if (!store) throw new Error("Application store is not ready.");
+      const smokeView = smokeMode ? process.env.ARTEMIS_SMOKE_VIEW : undefined;
+      if (smokeView === "goal-editor-save-error") {
+        throw new Error("Simulated Goal save failure.");
+      }
+      if (smokeView === "goal-editor-saving") {
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+      }
+      const command = parseThreadCommand({
+        type: "thread.goal.set",
+        threadId,
+        objective,
+        expectedGoalId,
+        expectedRevision,
+      });
+      if (command.objective === undefined) {
+        throw new Error("A Goal edit requires an objective.");
+      }
+      const previous = store.getThreadGoal(command.threadId);
+      if (!previous) throw new Error("This task has no Goal.");
+      const persistedObjective = await materializeGoalObjective(
+        command.objective,
+      );
+      let goal: ThreadGoal;
+      try {
+        goal = store.updateThreadGoalObjective(
+          command.threadId,
+          persistedObjective,
+          command.expectedGoalId!,
+          command.expectedRevision!,
+        );
+      } catch (error) {
+        await cleanupGoalObjective(persistedObjective);
+        throw error;
+      }
+      if (previous.objective !== persistedObjective) {
+        await cleanupGoalObjective(previous.objective);
+      }
+      emitGoalUpdated(goal, activeTurns.get(command.threadId));
+      try {
+        await steerGoalObjectiveUpdate(goal);
+      } catch (error) {
+        diagnosticBundleService?.record({
+          source: "main",
+          severity: "warning",
+          message: `Saved Goal objective could not steer the active turn: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
       return store.getThread(command.threadId)!;
     },
   );
@@ -7826,6 +7979,9 @@ function registerIpc(): void {
         type: "thread.goal.clear",
         threadId,
       });
+      const previousObjective = store.getThreadGoal(
+        command.threadId,
+      )?.objective;
       const cleared = store.clearThreadGoal(command.threadId);
       if (cleared) {
         emitGoalCleared(
@@ -7834,6 +7990,7 @@ function registerIpc(): void {
           activeTurns.get(command.threadId),
         );
         await cancelRunningGoalContinuation(command.threadId);
+        await cleanupGoalObjective(previousObjective);
       }
       return store.getThread(command.threadId)!;
     },
@@ -7984,10 +8141,12 @@ function registerIpc(): void {
           });
         }
       }
+      const goalObjective = store.getThreadGoal(threadId)?.objective;
       openedThreads.delete(threadId);
       await turnChangeSetCompletionTails.get(threadId);
       await turnChangeSetService?.deleteThread(threadId);
       store.deleteThread(threadId);
+      await cleanupGoalObjective(goalObjective);
     },
   );
 
@@ -9068,6 +9227,58 @@ function seedSmokeTokenUsageFixture(): void {
   }
 }
 
+function seedSmokeGoalFixture(): void {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (!store || !view?.startsWith("goal-")) return;
+  const now = new Date().toISOString();
+  const projectId = "artemis-smoke-goal-project";
+  const threadId = "artemis-smoke-goal-thread";
+  store.upsertProject({
+    id: projectId,
+    name: "Artemis",
+    path: process.cwd(),
+    createdAt: now,
+    updatedAt: now,
+  });
+  store.createThread({
+    id: threadId,
+    projectId,
+    title: "Codex Goal parity",
+    mode: "execute",
+    target: "local",
+    status: "idle",
+    pinned: false,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+  const hasBudget = view === "goal-budget-limited";
+  let goal = store.setThreadGoal(
+    threadId,
+    "完成 Artemis /goal 控制条与编辑器的 Codex 像素级和生命周期对齐",
+    hasBudget ? 50_000 : undefined,
+  );
+  goal =
+    store.updateThreadGoalAccounting(
+      threadId,
+      goal.goalId,
+      hasBudget ? 50_000 : 12_400,
+      31_476,
+    ) ?? goal;
+  if (view === "goal-paused" || view.startsWith("goal-editor")) {
+    store.pauseThreadGoal(threadId);
+  }
+  if (view === "goal-blocked") {
+    store.recordThreadGoalBlocker(threadId, goal.goalId, "smoke blocker");
+    store.recordThreadGoalBlocker(threadId, goal.goalId, "smoke blocker");
+    store.recordThreadGoalBlocker(threadId, goal.goalId, "smoke blocker");
+  }
+  if (view === "goal-usage-limited") {
+    store.markThreadGoalUsageLimited(threadId, goal.goalId);
+  }
+  if (view === "goal-complete") store.completeThreadGoal(threadId, goal.goalId);
+}
+
 function seedSmokeTurnChangesFixture(): void {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
   if (!store || !view?.startsWith("turn-changes")) return;
@@ -9538,9 +9749,11 @@ function createMainWindow(): BrowserWindow {
   ipcMain.once(IPC.rendererReady, (event) => {
     if (event.sender.id === window.webContents.id) {
       markStartupStage("renderer-ready");
-      for (const thread of store?.listThreads() ?? []) {
-        if (thread.goal?.status === "active") {
-          scheduleGoalContinuation(thread.id, thread.goal.goalId);
+      if (!smokeMode) {
+        for (const thread of store?.listThreads() ?? []) {
+          if (thread.goal?.status === "active") {
+            scheduleGoalContinuation(thread.id, thread.goal.goalId);
+          }
         }
       }
     }
@@ -9582,6 +9795,59 @@ function createMainWindow(): BrowserWindow {
                   button?.click();
                 };
                 const view = ${JSON.stringify(requestedSmokeView)};
+                if (view.startsWith('goal-')) {
+                  document.querySelector('.thread-select')?.click();
+                  await wait(700);
+                  document
+                    .querySelector('.confirmation-actions .secondary-button')
+                    ?.click();
+                  await wait(300);
+                  if (view.startsWith('goal-editor')) {
+                    document.querySelector('.goal-bar-main')?.click();
+                    await wait(700);
+                    if (view === 'goal-editor-load-error') {
+                      await wait(300);
+                      return;
+                    }
+                    const input = document.querySelector('.goal-editor-input');
+                    if (!(input instanceof HTMLTextAreaElement)) {
+                      throw new Error('Goal editor did not open.');
+                    }
+                    if (view === 'goal-editor-clean') return;
+                    const setter = Object.getOwnPropertyDescriptor(
+                      HTMLTextAreaElement.prototype,
+                      'value',
+                    )?.set;
+                    const editedValue = view === 'goal-editor-empty'
+                      ? '   '
+                      : '编辑后的 Goal 内容已通过独立编辑器保存';
+                    setter?.call(input, editedValue);
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    await wait(250);
+                    if (view === 'goal-editor-dirty' || view === 'goal-editor-empty') {
+                      return;
+                    }
+                    if (view === 'goal-editor-revert') {
+                      document.querySelector('.goal-editor-revert')?.click();
+                      await wait(250);
+                      return;
+                    }
+                    if (view === 'goal-editor-shortcut') {
+                      input.dispatchEvent(new KeyboardEvent('keydown', {
+                        bubbles: true,
+                        key: 'Enter',
+                        metaKey: true,
+                      }));
+                      await wait(800);
+                      return;
+                    }
+                    document
+                      .querySelector('.goal-editor-footer .primary-button')
+                      ?.click();
+                    await wait(view === 'goal-editor-saving' ? 200 : 800);
+                  }
+                  return;
+                }
                 if (view.startsWith('turn-changes')) {
                   document.querySelector('.thread-select')?.click();
                   await wait(600);
@@ -9887,8 +10153,12 @@ function createMainWindow(): BrowserWindow {
               })()
             `)
           : Promise.resolve();
-      const settleDelay =
-        process.env.ARTEMIS_SMOKE_USER_INPUT || requestedSmokeView
+      const requestedSettleDelay = Number(
+        process.env.ARTEMIS_SMOKE_SETTLE_DELAY,
+      );
+      const settleDelay = Number.isFinite(requestedSettleDelay)
+        ? Math.max(0, Math.min(5_000, requestedSettleDelay))
+        : process.env.ARTEMIS_SMOKE_USER_INPUT || requestedSmokeView
           ? 1_500
           : 500;
       void prepareSmokeView
@@ -10010,6 +10280,11 @@ function createMainWindow(): BrowserWindow {
                 const temporaryList = document.querySelector(
                   "#temporary-conversation-list",
                 );
+                const goalBar = document.querySelector(".goal-bar");
+                const goalBarBounds = goalBar?.getBoundingClientRect();
+                const composer = document.querySelector(".composer");
+                const composerBounds = composer?.getBoundingClientRect();
+                const goalEditor = document.querySelector(".goal-editor-panel");
                 if (
                   environmentPanel &&
                   environmentBounds &&
@@ -10087,6 +10362,58 @@ function createMainWindow(): BrowserWindow {
                   temporaryConversationListVisible: temporaryList
                     ? visible(temporaryList)
                     : false,
+                  goalBar: goalBarBounds
+                    ? {
+                        visible: visible(goalBar),
+                        top: goalBarBounds.top,
+                        right: goalBarBounds.right,
+                        bottom: goalBarBounds.bottom,
+                        left: goalBarBounds.left,
+                        width: goalBarBounds.width,
+                        height: goalBarBounds.height,
+                      }
+                    : null,
+                  goalComposer: composerBounds
+                    ? {
+                        top: composerBounds.top,
+                        right: composerBounds.right,
+                        left: composerBounds.left,
+                        width: composerBounds.width,
+                      }
+                    : null,
+                  goalActionLabels: goalBar
+                    ? [...goalBar.querySelectorAll(".goal-bar-actions button")]
+                        .map((button) => button.getAttribute("aria-label"))
+                    : [],
+                  goalEditorVisible: goalEditor ? visible(goalEditor) : false,
+                  goalEditorValue:
+                    document.querySelector(".goal-editor-input")?.value ?? null,
+                  goalEditorSaveDisabled:
+                    document.querySelector(
+                      ".goal-editor-footer .primary-button",
+                    )?.disabled ?? null,
+                  goalEditorRevertDisabled:
+                    document.querySelector(".goal-editor-revert")?.disabled ??
+                    null,
+                  goalEditorBusy:
+                    goalEditor?.getAttribute("aria-busy") === "true",
+                  goalEditorAlert:
+                    document.querySelector(".transient-notice[role='alert']")
+                      ?.textContent?.trim() ?? null,
+                  goalActionGeometry: goalBar
+                    ? [...goalBar.querySelectorAll(".goal-bar-actions button")]
+                        .map((button) => {
+                          const bounds = button.getBoundingClientRect();
+                          const icon = button.querySelector("svg")
+                            ?.getBoundingClientRect();
+                          return {
+                            height: bounds.height,
+                            width: bounds.width,
+                            iconHeight: icon?.height ?? null,
+                            iconWidth: icon?.width ?? null,
+                          };
+                        })
+                    : [],
                   interactiveCount: document.querySelectorAll(
                     "button, a[href], summary, input, select, textarea, [role='button'], [role='tab']",
                   ).length,
@@ -10202,6 +10529,7 @@ app
     await seedSmokeEnvironmentFixture();
     seedSmokeUserInputFixture();
     seedSmokeTokenUsageFixture();
+    seedSmokeGoalFixture();
     seedSmokeTurnChangesFixture();
     mcpConfigStore = new McpConfigStore(
       join(app.getPath("userData"), "mcp.json"),

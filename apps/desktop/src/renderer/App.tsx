@@ -19,6 +19,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { TargetIcon } from "@phosphor-icons/react";
 import {
   MAX_PROMPT_ATTACHMENTS,
   reduceAgentEventBatch,
@@ -77,6 +78,7 @@ import { ChildAgentIcon } from "./ChildAgentIcon.js";
 import { ComposerContextBar } from "./ComposerContextBar.js";
 import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
 import { GoalBar } from "./GoalBar.js";
+import { GoalEditorPanel } from "./GoalEditorPanel.js";
 import {
   ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH,
   EnvironmentPanel,
@@ -215,7 +217,10 @@ interface ToastState {
 }
 
 interface ConfirmationState {
+  acceptLabel?: string;
+  cancelLabel?: string;
   message: string;
+  title?: string;
   tone: ConfirmationTone;
 }
 
@@ -544,11 +549,17 @@ const copy = {
     resourceCenter: "MCP & Skills",
     tokenUsage: "Token usage",
     goal: "Goal",
+    goalEditTitle: "Edit goal",
     goalSet: "Persistent goal saved",
     goalCleared: "Persistent goal cleared",
     goalReplaceConfirm:
       "Replace this task's existing Goal and reset its accumulated budget?",
     goalClearConfirm: "Clear this Goal and stop any automatic continuation?",
+    goalResumeTitle: "Resume goal?",
+    goalResumeConfirm:
+      "This task has a paused or interrupted Goal. Resume automatic continuation?",
+    goalResumeAccept: "Resume",
+    goalResumeLater: "Not now",
     goalSetWhileRunning: "Stop the active turn before replacing its Goal.",
     noGoal: "This task has no persistent goal.",
     goalCommand: "/goal",
@@ -803,10 +814,15 @@ const copy = {
     resourceCenter: "MCP 与 Skills",
     tokenUsage: "Token 用量",
     goal: "目标",
+    goalEditTitle: "编辑目标",
     goalSet: "持久目标已保存",
     goalCleared: "持久目标已清除",
     goalReplaceConfirm: "替换当前任务的目标并重置已累计的预算吗？",
     goalClearConfirm: "清除此目标并停止自动续跑吗？",
+    goalResumeTitle: "继续目标？",
+    goalResumeConfirm: "此任务有已暂停或中断的目标。要恢复自动续跑吗？",
+    goalResumeAccept: "继续",
+    goalResumeLater: "暂不",
     goalSetWhileRunning: "请先停止当前执行，再替换目标。",
     noGoal: "当前任务没有持久目标。",
     goalCommand: "/goal",
@@ -1293,6 +1309,7 @@ function WorkspaceTabIcon({
   if (kind === "browser") return <BrowserIcon />;
   if (kind === "markdown") return <MarkdownIcon />;
   if (kind === "sources") return <SourcesIcon />;
+  if (kind === "goal") return <TargetIcon aria-hidden="true" size={16} />;
   if (kind === "agent-team" || kind === "child-agent") {
     return <ChildAgentIcon identity={identity ?? kind} />;
   }
@@ -1720,6 +1737,7 @@ export function App() {
   const [commentBody, setCommentBody] = useState("");
   const [confirmation, setConfirmation] = useState<ConfirmationState>();
   const [busy, setBusy] = useState(false);
+  const [goalMutationPending, setGoalMutationPending] = useState(false);
   const toastSerial = useRef(0);
   const [toast, setToastState] = useState<ToastState>();
   const setToast = useCallback((content: ToastContent | undefined) => {
@@ -1821,6 +1839,8 @@ export function App() {
   const confirmationResolver = useRef<
     ((confirmed: boolean) => void) | undefined
   >(undefined);
+  const promptedGoalResumes = useRef(new Set<string>());
+  const goalEditorGoalId = useRef<string | undefined>(undefined);
   const promptHistoryNavigation = useRef<PromptHistoryNavigation>({
     index: -1,
     draft: "",
@@ -1980,11 +2000,18 @@ export function App() {
   }, []);
 
   const requestConfirmation = useCallback(
-    (message: string, tone: ConfirmationTone = "default") =>
+    (
+      message: string,
+      tone: ConfirmationTone = "default",
+      options: Pick<
+        ConfirmationState,
+        "acceptLabel" | "cancelLabel" | "title"
+      > = {},
+    ) =>
       new Promise<boolean>((resolve) => {
         confirmationResolver.current?.(false);
         confirmationResolver.current = resolve;
-        setConfirmation({ message, tone });
+        setConfirmation({ message, tone, ...options });
       }),
     [],
   );
@@ -2389,6 +2416,7 @@ export function App() {
       if (kind === "browser") return t.browser;
       if (kind === "markdown") return t.markdownReader;
       if (kind === "sources") return t.sources;
+      if (kind === "goal") return t.goalEditTitle;
       if (kind === "agent-team") return t.agentTeam;
       return t.files;
     },
@@ -3897,12 +3925,43 @@ export function App() {
     [openWorkspaceTab],
   );
 
+  const openGoalEditor = useCallback(() => {
+    if (!activeThread?.goal) {
+      setToast(t.noGoal);
+      return;
+    }
+    openWorkspaceTab("goal", { reuseKind: true });
+  }, [activeThread?.goal, openWorkspaceTab, t.noGoal]);
+
+  const closeGoalEditor = useCallback(() => {
+    const goalTab = workspaceTabs.tabs.find((tab) => tab.kind === "goal");
+    if (goalTab) closeWorkspaceTab(goalTab.id);
+  }, [closeWorkspaceTab, workspaceTabs.tabs]);
+
   useEffect(() => {
-    if (!turnActive) return;
+    const goalTabOpen = workspaceTabs.tabs.some((tab) => tab.kind === "goal");
+    if (!goalTabOpen) {
+      goalEditorGoalId.current = undefined;
+      return;
+    }
+    const currentGoalId = activeThread?.goal?.goalId;
+    if (
+      !currentGoalId ||
+      (goalEditorGoalId.current !== undefined &&
+        goalEditorGoalId.current !== currentGoalId)
+    ) {
+      closeGoalEditor();
+      return;
+    }
+    goalEditorGoalId.current = currentGoalId;
+  }, [activeThread?.goal?.goalId, closeGoalEditor, workspaceTabs.tabs]);
+
+  useEffect(() => {
+    if (!turnActive && activeThread?.goal?.status !== "active") return;
     setClockMs(Date.now());
     const timer = window.setInterval(() => setClockMs(Date.now()), 1_000);
     return () => window.clearInterval(timer);
-  }, [turnActive]);
+  }, [activeThread?.goal?.status, turnActive]);
 
   useEffect(() => {
     document.body.classList.toggle("sidebar-collapsed", !sidebarOpen);
@@ -4823,6 +4882,12 @@ export function App() {
       clearSubmittedPrompt(rawPrompt);
       return;
     }
+    if (goalCommand?.kind === "edit") {
+      if (!activeThread?.goal) setToast(t.noGoal);
+      else openGoalEditor();
+      clearSubmittedPrompt(rawPrompt);
+      return;
+    }
     if (goalCommand?.kind === "set" && turnActive) {
       setToast({ error: true, message: t.goalSetWhileRunning });
       return;
@@ -4864,6 +4929,7 @@ export function App() {
       if (goalCommand?.kind === "clear" && activeThread) {
         const updated = await window.artemis.clearThreadGoal(activeThread.id);
         updateThreadInSnapshot(updated);
+        closeGoalEditor();
         clearSubmittedPrompt(rawPrompt);
         setToast(t.goalCleared);
         return;
@@ -4879,6 +4945,11 @@ export function App() {
           !(await requestConfirmation(t.goalReplaceConfirm))
         ) {
           return;
+        }
+        if (activeThread?.goal) {
+          currentThread = await window.artemis.clearThreadGoal(thread.id);
+          updateThreadInSnapshot(currentThread);
+          closeGoalEditor();
         }
         currentThread = await window.artemis.setThreadGoal(
           thread.id,
@@ -4943,8 +5014,10 @@ export function App() {
     activeComposerDraftKey,
     busy,
     clearSubmittedPrompt,
+    closeGoalEditor,
     createThread,
     mode,
+    openGoalEditor,
     prompt,
     recordPromptSubmission,
     selectedSkills,
@@ -4968,14 +5041,8 @@ export function App() {
 
   const updateActiveGoal = useCallback(
     async (action: "pause" | "resume" | "clear") => {
-      if (!activeThread || busy) return;
-      if (
-        action === "clear" &&
-        !(await requestConfirmation(t.goalClearConfirm))
-      ) {
-        return;
-      }
-      setBusy(true);
+      if (!activeThread || goalMutationPending) return;
+      setGoalMutationPending(true);
       try {
         const updated = await (action === "pause"
           ? window.artemis.pauseThreadGoal(activeThread.id)
@@ -4983,23 +5050,60 @@ export function App() {
             ? window.artemis.resumeThreadGoal(activeThread.id)
             : window.artemis.clearThreadGoal(activeThread.id));
         updateThreadInSnapshot(updated);
+        if (action === "clear") closeGoalEditor();
       } catch (error) {
         setToast(
           `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
         );
       } finally {
-        setBusy(false);
+        setGoalMutationPending(false);
       }
     },
     [
       activeThread,
-      busy,
-      requestConfirmation,
-      t.goalClearConfirm,
+      closeGoalEditor,
+      goalMutationPending,
       t.taskError,
       updateThreadInSnapshot,
     ],
   );
+
+  useEffect(() => {
+    const goal = activeThread?.goal;
+    if (!goal || !["paused", "blocked", "usageLimited"].includes(goal.status)) {
+      return;
+    }
+    const key = `${goal.threadId}:${goal.goalId}`;
+    if (promptedGoalResumes.current.has(key)) return;
+    promptedGoalResumes.current.add(key);
+    void requestConfirmation(t.goalResumeConfirm, "default", {
+      acceptLabel: t.goalResumeAccept,
+      cancelLabel: t.goalResumeLater,
+      title: t.goalResumeTitle,
+    }).then(async (confirmed) => {
+      if (!confirmed) return;
+      setGoalMutationPending(true);
+      try {
+        const updated = await window.artemis.resumeThreadGoal(goal.threadId);
+        updateThreadInSnapshot(updated);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setGoalMutationPending(false);
+      }
+    });
+  }, [
+    activeThread?.goal,
+    requestConfirmation,
+    t.goalResumeAccept,
+    t.goalResumeConfirm,
+    t.goalResumeLater,
+    t.goalResumeTitle,
+    t.taskError,
+    updateThreadInSnapshot,
+  ]);
 
   const steerQueuedMessage = useCallback(
     async (index: number) => {
@@ -5938,7 +6042,7 @@ export function App() {
                           className="goal-pill"
                           title={activeThread.goal.objective}
                         >
-                          <span aria-hidden="true">◎</span>
+                          <TargetIcon aria-hidden="true" size={12} />
                           {t.goal}
                         </span>
                       )}
@@ -6182,24 +6286,6 @@ export function App() {
 
                 {!activeThread?.archived && (
                   <div className="composer-wrap">
-                    {activeThread?.goal && (
-                      <GoalBar
-                        goal={activeThread.goal}
-                        locale={locale}
-                        onClear={() => void updateActiveGoal("clear")}
-                        onEdit={() =>
-                          selectComposerCommand(
-                            `/goal ${activeThread.goal!.objective}${
-                              activeThread.goal!.tokenBudget === undefined
-                                ? ""
-                                : ` --token-budget ${activeThread.goal!.tokenBudget}`
-                            }`,
-                          )
-                        }
-                        onPause={() => void updateActiveGoal("pause")}
-                        onResume={() => void updateActiveGoal("resume")}
-                      />
-                    )}
                     {taskPlan && (
                       <TaskPlanProgress locale={locale} plan={taskPlan} />
                     )}
@@ -6403,6 +6489,18 @@ export function App() {
                             })}
                           </ol>
                         </div>
+                      )}
+                      {activeThread?.goal && (
+                        <GoalBar
+                          clockMs={clockMs}
+                          disabled={goalMutationPending}
+                          goal={activeThread.goal}
+                          locale={locale}
+                          onClear={() => void updateActiveGoal("clear")}
+                          onEdit={openGoalEditor}
+                          onPause={() => void updateActiveGoal("pause")}
+                          onResume={() => void updateActiveGoal("resume")}
+                        />
                       )}
                       <div
                         className="composer"
@@ -7970,6 +8068,18 @@ export function App() {
                               sources={environmentSources}
                             />
                           )}
+                          {tab.kind === "goal" && activeThread?.goal && (
+                            <GoalEditorPanel
+                              clockMs={clockMs}
+                              goal={activeThread.goal}
+                              key={activeThread.goal.goalId}
+                              locale={locale}
+                              onError={(message) =>
+                                setToast({ error: true, message })
+                              }
+                              onSaved={updateThreadInSnapshot}
+                            />
+                          )}
                           {tab.kind === "terminal" && (
                             <Suspense
                               fallback={
@@ -8182,9 +8292,10 @@ export function App() {
             </div>
             <div className="confirmation-copy">
               <h2 id="confirmation-title">
-                {confirmation.tone === "danger"
-                  ? t.confirmationDangerTitle
-                  : t.confirmationTitle}
+                {confirmation.title ??
+                  (confirmation.tone === "danger"
+                    ? t.confirmationDangerTitle
+                    : t.confirmationTitle)}
               </h2>
               <p id="confirmation-message">{confirmation.message}</p>
             </div>
@@ -8194,7 +8305,7 @@ export function App() {
                 onClick={() => resolveConfirmation(false)}
                 ref={confirmationCancelButton}
               >
-                {t.confirmationCancel}
+                {confirmation.cancelLabel ?? t.confirmationCancel}
               </button>
               <button
                 className={
@@ -8204,7 +8315,7 @@ export function App() {
                 }
                 onClick={() => resolveConfirmation(true)}
               >
-                {t.confirmationAccept}
+                {confirmation.acceptLabel ?? t.confirmationAccept}
               </button>
             </div>
           </section>

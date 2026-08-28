@@ -230,7 +230,6 @@ describe("AppStore", () => {
         "thread-1",
         "Finish the migrated task",
         undefined,
-        false,
       ),
     ).toMatchObject({
       threadId: "thread-1",
@@ -1318,7 +1317,6 @@ describe("AppStore", () => {
       "thread-1",
       "Ship searchable archives",
       10_000,
-      false,
     );
     expect(store.getThread("thread-1")?.goal).toEqual(goal);
     expect(goal).toMatchObject({
@@ -1354,7 +1352,6 @@ describe("AppStore", () => {
       "goal-thread",
       "Stay within budget",
       100,
-      false,
     );
     expect(
       store.updateThreadGoalAccounting(
@@ -1368,12 +1365,12 @@ describe("AppStore", () => {
       tokensUsed: 100,
       timeUsedSeconds: 12,
     });
+    store.clearThreadGoal("goal-thread", budgetGoal.goalId);
 
     const blockerGoal = store.setThreadGoal(
       "goal-thread",
       "Require repeated evidence",
       undefined,
-      true,
     );
     expect(
       store.recordThreadGoalBlocker(
@@ -1396,6 +1393,152 @@ describe("AppStore", () => {
         "same blocker",
       ),
     ).toMatchObject({ attempts: 3, goal: { status: "blocked" } });
+    store.close();
+  });
+
+  it("edits a Goal without resetting its identity, accounting, budget, or lifecycle", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-goal-edit-"));
+    temporaryDirectories.push(directory);
+    const store = new AppStore(join(directory, "state.sqlite"));
+    const now = "2026-08-28T00:00:00.000Z";
+    store.createThread({
+      id: "goal-edit-thread",
+      title: "Goal edit",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const createdViaMutation = store.mutateThreadGoal("goal-edit-thread", {
+      objective: "Created through Keep/Set",
+      status: "paused",
+      tokenBudget: 500,
+    });
+    expect(createdViaMutation).toMatchObject({
+      objective: "Created through Keep/Set",
+      status: "paused",
+      tokenBudget: 500,
+      tokensUsed: 0,
+      timeUsedSeconds: 0,
+      revision: 1,
+    });
+    store.clearThreadGoal("goal-edit-thread", createdViaMutation.goalId);
+
+    const created = store.setThreadGoal(
+      "goal-edit-thread",
+      "Original objective",
+      1_000,
+    );
+    const accounted = store.updateThreadGoalAccounting(
+      "goal-edit-thread",
+      created.goalId,
+      120,
+      45,
+    )!;
+    const paused = store.pauseThreadGoal("goal-edit-thread");
+    const edited = store.updateThreadGoalObjective(
+      "goal-edit-thread",
+      "Edited objective",
+      paused.goalId,
+      paused.revision,
+    );
+
+    expect(edited).toMatchObject({
+      goalId: created.goalId,
+      objective: "Edited objective",
+      status: "paused",
+      tokenBudget: 1_000,
+      tokensUsed: accounted.tokensUsed,
+      timeUsedSeconds: accounted.timeUsedSeconds,
+    });
+    const clearedBudget = store.mutateThreadGoal(
+      "goal-edit-thread",
+      { tokenBudget: null },
+      edited.goalId,
+      edited.revision,
+    );
+    expect(clearedBudget).toMatchObject({
+      goalId: created.goalId,
+      objective: "Edited objective",
+      status: "paused",
+      tokensUsed: accounted.tokensUsed,
+      timeUsedSeconds: accounted.timeUsedSeconds,
+    });
+    expect(clearedBudget.tokenBudget).toBeUndefined();
+    expect(() =>
+      store.updateThreadGoalObjective(
+        "goal-edit-thread",
+        "Stale edit",
+        edited.goalId,
+        paused.revision,
+      ),
+    ).toThrow("changed while it was being edited");
+
+    const resumed = store.resumeThreadGoal("goal-edit-thread");
+    const completed = store.completeThreadGoal(
+      "goal-edit-thread",
+      resumed.goalId,
+    );
+    expect(
+      store.updateThreadGoalObjective(
+        "goal-edit-thread",
+        "Continue after completion",
+        completed.goalId,
+        completed.revision,
+      ),
+    ).toMatchObject({
+      goalId: created.goalId,
+      status: "active",
+      tokensUsed: accounted.tokensUsed,
+      timeUsedSeconds: accounted.timeUsedSeconds,
+    });
+
+    store.clearThreadGoal("goal-edit-thread", created.goalId);
+    const limited = store.setThreadGoal(
+      "goal-edit-thread",
+      "Limited objective",
+      10,
+    );
+    const budgetLimited = store.updateThreadGoalAccounting(
+      "goal-edit-thread",
+      limited.goalId,
+      10,
+      2,
+    )!;
+    expect(
+      store.updateThreadGoalObjective(
+        "goal-edit-thread",
+        "Edited while limited",
+        budgetLimited.goalId,
+        budgetLimited.revision,
+      ),
+    ).toMatchObject({
+      goalId: limited.goalId,
+      status: "budgetLimited",
+      tokenBudget: 10,
+      tokensUsed: 10,
+      timeUsedSeconds: 2,
+    });
+
+    store.clearThreadGoal("goal-edit-thread", limited.goalId);
+    const replaced = store.setThreadGoal(
+      "goal-edit-thread",
+      "Replacement objective",
+      200,
+    );
+    expect(replaced).toMatchObject({
+      objective: "Replacement objective",
+      status: "active",
+      tokenBudget: 200,
+      tokensUsed: 0,
+      timeUsedSeconds: 0,
+      revision: 1,
+    });
+    expect(replaced.goalId).not.toBe(limited.goalId);
     store.close();
   });
 });
