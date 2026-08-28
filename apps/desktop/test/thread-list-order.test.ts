@@ -101,7 +101,22 @@ describe("sidebar conversation order", () => {
     expect(
       isWorkspaceDraftThread({ ...draft, sessionFile: "/tmp/session.jsonl" }),
     ).toBe(false);
-    expect(isWorkspaceDraftThread({ ...draft, goal: "Ship it" })).toBe(false);
+    expect(
+      isWorkspaceDraftThread({
+        ...draft,
+        goal: {
+          threadId: "draft",
+          goalId: "goal-1",
+          objective: "Ship it",
+          status: "active" as const,
+          tokensUsed: 0,
+          timeUsedSeconds: 0,
+          revision: 1,
+          createdAt: "2026-08-28T00:00:00.000Z",
+          updatedAt: "2026-08-28T00:00:00.000Z",
+        },
+      }),
+    ).toBe(false);
     expect(isWorkspaceDraftThread({ ...draft, pinned: true })).toBe(false);
     expect(isWorkspaceDraftThread({ ...draft, archived: true })).toBe(false);
   });

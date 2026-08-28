@@ -22,6 +22,8 @@ import {
   type RunMode,
   type TaskWorktree,
   type Thread,
+  type ThreadGoal,
+  type ThreadGoalStatus,
   type WorkspaceTarget,
 } from "@artemis/protocol";
 
@@ -48,6 +50,21 @@ interface ThreadRow {
   context_window: number | null;
   pinned: number;
   archived: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ThreadGoalRow {
+  thread_id: string;
+  goal_id: string;
+  objective: string;
+  status: ThreadGoalStatus;
+  token_budget: number | null;
+  tokens_used: number;
+  time_used_seconds: number;
+  revision: number;
+  blocker: string | null;
+  blocker_turns: number;
   created_at: string;
   updated_at: string;
 }
@@ -112,7 +129,8 @@ interface AutomationRunRow {
   updated_at: string;
 }
 
-const DATABASE_VERSION = 10;
+const THREAD_SESSION_DATABASE_VERSION = 10;
+const DATABASE_VERSION = 11;
 const EVENT_PROTOCOL_DATABASE_VERSION = 9;
 
 export interface EventAppendInput {
@@ -146,12 +164,27 @@ function projectFromRow(row: ProjectRow): Project {
   };
 }
 
-function threadFromRow(row: ThreadRow): Thread {
+function threadGoalFromRow(row: ThreadGoalRow): ThreadGoal {
+  return {
+    threadId: row.thread_id,
+    goalId: row.goal_id,
+    objective: row.objective,
+    status: row.status,
+    ...(row.token_budget ? { tokenBudget: row.token_budget } : {}),
+    tokensUsed: row.tokens_used,
+    timeUsedSeconds: row.time_used_seconds,
+    revision: row.revision,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function threadFromRow(row: ThreadRow, goal?: ThreadGoal): Thread {
   return {
     id: row.id,
     ...(row.project_id ? { projectId: row.project_id } : {}),
     title: row.title,
-    ...(row.goal ? { goal: row.goal } : {}),
+    ...(goal ? { goal } : {}),
     mode: row.mode,
     target: row.target,
     status: row.status,
@@ -286,6 +319,24 @@ export class AppStore {
         context_window INTEGER,
         pinned INTEGER NOT NULL DEFAULT 0,
         archived INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS thread_goals (
+        thread_id TEXT PRIMARY KEY REFERENCES threads(id) ON DELETE CASCADE,
+        goal_id TEXT NOT NULL UNIQUE,
+        objective TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN (
+          'active', 'paused', 'blocked', 'usageLimited',
+          'budgetLimited', 'complete'
+        )),
+        token_budget INTEGER,
+        tokens_used INTEGER NOT NULL DEFAULT 0,
+        time_used_seconds REAL NOT NULL DEFAULT 0,
+        revision INTEGER NOT NULL DEFAULT 1,
+        blocker TEXT,
+        blocker_turns INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -441,8 +492,14 @@ export class AppStore {
     const eventMigratedVersion = this.database
       .prepare("PRAGMA user_version")
       .get() as { user_version: number };
-    if (eventMigratedVersion.user_version < DATABASE_VERSION) {
+    if (eventMigratedVersion.user_version < THREAD_SESSION_DATABASE_VERSION) {
       this.migrateThreadSessions();
+    }
+    const sessionMigratedVersion = this.database
+      .prepare("PRAGMA user_version")
+      .get() as { user_version: number };
+    if (sessionMigratedVersion.user_version < DATABASE_VERSION) {
+      this.migrateThreadGoals();
     }
   }
 
@@ -574,7 +631,9 @@ export class AppStore {
       columns.some((column) => column.name === "model_selection_json") &&
       columns.some((column) => column.name === "context_window")
     ) {
-      this.database.exec(`PRAGMA user_version = ${DATABASE_VERSION}`);
+      this.database.exec(
+        `PRAGMA user_version = ${THREAD_SESSION_DATABASE_VERSION}`,
+      );
       return;
     }
 
@@ -611,7 +670,7 @@ export class AppStore {
         ALTER TABLE threads_session_v10 RENAME TO threads;
         CREATE INDEX ix_threads_project
           ON threads(project_id, archived, updated_at DESC);
-        PRAGMA user_version = ${DATABASE_VERSION};
+        PRAGMA user_version = ${THREAD_SESSION_DATABASE_VERSION};
         COMMIT;
       `);
     } catch (error) {
@@ -629,6 +688,34 @@ export class AppStore {
       .all() as unknown[];
     if (violations.length > 0) {
       throw new Error("Thread session migration produced invalid references.");
+    }
+  }
+
+  private migrateThreadGoals(): void {
+    try {
+      this.database.exec(`
+        BEGIN IMMEDIATE;
+        INSERT OR IGNORE INTO thread_goals (
+          thread_id, goal_id, objective, status, token_budget, tokens_used,
+          time_used_seconds, revision, blocker, blocker_turns, created_at,
+          updated_at
+        )
+        SELECT
+          id, lower(hex(randomblob(16))), trim(goal), 'active', NULL, 0,
+          0, 1, NULL, 0, created_at, updated_at
+        FROM threads
+        WHERE goal IS NOT NULL AND length(trim(goal)) > 0;
+        UPDATE threads SET goal = NULL WHERE goal IS NOT NULL;
+        PRAGMA user_version = ${DATABASE_VERSION};
+        COMMIT;
+      `);
+    } catch (error) {
+      try {
+        this.database.exec("ROLLBACK");
+      } catch {
+        // The migration failed before opening its transaction.
+      }
+      throw error;
     }
   }
 
@@ -706,7 +793,7 @@ export class AppStore {
         thread.id,
         thread.projectId ?? null,
         thread.title,
-        thread.goal ?? null,
+        null,
         thread.mode,
         thread.target,
         thread.status,
@@ -718,7 +805,32 @@ export class AppStore {
         thread.createdAt,
         thread.updatedAt,
       );
-    return thread;
+    if (thread.goal) {
+      if (thread.goal.threadId !== thread.id) {
+        throw new Error("Thread and Goal identity do not match.");
+      }
+      this.database
+        .prepare(
+          `INSERT INTO thread_goals (
+            thread_id, goal_id, objective, status, token_budget, tokens_used,
+            time_used_seconds, revision, blocker, blocker_turns, created_at,
+            updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?)`,
+        )
+        .run(
+          thread.id,
+          thread.goal.goalId,
+          thread.goal.objective,
+          thread.goal.status,
+          thread.goal.tokenBudget ?? null,
+          thread.goal.tokensUsed,
+          thread.goal.timeUsedSeconds,
+          thread.goal.revision,
+          thread.goal.createdAt,
+          thread.goal.updatedAt,
+        );
+    }
+    return this.getThread(thread.id)!;
   }
 
   private insertWorktree(worktree: TaskWorktree): TaskWorktree {
@@ -811,7 +923,14 @@ export class AppStore {
     const row = this.database
       .prepare("SELECT * FROM threads WHERE id = ?")
       .get(id) as ThreadRow | undefined;
-    return row ? threadFromRow(row) : undefined;
+    return row ? threadFromRow(row, this.getThreadGoal(id)) : undefined;
+  }
+
+  getThreadGoal(threadId: string): ThreadGoal | undefined {
+    const row = this.database
+      .prepare("SELECT * FROM thread_goals WHERE thread_id = ?")
+      .get(threadId) as ThreadGoalRow | undefined;
+    return row ? threadGoalFromRow(row) : undefined;
   }
 
   listThreads(): Thread[] {
@@ -821,7 +940,7 @@ export class AppStore {
           "SELECT * FROM threads ORDER BY archived ASC, pinned DESC, updated_at DESC",
         )
         .all() as unknown as ThreadRow[]
-    ).map(threadFromRow);
+    ).map((row) => threadFromRow(row, this.getThreadGoal(row.id)));
   }
 
   deleteThread(threadId: string): void {
@@ -847,7 +966,6 @@ export class AppStore {
         | "target"
       >
     > & {
-      goal?: string | null;
       modelSelection?: ModelSelection | null;
       contextWindow?: number | null;
     },
@@ -878,7 +996,7 @@ export class AppStore {
         changes.status ?? current.status,
         changes.sessionFile ?? current.sessionFile ?? null,
         changes.title ?? current.title,
-        changes.goal === undefined ? (current.goal ?? null) : changes.goal,
+        null,
         (changes.pinned ?? current.pinned) ? 1 : 0,
         (changes.archived ?? current.archived) ? 1 : 0,
         changes.target ?? current.target,
@@ -888,6 +1006,222 @@ export class AppStore {
         id,
       );
     return this.getThread(id)!;
+  }
+
+  setThreadGoal(
+    threadId: string,
+    objective: string,
+    tokenBudget: number | undefined,
+    replace: boolean,
+  ): ThreadGoal {
+    if (!this.getThread(threadId)) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+    const normalizedObjective = objective.trim();
+    if (!normalizedObjective)
+      throw new Error("Goal objective cannot be empty.");
+    const existing = this.getThreadGoal(threadId);
+    if (
+      !replace &&
+      existing &&
+      !["complete", "budgetLimited"].includes(existing.status)
+    ) {
+      throw new Error("This task already has an unfinished Goal.");
+    }
+    const now = new Date().toISOString();
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      this.database
+        .prepare(
+          `INSERT INTO thread_goals (
+          thread_id, goal_id, objective, status, token_budget, tokens_used,
+          time_used_seconds, revision, blocker, blocker_turns, created_at,
+          updated_at
+        ) VALUES (?, ?, ?, 'active', ?, 0, 0, 1, NULL, 0, ?, ?)
+        ON CONFLICT(thread_id) DO UPDATE SET
+          goal_id = excluded.goal_id,
+          objective = excluded.objective,
+          status = 'active',
+          token_budget = excluded.token_budget,
+          tokens_used = 0,
+          time_used_seconds = 0,
+          revision = 1,
+          blocker = NULL,
+          blocker_turns = 0,
+          created_at = excluded.created_at,
+          updated_at = excluded.updated_at`,
+        )
+        .run(
+          threadId,
+          randomUUID(),
+          normalizedObjective,
+          tokenBudget ?? null,
+          now,
+          now,
+        );
+      this.database
+        .prepare("UPDATE threads SET updated_at = ? WHERE id = ?")
+        .run(now, threadId);
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+    return this.getThreadGoal(threadId)!;
+  }
+
+  pauseThreadGoal(threadId: string): ThreadGoal {
+    const goal = this.getThreadGoal(threadId);
+    if (!goal) throw new Error("This task has no Goal.");
+    if (goal.status === "paused") return goal;
+    if (goal.status !== "active") {
+      throw new Error(`A ${goal.status} Goal cannot be paused.`);
+    }
+    return this.updateThreadGoalStatus(threadId, goal.goalId, "paused");
+  }
+
+  resumeThreadGoal(threadId: string): ThreadGoal {
+    const goal = this.getThreadGoal(threadId);
+    if (!goal) throw new Error("This task has no Goal.");
+    if (goal.status === "active") return goal;
+    if (!["paused", "blocked", "usageLimited"].includes(goal.status)) {
+      throw new Error(`A ${goal.status} Goal cannot be resumed.`);
+    }
+    return this.updateThreadGoalStatus(threadId, goal.goalId, "active", true);
+  }
+
+  clearThreadGoal(
+    threadId: string,
+    expectedGoalId?: string,
+  ): { goalId: string; revision: number } | undefined {
+    const goal = this.getThreadGoal(threadId);
+    if (!goal) return undefined;
+    if (expectedGoalId && goal.goalId !== expectedGoalId) {
+      throw new Error("The Goal changed before it could be cleared.");
+    }
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      this.database
+        .prepare("DELETE FROM thread_goals WHERE thread_id = ? AND goal_id = ?")
+        .run(threadId, goal.goalId);
+      this.database
+        .prepare("UPDATE threads SET updated_at = ? WHERE id = ?")
+        .run(new Date().toISOString(), threadId);
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+    return { goalId: goal.goalId, revision: goal.revision + 1 };
+  }
+
+  updateThreadGoalAccounting(
+    threadId: string,
+    goalId: string,
+    tokens: number,
+    seconds: number,
+  ): ThreadGoal | undefined {
+    const row = this.database
+      .prepare("SELECT * FROM thread_goals WHERE thread_id = ? AND goal_id = ?")
+      .get(threadId, goalId) as ThreadGoalRow | undefined;
+    if (!row) return undefined;
+    const tokensUsed = row.tokens_used + Math.max(0, Math.trunc(tokens));
+    const timeUsedSeconds = row.time_used_seconds + Math.max(0, seconds);
+    const status =
+      row.token_budget !== null &&
+      tokensUsed >= row.token_budget &&
+      !["complete", "budgetLimited"].includes(row.status)
+        ? "budgetLimited"
+        : row.status;
+    const now = new Date().toISOString();
+    this.database
+      .prepare(
+        `UPDATE thread_goals
+         SET tokens_used = ?, time_used_seconds = ?, status = ?,
+             revision = revision + 1, updated_at = ?
+         WHERE thread_id = ? AND goal_id = ?`,
+      )
+      .run(tokensUsed, timeUsedSeconds, status, now, threadId, goalId);
+    return this.getThreadGoal(threadId);
+  }
+
+  completeThreadGoal(threadId: string, goalId: string): ThreadGoal {
+    const goal = this.getThreadGoal(threadId);
+    if (!goal || goal.goalId !== goalId) {
+      throw new Error("The active Goal changed before completion.");
+    }
+    if (goal.status !== "active") {
+      throw new Error(`A ${goal.status} Goal cannot be completed.`);
+    }
+    return this.updateThreadGoalStatus(threadId, goalId, "complete");
+  }
+
+  recordThreadGoalBlocker(
+    threadId: string,
+    goalId: string,
+    blocker: string,
+  ): { goal: ThreadGoal; attempts: number } {
+    const row = this.database
+      .prepare("SELECT * FROM thread_goals WHERE thread_id = ? AND goal_id = ?")
+      .get(threadId, goalId) as ThreadGoalRow | undefined;
+    if (!row || row.status !== "active") {
+      throw new Error("Only an active Goal can become blocked.");
+    }
+    const attempts = row.blocker === blocker ? row.blocker_turns + 1 : 1;
+    const status: ThreadGoalStatus = attempts >= 3 ? "blocked" : "active";
+    this.database
+      .prepare(
+        `UPDATE thread_goals
+         SET blocker = ?, blocker_turns = ?, status = ?,
+             revision = revision + 1, updated_at = ?
+         WHERE thread_id = ? AND goal_id = ?`,
+      )
+      .run(
+        blocker,
+        attempts,
+        status,
+        new Date().toISOString(),
+        threadId,
+        goalId,
+      );
+    return { goal: this.getThreadGoal(threadId)!, attempts };
+  }
+
+  markThreadGoalUsageLimited(threadId: string, goalId: string): ThreadGoal {
+    return this.updateThreadGoalStatus(threadId, goalId, "usageLimited");
+  }
+
+  markThreadGoalBlocked(threadId: string, goalId: string): ThreadGoal {
+    return this.updateThreadGoalStatus(threadId, goalId, "blocked");
+  }
+
+  private updateThreadGoalStatus(
+    threadId: string,
+    goalId: string,
+    status: ThreadGoalStatus,
+    resetBlocker = false,
+  ): ThreadGoal {
+    const result = this.database
+      .prepare(
+        `UPDATE thread_goals
+         SET status = ?, revision = revision + 1,
+             blocker = CASE WHEN ? THEN NULL ELSE blocker END,
+             blocker_turns = CASE WHEN ? THEN 0 ELSE blocker_turns END,
+             updated_at = ?
+         WHERE thread_id = ? AND goal_id = ?`,
+      )
+      .run(
+        status,
+        resetBlocker ? 1 : 0,
+        resetBlocker ? 1 : 0,
+        new Date().toISOString(),
+        threadId,
+        goalId,
+      );
+    if (result.changes === 0) {
+      throw new Error("The Goal changed before its status could be updated.");
+    }
+    return this.getThreadGoal(threadId)!;
   }
 
   getWorktreeForThread(threadId: string): TaskWorktree | undefined {
@@ -1562,7 +1896,7 @@ export class AppStore {
     inputs: readonly EventAppendInput[],
     changes: Partial<
       Pick<Thread, "title" | "mode" | "target" | "status" | "sessionFile">
-    > & { goal?: string | null },
+    >,
   ): { events: AgentEvent[]; thread: Thread } {
     this.database.exec("BEGIN IMMEDIATE");
     try {

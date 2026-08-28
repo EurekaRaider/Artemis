@@ -67,6 +67,41 @@ describe("reduceAgentEvent", () => {
     expect(visible.activity).toBeUndefined();
   });
 
+  it("replays reconnect progress and removes superseded partial output", () => {
+    const state = reduceAgentEvents("thread-1", [
+      event("started", 1, { type: "turn.started", mode: "execute" }),
+      event("partial", 2, {
+        type: "message.part.delta",
+        partId: "attempt-1:text",
+        partType: "text",
+        delta: "duplicated partial",
+      }),
+      event("superseded", 3, {
+        type: "message.superseded",
+        messageId: "attempt-1",
+        attemptId: "turn-1:retry:1",
+      }),
+      event("retry", 4, {
+        type: "turn.activity",
+        phase: "reconnecting",
+        kind: "provider",
+        attempt: 1,
+        maxAttempts: 3,
+        delayMs: 2_000,
+        attemptId: "turn-1:retry:1",
+      }),
+    ]);
+
+    expect(state.order).not.toContain("part:attempt-1:text");
+    expect(state.messageParts).not.toHaveProperty("attempt-1:text");
+    expect(state.activity).toMatchObject({
+      phase: "reconnecting",
+      attempt: 1,
+      maxAttempts: 3,
+      scheduledAt: "2026-07-26T00:00:00.000Z",
+    });
+  });
+
   it("merges text deltas without retaining completed reasoning", () => {
     const state = reduceAgentEvents("thread-1", [
       event("1", 1, {

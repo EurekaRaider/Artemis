@@ -33,6 +33,8 @@ export interface ToolState {
 
 export interface ApprovalState extends ApprovalRequestedPayload {
   status: "pending" | "approved" | "denied";
+  requestedAt: string;
+  turnId?: string;
 }
 
 export interface UserInputState extends UserInputRequestedPayload {
@@ -79,7 +81,8 @@ export interface ThreadViewState {
   status:
     "idle" | "running" | "waiting-approval" | "waiting-user-input" | "failed";
   mode: RunMode;
-  activity?: Omit<TurnActivityPayload, "type">;
+  activity?: Omit<TurnActivityPayload, "type"> & { scheduledAt?: string };
+  errorCode?: string;
   order: string[];
   userMessages: Record<string, { id: string; text: string }>;
   messageParts: Record<string, MessagePartState>;
@@ -294,18 +297,31 @@ function applyAgentEvent(
       state.mode = payload.mode;
       delete state.activity;
       delete state.error;
+      delete state.errorCode;
       return;
     }
     case "turn.activity": {
+      const { type: _type, ...activity } = payload;
       state.activity = {
-        phase: payload.phase,
-        ...(payload.queueDepth === undefined
-          ? {}
-          : { queueDepth: payload.queueDepth }),
-        ...(payload.toolCount === undefined
-          ? {}
-          : { toolCount: payload.toolCount }),
+        ...activity,
+        ...(payload.phase === "reconnecting"
+          ? { scheduledAt: event.timestamp }
+          : {}),
       };
+      return;
+    }
+    case "message.superseded": {
+      const prefix = `${payload.messageId}:`;
+      for (const partId of Object.keys(state.messageParts)) {
+        if (!partId.startsWith(prefix)) continue;
+        delete state.messageParts[partId];
+        orderedItems.delete(`part:${partId}`);
+      }
+      state.order = state.order.filter(
+        (entry) =>
+          !entry.startsWith(`part:${prefix}`) &&
+          entry !== `part:${payload.messageId}`,
+      );
       return;
     }
     case "message.part.delta": {
@@ -365,6 +381,8 @@ function applyAgentEvent(
       state.approvals[payload.approvalId] = {
         ...payload,
         status: "pending",
+        requestedAt: event.timestamp,
+        ...(event.turnId ? { turnId: event.turnId } : {}),
       };
       state.status = pendingInteractionStatus(state);
       appendOnce(state.order, orderedItems, `approval:${payload.approvalId}`);
@@ -573,6 +591,8 @@ function applyAgentEvent(
       state.status = "failed";
       delete state.activity;
       state.error = payload.message;
+      if (payload.code) state.errorCode = payload.code;
+      else delete state.errorCode;
       return;
     }
   }

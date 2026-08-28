@@ -44,6 +44,17 @@ interface PiToolEvent {
 
 interface PiLifecycleEvent {
   type: "agent_end" | "agent_settled";
+  willRetry?: boolean;
+}
+
+interface PiRetryEvent {
+  type: "auto_retry_start" | "auto_retry_end";
+  attempt: number;
+  maxAttempts?: number;
+  delayMs?: number;
+  errorMessage?: string;
+  success?: boolean;
+  finalError?: string;
 }
 
 interface PiQueueUpdate {
@@ -57,9 +68,28 @@ export type PiEventLike =
   | PiMessageUpdate
   | PiToolEvent
   | PiLifecycleEvent
+  | PiRetryEvent
   | PiQueueUpdate;
 
 type AssistantPartType = "text" | "thinking";
+
+function retryKind(
+  message: string | undefined,
+): "connection" | "stream-stalled" | "rate-limit" | "provider" {
+  const value = message ?? "";
+  if (/MODEL_STREAM_STALLED/iu.test(value)) return "stream-stalled";
+  if (/\b429\b|rate.?limit|too many requests|retry-after/iu.test(value)) {
+    return "rate-limit";
+  }
+  if (
+    /\b(?:ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|UND_ERR_SOCKET)\b|fetch failed|network.?error|connection.?(?:error|refused|lost|reset)|socket (?:hang up|connection was closed)|temporary failure in name resolution/iu.test(
+      value,
+    )
+  ) {
+    return "connection";
+  }
+  return "provider";
+}
 
 function assistantContent(
   message: PiMessage | undefined,
@@ -248,6 +278,9 @@ export class PiAdapter {
   private emittedThinkingActivity = false;
   private turnFailed = false;
   private pendingFailureMessage: string | undefined;
+  private lastErroredMessageId: string | undefined;
+  private retryAttemptId: string | undefined;
+  private awaitingRetry = false;
   private turnAborted = false;
   private readonly toolNames = new Map<string, string>();
   private userMessageCount = 0;
@@ -373,6 +406,7 @@ export class PiAdapter {
         ) {
           this.pendingFailureMessage =
             event.message.errorMessage?.trim() || "The model request failed.";
+          this.lastErroredMessageId = messageId;
           this.turnAborted = false;
         } else if (
           event.message?.role === "assistant" &&
@@ -382,6 +416,7 @@ export class PiAdapter {
           this.turnAborted = true;
         } else if (event.message?.role === "assistant") {
           this.pendingFailureMessage = undefined;
+          this.lastErroredMessageId = undefined;
           this.turnAborted = false;
         }
         if (event.message?.role === "assistant") {
@@ -434,15 +469,62 @@ export class PiAdapter {
             followUp: [...event.followUp],
           },
         ];
+      case "auto_retry_start": {
+        const attemptId = `${this.turnId}:retry:${event.attempt}`;
+        this.retryAttemptId = attemptId;
+        this.awaitingRetry = true;
+        return [
+          ...(this.lastErroredMessageId
+            ? [
+                {
+                  type: "message.superseded" as const,
+                  messageId: this.lastErroredMessageId,
+                  attemptId,
+                },
+              ]
+            : []),
+          {
+            type: "turn.activity",
+            phase: "reconnecting",
+            kind: retryKind(event.errorMessage),
+            attempt: event.attempt,
+            ...(event.maxAttempts === undefined
+              ? {}
+              : { maxAttempts: event.maxAttempts }),
+            delayMs: event.delayMs ?? 0,
+            attemptId,
+          },
+        ];
+      }
+      case "auto_retry_end": {
+        this.awaitingRetry = false;
+        const attemptId =
+          this.retryAttemptId ?? `${this.turnId}:retry:${event.attempt}`;
+        this.retryAttemptId = undefined;
+        return event.success
+          ? [{ type: "turn.activity", phase: "recovered", attemptId }]
+          : [];
+      }
       case "agent_end":
+        this.awaitingRetry = event.willRetry === true;
         return [];
       case "agent_settled": {
-        if (this.turnFailed) {
+        if (this.turnFailed || this.awaitingRetry) {
           return [];
         }
         if (this.pendingFailureMessage) {
           this.turnFailed = true;
-          return [{ type: "turn.failed", message: this.pendingFailureMessage }];
+          return [
+            {
+              type: "turn.failed",
+              message: this.pendingFailureMessage,
+              ...(this.pendingFailureMessage.startsWith(
+                "ARTEMIS_STREAM_INTERRUPTED:",
+              )
+                ? { code: "STREAM_INTERRUPTED" }
+                : {}),
+            },
+          ];
         }
         if (this.turnAborted) {
           return [];

@@ -43,6 +43,33 @@ export interface AgentProcessOptions {
   agentConcurrencyLimit?: number;
 }
 
+const AGENT_HOST_SECRET =
+  /\b(api[-_ ]?key|access[-_ ]?token|refresh[-_ ]?token|token|password|secret)\b(\s*[:=]\s*)(["']?)[^\s,;"']+\3/giu;
+const AGENT_HOST_AUTHORIZATION =
+  /\bAuthorization\b(\s*:\s*)(?:Bearer\s+)?[^\s,;"']+/giu;
+const AGENT_HOST_BEARER = /\bBearer\s+[A-Za-z0-9._~+/=-]+/giu;
+const AGENT_HOST_URL = /https?:\/\/[^\s<>"']+/giu;
+const AGENT_HOST_WINDOWS_PATH = /(?:[A-Za-z]:\\|\\\\)[^\r\n<>:"|?*]+/gu;
+const AGENT_HOST_POSIX_HOME_PATH =
+  /\/(?:Users|home)\/[^/\s]+(?:\/[^\s:),]+)*/gu;
+
+export function sanitizeAgentHostDiagnostic(value: string): string {
+  return value
+    .replace(AGENT_HOST_URL, "[URL]")
+    .replace(
+      AGENT_HOST_AUTHORIZATION,
+      (_match, separator: string) => `Authorization${separator}[REDACTED]`,
+    )
+    .replace(AGENT_HOST_BEARER, "Bearer [REDACTED]")
+    .replace(
+      AGENT_HOST_SECRET,
+      (_match, key: string, separator: string) =>
+        `${key}${separator}[REDACTED]`,
+    )
+    .replace(AGENT_HOST_WINDOWS_PATH, "[PATH]")
+    .replace(AGENT_HOST_POSIX_HOME_PATH, "[PATH]");
+}
+
 export class AgentProcess {
   private readonly child: UtilityProcess;
   private readonly pending = new Map<string, PendingRequest>();
@@ -78,8 +105,9 @@ export class AgentProcess {
     });
     this.child.stderr?.setEncoding("utf8");
     this.child.stderr?.on("data", (data: string) => {
-      console.error(`[Artemis Agent Host] ${data.trimEnd()}`);
-      this.handlers.onStderr?.(data);
+      const sanitized = sanitizeAgentHostDiagnostic(data);
+      console.error(`[Artemis Agent Host] ${sanitized.trimEnd()}`);
+      this.handlers.onStderr?.(sanitized);
     });
     this.child.on("message", (message) => {
       void this.handleMessage(message as AgentHostMessage);

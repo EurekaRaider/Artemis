@@ -31,6 +31,27 @@ describe("turn activity schema", () => {
       }),
     ).toEqual({ type: "turn.activity", phase: "thinking" });
   });
+
+  it("parses durable reconnect progress without retaining provider errors", () => {
+    expect(
+      agentPayloadSchema.parse({
+        type: "turn.activity",
+        phase: "reconnecting",
+        kind: "connection",
+        attempt: 2,
+        delayMs: 10_000,
+        attemptId: "turn-1:connection:2",
+        errorMessage: "https://secret.example Authorization: Bearer hidden",
+      }),
+    ).toEqual({
+      type: "turn.activity",
+      phase: "reconnecting",
+      kind: "connection",
+      attempt: 2,
+      delayMs: 10_000,
+      attemptId: "turn-1:connection:2",
+    });
+  });
 });
 
 describe("queued message recovery schema", () => {
@@ -199,23 +220,23 @@ describe("approval schemas", () => {
     ).toBe(true);
     expect(
       threadCommandSchema.safeParse({
-        type: "thread.goal",
+        type: "thread.goal.set",
         threadId: "thread-1",
-        goal: "Ship a verified release",
+        objective: "Ship a verified release",
+        tokenBudget: 50_000,
       }).success,
     ).toBe(true);
     expect(
       threadCommandSchema.safeParse({
-        type: "thread.goal",
+        type: "thread.goal.set",
         threadId: "thread-1",
-        goal: "   ",
+        objective: "   ",
       }).success,
     ).toBe(false);
     expect(
       threadCommandSchema.safeParse({
-        type: "thread.goal",
+        type: "thread.goal.clear",
         threadId: "thread-1",
-        goal: null,
       }).success,
     ).toBe(true);
     expect(

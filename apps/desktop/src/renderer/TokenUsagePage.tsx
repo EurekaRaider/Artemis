@@ -10,6 +10,7 @@ import {
   formatTokenUsageTooltip,
   TOKEN_USAGE_COPY,
   tokenUsageValue,
+  tokenUsageModelsForTable,
   UNATTRIBUTED_USAGE_MODEL,
   type TokenUsageCell,
   type TokenUsageLocale,
@@ -132,6 +133,10 @@ export function TokenUsagePage({
   const today = dateKey(new Date(), timeZone);
   const firstVisibleDate = addDays(startOfWeek(today), -52 * 7);
   const usageByModel = useMemo(() => buildTokenUsageByModel(events), [events]);
+  const usageModelsForTable = useMemo(
+    () => tokenUsageModelsForTable(usageByModel),
+    [usageByModel],
+  );
   const visibleEvents = useMemo(
     () => filterTokenUsageEvents(events, selectedModel),
     [events, selectedModel],
@@ -434,7 +439,7 @@ export function TokenUsagePage({
         ) : null}
       </section>
 
-      {usageByModel.length > 0 && (
+      {usageModelsForTable.length > 0 && (
         <section className="token-usage-models" aria-label={t.usageByModel}>
           <h2>{t.usageByModel}</h2>
           <div className="token-usage-models-scroll">
@@ -444,14 +449,13 @@ export function TokenUsagePage({
                   <th>{t.modelColumn}</th>
                   <th>{t.inputTokens}</th>
                   <th>{t.outputTokens}</th>
-                  <th>{t.cacheReadTokens}</th>
-                  <th>{t.cacheWriteTokens}</th>
+                  <th>{t.cacheHitTokens}</th>
                   <th title={t.cacheHitRateDescription}>{t.cacheHitRate}</th>
                   <th>{t.totalTokens}</th>
                 </tr>
               </thead>
               <tbody>
-                {usageByModel.map((model) => (
+                {usageModelsForTable.map((model) => (
                   <tr
                     className={selectedModel === model.key ? "selected" : ""}
                     key={model.key}
@@ -470,8 +474,7 @@ export function TokenUsagePage({
                     </td>
                     <td>{number.format(model.inputTokens)}</td>
                     <td>{number.format(model.outputTokens)}</td>
-                    <td>{number.format(model.cacheReadTokens)}</td>
-                    <td>{number.format(model.cacheWriteTokens)}</td>
+                    <td>{number.format(model.cacheHitTokens)}</td>
                     <td title={t.cacheHitRateDescription}>
                       {model.cacheHitRate === undefined
                         ? "—"

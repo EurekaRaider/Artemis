@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="1002 passing tests" src="https://img.shields.io/badge/Tests-1002_passing-2EA44F" />
+  <img alt="1068 passing tests" src="https://img.shields.io/badge/Tests-1068_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -65,6 +65,7 @@ credentials are protected with operating-system encryption.
         <li>Streaming events are grouped into animation-frame batches, avoiding one full React update for every token or tool delta.</li>
         <li>Settings, Resources and Terminal are split into lazy panels and prefetched after the main workspace becomes interactive.</li>
         <li>Review requests are race-safe, and panel transitions keep stale diff responses from replacing the selected scope.</li>
+        <li>Connection failures before visible output reconnect inside the same turn, while interrupted partial output stops safely instead of replaying the prompt.</li>
       </ul>
     </td>
     <td width="50%" valign="top">
@@ -84,7 +85,7 @@ credentials are protected with operating-system encryption.
   <tr>
     <td width="50%" valign="top">
       <p><strong>01</strong>&nbsp;&nbsp;/&nbsp;&nbsp;AGENT WORKSPACE</p>
-      <p>Persistent projects and Local tasks, projectless Temporary chats, a resizable two-level conversation sidebar with persistent drag-and-drop ordering, per-conversation model/thinking/context settings, collapsible history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, approvals, plans, queued turns, steering, cancellation, forking and goals.</p>
+      <p>Persistent projects and Local tasks, projectless Temporary chats, a resizable two-level conversation sidebar with persistent drag-and-drop ordering, per-conversation model/thinking/context settings, collapsible history, draft-on-first-send task creation, confirmed deletion, streaming Markdown, thinking/tool cards, structured workflow choices, prompt history, attachments, grouped approvals, plans, queued turns, steering, cancellation, forking and stateful Goals.</p>
     </td>
     <td width="50%" valign="top">
       <p><strong>02</strong>&nbsp;&nbsp;/&nbsp;&nbsp;WORKSPACE TOOLS</p>
@@ -98,13 +99,13 @@ credentials are protected with operating-system encryption.
     </td>
     <td width="50%" valign="top">
       <p><strong>04</strong>&nbsp;&nbsp;/&nbsp;&nbsp;GIT WORKFLOW</p>
-      <p>Last-turn, unstaged, staged and base/branch diffs; tracked, untracked and binary changes; inline comments; file/hunk stage and unstage; recoverable revert; stale diff-identifier rejection and race-safe scope switching.</p>
+      <p>Task-checkout-aware Git state with automatic repository refresh, searchable local and remote branches, branch creation/publishing, and a shared Compare/Review base; plus last-turn, unstaged, staged and branch diffs, inline comments, file/hunk stage and unstage, recoverable revert and race-safe scope switching.</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
       <p><strong>05</strong>&nbsp;&nbsp;/&nbsp;&nbsp;REUSABLE CONTEXT</p>
-      <p>Persistent goals, editable global <code>AGENTS.md</code>, selective project-first memory, <code>/goal</code>, <code>/init</code>, multiple <code>/skill</code> selections and category-based import of global instructions, Skills and MCP from Codex, OpenCode and Claude without copying models or credentials.</p>
+      <p>Persistent Goals with six lifecycle states, optional Token budgets, accumulated Token/time progress, event-driven continuation and constrained model tools; editable global <code>AGENTS.md</code>, selective project-first memory, <code>/goal</code>, <code>/init</code>, multiple <code>/skill</code> selections and category-based import of global instructions, Skills and MCP from Codex, OpenCode and Claude without copying models or credentials.</p>
     </td>
     <td width="50%" valign="top">
       <p><strong>06</strong>&nbsp;&nbsp;/&nbsp;&nbsp;MODELS &amp; RESOURCES</p>
@@ -114,7 +115,7 @@ credentials are protected with operating-system encryption.
   <tr>
     <td colspan="2" valign="top">
       <p><strong>07</strong>&nbsp;&nbsp;/&nbsp;&nbsp;OPERATIONS</p>
-      <p>Local automations, daily/weekly/cumulative Token insights with a local profile picture, per-model filtering and breakdowns, cache hit and reporting coverage, fork-safe usage accounting, OS user identity, 14-language/system-language UI, themes, diagnostics export, update recovery and native packaging gates.</p>
+      <p>Local automations, daily/weekly/cumulative Token insights with a local profile picture, per-model filtering and breakdowns, combined cache-hit Tokens and reporting coverage, fork-safe usage accounting, OS user identity, 14-language/system-language UI, themes, diagnostics export, update recovery and native packaging gates.</p>
     </td>
   </tr>
 </table>
@@ -298,25 +299,31 @@ other everyday tasks.
   to the owning composer, and interrupted Agent-team context is injected only
   for an explicit continuation request.
 - **Composer and commands** — send text, local files, images, PDF and Office
-  attachments through the picker, drag/drop or clipboard; reuse prompt history;
+  attachments through the picker, drag/drop or clipboard; pasted images finish
+  loading before the matching text submission captures its attachments; reuse prompt history;
   invoke `/goal`, `/init` and one or more `/skill` selections; switch mode with
   `/plan`, `/execute` or `/review` anywhere in a message; choose the model and
   thinking level.
 - **Task environment** — open a compact header panel for Git changes, local
-  repository and branch state, branch switching, commit/push actions, child
+  repository and branch state from the active task checkout, branch search,
+  local/remote switching, branch creation/publishing, commit/push actions, child
   Agents and teams, MCP usage, and attached task sources. Agents and teams keep
   stable identity-specific color and geometry marks across the timeline,
   workspace tabs and environment panel. The panel auto-hides before it can
   overlap the centered timeline and restores itself when the workspace widens;
-  Git mutations remain behind main-process validation and are disabled while
-  local tasks are active.
+  Git metadata and worktree changes refresh the open panel automatically;
+  Compare and Review use the same base. Git mutations remain behind main-process
+  validation and are disabled while local tasks are active. Interactive tasks
+  remain intentionally Local-only, so the panel does not expose inert Worktree
+  or Remote targets.
 - **Streaming timeline** — render safe Markdown, text/thinking deltas, tool
   input/output, approval cards with the model's decision, structured workflow
   choices, child-Agent status, errors and completion states in original event
   order. Pending selection requests stay inline as timeline cards with their
   countdown in the header while the normal composer and stop control remain
-  available. Pending approvals keep their actions visible, while approved and
-  denied requests collapse into compact summaries with expandable details.
+  available. Pending approvals keep their actions visible, while approvals from
+  the same turn collapse into one counted summary with per-action details and
+  denied requests remain individually inspectable.
 - **Progress and context** — `update_plan` produces visible multi-step progress
   only while its turn remains active; run timing and context-window usage remain
   visible. The context indicator distinguishes the current local estimate from
@@ -328,11 +335,20 @@ other everyday tasks.
   system prompt, tools, MCP schemas, project instructions and Skills that remain
   in context. Usage Insights adds daily, weekly and cumulative Token totals with
   a calendar heatmap, all-model or per-model filtering, a Provider/model usage
-  table, cache hit rate, cache-reporting coverage and automatic policy
-  distribution while avoiding double-counting forked history. Older events
-  recorded before model attribution remain visible in an explicit unassigned
-  group. A missing Provider cache breakdown remains unknown instead of being
-  rendered as a 0% hit rate.
+  table, combined cache-read/write hit Tokens, cache hit rate,
+  cache-reporting coverage and automatic policy distribution while avoiding
+  double-counting forked history. Older events recorded before model attribution
+  remain part of totals but are omitted from the model table. A missing Provider
+  cache breakdown remains unknown instead of being rendered as a 0% hit rate.
+
+- **Persistent Goal lifecycle** — `/goal <objective>` optionally accepts
+  `--token-budget`, while `/goal pause`, `/goal resume` and `/goal clear` map to
+  the durable `active`, `paused`, `blocked`, `usageLimited`, `budgetLimited` and
+  `complete` state machine. The composer-adjacent Goal bar exposes objective,
+  status, Token budget/progress, elapsed time and valid actions. Active Execute
+  Goals continue only after the existing Pi turn becomes truly idle; waiting
+  approvals, structured questions, user work, Plan/Review, compaction, limits,
+  cancellation and terminal states retain priority and stop continuation.
 
 </details>
 
@@ -1007,7 +1023,12 @@ bounded subteam and must integrate it before completing.
 - Main-turn model streams have a 120-second idle watchdog. Text, thinking and
   tool-call deltas refresh it, tool execution pauses it, and a silent provider
   stream is cancelled with a readable retry error instead of leaving the task
-  permanently running.
+  permanently running. Connection failures before visible output use a
+  cancellable 5-to-60-second backoff inside the same logical turn, separate
+  from Pi's finite service retry budget. Once output has begun, Artemis stops
+  with an explicit interruption instead of blindly replaying the prompt. An
+  unexpected Agent Host exit rebuilds the host and reopens persisted sessions,
+  but likewise never replays an active prompt without a provider resume cursor.
 - Every persisted UI event uses a versioned envelope and an idempotent reducer.
 - The Renderer never imports Electron main-process or Node APIs.
 - Plan and Review writes are denied before an executor runs and do not expose
@@ -1040,14 +1061,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.19`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.20`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.19
-git push origin v1.4.19
+git tag v1.4.20
+git push origin v1.4.20
 ```
 
 ### Build and test matrix
@@ -1060,11 +1081,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **1034 passing tests** (7 skipped):
+The current full test run contains **1068 passing tests** (7 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       65 |       23 |        128 |     818 |  **1034** |
+|       69 |       23 |        135 |     841 |  **1068** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1093,13 +1114,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.19` packaging configuration produces:
+The `1.4.20` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.19.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.19.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.19.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.20.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.20.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.20.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

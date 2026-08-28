@@ -1,5 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { watch, type FSWatcher } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { userInfo } from "node:os";
 import { monitorEventLoopDelay, type IntervalHistogram } from "node:perf_hooks";
@@ -62,11 +63,13 @@ import type {
   ShellRuntimeConfiguration,
   TaskWorktree,
   Thread,
+  ThreadGoal,
   ThreadCommand,
   UserInputResolution,
 } from "@artemis/protocol";
 
 import {
+  AGENT_CONCURRENCY_FALLBACK,
   PROTOCOL_VERSION,
   appLocaleSchema,
   appLanguageSchema,
@@ -89,7 +92,7 @@ import {
   worktreeCommandSchema,
 } from "@artemis/protocol";
 
-import { AgentProcess } from "./agent-process.js";
+import { AgentProcess, type AgentProcessHandlers } from "./agent-process.js";
 import {
   AgentCapacityController,
   type AgentCapacityChange,
@@ -138,6 +141,7 @@ import { loadPromptAttachments } from "./prompt-attachments.js";
 import {
   commitProjectChanges,
   createGitBranch,
+  gitRepositoryWatchPaths,
   inspectGitBranches,
   pushProjectBranch,
   switchGitBranch,
@@ -622,6 +626,26 @@ const cancellingTurns = new Set<string>();
 const compactingThreads = new Set<string>();
 const pendingApprovals = new PendingApprovalRegistry<PendingApproval>();
 const pendingUserInputs = new PendingUserInputRegistry<PendingUserInput>();
+const scheduledGoalContinuations = new Set<string>();
+const goalTurnContexts = new Map<
+  string,
+  {
+    threadId: string;
+    goalId: string;
+    mode: StartTurnInput["mode"];
+    source: "user" | "goal-continuation";
+    startedAt: number;
+  }
+>();
+const goalCreationAuthorizations = new Set<string>();
+const goalBlockerRecordedTurns = new Set<string>();
+const projectGitWatchers = new Map<
+  string,
+  { watchers: FSWatcher[]; signature: string; timer?: NodeJS.Timeout }
+>();
+const projectGitWatcherSenders = new Set<number>();
+const interruptedAgentHostTurns = new Set<string>();
+let agentHostRestart: Promise<void> | undefined;
 
 function elapsed(
   start: number | undefined,
@@ -1104,6 +1128,133 @@ async function resolveModelSelection(
       selectedModel.contextWindow,
     ),
   };
+}
+
+function agentProcessHandlers(): AgentProcessHandlers {
+  return {
+    onEvent(threadId, turnId, payload) {
+      emitPayload(threadId, turnId, payload);
+    },
+    onEvents(events) {
+      emitPayloadBatch(events);
+    },
+    onTurnTelemetry(event) {
+      const trace = turnLatencyTraces.get(event.turnId);
+      if (trace && event.stage === "host-received") {
+        trace.hostReceivedAt ??= event.timestamp;
+      }
+    },
+    onThreadSession(threadId, sessionFile) {
+      if (store?.getThread(threadId)) {
+        store.updateThread(threadId, { sessionFile });
+      }
+    },
+    onBrokerRequest: handleBrokerRequest,
+    onStderr(data) {
+      diagnosticBundleService?.record({
+        source: "agent-host",
+        severity: "error",
+        message: data,
+      });
+    },
+    onExit(code, expected) {
+      diagnosticBundleService?.record({
+        source: "agent-host",
+        severity: expected ? "info" : "fatal",
+        message: `Agent host exited with code ${code ?? "unknown"}${expected ? " during shutdown" : ""}.`,
+      });
+      if (!expected) restartAgentHost(code);
+    },
+  };
+}
+
+function createAgentHostProcess(): AgentProcess {
+  const codexRuntimeRoot = codexPrimaryRuntimePath();
+  return new AgentProcess(
+    join(import.meta.dirname, "agent-worker.js"),
+    agentProcessHandlers(),
+    {
+      ...(codexRuntimeRoot ? { codexRuntimeRoot } : {}),
+      agentConcurrencyLimit:
+        agentCapacityController?.limit ?? AGENT_CONCURRENCY_FALLBACK,
+    },
+  );
+}
+
+function interruptTurnsAfterAgentHostExit(): void {
+  if (!store) return;
+  for (const cancelled of pendingApprovals.cancelWhere(() => true)) {
+    emitPayload(
+      cancelled.value.request.threadId,
+      cancelled.value.request.turnId,
+      {
+        type: "approval.resolved",
+        approvalId: cancelled.approvalId,
+        nonce: cancelled.nonce,
+        approved: false,
+        scope: "once",
+      },
+    );
+  }
+  for (const cancelled of pendingUserInputs.cancelWhere(() => true)) {
+    clearTimeout(cancelled.value.timeout);
+    emitPayload(
+      cancelled.value.request.threadId,
+      cancelled.value.request.turnId,
+      {
+        type: "user-input.resolved",
+        requestId: cancelled.requestId,
+        nonce: cancelled.nonce,
+        answer: "",
+        source: "cancelled",
+      },
+    );
+  }
+  for (const [threadId, turnId] of [...activeTurns]) {
+    interruptedAgentHostTurns.add(turnId);
+    emitPayload(threadId, turnId, {
+      type: "turn.failed",
+      code: "AGENT_HOST_INTERRUPTED",
+      message:
+        "The Agent Host exited during this turn. Artemis restored the host and session state but did not replay the prompt, because completed writes could not be proven safe to repeat.",
+    });
+  }
+}
+
+function restartAgentHost(code: number | null): void {
+  if (agentHostRestart) return;
+  const reopenedThreadIds = [...openedThreads];
+  interruptTurnsAfterAgentHostExit();
+  openedThreads.clear();
+  openingThreads.clear();
+  const restart = (async () => {
+    agentProcess = createAgentHostProcess();
+    await applyAgentRuntime();
+    for (const threadId of reopenedThreadIds) {
+      const thread = store?.getThread(threadId);
+      if (!thread || thread.archived) continue;
+      const context = await resolveThreadWorkspace(thread);
+      await openAgentThread(thread, context.workspacePath);
+    }
+    diagnosticBundleService?.record({
+      source: "agent-host",
+      severity: "info",
+      message: `Agent host recovered after unexpected exit ${code ?? "unknown"}; persisted sessions were reopened without replaying active prompts.`,
+    });
+  })();
+  agentHostRestart = restart;
+  agentRuntimeReady = restart;
+  void restart
+    .catch((error) => {
+      diagnosticBundleService?.record({
+        source: "agent-host",
+        severity: "fatal",
+        message: `Agent host recovery failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    })
+    .finally(() => {
+      if (agentHostRestart === restart) agentHostRestart = undefined;
+    });
 }
 
 async function applyAgentRuntime(
@@ -1963,6 +2114,74 @@ async function resolveThreadWorkspace(thread: Thread): Promise<{
   };
 }
 
+function closeProjectGitWatchersForSender(senderId: number): void {
+  for (const [key, registration] of projectGitWatchers) {
+    if (!key.startsWith(`${senderId}\0`)) continue;
+    if (registration.timer) clearTimeout(registration.timer);
+    for (const watcher of registration.watchers) watcher.close();
+    projectGitWatchers.delete(key);
+  }
+  projectGitWatcherSenders.delete(senderId);
+}
+
+async function ensureProjectGitWatcher(
+  sender: WebContents,
+  projectId: string,
+  threadId: string | undefined,
+  workspacePath: string,
+  initialInfo: ProjectGitInfo,
+): Promise<void> {
+  const key = `${sender.id}\0${projectId}\0${threadId ?? ""}`;
+  if (projectGitWatchers.has(key)) return;
+  const paths = await gitRepositoryWatchPaths(workspacePath);
+  if (paths.length === 0) return;
+  const registration: {
+    watchers: FSWatcher[];
+    signature: string;
+    timer?: NodeJS.Timeout;
+  } = {
+    watchers: [],
+    signature: JSON.stringify(initialInfo),
+  };
+  const changed = () => {
+    if (registration.timer) clearTimeout(registration.timer);
+    registration.timer = setTimeout(async () => {
+      delete registration.timer;
+      let signature: string;
+      try {
+        signature = JSON.stringify(await inspectGitBranches(workspacePath));
+      } catch {
+        signature = "unavailable";
+      }
+      if (signature === registration.signature) return;
+      registration.signature = signature;
+      if (!sender.isDestroyed()) {
+        sender.send(IPC.projectGitChanged, {
+          projectId,
+          ...(threadId ? { threadId } : {}),
+        });
+      }
+    }, 120);
+  };
+  for (const path of paths) {
+    try {
+      registration.watchers.push(watch(path, { recursive: true }, changed));
+    } catch {
+      try {
+        registration.watchers.push(watch(path, changed));
+      } catch {
+        // A disappearing Git metadata path will be recovered on the next read.
+      }
+    }
+  }
+  if (registration.watchers.length === 0) return;
+  projectGitWatchers.set(key, registration);
+  if (!projectGitWatcherSenders.has(sender.id)) {
+    projectGitWatcherSenders.add(sender.id);
+    sender.once("destroyed", () => closeProjectGitWatchersForSender(sender.id));
+  }
+}
+
 async function linkedWorkspaceFile(
   threadIdInput: string,
   hrefInput: string,
@@ -2121,6 +2340,118 @@ function applyPayloadSideEffects(
   }
 }
 
+function isUsageLimitFailure(
+  payload: Extract<AgentPayload, { type: "turn.failed" }>,
+): boolean {
+  return (
+    payload.code === "RATE_LIMITED" ||
+    /(?:usage|rate|token)\s+limit|quota|\b429\b/iu.test(payload.message)
+  );
+}
+
+function scheduleGoalContinuation(threadId: string, goalId: string): void {
+  if (scheduledGoalContinuations.has(threadId)) return;
+  scheduledGoalContinuations.add(threadId);
+  setTimeout(() => {
+    scheduledGoalContinuations.delete(threadId);
+    if (!store || !agentProcess) return;
+    const thread = store.getThread(threadId);
+    if (
+      !thread ||
+      thread.archived ||
+      thread.mode !== "execute" ||
+      thread.goal?.goalId !== goalId ||
+      thread.goal.status !== "active" ||
+      activeTurns.has(threadId) ||
+      compactingThreads.has(threadId) ||
+      cancellingTurns.has(threadId) ||
+      pendingApprovals.hasWhere(
+        (pending) => pending.request.threadId === threadId,
+      ) ||
+      pendingUserInputs.hasWhere(
+        (pending) => pending.request.threadId === threadId,
+      )
+    ) {
+      return;
+    }
+    void startTaskTurn(
+      {
+        threadId,
+        mode: "execute",
+        text: "Continue working toward the active Goal. Inspect current evidence and state, make the next meaningful progress, and call update_goal only when completion or the repeated-blocker rule is actually satisfied.",
+      },
+      { source: "goal-continuation", expectedGoalId: goalId },
+    ).catch((error) => {
+      const current = store?.getThreadGoal(threadId);
+      if (current?.goalId === goalId && current.status === "active") {
+        const blocked = store!.markThreadGoalBlocked(threadId, goalId);
+        emitGoalUpdated(blocked);
+      }
+      diagnosticBundleService?.record({
+        source: "main",
+        severity: "error",
+        message: `Goal continuation could not start: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    });
+  }, 0);
+}
+
+function accountGoalPayload(
+  turnId: string | undefined,
+  payload: AgentPayload,
+): void {
+  if (!store || !turnId) return;
+  if (payload.type === "turn.completed" || payload.type === "turn.failed") {
+    goalCreationAuthorizations.delete(turnId);
+    for (const key of goalBlockerRecordedTurns) {
+      if (key.startsWith(`${turnId}\0`)) goalBlockerRecordedTurns.delete(key);
+    }
+  }
+  const context = goalTurnContexts.get(turnId);
+  if (!context) return;
+  const current = store.getThreadGoal(context.threadId);
+  if (!current || current.goalId !== context.goalId) {
+    goalTurnContexts.delete(turnId);
+    return;
+  }
+  if (payload.type === "assistant.usage") {
+    const updated = store.updateThreadGoalAccounting(
+      context.threadId,
+      context.goalId,
+      payload.totalTokens,
+      0,
+    );
+    if (updated) emitGoalUpdated(updated, turnId);
+    return;
+  }
+  if (payload.type !== "turn.completed" && payload.type !== "turn.failed") {
+    return;
+  }
+  goalTurnContexts.delete(turnId);
+  let goal = store.updateThreadGoalAccounting(
+    context.threadId,
+    context.goalId,
+    0,
+    (Date.now() - context.startedAt) / 1_000,
+  );
+  if (!goal) return;
+  if (goal.status === "active" && payload.type === "turn.failed") {
+    goal = isUsageLimitFailure(payload)
+      ? store.markThreadGoalUsageLimited(context.threadId, context.goalId)
+      : store.markThreadGoalBlocked(context.threadId, context.goalId);
+  } else if (
+    goal.status === "active" &&
+    payload.type === "turn.completed" &&
+    payload.reason === "cancelled"
+  ) {
+    goal = store.pauseThreadGoal(context.threadId);
+  }
+  emitGoalUpdated(goal, turnId);
+  if (goal.status === "active") {
+    scheduleGoalContinuation(context.threadId, context.goalId);
+  }
+}
+
 function emitPayload(
   threadId: string,
   turnId: string | undefined,
@@ -2133,6 +2464,7 @@ function emitPayload(
   const event = store.appendEvent(randomUUID(), threadId, turnId, payload);
   mainWindow?.webContents.send(IPC.agentEvent, event);
   applyPayloadSideEffects(threadId, payload);
+  accountGoalPayload(turnId, payload);
   return event;
 }
 
@@ -2164,6 +2496,7 @@ function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
   mainWindow?.webContents.send(IPC.agentEvents, persisted);
   for (const event of durableEvents) {
     applyPayloadSideEffects(threadId, event.payload);
+    accountGoalPayload(event.turnId, event.payload);
   }
   return persisted;
 }
@@ -2174,10 +2507,13 @@ function emitInitialTurn(
   text: string,
   mode: StartTurnInput["mode"],
   attachments: PromptAttachment[],
+  visibleUserMessage = true,
 ): AgentEvent[] {
   if (!store) throw new Error("Application store is not ready.");
   const payloads: AgentPayload[] = [
-    { type: "user.message", messageId: randomUUID(), text },
+    ...(visibleUserMessage
+      ? [{ type: "user.message" as const, messageId: randomUUID(), text }]
+      : []),
     ...attachments.map((attachment): AgentPayload => ({
       type: "task.source.added",
       sourceId: randomUUID(),
@@ -2844,6 +3180,11 @@ async function handleBrokerRequest(
     return;
   }
   switch (request.kind) {
+    case "goal.get":
+    case "goal.create":
+    case "goal.update":
+      handleGoalBrokerRequest(workerRequestId, request);
+      return;
     case "user.input":
       handleUserInputBrokerRequest(workerRequestId, request);
       return;
@@ -3011,6 +3352,148 @@ async function handleBrokerRequest(
     modelReason: request.modelApproval.reason,
     ...(request.actorAgentId ? { actorAgentId: request.actorAgentId } : {}),
   });
+}
+
+type GoalBrokerRequest = Extract<
+  BrokerExecutionRequest,
+  { kind: "goal.get" | "goal.create" | "goal.update" }
+>;
+
+function emitGoalUpdated(goal: ThreadGoal, turnId?: string): void {
+  emitPayload(goal.threadId, turnId, {
+    type: "thread.goal.updated",
+    goal,
+  });
+}
+
+function emitGoalCleared(
+  threadId: string,
+  cleared: { goalId: string; revision: number },
+  turnId?: string,
+): void {
+  emitPayload(threadId, turnId, {
+    type: "thread.goal.cleared",
+    goalId: cleared.goalId,
+    revision: cleared.revision,
+  });
+}
+
+function resolveGoalBrokerRequest(
+  workerRequestId: string,
+  request: GoalBrokerRequest,
+  data: unknown,
+): void {
+  agentProcess?.post({
+    type: "broker.resolve",
+    requestId: workerRequestId,
+    resolution: {
+      approvalId: request.approvalId,
+      nonce: randomUUID(),
+      approved: true,
+      scope: "once",
+      source: "policy",
+    },
+    result: data,
+  });
+}
+
+function handleGoalBrokerRequest(
+  workerRequestId: string,
+  request: GoalBrokerRequest,
+): void {
+  if (!agentProcess || !store) return;
+  const thread = store.getThread(request.threadId);
+  if (
+    !thread ||
+    activeTurns.get(request.threadId) !== request.turnId ||
+    thread.mode !== request.mode
+  ) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "Goal tools require the active task turn.",
+    );
+    return;
+  }
+  if (request.kind === "goal.get") {
+    const goal = store.getThreadGoal(request.threadId);
+    resolveGoalBrokerRequest(workerRequestId, request, {
+      goal: goal ?? null,
+      remainingTokens:
+        goal?.tokenBudget === undefined
+          ? null
+          : Math.max(0, goal.tokenBudget - goal.tokensUsed),
+    });
+    return;
+  }
+  if (request.mode !== "execute") {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "Goal mutations require Execute mode.",
+    );
+    return;
+  }
+  try {
+    if (request.kind === "goal.create") {
+      if (!goalCreationAuthorizations.has(request.turnId)) {
+        throw new Error(
+          "A Goal can be created only when the user or system explicitly requested it.",
+        );
+      }
+      const goal = store.setThreadGoal(
+        request.threadId,
+        request.objective,
+        request.tokenBudget,
+        false,
+      );
+      goalTurnContexts.set(request.turnId, {
+        threadId: request.threadId,
+        goalId: goal.goalId,
+        mode: request.mode,
+        source: "user",
+        startedAt: Date.now(),
+      });
+      emitGoalUpdated(goal, request.turnId);
+      resolveGoalBrokerRequest(workerRequestId, request, { goal });
+      return;
+    }
+    const goal = store.getThreadGoal(request.threadId);
+    if (!goal) throw new Error("This task has no active Goal.");
+    if (request.status === "complete") {
+      const completed = store.completeThreadGoal(request.threadId, goal.goalId);
+      emitGoalUpdated(completed, request.turnId);
+      resolveGoalBrokerRequest(workerRequestId, request, { goal: completed });
+      return;
+    }
+    const blocker = request.blocker?.trim().replace(/\s+/gu, " ");
+    if (!blocker) throw new Error("A blocked Goal requires a blocker.");
+    const blockerTurnKey = `${request.turnId}\0${goal.goalId}`;
+    if (goalBlockerRecordedTurns.has(blockerTurnKey)) {
+      throw new Error("A blocker can be counted only once in each Goal turn.");
+    }
+    goalBlockerRecordedTurns.add(blockerTurnKey);
+    const recorded = store.recordThreadGoalBlocker(
+      request.threadId,
+      goal.goalId,
+      blocker.toLocaleLowerCase(),
+    );
+    emitGoalUpdated(recorded.goal, request.turnId);
+    if (recorded.attempts < 3) {
+      throw new Error(
+        `The blocker was recorded for ${recorded.attempts}/3 consecutive Goal turns. Continue if meaningful progress is still possible.`,
+      );
+    }
+    resolveGoalBrokerRequest(workerRequestId, request, {
+      goal: recorded.goal,
+    });
+  } catch (error) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
 }
 
 async function handleMemoryAppendBrokerRequest(
@@ -4042,8 +4525,16 @@ async function createTaskThread(
   }
 }
 
-async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
+async function startTaskTurn(
+  input: StartTurnInput,
+  options: {
+    source?: "user" | "goal-continuation";
+    expectedGoalId?: string;
+  } = {},
+): Promise<StartTurnResult> {
   const mainReceivedAt = Date.now();
+  const source = options.source ?? "user";
+  if (agentHostRestart) await agentHostRestart;
   if (!store || !agentProcess) {
     throw new Error("Agent process is not ready.");
   }
@@ -4060,6 +4551,13 @@ async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
   if (compactingThreads.has(thread.id)) {
     throw new Error("Wait for context compaction to finish.");
   }
+  if (
+    source === "goal-continuation" &&
+    (thread.goal?.status !== "active" ||
+      thread.goal.goalId !== options.expectedGoalId)
+  ) {
+    throw new Error("The Goal changed before its continuation could start.");
+  }
   const text = input.text.trim();
   const attachments = promptAttachmentsSchema.parse(input.attachments ?? []);
   if (!text && attachments.length === 0) {
@@ -4067,7 +4565,7 @@ async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
   }
   const requestText =
     text || `Inspect the attached file${attachments.length === 1 ? "" : "s"}.`;
-  if (isAutomaticTaskTitle(thread.title)) {
+  if (source === "user" && isAutomaticTaskTitle(thread.title)) {
     thread = store.updateThread(thread.id, {
       title: deriveTaskTitle(text, currentLocale()),
     });
@@ -4174,7 +4672,14 @@ async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
   }
 
   try {
-    emitInitialTurn(thread.id, turnId, requestText, input.mode, attachments);
+    emitInitialTurn(
+      thread.id,
+      turnId,
+      requestText,
+      input.mode,
+      attachments,
+      source === "user",
+    );
   } catch (error) {
     trace.completedAt = Date.now();
     trace.outcome = "failed";
@@ -4182,6 +4687,23 @@ async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
     throw error;
   }
   activeTurns.set(thread.id, turnId);
+  if (
+    source === "user" &&
+    /(?:\b(?:create|set|start)\b[^\n]{0,80}\bgoal\b|\bgoal\b[^\n]{0,80}\b(?:create|set|start)\b|(?:创建|设置|开始|建立).{0,40}(?:目标|Goal))/iu.test(
+      requestText,
+    )
+  ) {
+    goalCreationAuthorizations.add(turnId);
+  }
+  if (thread.goal?.status === "active" && input.mode === "execute") {
+    goalTurnContexts.set(turnId, {
+      threadId: thread.id,
+      goalId: thread.goal.goalId,
+      mode: input.mode,
+      source,
+      startedAt: Date.now(),
+    });
+  }
 
   trace.hostDispatchedAt = Date.now();
   void agentProcess
@@ -4197,6 +4719,7 @@ async function startTaskTurn(input: StartTurnInput): Promise<StartTurnResult> {
       ...(memoryContext ? { memoryContext } : {}),
     })
     .catch((error) => {
+      if (interruptedAgentHostTurns.delete(turnId)) return;
       emitPayload(thread.id, turnId, {
         type: "turn.failed",
         message: error instanceof Error ? error.message : String(error),
@@ -4528,6 +5051,101 @@ function automationRunNotification(
     }
   });
   notification.show();
+}
+
+async function cancelTaskTurn(threadId: string): Promise<void> {
+  if (!agentProcess || !store) {
+    throw new Error("Application is not ready.");
+  }
+  const command = parseThreadCommand({ type: "turn.cancel", threadId });
+  const thread = store.getThread(command.threadId);
+  const turnId = activeTurns.get(command.threadId);
+  if (
+    !thread ||
+    (thread.status !== "running" && thread.status !== "waiting-approval") ||
+    !turnId
+  ) {
+    throw new Error("Task has no active turn.");
+  }
+  const cancelledApprovals = pendingApprovals.cancelWhere(
+    (pending) => pending.request.threadId === thread.id,
+  );
+  cancellingTurns.add(thread.id);
+  for (const cancelled of cancelledApprovals) {
+    emitPayload(
+      cancelled.value.request.threadId,
+      cancelled.value.request.turnId,
+      {
+        type: "approval.resolved",
+        approvalId: cancelled.approvalId,
+        nonce: cancelled.nonce,
+        approved: false,
+        scope: "once",
+      },
+    );
+    agentProcess.post({
+      type: "broker.resolve",
+      requestId: cancelled.value.workerRequestId,
+      resolution: {
+        approvalId: cancelled.approvalId,
+        nonce: cancelled.nonce,
+        approved: false,
+        scope: "once",
+      },
+      error: "The turn was cancelled.",
+    });
+  }
+  const cancelledUserInputs = pendingUserInputs.cancelWhere(
+    (pending) => pending.request.threadId === thread.id,
+  );
+  for (const cancelled of cancelledUserInputs) {
+    clearTimeout(cancelled.value.timeout);
+    emitPayload(
+      cancelled.value.request.threadId,
+      cancelled.value.request.turnId,
+      {
+        type: "user-input.resolved",
+        requestId: cancelled.requestId,
+        nonce: cancelled.nonce,
+        answer: "",
+        source: "cancelled",
+      },
+    );
+    agentProcess.post({
+      type: "broker.resolve",
+      requestId: cancelled.value.workerRequestId,
+      resolution: {
+        approvalId: cancelled.requestId,
+        nonce: cancelled.nonce,
+        approved: false,
+        scope: "once",
+        source: "user",
+      },
+      error: "The turn was cancelled.",
+    });
+  }
+  try {
+    await agentProcess.request({
+      type: "turn.cancel",
+      requestId: randomUUID(),
+      threadId: command.threadId,
+    });
+  } finally {
+    cancellingTurns.delete(command.threadId);
+  }
+  activeTurns.delete(command.threadId);
+  emitPayload(command.threadId, turnId, {
+    type: "turn.completed",
+    reason: "cancelled",
+  });
+}
+
+async function cancelRunningGoalContinuation(threadId: string): Promise<void> {
+  const turnId = activeTurns.get(threadId);
+  const context = turnId ? goalTurnContexts.get(turnId) : undefined;
+  if (context?.source === "goal-continuation") {
+    await cancelTaskTurn(threadId);
+  }
 }
 
 function registerIpc(): void {
@@ -6647,6 +7265,29 @@ function registerIpc(): void {
     return project;
   };
 
+  const workspaceForGitRequest = async (
+    projectId: unknown,
+    threadId: unknown,
+  ): Promise<{
+    project: Project;
+    workspacePath: string;
+    threadId?: string;
+  }> => {
+    const project = projectForGitRequest(projectId);
+    if (threadId === undefined || threadId === null || threadId === "") {
+      return { project, workspacePath: project.path };
+    }
+    if (typeof threadId !== "string") {
+      throw new Error("Thread ID is invalid.");
+    }
+    const thread = store?.getThread(threadId);
+    if (!thread || thread.projectId !== project.id) {
+      throw new Error("Task does not belong to this project.");
+    }
+    const context = await resolveThreadWorkspace(thread);
+    return { project, workspacePath: context.workspacePath, threadId };
+  };
+
   const assertProjectGitMutationAllowed = (projectId: string): void => {
     const hasLiveLocalTurn = [...activeTurns.keys()].some((threadId) => {
       const thread = store?.getThread(threadId);
@@ -6661,19 +7302,37 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.projectGitInfo,
-    (_event, projectId: string): Promise<ProjectGitInfo> =>
-      inspectGitBranches(projectForGitRequest(projectId).path),
+    async (
+      event,
+      projectId: string,
+      threadId?: string,
+    ): Promise<ProjectGitInfo> => {
+      const context = await workspaceForGitRequest(projectId, threadId);
+      const info = await inspectGitBranches(context.workspacePath);
+      await ensureProjectGitWatcher(
+        event.sender,
+        context.project.id,
+        context.threadId,
+        context.workspacePath,
+        info,
+      );
+      return info;
+    },
   );
 
   ipcMain.handle(
     IPC.projectPullRequest,
-    async (_event, projectId: string): Promise<ProjectPullRequestLookup> => {
-      const project = projectForGitRequest(projectId);
+    async (
+      _event,
+      projectId: string,
+      threadId?: string,
+    ): Promise<ProjectPullRequestLookup> => {
+      const context = await workspaceForGitRequest(projectId, threadId);
       if (
         smokeMode &&
         process.env.ARTEMIS_SMOKE_VIEW === "environment-pr-checks"
       ) {
-        const gitInfo = await inspectGitBranches(project.path);
+        const gitInfo = await inspectGitBranches(context.workspacePath);
         return {
           status: "found",
           pullRequest: {
@@ -6701,59 +7360,70 @@ function registerIpc(): void {
           },
         };
       }
-      return inspectProjectPullRequest(project.path);
+      return inspectProjectPullRequest(context.workspacePath);
     },
   );
 
   ipcMain.handle(
     IPC.projectGitBranchSwitch,
-    (
+    async (
       _event,
       projectId: string,
       branchName: string,
+      threadId?: string,
     ): Promise<ProjectGitInfo> => {
-      const project = projectForGitRequest(projectId);
-      assertProjectGitMutationAllowed(project.id);
-      return switchGitBranch(project.path, String(branchName ?? ""));
+      const context = await workspaceForGitRequest(projectId, threadId);
+      assertProjectGitMutationAllowed(context.project.id);
+      return switchGitBranch(context.workspacePath, String(branchName ?? ""));
     },
   );
 
   ipcMain.handle(
     IPC.projectGitBranchCreate,
-    (
+    async (
       _event,
       projectId: string,
       branchName: string,
+      threadId?: string,
     ): Promise<ProjectGitInfo> => {
-      const project = projectForGitRequest(projectId);
-      assertProjectGitMutationAllowed(project.id);
-      return createGitBranch(project.path, String(branchName ?? ""));
+      const context = await workspaceForGitRequest(projectId, threadId);
+      assertProjectGitMutationAllowed(context.project.id);
+      return createGitBranch(context.workspacePath, String(branchName ?? ""));
     },
   );
 
   ipcMain.handle(
     IPC.projectGitCommit,
-    (
+    async (
       _event,
       projectId: string,
       message: string,
       includeUnstaged: boolean,
+      threadId?: string,
     ): Promise<ProjectGitCommitResult> => {
-      const project = projectForGitRequest(projectId);
-      assertProjectGitMutationAllowed(project.id);
+      const context = await workspaceForGitRequest(projectId, threadId);
+      assertProjectGitMutationAllowed(context.project.id);
       if (typeof includeUnstaged !== "boolean") {
         throw new Error("Include-unstaged selection is invalid.");
       }
-      return commitProjectChanges(project.path, message, includeUnstaged);
+      return commitProjectChanges(
+        context.workspacePath,
+        message,
+        includeUnstaged,
+      );
     },
   );
 
   ipcMain.handle(
     IPC.projectGitPush,
-    (_event, projectId: string): Promise<ProjectGitPushResult> => {
-      const project = projectForGitRequest(projectId);
-      assertProjectGitMutationAllowed(project.id);
-      return pushProjectBranch(project.path);
+    async (
+      _event,
+      projectId: string,
+      threadId?: string,
+    ): Promise<ProjectGitPushResult> => {
+      const context = await workspaceForGitRequest(projectId, threadId);
+      assertProjectGitMutationAllowed(context.project.id);
+      return pushProjectBranch(context.workspacePath);
     },
   );
 
@@ -6865,20 +7535,76 @@ function registerIpc(): void {
   );
 
   ipcMain.handle(
-    IPC.threadGoal,
-    (_event, threadId: string, goal: string | null): Thread => {
-      if (!store) {
-        throw new Error("Application store is not ready.");
-      }
+    IPC.threadGoalSet,
+    (
+      _event,
+      threadId: string,
+      objective: string,
+      tokenBudget?: number,
+    ): Thread => {
+      if (!store) throw new Error("Application store is not ready.");
       const command = parseThreadCommand({
-        type: "thread.goal",
+        type: "thread.goal.set",
         threadId,
-        goal,
+        objective,
+        ...(tokenBudget === undefined ? {} : { tokenBudget }),
       });
-      if (!store.getThread(command.threadId)) {
-        throw new Error(`Thread not found: ${command.threadId}`);
+      const goal = store.setThreadGoal(
+        command.threadId,
+        command.objective,
+        command.tokenBudget,
+        true,
+      );
+      emitGoalUpdated(goal, activeTurns.get(command.threadId));
+      return store.getThread(command.threadId)!;
+    },
+  );
+
+  ipcMain.handle(
+    IPC.threadGoalPause,
+    async (_event, threadId: string): Promise<Thread> => {
+      if (!store) throw new Error("Application store is not ready.");
+      const command = parseThreadCommand({
+        type: "thread.goal.pause",
+        threadId,
+      });
+      const goal = store.pauseThreadGoal(command.threadId);
+      emitGoalUpdated(goal, activeTurns.get(command.threadId));
+      await cancelRunningGoalContinuation(command.threadId);
+      return store.getThread(command.threadId)!;
+    },
+  );
+
+  ipcMain.handle(IPC.threadGoalResume, (_event, threadId: string): Thread => {
+    if (!store) throw new Error("Application store is not ready.");
+    const command = parseThreadCommand({
+      type: "thread.goal.resume",
+      threadId,
+    });
+    const goal = store.resumeThreadGoal(command.threadId);
+    emitGoalUpdated(goal, activeTurns.get(command.threadId));
+    scheduleGoalContinuation(command.threadId, goal.goalId);
+    return store.getThread(command.threadId)!;
+  });
+
+  ipcMain.handle(
+    IPC.threadGoalClear,
+    async (_event, threadId: string): Promise<Thread> => {
+      if (!store) throw new Error("Application store is not ready.");
+      const command = parseThreadCommand({
+        type: "thread.goal.clear",
+        threadId,
+      });
+      const cleared = store.clearThreadGoal(command.threadId);
+      if (cleared) {
+        emitGoalCleared(
+          command.threadId,
+          cleared,
+          activeTurns.get(command.threadId),
+        );
+        await cancelRunningGoalContinuation(command.threadId);
       }
-      return store.updateThread(command.threadId, { goal: command.goal });
+      return store.getThread(command.threadId)!;
     },
   );
 
@@ -7554,95 +8280,9 @@ function registerIpc(): void {
     (_event, input: ReplaceQueuedTurnInput) => replaceTurnQueue(input),
   );
 
-  ipcMain.handle(IPC.turnCancel, async (_event, threadId: string) => {
-    if (!agentProcess || !store) {
-      throw new Error("Application is not ready.");
-    }
-    const command = parseThreadCommand({
-      type: "turn.cancel",
-      threadId,
-    });
-    const thread = store.getThread(command.threadId);
-    const turnId = activeTurns.get(command.threadId);
-    if (
-      !thread ||
-      (thread.status !== "running" && thread.status !== "waiting-approval") ||
-      !turnId
-    ) {
-      throw new Error("Task has no active turn.");
-    }
-    const cancelledApprovals = pendingApprovals.cancelWhere(
-      (pending) => pending.request.threadId === thread.id,
-    );
-    cancellingTurns.add(thread.id);
-    for (const cancelled of cancelledApprovals) {
-      emitPayload(
-        cancelled.value.request.threadId,
-        cancelled.value.request.turnId,
-        {
-          type: "approval.resolved",
-          approvalId: cancelled.approvalId,
-          nonce: cancelled.nonce,
-          approved: false,
-          scope: "once",
-        },
-      );
-      agentProcess.post({
-        type: "broker.resolve",
-        requestId: cancelled.value.workerRequestId,
-        resolution: {
-          approvalId: cancelled.approvalId,
-          nonce: cancelled.nonce,
-          approved: false,
-          scope: "once",
-        },
-        error: "The turn was cancelled.",
-      });
-    }
-    const cancelledUserInputs = pendingUserInputs.cancelWhere(
-      (pending) => pending.request.threadId === thread.id,
-    );
-    for (const cancelled of cancelledUserInputs) {
-      clearTimeout(cancelled.value.timeout);
-      emitPayload(
-        cancelled.value.request.threadId,
-        cancelled.value.request.turnId,
-        {
-          type: "user-input.resolved",
-          requestId: cancelled.requestId,
-          nonce: cancelled.nonce,
-          answer: "",
-          source: "cancelled",
-        },
-      );
-      agentProcess.post({
-        type: "broker.resolve",
-        requestId: cancelled.value.workerRequestId,
-        resolution: {
-          approvalId: cancelled.requestId,
-          nonce: cancelled.nonce,
-          approved: false,
-          scope: "once",
-          source: "user",
-        },
-        error: "The turn was cancelled.",
-      });
-    }
-    try {
-      await agentProcess.request({
-        type: "turn.cancel",
-        requestId: randomUUID(),
-        threadId: command.threadId,
-      });
-    } finally {
-      cancellingTurns.delete(command.threadId);
-    }
-    activeTurns.delete(command.threadId);
-    emitPayload(command.threadId, turnId, {
-      type: "turn.completed",
-      reason: "cancelled",
-    });
-  });
+  ipcMain.handle(IPC.turnCancel, (_event, threadId: string) =>
+    cancelTaskTurn(threadId),
+  );
 
   ipcMain.handle(
     IPC.childAgentControl,
@@ -8470,6 +9110,11 @@ function createMainWindow(): BrowserWindow {
   ipcMain.once(IPC.rendererReady, (event) => {
     if (event.sender.id === window.webContents.id) {
       markStartupStage("renderer-ready");
+      for (const thread of store?.listThreads() ?? []) {
+        if (thread.goal?.status === "active") {
+          scheduleGoalContinuation(thread.id, thread.goal.goalId);
+        }
+      }
     }
   });
 
@@ -9203,48 +9848,7 @@ app
         mainWindow?.webContents.send(IPC.terminalExit, event);
       },
     });
-    const codexRuntimeRoot = codexPrimaryRuntimePath();
-    agentProcess = new AgentProcess(
-      join(import.meta.dirname, "agent-worker.js"),
-      {
-        onEvent(threadId, turnId, payload) {
-          emitPayload(threadId, turnId, payload);
-        },
-        onEvents(events) {
-          emitPayloadBatch(events);
-        },
-        onTurnTelemetry(event) {
-          const trace = turnLatencyTraces.get(event.turnId);
-          if (trace && event.stage === "host-received") {
-            trace.hostReceivedAt ??= event.timestamp;
-          }
-        },
-        onThreadSession(threadId, sessionFile) {
-          if (store?.getThread(threadId)) {
-            store.updateThread(threadId, { sessionFile });
-          }
-        },
-        onBrokerRequest: handleBrokerRequest,
-        onStderr(data) {
-          diagnosticBundleService?.record({
-            source: "agent-host",
-            severity: "error",
-            message: data,
-          });
-        },
-        onExit(code, expected) {
-          diagnosticBundleService?.record({
-            source: "agent-host",
-            severity: expected ? "info" : "fatal",
-            message: `Agent host exited with code ${code ?? "unknown"}${expected ? " during shutdown" : ""}.`,
-          });
-        },
-      },
-      {
-        ...(codexRuntimeRoot ? { codexRuntimeRoot } : {}),
-        agentConcurrencyLimit: agentCapacityController.limit,
-      },
-    );
+    agentProcess = createAgentHostProcess();
     agentCapacityRuntime = {
       active: 0,
       activeParents: 0,

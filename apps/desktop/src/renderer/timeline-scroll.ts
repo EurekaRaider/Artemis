@@ -5,6 +5,23 @@ export interface TimelineScrollSnapshot {
   scrollTop: number;
 }
 
+export interface PendingTimelineRestore {
+  threadId: string;
+  snapshot?: TimelineScrollSnapshot;
+}
+
+export function prepareTimelineRestore(
+  threadId: string | undefined,
+  activeView: string,
+  snapshot: TimelineScrollSnapshot | undefined,
+): PendingTimelineRestore | undefined {
+  if (!threadId || activeView !== "workspace") return undefined;
+  return {
+    threadId,
+    ...(snapshot ? { snapshot } : {}),
+  };
+}
+
 export function resolveTimelinePinned({
   clientHeight,
   pinned,

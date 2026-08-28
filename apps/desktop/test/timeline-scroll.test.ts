@@ -1,11 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  prepareTimelineRestore,
   resolveTimelinePinned,
   resolveTimelineScrollTarget,
 } from "../src/renderer/timeline-scroll.js";
 
 describe("timeline auto-scroll", () => {
+  it("prepares the same conversation again when returning to the workspace", () => {
+    const snapshot = { pinned: true, scrollTop: 800 };
+
+    expect(
+      prepareTimelineRestore("thread-1", "token-usage", snapshot),
+    ).toBeUndefined();
+    expect(prepareTimelineRestore("thread-1", "workspace", snapshot)).toEqual({
+      threadId: "thread-1",
+      snapshot,
+    });
+  });
+
   it("stays pinned when a workspace panel reflow moves the bottom", () => {
     expect(
       resolveTimelinePinned({

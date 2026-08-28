@@ -42,6 +42,7 @@ import {
   type PromptAttachment,
   type PromptImage,
   type RunMode,
+  type ThreadGoal,
   type OfficeDocumentResult,
   type WorkspaceTarget,
 } from "@artemis/protocol";
@@ -77,6 +78,10 @@ import {
 } from "./prompt-cache.js";
 import { ArtemisShellRuntime } from "./shell-execution.js";
 import { runNativeWebSearch } from "./web-search.js";
+import {
+  withConnectionRecovery,
+  type ConnectionRecoveryUpdate,
+} from "./connection-recovery.js";
 
 const MINIMUM_MCP_TEXT_BUDGET_BYTES = 1024;
 const MAXIMUM_MCP_TEXT_BUDGET_BYTES = 2 * 1024 * 1024;
@@ -709,6 +714,7 @@ interface HostedThread {
   interruptedTeamContext: string | undefined;
   recoveredQueueMessages: string[];
   deferredTurnCompletion: AgentPayload | undefined;
+  modelStreamWatchdog?: ReturnType<typeof createModelStreamIdleWatchdog>;
   launchChildAgent(input: LaunchChildAgentInput): ChildAgentExecution;
   adapter: PiAdapter | undefined;
   unsubscribe: () => void;
@@ -835,10 +841,13 @@ function createModelStreamIdleWatchdog(
 ): {
   stalled: Promise<never>;
   observe(event: AgentSessionEvent): void;
+  pause(): void;
+  resume(): void;
   dispose(): void;
 } {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let activeToolExecutions = 0;
+  let paused = false;
   let rejectStalled!: (error: ModelStreamIdleTimeoutError) => void;
   const stalled = new Promise<never>((_resolve, reject) => {
     rejectStalled = reject;
@@ -848,7 +857,7 @@ function createModelStreamIdleWatchdog(
     timer = undefined;
   };
   const arm = () => {
-    if (activeToolExecutions > 0) return;
+    if (paused || activeToolExecutions > 0) return;
     clear();
     timer = setTimeout(() => {
       timer = undefined;
@@ -884,7 +893,19 @@ function createModelStreamIdleWatchdog(
     }
   };
   arm();
-  return { stalled, observe, dispose: clear };
+  return {
+    stalled,
+    observe,
+    pause() {
+      paused = true;
+      clear();
+    },
+    resume() {
+      paused = false;
+      arm();
+    },
+    dispose: clear,
+  };
 }
 
 function retryAfterHeader(error: unknown): string | undefined {
@@ -1136,6 +1157,36 @@ export class ArtemisAgentHost {
   private modelRuntimePromise:
     ReturnType<typeof ModelRuntime.create> | undefined;
 
+  private handleConnectionRecovery(
+    sessionId: string | undefined,
+    update: ConnectionRecoveryUpdate,
+  ): void {
+    if (!sessionId) return;
+    const hosted = [...this.threads.values()].find(
+      (candidate) => candidate.session.sessionId === sessionId,
+    );
+    if (!hosted?.currentTurnId) return;
+    if (update.phase === "reconnecting") {
+      hosted.modelStreamWatchdog?.pause();
+      this.sink.emit(hosted.threadId, hosted.currentTurnId, {
+        type: "turn.activity",
+        phase: "reconnecting",
+        kind: "connection",
+        attempt: update.attempt,
+        delayMs: update.delayMs,
+        attemptId: update.attemptId,
+      });
+      return;
+    }
+    hosted.modelStreamWatchdog?.resume();
+    this.sink.emit(hosted.threadId, hosted.currentTurnId, {
+      type: "turn.activity",
+      phase: update.phase,
+      kind: "connection",
+      attemptId: update.attemptId,
+    });
+  }
+
   private promptCacheUsage(
     sessionId: string,
     payload: Extract<AgentPayload, { type: "assistant.usage" }>,
@@ -1294,7 +1345,12 @@ export class ArtemisAgentHost {
       allowModelNetwork: false,
     }).then((runtime) => {
       registerArtemisBuiltinModels(runtime);
-      return withPromptCacheController(runtime, this.promptCache);
+      return withPromptCacheController(
+        withConnectionRecovery(runtime, (sessionId, update) =>
+          this.handleConnectionRecovery(sessionId, update),
+        ),
+        this.promptCache,
+      );
     });
     return this.modelRuntimePromise;
   }
@@ -3190,6 +3246,129 @@ export class ArtemisAgentHost {
       },
     });
 
+    const getGoalTool = defineTool({
+      name: "get_goal",
+      label: "Read persistent Goal",
+      description:
+        "Read the current thread Goal, including lifecycle status, Token budget, used and remaining Tokens, and elapsed time.",
+      parameters: Type.Object({}, { additionalProperties: false }),
+      execute: async () => {
+        const hosted = this.threads.get(request.threadId);
+        if (!hosted?.currentTurnId || !hosted.currentMode) {
+          throw new Error("No active turn is available for Goal access.");
+        }
+        const result = await this.broker.request({
+          kind: "goal.get",
+          approvalId: randomUUID(),
+          threadId: request.threadId,
+          turnId: hosted.currentTurnId,
+          mode: hosted.currentMode,
+        });
+        if (!result.approved) {
+          throw new Error(result.error ?? "The Goal could not be read.");
+        }
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result.data ?? { goal: null }, null, 2),
+            },
+          ],
+          details: result.data,
+        };
+      },
+    });
+
+    const createGoalTool = defineTool({
+      name: "create_goal",
+      label: "Create persistent Goal",
+      description:
+        "Create a thread Goal only when the user or system explicitly asked for one. Never infer a Goal from an ordinary task, and set a Token budget only when the user explicitly supplied it.",
+      parameters: Type.Object(
+        {
+          objective: Type.String({ minLength: 1, maxLength: 2_000 }),
+          token_budget: Type.Optional(Type.Integer({ minimum: 1 })),
+        },
+        { additionalProperties: false },
+      ),
+      execute: async (_toolCallId, params) => {
+        const hosted = this.threads.get(request.threadId);
+        if (!hosted?.currentTurnId || hosted.currentMode !== "execute") {
+          throw new Error("Goal creation requires an active Execute turn.");
+        }
+        const result = await this.broker.request({
+          kind: "goal.create",
+          approvalId: randomUUID(),
+          threadId: request.threadId,
+          turnId: hosted.currentTurnId,
+          objective: params.objective.trim(),
+          ...(params.token_budget ? { tokenBudget: params.token_budget } : {}),
+          mode: hosted.currentMode,
+        });
+        if (!result.approved) {
+          throw new Error(result.error ?? "The Goal could not be created.");
+        }
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result.data, null, 2),
+            },
+          ],
+          details: result.data,
+        };
+      },
+    });
+
+    const updateGoalTool = defineTool({
+      name: "update_goal",
+      label: "Complete or block Goal",
+      description:
+        "Mark an active Goal complete only after concrete evidence proves every required outcome. Mark it blocked only after the same blocker has prevented meaningful progress in three consecutive Goal turns. The model cannot pause, resume, clear, or budget-limit a Goal.",
+      parameters: Type.Object(
+        {
+          status: Type.Union([
+            Type.Literal("complete"),
+            Type.Literal("blocked"),
+          ]),
+          blocker: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
+        },
+        { additionalProperties: false },
+      ),
+      execute: async (_toolCallId, params) => {
+        const hosted = this.threads.get(request.threadId);
+        if (!hosted?.currentTurnId || hosted.currentMode !== "execute") {
+          throw new Error("Goal updates require an active Execute turn.");
+        }
+        if (params.status === "blocked" && !params.blocker?.trim()) {
+          throw new Error(
+            "A blocked Goal update requires the repeated blocker.",
+          );
+        }
+        const result = await this.broker.request({
+          kind: "goal.update",
+          approvalId: randomUUID(),
+          threadId: request.threadId,
+          turnId: hosted.currentTurnId,
+          status: params.status,
+          ...(params.blocker ? { blocker: params.blocker.trim() } : {}),
+          mode: hosted.currentMode,
+        });
+        if (!result.approved) {
+          throw new Error(result.error ?? "The Goal could not be updated.");
+        }
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(result.data, null, 2),
+            },
+          ],
+          details: result.data,
+        };
+      },
+    });
+
     const saveMemoryTool = defineTool({
       name: "save_memory",
       label: "Save reusable memory",
@@ -4415,6 +4594,9 @@ export class ArtemisAgentHost {
         officeDocumentTool,
         loadWorkspaceDependenciesTool,
         updatePlanTool,
+        getGoalTool,
+        createGoalTool,
+        updateGoalTool,
         saveMemoryTool,
         spawnAgentTool,
         listAgentsTool,
@@ -4444,6 +4626,9 @@ export class ArtemisAgentHost {
         "office_document",
         "load_workspace_dependencies",
         "update_plan",
+        "get_goal",
+        "create_goal",
+        "update_goal",
         "save_memory",
         "spawn_agent",
         "list_agents",
@@ -4499,6 +4684,15 @@ export class ArtemisAgentHost {
     const updatePlanSessionTool = session.agent.state.tools.find(
       (tool) => tool.name === "update_plan",
     );
+    const getGoalSessionTool = session.agent.state.tools.find(
+      (tool) => tool.name === "get_goal",
+    );
+    const createGoalSessionTool = session.agent.state.tools.find(
+      (tool) => tool.name === "create_goal",
+    );
+    const updateGoalSessionTool = session.agent.state.tools.find(
+      (tool) => tool.name === "update_goal",
+    );
     const saveMemorySessionTool = session.agent.state.tools.find(
       (tool) => tool.name === "save_memory",
     );
@@ -4548,6 +4742,9 @@ export class ArtemisAgentHost {
       !officeDocumentSessionTool ||
       !loadWorkspaceDependenciesSessionTool ||
       !updatePlanSessionTool ||
+      !getGoalSessionTool ||
+      !createGoalSessionTool ||
+      !updateGoalSessionTool ||
       !saveMemorySessionTool ||
       !spawnAgentSessionTool ||
       childControlSessionTools.length !== 5 ||
@@ -4573,6 +4770,9 @@ export class ArtemisAgentHost {
         tool.name === "office_document" ||
         tool.name === "load_workspace_dependencies" ||
         tool.name === "update_plan" ||
+        tool.name === "get_goal" ||
+        tool.name === "create_goal" ||
+        tool.name === "update_goal" ||
         tool.name === "save_memory" ||
         tool.name === "spawn_agent" ||
         teamSessionTools.some((candidate) => candidate.name === tool.name) ||
@@ -4610,6 +4810,7 @@ export class ArtemisAgentHost {
         webSearchSessionTool,
         requestUserInputSessionTool,
         updatePlanSessionTool,
+        getGoalSessionTool,
         spawnAgentSessionTool,
         ...teamSessionTools,
         ...childControlSessionTools,
@@ -4701,7 +4902,7 @@ export class ArtemisAgentHost {
     text: string,
     mode: RunMode,
     attachments?: PromptAttachment[],
-    goal?: string,
+    goal?: ThreadGoal,
     memoryContext?: string,
   ): Promise<void> {
     const hosted = this.threads.get(threadId);
@@ -4714,7 +4915,7 @@ export class ArtemisAgentHost {
 
     hosted.currentTurnId = turnId;
     hosted.currentMode = mode;
-    hosted.currentMission = (goal ?? text).trim().slice(0, 2_000);
+    hosted.currentMission = (goal?.objective ?? text).trim().slice(0, 2_000);
     if (hosted.team?.status === "aborted") {
       hosted.interruptedTeamContext = this.interruptedTeamSummary(hosted);
     }
@@ -4784,6 +4985,7 @@ export class ArtemisAgentHost {
                 void hosted.session.abort().catch(() => undefined);
               },
             );
+            hosted.modelStreamWatchdog = watchdog;
             const stopWatching = hosted.session.subscribe(watchdog.observe);
             try {
               await Promise.race([
@@ -4800,6 +5002,9 @@ export class ArtemisAgentHost {
             } finally {
               stopWatching();
               watchdog.dispose();
+              if (hosted.modelStreamWatchdog === watchdog) {
+                delete hosted.modelStreamWatchdog;
+              }
             }
           } catch (error) {
             if (providerId) {

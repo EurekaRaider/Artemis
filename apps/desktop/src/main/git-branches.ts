@@ -86,6 +86,52 @@ async function requireRepositoryRoot(workspace: string): Promise<string> {
   return root;
 }
 
+export async function gitRepositoryWatchPaths(
+  workspace: string,
+): Promise<string[]> {
+  const root = await repositoryRoot(workspace);
+  if (!root) return [];
+  const [gitDirectory, commonDirectory] = await Promise.all([
+    runGit(root, ["rev-parse", "--absolute-git-dir"]).catch(() => ""),
+    runGit(root, [
+      "rev-parse",
+      "--path-format=absolute",
+      "--git-common-dir",
+    ]).catch(() => ""),
+  ]);
+  return [root, gitDirectory.trim(), commonDirectory.trim()].filter(
+    (path, index, paths): path is string =>
+      Boolean(path) && paths.indexOf(path) === index,
+  );
+}
+
+async function defaultCompareBase(
+  root: string,
+  currentBranch: string | undefined,
+): Promise<string | undefined> {
+  const candidates: string[] = [];
+  const remoteHead = (
+    await runGit(root, [
+      "symbolic-ref",
+      "--quiet",
+      "--short",
+      "refs/remotes/origin/HEAD",
+    ]).catch(() => "")
+  ).trim();
+  if (remoteHead) candidates.push(remoteHead);
+  candidates.push("main", "master");
+  for (const candidate of candidates) {
+    if (candidate === currentBranch) continue;
+    const exists = await runGit(
+      root,
+      ["rev-parse", "--verify", "--quiet", `${candidate}^{commit}`],
+      [0, 1],
+    );
+    if (exists.trim()) return candidate;
+  }
+  return currentBranch;
+}
+
 function normalizeBranchName(branchName: string): string {
   const normalized = branchName.trim();
   if (!normalized) throw new Error("Enter a branch name.");
@@ -263,8 +309,9 @@ export async function inspectGitBranches(
     runGit(root, [
       "for-each-ref",
       "--sort=refname",
-      "--format=%(refname:short)%09%(upstream:short)%09%(HEAD)",
+      "--format=%(refname)%09%(refname:short)%09%(upstream:short)%09%(HEAD)",
       "refs/heads",
+      "refs/remotes",
     ]),
     runGit(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]),
     workingTreeLineCounts(root),
@@ -278,14 +325,16 @@ export async function inspectGitBranches(
     .split(/\r?\n/u)
     .filter(Boolean)
     .map((line) => {
-      const [name = "", upstream = "", marker = ""] = line.split("\t");
+      const [ref = "", name = "", upstream = "", marker = ""] =
+        line.split("\t");
       return {
         name,
         current: marker === "*" || name === currentBranch,
         ...(upstream ? { upstream } : {}),
+        ...(ref.startsWith("refs/remotes/") ? { remote: true } : {}),
       };
     })
-    .filter((branch) => branch.name);
+    .filter((branch) => branch.name && !branch.name.endsWith("/HEAD"));
 
   if (
     currentBranch &&
@@ -299,6 +348,7 @@ export async function inspectGitBranches(
     ? await aheadBehind(root).catch(() => ({ additions: 0, deletions: 0 }))
     : { additions: 0, deletions: 0 };
   const counts = statusCounts(statusOutput);
+  const compareBase = await defaultCompareBase(root, currentBranch);
   return {
     managed: true,
     root,
@@ -312,6 +362,7 @@ export async function inspectGitBranches(
     stagedAdditions: stagedLineCounts.additions,
     stagedDeletions: stagedLineCounts.deletions,
     ...(upstream ? { upstream } : {}),
+    ...(compareBase ? { compareBase } : {}),
     ahead: divergence.additions,
     behind: divergence.deletions,
     branches,
@@ -324,13 +375,26 @@ export async function switchGitBranch(
 ): Promise<ProjectGitInfo> {
   const root = await requireRepositoryRoot(workspace);
   const normalized = await validateBranchName(root, branchName);
-  await runGit(root, [
-    "rev-parse",
-    "--verify",
-    "--quiet",
-    `${normalized}^{commit}`,
-  ]);
-  await runGit(root, ["switch", normalized]);
+  const before = await inspectGitBranches(root);
+  if (before.currentBranch === normalized) return before;
+  const local = await runGit(
+    root,
+    ["rev-parse", "--verify", "--quiet", `refs/heads/${normalized}^{commit}`],
+    [0, 1],
+  );
+  if (local.trim()) {
+    await runGit(root, ["switch", normalized]);
+    return inspectGitBranches(root);
+  }
+  const remote = await runGit(
+    root,
+    ["rev-parse", "--verify", "--quiet", `refs/remotes/${normalized}^{commit}`],
+    [0, 1],
+  );
+  if (!remote.trim()) {
+    throw new Error(`Branch does not exist: ${normalized}`);
+  }
+  await runGit(root, ["switch", "--track", normalized]);
   return inspectGitBranches(root);
 }
 
@@ -413,7 +477,33 @@ export async function pushProjectBranch(
     throw new Error("Commit or discard project changes before pushing.");
   }
   if (!before.upstream) {
-    throw new Error("The current branch has no configured upstream.");
+    const remotes = (await runGit(root, ["remote"]))
+      .split(/\r?\n/u)
+      .filter(Boolean);
+    const remote = remotes.includes("origin")
+      ? "origin"
+      : remotes.length === 1
+        ? remotes[0]
+        : undefined;
+    if (!remote) {
+      throw new Error(
+        remotes.length === 0
+          ? "No Git remote is configured."
+          : "Choose a remote before publishing this branch.",
+      );
+    }
+    await runGit(root, [
+      "push",
+      "--porcelain",
+      "--set-upstream",
+      remote,
+      before.currentBranch,
+    ]);
+    const gitInfo = await inspectGitBranches(root);
+    return {
+      upstream: gitInfo.upstream ?? `${remote}/${before.currentBranch}`,
+      gitInfo,
+    };
   }
   if (before.behind > 0) {
     throw new Error(

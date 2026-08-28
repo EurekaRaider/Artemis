@@ -1,16 +1,56 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  appendPromptAttachments,
   clearComposerDraft,
   composerDraftFor,
   conversationDraftKey,
   moveComposerDraft,
+  PromptAttachmentReadQueue,
   restoreComposerMessages,
   updateComposerDraft,
   type ComposerDrafts,
 } from "../src/renderer/composer-drafts.js";
 
 describe("conversation composer drafts", () => {
+  it("waits for a pasted image read before the mixed prompt is submitted", async () => {
+    const queue = new PromptAttachmentReadQueue();
+    let finishRead!: () => void;
+    const read = new Promise<void>((resolve) => {
+      finishRead = resolve;
+    });
+    queue.track(read);
+    let submitted = false;
+    const submit = queue.waitForIdle().then(() => {
+      submitted = true;
+    });
+
+    await Promise.resolve();
+    expect(submitted).toBe(false);
+    finishRead();
+    await submit;
+    expect(submitted).toBe(true);
+  });
+
+  it("adds pasted images without replacing text-era draft attachments", () => {
+    const existing = {
+      type: "file" as const,
+      name: "notes.txt",
+      mimeType: "text/plain",
+      content: "notes",
+    };
+    const pasted = {
+      name: "screenshot.png",
+      mimeType: "image/png" as const,
+      data: "iVBORw==",
+    };
+
+    expect(appendPromptAttachments([existing], [pasted])).toEqual({
+      attachments: [existing, pasted],
+      limited: false,
+    });
+  });
+
   it("keeps unsent prompts isolated and restores them per conversation", () => {
     const firstKey = conversationDraftKey("project-1", "thread-1");
     const secondKey = conversationDraftKey("project-1", "thread-2");

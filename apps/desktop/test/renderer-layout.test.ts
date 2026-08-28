@@ -1091,10 +1091,12 @@ describe("renderer layout contract", () => {
   });
 
   it("emits the cancelled completion against the active turn", () => {
-    const cancelStart = mainProcessSource.indexOf("IPC.turnCancel");
+    const cancelStart = mainProcessSource.indexOf(
+      "async function cancelTaskTurn",
+    );
     const cancelEnd = mainProcessSource.indexOf(
-      "ipcMain.handle(",
-      cancelStart + "IPC.turnCancel".length,
+      "function registerIpc",
+      cancelStart,
     );
     const cancelHandler = mainProcessSource.slice(cancelStart, cancelEnd);
 
@@ -1102,6 +1104,7 @@ describe("renderer layout contract", () => {
       "const turnId = activeTurns.get(command.threadId);",
     );
     expect(cancelHandler).toContain("emitPayload(command.threadId, turnId, {");
+    expect(mainProcessSource).toContain("cancelTaskTurn(threadId)");
   });
 
   it("renders all approval policies and persists the selected policy", () => {

@@ -8,6 +8,7 @@ import type {
   RunMode,
   ShellRuntimeConfiguration,
   ThinkingLevel,
+  ThreadGoal,
   WorkspaceTarget,
   UserInputOption,
 } from "./schema.js";
@@ -171,7 +172,7 @@ export type AgentHostCommand =
       text: string;
       mode: RunMode;
       attachments?: PromptAttachment[];
-      goal?: string;
+      goal?: ThreadGoal;
       memoryContext?: string;
     }
   | {
@@ -249,6 +250,31 @@ export type AgentHostCommand =
     };
 
 export type BrokerExecutionRequest =
+  | {
+      kind: "goal.get";
+      approvalId: string;
+      threadId: string;
+      turnId: string;
+      mode: RunMode;
+    }
+  | {
+      kind: "goal.create";
+      approvalId: string;
+      threadId: string;
+      turnId: string;
+      objective: string;
+      tokenBudget?: number;
+      mode: RunMode;
+    }
+  | {
+      kind: "goal.update";
+      approvalId: string;
+      threadId: string;
+      turnId: string;
+      status: "complete" | "blocked";
+      blocker?: string;
+      mode: RunMode;
+    }
   | {
       kind: "user.input";
       approvalId: string;

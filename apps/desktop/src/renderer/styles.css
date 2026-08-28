@@ -1593,6 +1593,40 @@ button.environment-row:disabled {
   z-index: 2;
 }
 
+.environment-branch-menu > input,
+.environment-branch-menu form > input {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 11px;
+  height: 30px;
+  min-width: 0;
+  padding: 0 8px;
+  width: 100%;
+}
+
+.environment-branch-menu form {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  margin-top: 4px;
+}
+
+.environment-branch-menu form > button {
+  display: flex;
+  font-size: 16px;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0;
+}
+
+.environment-branch-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  margin-top: 2px;
+}
+
 .environment-branch-menu button {
   align-items: center;
   background: transparent;
@@ -1622,9 +1656,24 @@ button.environment-row:disabled {
 }
 
 .environment-branch-menu span {
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.environment-branch-menu span small {
+  color: var(--muted-2);
+  font-size: 9px;
+}
+
+.environment-branch-menu .environment-branch-copy {
+  display: flex;
+  font-size: 12px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0;
 }
 
 .environment-branch-menu i {
@@ -1954,9 +2003,23 @@ button.environment-row:disabled {
 
 .environment-inline-error {
   color: var(--danger);
+  display: flex;
+  flex-direction: column;
   font-size: 11px;
+  gap: 5px;
   line-height: 1.45;
   margin: 5px 6px 0 38px;
+}
+
+.environment-inline-error button {
+  align-self: flex-start;
+  background: var(--panel-3);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 5px 7px;
 }
 
 .environment-empty {
@@ -2747,6 +2810,20 @@ button.environment-row:disabled {
   flex: 1;
 }
 
+.approval-count-badge {
+  align-items: center;
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+  border-radius: 999px;
+  color: var(--warning);
+  display: inline-flex;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  min-height: 20px;
+  padding: 0 7px;
+}
+
 .approval-card-copy {
   display: flex;
   flex-direction: column;
@@ -2769,6 +2846,30 @@ button.environment-row:disabled {
 
 .approval-resolved-details .approval-model-reason {
   margin-left: 0;
+}
+
+.approval-group-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+}
+
+.approval-group-list > li {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+}
+
+.approval-group-list > li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.approval-group-list time {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .approval-card small {
@@ -3845,6 +3946,96 @@ button.environment-row:disabled {
   position: relative;
   width: 100%;
   z-index: 20;
+}
+
+.goal-bar {
+  align-items: center;
+  background: color-mix(in srgb, var(--blue) 7%, var(--panel-2));
+  border: 1px solid color-mix(in srgb, var(--blue) 23%, var(--border));
+  border-radius: 13px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin: 0 auto 10px;
+  max-width: 760px;
+  padding: 9px 10px;
+}
+
+.goal-status-dot {
+  background: var(--blue);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 12%, transparent);
+  height: 7px;
+  margin-left: 3px;
+  width: 7px;
+}
+
+.goal-status-dot.paused,
+.goal-status-dot.budgetLimited {
+  background: var(--warning);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.goal-status-dot.blocked,
+.goal-status-dot.usageLimited {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.goal-status-dot.complete {
+  background: var(--success);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.goal-bar-copy {
+  min-width: 0;
+}
+
+.goal-bar-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 7px;
+}
+
+.goal-bar-heading strong {
+  font-size: 11px;
+}
+
+.goal-bar-heading span,
+.goal-bar-copy small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.goal-bar-copy p {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 2px 0 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.goal-bar-actions {
+  display: flex;
+  gap: 3px;
+}
+
+.goal-bar-actions button {
+  background: transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 5px 7px;
+}
+
+.goal-bar-actions button:hover,
+.goal-bar-actions button:focus-visible {
+  background: var(--hover);
+  color: var(--text);
 }
 
 .turn-error-banner {
