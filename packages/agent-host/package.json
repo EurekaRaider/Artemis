@@ -13,6 +13,10 @@
     "./builtin-models": {
       "types": "./dist/builtin-models.d.ts",
       "import": "./dist/builtin-models.js"
+    },
+    "./turn-prompt": {
+      "types": "./dist/turn-prompt.d.ts",
+      "import": "./dist/turn-prompt.js"
     }
   },
   "files": [

@@ -93,7 +93,8 @@ export interface QueuedTurnMessages {
 
 export interface ReplaceQueuedTurnInput {
   threadId: string;
-  followUp: string[];
+  expectedFollowUp: string[];
+  followUp: Array<{ sourceIndex: number; text: string }>;
 }
 
 export interface SteerQueuedTurnInput {

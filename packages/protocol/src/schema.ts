@@ -867,7 +867,13 @@ export const threadCommandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("turn.queue.replace"),
     threadId: z.string().min(1),
-    followUp: z.array(z.string().trim().min(1)),
+    expectedFollowUp: z.array(z.string().min(1)).min(1),
+    followUp: z.array(
+      z.object({
+        sourceIndex: z.number().int().nonnegative(),
+        text: z.string().trim().min(1),
+      }),
+    ),
   }),
   z.object({
     type: z.literal("turn.steer"),

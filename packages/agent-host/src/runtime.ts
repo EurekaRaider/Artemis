@@ -472,6 +472,119 @@ function steerPiQueuedFollowUp(
   mutableSession._emitQueueUpdate();
 }
 
+interface QueuedFollowUpReplacement {
+  sourceIndex: number;
+  text: string;
+}
+
+function replaceQueuedUserMessageText(message: unknown, text: string): unknown {
+  const value = record(message);
+  if (value?.role !== "user") {
+    throw new Error("Pi follow-up queue contains an unsupported message.");
+  }
+  if (typeof value.content === "string") {
+    return { ...value, content: text };
+  }
+  if (!Array.isArray(value.content)) {
+    throw new Error("Pi follow-up queue contains an unsupported message.");
+  }
+  const textIndexes = value.content.flatMap((part, index) => {
+    const content = record(part);
+    return content?.type === "text" && typeof content.text === "string"
+      ? [index]
+      : [];
+  });
+  if (textIndexes.length !== 1) {
+    throw new Error(
+      "A queued message with multiple text blocks cannot be edited safely.",
+    );
+  }
+  const textIndex = textIndexes[0]!;
+  return {
+    ...value,
+    content: value.content.map((part, index) =>
+      index === textIndex ? { ...record(part), text } : part,
+    ),
+  };
+}
+
+function replacePiQueuedFollowUp(
+  session: AgentSession,
+  expectedFollowUp: readonly string[],
+  followUp: readonly QueuedFollowUpReplacement[],
+): void {
+  const visibleFollowUp = session.getFollowUpMessages();
+  if (
+    visibleFollowUp.length !== expectedFollowUp.length ||
+    visibleFollowUp.some((text, index) => text !== expectedFollowUp[index])
+  ) {
+    throw new Error(
+      "Queued follow-ups changed. Refresh the queue and try again.",
+    );
+  }
+
+  const mutableSession = session as unknown as {
+    _followUpMessages?: string[];
+    _emitQueueUpdate?: () => void;
+    agent?: { followUpQueue?: { messages?: unknown[] } };
+  };
+  const rawMessages = mutableSession.agent?.followUpQueue?.messages;
+  if (
+    mutableSession._followUpMessages !== visibleFollowUp ||
+    !Array.isArray(rawMessages) ||
+    typeof mutableSession._emitQueueUpdate !== "function"
+  ) {
+    throw new Error(
+      "Installed Pi runtime does not support queued message replacement.",
+    );
+  }
+
+  const visibleMessages = rawMessages.flatMap((message) =>
+    queuedUserMessageText(message) === undefined ? [] : [message],
+  );
+  const visibleMessageTexts = visibleMessages.map(queuedUserMessageText);
+  if (
+    visibleMessageTexts.length !== visibleFollowUp.length ||
+    visibleMessageTexts.some((text, index) => text !== visibleFollowUp[index])
+  ) {
+    throw new Error(
+      "Pi follow-up queue is out of sync; no messages were changed.",
+    );
+  }
+
+  const usedSourceIndexes = new Set<number>();
+  const replacements = followUp.map((replacement) => {
+    if (
+      replacement.sourceIndex < 0 ||
+      replacement.sourceIndex >= visibleMessages.length ||
+      usedSourceIndexes.has(replacement.sourceIndex)
+    ) {
+      throw new Error(
+        "Queued follow-up replacement is invalid; no messages were changed.",
+      );
+    }
+    usedSourceIndexes.add(replacement.sourceIndex);
+    const original = visibleMessages[replacement.sourceIndex]!;
+    return replacement.text === expectedFollowUp[replacement.sourceIndex]
+      ? original
+      : replaceQueuedUserMessageText(original, replacement.text);
+  });
+
+  let replacementIndex = 0;
+  const nextRawMessages = rawMessages.flatMap((message) => {
+    if (queuedUserMessageText(message) === undefined) return [message];
+    const replacement = replacements[replacementIndex++];
+    return replacement === undefined ? [] : [replacement];
+  });
+  rawMessages.splice(0, rawMessages.length, ...nextRawMessages);
+  mutableSession._followUpMessages.splice(
+    0,
+    mutableSession._followUpMessages.length,
+    ...followUp.map((replacement) => replacement.text),
+  );
+  mutableSession._emitQueueUpdate();
+}
+
 function base64ByteLength(value: string): number {
   try {
     return Buffer.from(value, "base64").byteLength;
@@ -5173,16 +5286,11 @@ export class ArtemisAgentHost {
 
   async replaceFollowUpQueue(
     threadId: string,
-    followUp: string[],
+    expectedFollowUp: string[],
+    followUp: QueuedFollowUpReplacement[],
   ): Promise<void> {
     const hosted = this.requireActiveThread(threadId);
-    const queue = hosted.session.clearQueue();
-    for (const message of queue.steering) {
-      await hosted.session.steer(message);
-    }
-    for (const message of followUp) {
-      await hosted.session.followUp(message);
-    }
+    replacePiQueuedFollowUp(hosted.session, expectedFollowUp, followUp);
   }
 
   forkThread(threadId: string, entryId?: string): { sessionFile: string } {

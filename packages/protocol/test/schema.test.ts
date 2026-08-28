@@ -194,14 +194,19 @@ describe("approval schemas", () => {
       threadCommandSchema.safeParse({
         type: "turn.queue.replace",
         threadId: "thread-1",
-        followUp: ["First queued message", "Second queued message"],
+        expectedFollowUp: ["First queued message", "Second queued message"],
+        followUp: [
+          { sourceIndex: 1, text: "Second queued message" },
+          { sourceIndex: 0, text: "Edited first message" },
+        ],
       }).success,
     ).toBe(true);
     expect(
       threadCommandSchema.safeParse({
         type: "turn.queue.replace",
         threadId: "thread-1",
-        followUp: ["   "],
+        expectedFollowUp: ["First queued message"],
+        followUp: [{ sourceIndex: 0, text: "   " }],
       }).success,
     ).toBe(false);
     expect(

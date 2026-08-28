@@ -196,7 +196,8 @@ export type AgentHostCommand =
       type: "turn.queue.replace";
       requestId: string;
       threadId: string;
-      followUp: string[];
+      expectedFollowUp: string[];
+      followUp: Array<{ sourceIndex: number; text: string }>;
     }
   | {
       type: "turn.steer" | "turn.follow-up";

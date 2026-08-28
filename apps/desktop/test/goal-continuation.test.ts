@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   GOAL_CONTINUATION_RETRY_DELAY_MILLISECONDS,
+  goalFailureBlocker,
   goalFailureDisposition,
 } from "../src/main/goal-continuation.js";
 
@@ -16,6 +17,7 @@ describe("Goal continuation failure policy", () => {
     );
 
     expect(mainSource).not.toContain(".markThreadGoalBlocked(");
+    expect(mainSource).toContain("store.recordThreadGoalBlocker(");
   });
 
   it("keeps transient infrastructure failures retryable instead of blocking", () => {
@@ -50,5 +52,19 @@ describe("Goal continuation failure policy", () => {
         message: "429 quota exceeded",
       }),
     ).toBe("usage-limited");
+  });
+
+  it("counts permanent authentication and configuration failures as blockers", () => {
+    const authenticationFailure = {
+      code: "AUTHENTICATION_FAILED",
+      message: "API key is invalid",
+    };
+    expect(goalFailureDisposition(authenticationFailure)).toBe("blocker");
+    expect(
+      goalFailureDisposition({ message: "Unknown model configured" }),
+    ).toBe("blocker");
+    expect(goalFailureBlocker(authenticationFailure)).toBe(
+      "authentication_failed: api key is invalid",
+    );
   });
 });

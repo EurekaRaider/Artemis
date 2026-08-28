@@ -4931,12 +4931,13 @@ export function App() {
   );
 
   const replaceQueuedMessages = useCallback(
-    async (followUp: string[]) => {
+    async (followUp: Array<{ sourceIndex: number; text: string }>) => {
       if (!activeThread || busy) return;
       setBusy(true);
       try {
         await window.artemis.replaceTurnQueue({
           threadId: activeThread.id,
+          expectedFollowUp: [...queuedFollowUps],
           followUp,
         });
         setEditingQueuedMessage(undefined);
@@ -4948,14 +4949,16 @@ export function App() {
         setBusy(false);
       }
     },
-    [activeThread, busy, t.taskError],
+    [activeThread, busy, queuedFollowUps, t.taskError],
   );
 
   const deleteQueuedMessage = useCallback(
     (index: number) => {
       if (!queuedFollowUps[index]) return;
       return replaceQueuedMessages(
-        queuedFollowUps.filter((_message, candidate) => candidate !== index),
+        queuedFollowUps.flatMap((text, sourceIndex) =>
+          sourceIndex === index ? [] : [{ sourceIndex, text }],
+        ),
       );
     },
     [queuedFollowUps, replaceQueuedMessages],
@@ -4966,9 +4969,10 @@ export function App() {
       const message = queuedFollowUps[index];
       if (!message || index === 0) return;
       return replaceQueuedMessages([
-        message,
-        ...queuedFollowUps.slice(0, index),
-        ...queuedFollowUps.slice(index + 1),
+        { sourceIndex: index, text: message },
+        ...queuedFollowUps
+          .map((text, sourceIndex) => ({ sourceIndex, text }))
+          .filter((item) => item.sourceIndex !== index),
       ]);
     },
     [queuedFollowUps, replaceQueuedMessages],
@@ -4979,9 +4983,10 @@ export function App() {
       const message = value.trim();
       if (!message || !queuedFollowUps[index]) return;
       return replaceQueuedMessages(
-        queuedFollowUps.map((candidate, candidateIndex) =>
-          candidateIndex === index ? message : candidate,
-        ),
+        queuedFollowUps.map((text, sourceIndex) => ({
+          sourceIndex,
+          text: sourceIndex === index ? message : text,
+        })),
       );
     },
     [queuedFollowUps, replaceQueuedMessages],

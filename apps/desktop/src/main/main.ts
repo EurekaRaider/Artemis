@@ -32,6 +32,7 @@ import {
   type WebContents,
 } from "electron";
 import electronUpdater from "electron-updater";
+import { appendPromptFiles } from "@artemis/agent-host/turn-prompt";
 import {
   evaluateModePolicy,
   getPlatformContract,
@@ -141,6 +142,7 @@ import { loadPromptAttachments } from "./prompt-attachments.js";
 import { RecoverableTurnQueues } from "./recoverable-turn-queue.js";
 import {
   GOAL_CONTINUATION_RETRY_DELAY_MILLISECONDS,
+  goalFailureBlocker,
   goalFailureDisposition,
 } from "./goal-continuation.js";
 import {
@@ -2359,6 +2361,40 @@ function applyPayloadSideEffects(
   }
 }
 
+function applyGoalContinuationFailure(
+  threadId: string,
+  goalId: string,
+  failure: { message: string; code?: string | undefined },
+): { goal: ThreadGoal; continuationDelayMs: number } | undefined {
+  if (!store) return undefined;
+  const current = store.getThreadGoal(threadId);
+  if (!current || current.goalId !== goalId || current.status !== "active") {
+    return undefined;
+  }
+  const disposition = goalFailureDisposition(failure);
+  if (disposition === "usage-limited") {
+    return {
+      goal: store.markThreadGoalUsageLimited(threadId, goalId),
+      continuationDelayMs: 0,
+    };
+  }
+  if (disposition === "retry") {
+    return {
+      goal: current,
+      continuationDelayMs: GOAL_CONTINUATION_RETRY_DELAY_MILLISECONDS,
+    };
+  }
+  const recorded = store.recordThreadGoalBlocker(
+    threadId,
+    goalId,
+    goalFailureBlocker(failure),
+  );
+  return {
+    goal: recorded.goal,
+    continuationDelayMs: GOAL_CONTINUATION_RETRY_DELAY_MILLISECONDS,
+  };
+}
+
 function scheduleGoalContinuation(
   threadId: string,
   goalId: string,
@@ -2396,18 +2432,18 @@ function scheduleGoalContinuation(
       },
       { source: "goal-continuation", expectedGoalId: goalId },
     ).catch((error) => {
-      const current = store?.getThreadGoal(threadId);
-      if (current?.goalId === goalId && current.status === "active") {
-        scheduleGoalContinuation(
-          threadId,
-          goalId,
-          GOAL_CONTINUATION_RETRY_DELAY_MILLISECONDS,
-        );
+      const message = error instanceof Error ? error.message : String(error);
+      const result = applyGoalContinuationFailure(threadId, goalId, {
+        message,
+      });
+      if (result) emitGoalUpdated(result.goal);
+      if (result?.goal.status === "active") {
+        scheduleGoalContinuation(threadId, goalId, result.continuationDelayMs);
       }
       diagnosticBundleService?.record({
         source: "main",
         severity: "error",
-        message: `Goal continuation could not start: ${error instanceof Error ? error.message : String(error)}`,
+        message: `Goal continuation could not start: ${message}`,
       });
     });
   }, delayMs);
@@ -2454,10 +2490,14 @@ function accountGoalPayload(
   if (!goal) return;
   let continuationDelayMs = 0;
   if (goal.status === "active" && payload.type === "turn.failed") {
-    if (goalFailureDisposition(payload) === "usage-limited") {
-      goal = store.markThreadGoalUsageLimited(context.threadId, context.goalId);
-    } else {
-      continuationDelayMs = GOAL_CONTINUATION_RETRY_DELAY_MILLISECONDS;
+    const result = applyGoalContinuationFailure(
+      context.threadId,
+      context.goalId,
+      payload,
+    );
+    if (result) {
+      goal = result.goal;
+      continuationDelayMs = result.continuationDelayMs;
     }
   } else if (
     goal.status === "active" &&
@@ -2540,12 +2580,12 @@ function prepareRecoverableQueuePayload(
   payload: AgentPayload,
 ): AgentPayload {
   if (payload.type === "queue.updated") {
-    recoverableTurnQueues.reconcile(
+    const queue = recoverableTurnQueues.reconcile(
       threadId,
       payload.steering,
       payload.followUp,
     );
-    return payload;
+    return { ...payload, ...queue };
   }
   if (payload.type === "queue.recovered") {
     if (payload.items) {
@@ -4818,6 +4858,7 @@ async function queueTurn(
     type === "turn.steer" ? "steering" : "followUp",
     command.text,
     command.attachments,
+    appendPromptFiles(command.text, command.attachments),
   );
   try {
     await agentProcess.request({
@@ -4891,13 +4932,24 @@ async function replaceTurnQueue(input: ReplaceQueuedTurnInput): Promise<void> {
     throw new Error("Task has no active turn.");
   }
 
-  await agentProcess.request({
-    type: "turn.queue.replace",
-    requestId: randomUUID(),
-    threadId: thread.id,
-    followUp: command.followUp,
-  });
-  recoverableTurnQueues.replaceFollowUp(thread.id, command.followUp);
+  const rollback = recoverableTurnQueues.replaceFollowUp(
+    thread.id,
+    command.expectedFollowUp,
+    command.followUp,
+    appendPromptFiles,
+  );
+  try {
+    await agentProcess.request({
+      type: "turn.queue.replace",
+      requestId: randomUUID(),
+      threadId: thread.id,
+      expectedFollowUp: rollback.runtimeExpectedFollowUp,
+      followUp: rollback.runtimeFollowUp,
+    });
+  } catch (error) {
+    recoverableTurnQueues.rollbackFollowUp(rollback);
+    throw error;
+  }
 }
 
 async function steerQueuedTurn(input: SteerQueuedTurnInput): Promise<void> {
@@ -4923,7 +4975,10 @@ async function steerQueuedTurn(input: SteerQueuedTurnInput): Promise<void> {
     requestId: randomUUID(),
     threadId: thread.id,
     followUpIndex: command.followUpIndex,
-    expectedFollowUp: command.expectedFollowUp,
+    expectedFollowUp: recoverableTurnQueues.runtimeFollowUpSnapshot(
+      thread.id,
+      command.expectedFollowUp,
+    ),
   });
 }
 

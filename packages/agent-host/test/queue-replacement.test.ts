@@ -46,7 +46,7 @@ function queueTestThread(host: ArtemisAgentHost, threadId: string) {
 }
 
 describe("follow-up queue mutation", () => {
-  it("replaces follow-ups without disturbing steering messages", async () => {
+  it("edits, deletes, and reorders exact follow-ups without losing images", async () => {
     const root = await mkdtemp(join(tmpdir(), "artemis-queue-replacement-"));
     const workspacePath = join(root, "workspace");
     const agentDir = join(root, "agent");
@@ -63,40 +63,49 @@ describe("follow-up queue mutation", () => {
         workspacePath,
         target: "local",
       });
-      const thread = (
-        host as unknown as {
-          threads: Map<
-            string,
-            {
-              currentTurnId?: string;
-              session: {
-                clearQueue(): { steering: string[]; followUp: string[] };
-                followUp(text: string): Promise<void>;
-                steer(text: string): Promise<void>;
-              };
-            }
-          >;
-        }
-      ).threads.get("thread-queue")!;
+      const thread = queueTestThread(host, "thread-queue");
       thread.currentTurnId = "turn-queue-1";
-      const calls: string[] = [];
-      thread.session.clearQueue = () => ({
-        steering: ["Keep this steering message"],
-        followUp: ["Discard this follow-up"],
-      });
-      thread.session.steer = async (message) => {
-        calls.push(`steer:${message}`);
-      };
-      thread.session.followUp = async (message) => {
-        calls.push(`follow-up:${message}`);
-      };
+      const images = ["Zmlyc3Q=", "c2Vjb25k", "dGhpcmQ="].map((data) => ({
+        type: "image" as const,
+        data,
+        mimeType: "image/png",
+      }));
+      await thread.session.steer("Keep this steering message", [images[0]!]);
+      await thread.session.followUp("First", [images[0]!]);
+      await thread.session.followUp("Second", [images[1]!]);
+      await thread.session.followUp("Delete me", [images[2]!]);
+      const steeringBefore = [...thread.session.agent.steeringQueue.messages];
+      const firstBefore = thread.session.agent.followUpQueue.messages[0];
 
-      await host.replaceFollowUpQueue("thread-queue", ["First", "Second"]);
+      await host.replaceFollowUpQueue(
+        "thread-queue",
+        ["First", "Second", "Delete me"],
+        [
+          { sourceIndex: 1, text: "Edited second" },
+          { sourceIndex: 0, text: "First" },
+        ],
+      );
 
-      expect(calls).toEqual([
-        "steer:Keep this steering message",
-        "follow-up:First",
-        "follow-up:Second",
+      expect(thread.session.getSteeringMessages()).toEqual([
+        "Keep this steering message",
+      ]);
+      expect(thread.session.agent.steeringQueue.messages).toEqual(
+        steeringBefore,
+      );
+      expect(thread.session.getFollowUpMessages()).toEqual([
+        "Edited second",
+        "First",
+      ]);
+      expect(thread.session.agent.followUpQueue.messages[1]).toBe(firstBefore);
+      expect(thread.session.agent.followUpQueue.messages).toMatchObject([
+        {
+          role: "user",
+          content: [{ type: "text", text: "Edited second" }, images[1]],
+        },
+        {
+          role: "user",
+          content: [{ type: "text", text: "First" }, images[0]],
+        },
       ]);
     } finally {
       host.dispose();
