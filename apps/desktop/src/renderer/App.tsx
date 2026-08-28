@@ -79,10 +79,7 @@ import { ComposerContextBar } from "./ComposerContextBar.js";
 import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
 import { GoalBar } from "./GoalBar.js";
 import { GoalEditorPanel } from "./GoalEditorPanel.js";
-import {
-  ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH,
-  EnvironmentPanel,
-} from "./EnvironmentPanel.js";
+import { EnvironmentPanel } from "./EnvironmentPanel.js";
 import { SourcesIcon, SourcesPanel } from "./SourcesPanel.js";
 import { TaskPlanProgress } from "./TaskPlanProgress.js";
 import {
@@ -1680,7 +1677,6 @@ export function App() {
     Record<string, WorkspaceTabsState>
   >({});
   const [workspaceDockOpen, setWorkspaceDockOpen] = useState(false);
-  const [environmentPanelOpen, setEnvironmentPanelOpen] = useState(false);
   const [workspaceDockWidth, setWorkspaceDockWidth] = useState<number>();
   const [workspaceDockResizing, setWorkspaceDockResizing] = useState(false);
   const [workspaceTabMenuOpen, setWorkspaceTabMenuOpen] = useState(false);
@@ -2928,9 +2924,8 @@ export function App() {
       workspaceDockWidthBounds(
         workspaceContent.current?.clientWidth ?? window.innerWidth,
         window.innerWidth,
-        environmentPanelOpen ? ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH : 0,
       ),
-    [environmentPanelOpen],
+    [],
   );
   const persistWorkspaceDockWidth = useCallback((width: number) => {
     workspaceDockPersistence.current = workspaceDockPersistence.current.then(
@@ -3481,7 +3476,6 @@ export function App() {
   const dockWidthBounds = workspaceDockWidthBounds(
     workspaceContent.current?.clientWidth ?? window.innerWidth,
     window.innerWidth,
-    environmentPanelOpen ? ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH : 0,
   );
   const dockWidthNow = clampWorkspaceDockWidth(
     workspaceDockWidth ?? dockWidthBounds.min,
@@ -6088,7 +6082,6 @@ export function App() {
                     onMessage={(message, error) =>
                       setToast(error ? { error: true, message } : message)
                     }
-                    onOpenChange={setEnvironmentPanelOpen}
                     onOpenAgent={openChildAgentPanel}
                     onOpenReview={openReviewScopePanel}
                     onOpenTeam={openAgentTeamPanel}
@@ -7391,10 +7384,10 @@ export function App() {
                     id="workspace-tool-dock"
                     ref={workspaceDock}
                     style={
-                      workspaceDockWidth === undefined && !environmentPanelOpen
+                      workspaceDockWidth === undefined
                         ? undefined
                         : ({
-                            "--workspace-dock-width": `${environmentPanelOpen ? dockWidthNow : workspaceDockWidth}px`,
+                            "--workspace-dock-width": `${workspaceDockWidth}px`,
                           } as CSSProperties)
                     }
                   >

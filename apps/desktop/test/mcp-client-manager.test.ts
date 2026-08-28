@@ -23,6 +23,7 @@ import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.
 import * as mcpClientManagerModule from "../src/main/mcp-client-manager.js";
 import {
   McpClientManager,
+  posixRuntimeReadRoot,
   type McpConnection,
   type McpExecutionScope,
 } from "../src/main/mcp-client-manager.js";
@@ -770,6 +771,24 @@ describe("McpClientManager", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it.runIf(process.platform !== "win32")(
+    "grants read access to a self-contained CodeGraph version runtime",
+    () => {
+      const homePath = "/Users/test";
+      const versionRoot = `${homePath}/.codegraph/versions/v1.5.0`;
+
+      expect(
+        posixRuntimeReadRoot(`${versionRoot}/bin/codegraph`, homePath),
+      ).toBe(versionRoot);
+      expect(posixRuntimeReadRoot(`${versionRoot}/node`, homePath)).toBe(
+        versionRoot,
+      );
+      expect(
+        posixRuntimeReadRoot(`${homePath}/.codegraph/config.json`, homePath),
+      ).toBe(`${homePath}/.codegraph/config.json`);
+    },
+  );
 
   it.runIf(process.platform !== "win32")(
     "finds stdio MCP executables in the user-local bin when the GUI PATH omits it",

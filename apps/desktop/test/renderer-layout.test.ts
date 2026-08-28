@@ -2636,6 +2636,23 @@ describe("renderer layout contract", () => {
     expect(startupSource).not.toContain("connectMcpServer(");
   });
 
+  it("keeps a manually enabled stdio MCP enabled when its connection fails", () => {
+    const saveMcpStart = mainProcessSource.indexOf(
+      "async function saveMcpConfiguration",
+    );
+    const saveMcpEnd = mainProcessSource.indexOf(
+      "async function refreshTrustedExtensions",
+      saveMcpStart,
+    );
+    const saveMcpSource = mainProcessSource.slice(saveMcpStart, saveMcpEnd);
+
+    expect(saveMcpSource).toContain("rejectConnectionFailure = false");
+    expect(saveMcpSource).toContain(
+      'rejectConnectionFailure || saved.transport !== "stdio"',
+    );
+    expect(saveMcpSource).toContain("remains enabled but did not connect");
+  });
+
   it("waits for cold Registry npm MCP startup and rejects failed connections", () => {
     const connectStart = mainProcessSource.indexOf(
       "async function connectMcpServer",
@@ -2656,6 +2673,9 @@ describe("renderer layout contract", () => {
     const installSource = mainProcessSource.slice(installStart, installEnd);
     expect(installSource).toContain("MCP_REGISTRY_NPM_STARTUP_TIMEOUT_MS");
     expect(installSource).toContain("startupTimeoutMs:");
+    expect(installSource).toMatch(
+      /saveMcpConfiguration\([\s\S]*?MCP_REGISTRY_NPM_STARTUP_TIMEOUT_MS[\s\S]*?\n\s*true,\n\s*\);/u,
+    );
   });
 
   it("packages four runtime-free Lite artifact plugins on macOS and Windows", () => {

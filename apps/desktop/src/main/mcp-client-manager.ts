@@ -213,7 +213,7 @@ function canonicalExistingPath(
   }
 }
 
-function posixRuntimeReadRoot(path: string, homePath: string): string {
+export function posixRuntimeReadRoot(path: string, homePath: string): string {
   if (path === "/opt/homebrew" || path.startsWith("/opt/homebrew/")) {
     return "/opt/homebrew";
   }
@@ -226,6 +226,11 @@ function posixRuntimeReadRoot(path: string, homePath: string): string {
     join(homePath, "Library", "pnpm"),
   ]) {
     if (pathIsInside(directory, path)) return directory;
+  }
+  const codeGraphVersions = join(homePath, ".codegraph", "versions");
+  if (pathIsInside(codeGraphVersions, path)) {
+    const version = relative(codeGraphVersions, path).split("/")[0];
+    if (version) return join(codeGraphVersions, version);
   }
   const nvmVersion = path.match(/^(.+?\/\.nvm\/versions\/[^/]+\/[^/]+)/u);
   return nvmVersion?.[1] ?? path;

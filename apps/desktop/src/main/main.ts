@@ -1977,6 +1977,7 @@ async function saveMcpConfiguration(
   input: McpServerConfig,
   bearerToken?: string,
   connectionOptions?: McpConnectOptions,
+  rejectConnectionFailure = false,
 ): Promise<SettingsSnapshot> {
   if (!mcpConfigStore || !mcpClientManager || !settingsStore) {
     throw new Error("MCP service is not ready.");
@@ -2018,7 +2019,18 @@ async function saveMcpConfiguration(
     );
   }
   if (saved.enabled) {
-    await connectMcpServer(saved, true, connectionOptions);
+    try {
+      await connectMcpServer(saved, true, connectionOptions);
+    } catch (error) {
+      if (rejectConnectionFailure || saved.transport !== "stdio") throw error;
+      diagnosticBundleService?.record({
+        source: "main",
+        severity: "warning",
+        message: `MCP server ${saved.id} remains enabled but did not connect: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    }
   } else {
     await mcpClientManager.disconnect(saved.id);
   }
@@ -6490,6 +6502,7 @@ function registerIpc(): void {
             resolved.config.command === "npx"
             ? { startupTimeoutMs: MCP_REGISTRY_NPM_STARTUP_TIMEOUT_MS }
             : undefined,
+          true,
         );
         publish(100);
         return settings;
@@ -10262,9 +10275,24 @@ function createMainWindow(): BrowserWindow {
                   ?.getBoundingClientRect();
                 const workspace = document.querySelector(".workspace");
                 const workspaceBounds = workspace?.getBoundingClientRect();
+                const workspaceContent = document.querySelector(
+                  ".workspace-content",
+                );
+                const workspaceContentBounds = workspaceContent
+                  ?.getBoundingClientRect();
+                const timelineScroll = document.querySelector(
+                  ".timeline-scroll",
+                );
+                const timelineScrollBounds = timelineScroll
+                  ?.getBoundingClientRect();
                 const environmentTrigger = document.querySelector(
                   ".environment-trigger",
                 );
+                const workspaceDockResizer = document.querySelector(
+                  ".workspace-dock-resizer",
+                );
+                const workspaceDockResizerBounds = workspaceDockResizer
+                  ?.getBoundingClientRect();
                 const workspaceDock = document.querySelector(
                   ".workspace-tool-dock",
                 );
@@ -10285,20 +10313,6 @@ function createMainWindow(): BrowserWindow {
                 const composer = document.querySelector(".composer");
                 const composerBounds = composer?.getBoundingClientRect();
                 const goalEditor = document.querySelector(".goal-editor-panel");
-                if (
-                  environmentPanel &&
-                  environmentBounds &&
-                  conversation &&
-                  conversationBounds &&
-                  visible(environmentPanel) &&
-                  visible(conversation) &&
-                  conversationBounds.right > environmentBounds.left + 1
-                ) {
-                  issues.push({
-                    rule: "environment-conversation-overlap",
-                    element: ".conversation",
-                  });
-                }
                 return {
                   documentLanguage: document.documentElement.lang,
                   documentDirection: document.documentElement.dir,
@@ -10335,6 +10349,27 @@ function createMainWindow(): BrowserWindow {
                         left: conversationBounds.left,
                         right: conversationBounds.right,
                         width: conversationBounds.width,
+                      }
+                    : null,
+                  workspaceContent: workspaceContentBounds
+                    ? {
+                        left: workspaceContentBounds.left,
+                        right: workspaceContentBounds.right,
+                        width: workspaceContentBounds.width,
+                      }
+                    : null,
+                  timelineScroll: timelineScrollBounds
+                    ? {
+                        left: timelineScrollBounds.left,
+                        right: timelineScrollBounds.right,
+                        width: timelineScrollBounds.width,
+                      }
+                    : null,
+                  workspaceDockResizer: workspaceDockResizerBounds
+                    ? {
+                        left: workspaceDockResizerBounds.left,
+                        right: workspaceDockResizerBounds.right,
+                        width: workspaceDockResizerBounds.width,
                       }
                     : null,
                   workspaceDockVisible: workspaceDock

@@ -99,9 +99,18 @@ describe("sandbox execution contracts", () => {
     expect(profile).toContain("(deny network*)");
     expect(profile).toContain('(subpath "/Users/test/repo")');
     expect(profile).toContain("(allow file-write*");
-    expect(profile).toContain("(allow file-read-data file-write-data)");
+    expect(profile).not.toContain("(allow file-read-data file-write-data)");
+    expect(profile).toContain('(allow file-read-data (literal "/"))');
+    expect(profile).toContain(
+      "(allow file-read-data file-test-existence file-write-data",
+    );
+    expect(profile).toContain('(subpath "/dev/fd")');
+    expect(profile).toContain('(literal "/dev/null")');
     expect(profile).not.toContain("(allow file-read-metadata)\n");
     expect(profile).toContain('(literal "/Users/test")');
+    expect(profile).toContain('(literal "/etc")');
+    expect(profile).toContain('(literal "/tmp")');
+    expect(profile).toContain('(literal "/var")');
   });
 
   it("keeps plan mode read-only in the Seatbelt profile", () => {
@@ -111,7 +120,21 @@ describe("sandbox execution contracts", () => {
       network: "deny",
     });
 
-    expect(profile).not.toContain("(allow file-write*");
+    expect(profile).not.toContain("(allow file-write*\n");
+  });
+
+  it("adds the macOS socket capabilities required by networked runtimes", () => {
+    const profile = buildSeatbeltProfile({
+      workspacePath: "/Users/test/repo",
+      mode: "execute",
+      network: "allow",
+    });
+
+    expect(profile).toContain("(allow network-outbound)");
+    expect(profile).toContain("(allow network-inbound)");
+    expect(profile).toContain("(allow system-socket");
+    expect(profile).toContain("(socket-domain AF_SYSTEM)");
+    expect(profile).not.toContain("(deny network*)");
   });
 
   it("builds a sandbox-exec launch without invoking a shell", () => {

@@ -1177,12 +1177,6 @@ summary:focus-visible {
   inset-inline-end: 0;
 }
 
-.workspace:has(.environment-trigger[aria-expanded="true"]) .conversation {
-  margin-inline-end: calc(
-    var(--environment-panel-inline-size) + var(--environment-panel-layout-gap)
-  );
-}
-
 .environment-section {
   padding: 14px;
 }
@@ -2292,10 +2286,6 @@ button.environment-row:disabled {
     position: fixed;
     top: 64px;
     width: auto;
-  }
-
-  .workspace:has(.environment-trigger[aria-expanded="true"]) .conversation {
-    margin-inline-end: 0;
   }
 
   .environment-section {

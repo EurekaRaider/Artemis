@@ -51,7 +51,6 @@ import {
   EnvironmentWebIcon,
 } from "./EnvironmentPanelIcons.js";
 
-export const ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH = 328;
 export const ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH = 720;
 
 export interface EnvironmentPanelLayoutSpace {
@@ -662,7 +661,6 @@ export function EnvironmentPanel({
   onAddSources,
   onConfirm,
   onMessage,
-  onOpenChange,
   onOpenAgent,
   onOpenReview,
   onOpenTeam,
@@ -687,7 +685,6 @@ export function EnvironmentPanel({
   onAddSources: () => void;
   onConfirm: (message: string) => Promise<boolean>;
   onMessage: (message: string, error?: boolean) => void;
-  onOpenChange: (open: boolean) => void;
   onOpenAgent: (agent: ChildAgentState) => void;
   onOpenReview: (scope: ReviewScope, baseRef?: string) => void;
   onOpenTeam: (team: AgentTeamState) => void;
@@ -743,11 +740,6 @@ export function EnvironmentPanel({
   const [menuBranchName, setMenuBranchName] = useState("");
   const [pendingSwitchBranch, setPendingSwitchBranch] = useState<string>();
   const [showAllAgents, setShowAllAgents] = useState(false);
-
-  useLayoutEffect(() => {
-    onOpenChange(open);
-    return () => onOpenChange(false);
-  }, [onOpenChange, open]);
 
   const closePanel = useCallback(() => {
     autoHidden.current = false;

@@ -240,21 +240,17 @@ describe("task environment panel state", () => {
     );
   });
 
-  it("reserves space for the whole conversation while the panel is open", () => {
+  it("keeps the environment popover out of the timeline layout", () => {
     expect(stylesSource).toContain("--environment-panel-inline-size: 304px");
-    expect(stylesSource).toMatch(
-      /\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+\.conversation\s*\{[^}]*margin-inline-end:\s*calc\(\s*var\(--environment-panel-inline-size\)\s*\+\s*var\(--environment-panel-layout-gap\)\s*\);/su,
+    expect(stylesSource).not.toMatch(
+      /\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+\.conversation/su,
     );
     expect(stylesSource).not.toMatch(
       /\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+:(?:is|where)\([^)]*(?:timeline|composer)/su,
     );
-    expect(stylesSource).toMatch(
-      /@media \(max-width: 680px\)[\s\S]*?\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+\.conversation\s*\{[^}]*margin-inline-end:\s*0;/u,
-    );
-    expect(panelSource).toContain("onOpenChange(open)");
-    expect(appSource).toContain(
-      "environmentPanelOpen ? ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH : 0",
-    );
+    expect(panelSource).not.toContain("onOpenChange");
+    expect(appSource).not.toContain("environmentPanelOpen");
+    expect(appSource).toContain('className="workspace-tool-dock"');
   });
 
   it("restores the panel after an auto-hidden narrow layout becomes wide", () => {
@@ -303,9 +299,12 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain(
       "document.querySelector('.environment-trigger')?.click()",
     );
-    expect(mainSource).toContain("environment-conversation-overlap");
     expect(mainSource).toContain("environmentPanelOpen");
     expect(mainSource).toContain("workspaceWidth");
+    expect(mainSource).toContain("timelineScrollBounds");
+    expect(mainSource).toContain("workspaceContentBounds");
+    expect(mainSource).toContain("workspaceDockResizerBounds");
+    expect(mainSource).not.toContain("environment-conversation-overlap");
     expect(mainSource).toContain('type: "mcp.tool.used"');
     expect(mainSource).toContain('type: "task.source.added"');
     expect(panelSource).toContain('source.kind === "web-search"');

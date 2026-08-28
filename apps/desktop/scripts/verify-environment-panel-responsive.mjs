@@ -17,7 +17,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-async function runCase(name, width) {
+async function runCase(name, width, view = "environment") {
   const screenshotPath = join(temporaryDirectory, `${name}.png`);
   const accessibilityPath = join(temporaryDirectory, `${name}.a11y.json`);
   const environment = {
@@ -25,7 +25,7 @@ async function runCase(name, width) {
     ARTEMIS_SMOKE_SCREENSHOT: screenshotPath,
     ARTEMIS_SMOKE_ACCESSIBILITY: accessibilityPath,
     ARTEMIS_SMOKE_LOCALE: "zh-CN",
-    ARTEMIS_SMOKE_VIEW: "environment",
+    ARTEMIS_SMOKE_VIEW: view,
     ARTEMIS_SMOKE_WINDOW_WIDTH: String(width),
   };
   delete environment.ELECTRON_RUN_AS_NODE;
@@ -63,7 +63,7 @@ async function runCase(name, width) {
 }
 
 try {
-  const wide = await runCase("wide", 1_420);
+  const wide = await runCase("wide", 1_420, "environment-open");
   assert(wide.windowInnerWidth >= 1_400, "Wide window width was not applied.");
   assert(
     wide.environmentPanelOpen,
@@ -74,10 +74,25 @@ try {
     "Wide window environment panel is not visible.",
   );
   assert(
-    !wide.issues.some(
-      (issue) => issue.rule === "environment-conversation-overlap",
-    ),
-    "Wide window environment panel overlaps the conversation.",
+    wide.timelineScroll,
+    "Wide window timeline scroll bounds are missing.",
+  );
+  assert(wide.workspaceContent, "Wide window workspace bounds are missing.");
+  assert(
+    Math.abs(wide.timelineScroll.right - wide.workspaceContent.right) <= 1,
+    "Environment popover moved the timeline scrollbar away from the workspace edge.",
+  );
+
+  const dock = await runCase("dock", 1_420, "environment-dock");
+  assert(dock.workspaceDockVisible, "Workspace Tab Dock did not open.");
+  assert(dock.timelineScroll, "Dock case timeline scroll bounds are missing.");
+  assert(
+    dock.workspaceDockResizer,
+    "Dock case workspace resizer bounds are missing.",
+  );
+  assert(
+    Math.abs(dock.timelineScroll.right - dock.workspaceDockResizer.left) <= 1,
+    "Timeline scrollbar is not on the timeline/Tab Dock boundary.",
   );
 
   const narrow = await runCase("narrow", 980);
@@ -112,6 +127,13 @@ try {
           windowInnerWidth: wide.windowInnerWidth,
           workspaceWidth: wide.workspaceWidth,
           environmentPanelOpen: wide.environmentPanelOpen,
+          timelineRight: wide.timelineScroll.right,
+          workspaceRight: wide.workspaceContent.right,
+        },
+        dock: {
+          workspaceDockVisible: dock.workspaceDockVisible,
+          timelineRight: dock.timelineScroll.right,
+          resizerLeft: dock.workspaceDockResizer.left,
         },
         narrow: {
           windowInnerWidth: narrow.windowInnerWidth,

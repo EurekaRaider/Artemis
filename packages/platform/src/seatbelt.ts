@@ -48,6 +48,20 @@ function pathAncestors(paths: string[]): string[] {
   return [...ancestors];
 }
 
+function networkRules(network: SandboxPolicy["network"]): string[] {
+  if (network === "deny") return ["(deny network*)"];
+  return [
+    "(allow network-outbound)",
+    "(allow network-inbound)",
+    "(allow system-socket",
+    "  (require-all",
+    "    (socket-domain AF_SYSTEM)",
+    "    (socket-protocol 2)",
+    "  )",
+    ")",
+  ];
+}
+
 export function buildSeatbeltProfile(input: SandboxPolicy): string {
   const policy = normalizeSandboxPolicy(input);
   const readablePaths = [
@@ -70,16 +84,21 @@ export function buildSeatbeltProfile(input: SandboxPolicy): string {
     "(allow sysctl-read)",
     "(allow mach-lookup)",
     "(allow ipc-posix-shm)",
-    // Permit data transfer over inherited stdio pipes. Opening filesystem
-    // paths still requires one of the path-scoped metadata rules below.
-    "(allow file-read-data file-write-data)",
-    ...literalRule(
-      "file-read-metadata",
-      pathAncestors([...readablePaths, ...(policy.writablePaths ?? [])]),
-    ),
+    '(allow file-read-data (literal "/"))',
+    "(allow file-read-data file-test-existence file-write-data",
+    '  (subpath "/dev/fd"))',
+    '(allow file-read* file-write* (literal "/dev/null"))',
+    ...literalRule("file-read-metadata", [
+      ...pathAncestors([...readablePaths, ...(policy.writablePaths ?? [])]),
+      // macOS exposes these standard locations as symlinks into /private.
+      // libc DNS resolution stats /etc before following it to /private/etc.
+      "/etc",
+      "/tmp",
+      "/var",
+    ]),
     ...subpathRule("file-read*", readablePaths),
     ...subpathRule("file-write*", policy.writablePaths ?? []),
-    policy.network === "allow" ? "(allow network-outbound)" : "(deny network*)",
+    ...networkRules(policy.network),
   ];
 
   return `${lines.join("\n")}\n`;
