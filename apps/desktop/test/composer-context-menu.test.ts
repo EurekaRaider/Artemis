@@ -25,36 +25,35 @@ describe("composer project and Git context menus", () => {
   });
 
   it("exposes Git inspection and branch mutations only through preload IPC", () => {
-    expect(apiSource).toContain("getProjectGitInfo(projectId: string)");
-    expect(apiSource).toContain("getProjectPullRequest(projectId: string)");
+    expect(apiSource).toContain("getProjectGitInfo(");
+    expect(apiSource).toContain("getProjectPullRequest(");
+    expect(apiSource).toContain("threadId?: string");
     expect(apiSource).toContain("switchProjectBranch(");
     expect(apiSource).toContain("createProjectBranch(");
     expect(apiSource).toContain("commitProjectChanges(");
-    expect(apiSource).toContain("pushProjectBranch(projectId: string)");
+    expect(apiSource).toContain("pushProjectBranch(");
     expect(preloadSource).toContain("ipcRenderer.invoke(IPC.projectGitInfo");
     expect(preloadSource).toContain(
       "ipcRenderer.invoke(IPC.projectPullRequest",
     );
-    expect(preloadSource).toContain(
-      "ipcRenderer.invoke(IPC.projectGitBranchSwitch",
-    );
-    expect(preloadSource).toContain(
-      "ipcRenderer.invoke(IPC.projectGitBranchCreate",
-    );
+    expect(preloadSource).toContain("IPC.projectGitBranchSwitch,");
+    expect(preloadSource).toContain("IPC.projectGitBranchCreate,");
     expect(preloadSource).toContain("IPC.projectGitCommit,");
     expect(preloadSource).toContain("ipcRenderer.invoke(IPC.projectGitPush");
     expect(mainSource).toContain(
-      "commitProjectChanges(project.path, message, includeUnstaged)",
+      "commitProjectChanges(\n        context.workspacePath,",
     );
-    expect(mainSource).toContain("pushProjectBranch(project.path)");
-    expect(mainSource).not.toContain("pushProjectBranch(project.path,");
+    expect(mainSource).toContain("pushProjectBranch(context.workspacePath)");
+    expect(mainSource).not.toContain("pushProjectBranch(project.path");
     expect(contextSource).not.toContain('from "node:child_process"');
   });
 
   it("guards branch mutations while local tasks are active", () => {
     expect(mainSource).toContain("store?.hasActiveLocalThread(projectId)");
     expect(mainSource).toContain("[...activeTurns.keys()].some");
-    expect(mainSource).toContain("assertProjectGitMutationAllowed(project.id)");
+    expect(mainSource).toContain(
+      "assertProjectGitMutationAllowed(context.project.id)",
+    );
     expect(contextSource).toContain("branchActionsDisabled");
   });
 

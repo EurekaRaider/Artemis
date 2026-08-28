@@ -17,23 +17,34 @@ const api: ArtemisApi = {
   openProject: () => ipcRenderer.invoke(IPC.projectOpen),
   removeProject: (projectId) =>
     ipcRenderer.invoke(IPC.projectRemove, projectId),
-  getProjectGitInfo: (projectId) =>
-    ipcRenderer.invoke(IPC.projectGitInfo, projectId),
-  getProjectPullRequest: (projectId) =>
-    ipcRenderer.invoke(IPC.projectPullRequest, projectId),
-  switchProjectBranch: (projectId, branchName) =>
-    ipcRenderer.invoke(IPC.projectGitBranchSwitch, projectId, branchName),
-  createProjectBranch: (projectId, branchName) =>
-    ipcRenderer.invoke(IPC.projectGitBranchCreate, projectId, branchName),
-  commitProjectChanges: (projectId, message, includeUnstaged) =>
+  getProjectGitInfo: (projectId, threadId) =>
+    ipcRenderer.invoke(IPC.projectGitInfo, projectId, threadId),
+  getProjectPullRequest: (projectId, threadId) =>
+    ipcRenderer.invoke(IPC.projectPullRequest, projectId, threadId),
+  switchProjectBranch: (projectId, branchName, threadId) =>
+    ipcRenderer.invoke(
+      IPC.projectGitBranchSwitch,
+      projectId,
+      branchName,
+      threadId,
+    ),
+  createProjectBranch: (projectId, branchName, threadId) =>
+    ipcRenderer.invoke(
+      IPC.projectGitBranchCreate,
+      projectId,
+      branchName,
+      threadId,
+    ),
+  commitProjectChanges: (projectId, message, includeUnstaged, threadId) =>
     ipcRenderer.invoke(
       IPC.projectGitCommit,
       projectId,
       message,
       includeUnstaged,
+      threadId,
     ),
-  pushProjectBranch: (projectId) =>
-    ipcRenderer.invoke(IPC.projectGitPush, projectId),
+  pushProjectBranch: (projectId, threadId) =>
+    ipcRenderer.invoke(IPC.projectGitPush, projectId, threadId),
   selectPromptAttachments: () =>
     ipcRenderer.invoke(IPC.promptAttachmentsSelect),
   readPromptAttachments: (files) =>
@@ -47,8 +58,14 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.threadModelSet, threadId, selection),
   renameThread: (threadId, title) =>
     ipcRenderer.invoke(IPC.threadRename, threadId, title),
-  setThreadGoal: (threadId, goal) =>
-    ipcRenderer.invoke(IPC.threadGoal, threadId, goal),
+  setThreadGoal: (threadId, objective, tokenBudget) =>
+    ipcRenderer.invoke(IPC.threadGoalSet, threadId, objective, tokenBudget),
+  pauseThreadGoal: (threadId) =>
+    ipcRenderer.invoke(IPC.threadGoalPause, threadId),
+  resumeThreadGoal: (threadId) =>
+    ipcRenderer.invoke(IPC.threadGoalResume, threadId),
+  clearThreadGoal: (threadId) =>
+    ipcRenderer.invoke(IPC.threadGoalClear, threadId),
   archiveThread: (threadId, archived) =>
     ipcRenderer.invoke(IPC.threadArchive, threadId, archived),
   deleteThread: (threadId) => ipcRenderer.invoke(IPC.threadDelete, threadId),
@@ -340,6 +357,14 @@ const api: ArtemisApi = {
       listener(threadId);
     ipcRenderer.on(IPC.automationThreadOpen, handler);
     return () => ipcRenderer.removeListener(IPC.automationThreadOpen, handler);
+  },
+  onProjectGitChanged(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      context: Parameters<typeof listener>[0],
+    ) => listener(context);
+    ipcRenderer.on(IPC.projectGitChanged, handler);
+    return () => ipcRenderer.removeListener(IPC.projectGitChanged, handler);
   },
 };
 

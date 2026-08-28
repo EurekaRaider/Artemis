@@ -255,11 +255,31 @@ export const turnStartedPayloadSchema = z.object({
 
 export const turnActivityPayloadSchema = z.object({
   type: z.literal("turn.activity"),
-  phase: z.enum(["queued", "requesting-model", "thinking"]),
+  phase: z.enum([
+    "queued",
+    "requesting-model",
+    "thinking",
+    "reconnecting",
+    "recovered",
+    "interrupted",
+  ]),
   queueDepth: z.number().int().nonnegative().optional(),
   toolCount: z.number().int().nonnegative().optional(),
+  kind: z
+    .enum(["connection", "stream-stalled", "rate-limit", "provider"])
+    .optional(),
+  attempt: z.number().int().positive().optional(),
+  maxAttempts: z.number().int().positive().optional(),
+  delayMs: z.number().int().nonnegative().optional(),
+  attemptId: z.string().min(1).optional(),
 });
 export type TurnActivityPayload = z.infer<typeof turnActivityPayloadSchema>;
+
+export const messageSupersededPayloadSchema = z.object({
+  type: z.literal("message.superseded"),
+  messageId: z.string().min(1),
+  attemptId: z.string().min(1),
+});
 
 export const messageDeltaPayloadSchema = z.object({
   type: z.literal("message.part.delta"),
@@ -613,6 +633,41 @@ export const assistantUsagePayloadSchema = z.object({
 });
 export type AssistantUsagePayload = z.infer<typeof assistantUsagePayloadSchema>;
 
+export const threadGoalStatusSchema = z.enum([
+  "active",
+  "paused",
+  "blocked",
+  "usageLimited",
+  "budgetLimited",
+  "complete",
+]);
+export type ThreadGoalStatus = z.infer<typeof threadGoalStatusSchema>;
+
+export const threadGoalSchema = z.object({
+  threadId: z.string().min(1),
+  goalId: z.string().min(1),
+  objective: z.string().trim().min(1).max(2_000),
+  status: threadGoalStatusSchema,
+  tokenBudget: z.number().int().positive().optional(),
+  tokensUsed: z.number().int().nonnegative(),
+  timeUsedSeconds: z.number().nonnegative(),
+  revision: z.number().int().positive(),
+  createdAt: z.string().datetime({ offset: true }),
+  updatedAt: z.string().datetime({ offset: true }),
+});
+export type ThreadGoal = z.infer<typeof threadGoalSchema>;
+
+export const threadGoalUpdatedPayloadSchema = z.object({
+  type: z.literal("thread.goal.updated"),
+  goal: threadGoalSchema,
+});
+
+export const threadGoalClearedPayloadSchema = z.object({
+  type: z.literal("thread.goal.cleared"),
+  goalId: z.string().min(1),
+  revision: z.number().int().positive(),
+});
+
 export const queueUpdatedPayloadSchema = z.object({
   type: z.literal("queue.updated"),
   steering: z.array(z.string()),
@@ -623,6 +678,15 @@ export type QueueUpdatedPayload = z.infer<typeof queueUpdatedPayloadSchema>;
 export const queueRecoveredPayloadSchema = z.object({
   type: z.literal("queue.recovered"),
   messages: z.array(z.string().min(1)).min(1),
+  items: z
+    .array(
+      z.object({
+        text: z.string().min(1),
+        attachments: promptAttachmentsSchema.optional(),
+      }),
+    )
+    .min(1)
+    .optional(),
 });
 export type QueueRecoveredPayload = z.infer<typeof queueRecoveredPayloadSchema>;
 
@@ -641,6 +705,7 @@ export const agentPayloadSchema = z.discriminatedUnion("type", [
   userMessagePayloadSchema,
   turnStartedPayloadSchema,
   turnActivityPayloadSchema,
+  messageSupersededPayloadSchema,
   messageDeltaPayloadSchema,
   toolStartedPayloadSchema,
   toolUpdatedPayloadSchema,
@@ -658,6 +723,8 @@ export const agentPayloadSchema = z.discriminatedUnion("type", [
   taskSourceAddedPayloadSchema,
   contextUsagePayloadSchema,
   assistantUsagePayloadSchema,
+  threadGoalUpdatedPayloadSchema,
+  threadGoalClearedPayloadSchema,
   queueUpdatedPayloadSchema,
   queueRecoveredPayloadSchema,
   turnCompletedPayloadSchema,
@@ -689,7 +756,7 @@ export const threadSchema = z.object({
   id: z.string().min(1),
   projectId: z.string().min(1).optional(),
   title: z.string().min(1),
-  goal: z.string().trim().min(1).max(2_000).optional(),
+  goal: threadGoalSchema.optional(),
   mode: runModeSchema,
   target: workspaceTargetSchema,
   status: z.enum(["idle", "running", "waiting-approval", "failed"]),
@@ -759,9 +826,22 @@ export const threadCommandSchema = z.discriminatedUnion("type", [
     title: z.string().trim().min(1).max(160),
   }),
   z.object({
-    type: z.literal("thread.goal"),
+    type: z.literal("thread.goal.set"),
     threadId: z.string().min(1),
-    goal: z.string().trim().min(1).max(2_000).nullable(),
+    objective: z.string().trim().min(1).max(2_000),
+    tokenBudget: z.number().int().positive().optional(),
+  }),
+  z.object({
+    type: z.literal("thread.goal.pause"),
+    threadId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("thread.goal.resume"),
+    threadId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("thread.goal.clear"),
+    threadId: z.string().min(1),
   }),
   z.object({
     type: z.literal("thread.fork"),
@@ -787,7 +867,13 @@ export const threadCommandSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("turn.queue.replace"),
     threadId: z.string().min(1),
-    followUp: z.array(z.string().trim().min(1)),
+    expectedFollowUp: z.array(z.string().min(1)).min(1),
+    followUp: z.array(
+      z.object({
+        sourceIndex: z.number().int().nonnegative(),
+        text: z.string().trim().min(1),
+      }),
+    ),
   }),
   z.object({
     type: z.literal("turn.steer"),

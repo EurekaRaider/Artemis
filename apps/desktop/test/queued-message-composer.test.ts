@@ -146,12 +146,18 @@ describe("Codex-style queued message composer", () => {
       "expectedFollowUp: [...queuedFollowUps]",
     );
     expect(replaceQueuedMessages).toContain("window.artemis.replaceTurnQueue");
-    expect(replaceQueuedMessages).toContain("followUp");
+    expect(replaceQueuedMessages).toContain(
+      "expectedFollowUp: [...queuedFollowUps]",
+    );
+    expect(replaceQueuedMessages).toContain("sourceIndex");
     expect(replaceQueuedMessages).not.toContain("clearTurnQueue");
-    expect(deleteQueuedMessage).toContain("queuedFollowUps.filter");
+    expect(deleteQueuedMessage).toContain("queuedFollowUps.flatMap");
     expect(deleteQueuedMessage).toContain("replaceQueuedMessages");
     expect(appSource).toContain("const moveQueuedMessageToFront =");
-    expect(appSource).toContain("queuedFollowUps.slice(0, index)");
+    expect(appSource).toContain("{ sourceIndex: index, text: message }");
+    expect(appSource).toContain(
+      ".filter((item) => item.sourceIndex !== index)",
+    );
     expect(appSource).toContain("const saveQueuedMessage =");
     expect(appSource).toContain("queuedFollowUps.map");
     expect(sourceForQueuedButton("queued-message-delete")).toContain(
@@ -187,6 +193,6 @@ describe("Codex-style queued message composer", () => {
     expect(appSource).toContain(
       "conversationDraftKey(undefined, event.threadId)",
     );
-    expect(appSource).toContain("restoreComposerMessages(");
+    expect(appSource).toContain("restoreComposerQueueItems(");
   });
 });

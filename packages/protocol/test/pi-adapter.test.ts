@@ -116,6 +116,66 @@ describe("PiAdapter", () => {
     ).toEqual([]);
   });
 
+  it("maps Pi retry progress and supersedes a failed partial answer", () => {
+    const adapter = new PiAdapter("turn-1");
+
+    adapter.adapt({
+      type: "message_update",
+      message: { id: "attempt-1", role: "assistant" },
+      assistantMessageEvent: { type: "text_delta", delta: "Partial" },
+    });
+    adapter.adapt({
+      type: "message_end",
+      message: {
+        id: "attempt-1",
+        role: "assistant",
+        content: [{ type: "text", text: "Partial" }],
+        stopReason: "error",
+        errorMessage: "getaddrinfo ENOTFOUND api.example.invalid",
+      },
+    });
+
+    expect(
+      adapter.adapt({
+        type: "auto_retry_start",
+        attempt: 1,
+        maxAttempts: 3,
+        delayMs: 2_000,
+        errorMessage: "getaddrinfo ENOTFOUND api.example.invalid",
+      }),
+    ).toEqual([
+      {
+        type: "message.superseded",
+        messageId: "attempt-1",
+        attemptId: "turn-1:retry:1",
+      },
+      {
+        type: "turn.activity",
+        phase: "reconnecting",
+        kind: "connection",
+        attempt: 1,
+        maxAttempts: 3,
+        delayMs: 2_000,
+        attemptId: "turn-1:retry:1",
+      },
+    ]);
+    expect(
+      adapter.adapt({ type: "auto_retry_end", success: true, attempt: 1 }),
+    ).toEqual([
+      {
+        type: "turn.activity",
+        phase: "recovered",
+        attemptId: "turn-1:retry:1",
+      },
+    ]);
+  });
+
+  it("does not settle while agent_end says a retry will follow", () => {
+    const adapter = new PiAdapter("turn-1");
+    expect(adapter.adapt({ type: "agent_end", willRetry: true })).toEqual([]);
+    expect(adapter.adapt({ type: "agent_settled" })).toEqual([]);
+  });
+
   it("recovers final assistant text when a compatible proxy emits no deltas", () => {
     const adapter = new PiAdapter("turn-1");
 

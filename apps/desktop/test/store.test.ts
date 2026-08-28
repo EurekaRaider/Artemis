@@ -172,6 +172,18 @@ describe("AppStore", () => {
       updatedAt: "2026-08-18T00:01:00.000Z",
     });
     expect(store.getThread("scratch-thread")?.projectId).toBeUndefined();
+    expect(
+      store.setThreadGoal(
+        "thread-1",
+        "Finish the migrated task",
+        undefined,
+        false,
+      ),
+    ).toMatchObject({
+      threadId: "thread-1",
+      objective: "Finish the migrated task",
+      status: "active",
+    });
     store.close();
   });
 
@@ -1249,11 +1261,88 @@ describe("AppStore", () => {
 
     const store = new AppStore(databasePath);
     expect(store.getThread("thread-1")?.goal).toBeUndefined();
-    const updated = store.updateThread("thread-1", {
-      goal: "Ship searchable archives",
+    const goal = store.setThreadGoal(
+      "thread-1",
+      "Ship searchable archives",
+      10_000,
+      false,
+    );
+    expect(store.getThread("thread-1")?.goal).toEqual(goal);
+    expect(goal).toMatchObject({
+      objective: "Ship searchable archives",
+      status: "active",
+      tokenBudget: 10_000,
+      tokensUsed: 0,
     });
-    expect(updated.goal).toBe("Ship searchable archives");
-    expect(store.updateThread("thread-1", { goal: null }).goal).toBeUndefined();
+    const cleared = store.clearThreadGoal("thread-1", goal.goalId);
+    expect(cleared?.revision).toBe(goal.revision + 1);
+    expect(store.getThread("thread-1")?.goal).toBeUndefined();
+    store.close();
+  });
+
+  it("enforces Goal budgets and the three-turn blocker threshold", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-goal-state-"));
+    temporaryDirectories.push(directory);
+    const store = new AppStore(join(directory, "state.sqlite"));
+    const now = "2026-08-28T00:00:00.000Z";
+    store.createThread({
+      id: "goal-thread",
+      title: "Goal task",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const budgetGoal = store.setThreadGoal(
+      "goal-thread",
+      "Stay within budget",
+      100,
+      false,
+    );
+    expect(
+      store.updateThreadGoalAccounting(
+        "goal-thread",
+        budgetGoal.goalId,
+        100,
+        12,
+      ),
+    ).toMatchObject({
+      status: "budgetLimited",
+      tokensUsed: 100,
+      timeUsedSeconds: 12,
+    });
+
+    const blockerGoal = store.setThreadGoal(
+      "goal-thread",
+      "Require repeated evidence",
+      undefined,
+      true,
+    );
+    expect(
+      store.recordThreadGoalBlocker(
+        "goal-thread",
+        blockerGoal.goalId,
+        "same blocker",
+      ),
+    ).toMatchObject({ attempts: 1, goal: { status: "active" } });
+    expect(
+      store.recordThreadGoalBlocker(
+        "goal-thread",
+        blockerGoal.goalId,
+        "same blocker",
+      ),
+    ).toMatchObject({ attempts: 2, goal: { status: "active" } });
+    expect(
+      store.recordThreadGoalBlocker(
+        "goal-thread",
+        blockerGoal.goalId,
+        "same blocker",
+      ),
+    ).toMatchObject({ attempts: 3, goal: { status: "blocked" } });
     store.close();
   });
 });

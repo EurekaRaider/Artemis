@@ -68,7 +68,7 @@ describe("reported issue regressions #70-#72", () => {
     const header = sourceBetween(tokenUsagePageSource, "<thead>", "</thead>");
     const row = sourceBetween(
       tokenUsagePageSource,
-      "{usageByModel.map((model) => (",
+      "{usageModelsForTable.map((model) => (",
       "</tbody>",
     );
 

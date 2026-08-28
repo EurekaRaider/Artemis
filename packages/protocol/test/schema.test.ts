@@ -31,6 +31,27 @@ describe("turn activity schema", () => {
       }),
     ).toEqual({ type: "turn.activity", phase: "thinking" });
   });
+
+  it("parses durable reconnect progress without retaining provider errors", () => {
+    expect(
+      agentPayloadSchema.parse({
+        type: "turn.activity",
+        phase: "reconnecting",
+        kind: "connection",
+        attempt: 2,
+        delayMs: 10_000,
+        attemptId: "turn-1:connection:2",
+        errorMessage: "https://secret.example Authorization: Bearer hidden",
+      }),
+    ).toEqual({
+      type: "turn.activity",
+      phase: "reconnecting",
+      kind: "connection",
+      attempt: 2,
+      delayMs: 10_000,
+      attemptId: "turn-1:connection:2",
+    });
+  });
 });
 
 describe("queued message recovery schema", () => {
@@ -39,10 +60,34 @@ describe("queued message recovery schema", () => {
       agentPayloadSchema.parse({
         type: "queue.recovered",
         messages: ["Discuss the unrelated follow-up instead"],
+        items: [
+          {
+            text: "Discuss the unrelated follow-up instead",
+            attachments: [
+              {
+                name: "screenshot.png",
+                mimeType: "image/png",
+                data: "iVBORw==",
+              },
+            ],
+          },
+        ],
       }),
     ).toEqual({
       type: "queue.recovered",
       messages: ["Discuss the unrelated follow-up instead"],
+      items: [
+        {
+          text: "Discuss the unrelated follow-up instead",
+          attachments: [
+            {
+              name: "screenshot.png",
+              mimeType: "image/png",
+              data: "iVBORw==",
+            },
+          ],
+        },
+      ],
     });
     expect(
       agentPayloadSchema.safeParse({
@@ -149,14 +194,19 @@ describe("approval schemas", () => {
       threadCommandSchema.safeParse({
         type: "turn.queue.replace",
         threadId: "thread-1",
-        followUp: ["First queued message", "Second queued message"],
+        expectedFollowUp: ["First queued message", "Second queued message"],
+        followUp: [
+          { sourceIndex: 1, text: "Second queued message" },
+          { sourceIndex: 0, text: "Edited first message" },
+        ],
       }).success,
     ).toBe(true);
     expect(
       threadCommandSchema.safeParse({
         type: "turn.queue.replace",
         threadId: "thread-1",
-        followUp: ["   "],
+        expectedFollowUp: ["First queued message"],
+        followUp: [{ sourceIndex: 0, text: "   " }],
       }).success,
     ).toBe(false);
     expect(
@@ -199,23 +249,23 @@ describe("approval schemas", () => {
     ).toBe(true);
     expect(
       threadCommandSchema.safeParse({
-        type: "thread.goal",
+        type: "thread.goal.set",
         threadId: "thread-1",
-        goal: "Ship a verified release",
+        objective: "Ship a verified release",
+        tokenBudget: 50_000,
       }).success,
     ).toBe(true);
     expect(
       threadCommandSchema.safeParse({
-        type: "thread.goal",
+        type: "thread.goal.set",
         threadId: "thread-1",
-        goal: "   ",
+        objective: "   ",
       }).success,
     ).toBe(false);
     expect(
       threadCommandSchema.safeParse({
-        type: "thread.goal",
+        type: "thread.goal.clear",
         threadId: "thread-1",
-        goal: null,
       }).success,
     ).toBe(true);
     expect(

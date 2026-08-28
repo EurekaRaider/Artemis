@@ -185,7 +185,11 @@ async function handle(command: AgentHostCommand): Promise<void> {
         );
         break;
       case "turn.queue.replace":
-        await host.replaceFollowUpQueue(command.threadId, command.followUp);
+        await host.replaceFollowUpQueue(
+          command.threadId,
+          command.expectedFollowUp,
+          command.followUp,
+        );
         break;
       case "child.status":
         data = host.childAgentStatus(command.threadId, command.agentId);

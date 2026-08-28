@@ -10,7 +10,10 @@ class FakeUtilityProcess extends EventEmitter {
   readonly kill = vi.fn(() => true);
 }
 
-async function createAgentProcess(child: FakeUtilityProcess) {
+async function createAgentProcess(
+  child: FakeUtilityProcess,
+  onStderr = vi.fn(),
+) {
   vi.doMock("electron", () => ({
     utilityProcess: {
       fork: vi.fn(() => child),
@@ -20,6 +23,7 @@ async function createAgentProcess(child: FakeUtilityProcess) {
   return new AgentProcess("C:\\agent-worker.js", {
     onEvent: vi.fn(),
     onBrokerRequest: vi.fn(async () => {}),
+    onStderr,
   });
 }
 
@@ -70,5 +74,19 @@ describe("AgentProcess", () => {
     child.emit("exit", 17);
 
     await expect(response).rejects.toThrow("17");
+  });
+
+  it("redacts URLs, credentials, and user paths from host diagnostics", async () => {
+    const child = new FakeUtilityProcess();
+    const onStderr = vi.fn();
+    await createAgentProcess(child, onStderr);
+
+    child.stderr.write(
+      "request https://api.example.test/path?token=secret Authorization: Bearer abc.def /Users/alice/private.txt\n",
+    );
+
+    expect(onStderr).toHaveBeenCalledWith(
+      "request [URL] Authorization: [REDACTED] [PATH]\n",
+    );
   });
 });

@@ -88,9 +88,15 @@ const labels = {
       `${count} changed ${count === 1 ? "file" : "files"}`,
     local: "Local",
     branch: "Branch",
+    branchSearch: "Search local and remote branches",
+    createBranch: "Create and checkout branch",
+    copyBranch: "Copy branch name",
+    localBranch: "Local",
+    remoteBranch: "Remote",
     detached: "Detached HEAD",
     detachedBlocked: "Switch to a branch first",
     compareBranch: "Compare branch",
+    noCompareBase: "Choose a base in Review",
     commitOrPush: "Commit or push",
     commitMessage: "Commit message",
     commitMessagePlaceholder: "Commit message (leave blank to generate)…",
@@ -114,6 +120,7 @@ const labels = {
     noUpstream: "No upstream configured",
     behind: "Pull or reconcile the upstream first",
     conflicts: "Resolve conflicts first",
+    commitAndSwitch: "Commit and switch branch…",
     stopTasks: "Stop active local tasks first",
     committing: "Committing…",
     pushing: "Pushing…",
@@ -186,9 +193,15 @@ const labels = {
     filesChanged: (count: number) => `${count} 个文件发生变更`,
     local: "本地",
     branch: "分支",
+    branchSearch: "搜索本地和远端分支",
+    createBranch: "创建并切换分支",
+    copyBranch: "复制分支名称",
+    localBranch: "本地",
+    remoteBranch: "远端",
     detached: "分离的 HEAD",
     detachedBlocked: "请先切换到一个分支",
     compareBranch: "比较分支",
+    noCompareBase: "请在审查中选择基准",
     commitOrPush: "提交或推送",
     commitMessage: "提交说明",
     commitMessagePlaceholder: "提交信息（留空将自动生成）…",
@@ -211,6 +224,7 @@ const labels = {
     noUpstream: "当前分支没有 upstream",
     behind: "请先拉取或处理远端分叉",
     conflicts: "请先解决冲突",
+    commitAndSwitch: "提交并切换分支…",
     stopTasks: "请先停止正在运行的本地任务",
     committing: "正在提交…",
     pushing: "正在推送…",
@@ -506,9 +520,7 @@ export function environmentGitAction(
         ? { disabledReason: copy.stopTasks }
         : info.behind > 0
           ? { disabledReason: copy.behind }
-          : !info.upstream
-            ? { disabledReason: copy.noUpstream }
-            : {}),
+          : {}),
     };
   }
   return {
@@ -634,7 +646,6 @@ export function EnvironmentPanel({
   dockOpen,
   locale,
   mcpUsages,
-  onAddProject,
   onAddSources,
   onConfirm,
   onMessage,
@@ -649,6 +660,7 @@ export function EnvironmentPanel({
   sources,
   taskTitle,
   teams,
+  threadId,
 }: {
   actionsDisabled: boolean;
   agents: ChildAgentState[];
@@ -658,13 +670,12 @@ export function EnvironmentPanel({
   dockOpen: boolean;
   locale: AppLocale;
   mcpUsages: McpToolUsageState[];
-  onAddProject: () => void;
   onAddSources: () => void;
   onConfirm: (message: string) => Promise<boolean>;
   onMessage: (message: string, error?: boolean) => void;
   onOpenChange: (open: boolean) => void;
   onOpenAgent: (agent: ChildAgentState) => void;
-  onOpenReview: (scope: ReviewScope) => void;
+  onOpenReview: (scope: ReviewScope, baseRef?: string) => void;
   onOpenTeam: (team: AgentTeamState) => void;
   onOpenUrl: (url: string) => void;
   onViewAllSources: () => void;
@@ -673,6 +684,7 @@ export function EnvironmentPanel({
   sources: TaskSourceState[];
   taskTitle: string;
   teams: AgentTeamState[];
+  threadId?: string;
 }) {
   const t = localizedCopy(locale, "app", labels[legacyLocale(locale)]);
   const control = useRef<HTMLDivElement>(null);
@@ -707,6 +719,9 @@ export function EnvironmentPanel({
     suggestedEnvironmentBranchName(taskTitle),
   );
   const [branchOpen, setBranchOpen] = useState(false);
+  const [branchQuery, setBranchQuery] = useState("");
+  const [menuBranchName, setMenuBranchName] = useState("");
+  const [pendingSwitchBranch, setPendingSwitchBranch] = useState<string>();
   const [showAllAgents, setShowAllAgents] = useState(false);
 
   useLayoutEffect(() => {
@@ -816,7 +831,7 @@ export function EnvironmentPanel({
     setGitLoading(true);
     setGitError(undefined);
     try {
-      const info = await window.artemis.getProjectGitInfo(project.id);
+      const info = await window.artemis.getProjectGitInfo(project.id, threadId);
       if (gitRequest.current === id) setGitInfo(info);
     } catch (error) {
       if (gitRequest.current === id) {
@@ -825,14 +840,17 @@ export function EnvironmentPanel({
     } finally {
       if (gitRequest.current === id) setGitLoading(false);
     }
-  }, [project.id]);
+  }, [project.id, threadId]);
 
   const loadPullRequest = useCallback(async () => {
     const id = ++pullRequestRequest.current;
     setPullRequestLoading(true);
     setPullRequestError(undefined);
     try {
-      const lookup = await window.artemis.getProjectPullRequest(project.id);
+      const lookup = await window.artemis.getProjectPullRequest(
+        project.id,
+        threadId,
+      );
       if (pullRequestRequest.current !== id) return;
       setPullRequestLookup(lookup);
       if (lookup.status !== "found") setChecksOpen(false);
@@ -845,7 +863,7 @@ export function EnvironmentPanel({
     } finally {
       if (pullRequestRequest.current === id) setPullRequestLoading(false);
     }
-  }, [project.id]);
+  }, [project.id, threadId]);
 
   useEffect(() => {
     setGitInfo(undefined);
@@ -859,7 +877,10 @@ export function EnvironmentPanel({
     setCreatingCommitBranch(false);
     setNewCommitBranch(suggestedEnvironmentBranchName(taskTitle));
     setBranchOpen(false);
-  }, [project.id, taskTitle]);
+    setBranchQuery("");
+    setMenuBranchName("");
+    setPendingSwitchBranch(undefined);
+  }, [project.id, taskTitle, threadId]);
 
   useEffect(() => {
     if (open) return;
@@ -872,6 +893,22 @@ export function EnvironmentPanel({
     void loadGit();
     void loadPullRequest();
   }, [loadGit, loadPullRequest, open, refreshKey]);
+
+  useEffect(
+    () =>
+      window.artemis.onProjectGitChanged((context) => {
+        if (
+          !openRef.current ||
+          context.projectId !== project.id ||
+          context.threadId !== threadId
+        ) {
+          return;
+        }
+        void loadGit();
+        void loadPullRequest();
+      }),
+    [loadGit, loadPullRequest, project.id, threadId],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -1043,35 +1080,32 @@ export function EnvironmentPanel({
             : selectedChangeCount === 0
               ? t.noSelectedChanges
               : undefined;
-  const commitAndPushDisabledReason =
-    commitDisabledReason ??
-    (!includeUnstaged &&
-    ((gitInfo?.unstagedCount ?? 0) > 0 || (gitInfo?.untrackedCount ?? 0) > 0)
-      ? t.commitChangesFirst
-      : creatingCommitBranch
-        ? t.noUpstream
-        : !gitInfo?.upstream
-          ? t.noUpstream
-          : gitInfo.behind > 0
-            ? t.behind
-            : undefined);
+  const commitAndPushDisabledReason = pendingSwitchBranch
+    ? t.commitAndSwitch
+    : (commitDisabledReason ??
+      (!includeUnstaged &&
+      ((gitInfo?.unstagedCount ?? 0) > 0 || (gitInfo?.untrackedCount ?? 0) > 0)
+        ? t.commitChangesFirst
+        : gitInfo?.upstream && gitInfo.behind > 0
+          ? t.behind
+          : undefined));
   const pushDisabledReason = !gitInfo
     ? t.loading
-    : actionsDisabled
-      ? t.stopTasks
-      : gitInfo.conflictCount > 0
-        ? t.conflicts
-        : creatingCommitBranch || !gitInfo.currentBranch
-          ? creatingCommitBranch
-            ? t.noUpstream
-            : t.detachedBlocked
-          : gitInfo.changeCount > 0
-            ? t.commitChangesFirst
-            : !gitInfo.upstream
-              ? t.noUpstream
-              : gitInfo.behind > 0
+    : pendingSwitchBranch
+      ? t.commitAndSwitch
+      : actionsDisabled
+        ? t.stopTasks
+        : gitInfo.conflictCount > 0
+          ? t.conflicts
+          : creatingCommitBranch || !gitInfo.currentBranch
+            ? creatingCommitBranch
+              ? t.newBranchPlaceholder
+              : t.detachedBlocked
+            : gitInfo.changeCount > 0
+              ? t.commitChangesFirst
+              : gitInfo.upstream && gitInfo.behind > 0
                 ? t.behind
-                : gitInfo.ahead === 0
+                : gitInfo.upstream && gitInfo.ahead === 0
                   ? t.synced
                   : undefined;
   const activityPreviewLimit = 2;
@@ -1085,6 +1119,9 @@ export function EnvironmentPanel({
         Math.max(0, activityPreviewLimit - visibleTeams.length),
       );
   const visibleMcp = mcpGroups.slice(0, 3);
+  const visibleBranches = (gitInfo?.branches ?? []).filter((branch) =>
+    branch.name.toLocaleLowerCase().includes(branchQuery.toLocaleLowerCase()),
+  );
   const combinedSources: EnvironmentSourceItem[] = [
     ...attachments.map((attachment, index) => ({
       id: `draft:${index}:${attachment.name}`,
@@ -1133,6 +1170,7 @@ export function EnvironmentPanel({
   const closeCommitDialog = () => {
     setCommitOpen(false);
     setCommitBranchOpen(false);
+    setPendingSwitchBranch(undefined);
     setCreatingCommitBranch(false);
     setNewCommitBranch(suggestedEnvironmentBranchName(taskTitle));
     setCommitMessage("");
@@ -1146,6 +1184,7 @@ export function EnvironmentPanel({
     const info = await window.artemis.createProjectBranch(
       project.id,
       newCommitBranch,
+      threadId,
     );
     setGitInfo(info);
     setCreatingCommitBranch(false);
@@ -1163,8 +1202,17 @@ export function EnvironmentPanel({
         project.id,
         commitMessage,
         includeUnstaged,
+        threadId,
       );
-      setGitInfo(result.gitInfo);
+      const afterCommit = pendingSwitchBranch
+        ? await window.artemis.switchProjectBranch(
+            project.id,
+            pendingSwitchBranch,
+            threadId,
+          )
+        : result.gitInfo;
+      setGitInfo(afterCommit);
+      setPendingSwitchBranch(undefined);
       closeCommitDialog();
       onMessage(t.commitCreated(result.commit.slice(0, 7)));
       void loadPullRequest();
@@ -1179,17 +1227,21 @@ export function EnvironmentPanel({
   };
 
   const push = async (confirmed = false) => {
-    if (!gitInfo?.upstream || gitBusy || pushDisabledReason) return;
+    if (!gitInfo?.currentBranch || gitBusy || pushDisabledReason) return;
+    const destination = gitInfo.upstream ?? `origin/${gitInfo.currentBranch}`;
     if (
       !confirmed &&
-      !(await onConfirm(t.pushConfirm(gitInfo.ahead, gitInfo.upstream)))
+      !(await onConfirm(t.pushConfirm(gitInfo.ahead, destination)))
     ) {
       return;
     }
     setGitBusy("push");
     setGitError(undefined);
     try {
-      const result = await window.artemis.pushProjectBranch(project.id);
+      const result = await window.artemis.pushProjectBranch(
+        project.id,
+        threadId,
+      );
       setGitInfo(result.gitInfo);
       closeCommitDialog();
       onMessage(t.pushCompleted(result.upstream));
@@ -1205,11 +1257,14 @@ export function EnvironmentPanel({
   };
 
   const commitAndPush = async () => {
-    if (!gitInfo?.upstream || gitBusy || commitAndPushDisabledReason) return;
+    if (!gitInfo || gitBusy || commitAndPushDisabledReason) return;
+    const branch = creatingCommitBranch
+      ? newCommitBranch.trim()
+      : gitInfo.currentBranch;
+    if (!branch) return;
+    const destination = gitInfo.upstream ?? `origin/${branch}`;
     if (
-      !(await onConfirm(
-        t.commitAndPushConfirm(gitInfo.ahead + 1, gitInfo.upstream),
-      ))
+      !(await onConfirm(t.commitAndPushConfirm(gitInfo.ahead + 1, destination)))
     ) {
       return;
     }
@@ -1220,9 +1275,13 @@ export function EnvironmentPanel({
         project.id,
         commitMessage,
         includeUnstaged,
+        threadId,
       );
       setGitInfo(committed.gitInfo);
-      const pushed = await window.artemis.pushProjectBranch(project.id);
+      const pushed = await window.artemis.pushProjectBranch(
+        project.id,
+        threadId,
+      );
       setGitInfo(pushed.gitInfo);
       closeCommitDialog();
       onMessage(t.pushCompleted(pushed.upstream));
@@ -1242,10 +1301,43 @@ export function EnvironmentPanel({
     setGitBusy("branch");
     setGitError(undefined);
     try {
-      setGitInfo(await window.artemis.switchProjectBranch(project.id, branch));
+      setGitInfo(
+        await window.artemis.switchProjectBranch(project.id, branch, threadId),
+      );
       setBranchOpen(false);
       setCommitBranchOpen(false);
       setCreatingCommitBranch(false);
+      await loadPullRequest();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setGitError(message);
+      if (
+        /would be overwritten|local changes|uncommitted changes/iu.test(message)
+      ) {
+        setPendingSwitchBranch(branch);
+      }
+      onMessage(message, true);
+    } finally {
+      setGitBusy(undefined);
+    }
+  };
+
+  const createBranchFromMenu = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (actionsDisabled || gitBusy || !menuBranchName.trim()) return;
+    setGitBusy("branch");
+    setGitError(undefined);
+    try {
+      setGitInfo(
+        await window.artemis.createProjectBranch(
+          project.id,
+          menuBranchName,
+          threadId,
+        ),
+      );
+      setBranchOpen(false);
+      setBranchQuery("");
+      setMenuBranchName("");
       await loadPullRequest();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1286,15 +1378,6 @@ export function EnvironmentPanel({
           <section className="environment-section git-environment-section">
             <header>
               <h2>{t.title}</h2>
-              <button
-                aria-label={t.addProject}
-                className="environment-header-action"
-                onClick={onAddProject}
-                title={t.addProject}
-                type="button"
-              >
-                +
-              </button>
             </header>
             {gitLoading && !gitInfo ? (
               <div className="environment-empty" role="status">
@@ -1363,27 +1446,78 @@ export function EnvironmentPanel({
                   </button>
                   {branchOpen && (
                     <div className="environment-branch-menu" role="menu">
-                      {gitInfo.branches.map((branch) => (
+                      <input
+                        aria-label={t.branchSearch}
+                        autoFocus
+                        onChange={(event) => setBranchQuery(event.target.value)}
+                        placeholder={t.branchSearch}
+                        value={branchQuery}
+                      />
+                      <form
+                        onSubmit={(event) => void createBranchFromMenu(event)}
+                      >
+                        <input
+                          aria-label={t.createBranch}
+                          onChange={(event) =>
+                            setMenuBranchName(event.target.value)
+                          }
+                          placeholder={t.newBranchPlaceholder}
+                          value={menuBranchName}
+                        />
                         <button
-                          aria-checked={branch.current}
-                          className={branch.current ? "selected" : ""}
+                          aria-label={t.createBranch}
                           disabled={
+                            actionsDisabled ||
                             Boolean(gitBusy) ||
-                            (actionsDisabled && !branch.current)
+                            !menuBranchName.trim()
                           }
-                          key={branch.name}
-                          onClick={() =>
-                            branch.current
-                              ? setBranchOpen(false)
-                              : void switchBranch(branch.name)
-                          }
-                          role="menuitemradio"
-                          type="button"
+                          title={t.createBranch}
+                          type="submit"
                         >
-                          <BranchIcon />
-                          <span>{branch.name}</span>
-                          <i>{branch.current ? "✓" : ""}</i>
+                          +
                         </button>
+                      </form>
+                      {visibleBranches.map((branch) => (
+                        <div
+                          className="environment-branch-option"
+                          key={branch.name}
+                        >
+                          <button
+                            aria-checked={branch.current}
+                            className={branch.current ? "selected" : ""}
+                            disabled={
+                              Boolean(gitBusy) ||
+                              (actionsDisabled && !branch.current)
+                            }
+                            onClick={() =>
+                              branch.current
+                                ? setBranchOpen(false)
+                                : void switchBranch(branch.name)
+                            }
+                            role="menuitemradio"
+                            type="button"
+                          >
+                            <BranchIcon />
+                            <span>
+                              {branch.name}
+                              <small>
+                                {branch.remote ? t.remoteBranch : t.localBranch}
+                              </small>
+                            </span>
+                            <i>{branch.current ? "✓" : ""}</i>
+                          </button>
+                          <button
+                            aria-label={`${t.copyBranch}: ${branch.name}`}
+                            className="environment-branch-copy"
+                            onClick={() =>
+                              void navigator.clipboard.writeText(branch.name)
+                            }
+                            title={t.copyBranch}
+                            type="button"
+                          >
+                            ⧉
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -1392,7 +1526,7 @@ export function EnvironmentPanel({
                   className="environment-row"
                   onClick={() => {
                     closePanel();
-                    onOpenReview("branch");
+                    onOpenReview("branch", gitInfo.compareBase);
                   }}
                   type="button"
                 >
@@ -1401,7 +1535,7 @@ export function EnvironmentPanel({
                   </span>
                   <span className="environment-row-copy">
                     <strong>{t.compareBranch}</strong>
-                    <small>{gitInfo.upstream ?? gitInfo.currentBranch}</small>
+                    <small>{gitInfo.compareBase ?? t.noCompareBase}</small>
                   </span>
                   <span className="environment-external">↗</span>
                 </button>
@@ -1535,9 +1669,20 @@ export function EnvironmentPanel({
                   </div>
                 )}
                 {gitError && (
-                  <p className="environment-inline-error" role="alert">
-                    {gitError}
-                  </p>
+                  <div className="environment-inline-error" role="alert">
+                    <span>{gitError}</span>
+                    {pendingSwitchBranch && (
+                      <button
+                        onClick={() => {
+                          setBranchOpen(false);
+                          setCommitOpen(true);
+                        }}
+                        type="button"
+                      >
+                        {t.commitAndSwitch}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             )}

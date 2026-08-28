@@ -33,6 +33,7 @@ export interface TokenUsageModelSummary {
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  cacheHitTokens: number;
   cacheHitRate?: number;
   totalTokens: number;
 }
@@ -69,6 +70,7 @@ export const TOKEN_USAGE_COPY = {
     outputTokens: "Output Tokens",
     cacheReadTokens: "Cache read Tokens",
     cacheWriteTokens: "Cache write Tokens",
+    cacheHitTokens: "Cache hit Tokens",
     cacheHitRate: "Cache hit rate",
     cacheHitRateDescription:
       "Cache read Tokens divided by cache-reported input Tokens (input + cache read + cache write).",
@@ -112,6 +114,7 @@ export const TOKEN_USAGE_COPY = {
     outputTokens: "输出 Token",
     cacheReadTokens: "缓存读取 Token",
     cacheWriteTokens: "缓存写入 Token",
+    cacheHitTokens: "缓存命中 Token",
     cacheHitRate: "缓存命中率",
     cacheHitRateDescription:
       "缓存读取 Token ÷ 已报告缓存数据的输入 Token（输入 + 缓存读取 + 缓存写入）。",
@@ -173,6 +176,7 @@ export function buildTokenUsageByModel(
       outputTokens: 0,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
+      cacheHitTokens: 0,
       totalTokens: 0,
     };
     current.usageEvents += 1;
@@ -180,6 +184,8 @@ export function buildTokenUsageByModel(
     current.outputTokens += event.payload.outputTokens;
     current.cacheReadTokens += event.payload.cacheReadTokens;
     current.cacheWriteTokens += event.payload.cacheWriteTokens;
+    current.cacheHitTokens +=
+      event.payload.cacheReadTokens + event.payload.cacheWriteTokens;
     current.totalTokens += event.payload.totalTokens;
     models.set(key, current);
   }
@@ -195,6 +201,12 @@ export function buildTokenUsageByModel(
         right.totalTokens - left.totalTokens ||
         left.key.localeCompare(right.key),
     );
+}
+
+export function tokenUsageModelsForTable(
+  models: readonly TokenUsageModelSummary[],
+): TokenUsageModelSummary[] {
+  return models.filter((model) => model.key !== UNATTRIBUTED_USAGE_MODEL);
 }
 
 export function buildCacheUsageMetrics(

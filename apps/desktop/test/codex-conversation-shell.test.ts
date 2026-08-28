@@ -224,7 +224,7 @@ describe("Codex conversation shell contract", () => {
     const compactBranch = sourceBetween(
       sendPrompt,
       "if (compactMatch && activeThread) {",
-      "if (goalMatch && clearingGoal && activeThread) {",
+      'if (goalCommand?.kind === "pause" && activeThread) {',
     );
 
     expect(sendPrompt).toContain("compactMatch");

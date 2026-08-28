@@ -4,11 +4,17 @@ import { appendPromptFiles, buildTurnPrompt } from "../src/turn-prompt.js";
 
 describe("buildTurnPrompt", () => {
   it("injects a persistent task goal without changing the user request", () => {
-    const prompt = buildTurnPrompt(
-      "execute",
-      "Add archive search.",
-      "Ship a complete conversation lifecycle",
-    );
+    const prompt = buildTurnPrompt("execute", "Add archive search.", {
+      threadId: "thread-1",
+      goalId: "goal-1",
+      objective: "Ship a complete conversation lifecycle",
+      status: "active",
+      tokensUsed: 120,
+      timeUsedSeconds: 10,
+      revision: 1,
+      createdAt: "2026-08-28T00:00:00.000Z",
+      updatedAt: "2026-08-28T00:00:00.000Z",
+    });
 
     expect(prompt).toContain(
       "Persistent task goal:\nShip a complete conversation lifecycle",

@@ -167,7 +167,9 @@ describe("task environment panel state", () => {
   });
 
   it("wires real review, branch, commit, push, agent, and source actions", () => {
-    expect(panelSource).toContain('onOpenReview("branch")');
+    expect(panelSource).toContain(
+      'onOpenReview("branch", gitInfo.compareBase)',
+    );
     expect(panelSource).toContain("window.artemis.switchProjectBranch(");
     expect(panelSource).toContain("window.artemis.commitProjectChanges(");
     expect(panelSource).toContain("window.artemis.pushProjectBranch(");
@@ -181,6 +183,16 @@ describe("task environment panel state", () => {
     expect(panelSource).toContain("onOpenTeam(team)");
     expect(panelSource).toContain("onClick={onAddSources}");
     expect(panelSource).not.toMatch(/picture.?in.?picture|画中画/iu);
+  });
+
+  it("binds Git reads and repository notifications to the active task checkout", () => {
+    expect(panelSource).toContain("getProjectGitInfo(project.id, threadId)");
+    expect(panelSource).toContain("onProjectGitChanged((context)");
+    expect(panelSource).toContain("context.threadId !== threadId");
+    expect(mainSource).toContain("workspaceForGitRequest(projectId, threadId)");
+    expect(mainSource).toContain("gitRepositoryWatchPaths(workspacePath)");
+    expect(mainSource).toContain("IPC.projectGitChanged");
+    expect(appSource).toContain("{ threadId: activeThreadId } : {})");
   });
 
   it("suggests a safe Codex-prefixed branch from the task title", () => {
@@ -478,6 +490,13 @@ describe("task environment panel state", () => {
     expect(environmentGitAction(gitInfo({ ahead: 2 }), false, copy)).toEqual({
       kind: "push",
     });
+    expect(
+      environmentGitAction(
+        gitInfo({ ahead: 1, upstream: undefined }),
+        false,
+        copy,
+      ),
+    ).toEqual({ kind: "push" });
     expect(
       environmentGitAction(gitInfo({ ahead: 1, behind: 1 }), false, copy),
     ).toEqual({ kind: "push", disabledReason: "reconcile upstream" });

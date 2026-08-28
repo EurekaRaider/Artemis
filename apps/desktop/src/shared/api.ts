@@ -93,7 +93,8 @@ export interface QueuedTurnMessages {
 
 export interface ReplaceQueuedTurnInput {
   threadId: string;
-  followUp: string[];
+  expectedFollowUp: string[];
+  followUp: Array<{ sourceIndex: number; text: string }>;
 }
 
 export interface SteerQueuedTurnInput {
@@ -661,6 +662,7 @@ export interface ProjectGitBranch {
   name: string;
   current: boolean;
   upstream?: string;
+  remote?: boolean;
 }
 
 export interface ProjectGitInfo {
@@ -680,6 +682,7 @@ export interface ProjectGitInfo {
   untrackedCount: number;
   conflictCount: number;
   upstream?: string;
+  compareBase?: string;
   ahead: number;
   behind: number;
   branches: ProjectGitBranch[];
@@ -733,22 +736,34 @@ export interface ArtemisApi {
   rendererReady(): void;
   openProject(): Promise<Project | undefined>;
   removeProject(projectId: string): Promise<void>;
-  getProjectGitInfo(projectId: string): Promise<ProjectGitInfo>;
-  getProjectPullRequest(projectId: string): Promise<ProjectPullRequestLookup>;
+  getProjectGitInfo(
+    projectId: string,
+    threadId?: string,
+  ): Promise<ProjectGitInfo>;
+  getProjectPullRequest(
+    projectId: string,
+    threadId?: string,
+  ): Promise<ProjectPullRequestLookup>;
   switchProjectBranch(
     projectId: string,
     branchName: string,
+    threadId?: string,
   ): Promise<ProjectGitInfo>;
   createProjectBranch(
     projectId: string,
     branchName: string,
+    threadId?: string,
   ): Promise<ProjectGitInfo>;
   commitProjectChanges(
     projectId: string,
     message: string,
     includeUnstaged: boolean,
+    threadId?: string,
   ): Promise<ProjectGitCommitResult>;
-  pushProjectBranch(projectId: string): Promise<ProjectGitPushResult>;
+  pushProjectBranch(
+    projectId: string,
+    threadId?: string,
+  ): Promise<ProjectGitPushResult>;
   selectPromptAttachments(): Promise<PromptAttachment[] | undefined>;
   readPromptAttachments(files: File[]): Promise<PromptAttachment[]>;
   createThread(input: CreateThreadInput): Promise<Thread | undefined>;
@@ -757,7 +772,14 @@ export interface ArtemisApi {
     selection: ModelSelection,
   ): Promise<Thread>;
   renameThread(threadId: string, title: string): Promise<Thread>;
-  setThreadGoal(threadId: string, goal: string | null): Promise<Thread>;
+  setThreadGoal(
+    threadId: string,
+    objective: string,
+    tokenBudget?: number,
+  ): Promise<Thread>;
+  pauseThreadGoal(threadId: string): Promise<Thread>;
+  resumeThreadGoal(threadId: string): Promise<Thread>;
+  clearThreadGoal(threadId: string): Promise<Thread>;
   archiveThread(threadId: string, archived: boolean): Promise<Thread>;
   deleteThread(threadId: string): Promise<void>;
   forkThread(threadId: string, entryId?: string): Promise<ForkThreadResult>;
@@ -994,6 +1016,9 @@ export interface ArtemisApi {
   onAgentActivities(listener: (events: AgentHostEvent[]) => void): () => void;
   onAutomationEvent(listener: (event: AutomationEvent) => void): () => void;
   onAutomationThreadOpen(listener: (threadId: string) => void): () => void;
+  onProjectGitChanged(
+    listener: (context: { projectId: string; threadId?: string }) => void,
+  ): () => void;
 }
 
 export const IPC = {
@@ -1010,12 +1035,16 @@ export const IPC = {
   projectGitBranchCreate: "artemis:project-git-branch-create",
   projectGitCommit: "artemis:project-git-commit",
   projectGitPush: "artemis:project-git-push",
+  projectGitChanged: "artemis:project-git-changed",
   promptAttachmentsSelect: "artemis:prompt-attachments-select",
   promptAttachmentsRead: "artemis:prompt-attachments-read",
   threadCreate: "artemis:thread-create",
   threadModelSet: "artemis:thread-model-set",
   threadRename: "artemis:thread-rename",
-  threadGoal: "artemis:thread-goal",
+  threadGoalSet: "artemis:thread-goal-set",
+  threadGoalPause: "artemis:thread-goal-pause",
+  threadGoalResume: "artemis:thread-goal-resume",
+  threadGoalClear: "artemis:thread-goal-clear",
   threadArchive: "artemis:thread-archive",
   threadDelete: "artemis:thread-delete",
   threadFork: "artemis:thread-fork",

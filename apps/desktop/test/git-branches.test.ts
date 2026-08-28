@@ -99,6 +99,30 @@ describe("project Git branches", () => {
     expect(info.branches).toContainEqual({ name: "main", current: true });
   });
 
+  it("reports custom default, unborn, and detached HEAD states literally", async () => {
+    const custom = await mkdtemp(join(tmpdir(), "artemis-git-trunk-"));
+    cleanup.push(custom);
+    await git(custom, "init", "-b", "trunk");
+    await git(custom, "config", "user.email", "artemis@example.invalid");
+    await git(custom, "config", "user.name", "Artemis Tests");
+
+    const unborn = await inspectGitBranches(custom);
+    expect(unborn).toMatchObject({
+      currentBranch: "trunk",
+      detached: false,
+    });
+    expect(unborn).not.toHaveProperty("head");
+
+    await writeFile(join(custom, "README.md"), "# Trunk\n", "utf8");
+    await git(custom, "add", "README.md");
+    await git(custom, "commit", "-m", "initial");
+    await git(custom, "checkout", "--detach");
+    const detached = await inspectGitBranches(custom);
+    expect(detached.detached).toBe(true);
+    expect(detached.currentBranch).toBeUndefined();
+    expect(detached.head).toMatch(/^[a-f\d]+$/u);
+  });
+
   it("counts an untracked binary without inventing line totals", async () => {
     const path = await repository();
     await writeFile(join(path, "fixture.bin"), Buffer.from([0, 1, 2, 255]));
@@ -126,6 +150,21 @@ describe("project Git branches", () => {
     expect(info.behind).toBe(0);
   });
 
+  it("keeps the Review comparison base distinct from a feature upstream", async () => {
+    const path = await repository();
+    const remote = await bareRemote();
+    await git(path, "remote", "add", "origin", remote);
+    await git(path, "push", "-u", "origin", "main");
+    await git(path, "remote", "set-head", "origin", "main");
+    await createGitBranch(path, "feature/compare");
+    await git(path, "push", "-u", "origin", "feature/compare");
+
+    const info = await inspectGitBranches(path);
+
+    expect(info.upstream).toBe("origin/feature/compare");
+    expect(info.compareBase).toBe("origin/main");
+  });
+
   it("creates and switches local branches", async () => {
     const path = await repository();
 
@@ -146,6 +185,27 @@ describe("project Git branches", () => {
         { name: "main", current: true },
       ]),
     );
+  });
+
+  it("lists and checks out remote branches as local tracking branches", async () => {
+    const path = await repository();
+    const remote = await bareRemote();
+    await git(path, "remote", "add", "origin", remote);
+    await git(path, "push", "-u", "origin", "main");
+    await git(path, "branch", "remote-feature");
+    await git(path, "push", "origin", "remote-feature");
+    await git(path, "branch", "-D", "remote-feature");
+
+    const before = await inspectGitBranches(path);
+    expect(before.branches).toContainEqual({
+      name: "origin/remote-feature",
+      current: false,
+      remote: true,
+    });
+
+    const checkedOut = await switchGitBranch(path, "origin/remote-feature");
+    expect(checkedOut.currentBranch).toBe("remote-feature");
+    expect(checkedOut.upstream).toBe("origin/remote-feature");
   });
 
   it("rejects invalid and missing branch names", async () => {
@@ -258,13 +318,26 @@ describe("project Git branches", () => {
     );
   });
 
+  it("publishes a new branch when origin exists but no upstream is configured", async () => {
+    const path = await repository();
+    const remote = await bareRemote();
+    await git(path, "remote", "add", "origin", remote);
+    await createGitBranch(path, "feature/publish");
+
+    const pushed = await pushProjectBranch(path);
+
+    expect(pushed.upstream).toBe("origin/feature/publish");
+    expect(pushed.gitInfo.upstream).toBe("origin/feature/publish");
+    expect(
+      (await git(remote, "rev-parse", "refs/heads/feature/publish")).trim(),
+    ).toBe((await git(path, "rev-parse", "HEAD")).trim());
+  });
+
   it("blocks push without an upstream and when the known upstream is ahead", async () => {
     const path = await repository();
     await writeFile(join(path, "local.txt"), "local\n", "utf8");
     await commitProjectChanges(path, "Local only");
-    await expect(pushProjectBranch(path)).rejects.toThrow(
-      /no configured upstream/u,
-    );
+    await expect(pushProjectBranch(path)).rejects.toThrow(/no Git remote/iu);
 
     const remote = await bareRemote();
     await git(path, "remote", "add", "origin", remote);

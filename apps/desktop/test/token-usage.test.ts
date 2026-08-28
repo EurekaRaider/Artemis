@@ -10,6 +10,7 @@ import {
   formatTokenUsageTooltip,
   TOKEN_USAGE_COPY,
   tokenUsageValue,
+  tokenUsageModelsForTable,
   UNATTRIBUTED_USAGE_MODEL,
 } from "../src/renderer/token-usage.js";
 
@@ -206,6 +207,11 @@ describe("token usage activity", () => {
     expect(
       filterTokenUsageEvents([first, second, legacy], ALL_USAGE_MODELS),
     ).toHaveLength(3);
+    expect(
+      tokenUsageModelsForTable(
+        buildTokenUsageByModel([first, second, legacy, second]),
+      ).map((model) => model.key),
+    ).toEqual(["zhipu:glm-5.3", "openai:gpt-5.6"]);
   });
 
   it("computes a cache hit rate for each provider and model", () => {
@@ -237,7 +243,9 @@ describe("token usage activity", () => {
     expect(buildTokenUsageByModel([cached, uncached])).toEqual([
       expect.objectContaining({
         key: "openai:gpt-5.6",
+        cacheHitTokens: 400,
         cacheHitRate: 0.5,
+        totalTokens: 640,
       }),
     ]);
   });

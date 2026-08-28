@@ -172,7 +172,7 @@ export function ArchivePage({
                   {thread.goal && (
                     <p className="archive-goal">
                       <strong>{t.archiveGoal}</strong>
-                      <span>{thread.goal}</span>
+                      <span>{thread.goal.objective}</span>
                     </p>
                   )}
                 </div>

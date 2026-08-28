@@ -21,7 +21,6 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   MAX_PROMPT_ATTACHMENTS,
-  MAX_PROMPT_IMAGES,
   reduceAgentEventBatch,
   reduceAgentEvents,
   type AgentEvent,
@@ -76,6 +75,7 @@ import { CodexSelect } from "./CodexSelect.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
 import { ComposerContextBar } from "./ComposerContextBar.js";
 import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
+import { GoalBar } from "./GoalBar.js";
 import {
   ENVIRONMENT_PANEL_RESERVED_WORKSPACE_WIDTH,
   EnvironmentPanel,
@@ -83,6 +83,7 @@ import {
 import { SourcesIcon, SourcesPanel } from "./SourcesPanel.js";
 import { TaskPlanProgress } from "./TaskPlanProgress.js";
 import {
+  prepareTimelineRestore,
   resolveTimelinePinned,
   resolveTimelineScrollTarget,
   type TimelineScrollSnapshot,
@@ -133,15 +134,19 @@ import {
 } from "./prompt-history.js";
 import { deriveTaskPlan } from "./task-plan.js";
 import {
+  appendPromptAttachments,
   clearComposerDraft,
   composerDraftFor,
   conversationDraftKey,
   moveComposerDraft,
-  restoreComposerMessages,
+  restoreComposerQueueItems,
+  PromptAttachmentReadQueues,
   updateComposerDraft,
   type ComposerDraft,
   type ComposerDrafts,
 } from "./composer-drafts.js";
+import { groupApprovedApprovals } from "./approval-groups.js";
+import { parseGoalCommand } from "./goal-command.js";
 import {
   isWorkspaceDraftThread,
   orderProjectThreadsByPreference,
@@ -447,6 +452,13 @@ const copy = {
     running: "Thinking",
     queuedForAgent: "Waiting for Agent slot",
     waitingForModel: "Waiting for model",
+    waitingNetwork: "Waiting for network · retrying in {{seconds}}s",
+    reconnecting:
+      "Reconnecting {{attempt}}/{{maximum}} · retrying in {{seconds}}s",
+    rateLimited: "Service rate limited · retrying in {{seconds}}s",
+    connectionRecovered: "Connection restored",
+    taskInterrupted:
+      "Task interrupted; confirm before continuing to avoid duplicate writes",
     waiting: "Needs approval",
     waitingInput: "Waiting for your choice",
     completed: "Completed",
@@ -508,6 +520,10 @@ const copy = {
     noProject: "Open a project first.",
     taskError: "The task could not be started.",
     turnError: "The task failed.",
+    streamInterrupted:
+      "Streaming stopped after output began. Automatic replay was disabled to avoid duplicate text or tool side effects; confirm before continuing.",
+    agentHostInterrupted:
+      "The Agent Host restarted. Session state was restored, but the active prompt was not replayed because completed writes could not be proven safe to repeat.",
     settings: "Settings",
     currentVersion: "Current version",
     archiveLibrary: "Archive",
@@ -516,6 +532,10 @@ const copy = {
     goal: "Goal",
     goalSet: "Persistent goal saved",
     goalCleared: "Persistent goal cleared",
+    goalReplaceConfirm:
+      "Replace this task's existing Goal and reset its accumulated budget?",
+    goalClearConfirm: "Clear this Goal and stop any automatic continuation?",
+    goalSetWhileRunning: "Stop the active turn before replacing its Goal.",
     noGoal: "This task has no persistent goal.",
     goalCommand: "/goal",
     goalCommandDetail: "Set a persistent task goal",
@@ -683,6 +703,11 @@ const copy = {
     running: "思考中",
     queuedForAgent: "等待 Agent 槽位",
     waitingForModel: "等待模型",
+    waitingNetwork: "正在等待网络恢复 · {{seconds}} 秒后重试",
+    reconnecting: "正在重新连接 {{attempt}}/{{maximum}} · {{seconds}} 秒后重试",
+    rateLimited: "服务暂时限流 · {{seconds}} 秒后重试",
+    connectionRecovered: "连接已恢复",
+    taskInterrupted: "任务已中断；为避免重复执行写操作，需要确认后继续",
     waiting: "等待批准",
     waitingInput: "等待你选择",
     completed: "已完成",
@@ -741,6 +766,10 @@ const copy = {
     noProject: "请先打开一个项目。",
     taskError: "任务无法启动。",
     turnError: "任务执行失败。",
+    streamInterrupted:
+      "输出开始后连接中断；为避免重复文本或工具副作用，已停止自动重放，请确认后再继续。",
+    agentHostInterrupted:
+      "Agent Host 已重启并恢复会话状态；由于无法证明已完成的写操作可安全重复，当前提示没有自动重放。",
     settings: "设置",
     currentVersion: "当前版本",
     archiveLibrary: "归档",
@@ -749,6 +778,9 @@ const copy = {
     goal: "目标",
     goalSet: "持久目标已保存",
     goalCleared: "持久目标已清除",
+    goalReplaceConfirm: "替换当前任务的目标并重置已累计的预算吗？",
+    goalClearConfirm: "清除此目标并停止自动续跑吗？",
+    goalSetWhileRunning: "请先停止当前执行，再替换目标。",
     noGoal: "当前任务没有持久目标。",
     goalCommand: "/goal",
     goalCommandDetail: "设置任务级持久目标",
@@ -1351,15 +1383,42 @@ function ApprovalIcon({
   );
 }
 
-function statusLabel(state: ThreadViewState | undefined, locale: Locale) {
+function statusLabel(
+  state: ThreadViewState | undefined,
+  locale: Locale,
+  clockMs: number,
+) {
   const t = appCopy(locale);
   switch (state?.status) {
-    case "running":
-      return state.activity?.phase === "queued"
+    case "running": {
+      const activity = state.activity;
+      if (activity?.phase === "reconnecting") {
+        const scheduledAt = activity.scheduledAt
+          ? Date.parse(activity.scheduledAt)
+          : clockMs;
+        const seconds = Math.max(
+          0,
+          Math.ceil((scheduledAt + (activity.delayMs ?? 0) - clockMs) / 1_000),
+        );
+        if (activity.kind === "rate-limit") {
+          return t.rateLimited.replace("{{seconds}}", String(seconds));
+        }
+        if (activity.maxAttempts === undefined) {
+          return t.waitingNetwork.replace("{{seconds}}", String(seconds));
+        }
+        return t.reconnecting
+          .replace("{{attempt}}", String(activity.attempt ?? 1))
+          .replace("{{maximum}}", String(activity.maxAttempts))
+          .replace("{{seconds}}", String(seconds));
+      }
+      if (activity?.phase === "recovered") return t.connectionRecovered;
+      if (activity?.phase === "interrupted") return t.taskInterrupted;
+      return activity?.phase === "queued"
         ? t.queuedForAgent
-        : state.activity?.phase === "requesting-model"
+        : activity?.phase === "requesting-model"
           ? t.waitingForModel
           : t.running;
+    }
     case "waiting-approval":
       return t.waiting;
     case "waiting-user-input":
@@ -1369,6 +1428,16 @@ function statusLabel(state: ThreadViewState | undefined, locale: Locale) {
     default:
       return t.ready;
   }
+}
+
+function localizedTurnFailure(
+  copy: ReturnType<typeof appCopy>,
+  message: string,
+  code?: string,
+): string {
+  if (code === "STREAM_INTERRUPTED") return copy.streamInterrupted;
+  if (code === "AGENT_HOST_INTERRUPTED") return copy.agentHostInterrupted;
+  return message;
 }
 
 function thinkingLevelLabel(level: ThinkingLevel, locale: Locale): string {
@@ -1421,7 +1490,38 @@ function eventChangesThread(event: AgentEvent): boolean {
     "approval.requested",
     "turn.completed",
     "turn.failed",
+    "thread.goal.updated",
+    "thread.goal.cleared",
   ].includes(event.payload.type);
+}
+
+function updateThreadFromEvent(thread: Thread, event: AgentEvent): Thread {
+  if (event.payload.type === "thread.goal.updated") {
+    if (
+      thread.goal?.goalId === event.payload.goal.goalId &&
+      event.payload.goal.revision < thread.goal.revision
+    ) {
+      return thread;
+    }
+    return { ...thread, goal: event.payload.goal };
+  }
+  if (event.payload.type === "thread.goal.cleared") {
+    if (
+      !thread.goal ||
+      thread.goal.goalId !== event.payload.goalId ||
+      event.payload.revision <= thread.goal.revision
+    ) {
+      return thread;
+    }
+    const { goal: _goal, ...withoutGoal } = thread;
+    return withoutGoal;
+  }
+  return {
+    ...thread,
+    status: updateThreadStatus(thread, event),
+    mode:
+      event.payload.type === "turn.started" ? event.payload.mode : thread.mode,
+  };
 }
 
 function preserveLoadedEvents(
@@ -1736,6 +1836,9 @@ export function App() {
     prompt,
     selectedSkillNames: selectedComposerSkillNames,
   } = activeComposerDraft;
+  const draftAttachments = useRef(new Map<string, PromptAttachment[]>());
+  draftAttachments.current.set(activeComposerDraftKey, attachments);
+  const pendingAttachmentReads = useRef(new PromptAttachmentReadQueues());
   const updateActiveComposerDraft = useCallback(
     (update: (current: ComposerDraft) => ComposerDraft) => {
       setComposerDrafts((current) =>
@@ -1767,13 +1870,16 @@ export function App() {
   );
   const setAttachments = useCallback(
     (action: SetStateAction<PromptAttachment[]>) => {
+      const current =
+        draftAttachments.current.get(activeComposerDraftKey) ?? [];
+      const next = typeof action === "function" ? action(current) : action;
+      draftAttachments.current.set(activeComposerDraftKey, next);
       updateActiveComposerDraft((current) => ({
         ...current,
-        attachments:
-          typeof action === "function" ? action(current.attachments) : action,
+        attachments: next,
       }));
     },
-    [updateActiveComposerDraft],
+    [activeComposerDraftKey, updateActiveComposerDraft],
   );
 
   useEffect(() => {
@@ -3078,17 +3184,7 @@ export function App() {
                     (event) => event.threadId === thread.id,
                   );
                   if (updates.length === 0) return thread;
-                  return updates.reduce(
-                    (updated, event) => ({
-                      ...updated,
-                      status: updateThreadStatus(updated, event),
-                      mode:
-                        event.payload.type === "turn.started"
-                          ? event.payload.mode
-                          : updated.mode,
-                    }),
-                    thread,
-                  );
+                  return updates.reduce(updateThreadFromEvent, thread);
                 }),
         };
       });
@@ -3144,7 +3240,12 @@ export function App() {
         }
         if (event.payload.type === "turn.failed") {
           finishedThreadIds.add(event.threadId);
-          const message = `${appCopy(localeRef.current).turnError} ${event.payload.message}`;
+          const copy = appCopy(localeRef.current);
+          const message = `${copy.turnError} ${localizedTurnFailure(
+            copy,
+            event.payload.message,
+            event.payload.code,
+          )}`;
           setTurnFailureNotices((current) =>
             reduceTurnFailureNotices(current, {
               type: "failed",
@@ -3160,13 +3261,15 @@ export function App() {
           event.payload.type === "queue.recovered" &&
           !recoveredQueueEventIds.current.has(event.eventId)
         ) {
-          const recoveredMessages = event.payload.messages;
+          const recoveredItems =
+            event.payload.items ??
+            event.payload.messages.map((text) => ({ text }));
           recoveredQueueEventIds.current.add(event.eventId);
           setComposerDrafts((current) =>
-            restoreComposerMessages(
+            restoreComposerQueueItems(
               current,
               conversationDraftKey(undefined, event.threadId),
-              recoveredMessages,
+              recoveredItems,
             ),
           );
         }
@@ -3778,23 +3881,25 @@ export function App() {
   }, [sidebarOpen]);
 
   useLayoutEffect(() => {
-    if (!activeThreadId) {
+    if (!activeThreadId || activeView !== "workspace") {
       timelinePinned.current = true;
       pendingTimelineRestore.current = undefined;
       return;
     }
     const snapshot = timelineScrollSnapshots.current.get(activeThreadId);
     timelinePinned.current = snapshot?.pinned ?? true;
-    pendingTimelineRestore.current = {
-      threadId: activeThreadId,
-      ...(snapshot ? { snapshot } : {}),
-    };
-  }, [activeThreadId]);
+    pendingTimelineRestore.current = prepareTimelineRestore(
+      activeThreadId,
+      activeView,
+      snapshot,
+    );
+  }, [activeThreadId, activeView]);
 
   useLayoutEffect(() => {
     const pending = pendingTimelineRestore.current;
     if (
       !activeThreadId ||
+      activeView !== "workspace" ||
       pending?.threadId !== activeThreadId ||
       !loadedEventThreads.current.has(activeThreadId)
     ) {
@@ -3813,7 +3918,7 @@ export function App() {
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activeEvents.length, activeThreadId, threadState?.lastSeq]);
+  }, [activeEvents.length, activeThreadId, activeView, threadState?.lastSeq]);
 
   useLayoutEffect(() => {
     const container = timelineScroll.current;
@@ -3987,7 +4092,8 @@ export function App() {
     setCommentBody("");
   };
 
-  const openReviewScopePanel = (scope: ReviewScope) => {
+  const openReviewScopePanel = (scope: ReviewScope, baseRef?: string) => {
+    if (scope === "branch" && baseRef) setReviewBaseRef(baseRef);
     selectReviewScope(scope);
     openReviewPanel();
   };
@@ -4362,28 +4468,17 @@ export function App() {
 
   const addPromptAttachments = useCallback(
     (selected: PromptAttachment[]) => {
-      const next = [...attachments];
-      let imageCount = next.filter(isPromptImage).length;
-      let limited = false;
-      for (const attachment of selected) {
-        if (
-          next.length >= MAX_PROMPT_ATTACHMENTS ||
-          (isPromptImage(attachment) && imageCount >= MAX_PROMPT_IMAGES)
-        ) {
-          limited = true;
-          continue;
-        }
-        next.push(attachment);
-        if (isPromptImage(attachment)) {
-          imageCount += 1;
-        }
-      }
+      const { attachments: next, limited } = appendPromptAttachments(
+        draftAttachments.current.get(activeComposerDraftKey) ?? [],
+        selected,
+      );
+      draftAttachments.current.set(activeComposerDraftKey, next);
       setAttachments(next);
       if (limited) {
         setToast(t.attachmentLimit);
       }
     },
-    [attachments, setAttachments, t.attachmentLimit],
+    [activeComposerDraftKey, setAttachments, t.attachmentLimit],
   );
 
   const selectPromptAttachments = useCallback(async () => {
@@ -4468,14 +4563,19 @@ export function App() {
       if (files.length === 0) return;
       event.preventDefault();
       try {
-        addPromptAttachments(await window.artemis.readPromptAttachments(files));
+        await pendingAttachmentReads.current.track(
+          activeComposerDraftKey,
+          window.artemis
+            .readPromptAttachments(files)
+            .then(addPromptAttachments),
+        );
       } catch (error) {
         setToast(
           `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     },
-    [addPromptAttachments, t.taskError],
+    [activeComposerDraftKey, addPromptAttachments, t.taskError],
   );
 
   const changeApprovalPolicy = useCallback(
@@ -4569,8 +4669,11 @@ export function App() {
   );
 
   const sendPrompt = useCallback(async () => {
-    const rawPrompt = prompt.trim();
     if (busy) return;
+    await pendingAttachmentReads.current.waitForIdle(activeComposerDraftKey);
+    const pendingAttachments =
+      draftAttachments.current.get(activeComposerDraftKey) ?? [];
+    const rawPrompt = prompt.trim();
     const runModeCommand = parseRunModeCommand(rawPrompt);
     if (runModeCommand && runModeCommand.kind === "multiple") {
       setToast({ error: true, message: t.multipleModeCommands });
@@ -4588,7 +4691,7 @@ export function App() {
       setMode(submittedMode);
       if (
         !commandPrompt &&
-        attachments.length === 0 &&
+        pendingAttachments.length === 0 &&
         selectedSkills.length === 0
       ) {
         clearSubmittedPrompt(rawPrompt);
@@ -4607,32 +4710,39 @@ export function App() {
       setToast(t.compactWhileRunning);
       return;
     }
-    const goalMatch = commandPrompt.match(/^\/goal(?:\s+([\s\S]*))?$/iu);
-    const goalArgument = goalMatch?.[1]?.trim();
-    if (goalMatch && !goalArgument) {
+    const goalCommand = parseGoalCommand(commandPrompt);
+    if (goalCommand?.kind === "invalid") {
+      setToast({ error: true, message: goalCommand.message });
+      return;
+    }
+    if (goalCommand?.kind === "show") {
       setToast(
-        activeThread?.goal ? `${t.goal}: ${activeThread.goal}` : t.noGoal,
+        activeThread?.goal
+          ? `${t.goal}: ${activeThread.goal.objective} · ${activeThread.goal.status} · ${activeThread.goal.tokensUsed}${activeThread.goal.tokenBudget === undefined ? "" : `/${activeThread.goal.tokenBudget}`} Token`
+          : t.noGoal,
       );
       clearSubmittedPrompt(rawPrompt);
       return;
     }
-
-    const clearingGoal = goalArgument?.toLocaleLowerCase() === "clear";
-    if (goalMatch && clearingGoal && !activeThread) {
+    if (goalCommand && goalCommand.kind !== "set" && !activeThread) {
       setToast(t.noGoal);
       clearSubmittedPrompt(rawPrompt);
       return;
     }
+    if (goalCommand?.kind === "set" && turnActive) {
+      setToast({ error: true, message: t.goalSetWhileRunning });
+      return;
+    }
 
     const visibleText =
-      goalMatch && goalArgument && !clearingGoal
-        ? goalArgument
-        : commandPrompt || (attachments.length ? t.inspectAttachments : "");
-    const text = goalMatch
+      goalCommand?.kind === "set"
+        ? goalCommand.objective
+        : commandPrompt ||
+          (pendingAttachments.length ? t.inspectAttachments : "");
+    const text = goalCommand
       ? visibleText
       : promptWithSelectedSkills(visibleText, selectedSkills);
     if (!text || busy) return;
-    const pendingAttachments = attachments;
     const submittedAt = Date.now();
     let createdThread: Thread | undefined;
     setBusy(true);
@@ -4645,11 +4755,20 @@ export function App() {
         );
         return;
       }
-      if (goalMatch && clearingGoal && activeThread) {
-        const updated = await window.artemis.setThreadGoal(
-          activeThread.id,
-          null,
-        );
+      if (goalCommand?.kind === "pause" && activeThread) {
+        const updated = await window.artemis.pauseThreadGoal(activeThread.id);
+        updateThreadInSnapshot(updated);
+        clearSubmittedPrompt(rawPrompt);
+        return;
+      }
+      if (goalCommand?.kind === "resume" && activeThread) {
+        const updated = await window.artemis.resumeThreadGoal(activeThread.id);
+        updateThreadInSnapshot(updated);
+        clearSubmittedPrompt(rawPrompt);
+        return;
+      }
+      if (goalCommand?.kind === "clear" && activeThread) {
+        const updated = await window.artemis.clearThreadGoal(activeThread.id);
         updateThreadInSnapshot(updated);
         clearSubmittedPrompt(rawPrompt);
         setToast(t.goalCleared);
@@ -4660,10 +4779,17 @@ export function App() {
       if (!thread) return;
       if (!activeThread) createdThread = thread;
       let currentThread = thread;
-      if (goalMatch && goalArgument) {
+      if (goalCommand?.kind === "set") {
+        if (
+          activeThread?.goal &&
+          !(await requestConfirmation(t.goalReplaceConfirm))
+        ) {
+          return;
+        }
         currentThread = await window.artemis.setThreadGoal(
           thread.id,
-          goalArgument,
+          goalCommand.objective,
+          goalCommand.tokenBudget,
         );
         updateThreadInSnapshot(currentThread);
         setToast(t.goalSet);
@@ -4679,6 +4805,7 @@ export function App() {
         });
         recordPromptSubmission(currentThread.id, submittedAt);
         clearSubmittedPrompt(rawPrompt);
+        draftAttachments.current.set(activeComposerDraftKey, []);
         setAttachments([]);
         return;
       }
@@ -4694,6 +4821,7 @@ export function App() {
       recordPromptSubmission(currentThread.id, submittedAt);
       updateThreadInSnapshot(result.thread);
       clearSubmittedPrompt(rawPrompt);
+      draftAttachments.current.set(activeComposerDraftKey, []);
       setAttachments([]);
     } catch (error) {
       if (createdThread) {
@@ -4719,7 +4847,6 @@ export function App() {
     activeThread,
     activeComposerDraft,
     activeComposerDraftKey,
-    attachments,
     busy,
     clearSubmittedPrompt,
     createThread,
@@ -4732,7 +4859,9 @@ export function App() {
     t.compactWhileRunning,
     t.goal,
     t.goalCleared,
+    t.goalReplaceConfirm,
     t.goalSet,
+    t.goalSetWhileRunning,
     t.inspectAttachments,
     t.modeCommandWhileRunning,
     t.multipleModeCommands,
@@ -4740,7 +4869,43 @@ export function App() {
     t.taskError,
     turnActive,
     updateThreadInSnapshot,
+    requestConfirmation,
   ]);
+
+  const updateActiveGoal = useCallback(
+    async (action: "pause" | "resume" | "clear") => {
+      if (!activeThread || busy) return;
+      if (
+        action === "clear" &&
+        !(await requestConfirmation(t.goalClearConfirm))
+      ) {
+        return;
+      }
+      setBusy(true);
+      try {
+        const updated = await (action === "pause"
+          ? window.artemis.pauseThreadGoal(activeThread.id)
+          : action === "resume"
+            ? window.artemis.resumeThreadGoal(activeThread.id)
+            : window.artemis.clearThreadGoal(activeThread.id));
+        updateThreadInSnapshot(updated);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [
+      activeThread,
+      busy,
+      requestConfirmation,
+      t.goalClearConfirm,
+      t.taskError,
+      updateThreadInSnapshot,
+    ],
+  );
 
   const steerQueuedMessage = useCallback(
     async (index: number) => {
@@ -4766,12 +4931,13 @@ export function App() {
   );
 
   const replaceQueuedMessages = useCallback(
-    async (followUp: string[]) => {
+    async (followUp: Array<{ sourceIndex: number; text: string }>) => {
       if (!activeThread || busy) return;
       setBusy(true);
       try {
         await window.artemis.replaceTurnQueue({
           threadId: activeThread.id,
+          expectedFollowUp: [...queuedFollowUps],
           followUp,
         });
         setEditingQueuedMessage(undefined);
@@ -4783,14 +4949,16 @@ export function App() {
         setBusy(false);
       }
     },
-    [activeThread, busy, t.taskError],
+    [activeThread, busy, queuedFollowUps, t.taskError],
   );
 
   const deleteQueuedMessage = useCallback(
     (index: number) => {
       if (!queuedFollowUps[index]) return;
       return replaceQueuedMessages(
-        queuedFollowUps.filter((_message, candidate) => candidate !== index),
+        queuedFollowUps.flatMap((text, sourceIndex) =>
+          sourceIndex === index ? [] : [{ sourceIndex, text }],
+        ),
       );
     },
     [queuedFollowUps, replaceQueuedMessages],
@@ -4801,9 +4969,10 @@ export function App() {
       const message = queuedFollowUps[index];
       if (!message || index === 0) return;
       return replaceQueuedMessages([
-        message,
-        ...queuedFollowUps.slice(0, index),
-        ...queuedFollowUps.slice(index + 1),
+        { sourceIndex: index, text: message },
+        ...queuedFollowUps
+          .map((text, sourceIndex) => ({ sourceIndex, text }))
+          .filter((item) => item.sourceIndex !== index),
       ]);
     },
     [queuedFollowUps, replaceQueuedMessages],
@@ -4814,9 +4983,10 @@ export function App() {
       const message = value.trim();
       if (!message || !queuedFollowUps[index]) return;
       return replaceQueuedMessages(
-        queuedFollowUps.map((candidate, candidateIndex) =>
-          candidateIndex === index ? message : candidate,
-        ),
+        queuedFollowUps.map((text, sourceIndex) => ({
+          sourceIndex,
+          text: sourceIndex === index ? message : text,
+        })),
       );
     },
     [queuedFollowUps, replaceQueuedMessages],
@@ -5670,7 +5840,10 @@ export function App() {
                         {activeThread.title}
                       </span>
                       {activeThread.goal && (
-                        <span className="goal-pill" title={activeThread.goal}>
+                        <span
+                          className="goal-pill"
+                          title={activeThread.goal.objective}
+                        >
                           <span aria-hidden="true">◎</span>
                           {t.goal}
                         </span>
@@ -5686,7 +5859,7 @@ export function App() {
                   />
                   {runPresentation.status === "completed"
                     ? t.completed
-                    : statusLabel(threadState, locale)}
+                    : statusLabel(threadState, locale, clockMs)}
                   {runPresentation.status !== "idle" && (
                     <time
                       dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
@@ -5711,7 +5884,6 @@ export function App() {
                     key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}
                     locale={locale}
                     mcpUsages={environmentMcpUsages}
-                    onAddProject={() => void openProject()}
                     onAddSources={() => void selectPromptAttachments()}
                     onConfirm={requestConfirmation}
                     onMessage={(message, error) =>
@@ -5730,6 +5902,7 @@ export function App() {
                     sources={environmentSources}
                     taskTitle={activeThread?.title ?? activeProject.name}
                     teams={environmentTeams}
+                    {...(activeThreadId ? { threadId: activeThreadId } : {})}
                   />
                 )}
                 {!activeThread?.archived && (
@@ -5850,7 +6023,7 @@ export function App() {
                         />
                         <span>
                           {runPresentation.status === "running"
-                            ? statusLabel(threadState, locale)
+                            ? statusLabel(threadState, locale, clockMs)
                             : runPresentation.status === "waiting-approval"
                               ? t.waiting
                               : runPresentation.status === "waiting-user-input"
@@ -5910,6 +6083,24 @@ export function App() {
 
                 {!activeThread?.archived && (
                   <div className="composer-wrap">
+                    {activeThread?.goal && (
+                      <GoalBar
+                        goal={activeThread.goal}
+                        locale={locale}
+                        onClear={() => void updateActiveGoal("clear")}
+                        onEdit={() =>
+                          selectComposerCommand(
+                            `/goal ${activeThread.goal!.objective}${
+                              activeThread.goal!.tokenBudget === undefined
+                                ? ""
+                                : ` --token-budget ${activeThread.goal!.tokenBudget}`
+                            }`,
+                          )
+                        }
+                        onPause={() => void updateActiveGoal("pause")}
+                        onResume={() => void updateActiveGoal("resume")}
+                      />
+                    )}
                     {taskPlan && (
                       <TaskPlanProgress locale={locale} plan={taskPlan} />
                     )}
@@ -9056,6 +9247,18 @@ function Timeline({
     state.status === "running" && state.queue.steering.length === 0
       ? latestVisibleToolGroupKey(timelineEntries, state.messageParts)
       : undefined;
+  const approvedApprovalGroups = useMemo(
+    () => groupApprovedApprovals(state.order, state.approvals),
+    [state.approvals, state.order],
+  );
+  const approvalTime = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        dateStyle: "short",
+        timeStyle: "medium",
+      }),
+    [locale],
+  );
   const childStatusLabels = localizedCopy(
     locale,
     "app",
@@ -9201,6 +9404,69 @@ function Timeline({
         if (kind === "approval") {
           const approval = state.approvals[id];
           if (!approval) return null;
+          const approvedGroup = approvedApprovalGroups.get(id);
+          if (
+            approvedGroup &&
+            approvedGroup.approvalIds.length > 1 &&
+            approvedGroup.approvalIds[0] !== id
+          ) {
+            return null;
+          }
+          if (approvedGroup && approvedGroup.approvalIds.length > 1) {
+            const groupedApprovals = approvedGroup.approvalIds.flatMap(
+              (approvalId) => {
+                const grouped = state.approvals[approvalId];
+                return grouped ? [grouped] : [];
+              },
+            );
+            return (
+              <details
+                className="approval-card approved approval-group"
+                key={`approval-group:${approvedGroup.key}`}
+              >
+                <summary>
+                  <span className="approval-shield">
+                    <ApprovalIcon neutral />
+                  </span>
+                  <strong>{t.approvalApproved}</strong>
+                  <span className="approval-count-badge">
+                    ×{groupedApprovals.length}
+                  </span>
+                  <span className="approval-card-chevron">
+                    <ChevronIcon />
+                  </span>
+                </summary>
+                <ol className="approval-resolved-details approval-group-list">
+                  {groupedApprovals.map((grouped) => (
+                    <li key={grouped.approvalId}>
+                      <div className="approval-card-copy">
+                        <strong>{grouped.summary}</strong>
+                        <small>
+                          {grouped.command ?? grouped.paths.join(", ")}
+                        </small>
+                        {grouped.actorAgentId && (
+                          <small>
+                            {t.agentActor}:{" "}
+                            {state.childAgents[grouped.actorAgentId]?.label ??
+                              grouped.actorAgentId}
+                          </small>
+                        )}
+                      </div>
+                      <time dateTime={grouped.requestedAt}>
+                        {approvalTime.format(new Date(grouped.requestedAt))}
+                      </time>
+                      {grouped.modelReason && (
+                        <p className="approval-model-reason">
+                          <span>{t.modelReason}</span>
+                          {grouped.modelReason}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            );
+          }
           const approvalCopy = (
             <div className="approval-card-copy">
               <strong>{approval.summary}</strong>
@@ -9347,7 +9613,11 @@ function Timeline({
           {message}
         </article>
       ))}
-      {state.error && <div className="error-card">{state.error}</div>}
+      {state.error && (
+        <div className="error-card">
+          {localizedTurnFailure(t, state.error, state.errorCode)}
+        </div>
+      )}
     </div>
   );
 }

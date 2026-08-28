@@ -85,9 +85,8 @@ describe("memory turn integration contract", () => {
     );
     expect(userEvent).toContain("text");
     expect(userEvent).not.toContain("memoryContext");
-    expect(turnStart).toContain(
-      "emitInitialTurn(thread.id, turnId, requestText",
-    );
+    expect(turnStart).toContain("emitInitialTurn(\n      thread.id,");
+    expect(turnStart).toContain("requestText,\n      input.mode,");
     expect(agentCommand).toContain("text: requestText");
     expect(agentCommand).toContain("memoryContext");
   });
