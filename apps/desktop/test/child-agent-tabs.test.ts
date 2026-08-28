@@ -35,7 +35,7 @@ describe("Codex-style child-agent workspace tabs", () => {
     const childRowSource = between(
       timelineSource,
       'if (kind === "child")',
-      "{state.queue.steering.map",
+      "return null;\n  };",
     );
 
     expect(childRowSource).toContain("<button");

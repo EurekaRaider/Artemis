@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { PROTOCOL_VERSION } from "@artemis/protocol";
 
 import { AppStore } from "../src/main/store.js";
 
@@ -19,6 +20,58 @@ afterEach(async () => {
 });
 
 describe("AppStore", () => {
+  it("normalizes v3 events to the v4 turn-view protocol without rewriting payloads", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "state.sqlite");
+    const now = "2026-08-28T00:00:00.000Z";
+    const first = new AppStore(databasePath);
+    first.createThread({
+      id: "protocol-thread",
+      title: "Protocol migration",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    first.appendEvent("event-1", "protocol-thread", "turn-1", {
+      type: "turn.completed",
+      reason: "completed",
+    });
+    first.close();
+
+    const legacy = new DatabaseSync(databasePath);
+    legacy.exec(`
+      UPDATE events
+      SET body = json_set(body, '$.protocolVersion', 3);
+      PRAGMA user_version = 11;
+    `);
+    legacy.close();
+
+    const reopened = new AppStore(databasePath);
+    expect(reopened.getThreadEvents("protocol-thread")[0]).toMatchObject({
+      protocolVersion: PROTOCOL_VERSION,
+      payload: { type: "turn.completed", reason: "completed" },
+    });
+    reopened.close();
+
+    const persisted = new DatabaseSync(databasePath);
+    expect(
+      persisted
+        .prepare(
+          "SELECT json_extract(body, '$.protocolVersion') AS version FROM events",
+        )
+        .get(),
+    ).toEqual({ version: 3 });
+    expect(persisted.prepare("PRAGMA user_version").get()).toEqual({
+      user_version: 12,
+    });
+    persisted.close();
+  });
+
   it("clears a deleted model from an existing conversation", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
     temporaryDirectories.push(directory);
@@ -534,7 +587,7 @@ describe("AppStore", () => {
     expect(store.getThread("thread-work")?.mode).toBe("execute");
     for (const threadId of ["thread-code", "thread-work"]) {
       expect(store.getThreadEvents(threadId)[0]).toMatchObject({
-        protocolVersion: 3,
+        protocolVersion: PROTOCOL_VERSION,
         payload: { type: "turn.started", mode: "execute" },
       });
     }

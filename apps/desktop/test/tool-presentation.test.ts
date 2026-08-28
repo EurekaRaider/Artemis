@@ -349,10 +349,10 @@ describe("tool presentation", () => {
 
   it("keeps the latest tool group shimmering while the turn is still running", () => {
     expect(appSource).toContain(
-      'state.status === "running" && state.queue.steering.length === 0',
+      "activeTimelineEntries && state.queue.steering.length === 0",
     );
     expect(appSource).toContain(
-      "latestVisibleToolGroupKey(timelineEntries, state.messageParts)",
+      "latestVisibleToolGroupKey(activeTimelineEntries, state.messageParts)",
     );
     expect(appSource).toContain(
       "active={timelineEntry.key === activeToolGroupKey}",

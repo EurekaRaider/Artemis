@@ -24,6 +24,7 @@ import {
   type Thread,
   type ThreadGoal,
   type ThreadGoalStatus,
+  type TurnChangeFile,
   type WorkspaceTarget,
 } from "@artemis/protocol";
 
@@ -129,8 +130,49 @@ interface AutomationRunRow {
   updated_at: string;
 }
 
+interface TurnChangeSetRow {
+  thread_id: string;
+  turn_id: string;
+  status: TurnChangeSetRecord["status"];
+  files_json: string;
+  additions: number;
+  deletions: number;
+  undo_available: number;
+  message: string | null;
+  diff_text: string;
+  snapshot_path: string | null;
+  workspace_path: string;
+  start_head: string;
+  start_index: string;
+  end_head: string;
+  end_index: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TurnChangeSetRecord {
+  threadId: string;
+  turnId: string;
+  status: "ready" | "undone" | "unavailable";
+  files: TurnChangeFile[];
+  additions: number;
+  deletions: number;
+  undoAvailable: boolean;
+  message?: string;
+  diffText: string;
+  snapshotPath?: string;
+  workspacePath: string;
+  startHead: string;
+  startIndex: string;
+  endHead: string;
+  endIndex: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const THREAD_SESSION_DATABASE_VERSION = 10;
-const DATABASE_VERSION = 11;
+const THREAD_GOAL_DATABASE_VERSION = 11;
+const DATABASE_VERSION = 12;
 const EVENT_PROTOCOL_DATABASE_VERSION = 9;
 
 export interface EventAppendInput {
@@ -177,6 +219,36 @@ function threadGoalFromRow(row: ThreadGoalRow): ThreadGoal {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function turnChangeSetFromRow(row: TurnChangeSetRow): TurnChangeSetRecord {
+  return {
+    threadId: row.thread_id,
+    turnId: row.turn_id,
+    status: row.status,
+    files: JSON.parse(row.files_json) as TurnChangeFile[],
+    additions: row.additions,
+    deletions: row.deletions,
+    undoAvailable: Boolean(row.undo_available),
+    ...(row.message ? { message: row.message } : {}),
+    diffText: row.diff_text,
+    ...(row.snapshot_path ? { snapshotPath: row.snapshot_path } : {}),
+    workspacePath: row.workspace_path,
+    startHead: row.start_head,
+    startIndex: row.start_index,
+    endHead: row.end_head,
+    endIndex: row.end_index,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function agentEventFromBody(body: string): AgentEvent {
+  const persisted = JSON.parse(body) as Record<string, unknown>;
+  return agentEventSchema.parse({
+    ...persisted,
+    protocolVersion: PROTOCOL_VERSION,
+  });
 }
 
 function threadFromRow(row: ThreadRow, goal?: ThreadGoal): Thread {
@@ -355,6 +427,30 @@ export class AppStore {
       CREATE INDEX IF NOT EXISTS ix_events_thread
         ON events(thread_id, seq);
 
+      CREATE TABLE IF NOT EXISTS turn_change_sets (
+        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+        turn_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('ready', 'undone', 'unavailable')),
+        files_json TEXT NOT NULL,
+        additions INTEGER NOT NULL,
+        deletions INTEGER NOT NULL,
+        undo_available INTEGER NOT NULL DEFAULT 0,
+        message TEXT,
+        diff_text TEXT NOT NULL,
+        snapshot_path TEXT,
+        workspace_path TEXT NOT NULL,
+        start_head TEXT NOT NULL,
+        start_index TEXT NOT NULL,
+        end_head TEXT NOT NULL,
+        end_index TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(thread_id, turn_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS ix_turn_change_sets_thread
+        ON turn_change_sets(thread_id, updated_at DESC);
+
       CREATE TABLE IF NOT EXISTS approval_grants (
         scope TEXT NOT NULL CHECK(scope IN ('session', 'project')),
         subject_id TEXT NOT NULL,
@@ -487,7 +583,7 @@ export class AppStore {
       .prepare("PRAGMA user_version")
       .get() as { user_version: number };
     if (migratedVersion.user_version < EVENT_PROTOCOL_DATABASE_VERSION) {
-      this.migrateEventProtocol();
+      this.advanceDatabaseVersion(EVENT_PROTOCOL_DATABASE_VERSION);
     }
     const eventMigratedVersion = this.database
       .prepare("PRAGMA user_version")
@@ -498,8 +594,14 @@ export class AppStore {
     const sessionMigratedVersion = this.database
       .prepare("PRAGMA user_version")
       .get() as { user_version: number };
-    if (sessionMigratedVersion.user_version < DATABASE_VERSION) {
+    if (sessionMigratedVersion.user_version < THREAD_GOAL_DATABASE_VERSION) {
       this.migrateThreadGoals();
+    }
+    const goalMigratedVersion = this.database
+      .prepare("PRAGMA user_version")
+      .get() as { user_version: number };
+    if (goalMigratedVersion.user_version < DATABASE_VERSION) {
+      this.advanceDatabaseVersion(DATABASE_VERSION);
     }
   }
 
@@ -575,10 +677,6 @@ export class AppStore {
         WHERE json_extract(body, '$.payload.type') = 'turn.started'
           AND json_extract(body, '$.payload.mode') IN ('code', 'work');
 
-        UPDATE events
-        SET body = json_set(body, '$.protocolVersion', ${PROTOCOL_VERSION})
-        WHERE json_extract(body, '$.protocolVersion') < ${PROTOCOL_VERSION};
-
         PRAGMA user_version = 8;
         COMMIT;
       `);
@@ -601,14 +699,11 @@ export class AppStore {
     }
   }
 
-  private migrateEventProtocol(): void {
+  private advanceDatabaseVersion(databaseVersion: number): void {
     try {
       this.database.exec(`
         BEGIN IMMEDIATE;
-        UPDATE events
-        SET body = json_set(body, '$.protocolVersion', ${PROTOCOL_VERSION})
-        WHERE json_extract(body, '$.protocolVersion') < ${PROTOCOL_VERSION};
-        PRAGMA user_version = ${EVENT_PROTOCOL_DATABASE_VERSION};
+        PRAGMA user_version = ${databaseVersion};
         COMMIT;
       `);
     } catch (error) {
@@ -706,7 +801,7 @@ export class AppStore {
         FROM threads
         WHERE goal IS NOT NULL AND length(trim(goal)) > 0;
         UPDATE threads SET goal = NULL WHERE goal IS NOT NULL;
-        PRAGMA user_version = ${DATABASE_VERSION};
+        PRAGMA user_version = ${THREAD_GOAL_DATABASE_VERSION};
         COMMIT;
       `);
     } catch (error) {
@@ -1353,7 +1448,7 @@ export class AppStore {
       .all(sourceThreadId) as unknown as Array<{ body: string }>;
     const copied: AgentEvent[] = [];
     for (const row of rows) {
-      const source = agentEventSchema.parse(JSON.parse(row.body));
+      const source = agentEventFromBody(row.body);
       if (source.payload.type === "assistant.usage") {
         continue;
       }
@@ -1950,7 +2045,7 @@ export class AppStore {
       this.database
         .prepare("SELECT body FROM events WHERE thread_id = ? ORDER BY seq ASC")
         .all(threadId) as unknown as Array<{ body: string }>
-    ).map((row) => agentEventSchema.parse(JSON.parse(row.body)));
+    ).map((row) => agentEventFromBody(row.body));
   }
 
   getTokenUsageEvents(): AgentEvent[] {
@@ -1963,7 +2058,7 @@ export class AppStore {
            ORDER BY created_at ASC, event_id ASC`,
         )
         .all() as unknown as Array<{ body: string }>
-    ).map((row) => agentEventSchema.parse(JSON.parse(row.body)));
+    ).map((row) => agentEventFromBody(row.body));
   }
 
   listPromptHistory(limit = 100): string[] {
@@ -1999,7 +2094,7 @@ export class AppStore {
     const history: string[] = [];
     const seen = new Set<string>();
     for (const row of rows) {
-      const event = agentEventSchema.parse(JSON.parse(row.body));
+      const event = agentEventFromBody(row.body);
       if (event.payload.type !== "user.message") continue;
       const text = event.payload.text.trim();
       if (!text || isLegacyInternalAgentMessage(text) || seen.has(text)) {
@@ -2031,6 +2126,109 @@ export class AppStore {
           }),
       ),
     ];
+  }
+
+  upsertTurnChangeSet(record: TurnChangeSetRecord): TurnChangeSetRecord {
+    this.database
+      .prepare(
+        `INSERT INTO turn_change_sets (
+           thread_id, turn_id, status, files_json, additions, deletions,
+           undo_available, message, diff_text, snapshot_path, workspace_path,
+           start_head, start_index, end_head, end_index, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(thread_id, turn_id) DO UPDATE SET
+           status = excluded.status,
+           files_json = excluded.files_json,
+           additions = excluded.additions,
+           deletions = excluded.deletions,
+           undo_available = excluded.undo_available,
+           message = excluded.message,
+           diff_text = excluded.diff_text,
+           snapshot_path = excluded.snapshot_path,
+           workspace_path = excluded.workspace_path,
+           start_head = excluded.start_head,
+           start_index = excluded.start_index,
+           end_head = excluded.end_head,
+           end_index = excluded.end_index,
+           updated_at = excluded.updated_at`,
+      )
+      .run(
+        record.threadId,
+        record.turnId,
+        record.status,
+        JSON.stringify(record.files),
+        record.additions,
+        record.deletions,
+        record.undoAvailable ? 1 : 0,
+        record.message ?? null,
+        record.diffText,
+        record.snapshotPath ?? null,
+        record.workspacePath,
+        record.startHead,
+        record.startIndex,
+        record.endHead,
+        record.endIndex,
+        record.createdAt,
+        record.updatedAt,
+      );
+    return this.getTurnChangeSet(record.threadId, record.turnId)!;
+  }
+
+  getTurnChangeSet(
+    threadId: string,
+    turnId: string,
+  ): TurnChangeSetRecord | undefined {
+    const row = this.database
+      .prepare(
+        "SELECT * FROM turn_change_sets WHERE thread_id = ? AND turn_id = ?",
+      )
+      .get(threadId, turnId) as TurnChangeSetRow | undefined;
+    return row ? turnChangeSetFromRow(row) : undefined;
+  }
+
+  getLatestTurnChangeSet(threadId: string): TurnChangeSetRecord | undefined {
+    const row = this.database
+      .prepare(
+        `SELECT * FROM turn_change_sets
+         WHERE thread_id = ?
+         ORDER BY created_at DESC, rowid DESC
+         LIMIT 1`,
+      )
+      .get(threadId) as TurnChangeSetRow | undefined;
+    return row ? turnChangeSetFromRow(row) : undefined;
+  }
+
+  releaseOlderTurnChangeSetUndo(
+    threadId: string,
+    currentTurnId: string,
+  ): string[] {
+    const rows = this.database
+      .prepare(
+        `SELECT snapshot_path FROM turn_change_sets
+         WHERE thread_id = ? AND turn_id != ? AND snapshot_path IS NOT NULL`,
+      )
+      .all(threadId, currentTurnId) as unknown as Array<{
+      snapshot_path: string;
+    }>;
+    this.database
+      .prepare(
+        `UPDATE turn_change_sets
+         SET undo_available = 0, snapshot_path = NULL
+         WHERE thread_id = ? AND turn_id != ?`,
+      )
+      .run(threadId, currentTurnId);
+    return rows.map((row) => row.snapshot_path);
+  }
+
+  listTurnChangeSetSnapshotPaths(threadId: string): string[] {
+    return (
+      this.database
+        .prepare(
+          `SELECT snapshot_path FROM turn_change_sets
+           WHERE thread_id = ? AND snapshot_path IS NOT NULL`,
+        )
+        .all(threadId) as unknown as Array<{ snapshot_path: string }>
+    ).map((row) => row.snapshot_path);
   }
 
   getThreadChangedFiles(threadId: string): string[] {
@@ -2068,7 +2266,7 @@ export class AppStore {
           )
           .all(row.id) as unknown as Array<{ body: string }>;
         const events = eventRows.map((eventRow) =>
-          agentEventSchema.parse(JSON.parse(eventRow.body)),
+          agentEventFromBody(eventRow.body),
         );
         const turnId = events.at(-1)?.turnId;
         const unresolvedApprovals = new Map<

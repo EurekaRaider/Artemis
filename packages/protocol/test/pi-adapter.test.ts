@@ -292,7 +292,42 @@ describe("PiAdapter", () => {
       },
     ]);
     expect(adapter.adapt({ type: "agent_settled" })).toEqual([
-      { type: "turn.completed", reason: "completed" },
+      {
+        type: "turn.completed",
+        reason: "completed",
+        finalPartId: "recovered-response:text",
+      },
+    ]);
+  });
+
+  it("selects only the settled stop or length message as the final answer", () => {
+    const adapter = new PiAdapter("turn-1");
+
+    adapter.adapt({
+      type: "message_end",
+      message: {
+        id: "tool-round",
+        role: "assistant",
+        content: [{ type: "text", text: "I will inspect the file." }],
+        stopReason: "toolUse",
+      },
+    });
+    adapter.adapt({
+      type: "message_end",
+      message: {
+        id: "final-round",
+        role: "assistant",
+        content: [{ type: "text", text: "The task is complete." }],
+        stopReason: "length",
+      },
+    });
+
+    expect(adapter.adapt({ type: "agent_settled" })).toEqual([
+      {
+        type: "turn.completed",
+        reason: "completed",
+        finalPartId: "final-round:text",
+      },
     ]);
   });
 

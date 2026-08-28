@@ -164,6 +164,7 @@ import {
   restoreWorktreeSnapshot,
 } from "./git-worktree.js";
 import { AppStore } from "./store.js";
+import { TurnChangeSetService } from "./turn-change-set.js";
 import {
   DiagnosticBundleService,
   parseContextOverflowTokens,
@@ -293,6 +294,7 @@ import {
   type RestoreWorktreeSnapshotResult,
   type StartTurnInput,
   type StartTurnResult,
+  type UndoTurnChangesResult,
   type SettingsSnapshot,
   type SaveAutomationInput,
   type SkillCatalogItem,
@@ -336,6 +338,8 @@ interface PendingUserInput {
 
 let mainWindow: BrowserWindow | undefined;
 let store: AppStore | undefined;
+let turnChangeSetService: TurnChangeSetService | undefined;
+const turnChangeSetCompletionTails = new Map<string, Promise<void>>();
 let agentProcess: AgentProcess | undefined;
 let terminalService: TerminalService | undefined;
 let packagedNodePtyRuntime: PreparedNodePtyRuntime | undefined;
@@ -900,6 +904,25 @@ function observeTurnPayload(
       if (turnLatencyTraces.get(turnId) === trace) finalizeTurnLatency(trace);
     }, 250);
   }
+}
+
+function withPersistedTurnDuration(
+  turnId: string | undefined,
+  payload: AgentPayload,
+): AgentPayload {
+  if (
+    !turnId ||
+    (payload.type !== "turn.completed" && payload.type !== "turn.failed")
+  ) {
+    return payload;
+  }
+  const trace = turnLatencyTraces.get(turnId);
+  if (!trace) return payload;
+  const startedAt = trace.submittedAt ?? trace.mainReceivedAt;
+  return {
+    ...payload,
+    durationMs: Math.max(0, Math.round(Date.now() - startedAt)),
+  };
 }
 
 function errorDetails(error: unknown): { message: string; stack?: string } {
@@ -2524,7 +2547,10 @@ function emitPayload(
   if (!store) {
     throw new Error("Application store is not ready.");
   }
-  const preparedPayload = prepareRecoverableQueuePayload(threadId, payload);
+  const preparedPayload = withPersistedTurnDuration(
+    turnId,
+    prepareRecoverableQueuePayload(threadId, payload),
+  );
   observeTurnPayload(turnId, preparedPayload);
   const event = store.appendEvent(
     randomUUID(),
@@ -2535,6 +2561,7 @@ function emitPayload(
   mainWindow?.webContents.send(IPC.agentEvent, event);
   applyPayloadSideEffects(threadId, preparedPayload);
   accountGoalPayload(turnId, preparedPayload);
+  scheduleTurnChangeSetCompletion(threadId, turnId, preparedPayload);
   return event;
 }
 
@@ -2542,7 +2569,10 @@ function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
   if (!store || events.length === 0) return [];
   const preparedEvents = events.map((event) => ({
     ...event,
-    payload: prepareRecoverableQueuePayload(event.threadId, event.payload),
+    payload: withPersistedTurnDuration(
+      event.turnId,
+      prepareRecoverableQueuePayload(event.threadId, event.payload),
+    ),
   }));
   const { durable: durableEvents, liveActivities } =
     partitionAgentHostEvents(preparedEvents);
@@ -2571,8 +2601,57 @@ function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
   for (const event of durableEvents) {
     applyPayloadSideEffects(threadId, event.payload);
     accountGoalPayload(event.turnId, event.payload);
+    scheduleTurnChangeSetCompletion(threadId, event.turnId, event.payload);
   }
   return persisted;
+}
+
+function scheduleTurnChangeSetCompletion(
+  threadId: string,
+  turnId: string | undefined,
+  payload: AgentPayload,
+): void {
+  if (
+    !turnId ||
+    !turnChangeSetService ||
+    (payload.type !== "turn.completed" && payload.type !== "turn.failed") ||
+    turnChangeSetCompletionTails.has(threadId)
+  ) {
+    return;
+  }
+  const completion = (async () => {
+    try {
+      const changeSet = await turnChangeSetService!.complete(
+        threadId,
+        turnId,
+        payload.backgroundProcessesRunning === true,
+      );
+      if (changeSet) emitPayload(threadId, turnId, changeSet);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await turnChangeSetService?.discard(turnId);
+      diagnosticBundleService?.record({
+        source: "main",
+        severity: "warning",
+        message: `Turn change-set capture failed for ${turnId}: ${message}`,
+      });
+      emitPayload(threadId, turnId, {
+        type: "turn.change-set.updated",
+        status: "unavailable",
+        files: [],
+        additions: 0,
+        deletions: 0,
+        undoAvailable: false,
+        message,
+      });
+    }
+  })();
+  turnChangeSetCompletionTails.set(threadId, completion);
+  void completion.finally(() => {
+    if (turnChangeSetCompletionTails.get(threadId) === completion) {
+      turnChangeSetCompletionTails.delete(threadId);
+    }
+  });
 }
 
 function prepareRecoverableQueuePayload(
@@ -4713,6 +4792,24 @@ async function startTaskTurn(
     trace.outcome = "failed";
     finalizeTurnLatency(trace);
     throw error;
+  }
+  await turnChangeSetCompletionTails.get(thread.id);
+  if (input.mode === "execute" && !context.temporary && turnChangeSetService) {
+    try {
+      await turnChangeSetService.begin({
+        threadId: thread.id,
+        turnId,
+        workspacePath: context.workspacePath,
+      });
+    } catch (error) {
+      diagnosticBundleService?.record({
+        source: "main",
+        severity: "warning",
+        message: `Turn checkpoint was unavailable for ${turnId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    }
   }
   trace.threadOpenStartedAt = Date.now();
   trace.memoryStartedAt = trace.threadOpenStartedAt;
@@ -7888,6 +7985,8 @@ function registerIpc(): void {
         }
       }
       openedThreads.delete(threadId);
+      await turnChangeSetCompletionTails.get(threadId);
+      await turnChangeSetService?.deleteThread(threadId);
       store.deleteThread(threadId);
     },
   );
@@ -8419,6 +8518,37 @@ function registerIpc(): void {
   );
 
   ipcMain.handle(
+    IPC.turnChangesUndo,
+    async (
+      _event,
+      threadId: string,
+      turnId: string,
+    ): Promise<UndoTurnChangesResult> => {
+      if (!store || !turnChangeSetService) {
+        throw new Error("Application is not ready.");
+      }
+      const thread = store.getThread(threadId);
+      if (!thread) throw new Error("Task was not found.");
+      if (
+        thread.status === "running" ||
+        thread.status === "waiting-approval" ||
+        activeTurns.has(threadId) ||
+        turnChangeSetCompletionTails.has(threadId)
+      ) {
+        throw new Error(
+          "Wait for the active turn to finish before undoing files.",
+        );
+      }
+      const { result, payload } = await turnChangeSetService.undo(
+        threadId,
+        turnId,
+      );
+      emitPayload(threadId, turnId, payload);
+      return result;
+    },
+  );
+
+  ipcMain.handle(
     IPC.childAgentControl,
     async (
       _event,
@@ -8611,6 +8741,17 @@ function registerIpc(): void {
           message: "Temporary conversations do not have a project review.",
         };
       }
+      if (query.scope === "turn") {
+        return (
+          turnChangeSetService?.review(thread.id, query.turnId!) ?? {
+            available: false,
+            scope: "turn",
+            text: "",
+            files: [],
+            message: "Turn review is unavailable.",
+          }
+        );
+      }
       try {
         const context = await resolveThreadWorkspace(thread);
         return await getReviewDiff({
@@ -8651,6 +8792,9 @@ function registerIpc(): void {
         throw new Error(
           "Temporary conversations do not have a project review.",
         );
+      }
+      if (input.scope === "turn") {
+        throw new Error("Turn review is immutable and read-only.");
       }
       if (
         thread.status === "running" ||
@@ -8922,6 +9066,141 @@ function seedSmokeTokenUsageFixture(): void {
       { type: "assistant.usage", ...entry },
     );
   }
+}
+
+function seedSmokeTurnChangesFixture(): void {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (!store || !view?.startsWith("turn-changes")) return;
+  const now = new Date().toISOString();
+  const localized = process.env.ARTEMIS_SMOKE_LOCALE === "zh-CN";
+  const projectId = "artemis-smoke-turn-changes-project";
+  const threadId = "artemis-smoke-turn-changes-thread";
+  const turnId = "artemis-smoke-turn-changes-turn";
+  store.upsertProject({
+    id: projectId,
+    name: "Artemis",
+    path: process.cwd(),
+    createdAt: now,
+    updatedAt: now,
+  });
+  store.createThread({
+    id: threadId,
+    projectId,
+    title: localized
+      ? "完成时间线与文件卡"
+      : "Completed timeline and file card",
+    mode: "execute",
+    target: "local",
+    status: "idle",
+    pinned: false,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+  const binary = view === "turn-changes-binary";
+  const single = view === "turn-changes-single" || binary;
+  const files = single
+    ? [
+        {
+          path: binary
+            ? "apps/desktop/src/renderer/reference.png"
+            : "apps/desktop/src/renderer/App.tsx",
+          status: "modified" as const,
+          additions: binary ? 0 : 218,
+          deletions: 0,
+          binary,
+        },
+      ]
+    : [
+        {
+          path: "apps/desktop/src/renderer/approval-groups.ts",
+          status: "modified" as const,
+          additions: 26,
+          deletions: 0,
+          binary: false,
+        },
+        {
+          path: "apps/desktop/src/renderer/composer-drafts.ts",
+          status: "modified" as const,
+          additions: 50,
+          deletions: 2,
+          binary: false,
+        },
+        {
+          path: "apps/desktop/src/renderer/timeline-scroll.ts",
+          status: "modified" as const,
+          additions: 17,
+          deletions: 0,
+          binary: false,
+        },
+        ...Array.from({ length: 18 }, (_, index) => ({
+          path: `apps/desktop/src/renderer/fixture-${index + 1}.ts`,
+          status: "modified" as const,
+          additions: index + 3,
+          deletions: index % 3,
+          binary: false,
+        })),
+      ];
+  const payloads: AgentPayload[] = [
+    {
+      type: "user.message",
+      messageId: "turn-changes-user",
+      text: localized
+        ? "实现 Codex 式完成时间线与文件变更卡，并完成验证。"
+        : "Implement the Codex-style completed timeline and file change card.",
+    },
+    { type: "turn.started", mode: "execute" },
+    {
+      type: "message.part.delta",
+      partId: "turn-changes-progress:text",
+      partType: "text",
+      delta: localized
+        ? "正在审阅协议与渲染链路。"
+        : "Reviewing the protocol and renderer.",
+    },
+    {
+      type: "tool.started",
+      toolCallId: "turn-changes-tool",
+      toolName: "read",
+      input: { path: "apps/desktop/src/renderer/App.tsx" },
+    },
+    {
+      type: "tool.completed",
+      toolCallId: "turn-changes-tool",
+      output: "done",
+      isError: false,
+    },
+    {
+      type: "message.part.delta",
+      partId: "turn-changes-final:text",
+      partType: "text",
+      delta: localized
+        ? "已完成时间线分组、不可变本轮审核与安全文件撤销。"
+        : "Completed timeline grouping, immutable turn review, and safe file undo.",
+    },
+    {
+      type: "turn.completed",
+      reason: "completed",
+      finalPartId: "turn-changes-final:text",
+      durationMs: 808_000,
+    },
+    {
+      type: "turn.change-set.updated",
+      status: "ready",
+      files,
+      additions: files.reduce((sum, file) => sum + file.additions, 0),
+      deletions: files.reduce((sum, file) => sum + file.deletions, 0),
+      undoAvailable: true,
+    },
+  ];
+  store.appendEvents(
+    threadId,
+    payloads.map((payload, index) => ({
+      eventId: `artemis-smoke-turn-changes-${index}`,
+      turnId,
+      payload,
+    })),
+  );
 }
 
 async function seedSmokeEnvironmentFixture(): Promise<void> {
@@ -9288,6 +9567,16 @@ function createMainWindow(): BrowserWindow {
                   button?.click();
                 };
                 const view = ${JSON.stringify(requestedSmokeView)};
+                if (view.startsWith('turn-changes')) {
+                  document.querySelector('.thread-select')?.click();
+                  await wait(600);
+                  if (view === 'turn-changes-open') {
+                    document.querySelector('.turn-execution-details > summary')?.click();
+                    document.querySelector('.turn-change-more > summary')?.click();
+                    await wait(400);
+                  }
+                  return;
+                }
                 if (view.startsWith('environment')) {
                   document.querySelector('.thread-select')?.click();
                   await wait(600);
@@ -9614,7 +9903,7 @@ function createMainWindow(): BrowserWindow {
                   ).trim();
                 };
                 for (const element of document.querySelectorAll(
-                  "button, a[href], [role='button'], [role='tab']",
+                  "button, a[href], summary, [role='button'], [role='tab']",
                 )) {
                   const usesRovingTabIndex =
                     element.getAttribute("role") === "option" &&
@@ -9777,7 +10066,7 @@ function createMainWindow(): BrowserWindow {
                     ? visible(temporaryList)
                     : false,
                   interactiveCount: document.querySelectorAll(
-                    "button, a[href], input, select, textarea, [role='button'], [role='tab']",
+                    "button, a[href], summary, input, select, textarea, [role='button'], [role='tab']",
                   ).length,
                   issues,
                 };
@@ -9851,6 +10140,10 @@ app
     );
     markStartupStage("diagnostics-ready");
     store = new AppStore(join(app.getPath("userData"), "artemis.sqlite"));
+    turnChangeSetService = new TurnChangeSetService(
+      join(app.getPath("userData"), "turn-changes"),
+      store,
+    );
     store.recoverInterruptedThreads();
     store.recoverInterruptedAutomationRuns();
     settingsStore = new EncryptedSettingsStore(
@@ -9871,7 +10164,12 @@ app
       join(app.getPath("userData"), "AGENTS.md"),
     );
     nativeTheme.on("updated", syncWindowBackgroundColors);
-    applyNativeTheme(await settingsStore.themePreference());
+    const smokeTheme = process.env.ARTEMIS_SMOKE_THEME;
+    applyNativeTheme(
+      smokeMode && (smokeTheme === "light" || smokeTheme === "dark")
+        ? smokeTheme
+        : await settingsStore.themePreference(),
+    );
     languagePreference = await settingsStore.languagePreference();
     resolvedLocalePreference = resolveAppLocale(
       languagePreference,
@@ -9882,6 +10180,7 @@ app
     await seedSmokeEnvironmentFixture();
     seedSmokeUserInputFixture();
     seedSmokeTokenUsageFixture();
+    seedSmokeTurnChangesFixture();
     mcpConfigStore = new McpConfigStore(
       join(app.getPath("userData"), "mcp.json"),
     );

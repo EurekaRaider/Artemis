@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PROTOCOL_VERSION = 3 as const;
+export const PROTOCOL_VERSION = 4 as const;
 
 export const runModeSchema = z.enum(["execute", "plan", "review"]);
 export type RunMode = z.infer<typeof runModeSchema>;
@@ -215,6 +215,7 @@ export const workspaceTargetSchema = z.enum([
 export type WorkspaceTarget = z.infer<typeof workspaceTargetSchema>;
 
 export const reviewScopeSchema = z.enum([
+  "turn",
   "last-turn",
   "unstaged",
   "staged",
@@ -394,6 +395,28 @@ export const fileChangedPayloadSchema = z.object({
   path: z.string().min(1),
   operation: z.enum(["create", "update", "delete"]),
 });
+
+export const turnChangeFileSchema = z.object({
+  path: z.string().min(1),
+  status: z.enum(["added", "modified", "deleted"]),
+  additions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+  binary: z.boolean(),
+});
+export type TurnChangeFile = z.infer<typeof turnChangeFileSchema>;
+
+export const turnChangeSetUpdatedPayloadSchema = z.object({
+  type: z.literal("turn.change-set.updated"),
+  status: z.enum(["ready", "undone", "unavailable"]),
+  files: z.array(turnChangeFileSchema),
+  additions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+  undoAvailable: z.boolean(),
+  message: z.string().trim().min(1).max(1_000).optional(),
+});
+export type TurnChangeSetUpdatedPayload = z.infer<
+  typeof turnChangeSetUpdatedPayloadSchema
+>;
 
 export const terminalOutputPayloadSchema = z.object({
   type: z.literal("terminal.output"),
@@ -693,12 +716,17 @@ export type QueueRecoveredPayload = z.infer<typeof queueRecoveredPayloadSchema>;
 export const turnCompletedPayloadSchema = z.object({
   type: z.literal("turn.completed"),
   reason: z.enum(["completed", "cancelled"]),
+  finalPartId: z.string().min(1).optional(),
+  durationMs: z.number().int().nonnegative().optional(),
+  backgroundProcessesRunning: z.boolean().optional(),
 });
 
 export const turnFailedPayloadSchema = z.object({
   type: z.literal("turn.failed"),
   message: z.string().min(1),
   code: z.string().optional(),
+  durationMs: z.number().int().nonnegative().optional(),
+  backgroundProcessesRunning: z.boolean().optional(),
 });
 
 export const agentPayloadSchema = z.discriminatedUnion("type", [
@@ -715,6 +743,7 @@ export const agentPayloadSchema = z.discriminatedUnion("type", [
   userInputRequestedPayloadSchema,
   userInputResolvedPayloadSchema,
   fileChangedPayloadSchema,
+  turnChangeSetUpdatedPayloadSchema,
   terminalOutputPayloadSchema,
   childAgentPayloadSchema,
   agentTeamStatusPayloadSchema,
@@ -890,26 +919,51 @@ export const threadCommandSchema = z.discriminatedUnion("type", [
 ]);
 export type ThreadCommand = z.infer<typeof threadCommandSchema>;
 
-export const reviewQuerySchema = z.object({
-  threadId: z.string().min(1),
-  scope: reviewScopeSchema,
-  baseRef: z.string().trim().min(1).max(200).optional(),
-});
+export const reviewQuerySchema = z
+  .object({
+    threadId: z.string().min(1),
+    scope: reviewScopeSchema,
+    turnId: z.string().min(1).optional(),
+    baseRef: z.string().trim().min(1).max(200).optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.scope === "turn" && !value.turnId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["turnId"],
+        message: "Turn review requires a turnId.",
+      });
+    }
+  });
 export type ReviewQuery = z.infer<typeof reviewQuerySchema>;
 
-export const reviewMutationInputSchema = reviewQuerySchema.extend({
-  action: reviewActionSchema,
-  target: z.discriminatedUnion("kind", [
-    z.object({
-      kind: z.literal("file"),
-      id: z.string().regex(/^[a-f0-9]{64}$/),
-    }),
-    z.object({
-      kind: z.literal("hunk"),
-      id: z.string().regex(/^[a-f0-9]{64}$/),
-    }),
-  ]),
-});
+export const reviewMutationInputSchema = z
+  .object({
+    threadId: z.string().min(1),
+    scope: reviewScopeSchema,
+    turnId: z.string().min(1).optional(),
+    baseRef: z.string().trim().min(1).max(200).optional(),
+    action: reviewActionSchema,
+    target: z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("file"),
+        id: z.string().regex(/^[a-f0-9]{64}$/),
+      }),
+      z.object({
+        kind: z.literal("hunk"),
+        id: z.string().regex(/^[a-f0-9]{64}$/),
+      }),
+    ]),
+  })
+  .superRefine((value, context) => {
+    if (value.scope === "turn" && !value.turnId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["turnId"],
+        message: "Turn review requires a turnId.",
+      });
+    }
+  });
 export type ReviewMutationInput = z.infer<typeof reviewMutationInputSchema>;
 
 export const worktreeCommandSchema = z.discriminatedUnion("type", [

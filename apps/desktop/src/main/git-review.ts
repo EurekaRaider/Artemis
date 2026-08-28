@@ -416,6 +416,23 @@ function parseDiff(
   });
 }
 
+export function reviewDiffFromText(
+  scope: ReviewScope,
+  text: string,
+): ReviewDiff {
+  return {
+    available: true,
+    scope,
+    text,
+    files: parseDiff(scope, text, new Set()).map(
+      ({ patch: _patch, hunks, ...file }) => ({
+        ...file,
+        hunks: hunks.map(({ patch: _hunkPatch, ...hunk }) => hunk),
+      }),
+    ),
+  };
+}
+
 async function loadReviewDiff(
   input: GetReviewDiffInput,
 ): Promise<InternalReviewDiff> {
@@ -434,6 +451,8 @@ async function loadReviewDiff(
   let untracked: string[] = [];
 
   switch (input.scope) {
+    case "turn":
+      throw new Error("Turn review must use its persisted immutable diff.");
     case "unstaged":
       [text, untracked] = await Promise.all([
         runGit(root, [...diffPrefix, ...pathArguments(paths)]),

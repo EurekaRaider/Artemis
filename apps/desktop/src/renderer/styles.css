@@ -2307,6 +2307,204 @@ button.environment-row:disabled {
   width: 100%;
 }
 
+.timeline-turn {
+  display: flow-root;
+}
+
+.timeline-turn > article,
+.timeline-turn > details,
+.timeline-turn > .tool-card,
+.timeline-turn > .error-card,
+.turn-execution-entries > article,
+.turn-execution-entries > details,
+.turn-execution-entries > .tool-card {
+  contain: layout paint style;
+  contain-intrinsic-size: auto 96px;
+  content-visibility: auto;
+}
+
+.turn-execution-details {
+  border-bottom: 1px solid var(--border-soft);
+  margin: 2px 0 22px;
+  padding-bottom: 10px;
+}
+
+.turn-execution-details > summary {
+  align-items: center;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  gap: 7px;
+  list-style: none;
+  min-height: 34px;
+  user-select: none;
+}
+
+.turn-execution-details > summary::-webkit-details-marker,
+.turn-change-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.turn-execution-details > summary .icon,
+.turn-change-more > summary .icon {
+  height: 15px;
+  transition: transform 140ms ease;
+  width: 15px;
+}
+
+.turn-execution-details[open] > summary .icon,
+.turn-change-more[open] > summary .icon {
+  transform: rotate(90deg);
+}
+
+.turn-execution-entries {
+  padding-top: 14px;
+}
+
+.turn-change-card {
+  background: color-mix(in srgb, var(--panel-2) 95%, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  margin: 18px 0 26px;
+  overflow: hidden;
+}
+
+.turn-change-card > header {
+  align-items: center;
+  display: flex;
+  gap: 13px;
+  min-height: 78px;
+  padding: 13px 15px;
+}
+
+.turn-change-icon {
+  align-items: center;
+  background: var(--panel-3);
+  border-radius: 10px;
+  color: var(--muted);
+  display: inline-flex;
+  flex: 0 0 46px;
+  height: 46px;
+  justify-content: center;
+}
+
+.turn-change-heading {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.turn-change-heading > strong {
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turn-change-heading > small,
+.turn-change-message {
+  color: var(--muted-2);
+  font-size: 11px;
+}
+
+.turn-change-total,
+.turn-change-file-stats {
+  display: inline-flex;
+  font-family: var(--mono-font);
+  font-size: 12px;
+  gap: 7px;
+}
+
+.turn-change-binary {
+  color: var(--muted-2);
+  font-size: 12px;
+}
+
+.turn-change-actions {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.turn-change-actions button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  min-height: 32px;
+  padding: 0 11px;
+}
+
+.turn-change-actions button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.turn-change-actions button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.turn-change-undone {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.turn-change-files {
+  border-top: 1px solid var(--border-soft);
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+}
+
+.turn-change-files li {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-height: 34px;
+  padding: 4px 15px;
+}
+
+.turn-change-files li > :first-child {
+  direction: ltr;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  unicode-bidi: isolate;
+  white-space: nowrap;
+}
+
+.turn-change-files small {
+  color: var(--muted-2);
+}
+
+.turn-change-more > summary {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel-3) 52%, transparent);
+  border-top: 1px solid var(--border-soft);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  gap: 6px;
+  list-style: none;
+  min-height: 38px;
+  padding: 0 15px;
+}
+
+.turn-change-more .turn-change-files {
+  border-top: 0;
+}
+
+.turn-change-message {
+  border-top: 1px solid var(--border-soft);
+  margin: 0;
+  padding: 9px 15px 11px;
+}
+
 .user-message {
   background: var(--panel-3);
   border: 1px solid var(--border);
@@ -5766,6 +5964,20 @@ button.environment-row:disabled {
 }
 
 @container (max-width: 700px) {
+  .turn-change-card > header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .turn-change-heading {
+    min-width: calc(100% - 62px);
+  }
+
+  .turn-change-actions {
+    justify-content: flex-end;
+    width: 100%;
+  }
+
   .user-input-footer {
     align-items: flex-start;
     flex-direction: column;

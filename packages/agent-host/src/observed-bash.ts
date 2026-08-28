@@ -96,6 +96,26 @@ export class ObservedBashRegistry {
     private readonly operations: ObservedShellOperations = createLocalBashOperations(),
   ) {}
 
+  hasActiveTurn(threadId: string, turnId: string): boolean {
+    for (const record of this.records.values()) {
+      if (
+        record.threadId === threadId &&
+        record.turnId === turnId &&
+        isActive(record.status)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  hasActiveThread(threadId: string): boolean {
+    for (const record of this.records.values()) {
+      if (record.threadId === threadId && isActive(record.status)) return true;
+    }
+    return false;
+  }
+
   async start(input: StartObservedBashInput): Promise<ObservedBashSnapshot> {
     this.validateObservation(input.observationMilliseconds);
     const executionId = randomUUID();

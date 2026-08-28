@@ -46,6 +46,8 @@ describe("ObservedBashRegistry", () => {
       observationExpired: true,
       outputDelta: "building...",
     });
+    expect(registry.hasActiveThread(scope.threadId)).toBe(true);
+    expect(registry.hasActiveTurn(scope.threadId, "child-turn")).toBe(false);
     expect(signal?.aborted).toBe(false);
     expect(activity).toEqual(["building..."]);
 
@@ -60,6 +62,7 @@ describe("ObservedBashRegistry", () => {
       exitCode: 0,
       observationExpired: false,
     });
+    expect(registry.hasActiveThread(scope.threadId)).toBe(false);
   });
 
   it("aborts only when cancellation is explicitly requested", async () => {

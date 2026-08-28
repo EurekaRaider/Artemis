@@ -40,6 +40,7 @@ import {
   type ThinkingLevel,
   type Thread,
   type ThreadViewState,
+  type TurnViewState,
   type ToolState,
   type UserInputResolution,
   type UserInputState,
@@ -88,6 +89,7 @@ import {
   resolveTimelineScrollTarget,
   type TimelineScrollSnapshot,
 } from "./timeline-scroll.js";
+import { formatWorkedDuration } from "./turn-timeline.js";
 import { HighlightedCodeLine } from "./WorkspaceFileEditor.js";
 import {
   WorkspaceFileIcon,
@@ -114,7 +116,6 @@ import {
   type ToolActivityKind,
 } from "./tool-presentation.js";
 import {
-  appendTimelineActivities,
   groupTimelineActivities,
   latestVisibleToolGroupKey,
 } from "./tool-activity-groups.js";
@@ -409,6 +410,19 @@ const copy = {
     noMatchingFiles: "No matching files",
     comparison: "Comparison",
     lastTurn: "Last turn",
+    thisTurn: "This turn",
+    workedFor: "Worked for",
+    taskPeriodChanges: "Workspace changes during this task",
+    editedFile: "Edited",
+    editedFiles: "Edited {{count}} files",
+    showMoreFiles: "Show {{count}} more files",
+    binaryChange: "Binary file",
+    reviewChanges: "Review",
+    undoChanges: "Undo",
+    changesUndone: "Undone",
+    undoTurnConfirm:
+      "Undo all file changes from this turn? Artemis will create a recovery copy first and will not change the conversation.",
+    undoTurnComplete: "Turn file changes were undone",
     unstaged: "Unstaged",
     staged: "Staged",
     branch: "Branch",
@@ -661,6 +675,19 @@ const copy = {
     noMatchingFiles: "没有匹配的文件",
     comparison: "比较范围",
     lastTurn: "上轮修改",
+    thisTurn: "本轮修改",
+    workedFor: "用时",
+    taskPeriodChanges: "任务期间的工作区变化",
+    editedFile: "已编辑",
+    editedFiles: "已编辑 {{count}} 个文件",
+    showMoreFiles: "再显示 {{count}} 个文件",
+    binaryChange: "二进制文件",
+    reviewChanges: "审核",
+    undoChanges: "撤销",
+    changesUndone: "已撤销",
+    undoTurnConfirm:
+      "撤销本轮的全部文件变化？Artemis 会先创建恢复副本，且不会修改对话历史。",
+    undoTurnComplete: "已撤销本轮文件变化",
     unstaged: "未暂存",
     staged: "已暂存",
     branch: "分支比较",
@@ -1662,6 +1689,7 @@ export function App() {
   const workspaceThreadCreation =
     useRef<Promise<string | undefined>>(undefined);
   const [reviewScope, setReviewScope] = useState<ReviewScope>("branch");
+  const [reviewTurnId, setReviewTurnId] = useState<string>();
   const [reviewBaseRef, setReviewBaseRef] = useState("");
   const [reviewFileQuery, setReviewFileQuery] = useState("");
   const [selectedReviewFileId, setSelectedReviewFileId] = useState<string>();
@@ -1798,6 +1826,7 @@ export function App() {
     draft: "",
   });
   const reviewRequestId = useRef(0);
+  const reviewScopeThreadId = useRef(activeThreadId);
   const reviewDiffCache = useRef(new Map<string, ReviewDiff>());
   const reviewDiffInFlight = useRef(new Map<string, Promise<ReviewDiff>>());
   const reviewDiffVersion = useRef(new Map<string, number>());
@@ -3962,13 +3991,26 @@ export function App() {
     return () => window.cancelAnimationFrame(frame);
   }, [threadState?.lastSeq]);
 
+  useEffect(() => {
+    if (reviewScopeThreadId.current === activeThreadId) return;
+    reviewScopeThreadId.current = activeThreadId;
+    reviewRequestId.current += 1;
+    setReviewScope("branch");
+    setReviewTurnId(undefined);
+    setReviewDiff(undefined);
+    setSelectedReviewFileId(undefined);
+    setCommentLineId(undefined);
+    setCommentBody("");
+  }, [activeThreadId]);
+
   const reviewDiffCacheKey = useCallback(
     (threadId: string, scope: ReviewScope) => {
       const baseRef = scope === "branch" ? reviewBaseRef.trim() : "";
+      const turnId = scope === "turn" ? (reviewTurnId ?? "") : "";
       const version = reviewDiffVersion.current.get(threadId) ?? 0;
-      return `${threadId}\u0000${scope}\u0000${baseRef}\u0000${threadState?.lastSeq ?? 0}\u0000${version}`;
+      return `${threadId}\u0000${scope}\u0000${turnId}\u0000${baseRef}\u0000${threadState?.lastSeq ?? 0}\u0000${version}`;
     },
-    [reviewBaseRef, threadState?.lastSeq],
+    [reviewBaseRef, reviewTurnId, threadState?.lastSeq],
   );
 
   const loadCachedReviewDiff = useCallback(
@@ -3983,6 +4025,7 @@ export function App() {
         .getReviewDiff({
           threadId,
           scope,
+          ...(scope === "turn" && reviewTurnId ? { turnId: reviewTurnId } : {}),
           ...(scope === "branch" && reviewBaseRef.trim()
             ? { baseRef: reviewBaseRef.trim() }
             : {}),
@@ -4001,7 +4044,7 @@ export function App() {
       reviewDiffInFlight.current.set(cacheKey, request);
       return request;
     },
-    [reviewBaseRef, reviewDiffCacheKey],
+    [reviewBaseRef, reviewDiffCacheKey, reviewTurnId],
   );
 
   const invalidateReviewDiffCache = useCallback((threadId: string) => {
@@ -4083,6 +4126,7 @@ export function App() {
     if (scope === reviewScope) return;
     reviewRequestId.current += 1;
     setReviewScope(scope);
+    if (scope !== "turn") setReviewTurnId(undefined);
     const cached = activeThreadId
       ? reviewDiffCache.current.get(reviewDiffCacheKey(activeThreadId, scope))
       : undefined;
@@ -4097,6 +4141,50 @@ export function App() {
     selectReviewScope(scope);
     openReviewPanel();
   };
+
+  const openReviewTurnPanel = useCallback(
+    (turnId: string) => {
+      reviewRequestId.current += 1;
+      setReviewTurnId(turnId);
+      setReviewScope("turn");
+      setReviewDiff(undefined);
+      setSelectedReviewFileId(undefined);
+      setCommentLineId(undefined);
+      setCommentBody("");
+      openReviewPanel();
+    },
+    [openReviewPanel],
+  );
+
+  const undoTurnChanges = useCallback(
+    async (turnId: string) => {
+      if (
+        !activeThreadId ||
+        !(await requestConfirmation(t.undoTurnConfirm, "danger"))
+      ) {
+        return;
+      }
+      try {
+        const result = await window.artemis.undoTurnChanges(
+          activeThreadId,
+          turnId,
+        );
+        invalidateReviewDiffCache(activeThreadId);
+        setToast(
+          `${t.undoTurnComplete} · ${result.restoredFiles.length} · ${result.recoveryPath}`,
+        );
+      } catch (error) {
+        setToast(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [
+      activeThreadId,
+      invalidateReviewDiffCache,
+      requestConfirmation,
+      t.undoTurnComplete,
+      t.undoTurnConfirm,
+    ],
+  );
 
   useEffect(() => {
     if (workspaceDockOpen && activeWorkspaceTab?.kind === "review") {
@@ -4163,7 +4251,13 @@ export function App() {
 
   const saveReviewComment = useCallback(
     async (lineId: string) => {
-      if (!activeThreadId || !commentBody.trim() || reviewBusy) return;
+      if (
+        !activeThreadId ||
+        reviewScope === "turn" ||
+        !commentBody.trim() ||
+        reviewBusy
+      )
+        return;
       setReviewBusy(true);
       try {
         const comment = await window.artemis.addReviewComment({
@@ -6003,10 +6097,14 @@ export function App() {
                       onFileLink={openConversationFileLink}
                       onFileLinkContextMenu={openConversationFileLinkMenu}
                       onOpenChildAgent={openChildAgentPanel}
+                      onOpenTurnReview={openReviewTurnPanel}
                       onResolve={(approval, approved, scope) =>
                         void resolveApprovalRequest(approval, approved, scope)
                       }
                       onResolveUserInput={resolveUserInputRequest}
+                      onUndoTurnChanges={(turnId) =>
+                        void undoTurnChanges(turnId)
+                      }
                       state={threadState!}
                     />
                   )}
@@ -7395,6 +7493,14 @@ export function App() {
                                       ariaLabel={t.comparison}
                                       onChange={selectReviewScope}
                                       options={[
+                                        ...(reviewScope === "turn"
+                                          ? [
+                                              {
+                                                value: "turn" as const,
+                                                label: t.thisTurn,
+                                              },
+                                            ]
+                                          : []),
                                         {
                                           value: "unstaged",
                                           label: t.unstaged,
@@ -7447,7 +7553,9 @@ export function App() {
                                           ? t.unstaged
                                           : reviewScope === "staged"
                                             ? t.staged
-                                            : t.lastTurn}
+                                            : reviewScope === "turn"
+                                              ? t.thisTurn
+                                              : t.lastTurn}
                                       </strong>
                                     </>
                                   )}
@@ -7654,21 +7762,26 @@ export function App() {
                                                         className={`review-line ${line.kind}`}
                                                         data-line-id={line.id}
                                                       >
-                                                        <button
-                                                          aria-label={
-                                                            t.addComment
-                                                          }
-                                                          className="review-comment-trigger"
-                                                          onClick={() => {
-                                                            setCommentLineId(
-                                                              line.id,
-                                                            );
-                                                            setCommentBody("");
-                                                          }}
-                                                          title={t.addComment}
-                                                        >
-                                                          +
-                                                        </button>
+                                                        {reviewScope !==
+                                                          "turn" && (
+                                                          <button
+                                                            aria-label={
+                                                              t.addComment
+                                                            }
+                                                            className="review-comment-trigger"
+                                                            onClick={() => {
+                                                              setCommentLineId(
+                                                                line.id,
+                                                              );
+                                                              setCommentBody(
+                                                                "",
+                                                              );
+                                                            }}
+                                                            title={t.addComment}
+                                                          >
+                                                            +
+                                                          </button>
+                                                        )}
                                                         <span className="review-line-number">
                                                           {line.oldLine ?? ""}
                                                         </span>
@@ -9184,6 +9297,104 @@ function ToolActivityGroupCard({
   );
 }
 
+function TurnChangeSetCard({
+  locale,
+  onReview,
+  onUndo,
+  turn,
+  undoEnabled,
+}: {
+  locale: Locale;
+  onReview: (turnId: string) => void;
+  onUndo: (turnId: string) => void;
+  turn: TurnViewState;
+  undoEnabled: boolean;
+}) {
+  const t = appCopy(locale);
+  const changeSet = turn.changeSet;
+  if (!changeSet || changeSet.files.length === 0) return null;
+  const multiple = changeSet.files.length > 1;
+  const previewFiles = multiple ? changeSet.files.slice(0, 3) : [];
+  const remainingFiles = multiple ? changeSet.files.slice(3) : [];
+  const hasTextChanges = changeSet.files.some((file) => !file.binary);
+  const singleBinary = !multiple && changeSet.files[0]!.binary;
+  const title = multiple
+    ? t.editedFiles.replace("{{count}}", String(changeSet.files.length))
+    : `${t.editedFile} ${changeSet.files[0]!.path.split("/").at(-1)}`;
+  const fileRow = (file: (typeof changeSet.files)[number]) => (
+    <li key={file.path}>
+      <span title={file.path}>{file.path}</span>
+      {file.binary ? (
+        <small>{t.binaryChange}</small>
+      ) : (
+        <span className="turn-change-file-stats">
+          <span className="addition">+{file.additions}</span>
+          <span className="deletion">−{file.deletions}</span>
+        </span>
+      )}
+    </li>
+  );
+
+  return (
+    <article className={`turn-change-card ${changeSet.status}`}>
+      <header>
+        <span className="turn-change-icon">
+          <FileIcon />
+        </span>
+        <div className="turn-change-heading">
+          <strong>{title}</strong>
+          <small>{t.taskPeriodChanges}</small>
+          {singleBinary ? (
+            <span className="turn-change-binary">{t.binaryChange}</span>
+          ) : (
+            hasTextChanges && (
+              <span className="turn-change-total">
+                <span className="addition">+{changeSet.additions}</span>
+                <span className="deletion">−{changeSet.deletions}</span>
+              </span>
+            )
+          )}
+        </div>
+        <div className="turn-change-actions">
+          {changeSet.status === "undone" ? (
+            <span className="turn-change-undone">{t.changesUndone}</span>
+          ) : (
+            <button
+              disabled={!undoEnabled}
+              onClick={() => onUndo(turn.id)}
+              title={changeSet.message}
+              type="button"
+            >
+              {t.undoChanges}
+            </button>
+          )}
+          <button onClick={() => onReview(turn.id)} type="button">
+            {t.reviewChanges}
+          </button>
+        </div>
+      </header>
+      {previewFiles.length > 0 && (
+        <ol className="turn-change-files">{previewFiles.map(fileRow)}</ol>
+      )}
+      {remainingFiles.length > 0 && (
+        <details className="turn-change-more">
+          <summary>
+            {t.showMoreFiles.replace(
+              "{{count}}",
+              String(remainingFiles.length),
+            )}
+            <ChevronIcon />
+          </summary>
+          <ol className="turn-change-files">{remainingFiles.map(fileRow)}</ol>
+        </details>
+      )}
+      {changeSet.message && (
+        <p className="turn-change-message">{changeSet.message}</p>
+      )}
+    </article>
+  );
+}
+
 function Timeline({
   installedPlugins,
   installedSkills,
@@ -9193,8 +9404,10 @@ function Timeline({
   onFileLink,
   onFileLinkContextMenu,
   onOpenChildAgent,
+  onOpenTurnReview,
   onResolve,
   onResolveUserInput,
+  onUndoTurnChanges,
 }: {
   installedPlugins: readonly InstalledCodexPlugin[];
   installedSkills: readonly InstalledSkill[];
@@ -9207,45 +9420,43 @@ function Timeline({
     position: { x: number; y: number },
   ) => void;
   onOpenChildAgent: (child: ChildAgentState) => void;
+  onOpenTurnReview: (turnId: string) => void;
   onResolve: (
     approval: ApprovalState,
     approved: boolean,
     scope: "once" | "session" | "project",
   ) => void;
   onResolveUserInput: (resolution: UserInputResolution) => Promise<void>;
+  onUndoTurnChanges: (turnId: string) => void;
 }) {
   const t = appCopy(locale);
-  const timelineCache = useRef<{
-    entries: ReturnType<typeof groupTimelineActivities>;
-    orderLength: number;
-    lastEntry?: string;
-  }>(undefined);
-  const timelineEntries = useMemo(() => {
-    const cached = timelineCache.current;
-    const prefixMatches =
-      cached &&
-      cached.orderLength <= state.order.length &&
-      (cached.orderLength === 0 ||
-        state.order[cached.orderLength - 1] === cached.lastEntry);
-    const entries = prefixMatches
-      ? appendTimelineActivities(
-          cached.entries,
-          state.order,
-          state.tools,
-          cached.orderLength,
-        )
-      : groupTimelineActivities(state.order, state.tools);
-    const lastEntry = state.order.at(-1);
-    timelineCache.current = {
-      entries,
-      orderLength: state.order.length,
-      ...(lastEntry ? { lastEntry } : {}),
+  const groupedTimeline = useMemo(() => {
+    const assigned = new Set<string>();
+    const turns = state.turnOrder.flatMap((turnId) => {
+      const turn = state.turns[turnId];
+      if (!turn) return [];
+      for (const entry of turn.order) assigned.add(entry);
+      return [
+        {
+          turn,
+          entries: groupTimelineActivities(turn.order, state.tools),
+        },
+      ];
+    });
+    return {
+      turns,
+      unassigned: groupTimelineActivities(
+        state.order.filter((entry) => !assigned.has(entry)),
+        state.tools,
+      ),
     };
-    return entries;
-  }, [state.order, state.tools]);
+  }, [state.order, state.tools, state.turnOrder, state.turns]);
+  const activeTimelineEntries = groupedTimeline.turns.findLast(
+    ({ turn }) => turn.status === "running",
+  )?.entries;
   const activeToolGroupKey =
-    state.status === "running" && state.queue.steering.length === 0
-      ? latestVisibleToolGroupKey(timelineEntries, state.messageParts)
+    activeTimelineEntries && state.queue.steering.length === 0
+      ? latestVisibleToolGroupKey(activeTimelineEntries, state.messageParts)
       : undefined;
   const approvedApprovalGroups = useMemo(
     () => groupApprovedApprovals(state.order, state.approvals),
@@ -9283,328 +9494,392 @@ function Timeline({
       },
     }[legacyLocale(locale)],
   );
-  return (
-    <div className="timeline">
-      {timelineEntries.map((timelineEntry) => {
-        if (timelineEntry.kind === "tool-group") {
-          const tools = timelineEntry.toolIds.flatMap((toolId) => {
-            const tool = state.tools[toolId];
-            return tool ? [tool] : [];
-          });
-          return tools.length > 0 ? (
-            <ToolActivityGroupCard
-              active={timelineEntry.key === activeToolGroupKey}
-              key={timelineEntry.key}
-              locale={locale}
-              onFileLink={onFileLink}
-              tools={tools}
-            />
-          ) : null;
-        }
-        const entry = timelineEntry.entry;
-        const separator = entry.indexOf(":");
-        const kind = entry.slice(0, separator);
-        const id = entry.slice(separator + 1);
-        if (separator < 0 || !id) return null;
-        if (kind === "user") {
-          const message = state.userMessages[id];
-          if (!message) return null;
-          const skillNames = selectedSkillNamesForPrompt(message.text);
-          const visibleText = promptWithoutSelectedSkills(message.text);
-          return (
-            <article className="user-message" key={entry}>
-              {skillNames.length > 0 && (
-                <div className="user-message-capabilities">
-                  {skillNames.map((name) => {
-                    const skill = installedSkills.find(
-                      (candidate) => candidate.name === name,
-                    );
-                    const plugin = installedPlugins.find((candidate) =>
-                      candidate.skillNames.includes(name),
-                    );
-                    return (
-                      <span className="user-message-capability" key={name}>
-                        <span
-                          className={`user-message-capability-icon${plugin ? " plugin-icon" : ""}`}
-                        >
-                          {plugin?.iconDataUrl ? (
-                            <img
-                              alt=""
-                              draggable={false}
-                              src={plugin.iconDataUrl}
-                            />
-                          ) : plugin ? (
-                            <ResourceIcon />
-                          ) : (
-                            "✦"
-                          )}
-                        </span>
-                        <strong>{skill?.name ?? name}</strong>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-              {visibleText && (
-                <div className="user-message-text">{visibleText}</div>
-              )}
-            </article>
-          );
-        }
-        if (kind === "compaction") {
-          const compaction = state.contextCompactions[id];
-          if (!compaction) return null;
-          return (
-            <article
-              aria-live="polite"
-              className={`turn-status compaction-status ${compaction.status}`}
-              key={entry}
-              role="status"
-            >
-              <span
-                className={`status-dot ${compaction.status === "completed" ? "idle" : "running"}`}
-              />
-              <span>
-                {compaction.status === "running"
-                  ? t.contextCompacting
-                  : t.contextCompacted}
-              </span>
-            </article>
-          );
-        }
-        if (kind === "part") {
-          const part = state.messageParts[id];
-          if (!part) return null;
-          if (part.type === "thinking") return null;
-          return (
-            <article className="assistant-message" key={entry}>
-              <MarkdownContent
-                fileLinkIcons
-                onExternalLink={onExternalLink}
-                onFileLink={onFileLink}
-                onFileLinkContextMenu={onFileLinkContextMenu}
-                text={part.text}
-              />
-            </article>
-          );
-        }
-        if (kind === "input") {
-          const input = state.userInputs[id];
-          if (!input) return null;
-          return (
-            <UserInputCard
-              active={input.status === "pending"}
-              input={input}
-              key={entry}
-              locale={locale}
-              onResolve={onResolveUserInput}
-            />
-          );
-        }
-        if (kind === "approval") {
-          const approval = state.approvals[id];
-          if (!approval) return null;
-          const approvedGroup = approvedApprovalGroups.get(id);
-          if (
-            approvedGroup &&
-            approvedGroup.approvalIds.length > 1 &&
-            approvedGroup.approvalIds[0] !== id
-          ) {
-            return null;
-          }
-          if (approvedGroup && approvedGroup.approvalIds.length > 1) {
-            const groupedApprovals = approvedGroup.approvalIds.flatMap(
-              (approvalId) => {
-                const grouped = state.approvals[approvalId];
-                return grouped ? [grouped] : [];
-              },
-            );
-            return (
-              <details
-                className="approval-card approved approval-group"
-                key={`approval-group:${approvedGroup.key}`}
-              >
-                <summary>
-                  <span className="approval-shield">
-                    <ApprovalIcon neutral />
-                  </span>
-                  <strong>{t.approvalApproved}</strong>
-                  <span className="approval-count-badge">
-                    ×{groupedApprovals.length}
-                  </span>
-                  <span className="approval-card-chevron">
-                    <ChevronIcon />
-                  </span>
-                </summary>
-                <ol className="approval-resolved-details approval-group-list">
-                  {groupedApprovals.map((grouped) => (
-                    <li key={grouped.approvalId}>
-                      <div className="approval-card-copy">
-                        <strong>{grouped.summary}</strong>
-                        <small>
-                          {grouped.command ?? grouped.paths.join(", ")}
-                        </small>
-                        {grouped.actorAgentId && (
-                          <small>
-                            {t.agentActor}:{" "}
-                            {state.childAgents[grouped.actorAgentId]?.label ??
-                              grouped.actorAgentId}
-                          </small>
-                        )}
-                      </div>
-                      <time dateTime={grouped.requestedAt}>
-                        {approvalTime.format(new Date(grouped.requestedAt))}
-                      </time>
-                      {grouped.modelReason && (
-                        <p className="approval-model-reason">
-                          <span>{t.modelReason}</span>
-                          {grouped.modelReason}
-                        </p>
+  const latestCompletedTurnId = state.turnOrder.findLast(
+    (turnId) => state.turns[turnId]?.status === "completed",
+  );
+  const renderTimelineEntry = (
+    timelineEntry: ReturnType<typeof groupTimelineActivities>[number],
+  ): ReactNode => {
+    if (timelineEntry.kind === "tool-group") {
+      const tools = timelineEntry.toolIds.flatMap((toolId) => {
+        const tool = state.tools[toolId];
+        return tool ? [tool] : [];
+      });
+      return tools.length > 0 ? (
+        <ToolActivityGroupCard
+          active={timelineEntry.key === activeToolGroupKey}
+          key={timelineEntry.key}
+          locale={locale}
+          onFileLink={onFileLink}
+          tools={tools}
+        />
+      ) : null;
+    }
+    const entry = timelineEntry.entry;
+    const separator = entry.indexOf(":");
+    const kind = entry.slice(0, separator);
+    const id = entry.slice(separator + 1);
+    if (separator < 0 || !id) return null;
+    if (kind === "user") {
+      const message = state.userMessages[id];
+      if (!message) return null;
+      const skillNames = selectedSkillNamesForPrompt(message.text);
+      const visibleText = promptWithoutSelectedSkills(message.text);
+      return (
+        <article className="user-message" key={entry}>
+          {skillNames.length > 0 && (
+            <div className="user-message-capabilities">
+              {skillNames.map((name) => {
+                const skill = installedSkills.find(
+                  (candidate) => candidate.name === name,
+                );
+                const plugin = installedPlugins.find((candidate) =>
+                  candidate.skillNames.includes(name),
+                );
+                return (
+                  <span className="user-message-capability" key={name}>
+                    <span
+                      className={`user-message-capability-icon${plugin ? " plugin-icon" : ""}`}
+                    >
+                      {plugin?.iconDataUrl ? (
+                        <img
+                          alt=""
+                          draggable={false}
+                          src={plugin.iconDataUrl}
+                        />
+                      ) : plugin ? (
+                        <ResourceIcon />
+                      ) : (
+                        "✦"
                       )}
-                    </li>
-                  ))}
-                </ol>
-              </details>
-            );
-          }
-          const approvalCopy = (
-            <div className="approval-card-copy">
-              <strong>{approval.summary}</strong>
-              <small>{approval.command ?? approval.paths.join(", ")}</small>
-              {approval.actorAgentId && (
-                <small>
-                  {t.agentActor}:{" "}
-                  {state.childAgents[approval.actorAgentId]?.label ??
-                    approval.actorAgentId}
-                </small>
-              )}
+                    </span>
+                    <strong>{skill?.name ?? name}</strong>
+                  </span>
+                );
+              })}
             </div>
-          );
-          const modelReason = approval.modelReason ? (
-            <p className="approval-model-reason">
-              <span>{t.modelReason}</span>
-              {approval.modelReason}
-            </p>
-          ) : null;
-          if (approval.status !== "pending") {
-            return (
-              <details
-                className={`approval-card ${approval.status}`}
-                key={entry}
-              >
-                <summary>
-                  <span className="approval-shield">
-                    <ApprovalIcon neutral />
-                  </span>
-                  <strong>
-                    {approval.status === "approved"
-                      ? t.approvalApproved
-                      : t.approvalDenied}
-                  </strong>
-                  <span className="approval-card-chevron">
-                    <ChevronIcon />
-                  </span>
-                </summary>
-                <div className="approval-resolved-details">
-                  {approvalCopy}
-                  {modelReason}
-                </div>
-              </details>
-            );
-          }
-          return (
-            <article className={`approval-card ${approval.status}`} key={entry}>
-              <header>
-                <span className="approval-shield">
-                  <ApprovalIcon neutral />
-                </span>
-                {approvalCopy}
-              </header>
-              {modelReason}
-              <div className="approval-actions">
-                <button
-                  className="secondary-button"
-                  onClick={() => onResolve(approval, false, "once")}
-                >
-                  {t.deny}
-                  {approval.modelRecommendation === "deny" && (
-                    <small className="recommendation-badge">
-                      {t.recommended}
-                    </small>
-                  )}
-                </button>
-                {approval.allowedScopes.includes("project") && (
-                  <button
-                    className="secondary-button"
-                    onClick={() => onResolve(approval, true, "project")}
-                  >
-                    {t.approveProject}
-                  </button>
-                )}
-                {approval.allowedScopes.includes("session") && (
-                  <button
-                    className="secondary-button"
-                    onClick={() => onResolve(approval, true, "session")}
-                  >
-                    {t.approveSession}
-                  </button>
-                )}
-                {approval.allowedScopes.includes("once") && (
-                  <button
-                    className="primary-button compact"
-                    onClick={() => onResolve(approval, true, "once")}
-                  >
-                    {t.approveOnce}
-                    {approval.modelRecommendation === "approve" && (
-                      <small className="recommendation-badge">
-                        {t.recommended}
+          )}
+          {visibleText && (
+            <div className="user-message-text">{visibleText}</div>
+          )}
+        </article>
+      );
+    }
+    if (kind === "compaction") {
+      const compaction = state.contextCompactions[id];
+      if (!compaction) return null;
+      return (
+        <article
+          aria-live="polite"
+          className={`turn-status compaction-status ${compaction.status}`}
+          key={entry}
+          role="status"
+        >
+          <span
+            className={`status-dot ${compaction.status === "completed" ? "idle" : "running"}`}
+          />
+          <span>
+            {compaction.status === "running"
+              ? t.contextCompacting
+              : t.contextCompacted}
+          </span>
+        </article>
+      );
+    }
+    if (kind === "part") {
+      const part = state.messageParts[id];
+      if (!part) return null;
+      if (part.type === "thinking") return null;
+      return (
+        <article className="assistant-message" key={entry}>
+          <MarkdownContent
+            fileLinkIcons
+            onExternalLink={onExternalLink}
+            onFileLink={onFileLink}
+            onFileLinkContextMenu={onFileLinkContextMenu}
+            text={part.text}
+          />
+        </article>
+      );
+    }
+    if (kind === "input") {
+      const input = state.userInputs[id];
+      if (!input) return null;
+      return (
+        <UserInputCard
+          active={input.status === "pending"}
+          input={input}
+          key={entry}
+          locale={locale}
+          onResolve={onResolveUserInput}
+        />
+      );
+    }
+    if (kind === "approval") {
+      const approval = state.approvals[id];
+      if (!approval) return null;
+      const approvedGroup = approvedApprovalGroups.get(id);
+      if (
+        approvedGroup &&
+        approvedGroup.approvalIds.length > 1 &&
+        approvedGroup.approvalIds[0] !== id
+      ) {
+        return null;
+      }
+      if (approvedGroup && approvedGroup.approvalIds.length > 1) {
+        const groupedApprovals = approvedGroup.approvalIds.flatMap(
+          (approvalId) => {
+            const grouped = state.approvals[approvalId];
+            return grouped ? [grouped] : [];
+          },
+        );
+        return (
+          <details
+            className="approval-card approved approval-group"
+            key={`approval-group:${approvedGroup.key}`}
+          >
+            <summary>
+              <span className="approval-shield">
+                <ApprovalIcon neutral />
+              </span>
+              <strong>{t.approvalApproved}</strong>
+              <span className="approval-count-badge">
+                ×{groupedApprovals.length}
+              </span>
+              <span className="approval-card-chevron">
+                <ChevronIcon />
+              </span>
+            </summary>
+            <ol className="approval-resolved-details approval-group-list">
+              {groupedApprovals.map((grouped) => (
+                <li key={grouped.approvalId}>
+                  <div className="approval-card-copy">
+                    <strong>{grouped.summary}</strong>
+                    <small>{grouped.command ?? grouped.paths.join(", ")}</small>
+                    {grouped.actorAgentId && (
+                      <small>
+                        {t.agentActor}:{" "}
+                        {state.childAgents[grouped.actorAgentId]?.label ??
+                          grouped.actorAgentId}
                       </small>
                     )}
-                  </button>
+                  </div>
+                  <time dateTime={grouped.requestedAt}>
+                    {approvalTime.format(new Date(grouped.requestedAt))}
+                  </time>
+                  {grouped.modelReason && (
+                    <p className="approval-model-reason">
+                      <span>{t.modelReason}</span>
+                      {grouped.modelReason}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </details>
+        );
+      }
+      const approvalCopy = (
+        <div className="approval-card-copy">
+          <strong>{approval.summary}</strong>
+          <small>{approval.command ?? approval.paths.join(", ")}</small>
+          {approval.actorAgentId && (
+            <small>
+              {t.agentActor}:{" "}
+              {state.childAgents[approval.actorAgentId]?.label ??
+                approval.actorAgentId}
+            </small>
+          )}
+        </div>
+      );
+      const modelReason = approval.modelReason ? (
+        <p className="approval-model-reason">
+          <span>{t.modelReason}</span>
+          {approval.modelReason}
+        </p>
+      ) : null;
+      if (approval.status !== "pending") {
+        return (
+          <details className={`approval-card ${approval.status}`} key={entry}>
+            <summary>
+              <span className="approval-shield">
+                <ApprovalIcon neutral />
+              </span>
+              <strong>
+                {approval.status === "approved"
+                  ? t.approvalApproved
+                  : t.approvalDenied}
+              </strong>
+              <span className="approval-card-chevron">
+                <ChevronIcon />
+              </span>
+            </summary>
+            <div className="approval-resolved-details">
+              {approvalCopy}
+              {modelReason}
+            </div>
+          </details>
+        );
+      }
+      return (
+        <article className={`approval-card ${approval.status}`} key={entry}>
+          <header>
+            <span className="approval-shield">
+              <ApprovalIcon neutral />
+            </span>
+            {approvalCopy}
+          </header>
+          {modelReason}
+          <div className="approval-actions">
+            <button
+              className="secondary-button"
+              onClick={() => onResolve(approval, false, "once")}
+            >
+              {t.deny}
+              {approval.modelRecommendation === "deny" && (
+                <small className="recommendation-badge">{t.recommended}</small>
+              )}
+            </button>
+            {approval.allowedScopes.includes("project") && (
+              <button
+                className="secondary-button"
+                onClick={() => onResolve(approval, true, "project")}
+              >
+                {t.approveProject}
+              </button>
+            )}
+            {approval.allowedScopes.includes("session") && (
+              <button
+                className="secondary-button"
+                onClick={() => onResolve(approval, true, "session")}
+              >
+                {t.approveSession}
+              </button>
+            )}
+            {approval.allowedScopes.includes("once") && (
+              <button
+                className="primary-button compact"
+                onClick={() => onResolve(approval, true, "once")}
+              >
+                {t.approveOnce}
+                {approval.modelRecommendation === "approve" && (
+                  <small className="recommendation-badge">
+                    {t.recommended}
+                  </small>
                 )}
-              </div>
-            </article>
+              </button>
+            )}
+          </div>
+        </article>
+      );
+    }
+    if (kind === "child") {
+      const child = state.childAgents[id];
+      if (child?.parentAgentId && child.parentAgentId !== "parent") {
+        return null;
+      }
+      return child ? (
+        <button
+          aria-label={`${child.label}, ${childStatusLabels[child.status]}`}
+          className={`child-agent-card ${child.status} ${child.health ?? "healthy"}`}
+          key={entry}
+          onClick={() => onOpenChildAgent(child)}
+          type="button"
+        >
+          <span className="child-agent-pill">
+            <ChildAgentIcon
+              className="child-agent-icon"
+              identity={child.agentId}
+            />
+            <strong>{child.label}</strong>
+          </span>
+          <span className="child-agent-status">
+            {childStatusLabels[child.status]}
+          </span>
+          <span aria-hidden="true" className="child-agent-open-icon">
+            <Icon size={14}>
+              <path
+                d="m9 6 6 6-6 6"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.7"
+              />
+            </Icon>
+          </span>
+        </button>
+      ) : null;
+    }
+    return null;
+  };
+
+  return (
+    <div className="timeline">
+      {groupedTimeline.turns.map(({ entries, turn }) => {
+        if (turn.status !== "completed") {
+          return (
+            <section className="timeline-turn" key={turn.id}>
+              {entries.map(renderTimelineEntry)}
+              <TurnChangeSetCard
+                locale={locale}
+                onReview={onOpenTurnReview}
+                onUndo={onUndoTurnChanges}
+                turn={turn}
+                undoEnabled={
+                  turn.id === latestCompletedTurnId &&
+                  state.status === "idle" &&
+                  turn.changeSet?.undoAvailable === true
+                }
+              />
+            </section>
           );
         }
-        if (kind === "child") {
-          const child = state.childAgents[id];
-          if (child?.parentAgentId && child.parentAgentId !== "parent") {
-            return null;
-          }
-          return child ? (
-            <button
-              aria-label={`${child.label}, ${childStatusLabels[child.status]}`}
-              className={`child-agent-card ${child.status} ${child.health ?? "healthy"}`}
-              key={entry}
-              onClick={() => onOpenChildAgent(child)}
-              type="button"
-            >
-              <span className="child-agent-pill">
-                <ChildAgentIcon
-                  className="child-agent-icon"
-                  identity={child.agentId}
-                />
-                <strong>{child.label}</strong>
-              </span>
-              <span className="child-agent-status">
-                {childStatusLabels[child.status]}
-              </span>
-              <span aria-hidden="true" className="child-agent-open-icon">
-                <Icon size={14}>
-                  <path
-                    d="m9 6 6 6-6 6"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.7"
-                  />
-                </Icon>
-              </span>
-            </button>
-          ) : null;
-        }
-        return null;
+        const finalEntry = turn.finalPartId
+          ? entries.find(
+              (entry) =>
+                entry.kind === "entry" &&
+                entry.entry === `part:${turn.finalPartId}`,
+            )
+          : entries.findLast(
+              (entry) =>
+                entry.kind === "entry" && entry.entry.startsWith("part:"),
+            );
+        const userEntries = entries.filter(
+          (entry) => entry.kind === "entry" && entry.entry.startsWith("user:"),
+        );
+        const executionEntries = entries.filter(
+          (entry) => entry !== finalEntry && !userEntries.includes(entry),
+        );
+        return (
+          <section className="timeline-turn completed" key={turn.id}>
+            {userEntries.map(renderTimelineEntry)}
+            <details className="turn-execution-details">
+              <summary>
+                <span>
+                  {t.workedFor} {formatWorkedDuration(turn.durationMs)}
+                </span>
+                <ChevronIcon />
+              </summary>
+              <div className="turn-execution-entries">
+                {executionEntries.map(renderTimelineEntry)}
+              </div>
+            </details>
+            {finalEntry ? renderTimelineEntry(finalEntry) : null}
+            <TurnChangeSetCard
+              locale={locale}
+              onReview={onOpenTurnReview}
+              onUndo={onUndoTurnChanges}
+              turn={turn}
+              undoEnabled={
+                turn.id === latestCompletedTurnId &&
+                state.status === "idle" &&
+                turn.changeSet?.undoAvailable === true
+              }
+            />
+          </section>
+        );
       })}
+      {groupedTimeline.unassigned.map(renderTimelineEntry)}
       {state.queue.steering.map((message, index) => (
         <article
           className="user-message steering-message"

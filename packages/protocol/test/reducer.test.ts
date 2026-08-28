@@ -67,6 +67,65 @@ describe("reduceAgentEvent", () => {
     expect(visible.activity).toBeUndefined();
   });
 
+  it("persists per-turn order, duration, final answer, and change-set state", () => {
+    const state = reduceAgentEvents("thread-1", [
+      event("user", 0, {
+        type: "user.message",
+        messageId: "user-1",
+        text: "Implement it.",
+      }),
+      event("started", 1, { type: "turn.started", mode: "execute" }),
+      event("tool-text", 2, {
+        type: "message.part.delta",
+        partId: "tool-round:text",
+        partType: "text",
+        delta: "Working",
+      }),
+      event("final-text", 3, {
+        type: "message.part.delta",
+        partId: "final-round:text",
+        partType: "text",
+        delta: "Done",
+      }),
+      event("completed", 4, {
+        type: "turn.completed",
+        reason: "completed",
+        finalPartId: "final-round:text",
+        durationMs: 88_000,
+      }),
+      event("changes", 5, {
+        type: "turn.change-set.updated",
+        status: "ready",
+        files: [
+          {
+            path: "src/app.ts",
+            status: "modified",
+            additions: 4,
+            deletions: 1,
+            binary: false,
+          },
+        ],
+        additions: 4,
+        deletions: 1,
+        undoAvailable: true,
+      }),
+    ]);
+
+    expect(state.turnOrder).toEqual(["turn-1"]);
+    expect(state.turns["turn-1"]).toMatchObject({
+      status: "completed",
+      durationMs: 88_000,
+      finalPartId: "final-round:text",
+      order: ["user:user-1", "part:tool-round:text", "part:final-round:text"],
+      changeSet: {
+        status: "ready",
+        additions: 4,
+        deletions: 1,
+        undoAvailable: true,
+      },
+    });
+  });
+
   it("replays reconnect progress and removes superseded partial output", () => {
     const state = reduceAgentEvents("thread-1", [
       event("started", 1, { type: "turn.started", mode: "execute" }),

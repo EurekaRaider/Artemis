@@ -4996,7 +4996,13 @@ export class ArtemisAgentHost {
             );
             continue;
           }
-          this.sink.emit(hosted.threadId, hosted.currentTurnId, payload);
+          const emittedPayload =
+            (payload.type === "turn.completed" ||
+              payload.type === "turn.failed") &&
+            this.bashExecutions.hasActiveThread(hosted.threadId)
+              ? { ...payload, backgroundProcessesRunning: true }
+              : payload;
+          this.sink.emit(hosted.threadId, hosted.currentTurnId, emittedPayload);
         }
       }
       this.handleContextUsageEvent(hosted, event);

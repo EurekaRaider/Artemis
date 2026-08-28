@@ -193,6 +193,12 @@ export interface ReviewDiff {
   message?: string;
 }
 
+export interface UndoTurnChangesResult {
+  turnId: string;
+  restoredFiles: string[];
+  recoveryPath: string;
+}
+
 export interface ReviewMutationResult {
   recoveryPath?: string;
 }
@@ -809,6 +815,10 @@ export interface ArtemisApi {
   steerQueuedTurn(input: SteerQueuedTurnInput): Promise<void>;
   replaceTurnQueue(input: ReplaceQueuedTurnInput): Promise<void>;
   cancelTurn(threadId: string): Promise<void>;
+  undoTurnChanges(
+    threadId: string,
+    turnId: string,
+  ): Promise<UndoTurnChangesResult>;
   controlChildAgent(
     input: ChildAgentControlInput,
   ): Promise<ChildAgentControlResult>;
@@ -1063,6 +1073,7 @@ export const IPC = {
   turnQueueSteerItem: "artemis:turn-queue-steer-item",
   turnQueueReplace: "artemis:turn-queue-replace",
   turnCancel: "artemis:turn-cancel",
+  turnChangesUndo: "artemis:turn-changes-undo",
   childAgentControl: "artemis:child-agent-control",
   agentTeamControl: "artemis:agent-team-control",
   approvalResolve: "artemis:approval-resolve",

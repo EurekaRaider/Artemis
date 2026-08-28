@@ -9,6 +9,7 @@ import type {
   McpToolUsedPayload,
   RunMode,
   TaskSourceAddedPayload,
+  TurnChangeSetUpdatedPayload,
   ToolStartedPayload,
   TurnActivityPayload,
   UserInputRequestedPayload,
@@ -76,6 +77,18 @@ export interface ContextCompactionState {
   status: "running" | "completed";
 }
 
+export interface TurnViewState {
+  id: string;
+  mode: RunMode;
+  status: "running" | "completed" | "cancelled" | "failed";
+  order: string[];
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  finalPartId?: string;
+  changeSet?: Omit<TurnChangeSetUpdatedPayload, "type">;
+}
+
 export interface ThreadViewState {
   threadId: string;
   status:
@@ -84,6 +97,9 @@ export interface ThreadViewState {
   activity?: Omit<TurnActivityPayload, "type"> & { scheduledAt?: string };
   errorCode?: string;
   order: string[];
+  turnOrder: string[];
+  turns: Record<string, TurnViewState>;
+  entryTurnIds: Record<string, string>;
   userMessages: Record<string, { id: string; text: string }>;
   messageParts: Record<string, MessagePartState>;
   tools: Record<string, ToolState>;
@@ -119,6 +135,9 @@ export function createThreadViewState(
     status: "idle",
     mode,
     order: [],
+    turnOrder: [],
+    turns: {},
+    entryTurnIds: {},
     userMessages: {},
     messageParts: {},
     tools: {},
@@ -163,6 +182,25 @@ function cloneThreadViewState(state: ThreadViewState): ThreadViewState {
   return {
     ...state,
     order: [...state.order],
+    turnOrder: [...state.turnOrder],
+    turns: Object.fromEntries(
+      Object.entries(state.turns).map(([id, turn]) => [
+        id,
+        {
+          ...turn,
+          order: [...turn.order],
+          ...(turn.changeSet
+            ? {
+                changeSet: {
+                  ...turn.changeSet,
+                  files: [...turn.changeSet.files],
+                },
+              }
+            : {}),
+        },
+      ]),
+    ),
+    entryTurnIds: { ...state.entryTurnIds },
     userMessages: { ...state.userMessages },
     messageParts: { ...state.messageParts },
     tools: { ...state.tools },
@@ -272,14 +310,11 @@ function timelinePartId(state: ThreadViewState, sourcePartId: string): string {
   return lastPartId ?? sourcePartId;
 }
 
-function applyAgentEvent(
+function applyAgentPayload(
   state: ThreadViewState,
   event: AgentEvent,
   orderedItems: Set<string>,
 ): void {
-  state.seenEventIds[event.eventId] = true;
-  state.lastSeq = Math.max(state.lastSeq, event.seq);
-
   const payload = event.payload;
   switch (payload.type) {
     case "user.message": {
@@ -595,6 +630,108 @@ function applyAgentEvent(
       else delete state.errorCode;
       return;
     }
+    case "turn.change-set.updated":
+      return;
+  }
+}
+
+function ensureTurn(
+  state: ThreadViewState,
+  event: AgentEvent,
+): TurnViewState | undefined {
+  if (!event.turnId) return undefined;
+  const existing = state.turns[event.turnId];
+  if (existing) return existing;
+  const turn: TurnViewState = {
+    id: event.turnId,
+    mode: state.mode,
+    status: "running",
+    order: [],
+  };
+  state.turns[event.turnId] = turn;
+  state.turnOrder.push(event.turnId);
+  return turn;
+}
+
+function resolvedFinalPartId(
+  state: ThreadViewState,
+  sourcePartId: string | undefined,
+): string | undefined {
+  if (!sourcePartId) return undefined;
+  if (state.messageParts[sourcePartId]) return sourcePartId;
+  const prefix = `${sourcePartId}${AFTER_TOOL_SEGMENT}`;
+  return Object.keys(state.messageParts).findLast((id) =>
+    id.startsWith(prefix),
+  );
+}
+
+function resolvedTurnDuration(
+  turn: TurnViewState,
+  completedAt: string,
+  persistedDuration: number | undefined,
+): number | undefined {
+  if (persistedDuration !== undefined) return persistedDuration;
+  if (!turn.startedAt) return undefined;
+  const duration = Date.parse(completedAt) - Date.parse(turn.startedAt);
+  return Number.isFinite(duration) ? Math.max(0, duration) : undefined;
+}
+
+function applyAgentEvent(
+  state: ThreadViewState,
+  event: AgentEvent,
+  orderedItems: Set<string>,
+): void {
+  state.seenEventIds[event.eventId] = true;
+  state.lastSeq = Math.max(state.lastSeq, event.seq);
+  const turn = ensureTurn(state, event);
+  const previousEntries = new Set(state.order);
+
+  applyAgentPayload(state, event, orderedItems);
+
+  if (!turn) return;
+  for (const entry of state.order) {
+    if (!previousEntries.has(entry) && !state.entryTurnIds[entry]) {
+      state.entryTurnIds[entry] = turn.id;
+    }
+  }
+  turn.order = state.order.filter(
+    (entry) => state.entryTurnIds[entry] === turn.id,
+  );
+
+  const payload = event.payload;
+  if (payload.type === "turn.started") {
+    turn.mode = payload.mode;
+    turn.status = "running";
+    turn.startedAt = event.timestamp;
+    delete turn.completedAt;
+    delete turn.durationMs;
+    delete turn.finalPartId;
+  } else if (payload.type === "turn.completed") {
+    turn.status = payload.reason === "cancelled" ? "cancelled" : "completed";
+    turn.completedAt = event.timestamp;
+    const durationMs = resolvedTurnDuration(
+      turn,
+      event.timestamp,
+      payload.durationMs,
+    );
+    if (durationMs === undefined) delete turn.durationMs;
+    else turn.durationMs = durationMs;
+    const finalPartId = resolvedFinalPartId(state, payload.finalPartId);
+    if (finalPartId === undefined) delete turn.finalPartId;
+    else turn.finalPartId = finalPartId;
+  } else if (payload.type === "turn.failed") {
+    turn.status = "failed";
+    turn.completedAt = event.timestamp;
+    const durationMs = resolvedTurnDuration(
+      turn,
+      event.timestamp,
+      payload.durationMs,
+    );
+    if (durationMs === undefined) delete turn.durationMs;
+    else turn.durationMs = durationMs;
+  } else if (payload.type === "turn.change-set.updated") {
+    const { type: _type, ...changeSet } = payload;
+    turn.changeSet = changeSet;
   }
 }
 

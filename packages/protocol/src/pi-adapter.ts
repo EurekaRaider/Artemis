@@ -282,6 +282,7 @@ export class PiAdapter {
   private retryAttemptId: string | undefined;
   private awaitingRetry = false;
   private turnAborted = false;
+  private finalPartId: string | undefined;
   private readonly toolNames = new Map<string, string>();
   private userMessageCount = 0;
 
@@ -404,6 +405,7 @@ export class PiAdapter {
           event.message?.role === "assistant" &&
           event.message.stopReason === "error"
         ) {
+          this.finalPartId = undefined;
           this.pendingFailureMessage =
             event.message.errorMessage?.trim() || "The model request failed.";
           this.lastErroredMessageId = messageId;
@@ -412,12 +414,21 @@ export class PiAdapter {
           event.message?.role === "assistant" &&
           event.message.stopReason === "aborted"
         ) {
+          this.finalPartId = undefined;
           this.pendingFailureMessage = undefined;
           this.turnAborted = true;
         } else if (event.message?.role === "assistant") {
           this.pendingFailureMessage = undefined;
           this.lastErroredMessageId = undefined;
           this.turnAborted = false;
+          this.finalPartId =
+            (event.message.stopReason === "stop" ||
+              event.message.stopReason === "length") &&
+            finalContent.some(
+              ({ partType, text }) => partType === "text" && text.length > 0,
+            )
+              ? `${messageId}:text`
+              : undefined;
         }
         if (event.message?.role === "assistant") {
           this.activeMessageId = undefined;
@@ -539,7 +550,13 @@ export class PiAdapter {
             },
           ];
         }
-        return [{ type: "turn.completed", reason: "completed" }];
+        return [
+          {
+            type: "turn.completed",
+            reason: "completed",
+            ...(this.finalPartId ? { finalPartId: this.finalPartId } : {}),
+          },
+        ];
       }
     }
     return [];

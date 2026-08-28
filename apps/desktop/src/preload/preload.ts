@@ -94,6 +94,8 @@ const api: ArtemisApi = {
   steerQueuedTurn: (input) => ipcRenderer.invoke(IPC.turnQueueSteerItem, input),
   replaceTurnQueue: (input) => ipcRenderer.invoke(IPC.turnQueueReplace, input),
   cancelTurn: (threadId) => ipcRenderer.invoke(IPC.turnCancel, threadId),
+  undoTurnChanges: (threadId, turnId) =>
+    ipcRenderer.invoke(IPC.turnChangesUndo, threadId, turnId),
   controlChildAgent: (input) =>
     ipcRenderer.invoke(IPC.childAgentControl, input),
   controlAgentTeam: (input) => ipcRenderer.invoke(IPC.agentTeamControl, input),
