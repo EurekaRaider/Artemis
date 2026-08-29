@@ -1,8 +1,11 @@
+// @vitest-environment jsdom
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type {
   ChildAgentState,
@@ -16,9 +19,10 @@ import {
   sourceLinkHost,
   SourcesPanel,
 } from "../src/renderer/SourcesPanel.js";
+import "./renderer-test-utils.js";
 
 const panelSource = readFileSync(
-  fileURLToPath(new URL("../src/renderer/SourcesPanel.tsx", import.meta.url)),
+  resolve(process.cwd(), "src/renderer/SourcesPanel.tsx"),
   "utf8",
 );
 
@@ -140,8 +144,107 @@ describe("Sources workspace panel", () => {
     expect(html).toContain("Artemis release");
     expect(html).toContain("example.org");
     expect(panelSource).toContain("onOpenUrl(search.searchUrl)");
-    expect(panelSource).toContain("onOpenUrl(link.url)");
+    expect(panelSource).toContain("onOpen={onOpenUrl}");
     expect(panelSource).toContain("readTaskSourceImage");
     expect(panelSource).toContain('role="dialog"');
+  });
+});
+
+describe("SourcesPanel interactions (jsdom)", () => {
+  const webSource = {
+    type: "task.source.added",
+    sourceId: "web-1",
+    kind: "web-search",
+    query: "Artemis release",
+    engine: "DuckDuckGo",
+    searchUrl: "https://example.org/search?q=Artemis",
+    resultCount: 2,
+    links: [
+      { title: "Release", url: "https://example.org/release" },
+      { title: "Docs", url: "https://example.org/docs" },
+    ],
+    timestamp: "2026-08-29T00:00:00.000Z",
+  } as const;
+
+  const mcpUsage = {
+    type: "mcp.tool.used",
+    toolCallId: "call-1",
+    serverId: "codegraph",
+    serverName: "CodeGraph",
+    toolName: "codegraph_search",
+    agentId: "parent",
+    timestamp: "2026-08-29T00:00:00.000Z",
+  } as const;
+
+  function renderInteractive(
+    props: Partial<Parameters<typeof SourcesPanel>[0]> = {},
+  ) {
+    const onOpenUrl = vi.fn();
+    render(
+      <SourcesPanel
+        agents={[]}
+        attachments={[]}
+        locale="en"
+        mcpUsages={[mcpUsage]}
+        onOpenUrl={onOpenUrl}
+        sources={[{ ...webSource }]}
+        threadId="thread-1"
+        {...props}
+      />,
+    );
+    return { onOpenUrl };
+  }
+
+  it("opens a web source exactly once with the link url", async () => {
+    const { onOpenUrl } = renderInteractive();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Open source: Release" }));
+    expect(onOpenUrl).toHaveBeenCalledTimes(1);
+    expect(onOpenUrl).toHaveBeenCalledWith("https://example.org/release");
+  });
+
+  it("expands MCP tool details with aria-expanded and keyboard, then collapses", async () => {
+    const user = userEvent.setup();
+    renderInteractive();
+    const toggle = screen.getByRole("button", {
+      name: /show tool call details/i,
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    toggle.focus();
+    await user.keyboard("{Enter}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByText("codegraph_search").length).toBe(2);
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getAllByText("codegraph_search").length).toBe(1);
+  });
+
+  it("keeps tool names visible by default and opens the search query url once", async () => {
+    const user = userEvent.setup();
+    const { onOpenUrl } = renderInteractive();
+    expect(screen.getByText("codegraph_search")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Search query: Artemis release" }),
+    );
+    expect(onOpenUrl).toHaveBeenCalledTimes(1);
+    expect(onOpenUrl).toHaveBeenCalledWith(
+      "https://example.org/search?q=Artemis",
+    );
+  });
+
+  it("keeps full names accessible via title attributes for long values", async () => {
+    const longTool = "codegraph_search_very_long_tool_identifier_x12345";
+    renderInteractive({
+      mcpUsages: [{ ...mcpUsage, toolName: longTool }],
+    });
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: /show tool call details/i }),
+    );
+    const detail = screen.getAllByTitle(longTool);
+    expect(detail.length).toBeGreaterThanOrEqual(2);
   });
 });

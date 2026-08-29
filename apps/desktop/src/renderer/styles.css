@@ -6733,6 +6733,21 @@ button.environment-row:disabled {
   font-size: 11px;
 }
 
+.sources-panel-mcp-details p {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sources-panel-mcp-details strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .goal-editor-saved {
   color: var(--status-success-text, inherit);
   font-size: 12px;
