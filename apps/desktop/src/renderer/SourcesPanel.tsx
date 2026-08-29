@@ -9,7 +9,7 @@ import {
 
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
-import { groupMcpUsage } from "./EnvironmentPanel.js";
+import { type McpGroup, groupMcpUsage } from "./EnvironmentPanel.js";
 
 const labels = {
   en: {
@@ -28,6 +28,8 @@ const labels = {
     openImage: "Open image",
     closeImage: "Close image preview",
     previewUnavailable: "This image preview is unavailable.",
+    showDetails: "Show tool call details",
+    hideDetails: "Hide tool call details",
   },
   "zh-CN": {
     title: "来源",
@@ -45,6 +47,8 @@ const labels = {
     openImage: "打开图片",
     closeImage: "关闭图片预览",
     previewUnavailable: "此图片预览不可用。",
+    showDetails: "显示工具调用详情",
+    hideDetails: "隐藏工具调用详情",
   },
 } satisfies Record<"en" | "zh-CN", Record<string, unknown>>;
 
@@ -156,6 +160,127 @@ function AttachmentIcon({ image }: { image: boolean }) {
   );
 }
 
+function SourceCard({
+  host,
+  onOpen,
+  openLabel,
+  title,
+  url,
+}: {
+  host: string;
+  onOpen: (url: string) => void;
+  openLabel: string;
+  title: string;
+  url: string;
+}) {
+  return (
+    <button
+      aria-label={`${openLabel}: ${title}`}
+      onClick={() => onOpen(url)}
+      title={url}
+      type="button"
+    >
+      <strong>{title}</strong>
+      <span>{host}</span>
+    </button>
+  );
+}
+
+function WebSearchSourceGroupView({
+  copy,
+  group,
+  onOpenUrl,
+}: {
+  copy: (typeof labels)["en"];
+  group: WebSearchSourceGroup;
+  onOpenUrl: (url: string) => void;
+}) {
+  return (
+    <article className="sources-panel-entry">
+      <span className="sources-panel-icon web">
+        <WebIcon />
+      </span>
+      <div className="sources-panel-entry-body">
+        <h2 title={group.engine}>{group.engine}</h2>
+        <p>{copy.searchSummary(group.searches.length, group.resultCount)}</p>
+        <div className="sources-panel-queries">
+          {group.searches.map((search) => (
+            <button
+              aria-label={`${copy.searchQuery}: ${search.query}`}
+              key={search.sourceId}
+              onClick={() => onOpenUrl(search.searchUrl)}
+              title={search.searchUrl}
+              type="button"
+            >
+              <span>{copy.searchQuery}</span>
+              <strong>{search.query}</strong>
+            </button>
+          ))}
+        </div>
+        {group.links.length > 0 && (
+          <div className="sources-panel-links">
+            {group.links.map((link) => (
+              <SourceCard
+                host={sourceLinkHost(link.url)}
+                key={link.url}
+                onOpen={onOpenUrl}
+                openLabel={copy.openSource}
+                title={link.title}
+                url={link.url}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function McpUsageGroupView({
+  copy,
+  group,
+  toolStats,
+  usedBy,
+}: {
+  copy: (typeof labels)["en"];
+  group: McpGroup;
+  toolStats: Array<{ calls: number; tool: string }>;
+  usedBy: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = `mcp-details-${group.id}`;
+  return (
+    <article className="sources-panel-entry">
+      <span className="sources-panel-icon">
+        <SourcesIcon />
+      </span>
+      <div className="sources-panel-entry-body">
+        <h2 title={group.name}>{group.name}</h2>
+        <p>{copy.mcpSummary(group.calls, group.tools.length)}</p>
+        <p>{usedBy}</p>
+        <button
+          aria-controls={detailsId}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+          type="button"
+        >
+          {expanded ? copy.hideDetails : copy.showDetails}
+        </button>
+        {expanded && (
+          <div className="sources-panel-mcp-details" id={detailsId}>
+            {toolStats.map((entry) => (
+              <p key={entry.tool} title={entry.tool}>
+                <strong>{entry.tool}</strong>
+                <span> · {entry.calls}</span>
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export function SourcesPanel({
   agents,
   attachments,
@@ -175,6 +300,15 @@ export function SourcesPanel({
 }) {
   const t = localizedCopy(locale, "app", labels[legacyLocale(locale)]);
   const mcpGroups = useMemo(() => groupMcpUsage(mcpUsages), [mcpUsages]);
+  const mcpToolStats = useMemo(() => {
+    const stats = new Map<string, Map<string, number>>();
+    for (const usage of mcpUsages) {
+      const byServer = stats.get(usage.serverId) ?? new Map<string, number>();
+      byServer.set(usage.toolName, (byServer.get(usage.toolName) ?? 0) + 1);
+      stats.set(usage.serverId, byServer);
+    }
+    return stats;
+  }, [mcpUsages]);
   const webGroups = useMemo(() => groupWebSearchSources(sources), [sources]);
   const agentNames = useMemo(
     () => new Map(agents.map((agent) => [agent.agentId, agent.label])),
@@ -338,67 +472,30 @@ export function SourcesPanel({
         )}
 
         {mcpGroups.map((group) => (
-          <article className="sources-panel-entry" key={`mcp:${group.id}`}>
-            <span className="sources-panel-icon">
-              <SourcesIcon />
-            </span>
-            <div className="sources-panel-entry-body">
-              <h2>{group.name}</h2>
-              <p>{t.mcpSummary(group.calls, group.tools.length)}</p>
-              <p>{group.tools.join(", ")}</p>
-              <p>
-                {t.usedBy} ·{" "}
-                {group.agents
-                  .map(
-                    (agentId) =>
-                      agentNames.get(agentId) ??
-                      (agentId === "parent" ? t.parentAgent : agentId),
-                  )
-                  .join(", ")}
-              </p>
-            </div>
-          </article>
+          <McpUsageGroupView
+            copy={t}
+            group={group}
+            key={`mcp:${group.id}`}
+            toolStats={[...(mcpToolStats.get(group.id)?.entries() ?? [])].map(
+              ([tool, calls]) => ({ calls, tool }),
+            )}
+            usedBy={`${t.usedBy} · ${group.agents
+              .map(
+                (agentId) =>
+                  agentNames.get(agentId) ??
+                  (agentId === "parent" ? t.parentAgent : agentId),
+              )
+              .join(", ")}`}
+          />
         ))}
 
         {webGroups.map((group) => (
-          <article className="sources-panel-entry" key={`web:${group.id}`}>
-            <span className="sources-panel-icon web">
-              <WebIcon />
-            </span>
-            <div className="sources-panel-entry-body">
-              <h2>{group.engine}</h2>
-              <p>{t.searchSummary(group.searches.length, group.resultCount)}</p>
-              <div className="sources-panel-queries">
-                {group.searches.map((search) => (
-                  <button
-                    key={search.sourceId}
-                    onClick={() => onOpenUrl(search.searchUrl)}
-                    title={search.searchUrl}
-                    type="button"
-                  >
-                    <span>{t.searchQuery}</span>
-                    <strong>{search.query}</strong>
-                  </button>
-                ))}
-              </div>
-              {group.links.length > 0 && (
-                <div className="sources-panel-links">
-                  {group.links.map((link) => (
-                    <button
-                      aria-label={`${t.openSource}: ${link.title}`}
-                      key={link.url}
-                      onClick={() => onOpenUrl(link.url)}
-                      title={link.url}
-                      type="button"
-                    >
-                      <strong>{link.title}</strong>
-                      <span>{sourceLinkHost(link.url)}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </article>
+          <WebSearchSourceGroupView
+            copy={t}
+            group={group}
+            key={`web:${group.id}`}
+            onOpenUrl={onOpenUrl}
+          />
         ))}
       </div>
       {preview && (
