@@ -25,7 +25,7 @@ function sectionBetween(start: string, end: string): string {
 describe("reported issues #56–#59", () => {
   it("persists and renders the temporary-conversation disclosure state", () => {
     const temporarySection = sectionBetween(
-      '<section className="project-group temporary-conversations">',
+      'className="project-group temporary-conversations"',
       '<div className="sidebar-footer">',
     );
 
@@ -79,11 +79,11 @@ describe("reported issues #56–#59", () => {
       '<div\n          aria-label={t.projects}\n          className="project-tree"',
     );
     const projects = sectionBetween(
-      '<section className="project-group project-collection">',
+      'className="project-group project-collection"',
       "{projects.map((project) => {",
     );
     const temporarySection = sectionBetween(
-      '<section className="project-group temporary-conversations">',
+      'className="project-group temporary-conversations"',
       '<div className="sidebar-footer">',
     );
 

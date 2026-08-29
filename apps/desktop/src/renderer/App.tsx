@@ -2095,6 +2095,77 @@ export function App() {
       temporaryConversationsPersistence.current!.toggle(),
     );
   }, []);
+  const collapseProjectTreeRow = useCallback(
+    (rowId: string) => {
+      if (rowId === "collection:projects") {
+        setProjectsOpen(false);
+        return;
+      }
+      if (rowId === "temporary:conversations") {
+        if (temporaryConversationsOpen) void toggleTemporaryConversations();
+        return;
+      }
+      toggleProjectRow(rowId, true);
+    },
+    [
+      temporaryConversationsOpen,
+      toggleProjectRow,
+      toggleTemporaryConversations,
+    ],
+  );
+  const expandProjectTreeRow = useCallback(
+    (rowId: string) => {
+      if (rowId === "collection:projects") {
+        setProjectsOpen(true);
+        return;
+      }
+      if (rowId === "temporary:conversations") {
+        if (!temporaryConversationsOpen) void toggleTemporaryConversations();
+        return;
+      }
+      toggleProjectRow(rowId, false);
+    },
+    [
+      temporaryConversationsOpen,
+      toggleProjectRow,
+      toggleTemporaryConversations,
+    ],
+  );
+  const activateProjectTreeRow = useCallback(
+    (rowId: string) => {
+      if (rowId === "collection:projects") {
+        setProjectsOpen((open) => !open);
+        return;
+      }
+      if (rowId === "temporary:conversations") {
+        void toggleTemporaryConversations();
+        return;
+      }
+      if (rowId.startsWith("project:")) {
+        toggleProjectHistory(rowId.replace(/^project:/, ""));
+        return;
+      }
+      if (rowId.startsWith("thread:")) {
+        if (!snapshot) return;
+        const thread = snapshot.threads.find(
+          (candidate) => candidate.id === rowId.replace(/^thread:/, ""),
+        );
+        if (!thread) return;
+        discardNewConversationDraft();
+        setActiveView("workspace");
+        setActiveProjectId(thread.projectId ?? undefined);
+        setActiveThreadId(thread.id);
+        setMode(thread.mode);
+        setThreadMenuId(undefined);
+      }
+    },
+    [
+      discardNewConversationDraft,
+      snapshot?.threads,
+      toggleProjectHistory,
+      toggleTemporaryConversations,
+    ],
+  );
 
   const requestConfirmation = useCallback(
     (
@@ -5454,13 +5525,30 @@ export function App() {
             handleProjectTreeKeyDown(event.nativeEvent, {
               container: projectTreeElement.current,
               focusRow: focusProjectTreeRow,
-              collapseProject: (rowId) => toggleProjectRow(rowId, true),
-              expandProject: (rowId) => toggleProjectRow(rowId, false),
+              collapseRow: collapseProjectTreeRow,
+              expandRow: expandProjectTreeRow,
+              activateRow: activateProjectTreeRow,
             })
           }
           ref={projectTreeElement}
+          role="tree"
         >
-          <section className="project-group project-collection">
+          <section
+            aria-expanded={projectsOpen}
+            aria-level={1}
+            className="project-group project-collection"
+            data-tree-kind="collection"
+            data-tree-level={1}
+            data-tree-row-id="collection:projects"
+            onFocus={() => setTreeActiveRowId("collection:projects")}
+            role="treeitem"
+            tabIndex={
+              treeActiveRowId === "collection:projects" ||
+              treeActiveRowId === undefined
+                ? 0
+                : -1
+            }
+          >
             <div className="project-row project-group-row">
               <button
                 aria-expanded={projectsOpen}
@@ -5484,433 +5572,462 @@ export function App() {
                 <PlusIcon />
               </button>
             </div>
-          </section>
-          {projects.map((project) => {
-            const hasActiveTask = snapshot.threads.some(
-              (thread) =>
-                thread.projectId === project.id &&
-                (thread.status === "running" ||
-                  thread.status === "waiting-approval"),
-            );
-            const matchesProject = project.name
-              .toLowerCase()
-              .includes(query.trim().toLowerCase());
-            const projectThreads = orderProjectThreadsByPreference(
-              sortProjectThreads(
-                snapshot.threads
-                  .filter(
-                    (thread) =>
-                      thread.projectId === project.id && !thread.archived,
-                  )
-                  .filter((thread) => !isWorkspaceDraftThread(thread))
-                  .filter(
-                    (thread) =>
-                      matchesProject ||
-                      thread.title
-                        .toLowerCase()
-                        .includes(query.trim().toLowerCase()),
+            <div
+              className="project-collection-rows"
+              hidden={!projectsOpen && !query.trim()}
+              role="group"
+            >
+              {projects.map((project) => {
+                const hasActiveTask = snapshot.threads.some(
+                  (thread) =>
+                    thread.projectId === project.id &&
+                    (thread.status === "running" ||
+                      thread.status === "waiting-approval"),
+                );
+                const matchesProject = project.name
+                  .toLowerCase()
+                  .includes(query.trim().toLowerCase());
+                const projectThreads = orderProjectThreadsByPreference(
+                  sortProjectThreads(
+                    snapshot.threads
+                      .filter(
+                        (thread) =>
+                          thread.projectId === project.id && !thread.archived,
+                      )
+                      .filter((thread) => !isWorkspaceDraftThread(thread))
+                      .filter(
+                        (thread) =>
+                          matchesProject ||
+                          thread.title
+                            .toLowerCase()
+                            .includes(query.trim().toLowerCase()),
+                      ),
+                    snapshot.events,
+                    promptSubmittedAtByThread,
                   ),
-                snapshot.events,
-                promptSubmittedAtByThread,
-              ),
-              runtimeSettings?.projectThreadOrder?.[project.id],
-            );
-            const expanded = expandedProjectIds.has(project.id);
-            const projectOpen = !collapsedProjectIds.has(project.id);
-            const visibleThreads = expanded
-              ? projectThreads
-              : projectThreads.slice(0, PROJECT_THREAD_PREVIEW_LIMIT);
-            return (
-              <section
-                data-tree-kind="project"
-                className={`project-group nested-project${
-                  draggedProjectId === project.id ? " dragging" : ""
-                }${
-                  projectDropTarget?.projectId === project.id
-                    ? ` drop-${projectDropTarget.edge}`
-                    : ""
-                }`}
-                hidden={!projectsOpen && !query.trim()}
-                key={project.id}
-                onDragOver={(event) => {
-                  if (!draggedProjectId || draggedProjectId === project.id)
-                    return;
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = "move";
-                  const bounds = event.currentTarget
-                    .querySelector(":scope > .project-row")
-                    ?.getBoundingClientRect();
-                  if (!bounds) return;
-                  setProjectDropTarget({
-                    projectId: project.id,
-                    edge:
-                      event.clientY < bounds.top + bounds.height / 2
-                        ? "before"
-                        : "after",
-                  });
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  if (!draggedProjectId || !projectDropTarget) return;
-                  const previousOrder = projects.map(
-                    (candidate) => candidate.id,
-                  );
-                  const order = reorderProjectIds(
-                    previousOrder,
-                    draggedProjectId,
-                    projectDropTarget.projectId,
-                    projectDropTarget.edge,
-                  );
-                  setDraggedProjectId(undefined);
-                  setProjectDropTarget(undefined);
-                  void persistProjectOrder(order, previousOrder);
-                }}
-                role="group"
-              >
-                <div
-                  className={`project-row ${project.id === activeProjectId ? "active" : ""}`}
-                  draggable
-                  onDragEnd={() => {
-                    setDraggedProjectId(undefined);
-                    setProjectDropTarget(undefined);
-                  }}
-                  onDragStart={(event) => {
-                    event.dataTransfer.effectAllowed = "move";
-                    event.dataTransfer.setData("text/plain", project.id);
-                    setDraggedProjectId(project.id);
-                    setProjectDropTarget(undefined);
-                  }}
-                >
-                  <button
-                    aria-controls={`project-thread-list-${project.id}`}
+                  runtimeSettings?.projectThreadOrder?.[project.id],
+                );
+                const expanded = expandedProjectIds.has(project.id);
+                const projectOpen = !collapsedProjectIds.has(project.id);
+                const visibleThreads = expanded
+                  ? projectThreads
+                  : projectThreads.slice(0, PROJECT_THREAD_PREVIEW_LIMIT);
+                return (
+                  <section
                     aria-expanded={projectOpen}
+                    aria-level={2}
                     data-tree-kind="project"
-                    data-tree-level="2"
+                    className={`project-group nested-project${
+                      draggedProjectId === project.id ? " dragging" : ""
+                    }${
+                      projectDropTarget?.projectId === project.id
+                        ? ` drop-${projectDropTarget.edge}`
+                        : ""
+                    }`}
+                    hidden={!projectsOpen && !query.trim()}
+                    key={project.id}
+                    onDragOver={(event) => {
+                      if (!draggedProjectId || draggedProjectId === project.id)
+                        return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      const bounds = event.currentTarget
+                        .querySelector(":scope > .project-row")
+                        ?.getBoundingClientRect();
+                      if (!bounds) return;
+                      setProjectDropTarget({
+                        projectId: project.id,
+                        edge:
+                          event.clientY < bounds.top + bounds.height / 2
+                            ? "before"
+                            : "after",
+                      });
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (!draggedProjectId || !projectDropTarget) return;
+                      const previousOrder = projects.map(
+                        (candidate) => candidate.id,
+                      );
+                      const order = reorderProjectIds(
+                        previousOrder,
+                        draggedProjectId,
+                        projectDropTarget.projectId,
+                        projectDropTarget.edge,
+                      );
+                      setDraggedProjectId(undefined);
+                      setProjectDropTarget(undefined);
+                      void persistProjectOrder(order, previousOrder);
+                    }}
+                    data-tree-level={2}
                     data-tree-row-id={`project:${project.id}`}
                     onFocus={() => setTreeActiveRowId(`project:${project.id}`)}
+                    role="treeitem"
                     tabIndex={
-                      treeActiveRowId === `project:${project.id}` ||
-                      (treeActiveRowId === undefined &&
-                        projects[0]?.id === project.id)
-                        ? 0
-                        : -1
+                      treeActiveRowId === `project:${project.id}` ? 0 : -1
                     }
-                    aria-label={
-                      projectOpen
-                        ? t.collapseProjectHistory
-                        : t.expandProjectHistory
-                    }
-                    className="project-toggle"
-                    onClick={() => toggleProjectHistory(project.id)}
-                    title={
-                      projectOpen
-                        ? t.collapseProjectHistory
-                        : t.expandProjectHistory
-                    }
-                    type="button"
                   >
-                    <FolderIcon open={projectOpen} />
-                  </button>
-                  <button
-                    aria-controls={`project-thread-list-${project.id}`}
-                    aria-expanded={projectOpen}
-                    className="project-select"
-                    onClick={() => toggleProjectHistory(project.id)}
-                    title={project.path}
-                  >
-                    <span className="project-title">{project.name}</span>
-                  </button>
-                  <button
-                    aria-label={`${t.newTask}: ${project.name}`}
-                    className="project-new-thread"
-                    onClick={() => beginNewConversation(project.id)}
-                    title={t.newTask}
-                  >
-                    <PlusIcon />
-                  </button>
-                  <button
-                    aria-label={t.moreProjectActions}
-                    className="project-action"
-                    onClick={() => {
-                      setThreadMenuId(undefined);
-                      setProjectMenuId((current) =>
-                        current === project.id ? undefined : project.id,
-                      );
-                    }}
-                    title={t.moreProjectActions}
-                  >
-                    ···
-                  </button>
-                  {projectMenuId === project.id && (
-                    <div className="project-menu">
+                    <div
+                      className={`project-row ${project.id === activeProjectId ? "active" : ""}`}
+                      draggable
+                      onDragEnd={() => {
+                        setDraggedProjectId(undefined);
+                        setProjectDropTarget(undefined);
+                      }}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", project.id);
+                        setDraggedProjectId(project.id);
+                        setProjectDropTarget(undefined);
+                      }}
+                    >
                       <button
-                        className="danger"
-                        disabled={hasActiveTask}
-                        onClick={() => void removeProject(project)}
+                        aria-label={
+                          projectOpen
+                            ? t.collapseProjectHistory
+                            : t.expandProjectHistory
+                        }
+                        className="project-toggle"
+                        onClick={() => toggleProjectHistory(project.id)}
                         title={
-                          hasActiveTask
-                            ? t.stopTasksBeforeRemove
-                            : t.removeProject
-                        }
-                      >
-                        {t.removeProject}
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {projectOpen && (
-                  <div
-                    className="project-thread-list"
-                    id={`project-thread-list-${project.id}`}
-                  >
-                    {visibleThreads.map((thread) => (
-                      <div
-                        className={`project-thread-row${
-                          thread.id === activeThreadId ? " selected" : ""
-                        }${
-                          draggedThread?.threadId === thread.id
-                            ? " dragging"
-                            : ""
-                        }${
-                          threadDropTarget?.threadId === thread.id
-                            ? ` drop-${threadDropTarget.edge}`
-                            : ""
-                        }`}
-                        draggable={
-                          threadRename?.threadId !== thread.id && !query.trim()
-                        }
-                        key={thread.id}
-                        onDragEnd={() => {
-                          setDraggedThread(undefined);
-                          setThreadDropTarget(undefined);
-                        }}
-                        onDragOver={(event) => {
-                          if (
-                            !draggedThread ||
-                            draggedThread.projectId !== project.id ||
-                            draggedThread.threadId === thread.id
-                          ) {
-                            return;
-                          }
-                          event.preventDefault();
-                          event.stopPropagation();
-                          event.dataTransfer.dropEffect = "move";
-                          const bounds =
-                            event.currentTarget.getBoundingClientRect();
-                          setThreadDropTarget({
-                            projectId: project.id,
-                            threadId: thread.id,
-                            edge:
-                              event.clientY < bounds.top + bounds.height / 2
-                                ? "before"
-                                : "after",
-                          });
-                        }}
-                        onDragStart={(event) => {
-                          if (query.trim()) {
-                            event.preventDefault();
-                            return;
-                          }
-                          event.stopPropagation();
-                          event.dataTransfer.effectAllowed = "move";
-                          event.dataTransfer.setData("text/plain", thread.id);
-                          setDraggedThread({
-                            projectId: project.id,
-                            threadId: thread.id,
-                          });
-                          setThreadDropTarget(undefined);
-                        }}
-                        onDrop={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          if (
-                            !draggedThread ||
-                            !threadDropTarget ||
-                            draggedThread.projectId !== project.id ||
-                            threadDropTarget.projectId !== project.id
-                          ) {
-                            return;
-                          }
-                          const previousOrder = projectThreads.map(
-                            (candidate) => candidate.id,
-                          );
-                          const order = reorderThreadIds(
-                            previousOrder,
-                            draggedThread.threadId,
-                            threadDropTarget.threadId,
-                            threadDropTarget.edge,
-                          );
-                          setDraggedThread(undefined);
-                          setThreadDropTarget(undefined);
-                          void persistProjectThreadOrder(
-                            project.id,
-                            order,
-                            previousOrder,
-                          );
-                        }}
-                      >
-                        {threadRename?.threadId === thread.id ? (
-                          <form
-                            className="thread-rename-form"
-                            onSubmit={(event) => {
-                              event.preventDefault();
-                              void renameThread(thread, threadRename.title);
-                            }}
-                          >
-                            <input
-                              aria-label={t.taskNamePrompt}
-                              autoFocus
-                              className="thread-rename-input"
-                              onBlur={(event) =>
-                                void renameThread(
-                                  thread,
-                                  event.currentTarget.value,
-                                )
-                              }
-                              onChange={(event) =>
-                                setThreadRename((current) =>
-                                  current?.threadId === thread.id
-                                    ? {
-                                        ...current,
-                                        title: event.target.value,
-                                      }
-                                    : current,
-                                )
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Escape") {
-                                  event.preventDefault();
-                                  setThreadRename(undefined);
-                                }
-                              }}
-                              value={threadRename.title}
-                            />
-                          </form>
-                        ) : (
-                          <>
-                            <button
-                              aria-current={
-                                thread.id === activeThreadId
-                                  ? "true"
-                                  : undefined
-                              }
-                              className="thread-select"
-                              data-tree-kind="thread"
-                              data-tree-level="3"
-                              data-tree-row-id={`thread:${thread.id}`}
-                              onFocus={() =>
-                                setTreeActiveRowId(`thread:${thread.id}`)
-                              }
-                              tabIndex={
-                                treeActiveRowId === `thread:${thread.id}`
-                                  ? 0
-                                  : -1
-                              }
-                              onClick={() => {
-                                discardNewConversationDraft();
-                                setActiveView("workspace");
-                                setActiveProjectId(project.id);
-                                setActiveThreadId(thread.id);
-                                setMode(thread.mode);
-                                setThreadMenuId(undefined);
-                              }}
-                            >
-                              {thread.status !== "idle" && (
-                                <span
-                                  className={`status-dot ${thread.status}`}
-                                />
-                              )}
-                              <span
-                                className="thread-title"
-                                onPointerEnter={prepareThreadTitleScroll}
-                                title={visibleThreadTitle(thread.title)}
-                              >
-                                <span className="thread-title-text">
-                                  {visibleThreadTitle(thread.title)}
-                                </span>
-                              </span>
-                            </button>
-                            <button
-                              aria-label={t.moreActions}
-                              className="thread-action"
-                              onClick={() => {
-                                setProjectMenuId(undefined);
-                                setThreadMenuId((current) =>
-                                  current === thread.id ? undefined : thread.id,
-                                );
-                              }}
-                              title={t.moreActions}
-                            >
-                              ···
-                            </button>
-                            {threadMenuId === thread.id && (
-                              <div className="thread-menu">
-                                <button
-                                  onClick={() => beginRenameThread(thread)}
-                                >
-                                  {t.renameTask}
-                                </button>
-                                <button
-                                  disabled={
-                                    thread.status === "running" ||
-                                    thread.status === "waiting-approval"
-                                  }
-                                  onClick={() => void forkThread(thread)}
-                                >
-                                  {t.forkTask}
-                                </button>
-                                <button
-                                  disabled={
-                                    thread.status === "running" ||
-                                    thread.status === "waiting-approval"
-                                  }
-                                  onClick={() =>
-                                    void setThreadArchived(thread, true)
-                                  }
-                                >
-                                  {t.archiveTask}
-                                </button>
-                                <button
-                                  className="danger"
-                                  disabled={
-                                    thread.status === "running" ||
-                                    thread.status === "waiting-approval"
-                                  }
-                                  onClick={() => void deleteThread(thread)}
-                                >
-                                  {t.deleteTask}
-                                </button>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ))}
-                    {projectThreads.length > PROJECT_THREAD_PREVIEW_LIMIT && (
-                      <button
-                        className="project-expand-toggle"
-                        onClick={() =>
-                          setExpandedProjectIds((current) => {
-                            const next = new Set(current);
-                            if (next.has(project.id)) next.delete(project.id);
-                            else next.add(project.id);
-                            return next;
-                          })
+                          projectOpen
+                            ? t.collapseProjectHistory
+                            : t.expandProjectHistory
                         }
                         type="button"
                       >
-                        {expanded ? t.showFewerTasks : t.showMoreTasks}
+                        <FolderIcon open={projectOpen} />
                       </button>
+                      <button
+                        className="project-select"
+                        onClick={() => toggleProjectHistory(project.id)}
+                        title={project.path}
+                      >
+                        <span className="project-title">{project.name}</span>
+                      </button>
+                      <button
+                        aria-label={`${t.newTask}: ${project.name}`}
+                        className="project-new-thread"
+                        onClick={() => beginNewConversation(project.id)}
+                        title={t.newTask}
+                      >
+                        <PlusIcon />
+                      </button>
+                      <button
+                        aria-label={t.moreProjectActions}
+                        className="project-action"
+                        onClick={() => {
+                          setThreadMenuId(undefined);
+                          setProjectMenuId((current) =>
+                            current === project.id ? undefined : project.id,
+                          );
+                        }}
+                        title={t.moreProjectActions}
+                      >
+                        ···
+                      </button>
+                      {projectMenuId === project.id && (
+                        <div className="project-menu">
+                          <button
+                            className="danger"
+                            disabled={hasActiveTask}
+                            onClick={() => void removeProject(project)}
+                            title={
+                              hasActiveTask
+                                ? t.stopTasksBeforeRemove
+                                : t.removeProject
+                            }
+                          >
+                            {t.removeProject}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {projectOpen && (
+                      <div
+                        className="project-thread-list"
+                        id={`project-thread-list-${project.id}`}
+                        role="group"
+                      >
+                        {visibleThreads.map((thread) => (
+                          <div
+                            className={`project-thread-row${
+                              thread.id === activeThreadId ? " selected" : ""
+                            }${
+                              draggedThread?.threadId === thread.id
+                                ? " dragging"
+                                : ""
+                            }${
+                              threadDropTarget?.threadId === thread.id
+                                ? ` drop-${threadDropTarget.edge}`
+                                : ""
+                            }`}
+                            draggable={
+                              threadRename?.threadId !== thread.id &&
+                              !query.trim()
+                            }
+                            key={thread.id}
+                            aria-selected={thread.id === activeThreadId}
+                            aria-level={3}
+                            data-tree-kind="thread"
+                            data-tree-level={3}
+                            data-tree-row-id={`thread:${thread.id}`}
+                            onFocus={() =>
+                              setTreeActiveRowId(`thread:${thread.id}`)
+                            }
+                            role="treeitem"
+                            tabIndex={
+                              treeActiveRowId === `thread:${thread.id}` ? 0 : -1
+                            }
+                            onDragEnd={() => {
+                              setDraggedThread(undefined);
+                              setThreadDropTarget(undefined);
+                            }}
+                            onDragOver={(event) => {
+                              if (
+                                !draggedThread ||
+                                draggedThread.projectId !== project.id ||
+                                draggedThread.threadId === thread.id
+                              ) {
+                                return;
+                              }
+                              event.preventDefault();
+                              event.stopPropagation();
+                              event.dataTransfer.dropEffect = "move";
+                              const bounds =
+                                event.currentTarget.getBoundingClientRect();
+                              setThreadDropTarget({
+                                projectId: project.id,
+                                threadId: thread.id,
+                                edge:
+                                  event.clientY < bounds.top + bounds.height / 2
+                                    ? "before"
+                                    : "after",
+                              });
+                            }}
+                            onDragStart={(event) => {
+                              if (query.trim()) {
+                                event.preventDefault();
+                                return;
+                              }
+                              event.stopPropagation();
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData(
+                                "text/plain",
+                                thread.id,
+                              );
+                              setDraggedThread({
+                                projectId: project.id,
+                                threadId: thread.id,
+                              });
+                              setThreadDropTarget(undefined);
+                            }}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (
+                                !draggedThread ||
+                                !threadDropTarget ||
+                                draggedThread.projectId !== project.id ||
+                                threadDropTarget.projectId !== project.id
+                              ) {
+                                return;
+                              }
+                              const previousOrder = projectThreads.map(
+                                (candidate) => candidate.id,
+                              );
+                              const order = reorderThreadIds(
+                                previousOrder,
+                                draggedThread.threadId,
+                                threadDropTarget.threadId,
+                                threadDropTarget.edge,
+                              );
+                              setDraggedThread(undefined);
+                              setThreadDropTarget(undefined);
+                              void persistProjectThreadOrder(
+                                project.id,
+                                order,
+                                previousOrder,
+                              );
+                            }}
+                          >
+                            {threadRename?.threadId === thread.id ? (
+                              <form
+                                className="thread-rename-form"
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  void renameThread(thread, threadRename.title);
+                                }}
+                              >
+                                <input
+                                  aria-label={t.taskNamePrompt}
+                                  autoFocus
+                                  className="thread-rename-input"
+                                  onBlur={(event) =>
+                                    void renameThread(
+                                      thread,
+                                      event.currentTarget.value,
+                                    )
+                                  }
+                                  onChange={(event) =>
+                                    setThreadRename((current) =>
+                                      current?.threadId === thread.id
+                                        ? {
+                                            ...current,
+                                            title: event.target.value,
+                                          }
+                                        : current,
+                                    )
+                                  }
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Escape") {
+                                      event.preventDefault();
+                                      setThreadRename(undefined);
+                                    }
+                                  }}
+                                  value={threadRename.title}
+                                />
+                              </form>
+                            ) : (
+                              <>
+                                <button
+                                  className="thread-select"
+                                  onClick={() => {
+                                    discardNewConversationDraft();
+                                    setActiveView("workspace");
+                                    setActiveProjectId(project.id);
+                                    setActiveThreadId(thread.id);
+                                    setMode(thread.mode);
+                                    setThreadMenuId(undefined);
+                                  }}
+                                >
+                                  {thread.status !== "idle" && (
+                                    <span
+                                      className={`status-dot ${thread.status}`}
+                                    />
+                                  )}
+                                  <span
+                                    className="thread-title"
+                                    onPointerEnter={prepareThreadTitleScroll}
+                                    title={visibleThreadTitle(thread.title)}
+                                  >
+                                    <span className="thread-title-text">
+                                      {visibleThreadTitle(thread.title)}
+                                    </span>
+                                  </span>
+                                </button>
+                                <button
+                                  aria-label={t.moreActions}
+                                  className="thread-action"
+                                  onClick={() => {
+                                    setProjectMenuId(undefined);
+                                    setThreadMenuId((current) =>
+                                      current === thread.id
+                                        ? undefined
+                                        : thread.id,
+                                    );
+                                  }}
+                                  title={t.moreActions}
+                                >
+                                  ···
+                                </button>
+                                {threadMenuId === thread.id && (
+                                  <div className="thread-menu">
+                                    <button
+                                      onClick={() => beginRenameThread(thread)}
+                                    >
+                                      {t.renameTask}
+                                    </button>
+                                    <button
+                                      disabled={
+                                        thread.status === "running" ||
+                                        thread.status === "waiting-approval"
+                                      }
+                                      onClick={() => void forkThread(thread)}
+                                    >
+                                      {t.forkTask}
+                                    </button>
+                                    <button
+                                      disabled={
+                                        thread.status === "running" ||
+                                        thread.status === "waiting-approval"
+                                      }
+                                      onClick={() =>
+                                        void setThreadArchived(thread, true)
+                                      }
+                                    >
+                                      {t.archiveTask}
+                                    </button>
+                                    <button
+                                      className="danger"
+                                      disabled={
+                                        thread.status === "running" ||
+                                        thread.status === "waiting-approval"
+                                      }
+                                      onClick={() => void deleteThread(thread)}
+                                    >
+                                      {t.deleteTask}
+                                    </button>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        ))}
+                        {projectThreads.length >
+                          PROJECT_THREAD_PREVIEW_LIMIT && (
+                          <button
+                            aria-level={3}
+                            className="project-expand-toggle"
+                            data-tree-kind="show-more"
+                            data-tree-level={3}
+                            data-tree-row-id={`show-more:${project.id}`}
+                            onFocus={() =>
+                              setTreeActiveRowId(`show-more:${project.id}`)
+                            }
+                            role="treeitem"
+                            tabIndex={
+                              treeActiveRowId === `show-more:${project.id}`
+                                ? 0
+                                : -1
+                            }
+                            onClick={() =>
+                              setExpandedProjectIds((current) => {
+                                const next = new Set(current);
+                                if (next.has(project.id))
+                                  next.delete(project.id);
+                                else next.add(project.id);
+                                return next;
+                              })
+                            }
+                            type="button"
+                          >
+                            {expanded ? t.showFewerTasks : t.showMoreTasks}
+                          </button>
+                        )}
+                        {query.trim() && projectThreads.length === 0 && (
+                          <span className="project-no-matches">
+                            {t.noTasks}
+                          </span>
+                        )}
+                      </div>
                     )}
-                    {query.trim() && projectThreads.length === 0 && (
-                      <span className="project-no-matches">{t.noTasks}</span>
-                    )}
-                  </div>
-                )}
-              </section>
-            );
-          })}
-          <section className="project-group temporary-conversations">
+                  </section>
+                );
+              })}
+            </div>
+          </section>
+          <section
+            aria-expanded={temporaryConversationsOpen}
+            aria-level={1}
+            className="project-group temporary-conversations"
+            data-tree-kind="temporary"
+            data-tree-level={1}
+            data-tree-row-id="temporary:conversations"
+            onFocus={() => setTreeActiveRowId("temporary:conversations")}
+            role="treeitem"
+            tabIndex={treeActiveRowId === "temporary:conversations" ? 0 : -1}
+          >
             <div
               className={`project-row project-group-row ${
                 !activeProjectId ? "active" : ""
@@ -5947,11 +6064,20 @@ export function App() {
               className="project-thread-list"
               hidden={!temporaryConversationsOpen}
               id="temporary-conversation-list"
+              role="group"
             >
               {temporaryThreads.map((thread) => (
                 <div
+                  aria-selected={thread.id === activeThreadId}
+                  aria-level={2}
                   className={`project-thread-row ${thread.id === activeThreadId ? "selected" : ""}`}
+                  data-tree-kind="thread"
+                  data-tree-level={2}
+                  data-tree-row-id={`thread:${thread.id}`}
                   key={thread.id}
+                  onFocus={() => setTreeActiveRowId(`thread:${thread.id}`)}
+                  role="treeitem"
+                  tabIndex={treeActiveRowId === `thread:${thread.id}` ? 0 : -1}
                 >
                   {threadRename?.threadId === thread.id ? (
                     <form

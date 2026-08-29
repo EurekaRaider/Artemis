@@ -97,12 +97,12 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
   it("keeps root groups icon-free and aligns their contents at the first project level", () => {
     const projects = sourceBetween(
       appSource,
-      '<section className="project-group project-collection">',
+      'className="project-group project-collection"',
       "{projects.map((project) => {",
     );
     const temporary = sourceBetween(
       appSource,
-      '<section className="project-group temporary-conversations">',
+      'className="project-group temporary-conversations"',
       '<div className="sidebar-footer">',
     );
 

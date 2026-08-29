@@ -26,9 +26,9 @@ function cssDeclarations(selector: string): string {
 describe("reported issue regressions #31-#42", () => {
   it("separates adjacent conversation states and tightens the first project gap", () => {
     expect(cssDeclarations(".project-thread-list")).toContain("gap: 2px");
-    expect(cssDeclarations(".project-collection + .nested-project")).toContain(
-      "margin-top: 6px",
-    );
+    expect(
+      cssDeclarations(".project-collection-rows > .nested-project:first-child"),
+    ).toContain("margin-top: 6px");
   });
 
   it("keeps the provider menu name aligned with its combined scope", () => {
