@@ -20,9 +20,10 @@ describe("treeRowIdForKey", () => {
     { id: "thread:b1", level: 3 as const, kind: "thread" as const },
   ];
 
-  it("wraps vertically and jumps with Home/End", () => {
+  it("stops at the edges and jumps with Home/End (WAI-ARIA Treeview)", () => {
     expect(treeRowIdForKey(rows, "thread:a1", "ArrowDown")).toBe("project:b");
-    expect(treeRowIdForKey(rows, "project:a", "ArrowUp")).toBe("thread:b1");
+    expect(treeRowIdForKey(rows, "thread:b1", "ArrowDown")).toBeUndefined();
+    expect(treeRowIdForKey(rows, "project:a", "ArrowUp")).toBeUndefined();
     expect(treeRowIdForKey(rows, "thread:a1", "Home")).toBe("project:a");
     expect(treeRowIdForKey(rows, "thread:a1", "End")).toBe("thread:b1");
   });
@@ -145,6 +146,8 @@ describe("project/thread tree keyboard (rendered)", () => {
     await user.keyboard("{End}");
     expect(screen.getByRole("treeitem", { name: "Thread B1" })).toHaveFocus();
     await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("treeitem", { name: "Thread B1" })).toHaveFocus();
+    await user.keyboard("{Home}");
     expect(screen.getByRole("treeitem", { name: "Alpha" })).toHaveFocus();
   });
 
@@ -162,6 +165,10 @@ describe("project/thread tree keyboard (rendered)", () => {
     expect(
       screen.getByRole("treeitem", { name: "Thread B1" }),
     ).toBeInTheDocument();
+
+    screen.getByRole("treeitem", { name: "Beta" }).focus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("treeitem", { name: "Thread B1" })).toHaveFocus();
 
     screen.getByRole("treeitem", { name: "Thread B1" }).focus();
     await user.keyboard("{ArrowLeft}");

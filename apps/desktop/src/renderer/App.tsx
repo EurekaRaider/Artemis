@@ -5459,7 +5459,6 @@ export function App() {
             })
           }
           ref={projectTreeElement}
-          role="tree"
         >
           <section className="project-group project-collection">
             <div className="project-row project-group-row">
@@ -5585,12 +5584,10 @@ export function App() {
                   <button
                     aria-controls={`project-thread-list-${project.id}`}
                     aria-expanded={projectOpen}
-                    aria-level={2}
                     data-tree-kind="project"
                     data-tree-level="2"
                     data-tree-row-id={`project:${project.id}`}
                     onFocus={() => setTreeActiveRowId(`project:${project.id}`)}
-                    role="treeitem"
                     tabIndex={
                       treeActiveRowId === `project:${project.id}` ||
                       (treeActiveRowId === undefined &&
@@ -5794,14 +5791,12 @@ export function App() {
                             <button
                               aria-selected={thread.id === activeThreadId}
                               className="thread-select"
-                              aria-level={3}
                               data-tree-kind="thread"
                               data-tree-level="3"
                               data-tree-row-id={`thread:${thread.id}`}
                               onFocus={() =>
                                 setTreeActiveRowId(`thread:${thread.id}`)
                               }
-                              role="treeitem"
                               tabIndex={
                                 treeActiveRowId === `thread:${thread.id}`
                                   ? 0

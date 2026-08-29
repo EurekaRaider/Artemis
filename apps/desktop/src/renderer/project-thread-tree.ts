@@ -42,8 +42,9 @@ export function readVisibleTreeRows(
 }
 
 /**
- * Vertical roving within the visible rows: ArrowUp/ArrowDown wrap at both
- * ends; Home/End address the logical first/last row (WAI-ARIA Treeview).
+ * Vertical roving within the visible rows: ArrowUp/ArrowDown do NOT wrap —
+ * the first row's ArrowUp and the last row's ArrowDown leave focus
+ * unchanged; Home/End address the logical first/last row.
  */
 export function treeRowIdForKey(
   rows: readonly VisibleTreeRow[],
@@ -58,8 +59,7 @@ export function treeRowIdForKey(
   if (currentIndex < 0) {
     return rows[delta > 0 ? 0 : rows.length - 1]!.id;
   }
-  const nextIndex = (currentIndex + delta + rows.length) % rows.length;
-  return rows[nextIndex]!.id;
+  return rows[currentIndex + delta]?.id;
 }
 
 function rowIdFromEventTarget(target: EventTarget | null): string | null {
@@ -108,17 +108,28 @@ export function handleProjectTreeKeyDown(
   if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
     if (!row) return;
     if (row.kind === "project") {
-      const expanded = deps.container
-        ?.querySelector<HTMLElement>(
-          `[data-tree-row-id="${CSS.escape(rowId)}"]`,
-        )
-        ?.getAttribute("aria-expanded");
+      const projectRow = deps.container?.querySelector<HTMLElement>(
+        `[data-tree-row-id="${CSS.escape(rowId)}"]`,
+      );
+      const expanded = projectRow?.getAttribute("aria-expanded");
       if (event.key === "ArrowLeft" && expanded === "true") {
         event.preventDefault();
         deps.collapseProject(rowId);
-      } else if (event.key === "ArrowRight" && expanded === "false") {
-        event.preventDefault();
-        deps.expandProject(rowId);
+      } else if (event.key === "ArrowRight") {
+        if (expanded === "false") {
+          event.preventDefault();
+          deps.expandProject(rowId);
+          return;
+        }
+        // Expanded parent: ArrowRight moves focus to the first child row
+        // (WAI-ARIA Treeview). The visible-row sequence places the first
+        // child immediately after its parent project row.
+        const rowIndex = rows.findIndex((candidate) => candidate.id === rowId);
+        const firstChild = rows[rowIndex + 1];
+        if (firstChild?.kind === "thread") {
+          event.preventDefault();
+          deps.focusRow(firstChild.id);
+        }
       }
       return;
     }
