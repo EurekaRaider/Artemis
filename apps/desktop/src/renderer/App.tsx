@@ -168,6 +168,10 @@ import {
   type WorkspaceTabAction,
   type WorkspaceTabKind,
   type WorkspaceTabsState,
+  handleWorkspaceTabBarKeyDown,
+  workspaceTabDomId,
+  workspaceTabFocusTargetAfterClose,
+  workspaceTabIdForKey,
 } from "./workspace-tabs.js";
 import {
   clampWorkspaceDockWidth,
@@ -1721,6 +1725,14 @@ export function App() {
   const workspaceTabScroll = useRef<HTMLDivElement>(null);
   const workspaceTabTrack = useRef<HTMLDivElement>(null);
   const activeWorkspaceTabElement = useRef<HTMLDivElement>(null);
+  const workspaceTabButtons = useRef(
+    new Map<string, HTMLButtonElement | null>(),
+  );
+  const workspaceDockToggleElement = useRef<HTMLButtonElement>(null);
+  const focusWorkspaceTab = useCallback((tabId: string | undefined) => {
+    if (!tabId) return;
+    workspaceTabButtons.current.get(tabId)?.focus();
+  }, []);
   const workspaceContent = useRef<HTMLDivElement>(null);
   const workspaceDock = useRef<HTMLElement>(null);
   const workspaceDockDrag = useRef<WorkspaceDockDrag | undefined>(undefined);
@@ -2497,14 +2509,26 @@ export function App() {
   );
 
   const closeWorkspaceTab = useCallback(
-    (tabId: string) => {
+    (tabId: string, options?: { moveFocus?: boolean }) => {
       const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
+      const focusTarget = workspaceTabFocusTargetAfterClose(
+        workspaceTabs.tabs,
+        tabId,
+        workspaceTabs.activeTabId,
+      );
       dispatchWorkspaceTab({ type: "close", tabId });
       if (closesLastTab) {
         setWorkspaceDockOpen(false);
+        if (options?.moveFocus) {
+          workspaceDockToggleElement.current?.focus();
+        }
+        return;
+      }
+      if (options?.moveFocus) {
+        focusWorkspaceTab(focusTarget);
       }
     },
-    [dispatchWorkspaceTab, workspaceTabs],
+    [dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
   );
 
   const openWorkspaceTabForThread = useCallback(
@@ -6166,6 +6190,7 @@ export function App() {
                     aria-label={t.rightSidebar}
                     className="right-sidebar-toggle"
                     onClick={toggleRightSidebar}
+                    ref={workspaceDockToggleElement}
                     title={t.rightSidebar}
                   >
                     <RightSidebarIcon />
@@ -7460,7 +7485,23 @@ export function App() {
                           } as CSSProperties)
                     }
                   >
-                    <div className="workspace-tab-bar" role="tablist">
+                    <div
+                      className="workspace-tab-bar"
+                      onKeyDown={(event) =>
+                        handleWorkspaceTabBarKeyDown(event, {
+                          tabs: workspaceTabs.tabs,
+                          activeTabId: workspaceTabs.activeTabId,
+                          rtl: localeDirection(locale) === "rtl",
+                          activate: (tabId) =>
+                            dispatchWorkspaceTab({
+                              type: "activate",
+                              tabId,
+                            }),
+                          focusTab: focusWorkspaceTab,
+                        })
+                      }
+                      role="tablist"
+                    >
                       <div
                         className="workspace-tab-scroll-shell"
                         data-overflow={workspaceTabScrollState.hasOverflow}
@@ -7502,10 +7543,31 @@ export function App() {
                                 }
                               >
                                 <button
+                                  aria-controls={`${workspaceTabDomId(tab.id)}-pane`}
                                   aria-selected={
                                     workspaceTabs.activeTabId === tab.id
                                   }
                                   className="workspace-tab-select"
+                                  id={workspaceTabDomId(tab.id)}
+                                  ref={(element) => {
+                                    if (element) {
+                                      workspaceTabButtons.current.set(
+                                        tab.id,
+                                        element,
+                                      );
+                                    } else {
+                                      workspaceTabButtons.current.delete(
+                                        tab.id,
+                                      );
+                                    }
+                                  }}
+                                  tabIndex={
+                                    workspaceTabs.activeTabId === tab.id ||
+                                    (!workspaceTabs.activeTabId &&
+                                      workspaceTabs.tabs[0]?.id === tab.id)
+                                      ? 0
+                                      : -1
+                                  }
                                   onClick={() =>
                                     dispatchWorkspaceTab({
                                       type: "activate",
@@ -7527,7 +7589,11 @@ export function App() {
                                 <button
                                   aria-label={`${t.closeTab}: ${tab.title}`}
                                   className="workspace-tab-close"
-                                  onClick={() => closeWorkspaceTab(tab.id)}
+                                  onClick={() =>
+                                    closeWorkspaceTab(tab.id, {
+                                      moveFocus: true,
+                                    })
+                                  }
                                   title={t.closeTab}
                                 >
                                   <CloseIcon />
@@ -7638,7 +7704,9 @@ export function App() {
                               ? "workspace-tab-pane active"
                               : "workspace-tab-pane"
                           }
+                          aria-labelledby={workspaceTabDomId(tab.id)}
                           hidden={workspaceTabs.activeTabId !== tab.id}
+                          id={`${workspaceTabDomId(tab.id)}-pane`}
                           key={tab.id}
                           role="tabpanel"
                         >

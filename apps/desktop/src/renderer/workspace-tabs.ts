@@ -43,6 +43,47 @@ export const emptyWorkspaceTabs = (): WorkspaceTabsState => ({
   activeTabId: undefined,
 });
 
+export function workspaceTabFocusTargetAfterClose(
+  tabs: readonly WorkspaceTab[],
+  closedTabId: string,
+  activeTabId: string | undefined,
+): string | undefined {
+  // Closing a background tab keeps the current active tab, so focus must stay
+  // there to preserve the roving-tabindex invariant.
+  if (activeTabId !== undefined && closedTabId !== activeTabId) {
+    return activeTabId;
+  }
+  const index = tabs.findIndex((tab) => tab.id === closedTabId);
+  if (index < 0) return undefined;
+  return tabs[index + 1]?.id ?? tabs[index - 1]?.id;
+}
+
+export type WorkspaceTabArrowKey = "ArrowLeft" | "ArrowRight" | "Home" | "End";
+
+export function workspaceTabIdForKey(
+  tabs: readonly WorkspaceTab[],
+  activeTabId: string | undefined,
+  key: WorkspaceTabArrowKey,
+  rtl: boolean,
+): string | undefined {
+  if (tabs.length === 0) return undefined;
+  // Home/End address the logical first/last tab and are RTL-independent.
+  if (key === "Home") return tabs[0]!.id;
+  if (key === "End") return tabs[tabs.length - 1]!.id;
+  const baseDelta = key === "ArrowRight" ? 1 : -1;
+  const delta = rtl ? -baseDelta : baseDelta;
+  const currentIndex = tabs.findIndex((tab) => tab.id === activeTabId);
+  if (currentIndex < 0) {
+    // No active tab: land on the edge tab the direction points at.
+    const fallbackIndex = delta > 0 ? 0 : tabs.length - 1;
+    return tabs[fallbackIndex]!.id;
+  }
+  // WAI-ARIA Tabs pattern: wrap from last to first (forward) and from first
+  // to last (backward) instead of clamping at the ends.
+  const nextIndex = (currentIndex + delta + tabs.length) % tabs.length;
+  return tabs[nextIndex]!.id;
+}
+
 export function closesLastWorkspaceTab(
   state: WorkspaceTabsState,
   tabId: string,
@@ -152,4 +193,63 @@ export function reduceWorkspaceTabs(
       state.tabs[closingIndex - 1]?.id ??
       undefined,
   };
+}
+
+export interface WorkspaceTabBarKeyboardDeps {
+  tabs: readonly WorkspaceTab[];
+  activeTabId: string | undefined;
+  rtl: boolean;
+  activate: (tabId: string) => void;
+  focusTab: (tabId: string) => void;
+}
+
+/**
+ * Keydown handler for the workspace tab bar. Navigation keys are honoured
+ * only when the event originates from a tab button itself (not from close,
+ * scroll, add, or menu controls that live inside the same bar), so focus is
+ * never stolen from those controls.
+ */
+export function handleWorkspaceTabBarKeyDown(
+  event: {
+    key: string;
+    target: EventTarget | null;
+    preventDefault(): void;
+  },
+  deps: WorkspaceTabBarKeyboardDeps,
+): void {
+  const target = event.target;
+  if (
+    !(target instanceof HTMLElement) ||
+    !target.classList.contains("workspace-tab-select")
+  ) {
+    return;
+  }
+  const key = event.key;
+  if (
+    key !== "ArrowLeft" &&
+    key !== "ArrowRight" &&
+    key !== "Home" &&
+    key !== "End"
+  ) {
+    return;
+  }
+  const nextId = workspaceTabIdForKey(
+    deps.tabs,
+    deps.activeTabId,
+    key,
+    deps.rtl,
+  );
+  if (!nextId) return;
+  event.preventDefault();
+  deps.activate(nextId);
+  deps.focusTab(nextId);
+}
+
+/**
+ * Stable DOM id for a workspace tab. Tab ids embed `:`, paths, and URLs, so
+ * percent-encode and flatten them into a character class that is safe and
+ * unique as a DOM id (WAI-ARIA Tabs: tab.id <-> pane aria-labelledby).
+ */
+export function workspaceTabDomId(tabId: string): string {
+  return `workspace-tab-${encodeURIComponent(tabId).replace(/%/g, "-")}`;
 }

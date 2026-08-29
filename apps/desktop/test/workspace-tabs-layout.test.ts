@@ -136,7 +136,7 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(tabBarIndex).toBeGreaterThan(-1);
     expect(tabContentIndex).toBeGreaterThan(tabBarIndex);
     expect(appSource).toMatch(
-      /className="workspace-tab-bar"[\s\S]{0,200}?role="tablist"/u,
+      /className="workspace-tab-bar"[\s\S]{0,2000}?role="tablist"/u,
     );
     expect(appSource).toMatch(/\w+\.tabs\.map\(\(tab\)\s*=>/u);
     expect(appSource).toContain('role="tab"');
@@ -213,7 +213,7 @@ describe("Codex-like workspace tab layout contract", () => {
     );
     expect(handlerSource).toContain('type: "close"');
     expect(handlerSource).toContain("setWorkspaceDockOpen(false)");
-    expect(closeButtonSource).toContain("closeWorkspaceTab(tab.id)");
+    expect(closeButtonSource).toContain("closeWorkspaceTab(tab.id, {");
     expect(appSource).toContain("workspaceTabs.tabs.length === 0");
   });
 

@@ -1,3 +1,7 @@
+import {
+  workspaceTabFocusTargetAfterClose,
+  workspaceTabIdForKey,
+} from "../src/renderer/workspace-tabs.js";
 import { describe, expect, it, vi } from "vitest";
 
 type WorkspaceTabKind =
@@ -320,5 +324,49 @@ describe("workspace tab state", () => {
     expect(withStoppedTeam.activeTabId).toBe(terminalTab.id);
     expect(continued.tabs).toEqual([terminalTab, continuedTeamTab]);
     expect(continued.activeTabId).toBe(continuedTeamTab.id);
+  });
+});
+
+describe("workspace tab keyboard focus helpers", () => {
+  const tabs = [
+    { id: "a", kind: "review" as const, title: "A" },
+    { id: "b", kind: "terminal" as const, title: "B" },
+    { id: "c", kind: "browser" as const, title: "C" },
+  ];
+
+  it("focuses the post-close active tab: neighbour when closing the active one, unchanged otherwise", () => {
+    expect(workspaceTabFocusTargetAfterClose(tabs, "b", "b")).toBe("c");
+    expect(workspaceTabFocusTargetAfterClose(tabs, "c", "c")).toBe("b");
+    expect(workspaceTabFocusTargetAfterClose(tabs, "a", "a")).toBe("b");
+    // Closing a background tab keeps the active tab (and roving tabindex).
+    expect(workspaceTabFocusTargetAfterClose(tabs, "b", "a")).toBe("a");
+    expect(workspaceTabFocusTargetAfterClose(tabs, "a", "c")).toBe("c");
+    expect(workspaceTabFocusTargetAfterClose(tabs, "missing", "a")).toBe("a");
+  });
+
+  it("wraps with arrow keys at both ends (LTR, WAI-ARIA tabs pattern)", () => {
+    expect(workspaceTabIdForKey(tabs, "b", "ArrowRight", false)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, "b", "ArrowLeft", false)).toBe("a");
+    expect(workspaceTabIdForKey(tabs, "c", "ArrowRight", false)).toBe("a");
+    expect(workspaceTabIdForKey(tabs, "a", "ArrowLeft", false)).toBe("c");
+  });
+
+  it("falls back to the direction's edge tab when no tab is active", () => {
+    expect(workspaceTabIdForKey(tabs, undefined, "ArrowRight", false)).toBe(
+      "a",
+    );
+    expect(workspaceTabIdForKey(tabs, undefined, "ArrowLeft", false)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, undefined, "Home", false)).toBe("a");
+  });
+
+  it("reverses arrows in RTL with wrapping; Home/End stay logical", () => {
+    expect(workspaceTabIdForKey(tabs, "b", "ArrowRight", true)).toBe("a");
+    expect(workspaceTabIdForKey(tabs, "b", "ArrowLeft", true)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, "a", "ArrowRight", true)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, "c", "ArrowLeft", true)).toBe("a");
+    expect(workspaceTabIdForKey(tabs, "b", "Home", false)).toBe("a");
+    expect(workspaceTabIdForKey(tabs, "b", "End", false)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, "b", "Home", true)).toBe("a");
+    expect(workspaceTabIdForKey(tabs, "b", "End", true)).toBe("c");
   });
 });
