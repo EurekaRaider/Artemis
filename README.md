@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="1082 passing tests" src="https://img.shields.io/badge/Tests-1082_passing-2EA44F" />
+  <img alt="1111 passing tests" src="https://img.shields.io/badge/Tests-1111_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -99,7 +99,7 @@ credentials are protected with operating-system encryption.
     </td>
     <td width="50%" valign="top">
       <p><strong>04</strong>&nbsp;&nbsp;/&nbsp;&nbsp;GIT WORKFLOW</p>
-      <p>Task-checkout-aware Git state with automatic repository refresh, searchable local and remote branches, branch creation/publishing, and a shared Compare/Review base; plus last-turn, unstaged, staged and branch diffs, inline comments, file/hunk stage and unstage, recoverable revert and race-safe scope switching.</p>
+      <p>Task-checkout-aware Git state with coalesced, metadata-signature-gated repository refresh, searchable local and remote branches, branch creation/publishing, and a shared Compare/Review base; plus last-turn, unstaged, staged and branch diffs, inline comments, file/hunk stage and unstage, recoverable revert and race-safe scope switching.</p>
     </td>
   </tr>
   <tr>
@@ -315,7 +315,9 @@ other everyday tasks.
   stable identity-specific color and geometry marks across the timeline,
   workspace tabs and environment panel. The panel auto-hides before it can
   overlap the centered timeline and restores itself when the workspace widens;
-  Git metadata and worktree changes refresh the open panel automatically;
+  Git metadata and worktree changes refresh the open panel automatically through
+  a single-flight trailing debounce; unchanged metadata never starts the full
+  status and line-count scan;
   Compare and Review use the same base. Git mutations remain behind main-process
   validation and are disabled while local tasks are active. Interactive tasks
   remain intentionally Local-only, so the panel does not expose inert Worktree
@@ -334,7 +336,8 @@ other everyday tasks.
   the last provider-measured input, refreshes after tool results and preserves
   sub-percent ring movement for large context windows. Manual and automatic
   context compaction immediately add an in-progress timeline row with the same
-  left-to-right highlight sweep as Thinking, followed by the completion state.
+  left-to-right highlight sweep as Thinking, followed by a completion state
+  that dismisses itself after five seconds.
   Post-compaction usage combines the rebuilt message estimate with the
   system prompt, tools, MCP schemas, project instructions and Skills that remain
   in context. Usage Insights adds daily, weekly and cumulative Token totals with
@@ -976,6 +979,10 @@ bounded subteam and must integrate it before completing.
   execution identity. Every close includes a non-empty integration summary. If
   the root ends without closing the team, Artemis aborts it and reports
   `agent-team-incomplete`, except when the user cancelled the turn.
+- **Health without alarmist guesses** — the child-Agent panel reports last
+  activity and the current tool, presents silent or long-tool work neutrally as
+  long-running, and reserves “possibly unresponsive” for prolonged silence
+  without an active tool. Nudge, stop and retry controls remain available.
 
 </details>
 
@@ -1069,14 +1076,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.20`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.21`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.20
-git push origin v1.4.20
+git tag v1.4.21
+git push origin v1.4.21
 ```
 
 ### Build and test matrix
@@ -1089,11 +1096,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **1082 passing tests** (7 skipped):
+The current full test run contains **1111 passing tests** (7 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       69 |       23 |        136 |     854 |  **1082** |
+|       71 |       24 |        137 |     879 |  **1111** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1122,13 +1129,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.20` packaging configuration produces:
+The `1.4.21` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.20.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.20.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.20.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.21.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.21.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.21.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

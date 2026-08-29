@@ -699,10 +699,12 @@ describe("reduceAgentEvent", () => {
       "compact-start": {
         id: "compact-start",
         status: "completed",
+        completedAt: "2026-07-26T00:00:00.000Z",
       },
       "compact-second-start": {
         id: "compact-second-start",
         status: "completed",
+        completedAt: "2026-07-26T00:00:00.000Z",
       },
     });
   });

@@ -263,6 +263,8 @@ const EMPTY_WORKSPACE_TAB_SCROLL_STATE: WorkspaceTabScrollState = {
 const WORKSPACE_TAB_SCROLL_INSET = 32;
 const TOAST_VISIBLE_MILLISECONDS = 10_000;
 const TOAST_FADE_MILLISECONDS = 600;
+const COMPACTION_COMPLETION_NOTICE_MILLISECONDS = 5_000;
+const CHILD_UNRESPONSIVE_SILENCE_MILLISECONDS = 5 * 60_000;
 
 const PROJECT_THREAD_PREVIEW_LIMIT = 5;
 
@@ -8757,7 +8759,9 @@ function ChildAgentPanel({
         elapsed: "运行时长",
         lastActivity: "最后活动",
         currentTool: "当前工具",
-        suspect: "疑似卡住",
+        health: "运行状态",
+        longRunning: "长时间运行",
+        unresponsive: "疑似无响应",
         nudge: "催办",
         stop: "停止此子代理",
         retry: "重试",
@@ -8779,7 +8783,9 @@ function ChildAgentPanel({
         elapsed: "Runtime",
         lastActivity: "Last activity",
         currentTool: "Current tool",
-        suspect: "Possibly stuck",
+        health: "Runtime status",
+        longRunning: "Long-running",
+        unresponsive: "Possibly unresponsive",
         nudge: "Nudge",
         stop: "Stop subagent",
         retry: "Retry",
@@ -8798,11 +8804,23 @@ function ChildAgentPanel({
     ? Math.max(0, clockMs - lastActivityMs)
     : 0;
   const health =
-    child?.health === "stalled" || child?.health === "suspect"
-      ? child.health
-      : running && silentMilliseconds >= 60_000
+    child?.health === "stalled" ||
+    (child?.status === "running" &&
+      !child?.currentTool &&
+      silentMilliseconds >= CHILD_UNRESPONSIVE_SILENCE_MILLISECONDS)
+      ? "stalled"
+      : child?.health === "suspect" ||
+          (child?.status === "running" && silentMilliseconds >= 60_000)
         ? "suspect"
         : "healthy";
+  const healthLabel =
+    child?.status === "running"
+      ? health === "stalled"
+        ? labels.unresponsive
+        : health === "suspect"
+          ? labels.longRunning
+          : undefined
+      : undefined;
   const startedMilliseconds = child?.startedAt
     ? Date.parse(child.startedAt)
     : child?.updatedAt
@@ -8850,7 +8868,7 @@ function ChildAgentPanel({
           {child && (
             <small>
               {labels[child.status]}
-              {health !== "healthy" ? ` · ${labels.suspect}` : ""}
+              {healthLabel ? ` · ${healthLabel}` : ""}
             </small>
           )}
         </span>
@@ -8912,10 +8930,10 @@ function ChildAgentPanel({
                   : ""}
               </dd>
             </div>
-            {health !== "healthy" && (
+            {healthLabel && (
               <div className="child-agent-panel-health">
-                <dt>{labels.suspect}</dt>
-                <dd>{labels.suspect}</dd>
+                <dt>{labels.health}</dt>
+                <dd>{healthLabel}</dd>
               </div>
             )}
           </dl>
@@ -9674,21 +9692,11 @@ function Timeline({
       const compaction = state.contextCompactions[id];
       if (!compaction) return null;
       return (
-        <article
-          aria-live="polite"
-          className={`turn-status compaction-status ${compaction.status}`}
+        <ContextCompactionStatus
+          compaction={compaction}
           key={entry}
-          role="status"
-        >
-          <span
-            className={`status-dot ${compaction.status === "completed" ? "idle" : "running"}`}
-          />
-          <span>
-            {compaction.status === "running"
-              ? t.contextCompacting
-              : t.contextCompacted}
-          </span>
-        </article>
+          locale={locale}
+        />
       );
     }
     if (kind === "part") {
@@ -10000,5 +10008,58 @@ function Timeline({
         </div>
       )}
     </div>
+  );
+}
+
+function ContextCompactionStatus({
+  compaction,
+  locale,
+}: {
+  compaction: ThreadViewState["contextCompactions"][string];
+  locale: Locale;
+}) {
+  const t = appCopy(locale);
+  const completionDeadline = compaction.completedAt
+    ? Date.parse(compaction.completedAt) +
+      COMPACTION_COMPLETION_NOTICE_MILLISECONDS
+    : 0;
+  const [visible, setVisible] = useState(
+    () => compaction.status === "running" || completionDeadline > Date.now(),
+  );
+
+  useEffect(() => {
+    if (compaction.status === "running") {
+      setVisible(true);
+      return;
+    }
+    const remainingMilliseconds = completionDeadline - Date.now();
+    if (remainingMilliseconds <= 0) {
+      setVisible(false);
+      return;
+    }
+    setVisible(true);
+    const timer = window.setTimeout(
+      () => setVisible(false),
+      remainingMilliseconds,
+    );
+    return () => window.clearTimeout(timer);
+  }, [compaction.id, compaction.status, completionDeadline]);
+
+  if (!visible) return null;
+  return (
+    <article
+      aria-live="polite"
+      className={`turn-status compaction-status ${compaction.status}`}
+      role="status"
+    >
+      <span
+        className={`status-dot ${compaction.status === "completed" ? "idle" : "running"}`}
+      />
+      <span>
+        {compaction.status === "running"
+          ? t.contextCompacting
+          : t.contextCompacted}
+      </span>
+    </article>
   );
 }

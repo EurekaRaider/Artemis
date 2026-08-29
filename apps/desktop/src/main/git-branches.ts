@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
-import { resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import type {
@@ -27,6 +29,12 @@ interface StatusCounts {
 interface LineCounts {
   additions: number;
   deletions: number;
+}
+
+export interface GitRepositoryWatchPlan {
+  root: string;
+  gitDirectory: string;
+  commonDirectory: string;
 }
 
 async function runGit(
@@ -88,9 +96,9 @@ async function requireRepositoryRoot(workspace: string): Promise<string> {
 
 export async function gitRepositoryWatchPaths(
   workspace: string,
-): Promise<string[]> {
+): Promise<GitRepositoryWatchPlan | undefined> {
   const root = await repositoryRoot(workspace);
-  if (!root) return [];
+  if (!root) return undefined;
   const [gitDirectory, commonDirectory] = await Promise.all([
     runGit(root, ["rev-parse", "--absolute-git-dir"]).catch(() => ""),
     runGit(root, [
@@ -99,10 +107,78 @@ export async function gitRepositoryWatchPaths(
       "--git-common-dir",
     ]).catch(() => ""),
   ]);
-  return [root, gitDirectory.trim(), commonDirectory.trim()].filter(
-    (path, index, paths): path is string =>
-      Boolean(path) && paths.indexOf(path) === index,
+  const resolvedGitDirectory = gitDirectory.trim();
+  const resolvedCommonDirectory = commonDirectory.trim();
+  if (!resolvedGitDirectory || !resolvedCommonDirectory) return undefined;
+  return {
+    root,
+    gitDirectory: resolve(resolvedGitDirectory),
+    commonDirectory: resolve(resolvedCommonDirectory),
+  };
+}
+
+async function appendMetadataFile(
+  hash: ReturnType<typeof createHash>,
+  label: string,
+  path: string,
+): Promise<void> {
+  hash.update(`${label}\0`);
+  try {
+    hash.update(await readFile(path));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    hash.update("missing");
+  }
+  hash.update("\0");
+}
+
+async function appendMetadataDirectory(
+  hash: ReturnType<typeof createHash>,
+  root: string,
+  directory: string,
+): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    hash.update(`missing-directory:${directory}\0`);
+    return;
+  }
+  entries.sort((left, right) => left.name.localeCompare(right.name));
+  for (const entry of entries) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await appendMetadataDirectory(hash, root, path);
+    } else if (entry.isFile()) {
+      await appendMetadataFile(hash, path.slice(root.length), path);
+    }
+  }
+}
+
+export async function gitRepositoryMetadataSignature(
+  plan: GitRepositoryWatchPlan,
+): Promise<string> {
+  const hash = createHash("sha256");
+  const files = [
+    ["git/HEAD", join(plan.gitDirectory, "HEAD")],
+    ["git/index", join(plan.gitDirectory, "index")],
+    ["git/MERGE_HEAD", join(plan.gitDirectory, "MERGE_HEAD")],
+    ["git/CHERRY_PICK_HEAD", join(plan.gitDirectory, "CHERRY_PICK_HEAD")],
+    ["git/REVERT_HEAD", join(plan.gitDirectory, "REVERT_HEAD")],
+    ["git/config.worktree", join(plan.gitDirectory, "config.worktree")],
+    ["common/packed-refs", join(plan.commonDirectory, "packed-refs")],
+    ["common/config", join(plan.commonDirectory, "config")],
+  ] as const;
+  for (const [label, path] of files) {
+    await appendMetadataFile(hash, label, path);
+  }
+  await appendMetadataDirectory(
+    hash,
+    plan.commonDirectory,
+    join(plan.commonDirectory, "refs"),
   );
+  return hash.digest("hex");
 }
 
 async function defaultCompareBase(

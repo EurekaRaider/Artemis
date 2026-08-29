@@ -197,6 +197,11 @@ describe("task environment panel state", () => {
     expect(panelSource).toContain("context.threadId !== threadId");
     expect(mainSource).toContain("workspaceForGitRequest(projectId, threadId)");
     expect(mainSource).toContain("gitRepositoryWatchPaths(workspacePath)");
+    expect(mainSource).toContain("gitRepositoryMetadataSignature(plan)");
+    expect(mainSource).toContain('changed("metadata")');
+    expect(mainSource).toContain('changed("worktree")');
+    expect(mainSource).toContain("pendingKinds");
+    expect(mainSource).toContain("}, 1_000);");
     expect(mainSource).toContain("IPC.projectGitChanged");
     expect(appSource).toContain("{ threadId: activeThreadId } : {})");
   });

@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   commitProjectChanges,
   createGitBranch,
+  gitRepositoryMetadataSignature,
+  gitRepositoryWatchPaths,
   inspectGitBranches,
   pushProjectBranch,
   switchGitBranch,
@@ -51,6 +53,22 @@ afterEach(async () => {
 });
 
 describe("project Git branches", () => {
+  it("keeps the cheap metadata signature stable across read-only inspections", async () => {
+    const path = await repository();
+    const plan = await gitRepositoryWatchPaths(path);
+    expect(plan).toBeDefined();
+    const before = await gitRepositoryMetadataSignature(plan!);
+
+    await inspectGitBranches(path);
+    await inspectGitBranches(path);
+
+    expect(await gitRepositoryMetadataSignature(plan!)).toBe(before);
+
+    await writeFile(join(path, "staged.txt"), "staged\n", "utf8");
+    await git(path, "add", "staged.txt");
+    expect(await gitRepositoryMetadataSignature(plan!)).not.toBe(before);
+  });
+
   it("reports a directory outside Git without treating it as an error", async () => {
     const path = await mkdtemp(join(tmpdir(), "artemis-no-git-"));
     cleanup.push(path);

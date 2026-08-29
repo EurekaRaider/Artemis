@@ -926,6 +926,7 @@ export interface ChildAgentSnapshot {
 }
 
 const CHILD_MIN_SUSPECT_SILENCE_MILLISECONDS = 60_000;
+const CHILD_STALLED_SILENCE_MILLISECONDS = 5 * 60_000;
 const CHILD_CONTROL_OBSERVATION_MILLISECONDS = 5_000;
 const ROOT_AGENT_ID = "parent";
 const PROVIDER_BACKOFF_DEFAULT_MILLISECONDS = 2_000;
@@ -1667,16 +1668,22 @@ export class ArtemisAgentHost {
       return "stalled";
     }
     if (child.status === "cancelling") return "suspect";
-    if (child.status !== "queued" && child.status !== "running") {
+    if (child.status !== "running") {
       return "healthy";
     }
     const suspectAfter = Math.max(
       CHILD_MIN_SUSPECT_SILENCE_MILLISECONDS,
       child.longestObservationMilliseconds * 2,
     );
-    return Date.now() - child.lastActivityAt >= suspectAfter
-      ? "suspect"
-      : "healthy";
+    const silenceMilliseconds = Date.now() - child.lastActivityAt;
+    if (
+      !child.currentTool &&
+      silenceMilliseconds >=
+        Math.max(CHILD_STALLED_SILENCE_MILLISECONDS, suspectAfter * 5)
+    ) {
+      return "stalled";
+    }
+    return silenceMilliseconds >= suspectAfter ? "suspect" : "healthy";
   }
 
   private requestChildCancellation(
