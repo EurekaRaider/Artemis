@@ -5326,6 +5326,7 @@ export function App() {
               ? "activity-button active"
               : "activity-button"
           }
+          aria-current={activeView === "workspace" ? "page" : undefined}
           aria-label={t.projects}
           aria-expanded={sidebarOpen}
           onClick={() => {
@@ -5341,6 +5342,7 @@ export function App() {
           <FolderIcon />
         </button>
         <button
+          aria-current={activeView === "resources" ? "page" : undefined}
           aria-label={t.resourceCenter}
           className={
             activeView === "resources"
@@ -5359,12 +5361,14 @@ export function App() {
               : "activity-button"
           }
           onClick={() => setActiveView("token-usage")}
+          aria-current={activeView === "token-usage" ? "page" : undefined}
           aria-label={t.tokenUsage}
           title={t.tokenUsage}
         >
           <TokenUsageIcon />
         </button>
         <button
+          aria-current={activeView === "automations" ? "page" : undefined}
           aria-label={t.automations}
           className={
             activeView === "automations"
@@ -5377,6 +5381,7 @@ export function App() {
           <AutomationIcon />
         </button>
         <button
+          aria-current={activeView === "archive" ? "page" : undefined}
           aria-label={t.archiveLibrary}
           className={
             activeView === "archive"
