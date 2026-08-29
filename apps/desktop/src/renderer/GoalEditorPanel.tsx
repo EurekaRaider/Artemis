@@ -112,8 +112,11 @@ export function GoalEditorPanel({
   // transient phases and never count as dirty, so a status phase change alone
   // cannot retrigger the external-change effect below (which would loop).
   const dirtySnapshot =
-    (status.kind === "ready" || status.kind === "save-error") &&
-    status.draft !== status.source;
+    ((status.kind === "ready" || status.kind === "save-error") &&
+      status.draft !== status.source) ||
+    (status.kind === "stale" &&
+      status.source !== undefined &&
+      status.draft !== status.source);
 
   useEffect(() => {
     if (goal.objective === persistedObjective) {
@@ -186,6 +189,7 @@ export function GoalEditorPanel({
         saved: true,
       });
       setRevision(updatedGoal.revision);
+      setPersistedObjective(updatedGoal.objective);
       onSaved(thread);
     } catch (error) {
       if (token !== saveTokenRef.current) return;
@@ -249,7 +253,10 @@ export function GoalEditorPanel({
       {status.kind === "loading" && (
         <div className="goal-editor-loading">{copy.loading}</div>
       )}
-      {status.kind !== "loading" && (
+      {(status.kind === "ready" ||
+        status.kind === "saving" ||
+        status.kind === "save-error" ||
+        status.kind === "stale") && (
         <textarea
           aria-label={copy.goal}
           autoFocus={true}

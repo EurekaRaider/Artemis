@@ -2,6 +2,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Thread, ThreadGoal } from "@artemis/protocol";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import "./renderer-test-utils.js";
@@ -56,6 +57,34 @@ function stubGoalApi(overrides: Partial<GoalApi> = {}): GoalApi {
   return api;
 }
 
+function GoalEditorHarness({
+  initialGoal,
+  onError,
+  onSaved,
+  onGoalRefill,
+}: {
+  initialGoal?: ThreadGoal;
+  onError: ReturnType<typeof vi.fn>;
+  onSaved: ReturnType<typeof vi.fn>;
+  onGoalRefill?: (thread: Thread) => void;
+}) {
+  const [current, setCurrent] = useState(initialGoal ?? goal());
+  return (
+    <GoalEditorPanel
+      clockMs={Date.parse("2026-08-28T00:01:00.000Z")}
+      goal={current}
+      locale="en"
+      onError={onError}
+      onSaved={(thread) => {
+        onSaved(thread);
+        onGoalRefill?.(thread);
+        const next = thread.goal;
+        if (next) setCurrent(next);
+      }}
+    />
+  );
+}
+
 function renderPanel(changes: { goal?: ThreadGoal } = {}) {
   const onError = vi.fn();
   const onSaved = vi.fn();
@@ -67,6 +96,15 @@ function renderPanel(changes: { goal?: ThreadGoal } = {}) {
       onError={onError}
       onSaved={onSaved}
     />,
+  );
+  return { ...utils, onError, onSaved };
+}
+
+function renderHarnessPanel() {
+  const onError = vi.fn();
+  const onSaved = vi.fn();
+  const utils = render(
+    <GoalEditorHarness onError={onError} onSaved={onSaved} />,
   );
   return { ...utils, onError, onSaved };
 }
@@ -95,6 +133,7 @@ describe("GoalEditorPanel interactions", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/failed to load goal objective/i);
     expect(api.getThreadGoalObjective).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 
     await userEvent
       .setup()
@@ -124,7 +163,7 @@ describe("GoalEditorPanel interactions", () => {
 
   it("goes dirty on edit and saves through the primary button", async () => {
     const api = stubGoalApi();
-    const { onSaved } = renderPanel();
+    const { onSaved } = renderHarnessPanel();
     const box = await screen.findByRole("textbox", { name: "Goal" });
     const save = screen.getByRole("button", { name: /^save$/i });
     expect(save).toBeDisabled();
@@ -145,7 +184,7 @@ describe("GoalEditorPanel interactions", () => {
 
   it("clears the saved acknowledgement once the draft changes again", async () => {
     stubGoalApi();
-    renderPanel();
+    renderHarnessPanel();
     const box = await screen.findByRole("textbox", { name: "Goal" });
     await userEvent.setup().type(box, " more");
     await userEvent
@@ -167,7 +206,7 @@ describe("GoalEditorPanel interactions", () => {
         } as unknown as Thread;
       }),
     });
-    const { onSaved } = renderPanel();
+    const { onSaved } = renderHarnessPanel();
     const box = await screen.findByRole("textbox", { name: "Goal" });
     await userEvent.setup().type(box, " more");
 
@@ -264,7 +303,7 @@ describe("GoalEditorPanel interactions", () => {
 
   it("saves with Meta+Enter and Ctrl+Enter", async () => {
     const api = stubGoalApi();
-    renderPanel();
+    renderHarnessPanel();
     const box = await screen.findByRole("textbox", { name: "Goal" });
     await userEvent.setup().type(box, " more");
 
@@ -336,6 +375,53 @@ describe("GoalEditorPanel interactions", () => {
       goal: goal({ objective: "Saved objective", revision: 4 }),
     } as unknown as Thread);
     await waitFor(() => expect(panel).not.toHaveAttribute("aria-busy"));
+  });
+
+  it("keeps the stale banner and local draft when the parent refills an external goal update (review 1)", async () => {
+    const api = stubGoalApi();
+    const onError = vi.fn();
+    const onSaved = vi.fn();
+    const { rerender } = renderPanel();
+    const box = await screen.findByRole("textbox", { name: "Goal" });
+    await userEvent.setup().type(box, " local edit");
+    await waitFor(() => expect(box).toHaveValue("Loaded objective local edit"));
+    const callsBefore = api.getThreadGoalObjective.mock.calls.length;
+
+    // Simulate the real parent refilling an externally-updated goal prop.
+    rerender(
+      <GoalEditorPanel
+        clockMs={Date.parse("2026-08-28T00:01:00.000Z")}
+        goal={goal({ objective: "External objective", revision: 9 })}
+        locale="en"
+        onError={onError}
+        onSaved={onSaved}
+      />,
+    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/changed elsewhere/i);
+    expect(screen.getByRole("textbox", { name: "Goal" })).toHaveValue(
+      "Loaded objective local edit",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(api.getThreadGoalObjective.mock.calls.length).toBe(callsBefore);
+  });
+
+  it("keeps the saved acknowledgement and skips a reload when the parent refills the saved goal (review 2)", async () => {
+    const api = stubGoalApi();
+    const { onSaved } = renderHarnessPanel();
+    const box = await screen.findByRole("textbox", { name: "Goal" });
+    await userEvent.setup().type(box, " more");
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    const callsBefore = api.getThreadGoalObjective.mock.calls.length;
+
+    expect(await screen.findByText(/^saved$/i)).toBeInTheDocument();
+    expect(api.getThreadGoalObjective.mock.calls.length).toBe(callsBefore);
+    expect(screen.getByRole("textbox", { name: "Goal" })).toHaveValue(
+      "Saved objective",
+    );
   });
 
   it("ignores a late-resolving load that a newer load already replaced", async () => {
