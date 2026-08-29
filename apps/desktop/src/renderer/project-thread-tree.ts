@@ -118,6 +118,11 @@ export function handleProjectTreeKeyDown(
   const rows = readVisibleTreeRows(deps.container);
   const row = rows.find((candidate) => candidate.id === rowId);
   if (!row) return;
+  // Tree navigation applies only while the treeitem itself has focus.
+  // Embedded widgets (the rename input, buttons, menus) keep their native
+  // key behaviour: arrow keys move the caret instead of the roving focus,
+  // and Home/End stay text-editing keys instead of row jumps.
+  if (event.target !== rowElement(deps.container, rowId)) return;
 
   if (
     event.key === "ArrowUp" ||
@@ -186,9 +191,6 @@ export function handleProjectTreeKeyDown(
   if (event.key === "Enter" || event.key === " " || event.key === "Space") {
     // show-more rows are buttons: keep their native activation.
     if (row.kind === "show-more") return;
-    // Embedded widgets keep native activation; only the treeitem itself
-    // activates through the keyboard handler.
-    if (event.target !== rowElement(deps.container, rowId)) return;
     event.preventDefault();
     deps.activateRow(rowId);
   }

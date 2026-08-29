@@ -43,22 +43,33 @@ function SidebarTreeHarness({
   projects,
   temporaryThreads,
   activeThreadId,
+  initialProjectsOpen = true,
+  query = "",
+  renamingThreadId,
   onActivate,
   onCollapse,
   onExpand,
   onButtonActivate,
+  onRenameCommit,
 }: {
   projects: HarnessProject[];
   temporaryThreads: HarnessThread[];
   activeThreadId?: string;
+  initialProjectsOpen?: boolean;
+  query?: string;
+  renamingThreadId?: string;
   onActivate?: (rowId: string) => void;
   onCollapse?: (rowId: string) => void;
   onExpand?: (rowId: string) => void;
   onButtonActivate?: (name: string) => void;
+  onRenameCommit?: () => void;
 }) {
   const treeElement = useRef<HTMLDivElement>(null);
   const [activeRowId, setActiveRowId] = useState<string>();
-  const [projectsOpen, setProjectsOpen] = useState(true);
+  const [projectsOpen, setProjectsOpen] = useState(initialProjectsOpen);
+  // Mirrors App.tsx: one derived expansion state drives the DOM, ARIA and
+  // the keyboard branches (searching makes the Projects root expanded).
+  const projectsExpanded = projectsOpen || query.trim().length > 0;
   const [temporaryOpen, setTemporaryOpen] = useState(true);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(
     () => new Set(),
@@ -97,7 +108,7 @@ function SidebarTreeHarness({
       role="tree"
     >
       <section
-        aria-expanded={projectsOpen}
+        aria-expanded={projectsExpanded}
         aria-level={1}
         className="project-group project-collection"
         data-tree-kind="collection"
@@ -124,7 +135,11 @@ function SidebarTreeHarness({
             +
           </button>
         </div>
-        <div className="project-collection-rows" role="group">
+        <div
+          className="project-collection-rows"
+          hidden={!projectsExpanded}
+          role="group"
+        >
           {projects.map((project) => {
             const projectOpen =
               project.open ?? !collapsedProjects.has(project.id);
@@ -198,15 +213,38 @@ function SidebarTreeHarness({
                         role="treeitem"
                         tabIndex={tabIndexFor(`thread:${thread.id}`)}
                       >
-                        <button
-                          className="thread-select"
-                          onClick={() =>
-                            onButtonActivate?.(`open-${thread.id}`)
-                          }
-                          type="button"
-                        >
-                          <span className="thread-title">{thread.title}</span>
-                        </button>
+                        {thread.id === renamingThreadId ? (
+                          <form
+                            className="thread-rename-form"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              onRenameCommit?.();
+                            }}
+                          >
+                            <input
+                              aria-label="Task name"
+                              autoFocus
+                              className="thread-rename-input"
+                              onBlur={() => onRenameCommit?.()}
+                              onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  onRenameCommit?.();
+                                }
+                              }}
+                            />
+                          </form>
+                        ) : (
+                          <button
+                            className="thread-select"
+                            onClick={() =>
+                              onButtonActivate?.(`open-${thread.id}`)
+                            }
+                            type="button"
+                          >
+                            <span className="thread-title">{thread.title}</span>
+                          </button>
+                        )}
                         <button
                           aria-label="More actions"
                           className="thread-action"
@@ -487,6 +525,78 @@ describe("project/thread tree keyboard (rendered, production markup)", () => {
     row("show-more:alpha").focus();
     await user.keyboard("{Enter}");
     expect(onButtonActivate).toHaveBeenCalledWith("show-more");
+  });
+
+  it("keeps rename-input editing keys native: no tree hijack, no blur save", async () => {
+    const user = userEvent.setup();
+    const onActivate = vi.fn();
+    const onCollapse = vi.fn();
+    const onExpand = vi.fn();
+    const onRenameCommit = vi.fn();
+    render(
+      <SidebarTreeHarness
+        onActivate={onActivate}
+        onCollapse={onCollapse}
+        onExpand={onExpand}
+        onRenameCommit={onRenameCommit}
+        projects={PROJECTS}
+        renamingThreadId="a1"
+        temporaryThreads={TEMPORARY}
+      />,
+    );
+    const input = screen.getByLabelText("Task name");
+    input.focus();
+    await user.keyboard("{ArrowLeft}{ArrowRight}{Home}{End}");
+    await user.keyboard("{ArrowUp}{ArrowDown}");
+    expect(input).toHaveFocus();
+    expect(onActivate).not.toHaveBeenCalled();
+    expect(onCollapse).not.toHaveBeenCalled();
+    expect(onExpand).not.toHaveBeenCalled();
+    expect(onRenameCommit).not.toHaveBeenCalled();
+  });
+
+  it("does not hijack arrow keys from embedded buttons", async () => {
+    const user = userEvent.setup();
+    const onActivate = vi.fn();
+    render(
+      <SidebarTreeHarness
+        onActivate={onActivate}
+        projects={PROJECTS}
+        temporaryThreads={TEMPORARY}
+      />,
+    );
+    const action = screen.getAllByRole("button", {
+      name: "More actions",
+    })[0]!;
+    action.focus();
+    await user.keyboard("{ArrowDown}");
+    expect(action).toHaveFocus();
+    expect(onActivate).not.toHaveBeenCalled();
+  });
+
+  it("treats a collapsed Projects root as expanded while searching", async () => {
+    const user = userEvent.setup();
+    const onCollapse = vi.fn();
+    const onExpand = vi.fn();
+    render(
+      <SidebarTreeHarness
+        initialProjectsOpen={false}
+        onCollapse={onCollapse}
+        onExpand={onExpand}
+        projects={PROJECTS}
+        query="thread"
+        temporaryThreads={TEMPORARY}
+      />,
+    );
+    expect(row("collection:projects")).toHaveAttribute("aria-expanded", "true");
+    expect(rowIds()).toContain("project:alpha");
+    row("collection:projects").focus();
+    await user.keyboard("{ArrowRight}");
+    expect(row("project:alpha")).toHaveFocus();
+    expect(onExpand).not.toHaveBeenCalled();
+    row("collection:projects").focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(onCollapse).toHaveBeenCalledWith("collection:projects");
   });
 
   it("keeps auxiliary controls reachable by Tab from the active row", async () => {

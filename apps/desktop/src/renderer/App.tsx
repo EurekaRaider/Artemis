@@ -1702,6 +1702,10 @@ export function App() {
       clampTreeActiveRowId(projectTreeElement.current, current),
     );
   });
+  // The Projects root is effectively expanded whenever a search makes its
+  // children visible; one derived state must drive the DOM, ARIA and the
+  // keyboard branches so they can never diverge.
+  const projectsExpanded = projectsOpen || query.trim().length > 0;
   const toggleProjectRow = useCallback((rowId: string, collapsed: boolean) => {
     const projectId = rowId.replace(/^project:/, "");
     setCollapsedProjectIds((current) => {
@@ -5534,7 +5538,7 @@ export function App() {
           role="tree"
         >
           <section
-            aria-expanded={projectsOpen}
+            aria-expanded={projectsExpanded}
             aria-level={1}
             className="project-group project-collection"
             data-tree-kind="collection"
@@ -5574,7 +5578,7 @@ export function App() {
             </div>
             <div
               className="project-collection-rows"
-              hidden={!projectsOpen && !query.trim()}
+              hidden={!projectsExpanded}
               role="group"
             >
               {projects.map((project) => {
@@ -5624,7 +5628,7 @@ export function App() {
                         ? ` drop-${projectDropTarget.edge}`
                         : ""
                     }`}
-                    hidden={!projectsOpen && !query.trim()}
+                    hidden={!projectsExpanded}
                     key={project.id}
                     onDragOver={(event) => {
                       if (!draggedProjectId || draggedProjectId === project.id)
