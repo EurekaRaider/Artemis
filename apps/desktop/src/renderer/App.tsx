@@ -168,6 +168,7 @@ import {
   type WorkspaceTabAction,
   type WorkspaceTabKind,
   type WorkspaceTabsState,
+  handleWorkspaceTabBarKeyDown,
   workspaceTabFocusTargetAfterClose,
   workspaceTabIdForKey,
 } from "./workspace-tabs.js";
@@ -7485,30 +7486,19 @@ export function App() {
                   >
                     <div
                       className="workspace-tab-bar"
-                      onKeyDown={(event) => {
-                        const key = event.key;
-                        if (
-                          key !== "ArrowLeft" &&
-                          key !== "ArrowRight" &&
-                          key !== "Home" &&
-                          key !== "End"
-                        ) {
-                          return;
-                        }
-                        const nextId = workspaceTabIdForKey(
-                          workspaceTabs.tabs,
-                          workspaceTabs.activeTabId,
-                          key,
-                          localeDirection(locale) === "rtl",
-                        );
-                        if (!nextId) return;
-                        event.preventDefault();
-                        dispatchWorkspaceTab({
-                          type: "activate",
-                          tabId: nextId,
-                        });
-                        focusWorkspaceTab(nextId);
-                      }}
+                      onKeyDown={(event) =>
+                        handleWorkspaceTabBarKeyDown(event, {
+                          tabs: workspaceTabs.tabs,
+                          activeTabId: workspaceTabs.activeTabId,
+                          rtl: localeDirection(locale) === "rtl",
+                          activate: (tabId) =>
+                            dispatchWorkspaceTab({
+                              type: "activate",
+                              tabId,
+                            }),
+                          focusTab: focusWorkspaceTab,
+                        })
+                      }
                       role="tablist"
                     >
                       <div

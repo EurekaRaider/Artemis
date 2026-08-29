@@ -190,3 +190,53 @@ export function reduceWorkspaceTabs(
       undefined,
   };
 }
+
+export interface WorkspaceTabBarKeyboardDeps {
+  tabs: readonly WorkspaceTab[];
+  activeTabId: string | undefined;
+  rtl: boolean;
+  activate: (tabId: string) => void;
+  focusTab: (tabId: string) => void;
+}
+
+/**
+ * Keydown handler for the workspace tab bar. Navigation keys are honoured
+ * only when the event originates from a tab button itself (not from close,
+ * scroll, add, or menu controls that live inside the same bar), so focus is
+ * never stolen from those controls.
+ */
+export function handleWorkspaceTabBarKeyDown(
+  event: {
+    key: string;
+    target: EventTarget | null;
+    preventDefault(): void;
+  },
+  deps: WorkspaceTabBarKeyboardDeps,
+): void {
+  const target = event.target;
+  if (
+    !(target instanceof HTMLElement) ||
+    !target.classList.contains("workspace-tab-select")
+  ) {
+    return;
+  }
+  const key = event.key;
+  if (
+    key !== "ArrowLeft" &&
+    key !== "ArrowRight" &&
+    key !== "Home" &&
+    key !== "End"
+  ) {
+    return;
+  }
+  const nextId = workspaceTabIdForKey(
+    deps.tabs,
+    deps.activeTabId,
+    key,
+    deps.rtl,
+  );
+  if (!nextId) return;
+  event.preventDefault();
+  deps.activate(nextId);
+  deps.focusTab(nextId);
+}
