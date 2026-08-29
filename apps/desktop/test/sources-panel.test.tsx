@@ -78,6 +78,11 @@ describe("Sources workspace panel", () => {
         mimeType: "text/markdown",
         content: "plan",
       },
+      {
+        name: "image-2.png",
+        mimeType: "image/png",
+        data: "iVBORw==",
+      },
     ] satisfies PromptAttachment[];
     const sources = [
       {
@@ -118,11 +123,14 @@ describe("Sources workspace panel", () => {
         mcpUsages={mcpUsages}
         onOpenUrl={() => undefined}
         sources={sources}
+        threadId="thread-1"
       />,
     );
 
     expect(html).toContain('aria-label="来源"');
     expect(html).toContain("计划.md");
+    expect(html).toContain('aria-label="打开图片: image-2.png"');
+    expect(html).toContain("data:image/png;base64,iVBORw==");
     expect(html).toContain("已附加到下一条消息");
     expect(html).toContain("参考图.png");
     expect(html).toContain("CodeGraph");
@@ -133,5 +141,7 @@ describe("Sources workspace panel", () => {
     expect(html).toContain("example.org");
     expect(panelSource).toContain("onOpenUrl(search.searchUrl)");
     expect(panelSource).toContain("onOpenUrl(link.url)");
+    expect(panelSource).toContain("readTaskSourceImage");
+    expect(panelSource).toContain('role="dialog"');
   });
 });

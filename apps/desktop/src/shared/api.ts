@@ -12,6 +12,7 @@ import type {
   AutomationSchedule,
   AutomationTarget,
   PromptAttachment,
+  PromptImage,
   ProviderConnection,
   Project,
   ReviewAction,
@@ -772,6 +773,7 @@ export interface ArtemisApi {
   ): Promise<ProjectGitPushResult>;
   selectPromptAttachments(): Promise<PromptAttachment[] | undefined>;
   readPromptAttachments(files: File[]): Promise<PromptAttachment[]>;
+  readTaskSourceImage(threadId: string, sourceId: string): Promise<PromptImage>;
   createThread(input: CreateThreadInput): Promise<Thread | undefined>;
   setThreadModelSelection(
     threadId: string,
@@ -1060,6 +1062,7 @@ export const IPC = {
   projectGitChanged: "artemis:project-git-changed",
   promptAttachmentsSelect: "artemis:prompt-attachments-select",
   promptAttachmentsRead: "artemis:prompt-attachments-read",
+  taskSourceImageRead: "artemis:task-source-image-read",
   threadCreate: "artemis:thread-create",
   threadModelSet: "artemis:thread-model-set",
   threadRename: "artemis:thread-rename",

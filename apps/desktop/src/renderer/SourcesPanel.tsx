@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type AppLocale,
   type ChildAgentState,
@@ -25,6 +25,9 @@ const labels = {
       `${searches} ${searches === 1 ? "search" : "searches"} · ${results} ${results === 1 ? "web result" : "web results"}`,
     searchQuery: "Search query",
     openSource: "Open source",
+    openImage: "Open image",
+    closeImage: "Close image preview",
+    previewUnavailable: "This image preview is unavailable.",
   },
   "zh-CN": {
     title: "来源",
@@ -39,6 +42,9 @@ const labels = {
       `${searches} 次搜索 · ${results} 个网页结果`,
     searchQuery: "搜索内容",
     openSource: "打开来源",
+    openImage: "打开图片",
+    closeImage: "关闭图片预览",
+    previewUnavailable: "此图片预览不可用。",
   },
 } satisfies Record<"en" | "zh-CN", Record<string, unknown>>;
 
@@ -157,6 +163,7 @@ export function SourcesPanel({
   mcpUsages,
   onOpenUrl,
   sources,
+  threadId,
 }: {
   agents: ChildAgentState[];
   attachments: PromptAttachment[];
@@ -164,6 +171,7 @@ export function SourcesPanel({
   mcpUsages: McpToolUsageState[];
   onOpenUrl: (url: string) => void;
   sources: TaskSourceState[];
+  threadId: string;
 }) {
   const t = localizedCopy(locale, "app", labels[legacyLocale(locale)]);
   const mcpGroups = useMemo(() => groupMcpUsage(mcpUsages), [mcpUsages]);
@@ -172,10 +180,75 @@ export function SourcesPanel({
     () => new Map(agents.map((agent) => [agent.agentId, agent.label])),
     [agents],
   );
-  const attachmentSources = sources.filter(
-    (source): source is AttachmentSource =>
-      source.kind === "file" || source.kind === "image",
+  const attachmentSources = useMemo(
+    () =>
+      sources.filter(
+        (source): source is AttachmentSource =>
+          source.kind === "file" || source.kind === "image",
+      ),
+    [sources],
   );
+  const [sourceImages, setSourceImages] = useState<
+    Record<string, Extract<PromptAttachment, { data: string }>>
+  >({});
+  const [preview, setPreview] = useState<
+    Extract<PromptAttachment, { data: string }> | undefined
+  >();
+  const [previewError, setPreviewError] = useState<string>();
+  const closePreviewButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const imageSources = attachmentSources.filter(
+      (source) => source.kind === "image",
+    );
+    void Promise.all(
+      imageSources.map(async (source) => {
+        try {
+          return [
+            source.sourceId,
+            await window.artemis.readTaskSourceImage(threadId, source.sourceId),
+          ] as const;
+        } catch {
+          return undefined;
+        }
+      }),
+    ).then((loaded) => {
+      if (cancelled) return;
+      setSourceImages(
+        Object.fromEntries(loaded.filter((entry) => entry !== undefined)),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [attachmentSources, threadId]);
+
+  useEffect(() => {
+    if (!preview) return;
+    closePreviewButton.current?.focus({ preventScroll: true });
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPreview(undefined);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [preview]);
+
+  const openPersistedImage = async (source: AttachmentSource) => {
+    setPreviewError(undefined);
+    try {
+      const image =
+        sourceImages[source.sourceId] ??
+        (await window.artemis.readTaskSourceImage(threadId, source.sourceId));
+      setSourceImages((current) => ({
+        ...current,
+        [source.sourceId]: image,
+      }));
+      setPreview(image);
+    } catch {
+      setPreviewError(t.previewUnavailable);
+    }
+  };
   const empty =
     attachments.length === 0 &&
     attachmentSources.length === 0 &&
@@ -189,8 +262,19 @@ export function SourcesPanel({
 
         {attachments.map((attachment, index) => {
           const image = !("type" in attachment);
+          const Tag = image ? "button" : "article";
           return (
-            <article
+            <Tag
+              {...(image
+                ? {
+                    "aria-label": `${t.openImage}: ${attachment.name}`,
+                    onClick: () => {
+                      setPreviewError(undefined);
+                      setPreview(attachment);
+                    },
+                    type: "button" as const,
+                  }
+                : {})}
               className="sources-panel-entry attachment"
               key={`draft:${index}:${attachment.name}`}
             >
@@ -209,25 +293,49 @@ export function SourcesPanel({
                 <p>{attachment.mimeType}</p>
                 <p>{t.draft}</p>
               </div>
-            </article>
+            </Tag>
           );
         })}
 
-        {attachmentSources.map((source) => (
-          <article
-            className="sources-panel-entry attachment"
-            key={source.sourceId}
-          >
-            <span className="sources-panel-icon">
-              <AttachmentIcon image={source.kind === "image"} />
-            </span>
-            <div className="sources-panel-entry-body">
-              <h2>{source.name}</h2>
-              <p>{source.mimeType}</p>
-              <p>{t.sent}</p>
-            </div>
-          </article>
-        ))}
+        {attachmentSources.map((source) => {
+          const image = sourceImages[source.sourceId];
+          const Tag = source.kind === "image" ? "button" : "article";
+          return (
+            <Tag
+              {...(source.kind === "image"
+                ? {
+                    "aria-label": `${t.openImage}: ${source.name}`,
+                    onClick: () => void openPersistedImage(source),
+                    type: "button" as const,
+                  }
+                : {})}
+              className="sources-panel-entry attachment"
+              key={source.sourceId}
+            >
+              {image ? (
+                <img
+                  alt=""
+                  src={`data:${image.mimeType};base64,${image.data}`}
+                />
+              ) : (
+                <span className="sources-panel-icon">
+                  <AttachmentIcon image={source.kind === "image"} />
+                </span>
+              )}
+              <div className="sources-panel-entry-body">
+                <h2>{source.name}</h2>
+                <p>{source.mimeType}</p>
+                <p>{t.sent}</p>
+              </div>
+            </Tag>
+          );
+        })}
+
+        {previewError && (
+          <p className="sources-panel-preview-error" role="alert">
+            {previewError}
+          </p>
+        )}
 
         {mcpGroups.map((group) => (
           <article className="sources-panel-entry" key={`mcp:${group.id}`}>
@@ -293,6 +401,37 @@ export function SourcesPanel({
           </article>
         ))}
       </div>
+      {preview && (
+        <div
+          className="source-image-preview-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setPreview(undefined);
+          }}
+        >
+          <section
+            aria-label={`${t.openImage}: ${preview.name}`}
+            aria-modal="true"
+            className="source-image-preview"
+            role="dialog"
+          >
+            <header>
+              <h2>{preview.name}</h2>
+              <button
+                aria-label={t.closeImage}
+                onClick={() => setPreview(undefined)}
+                ref={closePreviewButton}
+                type="button"
+              >
+                ×
+              </button>
+            </header>
+            <img
+              alt={preview.name}
+              src={`data:${preview.mimeType};base64,${preview.data}`}
+            />
+          </section>
+        </div>
+      )}
     </section>
   );
 }

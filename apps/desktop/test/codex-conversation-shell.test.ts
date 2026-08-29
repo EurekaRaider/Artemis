@@ -416,7 +416,7 @@ describe("Codex conversation shell contract", () => {
     expect(threadMenu).toContain("{t.deleteTask}");
   });
 
-  it("copies a temporary workspace and rolls back both fork artifacts on failure", () => {
+  it("copies a temporary workspace and rolls back fork artifacts on failure", () => {
     const forkHandler = sourceBetween(
       mainSource,
       "IPC.threadFork",
@@ -426,7 +426,7 @@ describe("Codex conversation shell contract", () => {
       "await copyTemporaryConversationWorkspace(",
     );
     const persistFork = forkHandler.indexOf(
-      "return store.createForkedThread(forkedThread, source.id)",
+      "return await persistFork(() =>",
       copyWorkspace,
     );
     const removeWorkspace = forkHandler.indexOf(
@@ -439,6 +439,12 @@ describe("Codex conversation shell contract", () => {
     );
     expect(copyWorkspace).toBeGreaterThanOrEqual(0);
     expect(persistFork).toBeGreaterThan(copyWorkspace);
+    expect(forkHandler.slice(0, copyWorkspace)).toContain(
+      "await taskSourceImages().copyThread(source.id, forkedThread.id)",
+    );
+    expect(forkHandler.slice(0, copyWorkspace)).toContain(
+      "await taskSourceImages().deleteThread(forkedThread.id)",
+    );
     expect(removeWorkspace).toBeGreaterThan(persistFork);
     expect(removeTranscript).toBeGreaterThan(removeWorkspace);
     expect(forkHandler.slice(removeTranscript)).toContain(

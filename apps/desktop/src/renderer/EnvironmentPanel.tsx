@@ -1439,7 +1439,13 @@ export function EnvironmentPanel({
       className="environment-control"
       data-dock-open={dockOpen}
       ref={control}
-      style={dockOffset > 0 ? { marginInlineEnd: dockOffset } : undefined}
+      style={
+        dockOffset > 0
+          ? ({
+              "--environment-panel-dock-offset": `${dockOffset}px`,
+            } as CSSProperties)
+          : undefined
+      }
     >
       <button
         aria-expanded={open}

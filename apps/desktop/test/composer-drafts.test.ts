@@ -74,6 +74,37 @@ describe("conversation composer drafts", () => {
     });
   });
 
+  it("gives generic clipboard images stable unique names across paste batches", () => {
+    const first = appendPromptAttachments(
+      [],
+      [
+        {
+          name: "image.png",
+          mimeType: "image/png",
+          data: "iVBORw==",
+        },
+        {
+          name: "image.png",
+          mimeType: "image/png",
+          data: "iVBORw==",
+        },
+      ],
+    );
+    const second = appendPromptAttachments(first.attachments, [
+      {
+        name: "pasted-image.png",
+        mimeType: "image/png",
+        data: "iVBORw==",
+      },
+    ]);
+
+    expect(second.attachments.map((attachment) => attachment.name)).toEqual([
+      "image-1.png",
+      "image-2.png",
+      "image-3.png",
+    ]);
+  });
+
   it("keeps unsent prompts isolated and restores them per conversation", () => {
     const firstKey = conversationDraftKey("project-1", "thread-1");
     const secondKey = conversationDraftKey("project-1", "thread-2");
