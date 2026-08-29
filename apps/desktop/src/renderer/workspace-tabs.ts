@@ -244,3 +244,12 @@ export function handleWorkspaceTabBarKeyDown(
   deps.activate(nextId);
   deps.focusTab(nextId);
 }
+
+/**
+ * Stable DOM id for a workspace tab. Tab ids embed `:`, paths, and URLs, so
+ * percent-encode and flatten them into a character class that is safe and
+ * unique as a DOM id (WAI-ARIA Tabs: tab.id <-> pane aria-labelledby).
+ */
+export function workspaceTabDomId(tabId: string): string {
+  return `workspace-tab-${encodeURIComponent(tabId).replace(/%/g, "-")}`;
+}

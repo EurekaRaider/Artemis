@@ -169,6 +169,7 @@ import {
   type WorkspaceTabKind,
   type WorkspaceTabsState,
   handleWorkspaceTabBarKeyDown,
+  workspaceTabDomId,
   workspaceTabFocusTargetAfterClose,
   workspaceTabIdForKey,
 } from "./workspace-tabs.js";
@@ -7542,11 +7543,12 @@ export function App() {
                                 }
                               >
                                 <button
-                                  aria-controls="workspace-tool-dock"
+                                  aria-controls={`${workspaceTabDomId(tab.id)}-pane`}
                                   aria-selected={
                                     workspaceTabs.activeTabId === tab.id
                                   }
                                   className="workspace-tab-select"
+                                  id={workspaceTabDomId(tab.id)}
                                   ref={(element) => {
                                     if (element) {
                                       workspaceTabButtons.current.set(
@@ -7702,7 +7704,9 @@ export function App() {
                               ? "workspace-tab-pane active"
                               : "workspace-tab-pane"
                           }
+                          aria-labelledby={workspaceTabDomId(tab.id)}
                           hidden={workspaceTabs.activeTabId !== tab.id}
+                          id={`${workspaceTabDomId(tab.id)}-pane`}
                           key={tab.id}
                           role="tabpanel"
                         >

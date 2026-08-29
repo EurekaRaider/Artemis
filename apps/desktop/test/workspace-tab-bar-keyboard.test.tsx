@@ -5,7 +5,10 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import "./renderer-test-utils.js";
-import { handleWorkspaceTabBarKeyDown } from "../src/renderer/workspace-tabs.js";
+import {
+  handleWorkspaceTabBarKeyDown,
+  workspaceTabDomId,
+} from "../src/renderer/workspace-tabs.js";
 
 function TabBarHarness() {
   const [activeTabId, setActiveTabId] = useState("terminal");
@@ -38,8 +41,10 @@ function TabBarHarness() {
       {tabs.map((tab) => (
         <span data-tab-id={tab.id} key={tab.id}>
           <button
-            aria-selected={tab.id === "terminal"}
+            aria-controls={`${workspaceTabDomId(tab.id)}-pane`}
+            aria-selected={tab.id === activeTabId}
             className="workspace-tab-select"
+            id={workspaceTabDomId(tab.id)}
             role="tab"
             type="button"
           >
@@ -53,6 +58,16 @@ function TabBarHarness() {
       <button aria-label="Add tab" type="button">
         +
       </button>
+      {tabs.map((tab) => (
+        <div
+          aria-labelledby={workspaceTabDomId(tab.id)}
+          id={`${workspaceTabDomId(tab.id)}-pane`}
+          key={tab.id}
+          role="tabpanel"
+        >
+          {tab.title} pane
+        </div>
+      ))}
     </div>
   );
 }
@@ -98,5 +113,35 @@ describe("workspace tab bar keyboard handler (review follow-up)", () => {
         "true",
       );
     }
+  });
+});
+
+describe("workspace tab/pane ARIA association (review follow-up)", () => {
+  it("pairs each tab with its pane via unique two-way references", () => {
+    render(<TabBarHarness />);
+    const tabs = screen.getAllByRole("tab");
+    const panes = screen.getAllByRole("tabpanel");
+    expect(tabs.length).toBe(panes.length);
+
+    const tabIds = new Set<string>();
+    const paneIds = new Set<string>();
+    for (const tab of tabs) {
+      const controlsId = tab.getAttribute("aria-controls");
+      const tabId = tab.id;
+      expect(controlsId).toBeTruthy();
+      expect(tabId).toBeTruthy();
+      expect(tabIds.has(tabId)).toBe(false);
+      tabIds.add(tabId);
+      const pane = document.getElementById(controlsId!);
+      expect(pane).not.toBeNull();
+      expect(pane!.getAttribute("role")).toBe("tabpanel");
+      expect(pane!.getAttribute("aria-labelledby")).toBe(tabId);
+      paneIds.add(controlsId!);
+    }
+    expect(paneIds.size).toBe(panes.length);
+    // Tab ids survive characters that are illegal in raw DOM ids.
+    expect(workspaceTabDomId("agent:team foo/bar")).toBe(
+      "workspace-tab-agent-3Ateam-20foo-2Fbar",
+    );
   });
 });
