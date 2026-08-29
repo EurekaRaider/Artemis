@@ -37,3 +37,7 @@
 - P2: 0
 
 Dynamic repository branch names and attached-source names are data, so they are not expected to be identical between products; layout, state, interaction, and icon geometry are the comparison targets.
+
+## PR 自动审核链路测试
+
+本节用于验证 pr-auto-review workflow 的端到端链路，验证完成后可整体 revert。
