@@ -168,6 +168,7 @@ describe("SourcesPanel interactions (jsdom)", () => {
 
   const mcpUsage = {
     type: "mcp.tool.used",
+    toolCallId: "call-1",
     serverId: "codegraph",
     serverName: "CodeGraph",
     toolName: "codegraph_search",
@@ -204,6 +205,7 @@ describe("SourcesPanel interactions (jsdom)", () => {
   });
 
   it("expands MCP tool details with aria-expanded and keyboard, then collapses", async () => {
+    const user = userEvent.setup();
     renderInteractive();
     const toggle = screen.getByRole("button", {
       name: /show tool call details/i,
@@ -211,14 +213,26 @@ describe("SourcesPanel interactions (jsdom)", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
 
     toggle.focus();
-    await userEvent.setup().keyboard("{Enter}");
+    await user.keyboard("{Enter}");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    const detail = screen.getByText("codegraph_search");
-    expect(detail).toBeInTheDocument();
+    expect(screen.getAllByText("codegraph_search").length).toBe(2);
 
-    await userEvent.setup().click(toggle);
+    await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText("codegraph_search")).not.toBeInTheDocument();
+    expect(screen.getAllByText("codegraph_search").length).toBe(1);
+  });
+
+  it("keeps tool names visible by default and opens the search query url once", async () => {
+    const user = userEvent.setup();
+    const { onOpenUrl } = renderInteractive();
+    expect(screen.getByText("codegraph_search")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Search query: Artemis release" }),
+    );
+    expect(onOpenUrl).toHaveBeenCalledTimes(1);
+    expect(onOpenUrl).toHaveBeenCalledWith(
+      "https://example.org/search?q=Artemis",
+    );
   });
 
   it("keeps full names accessible via title attributes for long values", async () => {
@@ -226,10 +240,11 @@ describe("SourcesPanel interactions (jsdom)", () => {
     renderInteractive({
       mcpUsages: [{ ...mcpUsage, toolName: longTool }],
     });
-    await userEvent
-      .setup()
-      .click(screen.getByRole("button", { name: /show tool call details/i }));
-    const detail = screen.getByTitle(longTool);
-    expect(detail).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: /show tool call details/i }),
+    );
+    const detail = screen.getAllByTitle(longTool);
+    expect(detail.length).toBeGreaterThanOrEqual(2);
   });
 });

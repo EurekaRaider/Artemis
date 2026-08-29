@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   type AppLocale,
   type ChildAgentState,
@@ -248,7 +248,7 @@ function McpUsageGroupView({
   usedBy: string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const detailsId = `mcp-details-${group.id}`;
+  const detailsId = useId();
   return (
     <article className="sources-panel-entry">
       <span className="sources-panel-icon">
@@ -257,6 +257,7 @@ function McpUsageGroupView({
       <div className="sources-panel-entry-body">
         <h2 title={group.name}>{group.name}</h2>
         <p>{copy.mcpSummary(group.calls, group.tools.length)}</p>
+        <p title={group.tools.join(", ")}>{group.tools.join(", ")}</p>
         <p>{usedBy}</p>
         <button
           aria-controls={detailsId}
@@ -476,9 +477,11 @@ export function SourcesPanel({
             copy={t}
             group={group}
             key={`mcp:${group.id}`}
-            toolStats={[...(mcpToolStats.get(group.id)?.entries() ?? [])].map(
-              ([tool, calls]) => ({ calls, tool }),
-            )}
+            toolStats={[...(mcpToolStats.get(group.id)?.entries() ?? [])]
+              .map(([tool, calls]) => ({ calls, tool }))
+              .sort(
+                (a, b) => b.calls - a.calls || a.tool.localeCompare(b.tool),
+              )}
             usedBy={`${t.usedBy} · ${group.agents
               .map(
                 (agentId) =>
