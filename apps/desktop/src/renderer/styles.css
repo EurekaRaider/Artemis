@@ -6733,6 +6733,13 @@ button.environment-row:disabled {
   font-size: 11px;
 }
 
+.goal-editor-saved {
+  color: var(--status-success-text, inherit);
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 8px;
+}
+
 .goal-editor-footer > div {
   display: flex;
   gap: 8px;

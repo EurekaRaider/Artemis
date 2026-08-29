@@ -108,17 +108,29 @@ export function GoalEditorPanel({
     void load();
   }, [goal.goalId]);
 
-  // Whether the editor currently holds unsaved edits. Loading and saving are
-  // transient phases and never count as dirty, so a status phase change alone
-  // cannot retrigger the external-change effect below (which would loop).
-  const dirtySnapshot =
-    ((status.kind === "ready" || status.kind === "save-error") &&
-      status.draft !== status.source) ||
-    (status.kind === "stale" &&
-      status.source !== undefined &&
-      status.draft !== status.source);
+  // Whether the editor currently holds unsaved edits (including while stale,
+  // so an external change parks the editor on the stale branch instead of
+  // silently overwriting the draft). An empty or whitespace-only draft still
+  // counts: Revert must stay available to restore the source text.
+  const hasUnsavedDraft = (current: GoalEditorStatus): boolean => {
+    if (
+      current.kind === "ready" ||
+      current.kind === "saving" ||
+      current.kind === "save-error"
+    ) {
+      return current.draft !== current.source;
+    }
+    if (current.kind === "stale") {
+      return current.source !== undefined && current.draft !== current.source;
+    }
+    return false;
+  };
+  const dirtySnapshot = hasUnsavedDraft(status);
 
   useEffect(() => {
+    // Park external-change handling while a save is in flight; the effect
+    // re-evaluates once the save settles (ready) and reloads only then.
+    if (status.kind === "saving") return;
     if (goal.objective === persistedObjective) {
       setRevision(goal.revision);
       return;
@@ -182,10 +194,13 @@ export function GoalEditorPanel({
         setStatus({ kind: "stale", source, draft });
         return;
       }
+      // The persisted objective is stored as a managed-file reference wrapper;
+      // keep showing the trimmed user text in the editor while the persisted
+      // snapshot tracks the wrapper so the parent refill stays in sync.
       setStatus({
         kind: "ready",
-        source: updatedGoal.objective,
-        draft: updatedGoal.objective,
+        source: objective,
+        draft: objective,
         saved: true,
       });
       setRevision(updatedGoal.revision);
@@ -212,13 +227,7 @@ export function GoalEditorPanel({
     status,
   ]);
 
-  const dirty =
-    ((status.kind === "ready" || status.kind === "save-error") &&
-      status.draft.trim() !== "" &&
-      status.draft !== status.source) ||
-    (status.kind === "stale" &&
-      status.source !== undefined &&
-      status.draft !== status.source);
+  const dirty = hasUnsavedDraft(status);
   const busy = status.kind === "loading" || status.kind === "saving";
 
   const handleRetryLoad = () => {
@@ -244,7 +253,7 @@ export function GoalEditorPanel({
     status.kind === "ready" ||
     status.kind === "saving" ||
     status.kind === "save-error" ||
-    status.kind === "stale"
+    (status.kind === "stale" && status.source !== undefined)
       ? status.draft
       : "";
 
@@ -256,7 +265,7 @@ export function GoalEditorPanel({
       {(status.kind === "ready" ||
         status.kind === "saving" ||
         status.kind === "save-error" ||
-        status.kind === "stale") && (
+        (status.kind === "stale" && status.source !== undefined)) && (
         <textarea
           aria-label={copy.goal}
           autoFocus={true}
@@ -340,7 +349,9 @@ export function GoalEditorPanel({
           </button>
           <button
             className="primary-button"
-            disabled={!dirty || busy || status.kind === "stale"}
+            disabled={
+              !dirty || !draftValue.trim() || busy || status.kind === "stale"
+            }
             onClick={() => void save()}
             type="button"
           >

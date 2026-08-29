@@ -61,12 +61,10 @@ function GoalEditorHarness({
   initialGoal,
   onError,
   onSaved,
-  onGoalRefill,
 }: {
   initialGoal?: ThreadGoal;
   onError: ReturnType<typeof vi.fn>;
   onSaved: ReturnType<typeof vi.fn>;
-  onGoalRefill?: (thread: Thread) => void;
 }) {
   const [current, setCurrent] = useState(initialGoal ?? goal());
   return (
@@ -77,7 +75,6 @@ function GoalEditorHarness({
       onError={onError}
       onSaved={(thread) => {
         onSaved(thread);
-        onGoalRefill?.(thread);
         const next = thread.goal;
         if (next) setCurrent(next);
       }}
@@ -222,7 +219,7 @@ describe("GoalEditorPanel interactions", () => {
       .click(screen.getByRole("button", { name: /retry saving/i }));
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(box).toHaveValue("Saved objective");
+    expect(box).toHaveValue("Loaded objective more");
   });
 
   it("flags stale on a revision conflict and offers an in-panel reload", async () => {
@@ -406,6 +403,81 @@ describe("GoalEditorPanel interactions", () => {
     expect(api.getThreadGoalObjective.mock.calls.length).toBe(callsBefore);
   });
 
+  it("keeps revert available after the draft is cleared (bot finding 2)", async () => {
+    stubGoalApi();
+    renderHarnessPanel();
+    const box = await screen.findByRole("textbox", { name: "Goal" });
+    await userEvent.setup().clear(box);
+    const save = screen.getByRole("button", { name: /^save$/i });
+    expect(save).toBeDisabled();
+    const revert = screen.getByRole("button", { name: /^revert$/i });
+    expect(revert).toBeEnabled();
+    await userEvent.setup().click(revert);
+    expect(box).toHaveValue("Loaded objective");
+  });
+
+  it("shows the trimmed user text, not the persisted reference wrapper, after saving (bot finding 1)", async () => {
+    stubGoalApi({
+      updateThreadGoalObjective: vi.fn(async () => ({
+        goal: goal({
+          objective:
+            "Follow the objective in the Artemis-managed file at /tmp/goal.md\n\nObjective preview:\nSaved objective",
+          revision: 4,
+        }) as unknown as Thread,
+      })),
+    });
+    renderHarnessPanel();
+    const box = await screen.findByRole("textbox", { name: "Goal" });
+    await userEvent.setup().type(box, " more");
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/^saved$/i)).toBeInTheDocument(),
+    );
+    expect(box).toHaveValue("Loaded objective more");
+  });
+
+  it("does not flash a loading state when the goal changes externally while saving (bot finding 3)", async () => {
+    let releaseSave!: (value: Thread) => void;
+    const gate = new Promise<Thread>((resolvePromise) => {
+      releaseSave = resolvePromise;
+    });
+    stubGoalApi({
+      updateThreadGoalObjective: vi.fn(() => gate),
+    });
+    const { rerender } = renderPanel();
+    const box = await screen.findByRole("textbox", { name: "Goal" });
+    await userEvent.setup().type(box, " more");
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /saving/i })).toBeDisabled(),
+    );
+
+    rerender(
+      <GoalEditorPanel
+        clockMs={Date.parse("2026-08-28T00:01:00.000Z")}
+        goal={goal({ objective: "External objective", revision: 9 })}
+        locale="en"
+        onError={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByRole("textbox", { name: "Goal" })).toBeInTheDocument();
+    expect(screen.queryByText(/loading goal/i)).not.toBeInTheDocument();
+    releaseSave({
+      goal: goal({ objective: "Saved objective", revision: 4 }),
+    } as unknown as Thread);
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Goal" })).toHaveValue(
+        "Loaded objective more",
+      ),
+    );
+  });
+
   it("keeps the saved acknowledgement and skips a reload when the parent refills the saved goal (review 2)", async () => {
     const api = stubGoalApi();
     const { onSaved } = renderHarnessPanel();
@@ -420,7 +492,7 @@ describe("GoalEditorPanel interactions", () => {
     expect(await screen.findByText(/^saved$/i)).toBeInTheDocument();
     expect(api.getThreadGoalObjective.mock.calls.length).toBe(callsBefore);
     expect(screen.getByRole("textbox", { name: "Goal" })).toHaveValue(
-      "Saved objective",
+      "Loaded objective more",
     );
   });
 
@@ -475,13 +547,21 @@ describe("GoalEditorPanel interactions", () => {
 describe("stubWindowArtemis isolation (PR #103 review contract)", () => {
   it("removes the artemis own property when it did not exist before", () => {
     const target = window as unknown as Record<string, unknown>;
-    const hadOwn = Object.prototype.hasOwnProperty.call(target, "artemis");
-    if (hadOwn) delete target.artemis;
-    const restore = stubWindowArtemis({ getThreadGoalObjective: vi.fn() });
-    expect(Object.prototype.hasOwnProperty.call(target, "artemis")).toBe(true);
-    restore();
-    expect("artemis" in window).toBe(hadOwn);
-    expect(Object.prototype.hasOwnProperty.call(target, "artemis")).toBe(false);
+    const original = Object.getOwnPropertyDescriptor(target, "artemis");
+    delete target.artemis;
+    try {
+      const restore = stubWindowArtemis({ getThreadGoalObjective: vi.fn() });
+      expect(Object.prototype.hasOwnProperty.call(target, "artemis")).toBe(
+        true,
+      );
+      restore();
+      expect(Object.prototype.hasOwnProperty.call(target, "artemis")).toBe(
+        false,
+      );
+    } finally {
+      if (original) Object.defineProperty(target, "artemis", original);
+      else delete target.artemis;
+    }
   });
 
   it("nests and unwinds multiple installs without leaking", () => {
