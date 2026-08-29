@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import "./renderer-test-utils.js";
 import {
+  clampTreeActiveRowId,
   handleProjectTreeKeyDown,
   readVisibleTreeRows,
   treeRowIdForKey,
@@ -165,5 +166,27 @@ describe("project/thread tree keyboard (rendered)", () => {
     screen.getByRole("treeitem", { name: "Thread B1" }).focus();
     await user.keyboard("{ArrowLeft}");
     expect(beta).toHaveFocus();
+  });
+});
+
+describe("visibility filtering and roving clamp (review follow-up)", () => {
+  it("excludes rows inside hidden containers", () => {
+    render(<TreeHarness />);
+    const tree = screen.getByRole("tree");
+    const firstProject = screen.getByRole("treeitem", { name: "Alpha" });
+    firstProject.closest("div")!.setAttribute("hidden", "");
+    expect(readVisibleTreeRows(tree)).toEqual([
+      { id: "project:b", level: 2, kind: "project" },
+      { id: "thread:b1", level: 3, kind: "thread" },
+    ]);
+    firstProject.closest("div")!.removeAttribute("hidden");
+  });
+
+  it("clamps a stale active row id to the first visible row", () => {
+    render(<TreeHarness />);
+    const tree = screen.getByRole("tree");
+    expect(clampTreeActiveRowId(tree, "thread:gone")).toBe("project:a");
+    expect(clampTreeActiveRowId(tree, "thread:a1")).toBe("thread:a1");
+    expect(clampTreeActiveRowId(tree, undefined)).toBe("project:a");
   });
 });

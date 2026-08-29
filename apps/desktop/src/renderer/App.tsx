@@ -80,7 +80,10 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
 import { GoalBar } from "./GoalBar.js";
 import { GoalEditorPanel } from "./GoalEditorPanel.js";
 import { EnvironmentPanel } from "./EnvironmentPanel.js";
-import { handleProjectTreeKeyDown } from "./project-thread-tree.js";
+import {
+  clampTreeActiveRowId,
+  handleProjectTreeKeyDown,
+} from "./project-thread-tree.js";
 import { SourcesIcon, SourcesPanel } from "./SourcesPanel.js";
 import { TaskPlanProgress } from "./TaskPlanProgress.js";
 import {
@@ -1694,6 +1697,11 @@ export function App() {
       ?.querySelector<HTMLElement>(`[data-tree-row-id="${CSS.escape(rowId)}"]`)
       ?.focus();
   }, []);
+  useEffect(() => {
+    setTreeActiveRowId((current) =>
+      clampTreeActiveRowId(projectTreeElement.current, current),
+    );
+  });
   const toggleProjectRow = useCallback((rowId: string, collapsed: boolean) => {
     const projectId = rowId.replace(/^project:/, "");
     setCollapsedProjectIds((current) => {
@@ -5515,7 +5523,6 @@ export function App() {
               : projectThreads.slice(0, PROJECT_THREAD_PREVIEW_LIMIT);
             return (
               <section
-                aria-level={2}
                 data-tree-kind="project"
                 className={`project-group nested-project${
                   draggedProjectId === project.id ? " dragging" : ""
@@ -5578,9 +5585,11 @@ export function App() {
                   <button
                     aria-controls={`project-thread-list-${project.id}`}
                     aria-expanded={projectOpen}
+                    aria-level={2}
                     data-tree-kind="project"
                     data-tree-level="2"
                     data-tree-row-id={`project:${project.id}`}
+                    onFocus={() => setTreeActiveRowId(`project:${project.id}`)}
                     role="treeitem"
                     tabIndex={
                       treeActiveRowId === `project:${project.id}` ||
@@ -5785,9 +5794,13 @@ export function App() {
                             <button
                               aria-selected={thread.id === activeThreadId}
                               className="thread-select"
+                              aria-level={3}
                               data-tree-kind="thread"
                               data-tree-level="3"
                               data-tree-row-id={`thread:${thread.id}`}
+                              onFocus={() =>
+                                setTreeActiveRowId(`thread:${thread.id}`)
+                              }
                               role="treeitem"
                               tabIndex={
                                 treeActiveRowId === `thread:${thread.id}`

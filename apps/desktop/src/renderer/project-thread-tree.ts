@@ -11,17 +11,34 @@ export type TreeRowVerticalKey = "ArrowUp" | "ArrowDown" | "Home" | "End";
  * single source of truth for visibility (open projects, filtered threads),
  * so roving can never drift from what is actually rendered.
  */
+/**
+ * Clamp the roving state to the rows that actually exist in the DOM: when
+ * the remembered row disappeared (collapse, archive, search filter), fall
+ * back to the first visible row so the tree always keeps exactly one Tab
+ * stop (WAI-ARIA roving tabindex invariant).
+ */
+export function clampTreeActiveRowId(
+  container: HTMLElement | null,
+  activeRowId: string | undefined,
+): string | undefined {
+  const rows = readVisibleTreeRows(container);
+  if (rows.length === 0) return undefined;
+  return rows.some((row) => row.id === activeRowId) ? activeRowId : rows[0]!.id;
+}
+
 export function readVisibleTreeRows(
   container: HTMLElement | null,
 ): VisibleTreeRow[] {
   if (!container) return [];
   return Array.from(
     container.querySelectorAll<HTMLElement>("[data-tree-row-id]"),
-  ).map((element) => ({
-    id: element.dataset.treeRowId!,
-    level: Number(element.dataset.treeLevel) === 3 ? 3 : 2,
-    kind: element.dataset.treeKind === "thread" ? "thread" : "project",
-  }));
+  )
+    .filter((element) => !element.closest("[hidden]"))
+    .map((element) => ({
+      id: element.dataset.treeRowId!,
+      level: Number(element.dataset.treeLevel) === 3 ? 3 : 2,
+      kind: element.dataset.treeKind === "thread" ? "thread" : "project",
+    }));
 }
 
 /**
