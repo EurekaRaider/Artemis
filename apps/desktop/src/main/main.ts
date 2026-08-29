@@ -10385,6 +10385,9 @@ function createMainWindow(): BrowserWindow {
                 );
                 const timelineScrollBounds = timelineScroll
                   ?.getBoundingClientRect();
+                const timelineContent = document.querySelector(".timeline");
+                const timelineContentBounds = timelineContent
+                  ?.getBoundingClientRect();
                 const environmentTrigger = document.querySelector(
                   ".environment-trigger",
                 );
@@ -10463,6 +10466,13 @@ function createMainWindow(): BrowserWindow {
                         left: timelineScrollBounds.left,
                         right: timelineScrollBounds.right,
                         width: timelineScrollBounds.width,
+                      }
+                    : null,
+                  timelineContent: timelineContentBounds
+                    ? {
+                        left: timelineContentBounds.left,
+                        right: timelineContentBounds.right,
+                        width: timelineContentBounds.width,
                       }
                     : null,
                   workspaceDockResizer: workspaceDockResizerBounds

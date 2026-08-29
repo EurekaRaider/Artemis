@@ -77,10 +77,18 @@ try {
     wide.timelineScroll,
     "Wide window timeline scroll bounds are missing.",
   );
+  assert(
+    wide.timelineContent,
+    "Wide window timeline content bounds are missing.",
+  );
   assert(wide.workspaceContent, "Wide window workspace bounds are missing.");
   assert(
     Math.abs(wide.timelineScroll.right - wide.workspaceContent.right) <= 1,
     "Environment popover moved the timeline scrollbar away from the workspace edge.",
+  );
+  assert(
+    wide.timelineContent.right <= wide.environmentPanel.left,
+    "Environment popover overlaps the timeline content safe area.",
   );
 
   const dock = await runCase("dock", 1_420, "environment-dock");
@@ -127,6 +135,8 @@ try {
           windowInnerWidth: wide.windowInnerWidth,
           workspaceWidth: wide.workspaceWidth,
           environmentPanelOpen: wide.environmentPanelOpen,
+          environmentPanelLeft: wide.environmentPanel.left,
+          timelineContentRight: wide.timelineContent.right,
           timelineRight: wide.timelineScroll.right,
           workspaceRight: wide.workspaceContent.right,
         },

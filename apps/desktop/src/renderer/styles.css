@@ -979,6 +979,9 @@ summary:focus-visible {
 .workspace {
   --environment-panel-inline-size: 304px;
   --environment-panel-layout-gap: 24px;
+  --environment-panel-content-safe-inline-size: calc(
+    var(--environment-panel-inline-size) + var(--environment-panel-layout-gap)
+  );
   --environment-panel-min-conversation-inline-size: 720px;
   background: var(--codex-workspace-bg);
   border-left: 1px solid var(--border);
@@ -4335,6 +4338,31 @@ button.environment-row:disabled {
   position: relative;
   width: 100%;
   z-index: 20;
+}
+
+.workspace:has(
+    .environment-control[data-dock-open="false"]
+      .environment-trigger[aria-expanded="true"]
+  )
+  :is(.timeline, .composer-wrap) {
+  max-width: min(
+    960px,
+    calc(100% - var(--environment-panel-content-safe-inline-size))
+  );
+  transform: translateX(
+    calc(var(--environment-panel-content-safe-inline-size) / -2)
+  );
+}
+
+:root[dir="rtl"]
+  .workspace:has(
+    .environment-control[data-dock-open="false"]
+      .environment-trigger[aria-expanded="true"]
+  )
+  :is(.timeline, .composer-wrap) {
+  transform: translateX(
+    calc(var(--environment-panel-content-safe-inline-size) / 2)
+  );
 }
 
 .goal-bar {

@@ -227,7 +227,7 @@ describe("task environment panel state", () => {
     expect(stylesSource).toContain("max-height: calc(100vh - 64px)");
   });
 
-  it("keeps the timeline centered and auto-hides the panel before they overlap", () => {
+  it("auto-hides the panel before its content safe area becomes too narrow", () => {
     expect(environmentPanelConversationWidth(panelLayout(1_047))).toBe(719);
     expect(shouldAutoHideEnvironmentPanel(panelLayout(1_047))).toBe(true);
     expect(shouldAutoHideEnvironmentPanel(panelLayout(1_048))).toBe(false);
@@ -237,21 +237,30 @@ describe("task environment panel state", () => {
     expect(stylesSource).toContain(
       "--environment-panel-min-conversation-inline-size: 720px",
     );
-    expect(stylesSource).not.toContain(
-      '.workspace:has(.environment-trigger[aria-expanded="true"]) .timeline-scroll',
-    );
     expect(stylesSource).toMatch(
       /\.timeline\s*\{[^}]*margin:\s*0 auto;[^}]*max-width:\s*960px;/su,
     );
   });
 
-  it("keeps the environment popover out of the timeline layout", () => {
+  it("reserves inner content space without moving the timeline scrollbar", () => {
     expect(stylesSource).toContain("--environment-panel-inline-size: 304px");
-    expect(stylesSource).not.toMatch(
-      /\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+\.conversation/su,
+    expect(stylesSource).toContain(
+      "--environment-panel-content-safe-inline-size:",
+    );
+    expect(stylesSource).toMatch(
+      /\.workspace:has\(\s*\.environment-control\[data-dock-open="false"\]\s+\.environment-trigger\[aria-expanded="true"\]\s*\)\s+:is\(\.timeline,\s*\.composer-wrap\)/su,
+    );
+    expect(stylesSource).toMatch(
+      /max-width:\s*min\(\s*960px,\s*calc\(100%\s*-\s*var\(--environment-panel-content-safe-inline-size\)\)\s*\)/su,
+    );
+    expect(stylesSource).toMatch(
+      /translateX\(\s*calc\(var\(--environment-panel-content-safe-inline-size\)\s*\/\s*-2\)\s*\)/su,
+    );
+    expect(stylesSource).not.toContain(
+      '.workspace:has(.environment-trigger[aria-expanded="true"]) .timeline-scroll',
     );
     expect(stylesSource).not.toMatch(
-      /\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+:(?:is|where)\([^)]*(?:timeline|composer)/su,
+      /\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+\.conversation/su,
     );
     expect(panelSource).not.toContain("onOpenChange");
     expect(appSource).not.toContain("environmentPanelOpen");
@@ -307,6 +316,7 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain("environmentPanelOpen");
     expect(mainSource).toContain("workspaceWidth");
     expect(mainSource).toContain("timelineScrollBounds");
+    expect(mainSource).toContain("timelineContentBounds");
     expect(mainSource).toContain("workspaceContentBounds");
     expect(mainSource).toContain("workspaceDockResizerBounds");
     expect(mainSource).not.toContain("environment-conversation-overlap");
