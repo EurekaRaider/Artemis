@@ -80,6 +80,7 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
 import { GoalBar } from "./GoalBar.js";
 import { GoalEditorPanel } from "./GoalEditorPanel.js";
 import { EnvironmentPanel } from "./EnvironmentPanel.js";
+import { handleProjectTreeKeyDown } from "./project-thread-tree.js";
 import { SourcesIcon, SourcesPanel } from "./SourcesPanel.js";
 import { TaskPlanProgress } from "./TaskPlanProgress.js";
 import {
@@ -1685,6 +1686,23 @@ export function App() {
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const projectTreeElement = useRef<HTMLDivElement>(null);
+  const [treeActiveRowId, setTreeActiveRowId] = useState<string>();
+  const focusProjectTreeRow = useCallback((rowId: string) => {
+    setTreeActiveRowId(rowId);
+    projectTreeElement.current
+      ?.querySelector<HTMLElement>(`[data-tree-row-id="${CSS.escape(rowId)}"]`)
+      ?.focus();
+  }, []);
+  const toggleProjectRow = useCallback((rowId: string, collapsed: boolean) => {
+    const projectId = rowId.replace(/^project:/, "");
+    setCollapsedProjectIds((current) => {
+      const next = new Set(current);
+      if (collapsed) next.add(projectId);
+      else next.delete(projectId);
+      return next;
+    });
+  }, []);
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -5421,7 +5439,20 @@ export function App() {
             </label>
           </div>
         </div>
-        <div className="project-tree">
+        <div
+          aria-label={t.projects}
+          className="project-tree"
+          onKeyDown={(event) =>
+            handleProjectTreeKeyDown(event.nativeEvent, {
+              container: projectTreeElement.current,
+              focusRow: focusProjectTreeRow,
+              collapseProject: (rowId) => toggleProjectRow(rowId, true),
+              expandProject: (rowId) => toggleProjectRow(rowId, false),
+            })
+          }
+          ref={projectTreeElement}
+          role="tree"
+        >
           <section className="project-group project-collection">
             <div className="project-row project-group-row">
               <button
@@ -5485,6 +5516,7 @@ export function App() {
             return (
               <section
                 aria-level={2}
+                data-tree-kind="project"
                 className={`project-group nested-project${
                   draggedProjectId === project.id ? " dragging" : ""
                 }${
@@ -5546,6 +5578,17 @@ export function App() {
                   <button
                     aria-controls={`project-thread-list-${project.id}`}
                     aria-expanded={projectOpen}
+                    data-tree-kind="project"
+                    data-tree-level="2"
+                    data-tree-row-id={`project:${project.id}`}
+                    role="treeitem"
+                    tabIndex={
+                      treeActiveRowId === `project:${project.id}` ||
+                      (treeActiveRowId === undefined &&
+                        projects[0]?.id === project.id)
+                        ? 0
+                        : -1
+                    }
                     aria-label={
                       projectOpen
                         ? t.collapseProjectHistory
@@ -5740,7 +5783,17 @@ export function App() {
                         ) : (
                           <>
                             <button
+                              aria-selected={thread.id === activeThreadId}
                               className="thread-select"
+                              data-tree-kind="thread"
+                              data-tree-level="3"
+                              data-tree-row-id={`thread:${thread.id}`}
+                              role="treeitem"
+                              tabIndex={
+                                treeActiveRowId === `thread:${thread.id}`
+                                  ? 0
+                                  : -1
+                              }
                               onClick={() => {
                                 discardNewConversationDraft();
                                 setActiveView("workspace");

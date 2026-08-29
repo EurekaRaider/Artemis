@@ -1,0 +1,123 @@
+export interface VisibleTreeRow {
+  id: string;
+  level: 2 | 3;
+  kind: "project" | "thread";
+}
+
+export type TreeRowVerticalKey = "ArrowUp" | "ArrowDown" | "Home" | "End";
+
+/**
+ * Read the visible rows from the rendered tree container. The DOM is the
+ * single source of truth for visibility (open projects, filtered threads),
+ * so roving can never drift from what is actually rendered.
+ */
+export function readVisibleTreeRows(
+  container: HTMLElement | null,
+): VisibleTreeRow[] {
+  if (!container) return [];
+  return Array.from(
+    container.querySelectorAll<HTMLElement>("[data-tree-row-id]"),
+  ).map((element) => ({
+    id: element.dataset.treeRowId!,
+    level: Number(element.dataset.treeLevel) === 3 ? 3 : 2,
+    kind: element.dataset.treeKind === "thread" ? "thread" : "project",
+  }));
+}
+
+/**
+ * Vertical roving within the visible rows: ArrowUp/ArrowDown wrap at both
+ * ends; Home/End address the logical first/last row (WAI-ARIA Treeview).
+ */
+export function treeRowIdForKey(
+  rows: readonly VisibleTreeRow[],
+  currentId: string | undefined,
+  key: TreeRowVerticalKey,
+): string | undefined {
+  if (rows.length === 0) return undefined;
+  if (key === "Home") return rows[0]!.id;
+  if (key === "End") return rows[rows.length - 1]!.id;
+  const delta = key === "ArrowDown" ? 1 : -1;
+  const currentIndex = rows.findIndex((row) => row.id === currentId);
+  if (currentIndex < 0) {
+    return rows[delta > 0 ? 0 : rows.length - 1]!.id;
+  }
+  const nextIndex = (currentIndex + delta + rows.length) % rows.length;
+  return rows[nextIndex]!.id;
+}
+
+function rowIdFromEventTarget(target: EventTarget | null): string | null {
+  if (!(target instanceof HTMLElement)) return null;
+  const row = target.closest<HTMLElement>("[data-tree-row-id]");
+  return row?.dataset.treeRowId ?? null;
+}
+
+/**
+ * Keydown handler for the project/thread tree. Keys are honoured only when
+ * the event originates from a tree row (project toggle or thread select).
+ * ArrowLeft collapses an open project row / focuses the parent project from
+ * a thread row; ArrowRight expands a collapsed project row.
+ */
+export function handleProjectTreeKeyDown(
+  event: {
+    key: string;
+    target: EventTarget | null;
+    preventDefault(): void;
+  },
+  deps: {
+    container: HTMLElement | null;
+    focusRow: (rowId: string) => void;
+    collapseProject: (projectId: string) => void;
+    expandProject: (projectId: string) => void;
+  },
+): void {
+  const rowId = rowIdFromEventTarget(event.target);
+  if (!rowId) return;
+  const rows = readVisibleTreeRows(deps.container);
+  const row = rows.find((candidate) => candidate.id === rowId);
+
+  if (
+    event.key === "ArrowUp" ||
+    event.key === "ArrowDown" ||
+    event.key === "Home" ||
+    event.key === "End"
+  ) {
+    const nextId = treeRowIdForKey(rows, rowId, event.key);
+    if (!nextId) return;
+    event.preventDefault();
+    deps.focusRow(nextId);
+    return;
+  }
+
+  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    if (!row) return;
+    if (row.kind === "project") {
+      const expanded = deps.container
+        ?.querySelector<HTMLElement>(
+          `[data-tree-row-id="${CSS.escape(rowId)}"]`,
+        )
+        ?.getAttribute("aria-expanded");
+      if (event.key === "ArrowLeft" && expanded === "true") {
+        event.preventDefault();
+        deps.collapseProject(rowId);
+      } else if (event.key === "ArrowRight" && expanded === "false") {
+        event.preventDefault();
+        deps.expandProject(rowId);
+      }
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      const parent = deps.container
+        ?.querySelector<HTMLElement>(
+          `[data-tree-row-id="${CSS.escape(rowId)}"]`,
+        )
+        ?.closest('[data-tree-kind="project"]');
+      const parentId =
+        parent?.querySelector<HTMLElement>("[data-tree-row-id]")?.dataset
+          .treeRowId;
+      if (parentId) {
+        event.preventDefault();
+        deps.focusRow(parentId);
+      }
+    }
+  }
+}

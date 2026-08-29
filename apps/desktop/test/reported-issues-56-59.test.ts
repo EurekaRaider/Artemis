@@ -76,7 +76,7 @@ describe("reported issues #56–#59", () => {
   it("keeps creation actions beside their owning group", () => {
     const header = sectionBetween(
       '<div className="sidebar-header">',
-      '<div className="project-tree">',
+      '<div\n          aria-label={t.projects}\n          className="project-tree"',
     );
     const projects = sectionBetween(
       '<section className="project-group project-collection">',
