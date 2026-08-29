@@ -213,7 +213,7 @@ describe("Codex-like workspace tab layout contract", () => {
     );
     expect(handlerSource).toContain('type: "close"');
     expect(handlerSource).toContain("setWorkspaceDockOpen(false)");
-    expect(closeButtonSource).toContain("closeWorkspaceTab(tab.id)");
+    expect(closeButtonSource).toContain("closeWorkspaceTab(tab.id, {");
     expect(appSource).toContain("workspaceTabs.tabs.length === 0");
   });
 

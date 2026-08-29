@@ -334,11 +334,14 @@ describe("workspace tab keyboard focus helpers", () => {
     { id: "c", kind: "browser" as const, title: "C" },
   ];
 
-  it("focuses the right neighbour after close, falling back to the left", () => {
-    expect(workspaceTabFocusTargetAfterClose(tabs, "b")).toBe("c");
-    expect(workspaceTabFocusTargetAfterClose(tabs, "c")).toBe("b");
-    expect(workspaceTabFocusTargetAfterClose(tabs, "a")).toBe("b");
-    expect(workspaceTabFocusTargetAfterClose(tabs, "missing")).toBeUndefined();
+  it("focuses the post-close active tab: neighbour when closing the active one, unchanged otherwise", () => {
+    expect(workspaceTabFocusTargetAfterClose(tabs, "b", "b")).toBe("c");
+    expect(workspaceTabFocusTargetAfterClose(tabs, "c", "c")).toBe("b");
+    expect(workspaceTabFocusTargetAfterClose(tabs, "a", "a")).toBe("b");
+    // Closing a background tab keeps the active tab (and roving tabindex).
+    expect(workspaceTabFocusTargetAfterClose(tabs, "b", "a")).toBe("a");
+    expect(workspaceTabFocusTargetAfterClose(tabs, "a", "c")).toBe("c");
+    expect(workspaceTabFocusTargetAfterClose(tabs, "missing", "a")).toBe("a");
   });
 
   it("moves with arrow keys and clamps at the ends (LTR)", () => {
@@ -348,6 +351,14 @@ describe("workspace tab keyboard focus helpers", () => {
       workspaceTabIdForKey(tabs, "c", "ArrowRight", false),
     ).toBeUndefined();
     expect(workspaceTabIdForKey(tabs, "a", "ArrowLeft", false)).toBeUndefined();
+  });
+
+  it("falls back to the direction's edge tab when no tab is active", () => {
+    expect(workspaceTabIdForKey(tabs, undefined, "ArrowRight", false)).toBe(
+      "a",
+    );
+    expect(workspaceTabIdForKey(tabs, undefined, "ArrowLeft", false)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, undefined, "Home", false)).toBe("a");
   });
 
   it("reverses arrows in RTL and jumps with Home/End", () => {

@@ -46,7 +46,13 @@ export const emptyWorkspaceTabs = (): WorkspaceTabsState => ({
 export function workspaceTabFocusTargetAfterClose(
   tabs: readonly WorkspaceTab[],
   closedTabId: string,
+  activeTabId: string | undefined,
 ): string | undefined {
+  // Closing a background tab keeps the current active tab, so focus must stay
+  // there to preserve the roving-tabindex invariant.
+  if (activeTabId !== undefined && closedTabId !== activeTabId) {
+    return activeTabId;
+  }
   const index = tabs.findIndex((tab) => tab.id === closedTabId);
   if (index < 0) return undefined;
   return tabs[index + 1]?.id ?? tabs[index - 1]?.id;
@@ -64,10 +70,14 @@ export function workspaceTabIdForKey(
   if (key === "Home") return rtl ? tabs[tabs.length - 1]!.id : tabs[0]!.id;
   if (key === "End") return rtl ? tabs[0]!.id : tabs[tabs.length - 1]!.id;
   const currentIndex = tabs.findIndex((tab) => tab.id === activeTabId);
-  const index = currentIndex < 0 ? 0 : currentIndex;
   const baseDelta = key === "ArrowRight" ? 1 : -1;
   const delta = rtl ? -baseDelta : baseDelta;
-  return tabs[index + delta]?.id;
+  if (currentIndex < 0) {
+    // No active tab: land on the first tab the direction points at.
+    const fallbackIndex = delta > 0 ? 0 : tabs.length - 1;
+    return tabs[fallbackIndex]!.id;
+  }
+  return tabs[currentIndex + delta]?.id;
 }
 
 export function closesLastWorkspaceTab(

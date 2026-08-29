@@ -1726,6 +1726,7 @@ export function App() {
   const workspaceTabButtons = useRef(
     new Map<string, HTMLButtonElement | null>(),
   );
+  const workspaceDockToggleElement = useRef<HTMLButtonElement>(null);
   const focusWorkspaceTab = useCallback((tabId: string | undefined) => {
     if (!tabId) return;
     workspaceTabButtons.current.get(tabId)?.focus();
@@ -2506,18 +2507,24 @@ export function App() {
   );
 
   const closeWorkspaceTab = useCallback(
-    (tabId: string) => {
+    (tabId: string, options?: { moveFocus?: boolean }) => {
       const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
       const focusTarget = workspaceTabFocusTargetAfterClose(
         workspaceTabs.tabs,
         tabId,
+        workspaceTabs.activeTabId,
       );
       dispatchWorkspaceTab({ type: "close", tabId });
       if (closesLastTab) {
         setWorkspaceDockOpen(false);
+        if (options?.moveFocus) {
+          workspaceDockToggleElement.current?.focus();
+        }
         return;
       }
-      focusWorkspaceTab(focusTarget);
+      if (options?.moveFocus) {
+        focusWorkspaceTab(focusTarget);
+      }
     },
     [dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
   );
@@ -6181,6 +6188,7 @@ export function App() {
                     aria-label={t.rightSidebar}
                     className="right-sidebar-toggle"
                     onClick={toggleRightSidebar}
+                    ref={workspaceDockToggleElement}
                     title={t.rightSidebar}
                   >
                     <RightSidebarIcon />
@@ -7491,7 +7499,7 @@ export function App() {
                           workspaceTabs.tabs,
                           workspaceTabs.activeTabId,
                           key,
-                          document.documentElement.dir === "rtl",
+                          localeDirection(locale) === "rtl",
                         );
                         if (!nextId) return;
                         event.preventDefault();
@@ -7550,13 +7558,21 @@ export function App() {
                                   }
                                   className="workspace-tab-select"
                                   ref={(element) => {
-                                    workspaceTabButtons.current.set(
-                                      tab.id,
-                                      element,
-                                    );
+                                    if (element) {
+                                      workspaceTabButtons.current.set(
+                                        tab.id,
+                                        element,
+                                      );
+                                    } else {
+                                      workspaceTabButtons.current.delete(
+                                        tab.id,
+                                      );
+                                    }
                                   }}
                                   tabIndex={
-                                    workspaceTabs.activeTabId === tab.id
+                                    workspaceTabs.activeTabId === tab.id ||
+                                    (!workspaceTabs.activeTabId &&
+                                      workspaceTabs.tabs[0]?.id === tab.id)
                                       ? 0
                                       : -1
                                   }
@@ -7581,7 +7597,11 @@ export function App() {
                                 <button
                                   aria-label={`${t.closeTab}: ${tab.title}`}
                                   className="workspace-tab-close"
-                                  onClick={() => closeWorkspaceTab(tab.id)}
+                                  onClick={() =>
+                                    closeWorkspaceTab(tab.id, {
+                                      moveFocus: true,
+                                    })
+                                  }
                                   title={t.closeTab}
                                 >
                                   <CloseIcon />

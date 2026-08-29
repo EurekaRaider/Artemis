@@ -99,7 +99,7 @@ describe("Codex-style child-agent workspace tabs", () => {
       "\n  const openWorkspaceTabForThread",
     );
 
-    expect(closeButtonSource).toContain("closeWorkspaceTab(tab.id)");
+    expect(closeButtonSource).toContain("closeWorkspaceTab(tab.id, {");
     expect(closeHandlerSource).toContain('type: "close"');
     expect(closeHandlerSource).toContain("tabId");
     expect(`${closeButtonSource}\n${closeHandlerSource}`).not.toMatch(
