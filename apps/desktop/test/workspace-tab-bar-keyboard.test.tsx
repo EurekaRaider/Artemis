@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -7,7 +8,7 @@ import "./renderer-test-utils.js";
 import { handleWorkspaceTabBarKeyDown } from "../src/renderer/workspace-tabs.js";
 
 function TabBarHarness() {
-  const activate = vi.fn();
+  const [activeTabId, setActiveTabId] = useState("terminal");
   const tabs = [
     { id: "review", kind: "review" as const, title: "Review" },
     { id: "terminal", kind: "terminal" as const, title: "Terminal" },
@@ -18,9 +19,9 @@ function TabBarHarness() {
       onKeyDown={(event) =>
         handleWorkspaceTabBarKeyDown(event.nativeEvent, {
           tabs,
-          activeTabId: "terminal",
+          activeTabId,
           rtl: false,
-          activate,
+          activate: (tabId) => setActiveTabId(tabId),
           focusTab: (tabId) =>
             document
               .querySelector<HTMLButtonElement>(
