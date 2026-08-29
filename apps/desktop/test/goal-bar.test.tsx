@@ -1,6 +1,11 @@
+// @vitest-environment jsdom
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ThreadGoal } from "@artemis/protocol";
+
+import "./renderer-test-utils.js";
 
 import {
   displayGoalObjective,
@@ -78,5 +83,49 @@ describe("Codex-style Goal rail", () => {
         "Follow the objective in the Artemis-managed file at /tmp/goal.md\n\nObjective preview:\nFull user objective",
       ),
     ).toBe("Full user objective");
+  });
+});
+
+describe("GoalBar interactions (jsdom)", () => {
+  it("pauses an active goal from a real click on the pause button", async () => {
+    const onPause = vi.fn();
+    render(
+      <GoalBar
+        clockMs={Date.parse(goal().updatedAt)}
+        goal={goal()}
+        locale="en"
+        onClear={vi.fn()}
+        onEdit={vi.fn()}
+        onPause={onPause}
+        onResume={vi.fn()}
+      />,
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Pause goal" }));
+    expect(onPause).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks a disabled bar aria-busy and blocks the pause action", async () => {
+    const onPause = vi.fn();
+    render(
+      <GoalBar
+        clockMs={Date.parse(goal().updatedAt)}
+        disabled
+        goal={goal()}
+        locale="en"
+        onClear={vi.fn()}
+        onEdit={vi.fn()}
+        onPause={onPause}
+        onResume={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("region", { name: "Pursuing goal" }),
+    ).toHaveAttribute("aria-busy", "true");
+    const pause = screen.getByRole("button", { name: "Pause goal" });
+    expect(pause).toBeDisabled();
+    await userEvent.setup().click(pause);
+    expect(onPause).not.toHaveBeenCalled();
   });
 });
