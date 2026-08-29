@@ -98,6 +98,14 @@ export function handleProjectTreeKeyDown(
     event.key === "Home" ||
     event.key === "End"
   ) {
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      // Consume the key at the edges too so the browser never scrolls
+      // (WAI-ARIA: no action at boundaries still means preventDefault).
+      event.preventDefault();
+      const nextId = treeRowIdForKey(rows, rowId, event.key);
+      if (nextId) deps.focusRow(nextId);
+      return;
+    }
     const nextId = treeRowIdForKey(rows, rowId, event.key);
     if (!nextId) return;
     event.preventDefault();

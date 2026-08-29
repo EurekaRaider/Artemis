@@ -5789,7 +5789,11 @@ export function App() {
                         ) : (
                           <>
                             <button
-                              aria-selected={thread.id === activeThreadId}
+                              aria-current={
+                                thread.id === activeThreadId
+                                  ? "true"
+                                  : undefined
+                              }
                               className="thread-select"
                               data-tree-kind="thread"
                               data-tree-level="3"

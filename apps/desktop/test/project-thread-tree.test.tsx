@@ -103,7 +103,7 @@ function TreeHarness() {
             {open &&
               project.threads.map((thread) => (
                 <button
-                  aria-selected={thread.id === "a1"}
+                  aria-current={thread.id === "a1" ? "true" : undefined}
                   data-tree-kind="thread"
                   data-tree-level="3"
                   data-tree-row-id={`thread:${thread.id}`}
@@ -195,5 +195,21 @@ describe("visibility filtering and roving clamp (review follow-up)", () => {
     expect(clampTreeActiveRowId(tree, "thread:gone")).toBe("project:a");
     expect(clampTreeActiveRowId(tree, "thread:a1")).toBe("thread:a1");
     expect(clampTreeActiveRowId(tree, undefined)).toBe("project:a");
+  });
+});
+
+describe("boundary keys are consumed (review follow-up)", () => {
+  it("preventDefaults ArrowUp/ArrowDown at the edges so the browser never scrolls", async () => {
+    const user = userEvent.setup();
+    render(<TreeHarness />);
+    const consumed: string[] = [];
+    // Attach a capture listener to observe defaultPrevented on the container.
+    document.addEventListener("keydown", (event) => {
+      if (event.defaultPrevented) consumed.push(event.key);
+    });
+    screen.getByRole("treeitem", { name: "Alpha" }).focus();
+    await user.keyboard("{ArrowUp}");
+    expect(consumed).toContain("ArrowUp");
+    expect(screen.getByRole("treeitem", { name: "Alpha" })).toHaveFocus();
   });
 });
