@@ -1,6 +1,6 @@
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
 import type { AppLocale, Thread, ThreadGoal } from "@artemis/protocol";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const COPY = {
   en: {
@@ -11,9 +11,15 @@ const COPY = {
     revert: "Revert",
     save: "Save",
     saving: "Saving…",
-    stale: "This Goal changed elsewhere. Close this editor and open it again.",
+    saved: "Saved",
+    stale: "This Goal changed elsewhere. Reload to load the latest version.",
+    staleDirty: "You have unsaved changes; reloading will discard them.",
     loadFailed: "Failed to load goal objective.",
     saveFailed: "Failed to save goal objective.",
+    retryLoad: "Retry loading",
+    retrySave: "Retry saving",
+    reload: "Reload",
+    reloadConfirm: "Discard changes and reload",
   },
   "zh-CN": {
     goal: "目标",
@@ -23,11 +29,30 @@ const COPY = {
     revert: "还原",
     save: "保存",
     saving: "正在保存…",
-    stale: "此目标已在其他位置发生变化。请关闭编辑器后重新打开。",
+    saved: "已保存",
+    stale: "此目标已在其他位置发生变化。重新加载以获取最新版本。",
+    staleDirty: "你有未保存的修改，重新加载将丢弃它们。",
     loadFailed: "载入目标内容失败。",
     saveFailed: "保存目标内容失败。",
+    retryLoad: "重试加载",
+    retrySave: "重试保存",
+    reload: "重新加载",
+    reloadConfirm: "放弃修改并重新加载",
   },
 } as const;
+
+type GoalEditorStatus =
+  | { kind: "loading" }
+  | { kind: "ready"; source: string; draft: string; saved: boolean }
+  | { kind: "saving"; source: string; draft: string }
+  | { kind: "load-error"; message: string }
+  | {
+      kind: "save-error";
+      source: string;
+      draft: string;
+      message: string;
+    }
+  | { kind: "stale"; source: string | undefined; draft: string };
 
 export function GoalEditorPanel({
   clockMs,
@@ -43,29 +68,39 @@ export function GoalEditorPanel({
   onSaved(thread: Thread): void;
 }) {
   const copy = locale.startsWith("zh") ? COPY["zh-CN"] : COPY.en;
-  const [source, setSource] = useState<string>();
-  const [draft, setDraft] = useState("");
+  const [status, setStatus] = useState<GoalEditorStatus>({ kind: "loading" });
   const [revision, setRevision] = useState(goal.revision);
   const [persistedObjective, setPersistedObjective] = useState(goal.objective);
-  const [saving, setSaving] = useState(false);
-  const [stale, setStale] = useState(false);
+  const [reloadConfirmed, setReloadConfirmed] = useState(false);
+  const loadTokenRef = useRef(0);
+  const saveTokenRef = useRef(0);
+  const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const focusAfterRecoveryRef = useRef(false);
 
   const load = useCallback(async () => {
+    const token = (loadTokenRef.current += 1);
+    setStatus({ kind: "loading" });
     try {
       const result = await window.artemis.getThreadGoalObjective(goal.threadId);
+      if (token !== loadTokenRef.current) return;
       if (result.goalId !== goal.goalId) {
-        setStale(true);
+        setStatus({ kind: "stale", source: undefined, draft: "" });
         return;
       }
-      setSource(result.objective);
-      setDraft(result.objective);
+      setStatus({
+        kind: "ready",
+        source: result.objective,
+        draft: result.objective,
+        saved: false,
+      });
       setRevision(result.revision);
       setPersistedObjective(goal.objective);
-      setStale(false);
     } catch (error) {
-      onError(
-        `${copy.loadFailed} ${error instanceof Error ? error.message : String(error)}`,
-      );
+      if (token !== loadTokenRef.current) return;
+      const message = error instanceof Error ? error.message : String(error);
+      const notice = `${copy.loadFailed} ${message}`;
+      onError(notice);
+      setStatus({ kind: "load-error", message: notice });
     }
   }, [copy.loadFailed, goal.goalId, goal.objective, goal.threadId, onError]);
 
@@ -73,19 +108,61 @@ export function GoalEditorPanel({
     void load();
   }, [goal.goalId]);
 
+  // Whether the editor currently holds unsaved edits (including while stale,
+  // so an external change parks the editor on the stale branch instead of
+  // silently overwriting the draft). An empty or whitespace-only draft still
+  // counts: Revert must stay available to restore the source text.
+  const hasUnsavedDraft = (current: GoalEditorStatus): boolean => {
+    if (
+      current.kind === "ready" ||
+      current.kind === "saving" ||
+      current.kind === "save-error"
+    ) {
+      return current.draft !== current.source;
+    }
+    if (current.kind === "stale") {
+      return current.source !== undefined && current.draft !== current.source;
+    }
+    return false;
+  };
+  const dirtySnapshot = hasUnsavedDraft(status);
+
   useEffect(() => {
+    // Park external-change handling while a save is in flight; the effect
+    // re-evaluates once the save settles (ready) and reloads only then.
+    if (status.kind === "saving") return;
     if (goal.objective === persistedObjective) {
       setRevision(goal.revision);
       return;
     }
-    if (source !== undefined && draft !== source) {
-      setStale(true);
+    if (dirtySnapshot) {
+      setStatus((current) => {
+        if (current.kind === "stale") return current;
+        const source =
+          current.kind === "ready" ||
+          current.kind === "saving" ||
+          current.kind === "save-error"
+            ? current.source
+            : undefined;
+        const draft =
+          current.kind === "ready" ||
+          current.kind === "saving" ||
+          current.kind === "save-error"
+            ? current.draft
+            : "";
+        return { kind: "stale", source, draft };
+      });
       return;
     }
     void load();
-  }, [draft, goal.objective, goal.revision, load, persistedObjective, source]);
+  }, [dirtySnapshot, goal.objective, goal.revision, load, persistedObjective]);
 
-  const dirty = source !== undefined && draft !== source;
+  useEffect(() => {
+    if (status.kind !== "ready" || !focusAfterRecoveryRef.current) return;
+    focusAfterRecoveryRef.current = false;
+    editorRef.current?.focus();
+  }, [status]);
+
   const updatedLabel = useMemo(() => {
     const updatedAt = Date.parse(goal.updatedAt);
     const minutes = Number.isFinite(updatedAt)
@@ -97,9 +174,13 @@ export function GoalEditorPanel({
   }, [clockMs, copy.updatedMinutes, copy.updatedNow, goal.updatedAt]);
 
   const save = useCallback(async () => {
+    if (status.kind !== "ready" && status.kind !== "save-error") return;
+    const draft = status.draft;
+    const source = status.source;
     const objective = draft.trim();
-    if (!dirty || !objective || saving || stale) return;
-    setSaving(true);
+    if (!objective || draft === source) return;
+    const token = (saveTokenRef.current += 1);
+    setStatus({ kind: "saving", source, draft });
     try {
       const thread = await window.artemis.updateThreadGoalObjective(
         goal.threadId,
@@ -107,72 +188,160 @@ export function GoalEditorPanel({
         goal.goalId,
         revision,
       );
+      if (token !== saveTokenRef.current) return;
       const updatedGoal = thread.goal;
       if (!updatedGoal || updatedGoal.goalId !== goal.goalId) {
-        setStale(true);
+        setStatus({ kind: "stale", source, draft });
         return;
       }
-      setSource(objective);
-      setDraft(objective);
+      // The persisted objective is stored as a managed-file reference wrapper;
+      // keep showing the trimmed user text in the editor while the persisted
+      // snapshot tracks the wrapper so the parent refill stays in sync.
+      setStatus({
+        kind: "ready",
+        source: objective,
+        draft: objective,
+        saved: true,
+      });
       setRevision(updatedGoal.revision);
       setPersistedObjective(updatedGoal.objective);
       onSaved(thread);
     } catch (error) {
+      if (token !== saveTokenRef.current) return;
       const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("changed while")) setStale(true);
-      onError(`${copy.saveFailed} ${message}`);
-    } finally {
-      setSaving(false);
+      if (message.includes("changed while")) {
+        setStatus({ kind: "stale", source, draft });
+        return;
+      }
+      const notice = `${copy.saveFailed} ${message}`;
+      onError(notice);
+      setStatus({ kind: "save-error", source, draft, message: notice });
     }
   }, [
     copy.saveFailed,
-    dirty,
-    draft,
     goal.goalId,
     goal.threadId,
     onError,
     onSaved,
     revision,
-    saving,
-    stale,
+    status,
   ]);
 
+  const dirty = hasUnsavedDraft(status);
+  const busy = status.kind === "loading" || status.kind === "saving";
+
+  const handleRetryLoad = () => {
+    focusAfterRecoveryRef.current = true;
+    setReloadConfirmed(false);
+    void load();
+  };
+  const handleRetrySave = () => {
+    focusAfterRecoveryRef.current = true;
+    void save();
+  };
+  const handleReload = () => {
+    if (dirty && !reloadConfirmed) {
+      setReloadConfirmed(true);
+      return;
+    }
+    focusAfterRecoveryRef.current = true;
+    setReloadConfirmed(false);
+    void load();
+  };
+
+  const draftValue =
+    status.kind === "ready" ||
+    status.kind === "saving" ||
+    status.kind === "save-error" ||
+    (status.kind === "stale" && status.source !== undefined)
+      ? status.draft
+      : "";
+
   return (
-    <section aria-busy={saving} className="goal-editor-panel">
-      {source === undefined ? (
+    <section aria-busy={busy || undefined} className="goal-editor-panel">
+      {status.kind === "loading" && (
         <div className="goal-editor-loading">{copy.loading}</div>
-      ) : (
+      )}
+      {(status.kind === "ready" ||
+        status.kind === "saving" ||
+        status.kind === "save-error" ||
+        (status.kind === "stale" && status.source !== undefined)) && (
         <textarea
           aria-label={copy.goal}
           autoFocus={true}
           className="goal-editor-input"
-          disabled={saving || stale}
-          onChange={(event) => setDraft(event.target.value)}
+          disabled={status.kind === "saving" || status.kind === "stale"}
+          onChange={(event) => {
+            if (status.kind !== "ready" && status.kind !== "save-error") return;
+            setStatus({
+              kind: "ready",
+              source: status.source,
+              draft: event.target.value,
+              saved: false,
+            });
+          }}
           onKeyDown={(event) => {
             if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) {
               return;
             }
+            if (event.nativeEvent.isComposing) return;
             event.preventDefault();
             void save();
           }}
           placeholder={copy.goal}
+          ref={editorRef}
           spellCheck={true}
-          value={draft}
+          value={draftValue}
         />
       )}
-      {stale && (
+      {status.kind === "load-error" && (
         <p className="goal-editor-stale" role="alert">
-          {copy.stale}
+          {status.message}{" "}
+          <button onClick={handleRetryLoad} type="button">
+            {copy.retryLoad}
+          </button>
+        </p>
+      )}
+      {status.kind === "save-error" && (
+        <p className="goal-editor-stale" role="alert">
+          {status.message}{" "}
+          <button onClick={handleRetrySave} type="button">
+            {copy.retrySave}
+          </button>
+        </p>
+      )}
+      {status.kind === "stale" && (
+        <p className="goal-editor-stale" role="alert">
+          {dirty ? `${copy.staleDirty} ` : ""}
+          {copy.stale}{" "}
+          <button onClick={handleReload} type="button">
+            {dirty && reloadConfirmed ? copy.reloadConfirm : copy.reload}
+          </button>
         </p>
       )}
       <footer className="goal-editor-footer">
         <span>{updatedLabel}</span>
         <div>
+          {status.kind === "ready" && status.saved && (
+            <span aria-live="polite" className="goal-editor-saved">
+              {copy.saved}
+            </span>
+          )}
           <button
             aria-label={copy.revert}
             className="goal-editor-revert"
-            disabled={!dirty || saving || stale}
-            onClick={() => setDraft(source ?? "")}
+            disabled={!dirty || busy || status.kind === "stale"}
+            onClick={() => {
+              if (status.kind !== "ready" && status.kind !== "save-error") {
+                return;
+              }
+              setStatus({
+                kind: "ready",
+                source: status.source,
+                draft: status.source,
+                saved: false,
+              });
+            }}
             title={copy.revert}
             type="button"
           >
@@ -180,11 +349,13 @@ export function GoalEditorPanel({
           </button>
           <button
             className="primary-button"
-            disabled={!dirty || !draft.trim() || saving || stale}
+            disabled={
+              !dirty || !draftValue.trim() || busy || status.kind === "stale"
+            }
             onClick={() => void save()}
             type="button"
           >
-            {saving ? copy.saving : copy.save}
+            {status.kind === "saving" ? copy.saving : copy.save}
           </button>
         </div>
       </footer>
