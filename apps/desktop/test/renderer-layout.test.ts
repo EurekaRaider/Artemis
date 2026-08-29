@@ -2018,7 +2018,7 @@ describe("renderer layout contract", () => {
     );
     expect(archivePageSource).toContain('archiveTemporary: "Temporary chat"');
     expect(appSource).toContain("`project-group nested-project${");
-    expect(appSource).toContain("aria-level={2}");
+    expect(appSource).toContain('data-tree-kind="project"');
     expect(appSource).toContain("setProjectsOpen((open) => !open)");
   });
 
