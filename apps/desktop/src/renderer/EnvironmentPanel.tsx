@@ -7,6 +7,8 @@ import {
   useState,
   type CSSProperties,
   type FormEvent,
+  type ReactNode,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -645,6 +647,204 @@ function SourceIcon({ image }: { image: boolean }) {
     <ImageIcon aria-hidden="true" size={20} />
   ) : (
     <FileIcon aria-hidden="true" size={20} />
+  );
+}
+
+export function PullRequestChecksSummary({
+  checkSummary,
+  checksOpen,
+  chevronIcon,
+  externalIcon,
+  onBlurredOut,
+  onOpenUrl,
+  onShowChecks,
+  onShowChecksWithFocus,
+  onToggleOpen,
+  prIcon,
+  pullRequest,
+  shouldKeepOpen,
+  stateLabel,
+  staleLabel,
+  staleTitle,
+  summaryLabel,
+  triggerRef,
+  warningLabel,
+}: {
+  checkSummary: ProjectPullRequestCheckSummary;
+  checksOpen: boolean;
+  chevronIcon: ReactNode;
+  externalIcon: ReactNode;
+  onBlurredOut: () => void;
+  onOpenUrl: (url: string) => void;
+  onShowChecks: () => void;
+  onShowChecksWithFocus: () => void;
+  onToggleOpen: () => void;
+  prIcon: ReactNode;
+  pullRequest: ProjectPullRequest;
+  shouldKeepOpen: (node: Node | null) => boolean;
+  stateLabel: string;
+  staleLabel?: string | undefined;
+  staleTitle?: string | undefined;
+  summaryLabel: string;
+  triggerRef: RefObject<HTMLButtonElement | null>;
+  warningLabel?: string | undefined;
+}) {
+  return (
+    <div className="environment-pr-card">
+      <button
+        className="environment-pr-title"
+        onClick={() => onOpenUrl(pullRequest.url)}
+        type="button"
+      >
+        <span className="environment-row-icon">{prIcon}</span>
+        <span>
+          <strong>{pullRequest.title}</strong>
+          <small>
+            #{pullRequest.number} · {stateLabel}
+          </small>
+        </span>
+        <span aria-hidden="true" className="environment-external">
+          {externalIcon}
+        </span>
+      </button>
+      <button
+        aria-controls="environment-pr-checks"
+        aria-expanded={checksOpen}
+        aria-haspopup="dialog"
+        className="environment-pr-check-summary"
+        onBlur={(event) => {
+          const related = event.relatedTarget;
+          if (related instanceof Node && shouldKeepOpen(related)) {
+            return;
+          }
+          onBlurredOut();
+        }}
+        onClick={onToggleOpen}
+        onFocus={onShowChecks}
+        onKeyDown={(event) => {
+          if (
+            event.key === "ArrowDown" ||
+            event.key === "Enter" ||
+            event.key === " "
+          ) {
+            event.preventDefault();
+            onShowChecksWithFocus();
+          }
+        }}
+        onMouseEnter={onShowChecks}
+        onMouseLeave={onBlurredOut}
+        ref={triggerRef}
+        type="button"
+      >
+        <span
+          aria-hidden="true"
+          className="environment-check-indicator"
+          data-status={checkSummary}
+        />
+        <span>{summaryLabel}</span>
+        {chevronIcon}
+      </button>
+      {warningLabel && <p className="environment-pr-warning">{warningLabel}</p>}
+      {staleLabel && staleTitle && (
+        <p className="environment-pr-stale" title={staleTitle}>
+          {staleLabel}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function PullRequestChecksPopover({
+  checks,
+  checkSummaryLabels,
+  containerRef,
+  externalIcon,
+  noneLabel,
+  onOpenUrl,
+  onScheduleClose,
+  onCancelClose,
+  position,
+  prLabel,
+  title,
+  triggerContains,
+}: {
+  checks: readonly ProjectPullRequestCheck[];
+  checkSummaryLabels: Record<string, string>;
+  containerRef: RefObject<HTMLDivElement | null>;
+  externalIcon: ReactNode;
+  noneLabel: string;
+  onOpenUrl: (url: string) => void;
+  onScheduleClose: () => void;
+  onCancelClose: () => void;
+  position: { left: number; top: number };
+  prLabel: string;
+  title: string;
+  triggerContains: (node: Node | null) => boolean;
+}) {
+  return (
+    <div
+      aria-label={title}
+      className="environment-checks-popover"
+      id="environment-pr-checks"
+      onBlur={(event) => {
+        const related = event.relatedTarget;
+        if (
+          related instanceof Node &&
+          (event.currentTarget.contains(related) || triggerContains(related))
+        ) {
+          return;
+        }
+        onScheduleClose();
+      }}
+      onFocus={onCancelClose}
+      onMouseEnter={onCancelClose}
+      onMouseLeave={onScheduleClose}
+      ref={containerRef}
+      role="dialog"
+      style={{ left: position.left, top: position.top }}
+      tabIndex={-1}
+    >
+      <header>
+        <strong>{title}</strong>
+        <small>{prLabel}</small>
+      </header>
+      <div className="environment-check-list">
+        {checks.length === 0 ? (
+          <p>{noneLabel}</p>
+        ) : (
+          checks.map((check, index) => {
+            const content = (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="environment-check-indicator"
+                  data-status={check.status}
+                />
+                <span>
+                  <strong>{check.name}</strong>
+                  <small>
+                    {check.workflowName ? `${check.workflowName} · ` : ""}
+                    {checkSummaryLabels[check.status]}
+                  </small>
+                </span>
+                {check.detailsUrl && <i aria-hidden="true">{externalIcon}</i>}
+              </>
+            );
+            return check.detailsUrl ? (
+              <button
+                key={`${check.name}:${index}`}
+                onClick={() => onOpenUrl(check.detailsUrl!)}
+                type="button"
+              >
+                {content}
+              </button>
+            ) : (
+              <div key={`${check.name}:${index}`}>{content}</div>
+            );
+          })
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1603,81 +1803,30 @@ export function EnvironmentPanel({
                   </div>
                 )}
                 {pullRequest && (
-                  <div className="environment-pr-card">
-                    <button
-                      className="environment-pr-title"
-                      onClick={() => onOpenUrl(pullRequest.url)}
-                      type="button"
-                    >
-                      <span className="environment-row-icon">
-                        <PullRequestIcon />
-                      </span>
-                      <span>
-                        <strong>{pullRequest.title}</strong>
-                        <small>
-                          #{pullRequest.number} · {pullRequestStateLabel}
-                        </small>
-                      </span>
-                      <span className="environment-external" aria-hidden="true">
-                        <EnvironmentExternalIcon />
-                      </span>
-                    </button>
-                    <button
-                      aria-controls="environment-pr-checks"
-                      aria-expanded={checksOpen}
-                      aria-haspopup="dialog"
-                      className="environment-pr-check-summary"
-                      onBlur={(event) => {
-                        const related = event.relatedTarget;
-                        if (
-                          related instanceof Node &&
-                          checksPopover.current?.contains(related)
-                        ) {
-                          return;
-                        }
-                        scheduleChecksClose();
-                      }}
-                      onClick={() =>
-                        checksOpen ? closeChecks() : showChecksWithFocus()
-                      }
-                      onFocus={showChecks}
-                      onKeyDown={(event) => {
-                        if (
-                          event.key === "ArrowDown" ||
-                          event.key === "Enter" ||
-                          event.key === " "
-                        ) {
-                          event.preventDefault();
-                          showChecksWithFocus();
-                        }
-                      }}
-                      onMouseEnter={showChecks}
-                      onMouseLeave={scheduleChecksClose}
-                      ref={checksTrigger}
-                      type="button"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="environment-check-indicator"
-                        data-status={checkSummary}
-                      />
-                      <span>{checkSummaryLabels[checkSummary]}</span>
-                      <EnvironmentChevronIcon aria-hidden="true" />
-                    </button>
-                    {coverageWarningLabel && (
-                      <p className="environment-pr-warning">
-                        {coverageWarningLabel}
-                      </p>
-                    )}
-                    {pullRequestError && (
-                      <p
-                        className="environment-pr-stale"
-                        title={pullRequestError}
-                      >
-                        {t.githubStale}
-                      </p>
-                    )}
-                  </div>
+                  <PullRequestChecksSummary
+                    checkSummary={checkSummary}
+                    checksOpen={checksOpen}
+                    chevronIcon={<EnvironmentChevronIcon aria-hidden="true" />}
+                    externalIcon={<EnvironmentExternalIcon />}
+                    onBlurredOut={scheduleChecksClose}
+                    onOpenUrl={onOpenUrl}
+                    onShowChecks={showChecks}
+                    onShowChecksWithFocus={showChecksWithFocus}
+                    onToggleOpen={() =>
+                      checksOpen ? closeChecks() : showChecksWithFocus()
+                    }
+                    prIcon={<PullRequestIcon />}
+                    pullRequest={pullRequest}
+                    shouldKeepOpen={(node) =>
+                      checksPopover.current?.contains(node) ?? false
+                    }
+                    staleLabel={pullRequestError ? t.githubStale : undefined}
+                    staleTitle={pullRequestError}
+                    stateLabel={pullRequestStateLabel}
+                    summaryLabel={checkSummaryLabels[checkSummary]}
+                    triggerRef={checksTrigger}
+                    warningLabel={coverageWarningLabel}
+                  />
                 )}
                 {pullRequestError && !pullRequest && (
                   <div className="environment-pr-notice error" role="alert">
@@ -2005,76 +2154,22 @@ export function EnvironmentPanel({
         checksOpen &&
         pullRequest &&
         createPortal(
-          <div
-            aria-label={t.checkDetails}
-            className="environment-checks-popover"
-            id="environment-pr-checks"
-            onBlur={(event) => {
-              const related = event.relatedTarget;
-              if (
-                related instanceof Node &&
-                (event.currentTarget.contains(related) ||
-                  checksTrigger.current?.contains(related))
-              ) {
-                return;
-              }
-              scheduleChecksClose();
-            }}
-            onFocus={cancelChecksClose}
-            onMouseEnter={cancelChecksClose}
-            onMouseLeave={scheduleChecksClose}
-            ref={checksPopover}
-            role="dialog"
-            style={{ left: checksPosition.left, top: checksPosition.top }}
-            tabIndex={-1}
-          >
-            <header>
-              <strong>{t.checkDetails}</strong>
-              <small>
-                #{pullRequest.number} · {pullRequestStateLabel}
-              </small>
-            </header>
-            <div className="environment-check-list">
-              {pullRequest.checks.length === 0 ? (
-                <p>{t.checksNone}</p>
-              ) : (
-                pullRequest.checks.map((check, index) => {
-                  const content = (
-                    <>
-                      <span
-                        aria-hidden="true"
-                        className="environment-check-indicator"
-                        data-status={check.status}
-                      />
-                      <span>
-                        <strong>{check.name}</strong>
-                        <small>
-                          {check.workflowName ? `${check.workflowName} · ` : ""}
-                          {checkSummaryLabels[check.status]}
-                        </small>
-                      </span>
-                      {check.detailsUrl && (
-                        <i aria-hidden="true">
-                          <EnvironmentExternalIcon />
-                        </i>
-                      )}
-                    </>
-                  );
-                  return check.detailsUrl ? (
-                    <button
-                      key={`${check.name}:${index}`}
-                      onClick={() => onOpenUrl(check.detailsUrl!)}
-                      type="button"
-                    >
-                      {content}
-                    </button>
-                  ) : (
-                    <div key={`${check.name}:${index}`}>{content}</div>
-                  );
-                })
-              )}
-            </div>
-          </div>,
+          <PullRequestChecksPopover
+            checks={pullRequest.checks}
+            checkSummaryLabels={checkSummaryLabels}
+            containerRef={checksPopover}
+            externalIcon={<EnvironmentExternalIcon />}
+            noneLabel={t.checksNone}
+            onOpenUrl={onOpenUrl}
+            onScheduleClose={scheduleChecksClose}
+            onCancelClose={cancelChecksClose}
+            position={checksPosition}
+            prLabel={`#${pullRequest.number} · ${pullRequestStateLabel}`}
+            title={t.checkDetails}
+            triggerContains={(node) =>
+              checksTrigger.current?.contains(node) ?? false
+            }
+          />,
           document.body,
         )}
       {commitOpen &&
