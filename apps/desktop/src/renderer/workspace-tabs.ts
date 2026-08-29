@@ -43,6 +43,33 @@ export const emptyWorkspaceTabs = (): WorkspaceTabsState => ({
   activeTabId: undefined,
 });
 
+export function workspaceTabFocusTargetAfterClose(
+  tabs: readonly WorkspaceTab[],
+  closedTabId: string,
+): string | undefined {
+  const index = tabs.findIndex((tab) => tab.id === closedTabId);
+  if (index < 0) return undefined;
+  return tabs[index + 1]?.id ?? tabs[index - 1]?.id;
+}
+
+export type WorkspaceTabArrowKey = "ArrowLeft" | "ArrowRight" | "Home" | "End";
+
+export function workspaceTabIdForKey(
+  tabs: readonly WorkspaceTab[],
+  activeTabId: string | undefined,
+  key: WorkspaceTabArrowKey,
+  rtl: boolean,
+): string | undefined {
+  if (tabs.length === 0) return undefined;
+  if (key === "Home") return rtl ? tabs[tabs.length - 1]!.id : tabs[0]!.id;
+  if (key === "End") return rtl ? tabs[0]!.id : tabs[tabs.length - 1]!.id;
+  const currentIndex = tabs.findIndex((tab) => tab.id === activeTabId);
+  const index = currentIndex < 0 ? 0 : currentIndex;
+  const baseDelta = key === "ArrowRight" ? 1 : -1;
+  const delta = rtl ? -baseDelta : baseDelta;
+  return tabs[index + delta]?.id;
+}
+
 export function closesLastWorkspaceTab(
   state: WorkspaceTabsState,
   tabId: string,

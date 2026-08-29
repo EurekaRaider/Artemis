@@ -1,3 +1,7 @@
+import {
+  workspaceTabFocusTargetAfterClose,
+  workspaceTabIdForKey,
+} from "../src/renderer/workspace-tabs.js";
 import { describe, expect, it, vi } from "vitest";
 
 type WorkspaceTabKind =
@@ -320,5 +324,38 @@ describe("workspace tab state", () => {
     expect(withStoppedTeam.activeTabId).toBe(terminalTab.id);
     expect(continued.tabs).toEqual([terminalTab, continuedTeamTab]);
     expect(continued.activeTabId).toBe(continuedTeamTab.id);
+  });
+});
+
+describe("workspace tab keyboard focus helpers", () => {
+  const tabs = [
+    { id: "a", kind: "review" as const, title: "A" },
+    { id: "b", kind: "terminal" as const, title: "B" },
+    { id: "c", kind: "browser" as const, title: "C" },
+  ];
+
+  it("focuses the right neighbour after close, falling back to the left", () => {
+    expect(workspaceTabFocusTargetAfterClose(tabs, "b")).toBe("c");
+    expect(workspaceTabFocusTargetAfterClose(tabs, "c")).toBe("b");
+    expect(workspaceTabFocusTargetAfterClose(tabs, "a")).toBe("b");
+    expect(workspaceTabFocusTargetAfterClose(tabs, "missing")).toBeUndefined();
+  });
+
+  it("moves with arrow keys and clamps at the ends (LTR)", () => {
+    expect(workspaceTabIdForKey(tabs, "b", "ArrowRight", false)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, "b", "ArrowLeft", false)).toBe("a");
+    expect(
+      workspaceTabIdForKey(tabs, "c", "ArrowRight", false),
+    ).toBeUndefined();
+    expect(workspaceTabIdForKey(tabs, "a", "ArrowLeft", false)).toBeUndefined();
+  });
+
+  it("reverses arrows in RTL and jumps with Home/End", () => {
+    expect(workspaceTabIdForKey(tabs, "b", "ArrowRight", true)).toBe("a");
+    expect(workspaceTabIdForKey(tabs, "b", "ArrowLeft", true)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, "b", "Home", false)).toBe("a");
+    expect(workspaceTabIdForKey(tabs, "b", "End", false)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, "b", "Home", true)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, "b", "End", true)).toBe("a");
   });
 });

@@ -136,7 +136,7 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(tabBarIndex).toBeGreaterThan(-1);
     expect(tabContentIndex).toBeGreaterThan(tabBarIndex);
     expect(appSource).toMatch(
-      /className="workspace-tab-bar"[\s\S]{0,200}?role="tablist"/u,
+      /className="workspace-tab-bar"[\s\S]{0,2000}?role="tablist"/u,
     );
     expect(appSource).toMatch(/\w+\.tabs\.map\(\(tab\)\s*=>/u);
     expect(appSource).toContain('role="tab"');

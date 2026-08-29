@@ -168,6 +168,8 @@ import {
   type WorkspaceTabAction,
   type WorkspaceTabKind,
   type WorkspaceTabsState,
+  workspaceTabFocusTargetAfterClose,
+  workspaceTabIdForKey,
 } from "./workspace-tabs.js";
 import {
   clampWorkspaceDockWidth,
@@ -1721,6 +1723,13 @@ export function App() {
   const workspaceTabScroll = useRef<HTMLDivElement>(null);
   const workspaceTabTrack = useRef<HTMLDivElement>(null);
   const activeWorkspaceTabElement = useRef<HTMLDivElement>(null);
+  const workspaceTabButtons = useRef(
+    new Map<string, HTMLButtonElement | null>(),
+  );
+  const focusWorkspaceTab = useCallback((tabId: string | undefined) => {
+    if (!tabId) return;
+    workspaceTabButtons.current.get(tabId)?.focus();
+  }, []);
   const workspaceContent = useRef<HTMLDivElement>(null);
   const workspaceDock = useRef<HTMLElement>(null);
   const workspaceDockDrag = useRef<WorkspaceDockDrag | undefined>(undefined);
@@ -2499,12 +2508,18 @@ export function App() {
   const closeWorkspaceTab = useCallback(
     (tabId: string) => {
       const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
+      const focusTarget = workspaceTabFocusTargetAfterClose(
+        workspaceTabs.tabs,
+        tabId,
+      );
       dispatchWorkspaceTab({ type: "close", tabId });
       if (closesLastTab) {
         setWorkspaceDockOpen(false);
+        return;
       }
+      focusWorkspaceTab(focusTarget);
     },
-    [dispatchWorkspaceTab, workspaceTabs],
+    [dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
   );
 
   const openWorkspaceTabForThread = useCallback(
@@ -7460,7 +7475,34 @@ export function App() {
                           } as CSSProperties)
                     }
                   >
-                    <div className="workspace-tab-bar" role="tablist">
+                    <div
+                      className="workspace-tab-bar"
+                      onKeyDown={(event) => {
+                        const key = event.key;
+                        if (
+                          key !== "ArrowLeft" &&
+                          key !== "ArrowRight" &&
+                          key !== "Home" &&
+                          key !== "End"
+                        ) {
+                          return;
+                        }
+                        const nextId = workspaceTabIdForKey(
+                          workspaceTabs.tabs,
+                          workspaceTabs.activeTabId,
+                          key,
+                          document.documentElement.dir === "rtl",
+                        );
+                        if (!nextId) return;
+                        event.preventDefault();
+                        dispatchWorkspaceTab({
+                          type: "activate",
+                          tabId: nextId,
+                        });
+                        focusWorkspaceTab(nextId);
+                      }}
+                      role="tablist"
+                    >
                       <div
                         className="workspace-tab-scroll-shell"
                         data-overflow={workspaceTabScrollState.hasOverflow}
@@ -7502,10 +7544,22 @@ export function App() {
                                 }
                               >
                                 <button
+                                  aria-controls="workspace-tool-dock"
                                   aria-selected={
                                     workspaceTabs.activeTabId === tab.id
                                   }
                                   className="workspace-tab-select"
+                                  ref={(element) => {
+                                    workspaceTabButtons.current.set(
+                                      tab.id,
+                                      element,
+                                    );
+                                  }}
+                                  tabIndex={
+                                    workspaceTabs.activeTabId === tab.id
+                                      ? 0
+                                      : -1
+                                  }
                                   onClick={() =>
                                     dispatchWorkspaceTab({
                                       type: "activate",
