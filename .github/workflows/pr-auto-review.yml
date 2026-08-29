@@ -1,0 +1,73 @@
+# PR 自动审核 — GitHub Actions 云端执行，不依赖桌面端
+# 用法：复制到目标仓库 .github/workflows/pr-auto-review.yml
+# 准备：目标仓库 Settings → Secrets and variables → Actions 添加 ZAI_API_KEY
+#       （z.ai 中国区 Coding Plan 改用 ZAI_CODING_CN_API_KEY，并同步改下方 env 变量名）
+
+name: PR Auto Review
+
+on:
+  # 用 pull_request_target 而不是 pull_request：公开仓库中 fork PR 在
+  # pull_request 事件下默认读不到 repo secrets，审核会因缺 key 失败。
+  # 安全前提：本 workflow 从不执行 PR 里的代码——checkout 仅落盘供 pi 只读，
+  # pi 以 read/grep/find/ls 工具运行，无 bash/write/edit。
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "手动触发时审核的 PR 编号"
+        required: true
+        type: number
+
+# 同一 PR 短时间多次 push 时，取消仍在运行的旧审核
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PI_MODEL: glm-5.3 # 可选：glm-5.2 / glm-5.2-highspeed / glm-5.3 / glm-4.7
+    steps:
+      - name: Resolve PR number
+        id: pr
+        run: echo "number=${{ github.event.pull_request.number || inputs.pr_number }}" >> "$GITHUB_OUTPUT"
+
+      # pull_request_target 默认 checkout base 分支，需显式取 PR head 才能 diff/审阅
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ steps.pr.outputs.number }}/head
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pi
+        run: npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+
+      - name: Review diff with pi
+        env:
+          ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr diff "${{ steps.pr.outputs.number }}" --repo "$GITHUB_REPOSITORY" > pr.diff
+          cat pr.diff | pi -p \
+            --provider zai \
+            --model "$PI_MODEL" \
+            --tools read,grep,find,ls \
+            --no-session \
+            "你是资深代码审核员。本条消息包含一个 PR 的完整 diff，仓库已 checkout 在当前目录，可用 read/grep 查看上下文。用中文输出审核意见：1) 按【严重】【建议】【nit】分级列出问题，标注文件与行号；2) 覆盖 bug、安全、边界情况；3) 最后一行给出结论：approve 或 request-changes。只做只读分析，不要修改任何文件。" \
+            > review.md
+          test -s review.md || { echo "pi 未产生审核输出"; exit 1; }
+
+      - name: Post comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment "${{ steps.pr.outputs.number }}" --repo "$GITHUB_REPOSITORY" --body-file review.md
