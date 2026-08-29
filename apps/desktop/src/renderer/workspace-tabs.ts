@@ -67,17 +67,21 @@ export function workspaceTabIdForKey(
   rtl: boolean,
 ): string | undefined {
   if (tabs.length === 0) return undefined;
-  if (key === "Home") return rtl ? tabs[tabs.length - 1]!.id : tabs[0]!.id;
-  if (key === "End") return rtl ? tabs[0]!.id : tabs[tabs.length - 1]!.id;
-  const currentIndex = tabs.findIndex((tab) => tab.id === activeTabId);
+  // Home/End address the logical first/last tab and are RTL-independent.
+  if (key === "Home") return tabs[0]!.id;
+  if (key === "End") return tabs[tabs.length - 1]!.id;
   const baseDelta = key === "ArrowRight" ? 1 : -1;
   const delta = rtl ? -baseDelta : baseDelta;
+  const currentIndex = tabs.findIndex((tab) => tab.id === activeTabId);
   if (currentIndex < 0) {
-    // No active tab: land on the first tab the direction points at.
+    // No active tab: land on the edge tab the direction points at.
     const fallbackIndex = delta > 0 ? 0 : tabs.length - 1;
     return tabs[fallbackIndex]!.id;
   }
-  return tabs[currentIndex + delta]?.id;
+  // WAI-ARIA Tabs pattern: wrap from last to first (forward) and from first
+  // to last (backward) instead of clamping at the ends.
+  const nextIndex = (currentIndex + delta + tabs.length) % tabs.length;
+  return tabs[nextIndex]!.id;
 }
 
 export function closesLastWorkspaceTab(

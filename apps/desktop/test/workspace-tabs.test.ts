@@ -344,13 +344,11 @@ describe("workspace tab keyboard focus helpers", () => {
     expect(workspaceTabFocusTargetAfterClose(tabs, "missing", "a")).toBe("a");
   });
 
-  it("moves with arrow keys and clamps at the ends (LTR)", () => {
+  it("wraps with arrow keys at both ends (LTR, WAI-ARIA tabs pattern)", () => {
     expect(workspaceTabIdForKey(tabs, "b", "ArrowRight", false)).toBe("c");
     expect(workspaceTabIdForKey(tabs, "b", "ArrowLeft", false)).toBe("a");
-    expect(
-      workspaceTabIdForKey(tabs, "c", "ArrowRight", false),
-    ).toBeUndefined();
-    expect(workspaceTabIdForKey(tabs, "a", "ArrowLeft", false)).toBeUndefined();
+    expect(workspaceTabIdForKey(tabs, "c", "ArrowRight", false)).toBe("a");
+    expect(workspaceTabIdForKey(tabs, "a", "ArrowLeft", false)).toBe("c");
   });
 
   it("falls back to the direction's edge tab when no tab is active", () => {
@@ -361,12 +359,14 @@ describe("workspace tab keyboard focus helpers", () => {
     expect(workspaceTabIdForKey(tabs, undefined, "Home", false)).toBe("a");
   });
 
-  it("reverses arrows in RTL and jumps with Home/End", () => {
+  it("reverses arrows in RTL with wrapping; Home/End stay logical", () => {
     expect(workspaceTabIdForKey(tabs, "b", "ArrowRight", true)).toBe("a");
     expect(workspaceTabIdForKey(tabs, "b", "ArrowLeft", true)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, "a", "ArrowRight", true)).toBe("c");
+    expect(workspaceTabIdForKey(tabs, "c", "ArrowLeft", true)).toBe("a");
     expect(workspaceTabIdForKey(tabs, "b", "Home", false)).toBe("a");
     expect(workspaceTabIdForKey(tabs, "b", "End", false)).toBe("c");
-    expect(workspaceTabIdForKey(tabs, "b", "Home", true)).toBe("c");
-    expect(workspaceTabIdForKey(tabs, "b", "End", true)).toBe("a");
+    expect(workspaceTabIdForKey(tabs, "b", "Home", true)).toBe("a");
+    expect(workspaceTabIdForKey(tabs, "b", "End", true)).toBe("c");
   });
 });
