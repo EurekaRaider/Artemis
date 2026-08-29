@@ -307,7 +307,9 @@ other everyday tasks.
   loading before the matching text submission captures its attachments; reuse prompt history;
   invoke `/goal`, `/init` and one or more `/skill` selections; switch mode with
   `/plan`, `/execute` or `/review` anywhere in a message; choose the model and
-  thinking level.
+  thinking level. Copy completed user and assistant messages directly from the
+  timeline; cancelled or failed user turns can restore their visible text and
+  selected Skills to the composer for editing without replaying the turn.
 - **Task environment** — open a compact header panel for Git changes, local
   repository and branch state from the active task checkout, branch search,
   local/remote switching, branch creation/publishing, commit/push actions, child
@@ -315,6 +317,11 @@ other everyday tasks.
   stable identity-specific color and geometry marks across the timeline,
   workspace tabs and environment panel. The panel auto-hides before it can
   overlap the centered timeline and restores itself when the workspace widens;
+  its completed-turn status row follows the same safe area, while opening the
+  workspace Dock keeps the header controls stationary through the animated
+  transition. Pasted images receive stable unique names, and sent image sources
+  open in a local preview without embedding their bytes in persisted protocol
+  events;
   Git metadata and worktree changes refresh the open panel automatically through
   a single-flight trailing debounce; unchanged metadata never starts the full
   status and line-count scan;
@@ -751,6 +758,9 @@ failed refresh preserves the last valid cache. Removing a source does not
 uninstall plugins that came from it. The fetch follows GitHub's HTTPS archive
 redirect and does not spawn a local Git process; company networks must allow
 `api.github.com` and GitHub's archive download host.
+If GitHub's unauthenticated per-IP API quota is exhausted, Artemis reports the
+reset time instead of a generic download failure and retries once when the
+server requests only a short delay.
 
 A compatible repository has one marketplace manifest and one or more plugin
 directories:
@@ -1039,11 +1049,12 @@ bounded subteam and must integrate it before completing.
   stream is cancelled with a readable retry error instead of leaving the task
   permanently running. Connection failures before visible output use a
   cancellable 5-to-60-second backoff inside the same logical turn, separate
-  from Pi's finite service retry budget. Once output has begun, Artemis stops
-  with an explicit interruption instead of blindly replaying the prompt. An
-  unexpected Agent Host exit rebuilds the host and reopens persisted sessions,
-  restores unexecuted queued inputs to their owning composer, but likewise never
-  replays an active prompt without a provider resume cursor.
+  from Pi's finite service retry budget. Completed tool results remain in the
+  request context and are not executed again. Once output has begun, Artemis
+  stops with an explicit interruption instead of blindly replaying the prompt.
+  An unexpected Agent Host exit rebuilds the host and reopens persisted
+  sessions, restores unexecuted queued inputs to their owning composer, but
+  likewise never replays an active prompt without a provider resume cursor.
 - Every persisted UI event uses a versioned envelope and an idempotent reducer.
 - The Renderer never imports Electron main-process or Node APIs.
 - Plan and Review writes are denied before an executor runs and do not expose
@@ -1076,14 +1087,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.21`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.22`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.21
-git push origin v1.4.21
+git tag v1.4.22
+git push origin v1.4.22
 ```
 
 ### Build and test matrix
@@ -1096,11 +1107,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **1111 passing tests** (7 skipped):
+The current full test run contains **1122 passing tests** (7 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       71 |       24 |        137 |     879 |  **1111** |
+|       71 |       24 |        139 |     888 |  **1122** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1129,13 +1140,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.21` packaging configuration produces:
+The `1.4.22` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.21.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.21.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.21.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.22.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.22.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.22.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

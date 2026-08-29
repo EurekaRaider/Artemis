@@ -248,7 +248,7 @@ describe("task environment panel state", () => {
       "--environment-panel-content-safe-inline-size:",
     );
     expect(stylesSource).toMatch(
-      /\.workspace:has\(\s*\.environment-control\[data-dock-open="false"\]\s+\.environment-trigger\[aria-expanded="true"\]\s*\)\s+:is\(\.timeline,\s*\.composer-wrap\)/su,
+      /\.workspace:has\(\s*\.environment-control\[data-dock-open="false"\]\s+\.environment-trigger\[aria-expanded="true"\]\s*\)\s+:is\(\.timeline,\s*\.turn-status,\s*\.composer-wrap\)/su,
     );
     expect(stylesSource).toMatch(
       /max-width:\s*min\(\s*960px,\s*calc\(100%\s*-\s*var\(--environment-panel-content-safe-inline-size\)\)\s*\)/su,

@@ -51,6 +51,7 @@ async function runCase(name, width, view = "environment") {
     throw new Error(
       [
         `Electron environment-panel case ${name} failed.`,
+        `status=${result.status ?? "null"} signal=${result.signal ?? "none"}`,
         result.error?.message,
         result.stdout,
         result.stderr,
@@ -81,6 +82,7 @@ try {
     wide.timelineContent,
     "Wide window timeline content bounds are missing.",
   );
+  assert(wide.turnStatus, "Wide window completed status bounds are missing.");
   assert(wide.workspaceContent, "Wide window workspace bounds are missing.");
   assert(
     Math.abs(wide.timelineScroll.right - wide.workspaceContent.right) <= 1,
@@ -89,6 +91,11 @@ try {
   assert(
     wide.timelineContent.right <= wide.environmentPanel.left,
     "Environment popover overlaps the timeline content safe area.",
+  );
+  assert(
+    Math.abs(wide.turnStatus.left - wide.timelineContent.left) <= 1 &&
+      Math.abs(wide.turnStatus.right - wide.timelineContent.right) <= 1,
+    "Completed status row is not aligned with the environment-safe timeline content.",
   );
 
   const dock = await runCase("dock", 1_420, "environment-dock");
@@ -101,6 +108,66 @@ try {
   assert(
     Math.abs(dock.timelineScroll.right - dock.workspaceDockResizer.left) <= 1,
     "Timeline scrollbar is not on the timeline/Tab Dock boundary.",
+  );
+  assert(
+    dock.dockTransition,
+    "Workspace Tab Dock transition evidence is missing.",
+  );
+  assert(
+    dock.dockTransition.middle.dock.width >
+      dock.dockTransition.before.dock.width &&
+      dock.dockTransition.middle.dock.width <
+        dock.dockTransition.after.dock.width,
+    "Workspace Tab Dock did not pass through an animated intermediate width.",
+  );
+  assert(
+    Math.abs(
+      dock.dockTransition.before.status.left -
+        dock.dockTransition.after.status.left,
+    ) <= 1 &&
+      Math.abs(
+        dock.dockTransition.before.environment.left -
+          dock.dockTransition.after.environment.left,
+      ) <= 1,
+    "Opening the Workspace Tab Dock moved the status or environment controls.",
+  );
+
+  const messageActions = await runCase(
+    "message-actions",
+    1_420,
+    "message-actions-edit",
+  );
+  assert(
+    JSON.stringify(messageActions.messageActionLabels) ===
+      JSON.stringify(["复制消息", "编辑后重新发送", "复制消息"]),
+    "Completed message actions are missing or out of order.",
+  );
+  assert(
+    messageActions.composerValue === "把这条被中断的指令恢复到输入框。",
+    "Editing an interrupted message did not restore its text to the composer.",
+  );
+
+  const sourceImage = await runCase(
+    "source-image",
+    1_420,
+    "environment-sources-image",
+  );
+  assert(sourceImage.sourceImageEntry, "Source image entry is missing.");
+  assert(
+    sourceImage.sourceImageEntry.label === "打开图片: Codex 环境信息参考.png",
+    "Source image entry does not have a distinct accessible name.",
+  );
+  assert(
+    sourceImage.sourceImageEntry.thumbnail &&
+      sourceImage.sourceImageEntry.title &&
+      sourceImage.sourceImageEntry.thumbnail.right <=
+        sourceImage.sourceImageEntry.title.left,
+    "Source image thumbnail overlaps its file name.",
+  );
+  assert(
+    sourceImage.sourceImagePreview?.visible &&
+      sourceImage.sourceImagePreview.imageAlt === "Codex 环境信息参考.png",
+    "Clicking a source image did not open its preview.",
   );
 
   const narrow = await runCase("narrow", 980);
@@ -137,6 +204,8 @@ try {
           environmentPanelOpen: wide.environmentPanelOpen,
           environmentPanelLeft: wide.environmentPanel.left,
           timelineContentRight: wide.timelineContent.right,
+          turnStatusLeft: wide.turnStatus.left,
+          turnStatusRight: wide.turnStatus.right,
           timelineRight: wide.timelineScroll.right,
           workspaceRight: wide.workspaceContent.right,
         },
@@ -144,6 +213,15 @@ try {
           workspaceDockVisible: dock.workspaceDockVisible,
           timelineRight: dock.timelineScroll.right,
           resizerLeft: dock.workspaceDockResizer.left,
+          transition: dock.dockTransition,
+        },
+        messageActions: {
+          labels: messageActions.messageActionLabels,
+          composerValue: messageActions.composerValue,
+        },
+        sourceImage: {
+          entry: sourceImage.sourceImageEntry,
+          preview: sourceImage.sourceImagePreview,
         },
         narrow: {
           windowInnerWidth: narrow.windowInnerWidth,

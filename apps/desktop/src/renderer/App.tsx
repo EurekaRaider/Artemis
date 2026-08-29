@@ -501,6 +501,10 @@ const copy = {
     queueEdit: "Edit queued message",
     queueSave: "Save queued message",
     queueCancel: "Cancel edit",
+    copyMessage: "Copy message",
+    editAndResend: "Edit and resend",
+    messageCopied: "Message copied",
+    messageCopyFailed: "The message could not be copied.",
     emptyConversationPrompt: "What should we build in {{workspace}}?",
     temporaryConversationPrompt: "What should we build in Artemis?",
     sandboxUnavailable: "Native command sandbox is not installed",
@@ -769,6 +773,10 @@ const copy = {
     queueEdit: "编辑排队消息",
     queueSave: "保存排队消息",
     queueCancel: "取消编辑",
+    copyMessage: "复制消息",
+    editAndResend: "编辑后重新发送",
+    messageCopied: "已复制消息",
+    messageCopyFailed: "无法复制消息。",
     emptyConversationPrompt: "想在 {{workspace}} 中构建什么？",
     temporaryConversationPrompt: "想在 Artemis 中构建什么？",
     sandboxUnavailable: "尚未安装原生命令沙箱",
@@ -1004,6 +1012,28 @@ function EditIcon() {
         strokeWidth="1.5"
       />
       <path d="m14.7 4.9 3 3" stroke="currentColor" strokeWidth="1.5" />
+    </Icon>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <Icon size={16}>
+      <rect
+        height="10"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        width="10"
+        x="8"
+        y="8"
+      />
+      <path
+        d="M6 15H5.5A1.5 1.5 0 0 1 4 13.5v-8A1.5 1.5 0 0 1 5.5 4h8A1.5 1.5 0 0 1 15 5.5V6"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.5"
+      />
     </Icon>
   );
 }
@@ -1900,6 +1930,37 @@ export function App() {
         ...current,
         prompt: typeof action === "function" ? action(current.prompt) : action,
       }));
+    },
+    [updateActiveComposerDraft],
+  );
+  const copyConversationText = useCallback(
+    async (text: string) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        setToast(t.messageCopied);
+      } catch (error) {
+        setToast({
+          error: true,
+          message: `${t.messageCopyFailed} ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        });
+      }
+    },
+    [t.messageCopied, t.messageCopyFailed],
+  );
+  const editConversationMessage = useCallback(
+    (text: string) => {
+      updateActiveComposerDraft(() => ({
+        attachments: [],
+        prompt: promptWithoutSelectedSkills(text),
+        selectedSkillNames: selectedSkillNamesForPrompt(text),
+      }));
+      window.requestAnimationFrame(() => {
+        const input = promptInput.current;
+        input?.focus({ preventScroll: true });
+        input?.setSelectionRange(0, input.value.length);
+      });
     },
     [updateActiveComposerDraft],
   );
@@ -6198,6 +6259,12 @@ export function App() {
                       onFileLinkContextMenu={openConversationFileLinkMenu}
                       onOpenChildAgent={openChildAgentPanel}
                       onOpenTurnReview={openReviewTurnPanel}
+                      onCopyText={copyConversationText}
+                      onEditUserMessage={
+                        activeThread?.archived
+                          ? undefined
+                          : editConversationMessage
+                      }
                       onResolve={(approval, approved, scope) =>
                         void resolveApprovalRequest(approval, approved, scope)
                       }
@@ -8053,7 +8120,7 @@ export function App() {
                               </div>
                             </section>
                           )}
-                          {tab.kind === "sources" && (
+                          {tab.kind === "sources" && activeThread && (
                             <SourcesPanel
                               agents={environmentAgents}
                               attachments={attachments}
@@ -8061,6 +8128,7 @@ export function App() {
                               mcpUsages={environmentMcpUsages}
                               onOpenUrl={openConversationExternalLink}
                               sources={environmentSources}
+                              threadId={activeThread.id}
                             />
                           )}
                           {tab.kind === "goal" && activeThread?.goal && (
@@ -9528,6 +9596,8 @@ function Timeline({
   onFileLinkContextMenu,
   onOpenChildAgent,
   onOpenTurnReview,
+  onCopyText,
+  onEditUserMessage,
   onResolve,
   onResolveUserInput,
   onUndoTurnChanges,
@@ -9544,6 +9614,8 @@ function Timeline({
   ) => void;
   onOpenChildAgent: (child: ChildAgentState) => void;
   onOpenTurnReview: (turnId: string) => void;
+  onCopyText: (text: string) => Promise<void>;
+  onEditUserMessage: ((text: string) => void) | undefined;
   onResolve: (
     approval: ApprovalState,
     approved: boolean,
@@ -9648,8 +9720,34 @@ function Timeline({
       if (!message) return null;
       const skillNames = selectedSkillNamesForPrompt(message.text);
       const visibleText = promptWithoutSelectedSkills(message.text);
+      const turn = state.turns[state.entryTurnIds[entry] ?? ""];
+      const editable =
+        onEditUserMessage !== undefined &&
+        (turn?.status === "cancelled" || turn?.status === "failed");
       return (
         <article className="user-message" key={entry}>
+          <div className="message-actions">
+            <button
+              aria-label={t.copyMessage}
+              className="message-action"
+              onClick={() => void onCopyText(visibleText || message.text)}
+              title={t.copyMessage}
+              type="button"
+            >
+              <CopyIcon />
+            </button>
+            {editable && (
+              <button
+                aria-label={t.editAndResend}
+                className="message-action"
+                onClick={() => onEditUserMessage(message.text)}
+                title={t.editAndResend}
+                type="button"
+              >
+                <EditIcon />
+              </button>
+            )}
+          </div>
           {skillNames.length > 0 && (
             <div className="user-message-capabilities">
               {skillNames.map((name) => {
@@ -9705,6 +9803,17 @@ function Timeline({
       if (part.type === "thinking") return null;
       return (
         <article className="assistant-message" key={entry}>
+          <div className="message-actions">
+            <button
+              aria-label={t.copyMessage}
+              className="message-action"
+              onClick={() => void onCopyText(part.text)}
+              title={t.copyMessage}
+              type="button"
+            >
+              <CopyIcon />
+            </button>
+          </div>
           <MarkdownContent
             externalLinkIcons
             fileLinkIcons

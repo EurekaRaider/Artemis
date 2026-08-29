@@ -211,6 +211,57 @@ describe("connection recovery", () => {
     expect(delays).toEqual([5_000, 10_000, 20_000, 40_000, 60_000]);
   });
 
+  it("retries only the model request and preserves completed tool results in context", async () => {
+    const failed = message("error", "fetch failed: ECONNRESET");
+    const recovered = message("stop");
+    const context = {
+      messages: [
+        {
+          role: "toolResult" as const,
+          toolCallId: "write-1",
+          toolName: "write",
+          content: [{ type: "text" as const, text: "File already written" }],
+          isError: false,
+          timestamp: 1,
+        },
+      ],
+    };
+    const streamSimple = vi
+      .fn()
+      .mockReturnValueOnce(
+        eventStream([
+          { type: "start", partial: { ...failed, stopReason: "pending" } },
+          { type: "error", reason: "error", error: failed },
+        ]),
+      )
+      .mockReturnValueOnce(
+        eventStream([
+          { type: "start", partial: { ...recovered, stopReason: "pending" } },
+          { type: "done", reason: "stop", message: recovered },
+        ]),
+      );
+    const runtime = withConnectionRecovery(
+      { streamSimple } as unknown as ModelRuntime,
+      () => undefined,
+      { wait: async () => undefined },
+    );
+
+    await collect(
+      runtime.streamSimple(model, context, { sessionId: "session-1" }),
+    );
+
+    expect(streamSimple).toHaveBeenCalledTimes(2);
+    expect(streamSimple.mock.calls.map((call) => call[1])).toEqual([
+      context,
+      context,
+    ]);
+    expect(context.messages).toHaveLength(1);
+    expect(context.messages[0]).toMatchObject({
+      role: "toolResult",
+      toolCallId: "write-1",
+    });
+  });
+
   it("stops reconnecting when cancellation interrupts the backoff", async () => {
     const failed = message("error", "socket connection was closed");
     const streamSimple = vi.fn(() =>
@@ -301,6 +352,39 @@ describe("connection recovery", () => {
     expect(isConnectionFailure("insufficient_quota billing")).toBe(false);
     expect(isConnectionFailure("invalid JSON protocol response")).toBe(false);
     expect(isConnectionFailure("fetch failed: EAI_AGAIN")).toBe(true);
+  });
+
+  it("leaves rate limits and provider failures to Pi's finite retry budget", async () => {
+    for (const errorMessage of ["429 rate limit", "503 service unavailable"]) {
+      const failed = message("error", errorMessage);
+      const streamSimple = vi.fn(() =>
+        eventStream([
+          { type: "start", partial: { ...failed, stopReason: "pending" } },
+          { type: "error", reason: "error", error: failed },
+        ]),
+      );
+      const updates: ConnectionRecoveryUpdate[] = [];
+      const runtime = withConnectionRecovery(
+        { streamSimple } as unknown as ModelRuntime,
+        (_sessionId, update) => updates.push(update),
+        { wait: async () => undefined },
+      );
+
+      const events = await collect(
+        runtime.streamSimple(
+          model,
+          { messages: [] },
+          { sessionId: "session-1" },
+        ),
+      );
+
+      expect(streamSimple).toHaveBeenCalledTimes(1);
+      expect(updates).toEqual([]);
+      expect(events.at(-1)).toMatchObject({
+        type: "error",
+        error: { errorMessage },
+      });
+    }
   });
 
   it("redacts provider URLs, credentials, headers, and local paths", () => {

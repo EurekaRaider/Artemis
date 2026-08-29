@@ -22,12 +22,52 @@ function isPromptImage(attachment: PromptAttachment): boolean {
   return !("type" in attachment);
 }
 
+const GENERIC_CLIPBOARD_IMAGE_NAME =
+  /^(?:image|pasted-image)(?:[-_ ]?\d+)?\.(?:gif|jpe?g|png|webp)$/iu;
+
+function imageExtension(mimeType: string): string {
+  return mimeType === "image/jpeg" ? "jpg" : mimeType.slice("image/".length);
+}
+
+function uniqueAttachment(
+  attachment: PromptAttachment,
+  usedNames: Set<string>,
+  imageSequence: number,
+): PromptAttachment {
+  const original = attachment.name.trim();
+  let name = original;
+  if (
+    isPromptImage(attachment) &&
+    GENERIC_CLIPBOARD_IMAGE_NAME.test(original)
+  ) {
+    let sequence = imageSequence;
+    do {
+      name = `image-${sequence}.${imageExtension(attachment.mimeType)}`;
+      sequence += 1;
+    } while (usedNames.has(name.toLocaleLowerCase()));
+  } else if (usedNames.has(name.toLocaleLowerCase())) {
+    const dot = name.lastIndexOf(".");
+    const base = dot > 0 ? name.slice(0, dot) : name;
+    const extension = dot > 0 ? name.slice(dot) : "";
+    let sequence = 2;
+    do {
+      name = `${base}-${sequence}${extension}`;
+      sequence += 1;
+    } while (usedNames.has(name.toLocaleLowerCase()));
+  }
+  usedNames.add(name.toLocaleLowerCase());
+  return name === attachment.name ? attachment : { ...attachment, name };
+}
+
 export function appendPromptAttachments(
   current: readonly PromptAttachment[],
   selected: readonly PromptAttachment[],
 ): { attachments: PromptAttachment[]; limited: boolean } {
   const attachments = [...current];
   let imageCount = attachments.filter(isPromptImage).length;
+  const usedNames = new Set(
+    attachments.map((attachment) => attachment.name.toLocaleLowerCase()),
+  );
   let limited = false;
   for (const attachment of selected) {
     if (
@@ -37,8 +77,9 @@ export function appendPromptAttachments(
       limited = true;
       continue;
     }
-    attachments.push(attachment);
-    if (isPromptImage(attachment)) imageCount += 1;
+    const normalized = uniqueAttachment(attachment, usedNames, imageCount + 1);
+    attachments.push(normalized);
+    if (isPromptImage(normalized)) imageCount += 1;
   }
   return { attachments, limited };
 }

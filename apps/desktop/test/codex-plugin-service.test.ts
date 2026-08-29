@@ -586,6 +586,70 @@ describe("CodexPluginService", () => {
     ]);
   });
 
+  it("retries one short GitHub marketplace rate limit response", async () => {
+    const root = await temporaryRoot();
+    const repository = join(root, "repository");
+    const archivePath = join(root, "marketplace.tar.gz");
+    await writeMarketplaceRepository(repository, {
+      name: "openai-curated",
+      displayName: "Codex official",
+    });
+    await createTar(
+      {
+        cwd: repository,
+        file: archivePath,
+        gzip: true,
+        prefix: "openai-plugins-commit",
+      },
+      ["."],
+    );
+    const archive = await readFile(archivePath);
+    let requests = 0;
+    const { service } = createService(root, {
+      fetcher: async () => {
+        requests += 1;
+        return requests === 1
+          ? new Response(undefined, {
+              headers: { "retry-after": "0" },
+              status: 429,
+            })
+          : new Response(archive, {
+              headers: { "content-length": String(archive.byteLength) },
+              status: 200,
+            });
+      },
+    });
+
+    const marketplace = await service.loadGitMarketplace("openai/plugins");
+
+    expect(requests).toBe(2);
+    expect(marketplace.marketplaceName).toBe("openai-curated");
+  });
+
+  it("reports long GitHub marketplace rate limits with the reset time", async () => {
+    const root = await temporaryRoot();
+    const resetAt = Math.floor(Date.now() / 1_000) + 3_600;
+    let requests = 0;
+    const { service } = createService(root, {
+      fetcher: async () => {
+        requests += 1;
+        return new Response(undefined, {
+          headers: {
+            "retry-after": "3600",
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-reset": String(resetAt),
+          },
+          status: 403,
+        });
+      },
+    });
+
+    await expect(service.loadGitMarketplace("openai/plugins")).rejects.toThrow(
+      /unauthenticated.*per-IP.*Try again after/iu,
+    );
+    expect(requests).toBe(1);
+  });
+
   it("exposes bounded plugin branding and declared Apps for the Codex-style UI", async () => {
     const root = await temporaryRoot();
     const source = join(root, "source", "branded-tools");

@@ -1147,11 +1147,69 @@ function previewMcp(server: ParsedMcpServer): CodexPluginMcpPreview {
   };
 }
 
+const MAX_GITHUB_RATE_LIMIT_RETRY_MILLISECONDS = 15_000;
+
+interface GitHubRateLimit {
+  resetAt?: Date;
+  retryAfterMilliseconds?: number;
+}
+
+function githubRetryAfterMilliseconds(
+  value: string | null,
+): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp)
+    ? Math.max(0, timestamp - Date.now())
+    : undefined;
+}
+
+function githubRateLimit(response: Response): GitHubRateLimit | undefined {
+  const remaining = response.headers.get("x-ratelimit-remaining");
+  if (
+    response.status !== 429 &&
+    !(response.status === 403 && remaining === "0")
+  ) {
+    return undefined;
+  }
+  const explicitRetryAfterMilliseconds = githubRetryAfterMilliseconds(
+    response.headers.get("retry-after"),
+  );
+  const resetSeconds = Number(response.headers.get("x-ratelimit-reset"));
+  const now = Date.now();
+  const resetAt =
+    Number.isFinite(resetSeconds) && resetSeconds > 0
+      ? new Date(resetSeconds * 1_000)
+      : explicitRetryAfterMilliseconds === undefined
+        ? undefined
+        : new Date(now + explicitRetryAfterMilliseconds);
+  const retryAfterMilliseconds =
+    explicitRetryAfterMilliseconds ??
+    (resetAt ? Math.max(0, resetAt.getTime() - now) : undefined);
+  return {
+    ...(retryAfterMilliseconds === undefined ? {} : { retryAfterMilliseconds }),
+    ...(resetAt ? { resetAt } : {}),
+  };
+}
+
+function githubRateLimitError(limit: GitHubRateLimit): Error {
+  const retry = limit.resetAt
+    ? ` Try again after ${limit.resetAt.toLocaleString()}.`
+    : " Try again after the GitHub rate-limit window resets.";
+  return new Error(
+    `GitHub marketplace download was rate limited because unauthenticated requests share a 60 requests/hour per-IP quota.${retry}`,
+  );
+}
+
 async function downloadResponse(
   response: Response,
   destination: string,
 ): Promise<void> {
   if (!response.ok) {
+    const limit = githubRateLimit(response);
+    if (limit) throw githubRateLimitError(limit);
     throw new Error(
       `GitHub marketplace download failed (HTTP ${response.status}).`,
     );
@@ -1280,15 +1338,28 @@ async function defaultDownloadRepository(
   const repository = githubMarketplaceRepository(url);
   const archiveUrl = new URL(`/repos/${repository}/tarball`, GITHUB_API).href;
   const archivePath = `${destination}.tar.gz`;
-  const response = await fetcher(archiveUrl, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "Artemis/0.1",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-    redirect: "follow",
-    signal: AbortSignal.timeout(120_000),
-  });
+  const requestArchive = () =>
+    fetcher(archiveUrl, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "Artemis/0.1",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(120_000),
+    });
+  let response = await requestArchive();
+  const limit = githubRateLimit(response);
+  if (
+    limit?.retryAfterMilliseconds !== undefined &&
+    limit.retryAfterMilliseconds <= MAX_GITHUB_RATE_LIMIT_RETRY_MILLISECONDS
+  ) {
+    await response.body?.cancel().catch(() => undefined);
+    await new Promise((resolvePromise) =>
+      setTimeout(resolvePromise, limit.retryAfterMilliseconds),
+    );
+    response = await requestArchive();
+  }
   await downloadResponse(response, archivePath);
   try {
     await extractMarketplaceArchive(

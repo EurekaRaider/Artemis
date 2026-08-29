@@ -53,6 +53,8 @@ const api: ArtemisApi = {
       (file) => webUtils.getPathForFile(file),
       (paths) => ipcRenderer.invoke(IPC.promptAttachmentsRead, paths),
     ),
+  readTaskSourceImage: (threadId, sourceId) =>
+    ipcRenderer.invoke(IPC.taskSourceImageRead, threadId, sourceId),
   createThread: (input) => ipcRenderer.invoke(IPC.threadCreate, input),
   setThreadModelSelection: (threadId, selection) =>
     ipcRenderer.invoke(IPC.threadModelSet, threadId, selection),

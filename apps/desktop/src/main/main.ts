@@ -58,6 +58,7 @@ import type {
   BrokerExecutionRequest,
   ModelSelection,
   PromptAttachment,
+  PromptImage,
   Project,
   ProviderConnection,
   RiskLevel,
@@ -82,6 +83,7 @@ import {
   automationTargetSchema,
   contextWindowSchema,
   promptAttachmentsSchema,
+  promptImageSchema,
   providerConnectionSchema,
   reviewMutationInputSchema,
   reviewQuerySchema,
@@ -102,6 +104,7 @@ import {
   SystemCpuSampler,
 } from "./agent-capacity-controller.js";
 import { partitionAgentHostEvents } from "./agent-event-routing.js";
+import { TaskSourceImageStore } from "./task-source-images.js";
 import {
   cleanupGoalObjective as cleanupGoalObjectiveFile,
   materializeGoalObjective as materializeGoalObjectiveFile,
@@ -367,6 +370,7 @@ let trustedExtensionManager: TrustedExtensionManager | undefined;
 let releaseUpdateManager: ReleaseUpdateManager | undefined;
 let releaseUpdateReady: Promise<void> = Promise.resolve();
 let diagnosticBundleService: DiagnosticBundleService | undefined;
+let taskSourceImageStore: TaskSourceImageStore | undefined;
 let agentCapacityController: AgentCapacityController | undefined;
 let agentCapacityTimer: ReturnType<typeof setInterval> | undefined;
 let agentCapacityEventLoopDelay: IntervalHistogram | undefined;
@@ -671,6 +675,13 @@ const projectGitWatcherSenders = new Set<number>();
 const interruptedAgentHostTurns = new Set<string>();
 const recoverableTurnQueues = new RecoverableTurnQueues();
 let agentHostRestart: Promise<void> | undefined;
+
+function taskSourceImages(): TaskSourceImageStore {
+  taskSourceImageStore ??= new TaskSourceImageStore(
+    join(app.getPath("userData"), "task-source-images"),
+  );
+  return taskSourceImageStore;
+}
 
 function elapsed(
   start: number | undefined,
@@ -2839,38 +2850,74 @@ function prepareRecoverableQueuePayload(
   return payload;
 }
 
-function emitInitialTurn(
+async function emitInitialTurn(
   threadId: string,
   turnId: string,
   text: string,
   mode: StartTurnInput["mode"],
   attachments: PromptAttachment[],
   visibleUserMessage = true,
-): AgentEvent[] {
+): Promise<AgentEvent[]> {
   if (!store) throw new Error("Application store is not ready.");
+  const attachmentPayloads = attachments.map((attachment) => ({
+    type: "task.source.added" as const,
+    sourceId: randomUUID(),
+    name: attachment.name,
+    mimeType: attachment.mimeType,
+    kind: "type" in attachment ? ("file" as const) : ("image" as const),
+    attachment,
+  }));
+  const savedImages = attachmentPayloads.filter(
+    (
+      source,
+    ): source is typeof source & {
+      kind: "image";
+      attachment: PromptImage;
+    } => source.kind === "image" && !("type" in source.attachment),
+  );
+  try {
+    await Promise.all(
+      savedImages.map((source) =>
+        taskSourceImages().save(threadId, source.sourceId, source.attachment),
+      ),
+    );
+  } catch (error) {
+    await Promise.allSettled(
+      savedImages.map((source) =>
+        taskSourceImages().delete(threadId, source.sourceId),
+      ),
+    );
+    throw error;
+  }
   const payloads: AgentPayload[] = [
     ...(visibleUserMessage
       ? [{ type: "user.message" as const, messageId: randomUUID(), text }]
       : []),
-    ...attachments.map((attachment): AgentPayload => ({
-      type: "task.source.added",
-      sourceId: randomUUID(),
-      name: attachment.name,
-      mimeType: attachment.mimeType,
-      kind: "type" in attachment ? "file" : "image",
-    })),
+    ...attachmentPayloads.map(
+      ({ attachment: _attachment, ...payload }): AgentPayload => payload,
+    ),
     { type: "turn.started", mode },
   ];
   for (const payload of payloads) observeTurnPayload(turnId, payload);
-  const result = store.appendEventsAndUpdateThread(
-    threadId,
-    payloads.map((payload) => ({
-      eventId: randomUUID(),
-      turnId,
-      payload,
-    })),
-    { mode, status: "running" },
-  );
+  let result: ReturnType<AppStore["appendEventsAndUpdateThread"]>;
+  try {
+    result = store.appendEventsAndUpdateThread(
+      threadId,
+      payloads.map((payload) => ({
+        eventId: randomUUID(),
+        turnId,
+        payload,
+      })),
+      { mode, status: "running" },
+    );
+  } catch (error) {
+    await Promise.allSettled(
+      savedImages.map((source) =>
+        taskSourceImages().delete(threadId, source.sourceId),
+      ),
+    );
+    throw error;
+  }
   mainWindow?.webContents.send(IPC.agentEvents, result.events);
   for (const payload of payloads) {
     applyPayloadSideEffects(threadId, payload, payload.type === "turn.started");
@@ -5038,7 +5085,7 @@ async function startTaskTurn(
   }
 
   try {
-    emitInitialTurn(
+    await emitInitialTurn(
       thread.id,
       turnId,
       requestText,
@@ -7856,6 +7903,50 @@ function registerIpc(): void {
       return loadPromptAttachments(paths);
     },
   );
+  ipcMain.handle(
+    IPC.taskSourceImageRead,
+    async (
+      _event,
+      threadId: string,
+      sourceId: string,
+    ): Promise<PromptImage> => {
+      if (!store) throw new Error("Application store is not ready.");
+      const thread = store.getThread(String(threadId ?? ""));
+      if (!thread) throw new Error("Task source was not found.");
+      const source = store
+        .getThreadEvents(thread.id)
+        .map((event) => event.payload)
+        .find(
+          (payload) =>
+            payload.type === "task.source.added" &&
+            payload.kind === "image" &&
+            payload.sourceId === sourceId,
+        );
+      if (
+        !source ||
+        source.type !== "task.source.added" ||
+        source.kind !== "image"
+      ) {
+        throw new Error("Task source image was not found.");
+      }
+      let data: string;
+      try {
+        data = await taskSourceImages().read(thread.id, source.sourceId);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          throw new Error(
+            "This image preview is unavailable because the source predates local preview storage.",
+          );
+        }
+        throw error;
+      }
+      return promptImageSchema.parse({
+        name: source.name,
+        mimeType: source.mimeType,
+        data,
+      });
+    },
+  );
 
   ipcMain.handle(
     IPC.threadCreate,
@@ -8258,6 +8349,7 @@ function registerIpc(): void {
       openedThreads.delete(threadId);
       await turnChangeSetCompletionTails.get(threadId);
       await turnChangeSetService?.deleteThread(threadId);
+      await taskSourceImages().deleteThread(threadId);
       store.deleteThread(threadId);
       await cleanupGoalObjective(goalObjective);
     },
@@ -8273,12 +8365,13 @@ function registerIpc(): void {
       if (!store || !agentProcess) {
         throw new Error("Application is not ready.");
       }
+      const appStore = store;
       const command = parseThreadCommand({
         type: "thread.fork",
         threadId,
         ...(entryId ? { entryId } : {}),
       });
-      const source = store.getThread(command.threadId);
+      const source = appStore.getThread(command.threadId);
       if (!source) {
         throw new Error(`Thread not found: ${command.threadId}`);
       }
@@ -8318,6 +8411,24 @@ function registerIpc(): void {
         createdAt: now,
         updatedAt: now,
       };
+      const persistFork = async (
+        create: () => ForkThreadResult,
+      ): Promise<ForkThreadResult> => {
+        await taskSourceImages().copyThread(source.id, forkedThread.id);
+        try {
+          return create();
+        } catch (error) {
+          try {
+            await taskSourceImages().deleteThread(forkedThread.id);
+          } catch (cleanupError) {
+            throw new AggregateError(
+              [error, cleanupError],
+              "Task fork failed and its copied source images could not be removed.",
+            );
+          }
+          throw error;
+        }
+      };
       if (forkedThread.target === "local") {
         if (!source.projectId) {
           let workspaceCopied = false;
@@ -8328,7 +8439,9 @@ function registerIpc(): void {
               forkedThread.id,
             );
             workspaceCopied = true;
-            return store.createForkedThread(forkedThread, source.id);
+            return await persistFork(() =>
+              appStore.createForkedThread(forkedThread, source.id),
+            );
           } catch (error) {
             const cleanupErrors: unknown[] = [error];
             if (workspaceCopied) {
@@ -8358,7 +8471,9 @@ function registerIpc(): void {
             throw error;
           }
         }
-        return store.createForkedThread(forkedThread, source.id);
+        return await persistFork(() =>
+          appStore.createForkedThread(forkedThread, source.id),
+        );
       }
 
       const sourceRegistration = (
@@ -8373,10 +8488,12 @@ function registerIpc(): void {
         sourceRegistration.head,
       );
       try {
-        return store.createForkedThreadWithWorktree(
-          forkedThread,
-          worktree,
-          source.id,
+        return await persistFork(() =>
+          appStore.createForkedThreadWithWorktree(
+            forkedThread,
+            worktree,
+            source.id,
+          ),
         );
       } catch (error) {
         try {
@@ -9527,6 +9644,70 @@ function seedSmokeTurnChangesFixture(): void {
   );
 }
 
+function seedSmokeMessageActionsFixture(): void {
+  if (!store || process.env.ARTEMIS_SMOKE_VIEW !== "message-actions-edit") {
+    return;
+  }
+  const now = new Date().toISOString();
+  const projectId = "artemis-smoke-message-actions-project";
+  const threadId = "artemis-smoke-message-actions-thread";
+  const turnId = "artemis-smoke-message-actions-turn";
+  store.upsertProject({
+    id: projectId,
+    name: "Artemis",
+    path: process.cwd(),
+    createdAt: now,
+    updatedAt: now,
+  });
+  store.createThread({
+    id: threadId,
+    projectId,
+    title: "中断消息操作",
+    mode: "execute",
+    target: "local",
+    status: "idle",
+    pinned: false,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+  store.appendEvents(threadId, [
+    {
+      eventId: "artemis-smoke-message-actions-started",
+      turnId,
+      payload: { type: "turn.started", mode: "execute" },
+    },
+    {
+      eventId: "artemis-smoke-message-actions-user",
+      turnId,
+      payload: {
+        type: "user.message",
+        messageId: "artemis-smoke-message-actions-user",
+        text: "把这条被中断的指令恢复到输入框。",
+      },
+    },
+    {
+      eventId: "artemis-smoke-message-actions-assistant",
+      turnId,
+      payload: {
+        type: "message.part.delta",
+        partId: "artemis-smoke-message-actions-assistant:text",
+        partType: "text",
+        delta: "这是一段在中断前已经可见的回复。",
+      },
+    },
+    {
+      eventId: "artemis-smoke-message-actions-cancelled",
+      turnId,
+      payload: {
+        type: "turn.completed",
+        reason: "cancelled",
+        durationMs: 54_000,
+      },
+    },
+  ]);
+}
+
 async function seedSmokeEnvironmentFixture(): Promise<void> {
   if (!store || !process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment")) {
     return;
@@ -9611,6 +9792,10 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
   });
   type SmokeEnvironmentEvent = { id: string; payload: AgentPayload };
   const events: SmokeEnvironmentEvent[] = [
+    {
+      id: "environment-turn-started",
+      payload: { type: "turn.started", mode: "execute" },
+    },
     {
       id: "environment-user-message",
       payload: {
@@ -9716,6 +9901,24 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
             },
           },
         ] satisfies SmokeEnvironmentEvent[])),
+    {
+      id: "environment-assistant-message",
+      payload: {
+        type: "message.part.delta",
+        partId: "environment-assistant-message:text",
+        partType: "text",
+        delta: "环境面板、Git 状态和任务来源已经验证。",
+      },
+    },
+    {
+      id: "environment-turn-completed",
+      payload: {
+        type: "turn.completed",
+        reason: "completed",
+        finalPartId: "environment-assistant-message:text",
+        durationMs: 54_000,
+      },
+    },
   ];
   for (const event of events) {
     if (
@@ -9727,6 +9930,13 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
       continue;
     }
     store.appendEvent(event.id, threadId, turnId, event.payload);
+  }
+  if (process.env.ARTEMIS_SMOKE_VIEW !== "environment-empty") {
+    await taskSourceImages().save(threadId, "source-screen", {
+      name: "Codex 环境信息参考.png",
+      mimeType: "image/png",
+      data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    });
   }
 }
 
@@ -9971,6 +10181,15 @@ function createMainWindow(): BrowserWindow {
                   }
                   return;
                 }
+                if (view === 'message-actions-edit') {
+                  document.querySelector('.thread-select')?.click();
+                  await wait(600);
+                  document
+                    .querySelector('.user-message .message-action:nth-child(2)')
+                    ?.click();
+                  await wait(350);
+                  return;
+                }
                 if (view.startsWith('environment')) {
                   document.querySelector('.thread-select')?.click();
                   await wait(600);
@@ -10000,7 +10219,7 @@ function createMainWindow(): BrowserWindow {
                     await wait(500);
                     return;
                   }
-                  if (view === 'environment-sources') {
+                  if (view === 'environment-sources' || view === 'environment-sources-image') {
                     const popover = document.querySelector('.environment-popover');
                     if (popover) popover.scrollTop = popover.scrollHeight;
                     await wait(350);
@@ -10008,6 +10227,12 @@ function createMainWindow(): BrowserWindow {
                       .querySelector('.sources-section .environment-view-all')
                       ?.click();
                     await wait(700);
+                    if (view === 'environment-sources-image') {
+                      document
+                        .querySelector('button.sources-panel-entry.attachment')
+                        ?.click();
+                      await wait(500);
+                    }
                     return;
                   }
                   if (
@@ -10089,8 +10314,37 @@ function createMainWindow(): BrowserWindow {
                     return;
                   }
                   if (view === 'environment-dock' || view === 'environment-dock-open') {
+                    const bounds = (selector) => {
+                      const rect = document
+                        .querySelector(selector)
+                        ?.getBoundingClientRect();
+                      return rect
+                        ? { left: rect.left, right: rect.right, width: rect.width }
+                        : null;
+                    };
+                    const before = {
+                      status: bounds('.status-pill'),
+                      environment: bounds('.environment-trigger'),
+                      dock: bounds('.workspace-tool-dock'),
+                    };
                     document.querySelector('.right-sidebar-toggle')?.click();
-                    await wait(600);
+                    await wait(80);
+                    const middle = {
+                      status: bounds('.status-pill'),
+                      environment: bounds('.environment-trigger'),
+                      dock: bounds('.workspace-tool-dock'),
+                    };
+                    await wait(520);
+                    const after = {
+                      status: bounds('.status-pill'),
+                      environment: bounds('.environment-trigger'),
+                      dock: bounds('.workspace-tool-dock'),
+                    };
+                    window.__artemisSmokeDockTransition = {
+                      before,
+                      middle,
+                      after,
+                    };
                   }
                   if (view === 'environment-dock-open') {
                     document.querySelector('.environment-trigger')?.click();
@@ -10388,6 +10642,8 @@ function createMainWindow(): BrowserWindow {
                 const timelineContent = document.querySelector(".timeline");
                 const timelineContentBounds = timelineContent
                   ?.getBoundingClientRect();
+                const turnStatus = document.querySelector(".turn-status");
+                const turnStatusBounds = turnStatus?.getBoundingClientRect();
                 const environmentTrigger = document.querySelector(
                   ".environment-trigger",
                 );
@@ -10416,6 +10672,21 @@ function createMainWindow(): BrowserWindow {
                 const composer = document.querySelector(".composer");
                 const composerBounds = composer?.getBoundingClientRect();
                 const goalEditor = document.querySelector(".goal-editor-panel");
+                const composerInput = document.querySelector(".composer textarea");
+                const sourceImageEntry = document.querySelector(
+                  "button.sources-panel-entry.attachment",
+                );
+                const sourceImageEntryBounds = sourceImageEntry
+                  ?.getBoundingClientRect();
+                const sourceImageThumbnailBounds = sourceImageEntry
+                  ?.querySelector("img")
+                  ?.getBoundingClientRect();
+                const sourceImageTitleBounds = sourceImageEntry
+                  ?.querySelector("h2")
+                  ?.getBoundingClientRect();
+                const sourceImagePreview = document.querySelector(
+                  ".source-image-preview",
+                );
                 return {
                   documentLanguage: document.documentElement.lang,
                   documentDirection: document.documentElement.dir,
@@ -10475,6 +10746,15 @@ function createMainWindow(): BrowserWindow {
                         width: timelineContentBounds.width,
                       }
                     : null,
+                  turnStatus: turnStatusBounds
+                    ? {
+                        left: turnStatusBounds.left,
+                        right: turnStatusBounds.right,
+                        width: turnStatusBounds.width,
+                      }
+                    : null,
+                  dockTransition:
+                    window.__artemisSmokeDockTransition ?? null,
                   workspaceDockResizer: workspaceDockResizerBounds
                     ? {
                         left: workspaceDockResizerBounds.left,
@@ -10545,6 +10825,42 @@ function createMainWindow(): BrowserWindow {
                   goalEditorAlert:
                     document.querySelector(".transient-notice[role='alert']")
                       ?.textContent?.trim() ?? null,
+                  messageActionLabels: [...document.querySelectorAll(
+                    ".message-action",
+                  )].map((button) => button.getAttribute("aria-label")),
+                  composerValue:
+                    composerInput instanceof HTMLTextAreaElement
+                      ? composerInput.value
+                      : null,
+                  sourceImageEntry: sourceImageEntryBounds
+                    ? {
+                        label: sourceImageEntry?.getAttribute("aria-label"),
+                        left: sourceImageEntryBounds.left,
+                        right: sourceImageEntryBounds.right,
+                        thumbnail: sourceImageThumbnailBounds
+                          ? {
+                              left: sourceImageThumbnailBounds.left,
+                              right: sourceImageThumbnailBounds.right,
+                            }
+                          : null,
+                        title: sourceImageTitleBounds
+                          ? {
+                              left: sourceImageTitleBounds.left,
+                              right: sourceImageTitleBounds.right,
+                            }
+                          : null,
+                      }
+                    : null,
+                  sourceImagePreview: sourceImagePreview
+                    ? {
+                        visible: visible(sourceImagePreview),
+                        label: sourceImagePreview.getAttribute("aria-label"),
+                        imageAlt:
+                          sourceImagePreview
+                            .querySelector("img")
+                            ?.getAttribute("alt") ?? null,
+                      }
+                    : null,
                   goalActionGeometry: goalBar
                     ? [...goalBar.querySelectorAll(".goal-bar-actions button")]
                         .map((button) => {
@@ -10676,6 +10992,7 @@ app
     seedSmokeTokenUsageFixture();
     seedSmokeGoalFixture();
     seedSmokeTurnChangesFixture();
+    seedSmokeMessageActionsFixture();
     mcpConfigStore = new McpConfigStore(
       join(app.getPath("userData"), "mcp.json"),
     );
