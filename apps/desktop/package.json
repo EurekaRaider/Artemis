@@ -68,7 +68,7 @@
     "electron": "43.2.0",
     "electron-builder": "26.15.3",
     "esbuild": "0.28.1",
-    "jsdom": "^30.0.1",
+    "jsdom": "^29.1.1",
     "vite": "8.1.5",
     "wait-on": "9.1.0"
   },
