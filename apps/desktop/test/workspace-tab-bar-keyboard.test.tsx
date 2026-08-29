@@ -71,6 +71,12 @@ describe("workspace tab bar keyboard handler (review follow-up)", () => {
 
     await user.keyboard("{Home}");
     expect(screen.getByRole("tab", { name: "Review" })).toHaveFocus();
+
+    // WAI-ARIA tabs pattern: wrap at the ends.
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.getByRole("tab", { name: "Browser" })).toHaveFocus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "Review" })).toHaveFocus();
   });
 
   it("ignores navigation keys from close, add, and scroll controls", async () => {
