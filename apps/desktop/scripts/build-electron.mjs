@@ -27,6 +27,10 @@ const shared = {
     "@modelcontextprotocol/sdk",
     "@modelcontextprotocol/sdk/*",
     "electron-updater",
+    // officeparser dynamically imports puppeteer only for optional PDF generation
+    // (a code path Artemis never exercises). Keep it external so esbuild doesn't
+    // try to bundle it and drag in its transitive typescript/cosmiconfig loaders.
+    "puppeteer",
   ],
   logLevel: "info",
   minify: packageBuild,
