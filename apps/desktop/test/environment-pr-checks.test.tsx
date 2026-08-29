@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -26,6 +26,11 @@ const pullRequest = {
   ],
 };
 
+const keepOpenImpl = { current: () => false };
+const keepOpenMock = (value: boolean) => {
+  keepOpenImpl.current = () => value;
+};
+
 function renderSummary(overrides: Record<string, unknown> = {}) {
   const onOpenUrl = vi.fn();
   const onToggleOpen = vi.fn();
@@ -46,7 +51,7 @@ function renderSummary(overrides: Record<string, unknown> = {}) {
         onToggleOpen={onToggleOpen}
         prIcon={<span aria-hidden="true">pr</span>}
         pullRequest={pullRequest as never}
-        shouldKeepOpen={() => false}
+        shouldKeepOpen={(node) => keepOpenImpl.current(node)}
         stateLabel="Open"
         summaryLabel="Checks pending"
         triggerRef={ref}
@@ -55,7 +60,12 @@ function renderSummary(overrides: Record<string, unknown> = {}) {
     );
   };
   render(<Trigger />);
-  return { onOpenUrl, onToggleOpen, onShowChecksWithFocus, onBlurredOut };
+  return {
+    onOpenUrl,
+    onToggleOpen,
+    onShowChecksWithFocus,
+    onBlurredOut,
+  };
 }
 
 describe("PullRequestChecksSummary", () => {
@@ -109,6 +119,7 @@ describe("PullRequestChecksPopover", () => {
           checks={checks as never}
           checkSummaryLabels={{ passed: "Passed", pending: "Pending" }}
           containerRef={ref}
+          externalIcon={<svg aria-hidden="true" data-testid="external" />}
           noneLabel="No checks"
           onOpenUrl={onOpenUrl}
           onScheduleClose={vi.fn()}
@@ -146,5 +157,84 @@ describe("PullRequestChecksPopover", () => {
   it("shows the empty state when the PR has no checks", () => {
     renderPopover([]);
     expect(screen.getByText("No checks")).toBeInTheDocument();
+  });
+});
+
+describe("PullRequestChecksSummary interaction predicates (review follow-up)", () => {
+  it("keeps the popover open on blur only when the predicate says so", () => {
+    const { onBlurredOut } = renderSummary();
+    const trigger = screen.getByRole("button", { name: /checks pending/i });
+    const popoverChild = document.createElement("span");
+
+    keepOpenMock(true);
+    fireEvent.blur(trigger, { relatedTarget: popoverChild });
+    expect(onBlurredOut).not.toHaveBeenCalled();
+
+    keepOpenMock(false);
+    fireEvent.blur(trigger, { relatedTarget: popoverChild });
+    expect(onBlurredOut).toHaveBeenCalledTimes(1);
+
+    fireEvent.blur(trigger, { relatedTarget: null });
+    expect(onBlurredOut).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens with focus via ArrowDown and Space as well", async () => {
+    const user = userEvent.setup();
+    const { onShowChecksWithFocus } = renderSummary();
+    const trigger = screen.getByRole("button", { name: /checks pending/i });
+    trigger.focus();
+    await user.keyboard("{ArrowDown}");
+    expect(onShowChecksWithFocus).toHaveBeenCalledTimes(1);
+    await user.keyboard(" ");
+    expect(onShowChecksWithFocus).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("PullRequestChecksPopover interaction predicates (review follow-up)", () => {
+  function renderPopoverWith(onScheduleClose: ReturnType<typeof vi.fn>) {
+    const Popover = () => {
+      const ref = useRef<HTMLDivElement>(null);
+      return (
+        <PullRequestChecksPopover
+          checks={pullRequest.checks as never}
+          checkSummaryLabels={{ passed: "Passed", pending: "Pending" }}
+          containerRef={ref}
+          externalIcon={<svg aria-hidden="true" data-testid="external" />}
+          noneLabel="No checks"
+          onOpenUrl={vi.fn()}
+          onScheduleClose={onScheduleClose}
+          onCancelClose={vi.fn()}
+          position={{ left: 0, top: 0 }}
+          prLabel="#1 · Open"
+          title="Check details"
+          triggerContains={(node) => node?.nodeName === "SPAN"}
+        />
+      );
+    };
+    render(<Popover />);
+  }
+
+  it("renders the svg external-link indicator on rows with a details url", () => {
+    renderPopoverWith(vi.fn());
+    expect(
+      document.querySelector(".environment-check-list i svg"),
+    ).not.toBeNull();
+  });
+
+  it("keeps open when focus moves into the trigger and closes otherwise", () => {
+    const onScheduleClose = vi.fn();
+    renderPopoverWith(onScheduleClose);
+    const dialog = screen.getByRole("dialog", { name: "Check details" });
+    const triggerChild = document.createElement("span");
+    const outside = document.createElement("button");
+
+    fireEvent.blur(dialog, { relatedTarget: triggerChild });
+    expect(onScheduleClose).not.toHaveBeenCalled();
+
+    fireEvent.blur(dialog, { relatedTarget: outside });
+    expect(onScheduleClose).toHaveBeenCalledTimes(1);
+
+    fireEvent.blur(dialog, { relatedTarget: null });
+    expect(onScheduleClose).toHaveBeenCalledTimes(2);
   });
 });

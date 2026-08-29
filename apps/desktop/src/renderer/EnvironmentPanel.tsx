@@ -758,6 +758,7 @@ export function PullRequestChecksPopover({
   checks,
   checkSummaryLabels,
   containerRef,
+  externalIcon,
   noneLabel,
   onOpenUrl,
   onScheduleClose,
@@ -770,6 +771,7 @@ export function PullRequestChecksPopover({
   checks: readonly ProjectPullRequestCheck[];
   checkSummaryLabels: Record<string, string>;
   containerRef: RefObject<HTMLDivElement | null>;
+  externalIcon: ReactNode;
   noneLabel: string;
   onOpenUrl: (url: string) => void;
   onScheduleClose: () => void;
@@ -825,7 +827,7 @@ export function PullRequestChecksPopover({
                     {checkSummaryLabels[check.status]}
                   </small>
                 </span>
-                {check.detailsUrl && <i aria-hidden="true">↗</i>}
+                {check.detailsUrl && <i aria-hidden="true">{externalIcon}</i>}
               </>
             );
             return check.detailsUrl ? (
@@ -2156,6 +2158,7 @@ export function EnvironmentPanel({
             checks={pullRequest.checks}
             checkSummaryLabels={checkSummaryLabels}
             containerRef={checksPopover}
+            externalIcon={<EnvironmentExternalIcon />}
             noneLabel={t.checksNone}
             onOpenUrl={onOpenUrl}
             onScheduleClose={scheduleChecksClose}
