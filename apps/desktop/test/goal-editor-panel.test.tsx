@@ -44,9 +44,12 @@ function stubGoalApi(overrides: Partial<GoalApi> = {}): GoalApi {
       objective: "Loaded objective",
       revision: 3,
     })),
-    updateThreadGoalObjective: vi.fn(async () => ({
-      goal: goal({ objective: "Saved objective", revision: 4 }),
-    }) as unknown as Thread),
+    updateThreadGoalObjective: vi.fn(
+      async () =>
+        ({
+          goal: goal({ objective: "Saved objective", revision: 4 }),
+        }) as unknown as Thread,
+    ),
     ...overrides,
   };
   stubWindowArtemis(api as unknown as Record<string, unknown>);
@@ -145,7 +148,9 @@ describe("GoalEditorPanel interactions", () => {
     renderPanel();
     const box = await screen.findByRole("textbox", { name: "Goal" });
     await userEvent.setup().type(box, " more");
-    await userEvent.setup().click(screen.getByRole("button", { name: /^save$/i }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^save$/i }));
     expect(await screen.findByText(/^saved$/i)).toBeInTheDocument();
     await userEvent.setup().type(box, "!");
     expect(screen.queryByText(/^saved$/i)).not.toBeInTheDocument();
@@ -166,7 +171,9 @@ describe("GoalEditorPanel interactions", () => {
     const box = await screen.findByRole("textbox", { name: "Goal" });
     await userEvent.setup().type(box, " more");
 
-    await userEvent.setup().click(screen.getByRole("button", { name: /^save$/i }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^save$/i }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/failed to save goal objective/i);
     expect(box).toHaveValue("Loaded objective more");
@@ -188,11 +195,15 @@ describe("GoalEditorPanel interactions", () => {
     renderPanel();
     const box = await screen.findByRole("textbox", { name: "Goal" });
     await userEvent.setup().type(box, " more");
-    await userEvent.setup().click(screen.getByRole("button", { name: /^save$/i }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^save$/i }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/changed elsewhere/i);
-    expect(screen.getByRole("button", { name: /^reload$/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^reload$/i }),
+    ).toBeInTheDocument();
     expect(box).toHaveValue("Loaded objective more");
   });
 
@@ -210,15 +221,21 @@ describe("GoalEditorPanel interactions", () => {
     renderPanel();
     const box = await screen.findByRole("textbox", { name: "Goal" });
     await userEvent.setup().type(box, " more");
-    await userEvent.setup().click(screen.getByRole("button", { name: /^save$/i }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^save$/i }));
     await screen.findByRole("alert");
 
-    await userEvent.setup().click(screen.getByRole("button", { name: /^reload$/i }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^reload$/i }));
     expect(box).toHaveValue("Fresh objective more");
 
     await userEvent
       .setup()
-      .click(screen.getByRole("button", { name: /discard changes and reload/i }));
+      .click(
+        screen.getByRole("button", { name: /discard changes and reload/i }),
+      );
     await waitFor(() =>
       expect(screen.getByRole("textbox", { name: "Goal" })).toHaveValue(
         "Fresh objective",
@@ -238,7 +255,9 @@ describe("GoalEditorPanel interactions", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/changed elsewhere/i);
 
-    await userEvent.setup().click(screen.getByRole("button", { name: /^reload$/i }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^reload$/i }));
     expect(api.getThreadGoalObjective).toHaveBeenCalledTimes(2);
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
@@ -287,7 +306,11 @@ describe("GoalEditorPanel interactions", () => {
     const gate = new Promise<Thread>((resolvePromise) => {
       releaseSave = resolvePromise;
     });
-    const loadGate = deferred<{ goalId: string; objective: string; revision: number }>();
+    const loadGate = deferred<{
+      goalId: string;
+      objective: string;
+      revision: number;
+    }>();
     stubGoalApi({
       getThreadGoalObjective: vi.fn(() => loadGate.promise),
       updateThreadGoalObjective: vi.fn(() => gate),
@@ -296,12 +319,18 @@ describe("GoalEditorPanel interactions", () => {
     const panel = container.firstElementChild as HTMLElement;
     expect(panel).toHaveAttribute("aria-busy", "true");
 
-    loadGate.resolve({ goalId: "goal-1", objective: "Loaded objective", revision: 3 });
+    loadGate.resolve({
+      goalId: "goal-1",
+      objective: "Loaded objective",
+      revision: 3,
+    });
     await screen.findByRole("textbox", { name: "Goal" });
     expect(panel).not.toHaveAttribute("aria-busy");
 
     await userEvent.setup().type(editorBox(), " more");
-    await userEvent.setup().click(screen.getByRole("button", { name: /^save$/i }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(panel).toHaveAttribute("aria-busy", "true"));
     releaseSave({
       goal: goal({ objective: "Saved objective", revision: 4 }),
@@ -310,8 +339,16 @@ describe("GoalEditorPanel interactions", () => {
   });
 
   it("ignores a late-resolving load that a newer load already replaced", async () => {
-    const first = deferred<{ goalId: string; objective: string; revision: number }>();
-    const second = deferred<{ goalId: string; objective: string; revision: number }>();
+    const first = deferred<{
+      goalId: string;
+      objective: string;
+      revision: number;
+    }>();
+    const second = deferred<{
+      goalId: string;
+      objective: string;
+      revision: number;
+    }>();
     let attempts = 0;
     stubGoalApi({
       getThreadGoalObjective: vi.fn(() => {
@@ -321,7 +358,11 @@ describe("GoalEditorPanel interactions", () => {
     });
     const { rerender } = renderPanel();
 
-    second.resolve({ goalId: "goal-1", objective: "Newest objective", revision: 5 });
+    second.resolve({
+      goalId: "goal-1",
+      objective: "Newest objective",
+      revision: 5,
+    });
     rerender(
       <GoalEditorPanel
         clockMs={Date.parse("2026-08-28T00:01:00.000Z")}
@@ -335,7 +376,11 @@ describe("GoalEditorPanel interactions", () => {
       "Newest objective",
     );
 
-    first.resolve({ goalId: "goal-1", objective: "Stale objective", revision: 2 });
+    first.resolve({
+      goalId: "goal-1",
+      objective: "Stale objective",
+      revision: 2,
+    });
     await userEvent.setup().type(editorBox(), "!");
     expect(editorBox()).toHaveValue("Newest objective!");
   });
@@ -358,7 +403,9 @@ describe("stubWindowArtemis isolation (PR #103 review contract)", () => {
     expect((window as unknown as { artemis?: unknown }).artemis).toEqual({
       getThreadGoalObjective: expect.any(Function),
     });
-    const restoreSecond = stubWindowArtemis({ updateThreadGoalObjective: vi.fn() });
+    const restoreSecond = stubWindowArtemis({
+      updateThreadGoalObjective: vi.fn(),
+    });
     expect((window as unknown as { artemis?: unknown }).artemis).toEqual({
       updateThreadGoalObjective: expect.any(Function),
     });

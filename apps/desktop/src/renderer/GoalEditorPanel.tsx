@@ -245,10 +245,7 @@ export function GoalEditorPanel({
       : "";
 
   return (
-    <section
-      aria-busy={busy || undefined}
-      className="goal-editor-panel"
-    >
+    <section aria-busy={busy || undefined} className="goal-editor-panel">
       {status.kind === "loading" && (
         <div className="goal-editor-loading">{copy.loading}</div>
       )}
