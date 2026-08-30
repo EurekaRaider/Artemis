@@ -2817,7 +2817,7 @@ describe("renderer layout contract", () => {
 
   it("enables Save and connect from the command or URL and prefills imported servers", () => {
     expect(mcpServerEditorSource).toMatch(
-      /className="mcp-editor-save"\s+disabled=\{busy \|\| !endpoint\.trim\(\)\}/u,
+      /className="mcp-editor-save"\s+disabled=\{actionsLocked \|\| validationErrors\.length > 0\}/u,
     );
     expect(mcpServerEditorSource).not.toContain("!workspace.trim()");
     expect(mcpServerEditorSource).not.toContain("!serverId.trim()");

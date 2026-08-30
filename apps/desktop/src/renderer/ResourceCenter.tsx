@@ -2183,6 +2183,7 @@ export function ResourceCenter({
           existingServers={mcpServers}
           key={editingMcpServer?.config.id ?? "new"}
           locale={locale}
+          onConfirm={onConfirm}
           onCancel={() => closeMcpEditor()}
           onRemoved={(next) => {
             setMcpServers(next.mcpServers);

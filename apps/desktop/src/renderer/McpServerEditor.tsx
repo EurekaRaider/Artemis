@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { AppLocale } from "@artemis/protocol";
 
 import type {
@@ -9,12 +9,21 @@ import type {
 import { legacyLocale } from "../shared/locales.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { CodexSelect } from "./CodexSelect.js";
+import {
+  McpEditorFeedback,
+  type McpEditorTestConnectionState,
+} from "./McpEditorFeedback.js";
 
 interface McpServerEditorProps {
   existingServers: readonly McpServerStatus[];
   locale: AppLocale;
   server?: McpServerStatus;
   onCancel(): void;
+  /**
+   * App `requestConfirmation` primitive forwarded by ResourceCenter; the
+   * Uninstall control routes its danger confirmation through it.
+   */
+  onConfirm(message: string, tone?: "default" | "danger"): Promise<boolean>;
   onRemoved(settings: SettingsSnapshot): void;
   onSaved(settings: SettingsSnapshot): void;
 }
@@ -61,6 +70,23 @@ const labels = {
     uninstall: "Uninstall",
     cancel: "Back to MCP servers",
     delete: "Delete",
+    savingServer: "Saving…",
+    removingServer: "Removing…",
+    tryAgain: "Try again",
+    validationHeading: "Fix these issues before saving:",
+    validationCommandRequired: "Enter the launch command for the MCP server.",
+    validationUrlRequired: "Enter the server URL.",
+    validationUrlInvalid: "Enter a valid http:// or https:// server URL.",
+    testConnection: "Test connection",
+    testConnectionBusy: "Testing the connection…",
+    testConnectionSuccess: "Connected.",
+    testConnectionFailure: "Connection failed.",
+    testConnectionNotConnected:
+      "The server did not report a connected state after reconnecting.",
+    testSavedOnlyHint:
+      "Tests the saved configuration — save your changes first",
+    confirmUninstall:
+      "Uninstall {name}? This removes the saved configuration only; files on the server are not deleted.",
   },
   "zh-CN": {
     addMcp: "添加 MCP 服务器",
@@ -101,6 +127,21 @@ const labels = {
     uninstall: "卸载",
     cancel: "返回 MCP 服务器",
     delete: "删除",
+    savingServer: "正在保存…",
+    removingServer: "正在移除…",
+    tryAgain: "重试",
+    validationHeading: "请先修正以下问题再保存：",
+    validationCommandRequired: "请填写 MCP 服务器的启动命令。",
+    validationUrlRequired: "请填写服务器 URL。",
+    validationUrlInvalid: "请输入有效的 http:// 或 https:// 服务器 URL。",
+    testConnection: "测试连接",
+    testConnectionBusy: "正在测试连接…",
+    testConnectionSuccess: "已连接。",
+    testConnectionFailure: "连接失败。",
+    testConnectionNotConnected: "重新连接后服务器未进入已连接状态。",
+    testSavedOnlyHint: "测试的是已保存配置——请先保存修改",
+    confirmUninstall:
+      "卸载 {name}？此操作只删除保存的配置，不会删除服务器上的文件。",
   },
 } as const;
 
@@ -142,11 +183,42 @@ function deriveMcpIdentity(
   return { id, name };
 }
 
+function sameStringList(
+  draft: readonly string[],
+  saved: readonly string[],
+): boolean {
+  return (
+    draft.length === saved.length &&
+    draft.every((value, index) => value === saved[index])
+  );
+}
+
+function sameEnvironmentDraft(
+  draft: Record<string, string>,
+  saved: Record<string, string>,
+): boolean {
+  const keys = Object.keys(draft);
+  return (
+    keys.length === Object.keys(saved).length &&
+    keys.every((key) => draft[key] === saved[key])
+  );
+}
+
+function isValidServerUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function McpServerEditor({
   existingServers,
   locale,
   server,
   onCancel,
+  onConfirm,
   onRemoved,
   onSaved,
 }: McpServerEditorProps) {
@@ -196,23 +268,131 @@ export function McpServerEditor({
   );
   const [bearer, setBearer] = useState("");
   const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<"save" | "remove" | null>(null);
+  const [failedAction, setFailedAction] = useState<"save" | "remove" | null>(
+    null,
+  );
   const [message, setMessage] = useState("");
+  const [testState, setTestState] = useState<McpEditorTestConnectionState>({
+    status: "idle",
+  });
+  // Mirrors the McpEditorFeedback confirmation guard: true while the danger
+  // alertdialog for Uninstall is open, so the editor's own Save/Test controls
+  // can join the four-way mutual exclusion.
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  // Ref copies of the mutual-exclusion flags. Handler guards must read the
+  // current instant, never a stale render closure: `onRemove` fires in the
+  // same microtask that flips confirmingRemove back to false, so only a ref
+  // is guaranteed fresh there.
+  const busyRef = useRef(false);
+  const testPendingRef = useRef(false);
+  const confirmingRemoveRef = useRef(false);
   const locksCredentialTarget =
     server?.config.transport === "stdio" &&
     (server.config.credentialEnvVars?.length ?? 0) > 0;
   const locksHeaderTarget =
     server?.config.transport === "streamable-http" &&
     server.config.auth === "headers";
+  const testPending = testState.status === "busy";
+  // Draft drift (PR8 review F1/F2): reconnectMcpServer only tests the saved
+  // configuration, so testing is gated while the draft differs from it. Every
+  // field save() assembles participates, mirroring the exact config a save
+  // would persist: endpoint, auth, args, env, envVars, workspace, and the
+  // permission pair (allowNetwork compares the same mcpFullAccess ||
+  // mcpAllowNetwork composite save() writes). The bearer is deliberately
+  // excluded from the "matches" side: the editor never backfills it
+  // (useState("")), so an empty bearer counts as unmodified and only a newly
+  // typed token marks the draft as drifted.
+  const draftMatchesSaved =
+    server === undefined ||
+    (endpoint ===
+      (server.config.transport === "stdio"
+        ? server.config.command
+        : server.config.url) &&
+      auth ===
+        (server.config.transport === "streamable-http"
+          ? (server.config.auth ?? "none")
+          : "none") &&
+      bearer === "" &&
+      (server.config.transport !== "stdio" ||
+        (sameStringList(argumentsList, server.config.args) &&
+          sameEnvironmentDraft(
+            Object.fromEntries(
+              environment
+                .filter((entry) => entry.key.trim())
+                .map((entry) => [entry.key, entry.value]),
+            ),
+            server.config.env,
+          ) &&
+          sameStringList(
+            environmentVariables.filter((name) => name.trim()),
+            server.config.envVars,
+          ) &&
+          workspace === server.config.workspacePath &&
+          mcpFullAccess === Boolean(server.config.fullAccess) &&
+          (mcpFullAccess || mcpAllowNetwork) === server.config.allowNetwork)));
+  // Four-way action lock (saving / removing / testing / confirming): the UI
+  // layer disables every control and the handler layer re-checks it below.
+  const actionsLocked = busy || testPending || confirmingRemove;
 
-  async function run(action: () => Promise<void>) {
+  // SECURITY: messages are composed from label copy and error text only —
+  // credential values (bearer input) never flow into any of these strings.
+  const validationErrors: string[] = [];
+  if (!endpoint.trim()) {
+    validationErrors.push(
+      transport === "stdio"
+        ? t.validationCommandRequired
+        : t.validationUrlRequired,
+    );
+  } else if (
+    transport === "streamable-http" &&
+    !isValidServerUrl(endpoint.trim())
+  ) {
+    validationErrors.push(t.validationUrlInvalid);
+  }
+
+  // Editor-level action guard: the component layer disables the buttons,
+  // this re-checks the mutual-exclusion state at the handler entry so a
+  // programmatic trigger (retry affordance, dispatched event) can never
+  // overlap two `window.artemis` calls.
+  function actionLocked(): boolean {
+    return (
+      busyRef.current || testPendingRef.current || confirmingRemoveRef.current
+    );
+  }
+
+  async function run(
+    action: "save" | "remove",
+    operation: () => Promise<void>,
+  ) {
+    if (actionLocked()) return;
+    busyRef.current = true;
     setBusy(true);
+    setBusyAction(action);
     setMessage("");
+    setFailedAction(null);
     try {
-      await action();
+      await operation();
     } catch (error) {
+      setFailedAction(action);
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
+      busyRef.current = false;
       setBusy(false);
+      setBusyAction(null);
+    }
+  }
+
+  function attemptSave() {
+    if (validationErrors.length > 0 || actionLocked()) return;
+    void run("save", save);
+  }
+
+  function retryLastAction() {
+    if (failedAction === "remove") {
+      void run("remove", removeServer);
+    } else if (failedAction === "save" && validationErrors.length === 0) {
+      void run("save", save);
     }
   }
 
@@ -282,6 +462,47 @@ export function McpServerEditor({
     );
   }
 
+  async function removeServer() {
+    // The busy lock is owned by run(), which guards the remove entry (the
+    // remove control's onRemove) before setting it; here only the other two
+    // exclusion states are re-checked so this inner step can never fire
+    // while a test or a pending confirmation is in flight.
+    if (!server || testPendingRef.current || confirmingRemoveRef.current) {
+      return;
+    }
+    onRemoved(await window.artemis.removeMcpServer(server.config.id));
+  }
+
+  async function testConnectionNow() {
+    // Only the saved configuration is testable: block while the draft has
+    // drifted and while any other action is in flight.
+    if (!server || !draftMatchesSaved || actionLocked()) return;
+    const serverId = server.config.id;
+    testPendingRef.current = true;
+    setTestState({ status: "busy" });
+    try {
+      const snapshot = await window.artemis.reconnectMcpServer(serverId);
+      const status = snapshot.mcpServers.find(
+        (candidate) => candidate.config.id === serverId,
+      );
+      if (status?.state === "connected") {
+        setTestState({ status: "success" });
+      } else {
+        setTestState({
+          status: "failure",
+          message: status?.error ?? t.testConnectionNotConnected,
+        });
+      }
+    } catch (error) {
+      setTestState({
+        status: "failure",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      testPendingRef.current = false;
+    }
+  }
+
   return (
     <section className="settings-section resource-standalone-editor mcp-editor">
       <header className="mcp-editor-header">
@@ -303,301 +524,339 @@ export function McpServerEditor({
             {server ? t.transportChangeHint : t.newServerHint}
           </p>
         </div>
-        {server && (
-          <button
-            className="mcp-uninstall"
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                onRemoved(
-                  await window.artemis.removeMcpServer(server.config.id),
-                );
-              })
-            }
-            type="button"
-          >
-            {t.uninstall}
-          </button>
-        )}
       </header>
 
-      {transport === "stdio" ? (
-        <>
+      <McpEditorFeedback
+        busy={busy}
+        onActionErrorRetry={retryLastAction}
+        validationErrors={validationErrors}
+        validationHeading={t.validationHeading}
+        {...(message
+          ? { actionError: message, actionErrorRetryLabel: t.tryAgain }
+          : {})}
+        {...(busy
+          ? {
+              busyLabel:
+                busyAction === "remove" ? t.removingServer : t.savingServer,
+            }
+          : {})}
+        {...(server
+          ? {
+              remove: {
+                label: t.uninstall,
+                confirmMessage: t.confirmUninstall.replace(
+                  "{name}",
+                  server.config.name,
+                ),
+                // Track the confirm-open window so Save and the test control
+                // join the mutual exclusion while the alertdialog is showing.
+                onConfirm: async (message, tone) => {
+                  confirmingRemoveRef.current = true;
+                  setConfirmingRemove(true);
+                  try {
+                    return await onConfirm(message, tone);
+                  } finally {
+                    confirmingRemoveRef.current = false;
+                    setConfirmingRemove(false);
+                  }
+                },
+                onRemove: () => void run("remove", removeServer),
+              },
+              testConnection: {
+                state: testState,
+                label: t.testConnection,
+                busyLabel: t.testConnectionBusy,
+                successLabel: t.testConnectionSuccess,
+                failureLabel: t.testConnectionFailure,
+                ...(draftMatchesSaved
+                  ? {}
+                  : { disabled: true, disabledHint: t.testSavedOnlyHint }),
+                onTest: () => void testConnectionNow(),
+              },
+            }
+          : {})}
+      >
+        {transport === "stdio" ? (
+          <>
+            <div className="mcp-editor-card">
+              <label>
+                <strong>{t.launchCommand}</strong>
+                <input
+                  aria-label={t.launchCommand}
+                  autoFocus
+                  disabled={busy || locksCredentialTarget}
+                  onChange={(event) => setEndpoint(event.target.value)}
+                  value={endpoint}
+                />
+              </label>
+            </div>
+            <div className="mcp-editor-card">
+              <strong>{t.arguments}</strong>
+              <div className="mcp-dynamic-list">
+                {argumentsList.map((argument, index) => (
+                  <div className="mcp-argument-row" key={`argument-${index}`}>
+                    <input
+                      aria-label={`${t.arguments} ${index + 1}`}
+                      disabled={busy || locksCredentialTarget}
+                      onChange={(event) =>
+                        setArgumentsList((current) =>
+                          current.map((value, itemIndex) =>
+                            itemIndex === index ? event.target.value : value,
+                          ),
+                        )
+                      }
+                      value={argument}
+                    />
+                    <button
+                      aria-label={t.delete}
+                      className="mcp-remove-row"
+                      disabled={busy || locksCredentialTarget}
+                      onClick={() =>
+                        setArgumentsList((current) =>
+                          current.filter((_, itemIndex) => itemIndex !== index),
+                        )
+                      }
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  className="mcp-add-row"
+                  disabled={busy || locksCredentialTarget}
+                  onClick={() =>
+                    setArgumentsList((current) => [...current, ""])
+                  }
+                  type="button"
+                >
+                  + {t.addArgument}
+                </button>
+              </div>
+            </div>
+            {locksCredentialTarget && (
+              <p className="settings-security">{t.registryCredentialsHint}</p>
+            )}
+            <div className="mcp-editor-card">
+              <strong>{t.environmentVariables}</strong>
+              <div className="mcp-dynamic-list">
+                {environment.map((entry, index) => (
+                  <div
+                    className="mcp-environment-row"
+                    key={`environment-${index}`}
+                  >
+                    <input
+                      aria-label={`${t.environmentKey} ${index + 1}`}
+                      disabled={busy}
+                      onChange={(event) =>
+                        setEnvironment((current) =>
+                          current.map((value, itemIndex) =>
+                            itemIndex === index
+                              ? { ...value, key: event.target.value }
+                              : value,
+                          ),
+                        )
+                      }
+                      placeholder={t.environmentKey}
+                      value={entry.key}
+                    />
+                    <input
+                      aria-label={`${t.environmentValue} ${index + 1}`}
+                      disabled={busy}
+                      onChange={(event) =>
+                        setEnvironment((current) =>
+                          current.map((value, itemIndex) =>
+                            itemIndex === index
+                              ? { ...value, value: event.target.value }
+                              : value,
+                          ),
+                        )
+                      }
+                      placeholder={t.environmentValue}
+                      value={entry.value}
+                    />
+                    <button
+                      aria-label={t.delete}
+                      className="mcp-remove-row"
+                      disabled={busy}
+                      onClick={() =>
+                        setEnvironment((current) =>
+                          current.filter((_, itemIndex) => itemIndex !== index),
+                        )
+                      }
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  className="mcp-add-row"
+                  disabled={busy}
+                  onClick={() =>
+                    setEnvironment((current) => [
+                      ...current,
+                      { key: "", value: "" },
+                    ])
+                  }
+                  type="button"
+                >
+                  + {t.addEnvironment}
+                </button>
+              </div>
+            </div>
+            <div className="mcp-editor-card">
+              <strong>{t.environmentVariablePassthrough}</strong>
+              <div className="mcp-dynamic-list">
+                {environmentVariables.map((name, index) => (
+                  <div
+                    className="mcp-argument-row"
+                    key={`environment-variable-${index}`}
+                  >
+                    <input
+                      aria-label={`${t.environmentVariableName} ${index + 1}`}
+                      disabled={busy}
+                      onChange={(event) =>
+                        setEnvironmentVariables((current) =>
+                          current.map((value, itemIndex) =>
+                            itemIndex === index ? event.target.value : value,
+                          ),
+                        )
+                      }
+                      placeholder={t.environmentVariableName}
+                      value={name}
+                    />
+                    <button
+                      aria-label={t.delete}
+                      className="mcp-remove-row"
+                      disabled={busy}
+                      onClick={() =>
+                        setEnvironmentVariables((current) =>
+                          current.filter((_, itemIndex) => itemIndex !== index),
+                        )
+                      }
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  className="mcp-add-row"
+                  disabled={busy}
+                  onClick={() =>
+                    setEnvironmentVariables((current) => [...current, ""])
+                  }
+                  type="button"
+                >
+                  + {t.addEnvironmentVariable}
+                </button>
+              </div>
+            </div>
+            <div className="mcp-editor-card">
+              <label>
+                <strong>{t.workspace}</strong>
+                <input
+                  aria-label={t.workspace}
+                  disabled={busy}
+                  onChange={(event) => setWorkspace(event.target.value)}
+                  value={workspace}
+                />
+              </label>
+            </div>
+            <div className="mcp-editor-card">
+              <strong>{t.mcpSecurity}</strong>
+              <label className="settings-checkbox">
+                <input
+                  checked={mcpAllowNetwork}
+                  disabled={busy || mcpFullAccess}
+                  onChange={(event) => setMcpAllowNetwork(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>{t.mcpAllowNetwork}</span>
+              </label>
+              <p className="settings-security">{t.mcpAllowNetworkHint}</p>
+              <label className="settings-checkbox">
+                <input
+                  checked={mcpFullAccess}
+                  disabled={busy}
+                  onChange={(event) => {
+                    setMcpFullAccess(event.target.checked);
+                    if (event.target.checked) setMcpAllowNetwork(true);
+                  }}
+                  type="checkbox"
+                />
+                <span>{t.mcpFullAccess}</span>
+              </label>
+              {mcpFullAccess && (
+                <p className="settings-security warning">
+                  {t.mcpFullAccessHint}
+                </p>
+              )}
+            </div>
+          </>
+        ) : (
           <div className="mcp-editor-card">
             <label>
-              <strong>{t.launchCommand}</strong>
+              <strong>{t.serverUrl}</strong>
               <input
-                aria-label={t.launchCommand}
+                aria-label={t.serverUrl}
                 autoFocus
-                disabled={busy || locksCredentialTarget}
+                disabled={busy || locksHeaderTarget}
                 onChange={(event) => setEndpoint(event.target.value)}
+                type="url"
                 value={endpoint}
               />
             </label>
-          </div>
-          <div className="mcp-editor-card">
-            <strong>{t.arguments}</strong>
-            <div className="mcp-dynamic-list">
-              {argumentsList.map((argument, index) => (
-                <div className="mcp-argument-row" key={`argument-${index}`}>
-                  <input
-                    aria-label={`${t.arguments} ${index + 1}`}
-                    disabled={busy || locksCredentialTarget}
-                    onChange={(event) =>
-                      setArgumentsList((current) =>
-                        current.map((value, itemIndex) =>
-                          itemIndex === index ? event.target.value : value,
-                        ),
-                      )
-                    }
-                    value={argument}
-                  />
-                  <button
-                    aria-label={t.delete}
-                    className="mcp-remove-row"
-                    disabled={busy || locksCredentialTarget}
-                    onClick={() =>
-                      setArgumentsList((current) =>
-                        current.filter((_, itemIndex) => itemIndex !== index),
-                      )
-                    }
-                    type="button"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <button
-                className="mcp-add-row"
-                disabled={busy || locksCredentialTarget}
-                onClick={() => setArgumentsList((current) => [...current, ""])}
-                type="button"
-              >
-                + {t.addArgument}
-              </button>
-            </div>
-          </div>
-          {locksCredentialTarget && (
-            <p className="settings-security">{t.registryCredentialsHint}</p>
-          )}
-          <div className="mcp-editor-card">
-            <strong>{t.environmentVariables}</strong>
-            <div className="mcp-dynamic-list">
-              {environment.map((entry, index) => (
-                <div
-                  className="mcp-environment-row"
-                  key={`environment-${index}`}
-                >
-                  <input
-                    aria-label={`${t.environmentKey} ${index + 1}`}
-                    disabled={busy}
-                    onChange={(event) =>
-                      setEnvironment((current) =>
-                        current.map((value, itemIndex) =>
-                          itemIndex === index
-                            ? { ...value, key: event.target.value }
-                            : value,
-                        ),
-                      )
-                    }
-                    placeholder={t.environmentKey}
-                    value={entry.key}
-                  />
-                  <input
-                    aria-label={`${t.environmentValue} ${index + 1}`}
-                    disabled={busy}
-                    onChange={(event) =>
-                      setEnvironment((current) =>
-                        current.map((value, itemIndex) =>
-                          itemIndex === index
-                            ? { ...value, value: event.target.value }
-                            : value,
-                        ),
-                      )
-                    }
-                    placeholder={t.environmentValue}
-                    value={entry.value}
-                  />
-                  <button
-                    aria-label={t.delete}
-                    className="mcp-remove-row"
-                    disabled={busy}
-                    onClick={() =>
-                      setEnvironment((current) =>
-                        current.filter((_, itemIndex) => itemIndex !== index),
-                      )
-                    }
-                    type="button"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <button
-                className="mcp-add-row"
-                disabled={busy}
-                onClick={() =>
-                  setEnvironment((current) => [
-                    ...current,
-                    { key: "", value: "" },
-                  ])
-                }
-                type="button"
-              >
-                + {t.addEnvironment}
-              </button>
-            </div>
-          </div>
-          <div className="mcp-editor-card">
-            <strong>{t.environmentVariablePassthrough}</strong>
-            <div className="mcp-dynamic-list">
-              {environmentVariables.map((name, index) => (
-                <div
-                  className="mcp-argument-row"
-                  key={`environment-variable-${index}`}
-                >
-                  <input
-                    aria-label={`${t.environmentVariableName} ${index + 1}`}
-                    disabled={busy}
-                    onChange={(event) =>
-                      setEnvironmentVariables((current) =>
-                        current.map((value, itemIndex) =>
-                          itemIndex === index ? event.target.value : value,
-                        ),
-                      )
-                    }
-                    placeholder={t.environmentVariableName}
-                    value={name}
-                  />
-                  <button
-                    aria-label={t.delete}
-                    className="mcp-remove-row"
-                    disabled={busy}
-                    onClick={() =>
-                      setEnvironmentVariables((current) =>
-                        current.filter((_, itemIndex) => itemIndex !== index),
-                      )
-                    }
-                    type="button"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <button
-                className="mcp-add-row"
-                disabled={busy}
-                onClick={() =>
-                  setEnvironmentVariables((current) => [...current, ""])
-                }
-                type="button"
-              >
-                + {t.addEnvironmentVariable}
-              </button>
-            </div>
-          </div>
-          <div className="mcp-editor-card">
             <label>
-              <strong>{t.workspace}</strong>
+              <strong>{t.authentication}</strong>
+              <div className="settings-codex-select">
+                <CodexSelect<"none" | "bearer" | "oauth" | "headers">
+                  ariaLabel={t.authentication}
+                  disabled={busy}
+                  onChange={setAuth}
+                  options={[
+                    { value: "none", label: t.authNone },
+                    { value: "bearer", label: t.authBearer },
+                    { value: "oauth", label: t.authOAuth },
+                    ...(server?.config.transport === "streamable-http" &&
+                    server.config.auth === "headers"
+                      ? ([{ value: "headers", label: t.authHeaders }] as const)
+                      : []),
+                  ]}
+                  value={auth}
+                />
+              </div>
+            </label>
+            {auth === "bearer" && (
               <input
-                aria-label={t.workspace}
+                aria-label={t.bearer}
+                autoComplete="off"
                 disabled={busy}
-                onChange={(event) => setWorkspace(event.target.value)}
-                value={workspace}
+                onChange={(event) => setBearer(event.target.value)}
+                placeholder={t.bearer}
+                type="password"
+                value={bearer}
               />
-            </label>
-          </div>
-          <div className="mcp-editor-card">
-            <strong>{t.mcpSecurity}</strong>
-            <label className="settings-checkbox">
-              <input
-                checked={mcpAllowNetwork}
-                disabled={busy || mcpFullAccess}
-                onChange={(event) => setMcpAllowNetwork(event.target.checked)}
-                type="checkbox"
-              />
-              <span>{t.mcpAllowNetwork}</span>
-            </label>
-            <p className="settings-security">{t.mcpAllowNetworkHint}</p>
-            <label className="settings-checkbox">
-              <input
-                checked={mcpFullAccess}
-                disabled={busy}
-                onChange={(event) => {
-                  setMcpFullAccess(event.target.checked);
-                  if (event.target.checked) setMcpAllowNetwork(true);
-                }}
-                type="checkbox"
-              />
-              <span>{t.mcpFullAccess}</span>
-            </label>
-            {mcpFullAccess && (
-              <p className="settings-security warning">{t.mcpFullAccessHint}</p>
+            )}
+            {auth === "oauth" && (
+              <span className="settings-security">{t.oauthHint}</span>
+            )}
+            {auth === "headers" && (
+              <span className="settings-security">{t.registryHeadersHint}</span>
             )}
           </div>
-        </>
-      ) : (
-        <div className="mcp-editor-card">
-          <label>
-            <strong>{t.serverUrl}</strong>
-            <input
-              aria-label={t.serverUrl}
-              autoFocus
-              disabled={busy || locksHeaderTarget}
-              onChange={(event) => setEndpoint(event.target.value)}
-              type="url"
-              value={endpoint}
-            />
-          </label>
-          <label>
-            <strong>{t.authentication}</strong>
-            <div className="settings-codex-select">
-              <CodexSelect<"none" | "bearer" | "oauth" | "headers">
-                ariaLabel={t.authentication}
-                disabled={busy}
-                onChange={setAuth}
-                options={[
-                  { value: "none", label: t.authNone },
-                  { value: "bearer", label: t.authBearer },
-                  { value: "oauth", label: t.authOAuth },
-                  ...(server?.config.transport === "streamable-http" &&
-                  server.config.auth === "headers"
-                    ? ([{ value: "headers", label: t.authHeaders }] as const)
-                    : []),
-                ]}
-                value={auth}
-              />
-            </div>
-          </label>
-          {auth === "bearer" && (
-            <input
-              aria-label={t.bearer}
-              autoComplete="off"
-              disabled={busy}
-              onChange={(event) => setBearer(event.target.value)}
-              placeholder={t.bearer}
-              type="password"
-              value={bearer}
-            />
-          )}
-          {auth === "oauth" && (
-            <span className="settings-security">{t.oauthHint}</span>
-          )}
-          {auth === "headers" && (
-            <span className="settings-security">{t.registryHeadersHint}</span>
-          )}
-        </div>
-      )}
+        )}
 
-      {message && <p className="catalog-message error">{message}</p>}
-      <button
-        className="mcp-editor-save"
-        disabled={busy || !endpoint.trim()}
-        onClick={() => void run(save)}
-        type="button"
-      >
-        {t.saveServer}
-      </button>
+        <button
+          className="mcp-editor-save"
+          disabled={actionsLocked || validationErrors.length > 0}
+          onClick={attemptSave}
+          type="button"
+        >
+          {t.saveServer}
+        </button>
+      </McpEditorFeedback>
     </section>
   );
 }
