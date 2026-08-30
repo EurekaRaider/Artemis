@@ -83,6 +83,7 @@ export function QueuedMessageEditor(props: QueuedMessageEditorProps) {
     <div aria-busy={submitting || undefined} className="queued-message-editor">
       <textarea
         aria-label={props.textareaLabel}
+        autoFocus
         onChange={(event) => props.onValueChange(event.target.value)}
         onKeyDown={handleKeyDown}
         value={props.value}
@@ -116,7 +117,10 @@ export function QueuedMessageEditor(props: QueuedMessageEditorProps) {
         </button>
         <button
           disabled={busy || submitting}
-          onClick={props.onCancel}
+          onClick={() => {
+            props.onCancel();
+            scheduleFocusReturn();
+          }}
           type="button"
         >
           {props.cancelLabel}
