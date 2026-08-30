@@ -40,6 +40,7 @@ const labels = {
   testConnectionBusy: "Testing the connection…",
   testConnectionSuccess: "Connected.",
   testConnectionFailure: "Connection failed.",
+  testSavedOnlyHint: "Tests the saved configuration — save your changes first",
   confirmUninstall:
     "Uninstall synthetic-stdio-demo? This removes the saved configuration only; files on the server are not deleted.",
 };
@@ -75,6 +76,19 @@ const httpServer: McpServerStatus = {
     enabled: true,
     url: "https://mcp.example.test/stream",
     auth: "none",
+  },
+  state: "disconnected",
+  tools: [],
+};
+
+const bearerServer: McpServerStatus = {
+  config: {
+    id: "synthetic-http-demo",
+    name: "synthetic-http-demo",
+    transport: "streamable-http",
+    enabled: true,
+    url: "https://mcp.example.test/stream",
+    auth: "bearer",
   },
   state: "disconnected",
   tools: [],
@@ -258,7 +272,7 @@ describe("McpServerEditor feedback wiring (D#76 PR8 §10 state matrix)", () => {
     await waitFor(() => expect(handlers.onSaved).toHaveBeenCalledTimes(1));
   });
 
-  it("keeps the bearer credential out of alerts, status regions, and console output", async () => {
+  it("keeps the bearer credential out of alerts, hints, and console output across the drift-gated flow", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
@@ -268,21 +282,29 @@ describe("McpServerEditor feedback wiring (D#76 PR8 §10 state matrix)", () => {
       );
       const { testRegion } = renderEditor({
         api: { saveMcpServer, reconnectMcpServer },
-        server: httpServer,
+        server: bearerServer,
       });
       const user = userEvent.setup();
-      await user.click(
-        screen.getByRole("button", { name: labels.authentication }),
-      );
-      await user.click(screen.getByRole("option", { name: labels.authBearer }));
-      fireEvent.change(screen.getByLabelText(labels.bearerField), {
-        target: { value: syntheticBearer },
-      });
+      const bearerInput = screen.getByLabelText(labels.bearerField);
+      fireEvent.change(bearerInput, { target: { value: syntheticBearer } });
       await user.click(screen.getByRole("button", { name: labels.save }));
       expect(await screen.findByRole("alert")).toHaveTextContent(saveError);
-      await user.click(
-        screen.getByRole("button", { name: labels.testConnection }),
-      );
+      // A typed bearer is draft drift: the saved-only hint gates the test
+      // button, and neither the hint nor any rendered text may echo the
+      // credential. The gate must also hold against programmatic clicks.
+      const testButton = screen.getByRole("button", {
+        name: labels.testConnection,
+      });
+      expect(testButton).toBeDisabled();
+      expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
+      expect(document.body.textContent ?? "").not.toContain(syntheticBearer);
+      fireEvent.click(testButton);
+      expect(reconnectMcpServer).not.toHaveBeenCalled();
+      // Clearing the draft credential restores testing against the saved
+      // configuration; its failure path must equally stay credential-free.
+      fireEvent.change(bearerInput, { target: { value: "" } });
+      expect(testButton).toBeEnabled();
+      await user.click(testButton);
       const failureAlert = await within(testRegion() as HTMLElement).findByRole(
         "alert",
       );
@@ -338,6 +360,146 @@ describe("McpServerEditor feedback wiring (D#76 PR8 §10 state matrix)", () => {
     expect(handlers.onSaved).not.toHaveBeenCalled();
   });
 
+  it("disables Save and Uninstall while a connection test is pending and blocks overlapping save IPC (mutual exclusion)", async () => {
+    let resolveReconnect!: (snapshot: SettingsSnapshot) => void;
+    const reconnectMcpServer = vi.fn(
+      () =>
+        new Promise<SettingsSnapshot>((resolve) => {
+          resolveReconnect = resolve;
+        }),
+    );
+    const saveMcpServer = vi.fn();
+    const removeMcpServer = vi.fn();
+    const { handlers } = renderEditor({
+      api: { reconnectMcpServer, saveMcpServer, removeMcpServer },
+      server: stdioServer,
+    });
+    const user = userEvent.setup();
+    const saveButton = screen.getByRole("button", { name: labels.save });
+    const uninstallButton = screen.getByRole("button", {
+      name: labels.uninstall,
+    });
+    expect(saveButton).toBeEnabled();
+    await user.click(
+      screen.getByRole("button", { name: labels.testConnection }),
+    );
+    expect(reconnectMcpServer).toHaveBeenCalledTimes(1);
+    expect(saveButton).toBeDisabled();
+    expect(uninstallButton).toBeDisabled();
+    // Programmatic triggers on the disabled controls must not overlap IPC.
+    fireEvent.click(saveButton);
+    expect(saveMcpServer).not.toHaveBeenCalled();
+    fireEvent.click(uninstallButton);
+    expect(handlers.onConfirm).not.toHaveBeenCalled();
+    expect(removeMcpServer).not.toHaveBeenCalled();
+    resolveReconnect(snapshotOf([{ ...stdioServer, state: "connected" }]));
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    expect(handlers.onSaved).not.toHaveBeenCalled();
+  });
+
+  it("blocks a connection test while saving and asserts zero reconnect IPC (mutual exclusion)", async () => {
+    let resolveSave!: (snapshot: SettingsSnapshot) => void;
+    const saveMcpServer = vi.fn(
+      () =>
+        new Promise<SettingsSnapshot>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    const reconnectMcpServer = vi.fn();
+    renderEditor({
+      api: { saveMcpServer, reconnectMcpServer },
+      server: stdioServer,
+    });
+    const user = userEvent.setup();
+    const testButton = screen.getByRole("button", {
+      name: labels.testConnection,
+    });
+    await user.click(screen.getByRole("button", { name: labels.save }));
+    expect(saveMcpServer).toHaveBeenCalledTimes(1);
+    expect(testButton).toBeDisabled();
+    fireEvent.click(testButton);
+    expect(reconnectMcpServer).not.toHaveBeenCalled();
+    resolveSave(snapshotOf([stdioServer]));
+    await waitFor(() => expect(testButton).toBeEnabled());
+  });
+
+  it("blocks a connection test while removing and asserts zero reconnect IPC (mutual exclusion)", async () => {
+    let resolveRemove!: (snapshot: SettingsSnapshot) => void;
+    const removeMcpServer = vi.fn(
+      () =>
+        new Promise<SettingsSnapshot>((resolve) => {
+          resolveRemove = resolve;
+        }),
+    );
+    const reconnectMcpServer = vi.fn();
+    renderEditor({
+      api: { removeMcpServer, reconnectMcpServer },
+      server: stdioServer,
+    });
+    const user = userEvent.setup();
+    const testButton = screen.getByRole("button", {
+      name: labels.testConnection,
+    });
+    await user.click(screen.getByRole("button", { name: labels.uninstall }));
+    await waitFor(() => expect(removeMcpServer).toHaveBeenCalledTimes(1));
+    expect(testButton).toBeDisabled();
+    fireEvent.click(testButton);
+    expect(reconnectMcpServer).not.toHaveBeenCalled();
+    resolveRemove(snapshotOf([]));
+    await waitFor(() => expect(testButton).toBeEnabled());
+  });
+
+  it("keeps a remove retry from overlapping an in-flight connection test (handler guard)", async () => {
+    let resolveReconnect!: (snapshot: SettingsSnapshot) => void;
+    const reconnectMcpServer = vi.fn(
+      () =>
+        new Promise<SettingsSnapshot>((resolve) => {
+          resolveReconnect = resolve;
+        }),
+    );
+    const removeMcpServer = vi
+      .fn()
+      .mockRejectedValueOnce(new Error(removeError))
+      .mockResolvedValue(snapshotOf([]));
+    const { handlers } = renderEditor({
+      api: { reconnectMcpServer, removeMcpServer },
+      server: stdioServer,
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: labels.uninstall }));
+    await screen.findByText(removeError);
+    // The retry affordance stays clickable, so this is the one overlap the
+    // editor-level action guard must stop: a remove retry issued while a
+    // connection test is in flight must never reach removeMcpServer.
+    await user.click(
+      screen.getByRole("button", { name: labels.testConnection }),
+    );
+    expect(reconnectMcpServer).toHaveBeenCalledTimes(1);
+    await user.click(
+      within(screen.getByRole("alert")).getByRole("button", {
+        name: labels.tryAgain,
+      }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      labels.testConnectionBusy,
+    );
+    expect(removeMcpServer).toHaveBeenCalledTimes(1);
+    resolveReconnect(snapshotOf([{ ...stdioServer, state: "connected" }]));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        labels.testConnectionSuccess,
+      ),
+    );
+    // Once the test settles, the retry path works again.
+    await user.click(
+      within(screen.getByRole("alert")).getByRole("button", {
+        name: labels.tryAgain,
+      }),
+    );
+    expect(removeMcpServer).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(handlers.onRemoved).toHaveBeenCalledTimes(1));
+  });
+
   it("reports a failed test connection through an alert and allows an immediate retest", async () => {
     const reconnectMcpServer = vi
       .fn()
@@ -367,6 +529,52 @@ describe("McpServerEditor feedback wiring (D#76 PR8 §10 state matrix)", () => {
         labels.testConnectionSuccess,
       ),
     );
+  });
+
+  it("disables the test connection with the saved-only hint while the URL drifts from the saved config (drift gate)", async () => {
+    const api: Partial<EditorApi> = {
+      saveMcpServer: vi.fn(),
+      removeMcpServer: vi.fn(),
+      reconnectMcpServer: vi.fn(() =>
+        Promise.resolve(snapshotOf([{ ...httpServer, state: "connected" }])),
+      ),
+    };
+    renderEditor({ api, server: httpServer });
+    const user = userEvent.setup();
+    const urlInput = screen.getByRole("textbox", { name: labels.serverUrl });
+    const testButton = screen.getByRole("button", {
+      name: labels.testConnection,
+    });
+    expect(testButton).toBeEnabled();
+    fireEvent.change(urlInput, {
+      target: { value: "https://mcp.example.test/stream-v2" },
+    });
+    expect(testButton).toBeDisabled();
+    expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
+    fireEvent.click(testButton);
+    expect(api.reconnectMcpServer).not.toHaveBeenCalled();
+    // Reverting the draft re-enables testing against the saved config.
+    fireEvent.change(urlInput, { target: { value: httpServer.config.url } });
+    expect(testButton).toBeEnabled();
+    expect(
+      screen.queryByText(labels.testSavedOnlyHint),
+    ).not.toBeInTheDocument();
+    await user.click(testButton);
+    expect(api.reconnectMcpServer).toHaveBeenCalledTimes(1);
+    expect(api.saveMcpServer).not.toHaveBeenCalled();
+  });
+
+  it("counts a typed bearer token as draft drift without echoing it into the hint (drift gate)", () => {
+    renderEditor({ server: bearerServer });
+    const bearerInput = screen.getByLabelText(labels.bearerField);
+    const testButton = screen.getByRole("button", {
+      name: labels.testConnection,
+    });
+    expect(testButton).toBeEnabled();
+    fireEvent.change(bearerInput, { target: { value: syntheticBearer } });
+    expect(testButton).toBeDisabled();
+    expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
+    expect(document.body.textContent ?? "").not.toContain(syntheticBearer);
   });
 
   it("routes Uninstall through the danger confirmation and never removes on denial", async () => {

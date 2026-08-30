@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { AppLocale } from "@artemis/protocol";
 
 import type {
@@ -83,6 +83,8 @@ const labels = {
     testConnectionFailure: "Connection failed.",
     testConnectionNotConnected:
       "The server did not report a connected state after reconnecting.",
+    testSavedOnlyHint:
+      "Tests the saved configuration — save your changes first",
     confirmUninstall:
       "Uninstall {name}? This removes the saved configuration only; files on the server are not deleted.",
   },
@@ -137,6 +139,7 @@ const labels = {
     testConnectionSuccess: "已连接。",
     testConnectionFailure: "连接失败。",
     testConnectionNotConnected: "重新连接后服务器未进入已连接状态。",
+    testSavedOnlyHint: "测试的是已保存配置——请先保存修改",
     confirmUninstall:
       "卸载 {name}？此操作只删除保存的配置，不会删除服务器上的文件。",
   },
@@ -252,12 +255,43 @@ export function McpServerEditor({
   const [testState, setTestState] = useState<McpEditorTestConnectionState>({
     status: "idle",
   });
+  // Mirrors the McpEditorFeedback confirmation guard: true while the danger
+  // alertdialog for Uninstall is open, so the editor's own Save/Test controls
+  // can join the four-way mutual exclusion.
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  // Ref copies of the mutual-exclusion flags. Handler guards must read the
+  // current instant, never a stale render closure: `onRemove` fires in the
+  // same microtask that flips confirmingRemove back to false, so only a ref
+  // is guaranteed fresh there.
+  const busyRef = useRef(false);
+  const testPendingRef = useRef(false);
+  const confirmingRemoveRef = useRef(false);
   const locksCredentialTarget =
     server?.config.transport === "stdio" &&
     (server.config.credentialEnvVars?.length ?? 0) > 0;
   const locksHeaderTarget =
     server?.config.transport === "streamable-http" &&
     server.config.auth === "headers";
+  const testPending = testState.status === "busy";
+  // Draft drift (PR8 review F1): reconnectMcpServer only tests the saved
+  // configuration, so testing is gated while the draft differs from it. The
+  // bearer is deliberately excluded from the "matches" side: the editor never
+  // backfills it (useState("")), so an empty bearer counts as unmodified and
+  // only a newly typed token marks the draft as drifted.
+  const draftMatchesSaved =
+    server === undefined ||
+    (endpoint ===
+      (server.config.transport === "stdio"
+        ? server.config.command
+        : server.config.url) &&
+      auth ===
+        (server.config.transport === "streamable-http"
+          ? (server.config.auth ?? "none")
+          : "none") &&
+      bearer === "");
+  // Four-way action lock (saving / removing / testing / confirming): the UI
+  // layer disables every control and the handler layer re-checks it below.
+  const actionsLocked = busy || testPending || confirmingRemove;
 
   // SECURITY: messages are composed from label copy and error text only —
   // credential values (bearer input) never flow into any of these strings.
@@ -275,10 +309,22 @@ export function McpServerEditor({
     validationErrors.push(t.validationUrlInvalid);
   }
 
+  // Editor-level action guard: the component layer disables the buttons,
+  // this re-checks the mutual-exclusion state at the handler entry so a
+  // programmatic trigger (retry affordance, dispatched event) can never
+  // overlap two `window.artemis` calls.
+  function actionLocked(): boolean {
+    return (
+      busyRef.current || testPendingRef.current || confirmingRemoveRef.current
+    );
+  }
+
   async function run(
     action: "save" | "remove",
     operation: () => Promise<void>,
   ) {
+    if (actionLocked()) return;
+    busyRef.current = true;
     setBusy(true);
     setBusyAction(action);
     setMessage("");
@@ -289,13 +335,14 @@ export function McpServerEditor({
       setFailedAction(action);
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
+      busyRef.current = false;
       setBusy(false);
       setBusyAction(null);
     }
   }
 
   function attemptSave() {
-    if (validationErrors.length > 0) return;
+    if (validationErrors.length > 0 || actionLocked()) return;
     void run("save", save);
   }
 
@@ -374,13 +421,22 @@ export function McpServerEditor({
   }
 
   async function removeServer() {
-    if (!server) return;
+    // The busy lock is owned by run(), which guards the remove entry (the
+    // remove control's onRemove) before setting it; here only the other two
+    // exclusion states are re-checked so this inner step can never fire
+    // while a test or a pending confirmation is in flight.
+    if (!server || testPendingRef.current || confirmingRemoveRef.current) {
+      return;
+    }
     onRemoved(await window.artemis.removeMcpServer(server.config.id));
   }
 
   async function testConnectionNow() {
-    if (!server || busy || testState.status === "busy") return;
+    // Only the saved configuration is testable: block while the draft has
+    // drifted and while any other action is in flight.
+    if (!server || !draftMatchesSaved || actionLocked()) return;
     const serverId = server.config.id;
+    testPendingRef.current = true;
     setTestState({ status: "busy" });
     try {
       const snapshot = await window.artemis.reconnectMcpServer(serverId);
@@ -400,6 +456,8 @@ export function McpServerEditor({
         status: "failure",
         message: error instanceof Error ? error.message : String(error),
       });
+    } finally {
+      testPendingRef.current = false;
     }
   }
 
@@ -448,7 +506,18 @@ export function McpServerEditor({
                   "{name}",
                   server.config.name,
                 ),
-                onConfirm,
+                // Track the confirm-open window so Save and the test control
+                // join the mutual exclusion while the alertdialog is showing.
+                onConfirm: async (message, tone) => {
+                  confirmingRemoveRef.current = true;
+                  setConfirmingRemove(true);
+                  try {
+                    return await onConfirm(message, tone);
+                  } finally {
+                    confirmingRemoveRef.current = false;
+                    setConfirmingRemove(false);
+                  }
+                },
                 onRemove: () => void run("remove", removeServer),
               },
               testConnection: {
@@ -457,6 +526,9 @@ export function McpServerEditor({
                 busyLabel: t.testConnectionBusy,
                 successLabel: t.testConnectionSuccess,
                 failureLabel: t.testConnectionFailure,
+                ...(draftMatchesSaved
+                  ? {}
+                  : { disabled: true, disabledHint: t.testSavedOnlyHint }),
                 onTest: () => void testConnectionNow(),
               },
             }
@@ -736,7 +808,7 @@ export function McpServerEditor({
 
         <button
           className="mcp-editor-save"
-          disabled={busy || !endpoint.trim()}
+          disabled={actionsLocked || !endpoint.trim()}
           onClick={attemptSave}
           type="button"
         >

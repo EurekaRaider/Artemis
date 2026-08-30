@@ -38,6 +38,9 @@ const saveFailureDetail = "Simulated MCP server save failure.";
 const removeFailureDetail = "Simulated MCP server removal failure.";
 const testConnectionFailure = "Connection failed.";
 const testFailureDetail = "Simulated MCP connection test rejection.";
+const testSavedOnlyHint =
+  "Tests the saved configuration — save your changes first";
+const driftedUrl = "https://mcp.artemis-smoke.example.test/mcp-drift";
 const confirmUninstallPrefix = `Uninstall ${seededServerName}?`;
 
 // Each step drives one checklist §6 interaction to its end state, then the
@@ -74,7 +77,7 @@ const steps = [
     id: "e-test-busy",
     view: "mcp-editor-test-busy",
     scenario:
-      "Edit-mode Test connection pending: the test region is aria-busy with 'Testing the connection…' and its button disabled while the form wrapper stays idle.",
+      "Edit-mode Test connection pending: the test region is aria-busy with 'Testing the connection…', its button disabled, and Save/Uninstall mutually disabled while the form wrapper stays idle.",
   },
   {
     id: "f-test-success",
@@ -111,6 +114,12 @@ const steps = [
     view: "mcp-editor-credentials",
     scenario:
       "Type a synthetic bearer into the masked input and save: no text node, attribute, or markup occurrence of the value, and zero console capture.",
+  },
+  {
+    id: "l-test-drift",
+    view: "mcp-editor-test-drift",
+    scenario:
+      "Edit the saved server URL without saving: the test button disables behind the saved-only hint ('Tests the saved configuration — save your changes first'); the seeded saved config is untouched.",
   },
 ];
 const themes = ["light", "dark"];
@@ -470,6 +479,18 @@ try {
           true,
         ),
         assert(
+          "save-disabled-while-test-busy",
+          editor.saveDisabled === true,
+          editor.saveDisabled,
+          true,
+        ),
+        assert(
+          "uninstall-disabled-while-test-busy",
+          editor.removeDisabled === true,
+          editor.removeDisabled,
+          true,
+        ),
+        assert(
           "form-wrapper-not-busy",
           editor.feedbackAriaBusy !== "true",
           editor.feedbackAriaBusy,
@@ -702,6 +723,58 @@ try {
           ),
         ];
       },
+      "l-test-drift": () => [
+        assert(
+          "editor-visible",
+          editor.editorVisible === true,
+          editor.editorVisible,
+          true,
+        ),
+        assert(
+          "test-control-present",
+          editor.testPresent === true,
+          editor.testPresent,
+          true,
+        ),
+        assert(
+          "url-edited-not-saved",
+          editor.urlValue === driftedUrl,
+          editor.urlValue,
+          driftedUrl,
+        ),
+        assert(
+          "test-button-disabled-on-drift",
+          editor.testButtonDisabled === true,
+          editor.testButtonDisabled,
+          true,
+        ),
+        assert(
+          "saved-only-hint-visible",
+          editor.testHintPresent === true &&
+            typeof editor.testHintText === "string" &&
+            editor.testHintText.includes(testSavedOnlyHint),
+          { present: editor.testHintPresent, text: editor.testHintText },
+          `visible hint containing "${testSavedOnlyHint}"`,
+        ),
+        assert(
+          "no-test-busy-while-drifted",
+          editor.testAriaBusy !== "true",
+          editor.testAriaBusy,
+          'not "true"',
+        ),
+        assert(
+          "no-failure-alert",
+          editor.testFailureVisible === false,
+          editor.testFailureVisible,
+          false,
+        ),
+        assert(
+          "form-wrapper-not-busy",
+          editor.feedbackAriaBusy !== "true",
+          editor.feedbackAriaBusy,
+          'not "true"',
+        ),
+      ],
       "k-credentials": () => {
         const before = editor.probe?.beforeSave ?? null;
         const after = editor.probe?.afterSave ?? null;
@@ -796,6 +869,7 @@ try {
         testAriaBusy: editor.testAriaBusy,
         testStatusText: editor.testStatusText,
         testFailureText: editor.testFailureText,
+        testHintText: editor.testHintText,
         confirmDialog: editor.confirmDialog,
         manageMessageText: editor.manageMessageText,
       },
@@ -849,7 +923,7 @@ try {
       intercepted:
         "Only failure injection (one-shot save/remove rejections) and the synthetic reconnect snapshots (busy/success/failed) are intercepted in the main process; the connect step of a successful save is simulated away because the synthetic identity must never spawn or dial anything, and the bearer token is dropped before persistence.",
       componentContract:
-        "The jsdom suites lock the component-level contract: mcp-editor-feedback.test.tsx and mcp-server-editor.test.tsx cover the aria-busy wrapper, validation alert, retry affordance, tri-state test control, and confirm-deferral behavior.",
+        "The jsdom suites lock the component-level contract: mcp-editor-feedback.test.tsx and mcp-server-editor.test.tsx cover the aria-busy wrapper, validation alert, retry affordance, tri-state test control, confirm-deferral behavior, the four-way save/remove/test/confirm mutual exclusion (UI disable plus editor-level handler guards), and the saved-config drift gate on connection testing.",
     },
     security: {
       credentials:

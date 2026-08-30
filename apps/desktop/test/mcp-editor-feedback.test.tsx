@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -29,6 +35,7 @@ const labels = {
   testDetail: "synthetic-stdio-demo is connected",
   testFailure: "Connection failed",
   testFailureDetail: "The process exited before the MCP handshake completed.",
+  testSavedOnlyHint: "Tests the saved configuration — save your changes first",
   remove: "Uninstall",
   removeConfirm: "Uninstall synthetic-stdio-demo MCP server?",
 };
@@ -63,6 +70,7 @@ function renderFeedback(
   }
   const testConnection = (
     state: McpEditorTestConnectionState = { status: "idle" },
+    extras: Partial<McpEditorTestConnectionControl> = {},
   ): McpEditorTestConnectionControl => ({
     state,
     label: labels.testConnection,
@@ -70,6 +78,7 @@ function renderFeedback(
     successLabel: labels.testSuccess,
     failureLabel: labels.testFailure,
     onTest: handlers.onTest,
+    ...extras,
   });
   const remove = (): McpEditorRemoveControl => ({
     label: labels.remove,
@@ -164,6 +173,57 @@ describe("McpEditorFeedback contract (D#76 PR8 §5 shared feedback surface)", ()
     expect(
       screen.getByRole("button", { name: labels.testConnection }),
     ).toBeDisabled();
+  });
+
+  it("disables the Uninstall control while a connection test is pending (mutual exclusion)", () => {
+    const {
+      feedbackWrapper,
+      handlers,
+      rerenderFeedback,
+      remove,
+      testConnection,
+    } = renderFeedback({ withRemove: true, withTestConnection: true });
+    rerenderFeedback({
+      remove: remove(),
+      testConnection: testConnection({ status: "busy" }),
+    });
+    expect(
+      screen.getByRole("button", { name: labels.testConnection }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: labels.remove })).toBeDisabled();
+    // Disabling is behavior, not aria: the wrapper stays idle (only the test
+    // region carries aria-busy) and a programmatic Uninstall click must open
+    // no confirmation while the test is in flight.
+    expect(feedbackWrapper()).not.toHaveAttribute("aria-busy");
+    fireEvent.click(screen.getByRole("button", { name: labels.remove }));
+    expect(handlers.onConfirm).not.toHaveBeenCalled();
+    expect(handlers.onRemove).not.toHaveBeenCalled();
+  });
+
+  it("disables the test control while the remove confirmation is pending (mutual exclusion)", async () => {
+    const { handlers } = renderFeedback({
+      withRemove: true,
+      withTestConnection: true,
+    });
+    let resolveConfirm!: (confirmed: boolean) => void;
+    handlers.onConfirm.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveConfirm = resolve;
+        }),
+    );
+    const uninstall = screen.getByRole("button", { name: labels.remove });
+    await userEvent.setup().click(uninstall);
+    expect(uninstall).toBeDisabled();
+    const testButton = screen.getByRole("button", {
+      name: labels.testConnection,
+    });
+    expect(testButton).toBeDisabled();
+    fireEvent.click(testButton);
+    expect(handlers.onTest).not.toHaveBeenCalled();
+    resolveConfirm(false);
+    await waitFor(() => expect(testButton).toBeEnabled());
+    expect(handlers.onRemove).not.toHaveBeenCalled();
   });
 
   it("renders the action error as an alert and clears it from the tree on rerender (save/remove error)", () => {
@@ -276,6 +336,40 @@ describe("McpEditorFeedback contract (D#76 PR8 §5 shared feedback surface)", ()
     expect(button).toBeEnabled();
     await userEvent.setup().click(button);
     expect(handlers.onTest).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks the test button behind the saved-only hint while the control reports draft drift (drift gate)", () => {
+    const { handlers, rerenderFeedback, testConnection } = renderFeedback({
+      withTestConnection: true,
+    });
+    rerenderFeedback({
+      testConnection: testConnection(
+        { status: "idle" },
+        { disabled: true, disabledHint: labels.testSavedOnlyHint },
+      ),
+    });
+    const button = screen.getByRole("button", { name: labels.testConnection });
+    expect(button).toBeDisabled();
+    expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
+    fireEvent.click(button);
+    expect(handlers.onTest).not.toHaveBeenCalled();
+    // The tri-state still flows while blocked: a prior success stays
+    // announced next to the hint until the draft is saved or reverted.
+    rerenderFeedback({
+      testConnection: testConnection(
+        { status: "success", detail: labels.testDetail },
+        { disabled: true, disabledHint: labels.testSavedOnlyHint },
+      ),
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(labels.testSuccess);
+    expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
+    rerenderFeedback({ testConnection: testConnection() });
+    expect(
+      screen.queryByText(labels.testSavedOnlyHint),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: labels.testConnection }),
+    ).toBeEnabled();
   });
 
   it("routes Uninstall through onConfirm exactly once with the danger message; a denial keeps the editor usable and never removes (remove confirmation)", async () => {

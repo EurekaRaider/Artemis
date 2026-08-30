@@ -10861,6 +10861,21 @@ function createMainWindow(): BrowserWindow {
                     await wait(1_200);
                     return;
                   }
+                  if (view === 'mcp-editor-test-drift') {
+                    await openSeededServerEditor();
+                    const url = document.querySelector(
+                      '.mcp-editor input[aria-label="Server URL"]',
+                    );
+                    if (!(url instanceof HTMLInputElement)) {
+                      throw new Error('Server URL input did not render.');
+                    }
+                    setInputValue(
+                      url,
+                      'https://mcp.artemis-smoke.example.test/mcp-drift',
+                    );
+                    await wait(400);
+                    return;
+                  }
                   if (view.startsWith('mcp-editor-test-')) {
                     await openSeededServerEditor();
                     document.querySelector('.mcp-editor-test-button')?.click();
@@ -11916,6 +11931,9 @@ function createMainWindow(): BrowserWindow {
                     const testFailure = test?.querySelector(
                       '.mcp-editor-test-failure',
                     );
+                    const testHint = test?.querySelector(
+                      '.mcp-editor-test-hint',
+                    );
                     const removeButton = document.querySelector(
                       '.mcp-editor .mcp-editor-remove',
                     );
@@ -11957,6 +11975,8 @@ function createMainWindow(): BrowserWindow {
                       testStatusText: testStatus?.textContent?.trim() ?? null,
                       testFailureVisible: testFailure ? visible(testFailure) : false,
                       testFailureText: testFailure?.textContent?.trim() ?? null,
+                      testHintPresent: testHint != null,
+                      testHintText: testHint?.textContent?.trim() ?? null,
                       testButtonDisabled:
                         testButton instanceof HTMLButtonElement
                           ? testButton.disabled

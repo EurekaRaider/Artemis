@@ -26,6 +26,17 @@ export interface McpEditorTestConnectionControl {
   busyLabel: string;
   successLabel: string;
   failureLabel: string;
+  /**
+   * True when the editor draft no longer matches the saved configuration.
+   * The reconnect IPC only exercises the saved server, so the button stays
+   * disabled and `disabledHint` explains why. Disabling is behavior, not
+   * aria: the tri-state `state` keeps flowing while blocked.
+   */
+  disabled?: boolean;
+  /**
+   * Static copy only — SECURITY: must never contain a credential value.
+   */
+  disabledHint?: string;
   onTest(): void;
 }
 
@@ -76,20 +87,28 @@ export interface McpEditorFeedbackProps {
  *   test-connection tri-state control, and the remove confirmation control
  *   that defers to the App `requestConfirmation` alertdialog chain.
  * - Field cards, the Save button (and its
- *   `disabled={busy || !endpoint.trim()}` guard), and every
+ *   `disabled={actionsLocked || !endpoint.trim()}` guard), and every
  *   `window.artemis` call (`saveMcpServer`/`removeMcpServer`/
  *   `reconnectMcpServer`) stay in McpServerEditor.tsx —
  *   test/renderer-layout.test.ts asserts those source strings there.
  * - Zero `window.artemis` access, zero IPC, zero business logic: every state
  *   arrives as a prop and every intent leaves through a callback.
  *
+ * Mutual exclusion (PR8 review F1): the save/remove/test/confirm actions are
+ * four-way exclusive. While any one is in flight the other in-component
+ * controls disable: a pending test disables Remove, a pending confirmation
+ * or test disables the test control, and a pending save/remove (`busy`)
+ * disables both. The Save button participates through the parent's
+ * `actionsLocked` expression. Disabling is behavior, not aria — see the
+ * wrapper note below.
+ *
  * SECURITY (PR8 checklist 安全边界 2/3 — hard constraints):
  * - Credential values must never be passed into this component — not through
  *   props, not through `children`. The bearer input stays a
  *   `type="password"` field owned by McpServerEditor.
- * - `validationErrors`, `actionError`, and failure messages are
- *   parent-composed strings and must never embed bearer tokens, env values,
- *   or any other secret.
+ * - `validationErrors`, `actionError`, `disabledHint`, and failure messages
+ *   are parent-composed strings and must never embed bearer tokens, env
+ *   values, or any other secret.
  * - This component performs no logging whatsoever (no `console.*` in any
  *   state transition), so no feedback path can leak a credential into logs.
  */
@@ -113,11 +132,17 @@ export function McpEditorFeedback(props: McpEditorFeedbackProps): ReactNode {
 
   // Pending-confirmation guard: while the danger alertdialog chain is open,
   // a second Uninstall click must not re-enter `onConfirm`. The guard resets
-  // on both denial and completion, so a denied flow stays fully usable.
+  // on both denial and completion, so a denied flow stays fully usable. It
+  // also takes part in the four-way mutual exclusion: no test can start (or
+  // re-enter) while the confirmation is open.
   const [confirmingRemove, setConfirmingRemove] = useState(false);
 
+  const testState = testConnection?.state;
+  const testPending = testState?.status === "busy";
+  const testBlocked = testConnection?.disabled === true;
+
   const handleRemove = async () => {
-    if (!remove || confirmingRemove) return;
+    if (!remove || confirmingRemove || busy || testPending) return;
     setConfirmingRemove(true);
     try {
       const confirmed = await remove.onConfirm(remove.confirmMessage, "danger");
@@ -126,9 +151,6 @@ export function McpEditorFeedback(props: McpEditorFeedbackProps): ReactNode {
       setConfirmingRemove(false);
     }
   };
-
-  const testState = testConnection?.state;
-  const testPending = testState?.status === "busy";
 
   return (
     <div aria-busy={busy ? "true" : undefined} className="mcp-editor-feedback">
@@ -171,12 +193,17 @@ export function McpEditorFeedback(props: McpEditorFeedbackProps): ReactNode {
         >
           <button
             className="mcp-editor-test-button"
-            disabled={busy || testPending}
+            disabled={busy || testPending || confirmingRemove || testBlocked}
             onClick={() => testConnection.onTest()}
             type="button"
           >
             {testConnection.label}
           </button>
+          {testBlocked && !testPending && testConnection.disabledHint ? (
+            <p className="mcp-editor-test-hint">
+              {testConnection.disabledHint}
+            </p>
+          ) : null}
           {testPending ? (
             <p
               aria-live="polite"
@@ -214,7 +241,7 @@ export function McpEditorFeedback(props: McpEditorFeedbackProps): ReactNode {
       {remove ? (
         <button
           className="mcp-editor-remove"
-          disabled={busy || confirmingRemove}
+          disabled={busy || confirmingRemove || testPending}
           onClick={handleRemove}
           type="button"
         >
