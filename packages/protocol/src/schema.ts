@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+// Multi-question user-input payloads evolved in place within v4 (the kind
+// payload discriminant) instead of bumping the protocol version: no build
+// that produces kind-ed payloads has shipped, so event logs containing them
+// cannot exist and downgrades face zero exposure; conversely, a bump would
+// not teach older builds to read the new payloads — it would only make new
+// builds reject existing v4 logs.
 export const PROTOCOL_VERSION = 4 as const;
 
 export const runModeSchema = z.enum(["execute", "plan", "review"]);
@@ -338,6 +344,11 @@ export const approvalResolvedPayloadSchema = z.object({
   source: z.enum(["user", "model", "policy", "automation"]).optional(),
 });
 
+export const MAX_USER_INPUT_QUESTIONS = 3;
+export const USER_INPUT_MIN_OPTIONS = 2;
+export const USER_INPUT_MAX_OPTIONS = 3;
+export const USER_INPUT_QUESTION_ID_MAX_LENGTH = 200;
+
 export const userInputOptionSchema = z.object({
   label: z.string().trim().min(1).max(80),
   description: z.string().trim().min(1).max(240),
@@ -347,8 +358,8 @@ export type UserInputOption = z.infer<typeof userInputOptionSchema>;
 
 const userInputOptionsSchema = z
   .array(userInputOptionSchema)
-  .min(2)
-  .max(3)
+  .min(USER_INPUT_MIN_OPTIONS)
+  .max(USER_INPUT_MAX_OPTIONS)
   .superRefine((options, context) => {
     if (options.filter((option) => option.recommended).length !== 1) {
       context.addIssue({
@@ -365,29 +376,130 @@ const userInputOptionsSchema = z
     }
   });
 
-export const userInputRequestedPayloadSchema = z.object({
-  type: z.literal("user-input.requested"),
-  requestId: z.string().min(1),
-  nonce: z.string().min(16),
-  header: z.string().trim().min(1).max(12),
+export const userInputSingleQuestionRequestedPayloadSchema = z
+  .object({
+    type: z.literal("user-input.requested"),
+    kind: z.literal("single-question").optional(),
+    requestId: z.string().min(1),
+    nonce: z.string().min(16),
+    header: z.string().trim().min(1).max(12),
+    question: z.string().trim().min(1).max(1_000),
+    options: userInputOptionsSchema,
+    expiresAt: z.string().datetime({ offset: true }),
+    // Declared so the superRefine below can observe the key. Strip (not
+    // strict) semantics keep legacy logs replayable: rows persisted by older
+    // builds may carry keys this schema no longer knows, and the single
+    // write-side gate (store appendEventsCore) already strips unknown keys
+    // when events are first persisted.
+    questions: z.unknown().optional(),
+  })
+  .superRefine((payload, context) => {
+    // Routing-hole guard: a payload carrying multi-question content must not
+    // be silently accepted as single-question with its questions array
+    // stripped. Presence of the key, not its value: IPC structured clone
+    // preserves an explicit `questions: undefined` key and zod keeps the
+    // declared key in the parse output, so a value check
+    // (questions !== undefined) would wave the explicit-undefined form
+    // through as single-question.
+    if ("questions" in payload) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Single-question user-input requests must not carry a questions array",
+      });
+    }
+  });
+export const userInputRequestedPayloadSchema =
+  userInputSingleQuestionRequestedPayloadSchema;
+export type UserInputRequestedPayload = Omit<
+  z.infer<typeof userInputRequestedPayloadSchema>,
+  "kind" | "questions"
+>;
+
+export const userInputQuestionSchema = z.object({
+  questionId: z.string().min(1).max(USER_INPUT_QUESTION_ID_MAX_LENGTH),
   question: z.string().trim().min(1).max(1_000),
   options: userInputOptionsSchema,
   expiresAt: z.string().datetime({ offset: true }),
 });
-export type UserInputRequestedPayload = z.infer<
-  typeof userInputRequestedPayloadSchema
+export type UserInputQuestion = z.infer<typeof userInputQuestionSchema>;
+
+export const userInputMultiQuestionRequestedPayloadSchema = z
+  .object({
+    type: z.literal("user-input.requested"),
+    kind: z.literal("multi-question"),
+    requestId: z.string().min(1),
+    nonce: z.string().min(16),
+    header: z.string().trim().min(1).max(12),
+    questions: z
+      .array(userInputQuestionSchema)
+      .min(1)
+      .max(MAX_USER_INPUT_QUESTIONS),
+  })
+  .superRefine((payload, context) => {
+    const questionIds = payload.questions.map(
+      (question) => question.questionId,
+    );
+    if (new Set(questionIds).size !== questionIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "User-input question IDs must be unique within a request",
+      });
+    }
+  });
+export type UserInputMultiQuestionRequestedPayload = z.infer<
+  typeof userInputMultiQuestionRequestedPayloadSchema
 >;
 
-export const userInputResolvedPayloadSchema = z.object({
+export const userInputSingleQuestionResolvedPayloadSchema = z.object({
   type: z.literal("user-input.resolved"),
+  kind: z.literal("single-question").optional(),
   requestId: z.string().min(1),
   nonce: z.string().min(16),
   answer: z.string().max(2_000),
-  selectedOption: z.number().int().min(0).max(2).optional(),
+  selectedOption: z
+    .number()
+    .int()
+    .min(0)
+    .max(USER_INPUT_MAX_OPTIONS - 1)
+    .optional(),
   source: z.enum(["user", "timeout", "cancelled"]),
 });
-export type UserInputResolvedPayload = z.infer<
-  typeof userInputResolvedPayloadSchema
+export const userInputResolvedPayloadSchema =
+  userInputSingleQuestionResolvedPayloadSchema;
+export type UserInputResolvedPayload = Omit<
+  z.infer<typeof userInputResolvedPayloadSchema>,
+  "kind"
+>;
+
+export const userInputMultiQuestionResolvedPayloadSchema = z
+  .object({
+    type: z.literal("user-input.resolved"),
+    kind: z.literal("multi-question"),
+    requestId: z.string().min(1),
+    nonce: z.string().min(16),
+    questionId: z.string().min(1).max(USER_INPUT_QUESTION_ID_MAX_LENGTH),
+    // The chosen option *label*, deliberately named differently from the
+    // single-question resolved payload's selectedOption numeric index so the
+    // two semantics never share a field name.
+    selectedOptionLabel: z.string().trim().min(1).max(80).optional(),
+    customAnswer: z.string().trim().min(1).max(2_000).optional(),
+    source: z.enum(["user", "timeout", "cancelled"]),
+  })
+  .superRefine((payload, context) => {
+    if (
+      (payload.selectedOptionLabel === undefined) ===
+      (payload.customAnswer === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Resolve one multi-question item with one offered option label or one custom answer",
+      });
+    }
+  });
+export type UserInputMultiQuestionResolvedPayload = z.infer<
+  typeof userInputMultiQuestionResolvedPayloadSchema
 >;
 
 export const fileChangedPayloadSchema = z.object({
@@ -740,8 +852,14 @@ export const agentPayloadSchema = z.discriminatedUnion("type", [
   toolCompletedPayloadSchema,
   approvalRequestedPayloadSchema,
   approvalResolvedPayloadSchema,
-  userInputRequestedPayloadSchema,
-  userInputResolvedPayloadSchema,
+  z.discriminatedUnion("kind", [
+    userInputMultiQuestionRequestedPayloadSchema,
+    userInputSingleQuestionRequestedPayloadSchema,
+  ]),
+  z.discriminatedUnion("kind", [
+    userInputMultiQuestionResolvedPayloadSchema,
+    userInputSingleQuestionResolvedPayloadSchema,
+  ]),
   fileChangedPayloadSchema,
   turnChangeSetUpdatedPayloadSchema,
   terminalOutputPayloadSchema,
@@ -1016,7 +1134,12 @@ export const userInputResolutionSchema = z
   .object({
     requestId: z.string().min(1),
     nonce: z.string().min(16),
-    selectedOption: z.number().int().min(0).max(2).optional(),
+    selectedOption: z
+      .number()
+      .int()
+      .min(0)
+      .max(USER_INPUT_MAX_OPTIONS - 1)
+      .optional(),
     customAnswer: z.string().trim().min(1).max(2_000).optional(),
   })
   .superRefine((resolution, context) => {

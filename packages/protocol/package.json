@@ -1,6 +1,6 @@
 {
   "name": "@artemis/protocol",
-  "version": "1.4.38",
+  "version": "1.4.39",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
