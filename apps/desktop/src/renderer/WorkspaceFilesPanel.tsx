@@ -21,6 +21,7 @@ interface WorkspaceFilesPanelProps {
   filterPlaceholder: string;
   openFileMessage: string;
   binaryMessage: string;
+  imageFailureMessage: string;
   editFileLabel: string;
   refreshLabel: string;
   richLabel: string;
@@ -179,6 +180,7 @@ export function WorkspaceFilesPanel({
   filterPlaceholder,
   openFileMessage,
   binaryMessage,
+  imageFailureMessage,
   editFileLabel,
   refreshLabel,
   richLabel,
@@ -355,12 +357,17 @@ export function WorkspaceFilesPanel({
                 ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
                 content={draft}
                 dirty={draft !== selectedFile.content}
+                imageFailureText={imageFailureMessage}
                 onChange={(content) => {
                   setDraft(content);
                   setSaveState("idle");
                 }}
                 onSave={saveFile}
                 path={selectedFile.path}
+                // The branch guard above already excludes binary files (they
+                // render the preview-empty notice); readOnly is kept as an
+                // explicit contract for future call sites.
+                readOnly={selectedFile.binary}
                 richLabel={richLabel}
                 saveError={saveError}
                 saveLabel={saveLabel}
@@ -371,58 +378,34 @@ export function WorkspaceFilesPanel({
                 threadId={threadId}
                 unsavedLabel={unsavedLabel}
               />
-            ) : (
+            ) : selectedFile.binary ? (
               <>
                 <div className="workspace-file-viewer-path">
                   <span title={selectedFile.path}>{selectedFile.path}</span>
-                  {!selectedFile.binary && (
-                    <span className="workspace-file-editor-actions">
-                      <span
-                        className={
-                          draft !== selectedFile.content
-                            ? "workspace-file-save-state dirty"
-                            : "workspace-file-save-state"
-                        }
-                      >
-                        {saveState === "saving"
-                          ? savingLabel
-                          : draft !== selectedFile.content
-                            ? unsavedLabel
-                            : saveState === "saved"
-                              ? savedLabel
-                              : ""}
-                      </span>
-                      <button
-                        className="workspace-file-save"
-                        disabled={
-                          saveState === "saving" ||
-                          draft === selectedFile.content
-                        }
-                        onClick={saveFile}
-                      >
-                        {saveLabel}
-                      </button>
-                    </span>
-                  )}
                 </div>
-                {saveError && (
-                  <div className="workspace-file-editor-error">{saveError}</div>
-                )}
-                {selectedFile.binary ? (
-                  <div className="preview-empty">{binaryMessage}</div>
-                ) : (
-                  <WorkspaceFileEditor
-                    ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
-                    content={draft}
-                    onChange={(content) => {
-                      setDraft(content);
-                      setSaveState("idle");
-                    }}
-                    onSave={saveFile}
-                    path={selectedFile.path}
-                  />
-                )}
+                <div className="preview-empty">{binaryMessage}</div>
               </>
+            ) : (
+              <WorkspaceFileEditor
+                ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
+                content={draft}
+                dirty={draft !== selectedFile.content}
+                onChange={(content) => {
+                  setDraft(content);
+                  setSaveState("idle");
+                }}
+                onSave={saveFile}
+                path={selectedFile.path}
+                // Binary files render the preview-empty branch above; readOnly
+                // is kept as an explicit contract for future call sites.
+                readOnly={selectedFile.binary}
+                saveError={saveError}
+                saveLabel={saveLabel}
+                savedLabel={savedLabel}
+                saveState={saveState}
+                savingLabel={savingLabel}
+                unsavedLabel={unsavedLabel}
+              />
             )
           ) : (
             <div className={error ? "preview-empty error" : "preview-empty"}>
