@@ -169,6 +169,10 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
   });
 
   const MIGRATED_RULES: Array<[string, Tier, number]> = [
+    // The row-icon rule shares its declaration block with a leading
+    // ".environment-trigger svg," selector; the trigger keeps its effective
+    // size from its own later standalone rule, which the unmigrated
+    // baseline below locks at a literal 20px.
     [".environment-row-icon svg:not(.child-agent-mark)", "lg", 18],
     [".environment-header-action svg", "lg", 18],
     [".environment-chevron svg,\n.environment-external svg", "base", 16],

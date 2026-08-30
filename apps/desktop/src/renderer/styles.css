@@ -66,6 +66,11 @@
   --terminal-border: #292b30;
   --terminal-text: #d7d9df;
   --terminal-muted: #92969f;
+  --icon-size-xs: 12px;
+  --icon-size-sm: 14px;
+  --icon-size-base: 16px;
+  --icon-size-lg: 20px;
+  --icon-size-xl: 24px;
 }
 
 @media (prefers-color-scheme: light) {
@@ -1145,8 +1150,8 @@ summary:focus-visible,
 
 .environment-trigger svg,
 .environment-row-icon svg:not(.child-agent-mark) {
-  height: 18px;
-  width: 18px;
+  height: var(--icon-size-lg);
+  width: var(--icon-size-lg);
 }
 
 .environment-trigger svg {
@@ -1229,8 +1234,8 @@ summary:focus-visible,
 }
 
 .environment-header-action svg {
-  height: 18px;
-  width: 18px;
+  height: var(--icon-size-lg);
+  width: var(--icon-size-lg);
 }
 
 .environment-text-action {
@@ -1607,8 +1612,8 @@ button.environment-row:disabled {
 
 .environment-chevron svg,
 .environment-external svg {
-  height: 16px;
-  width: 16px;
+  height: var(--icon-size-base);
+  width: var(--icon-size-base);
 }
 
 .environment-branch-control {
@@ -1642,8 +1647,8 @@ button.environment-row:disabled {
 
 .environment-branch-search > svg {
   flex: 0 0 auto;
-  height: 14px;
-  width: 14px;
+  height: var(--icon-size-sm);
+  width: var(--icon-size-sm);
 }
 
 .environment-branch-search > input {
@@ -1740,13 +1745,13 @@ button.environment-row:disabled {
 }
 
 .environment-branch-list > button > svg {
-  height: 16px;
-  width: 16px;
+  height: var(--icon-size-base);
+  width: var(--icon-size-base);
 }
 
 .environment-branch-list > button > i > svg {
-  height: 16px;
-  width: 16px;
+  height: var(--icon-size-base);
+  width: var(--icon-size-base);
 }
 
 .environment-branch-empty,
@@ -1775,8 +1780,8 @@ button.environment-row:disabled {
 }
 
 .environment-branch-actions > button > svg {
-  height: 18px;
-  width: 18px;
+  height: var(--icon-size-lg);
+  width: var(--icon-size-lg);
 }
 
 .environment-branch-create-form {
@@ -1920,12 +1925,12 @@ button.environment-row:disabled {
 .environment-git-destination-menu svg,
 .environment-git-actions svg {
   fill: none;
-  height: 20px;
+  height: var(--icon-size-lg);
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
-  width: 20px;
+  width: var(--icon-size-lg);
 }
 
 .environment-git-destination-trigger strong {
@@ -2251,8 +2256,8 @@ button.environment-row:disabled {
 }
 
 .environment-view-all svg {
-  height: 18px;
-  width: 18px;
+  height: var(--icon-size-lg);
+  width: var(--icon-size-lg);
 }
 
 .environment-view-all:hover,
@@ -10465,12 +10470,12 @@ button.sources-panel-entry.attachment:focus-visible {
 .resource-search-field svg,
 .resource-discovery-panel form > svg {
   fill: none;
-  height: 17px;
+  height: var(--icon-size-base);
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.55;
-  width: 17px;
+  width: var(--icon-size-base);
 }
 
 .resource-add-button {
@@ -10680,20 +10685,20 @@ button.sources-panel-entry.attachment:focus-visible {
 
 .resource-avatar svg {
   fill: none;
-  height: 20px;
+  height: var(--icon-size-lg);
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.5;
-  width: 20px;
+  width: var(--icon-size-lg);
 }
 
 .resource-avatar .resource-semantic-icon {
   fill: currentColor;
-  height: 22px;
+  height: var(--icon-size-xl);
   stroke: none;
   stroke-width: 0;
-  width: 22px;
+  width: var(--icon-size-xl);
 }
 
 .resource-avatar[data-icon] .resource-semantic-icon path[opacity] {
@@ -11492,8 +11497,8 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .resource-add-plugin-card button svg {
-  height: 17px;
-  width: 17px;
+  height: var(--icon-size-base);
+  width: var(--icon-size-base);
 }
 
 .resource-marketplace-source-list {
