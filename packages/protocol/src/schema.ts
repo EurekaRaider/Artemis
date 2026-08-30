@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+// Multi-question user-input payloads evolved in place within v4 (the kind
+// payload discriminant) instead of bumping the protocol version: no build
+// that produces kind-ed payloads has shipped, so event logs containing them
+// cannot exist and downgrades face zero exposure; conversely, a bump would
+// not teach older builds to read the new payloads — it would only make new
+// builds reject existing v4 logs.
 export const PROTOCOL_VERSION = 4 as const;
 
 export const runModeSchema = z.enum(["execute", "plan", "review"]);
@@ -390,8 +396,12 @@ export const userInputSingleQuestionRequestedPayloadSchema = z
   .superRefine((payload, context) => {
     // Routing-hole guard: a payload carrying multi-question content must not
     // be silently accepted as single-question with its questions array
-    // stripped.
-    if (payload.questions !== undefined) {
+    // stripped. Presence of the key, not its value: IPC structured clone
+    // preserves an explicit `questions: undefined` key and zod keeps the
+    // declared key in the parse output, so a value check
+    // (questions !== undefined) would wave the explicit-undefined form
+    // through as single-question.
+    if ("questions" in payload) {
       context.addIssue({
         code: "custom",
         message:
@@ -469,13 +479,16 @@ export const userInputMultiQuestionResolvedPayloadSchema = z
     requestId: z.string().min(1),
     nonce: z.string().min(16),
     questionId: z.string().min(1).max(USER_INPUT_QUESTION_ID_MAX_LENGTH),
-    selectedOption: z.string().trim().min(1).max(80).optional(),
+    // The chosen option *label*, deliberately named differently from the
+    // single-question resolved payload's selectedOption numeric index so the
+    // two semantics never share a field name.
+    selectedOptionLabel: z.string().trim().min(1).max(80).optional(),
     customAnswer: z.string().trim().min(1).max(2_000).optional(),
     source: z.enum(["user", "timeout", "cancelled"]),
   })
   .superRefine((payload, context) => {
     if (
-      (payload.selectedOption === undefined) ===
+      (payload.selectedOptionLabel === undefined) ===
       (payload.customAnswer === undefined)
     ) {
       context.addIssue({

@@ -45,23 +45,31 @@ export interface ApprovalState extends ApprovalRequestedPayload {
 export interface UserInputState extends UserInputRequestedPayload {
   // Unified discriminant: kind-ed producers set it explicitly; kind-less
   // (legacy) states leave it undefined and stay discriminated by the
-  // duck-typed "questions" key check below.
+  // array-validated questions check (isMultiQuestionInput) below.
   kind?: "single-question" | "multi-question" | undefined;
   status: "pending" | "answered" | "timed-out" | "cancelled";
   answer?: string;
+  // Numeric option index; single-question state only.
   selectedOption?: number;
 }
 
 export interface UserInputQuestionState {
   status: "pending" | "answered" | "timed-out" | "cancelled";
   answer?: string;
-  selectedOption?: string;
+  // The chosen option *label*, named differently from the single-question
+  // selectedOption numeric index above.
+  selectedOptionLabel?: string;
 }
 
 export interface MultiQuestionUserInputState extends UserInputState {
   kind: "multi-question";
   questions: UserInputQuestion[];
   answers: Record<string, UserInputQuestionState>;
+  // The inherited top-level question/options/expiresAt are a legacy
+  // single-question projection kept in sync by syncMultiQuestionLegacyView
+  // for pre-multi-question renderers; the inherited answer/selectedOption
+  // are never set on multi-question cards — per-question answers live in
+  // `answers` only.
 }
 
 export interface ChildAgentState extends ChildAgentPayload {}
@@ -272,6 +280,20 @@ function clearThinkingParts(
   state.order = state.order.filter((entry) => !thinkingEntries.has(entry));
 }
 
+// Multi-question duck typing validates the value, not just the key: IPC
+// structured clone preserves explicit `questions: undefined` keys, so a
+// state that bypassed the schema (legacy replay, direct reducer writes) can
+// carry the key with a non-array value and must stay single-question here.
+function isMultiQuestionInput(
+  input: UserInputState | MultiQuestionUserInputState | undefined,
+): input is MultiQuestionUserInputState {
+  return (
+    input !== undefined &&
+    "questions" in input &&
+    Array.isArray(input.questions)
+  );
+}
+
 function multiQuestionFingerprint(request: {
   nonce: string;
   header: string;
@@ -316,20 +338,30 @@ function multiQuestionAggregateStatus(
   return "answered";
 }
 
-function syncMultiQuestionLegacyView(input: MultiQuestionUserInputState): void {
+function syncMultiQuestionLegacyView(
+  input: MultiQuestionUserInputState,
+): boolean {
   const active =
     input.questions.find(
       (question) => input.answers[question.questionId]?.status === "pending",
-    ) ?? input.questions[0]!;
+    ) ?? input.questions[0];
+  // The schema guarantees at least one question; an empty array can only
+  // arrive through a bypassed path — fail closed instead of projecting
+  // undefined into the legacy view.
+  if (!active) return false;
   input.question = active.question;
   input.options = active.options;
   input.expiresAt = active.expiresAt;
+  return true;
 }
 
 function createMultiQuestionUserInputState(
   payload: UserInputMultiQuestionRequestedPayload,
-): MultiQuestionUserInputState {
-  const first = payload.questions[0]!;
+): MultiQuestionUserInputState | null {
+  const first = payload.questions[0];
+  // The schema enforces min(1); guard bypassed empty arrays and fail closed
+  // (the caller leaves the request unrecorded).
+  if (!first) return null;
   return {
     ...payload,
     status: "pending",
@@ -349,9 +381,8 @@ function applyMultiQuestionResolution(
   state: ThreadViewState,
   event: AgentEvent,
   payload: UserInputMultiQuestionResolvedPayload,
+  input: MultiQuestionUserInputState,
 ): boolean {
-  const input = state.userInputs[payload.requestId];
-  if (!input || !("questions" in input)) return false;
   const question = input.questions.find(
     (candidate) => candidate.questionId === payload.questionId,
   );
@@ -382,32 +413,35 @@ function applyMultiQuestionResolution(
   // (turn cancel, host exit, crash recovery) can legitimately happen at any
   // moment relative to the deadline.
   if (
-    payload.selectedOption !== undefined &&
-    !question.options.some((option) => option.label === payload.selectedOption)
+    payload.selectedOptionLabel !== undefined &&
+    !question.options.some(
+      (option) => option.label === payload.selectedOptionLabel,
+    )
   ) {
     return false;
   }
-  const answer = payload.customAnswer ?? payload.selectedOption;
+  const answer = payload.customAnswer ?? payload.selectedOptionLabel;
   const next: MultiQuestionUserInputState = {
     ...input,
     answers: {
       ...input.answers,
-      [payload.questionId]: {
-        status:
-          payload.source === "timeout"
-            ? "timed-out"
-            : payload.source === "cancelled"
-              ? "cancelled"
-              : "answered",
-        ...(answer === undefined ? {} : { answer }),
-        ...(payload.selectedOption === undefined
-          ? {}
-          : { selectedOption: payload.selectedOption }),
-      },
+      // Cancelled questions close bare — status:cancelled carries no
+      // answer, mirroring the legacy translation path, so an answer riding
+      // on the resolution is dropped rather than persisted.
+      [payload.questionId]:
+        payload.source === "cancelled"
+          ? { status: "cancelled" }
+          : {
+              status: payload.source === "timeout" ? "timed-out" : "answered",
+              ...(answer === undefined ? {} : { answer }),
+              ...(payload.selectedOptionLabel === undefined
+                ? {}
+                : { selectedOptionLabel: payload.selectedOptionLabel }),
+            },
     },
   };
   next.status = multiQuestionAggregateStatus(next);
-  syncMultiQuestionLegacyView(next);
+  if (!syncMultiQuestionLegacyView(next)) return false;
   state.userInputs[payload.requestId] = next;
   return true;
 }
@@ -429,7 +463,7 @@ function applyLegacyMultiQuestionClose(
 ): boolean {
   const closeStatus = payload.source === "timeout" ? "timed-out" : "cancelled";
   const input = state.userInputs[payload.requestId];
-  if (!input || !("questions" in input)) return false;
+  if (!isMultiQuestionInput(input)) return false;
   const resolvedAtMs =
     payload.source === "timeout" ? Date.parse(event.timestamp) : undefined;
   let changed = false;
@@ -453,7 +487,7 @@ function applyLegacyMultiQuestionClose(
   if (!changed) return false;
   const next: MultiQuestionUserInputState = { ...input, answers };
   next.status = multiQuestionAggregateStatus(next);
-  syncMultiQuestionLegacyView(next);
+  if (!syncMultiQuestionLegacyView(next)) return false;
   state.userInputs[payload.requestId] = next;
   return true;
 }
@@ -646,7 +680,7 @@ function applyAgentPayload(
         const existing = state.userInputs[payload.requestId];
         if (existing) {
           if (
-            "questions" in existing &&
+            isMultiQuestionInput(existing) &&
             multiQuestionFingerprint(existing) ===
               multiQuestionFingerprint(payload)
           ) {
@@ -661,22 +695,28 @@ function applyAgentPayload(
           // single-question input: fail closed and keep the current state.
           return;
         }
-        state.userInputs[payload.requestId] =
-          createMultiQuestionUserInputState(payload);
+        const created = createMultiQuestionUserInputState(payload);
+        if (!created) return;
+        state.userInputs[payload.requestId] = created;
         state.status = "waiting-user-input";
         appendOnce(state.order, orderedItems, `input:${payload.requestId}`);
         return;
       }
       const existingInput = state.userInputs[payload.requestId];
-      if (existingInput && "questions" in existingInput) {
+      if (isMultiQuestionInput(existingInput)) {
         // Symmetric fail-closed guard: a legacy (kind-less) requested reusing
         // a multi-question requestId must leave the multi-question state and
         // thread status untouched instead of clobbering it with a
         // single-question payload.
         return;
       }
+      // Strip any questions key (including an explicit `questions:
+      // undefined` delivered by a bypassed path) so the stored state can
+      // never grow a non-array questions key that would poison the
+      // multi-question duck typing above.
+      const { questions: _questions, ...singlePayload } = payload;
       state.userInputs[payload.requestId] = {
-        ...payload,
+        ...singlePayload,
         status: "pending",
       };
       state.status = "waiting-user-input";
@@ -694,25 +734,20 @@ function applyAgentPayload(
         // mirroring the policy layer's consume() nonce check
         // (user-input-policy.ts).
         const requested = state.userInputs[payload.requestId];
-        if (
-          requested &&
-          "questions" in requested &&
-          requested.nonce !== payload.nonce
-        ) {
-          return;
-        }
+        if (!isMultiQuestionInput(requested)) return;
+        if (requested.nonce !== payload.nonce) return;
         // Recalculate the thread status only when the resolution actually
         // changed question state: a discarded resolution (expired, unknown
         // question, already answered, or aimed at a single-question request)
         // must not resurrect waiting-user-input or flip an idle thread back
         // to running.
-        if (applyMultiQuestionResolution(state, event, payload)) {
+        if (applyMultiQuestionResolution(state, event, payload, requested)) {
           state.status = pendingInteractionStatus(state);
         }
         return;
       }
       const input = state.userInputs[payload.requestId];
-      if (input && "questions" in input) {
+      if (isMultiQuestionInput(input)) {
         // Legacy (kind-less) resolutions are still emitted by the
         // crash-restore (store), turn-cancellation, and host-exit paths.
         // Bind the nonce first: a resolution whose nonce does not match the

@@ -69,7 +69,7 @@ function multiRequested(
 function multiResolved(
   requestId: string,
   questionId: string,
-  answer: { selectedOption?: string; customAnswer?: string },
+  answer: { selectedOptionLabel?: string; customAnswer?: string },
   source: "user" | "timeout" | "cancelled" = "user",
 ) {
   return {
@@ -282,7 +282,7 @@ describe("multi-question user input contract", () => {
         {
           label: "both selected option and custom answer",
           payload: multiResolved("input-1", "q1", {
-            selectedOption: "option-q1-a",
+            selectedOptionLabel: "option-q1-a",
             customAnswer: "A different answer",
           }),
         },
@@ -293,14 +293,14 @@ describe("multi-question user input contract", () => {
         {
           label: "empty questionId",
           payload: multiResolved("input-1", "", {
-            selectedOption: "option-q1-a",
+            selectedOptionLabel: "option-q1-a",
           }),
         },
         {
           label: "unknown kind discriminator",
           payload: {
             ...multiResolved("input-1", "q1", {
-              selectedOption: "option-q1-a",
+              selectedOptionLabel: "option-q1-a",
             }),
             kind: "multi",
           },
@@ -373,7 +373,7 @@ describe("multi-question user input contract", () => {
       "dup-2",
       2,
       multiResolved("input-1", "q1", {
-        selectedOption: "option-q1-a",
+        selectedOptionLabel: "option-q1-a",
       }) as AgentEvent["payload"],
     );
     const third = reduceAgentEvent(second, resolved);
@@ -394,7 +394,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
     ]);
@@ -446,7 +446,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
     ]);
@@ -472,7 +472,7 @@ describe("multi-question user input contract", () => {
         "ans-early",
         1,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
     ]);
@@ -493,7 +493,7 @@ describe("multi-question user input contract", () => {
       event(
         "ans-late",
         2,
-        multiResolved("input-1", "q1", { selectedOption: "option-q1-a" }),
+        multiResolved("input-1", "q1", { selectedOptionLabel: "option-q1-a" }),
         AFTER_EXPIRY,
       ) as AgentEvent,
     );
@@ -507,7 +507,7 @@ describe("multi-question user input contract", () => {
       event(
         "ans-edge",
         2,
-        multiResolved("input-1", "q1", { selectedOption: "option-q1-a" }),
+        multiResolved("input-1", "q1", { selectedOptionLabel: "option-q1-a" }),
         EXPIRES_AT,
       ) as AgentEvent,
     );
@@ -533,7 +533,7 @@ describe("multi-question user input contract", () => {
         multiResolved(
           "input-1",
           "q1",
-          { selectedOption: "option-q1-a" },
+          { selectedOptionLabel: "option-q1-a" },
           "timeout",
         ) as AgentEvent["payload"],
         AFTER_EXPIRY,
@@ -569,7 +569,7 @@ describe("multi-question user input contract", () => {
         multiResolved(
           "input-1",
           "q1",
-          { selectedOption: "option-q1-a" },
+          { selectedOptionLabel: "option-q1-a" },
           "timeout",
         ) as AgentEvent["payload"],
         "2026-08-02T10:14:59.000Z",
@@ -594,7 +594,7 @@ describe("multi-question user input contract", () => {
         multiResolved(
           "input-1",
           "q1",
-          { selectedOption: "option-q1-a" },
+          { selectedOptionLabel: "option-q1-a" },
           "timeout",
         ) as AgentEvent["payload"],
         "not-a-datetime",
@@ -624,7 +624,7 @@ describe("multi-question user input contract", () => {
         multiResolved(
           "input-1",
           "q1",
-          { selectedOption: "option-q1-a" },
+          { selectedOptionLabel: "option-q1-a" },
           "timeout",
         ) as AgentEvent["payload"],
         EXPIRES_AT,
@@ -643,7 +643,7 @@ describe("multi-question user input contract", () => {
         multiResolved(
           "input-1",
           "q1",
-          { selectedOption: "option-q1-a" },
+          { selectedOptionLabel: "option-q1-a" },
           "timeout",
         ) as AgentEvent["payload"],
         AFTER_EXPIRY,
@@ -655,7 +655,7 @@ describe("multi-question user input contract", () => {
     expect(afterDeadline.status).not.toBe("waiting-user-input");
   });
 
-  it("applies cancelled resolutions that fire after the deadline", () => {
+  it("applies cancelled resolutions after the deadline without persisting answers", () => {
     const base = reduceAgentEvents("thread-1", [
       event(
         "req-1",
@@ -672,14 +672,16 @@ describe("multi-question user input contract", () => {
         multiResolved(
           "input-1",
           "q1",
-          { selectedOption: "option-q1-a" },
+          { customAnswer: "Picked but cancelled" },
           "cancelled",
         ) as AgentEvent["payload"],
         AFTER_EXPIRY,
       ),
     );
     const input = asMulti(cancelled.userInputs["input-1"]);
-    expect(input.answers["q1"]?.status).toBe("cancelled");
+    // Cancelled questions close bare — status:cancelled carries no answer,
+    // mirroring the legacy translation path.
+    expect(input.answers["q1"]).toEqual({ status: "cancelled" });
     expect(input.status).toBe("cancelled");
     expect(cancelled.status).not.toBe("waiting-user-input");
   });
@@ -700,7 +702,7 @@ describe("multi-question user input contract", () => {
       base,
       event("ans-wrong-nonce", 2, {
         ...multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }),
         nonce: "ffffffffffffffff",
       } as AgentEvent["payload"]),
@@ -720,7 +722,7 @@ describe("multi-question user input contract", () => {
         "ans-correct-nonce",
         3,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
     );
@@ -740,7 +742,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
       event("turn-1", 3, {
@@ -754,7 +756,7 @@ describe("multi-question user input contract", () => {
       closed,
       event("ans-wrong-nonce-replay", 4, {
         ...multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-b",
+          selectedOptionLabel: "option-q1-b",
         }),
         nonce: "ffffffffffffffff",
       } as AgentEvent["payload"]),
@@ -777,7 +779,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
       event("turn-1", 3, {
@@ -819,7 +821,7 @@ describe("multi-question user input contract", () => {
         "ans-unknown-q",
         2,
         multiResolved("input-1", "q9", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
     );
@@ -831,7 +833,7 @@ describe("multi-question user input contract", () => {
         "ans-unknown-option",
         3,
         multiResolved("input-1", "q1", {
-          selectedOption: "not-an-option",
+          selectedOptionLabel: "not-an-option",
         }) as AgentEvent["payload"],
       ),
     );
@@ -856,7 +858,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
     ]);
@@ -876,7 +878,7 @@ describe("multi-question user input contract", () => {
         multiResolved(
           "input-1",
           "q2",
-          { selectedOption: "option-q2-a" },
+          { selectedOptionLabel: "option-q2-a" },
           "timeout",
         ) as AgentEvent["payload"],
         // Real timeout timers fire after the deadline, so model the real
@@ -923,7 +925,7 @@ describe("multi-question user input contract", () => {
         "ans-3",
         2,
         multiResolved("input-1", "q3", {
-          selectedOption: "option-q3-b",
+          selectedOptionLabel: "option-q3-b",
         }) as AgentEvent["payload"],
       ),
       event(
@@ -942,7 +944,7 @@ describe("multi-question user input contract", () => {
     expect(input.answers["q2"]?.status).toBe("pending");
     expect(input.answers["q3"]).toMatchObject({
       status: "answered",
-      selectedOption: "option-q3-b",
+      selectedOptionLabel: "option-q3-b",
     });
     expect(input.status).toBe("pending");
     expect(state.status).toBe("waiting-user-input");
@@ -986,7 +988,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
     ]);
@@ -1017,7 +1019,7 @@ describe("multi-question user input contract", () => {
         "ans-late",
         4,
         multiResolved("input-1", "q2", {
-          selectedOption: "option-q2-a",
+          selectedOptionLabel: "option-q2-a",
         }) as AgentEvent["payload"],
       ),
     );
@@ -1040,7 +1042,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q2", {
-          selectedOption: "option-q2-a",
+          selectedOptionLabel: "option-q2-a",
         }) as AgentEvent["payload"],
       ),
     ]);
@@ -1210,7 +1212,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
     ]);
@@ -1313,7 +1315,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "a", {
-          selectedOption: "option-a-a",
+          selectedOptionLabel: "option-a-a",
         }) as AgentEvent["payload"],
       ),
     ]);
@@ -1349,7 +1351,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
     );
@@ -1370,7 +1372,7 @@ describe("multi-question user input contract", () => {
         "ans-2",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
         "not-a-datetime",
       ),
@@ -1395,7 +1397,7 @@ describe("multi-question user input contract", () => {
           "ans-1",
           2,
           multiResolved("input-1", "q1", {
-            selectedOption: "option-q1-a",
+            selectedOptionLabel: "option-q1-a",
           }) as AgentEvent["payload"],
         ),
         event("turn-1", 3, {
@@ -1408,14 +1410,14 @@ describe("multi-question user input contract", () => {
       {
         label: "expired user answer",
         payload: multiResolved("input-1", "q2", {
-          selectedOption: "option-q2-a",
+          selectedOptionLabel: "option-q2-a",
         }),
         timestamp: AFTER_EXPIRY,
       },
       {
         label: "unknown question id",
         payload: multiResolved("input-1", "q9", {
-          selectedOption: "option-q2-a",
+          selectedOptionLabel: "option-q2-a",
         }),
         timestamp: REQUESTED_AT,
       },
@@ -1455,7 +1457,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
     ]);
@@ -1479,7 +1481,9 @@ describe("multi-question user input contract", () => {
     const replayedNonceResolution = reduceAgentEvent(
       differentNonce,
       event("ans-2", 4, {
-        ...multiResolved("input-1", "q2", { selectedOption: "option-q2-a" }),
+        ...multiResolved("input-1", "q2", {
+          selectedOptionLabel: "option-q2-a",
+        }),
         nonce: "ffffffffffffffff",
       } as AgentEvent["payload"]),
     );
@@ -1493,7 +1497,7 @@ describe("multi-question user input contract", () => {
         "ans-3",
         5,
         multiResolved("input-1", "q2", {
-          selectedOption: "option-q2-a",
+          selectedOptionLabel: "option-q2-a",
         }) as AgentEvent["payload"],
       ),
     );
@@ -1529,7 +1533,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
       event(
@@ -1538,7 +1542,7 @@ describe("multi-question user input contract", () => {
         multiResolved(
           "input-1",
           "q2",
-          { selectedOption: "option-q2-a" },
+          { selectedOptionLabel: "option-q2-a" },
           "cancelled",
         ) as AgentEvent["payload"],
       ),
@@ -1562,7 +1566,7 @@ describe("multi-question user input contract", () => {
         multiResolved(
           "input-2",
           "q1",
-          { selectedOption: "option-q1-a" },
+          { selectedOptionLabel: "option-q1-a" },
           "timeout",
         ) as AgentEvent["payload"],
         // Real timeout timers fire after the deadline; keep this aggregate
@@ -1575,7 +1579,7 @@ describe("multi-question user input contract", () => {
         multiResolved(
           "input-2",
           "q2",
-          { selectedOption: "option-q2-a" },
+          { selectedOptionLabel: "option-q2-a" },
           "cancelled",
         ) as AgentEvent["payload"],
       ),
@@ -1597,7 +1601,7 @@ describe("multi-question user input contract", () => {
         "ans-1",
         2,
         multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
+          selectedOptionLabel: "option-q1-a",
         }) as AgentEvent["payload"],
       ),
     );
@@ -1628,7 +1632,9 @@ describe("multi-question user input contract", () => {
         legacyExtra: "tolerated",
       },
       {
-        ...multiResolved("input-4", "q1", { selectedOption: "option-q1-a" }),
+        ...multiResolved("input-4", "q1", {
+          selectedOptionLabel: "option-q1-a",
+        }),
         legacyExtra: "tolerated",
       },
       {
@@ -1646,6 +1652,85 @@ describe("multi-question user input contract", () => {
         expect("legacyExtra" in (parsed.data as object)).toBe(false);
       }
     }
+  });
+
+  it("rejects single-question requests carrying an explicit undefined questions key", () => {
+    // IPC structured clone preserves explicit undefined keys, so a payload
+    // that skipped every producer-side normalization arrives exactly like
+    // this; zod keeps the declared key in the parse output, so key presence
+    // (not the value) must drive the rejection.
+    expect(
+      agentPayloadSchema.safeParse({
+        ...singleRequested("input-1"),
+        questions: undefined,
+      }).success,
+    ).toBe(false);
+    expect(
+      agentPayloadSchema.safeParse({
+        ...singleRequested("input-2"),
+        kind: "single-question",
+        questions: undefined,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps bypassed explicit undefined questions keys single-question in the reducer", () => {
+    // Reducer defense-in-depth: a payload poured straight past the schema
+    // (legacy replay or a direct write) must not poison the stored state —
+    // the key is stripped on store and a kind-less resolution still
+    // resolves single-question instead of hitting the multi-question
+    // translation path.
+    const state = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        singleRequested("input-undef", {
+          questions: undefined,
+        }) as AgentEvent["payload"],
+      ),
+      event("ans-1", 2, {
+        type: "user-input.resolved",
+        requestId: "input-undef",
+        nonce: NONCE,
+        answer: "Whole sweep",
+        selectedOption: 0,
+        source: "user",
+      }),
+    ]);
+    const input = state.userInputs["input-undef"];
+    expect(input).toMatchObject({
+      status: "answered",
+      answer: "Whole sweep",
+    });
+    expect("questions" in (input as object)).toBe(false);
+    expect(state.status).toBe("running");
+  });
+
+  it("fails closed when a re-request meets a polluted undefined questions key", () => {
+    const state = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        singleRequested("input-undef", {
+          questions: undefined,
+        }) as AgentEvent["payload"],
+      ),
+    ]);
+    const after = reduceAgentEvent(
+      state,
+      event(
+        "req-2",
+        2,
+        multiRequested("input-undef", [
+          question("q1"),
+        ]) as AgentEvent["payload"],
+      ),
+    );
+    // No TypeError from the fingerprint path; the authoritative
+    // single-question state survives untouched.
+    expect(after.userInputs["input-undef"]?.status).toBe("pending");
+    expect(after.userInputs["input-undef"]?.question).toBe(SINGLE_QUESTION);
+    expect(after.status).toBe("waiting-user-input");
   });
 
   it("carries the kind discriminant on user input states", () => {
