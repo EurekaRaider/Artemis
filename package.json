@@ -1,6 +1,6 @@
 {
   "name": "artemis",
-  "version": "1.4.31",
+  "version": "1.4.32",
   "private": true,
   "description": "A local-first cross-platform desktop coding agent powered by Pi.",
   "type": "module",
