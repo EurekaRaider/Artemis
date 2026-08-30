@@ -56,7 +56,8 @@ export function WorkspaceEditorToolbar(
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     // IME composition must never trigger shortcuts (house pattern).
     if (event.nativeEvent.isComposing) return;
-    if (event.key !== "s" || !(event.metaKey || event.ctrlKey)) return;
+    if (event.key.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey))
+      return;
     // The matched chord always claims the browser's native save dialog (v17
     // parity); the save itself only fires while the draft is submittable.
     event.preventDefault();

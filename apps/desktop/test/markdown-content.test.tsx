@@ -329,6 +329,7 @@ describe("MarkdownContent", () => {
  */
 async function renderMarkdownInDom<T>(
   props: {
+    imageFailureText?: string;
     resolveImage?: (href: string) => Promise<string | undefined>;
     text: string;
   },
@@ -350,13 +351,19 @@ async function renderMarkdownInDom<T>(
   dom.window.document.body.append(container);
   const root = createRoot(container);
   try {
-    const { resolveImage, text } = props;
+    const { imageFailureText, resolveImage, text } = props;
+    const imageProps =
+      imageFailureText === undefined ? {} : { imageFailureText };
     await act(async () => {
       root.render(
         resolveImage ? (
-          <MarkdownContent resolveImage={resolveImage} text={text} />
+          <MarkdownContent
+            {...imageProps}
+            resolveImage={resolveImage}
+            text={text}
+          />
         ) : (
-          <MarkdownContent text={text} />
+          <MarkdownContent {...imageProps} text={text} />
         ),
       );
     });
@@ -447,6 +454,42 @@ describe("MarkdownContent workspace image placeholders", () => {
           );
           expect(placeholder.textContent?.length ?? 0).toBeGreaterThan(0);
         }
+      },
+    );
+  });
+
+  it("renders a localized failure message when provided and keeps the English default otherwise", async () => {
+    await renderMarkdownInDom(
+      {
+        imageFailureText: "图片加载失败",
+        resolveImage: () => Promise.reject(new Error("unreadable")),
+        text: "![diagram](./docs/diagram.png)",
+      },
+      (document) => {
+        const placeholder = document.querySelector<HTMLElement>(
+          "span[data-workspace-image-failed]",
+        );
+        expect(placeholder).not.toBeNull();
+        expect(placeholder?.getAttribute("aria-label")).toBe(
+          "diagram (图片加载失败)",
+        );
+        expect(placeholder?.textContent).toBe("diagram (图片加载失败)");
+      },
+    );
+
+    await renderMarkdownInDom(
+      {
+        resolveImage: () => Promise.reject(new Error("unreadable")),
+        text: "![diagram](./docs/diagram.png)",
+      },
+      (document) => {
+        const placeholder = document.querySelector<HTMLElement>(
+          "span[data-workspace-image-failed]",
+        );
+        expect(placeholder).not.toBeNull();
+        expect(placeholder?.getAttribute("aria-label")).toBe(
+          "diagram (image failed to load)",
+        );
       },
     );
   });

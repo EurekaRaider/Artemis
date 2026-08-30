@@ -10,6 +10,7 @@ interface WorkspaceMarkdownEditorProps {
   ariaLabel: string;
   content: string;
   dirty: boolean;
+  imageFailureText?: string;
   path: string;
   readOnly?: boolean;
   richLabel: string;
@@ -29,6 +30,7 @@ export function WorkspaceMarkdownEditor({
   ariaLabel,
   content,
   dirty,
+  imageFailureText,
   path,
   readOnly = false,
   richLabel,
@@ -67,6 +69,8 @@ export function WorkspaceMarkdownEditor({
   // shared toolbar's optional prop stays absent rather than explicitly
   // undefined.
   const errorProps = saveError === undefined ? {} : { saveError };
+  // Same contract for the optional localized image-failure copy.
+  const imageProps = imageFailureText === undefined ? {} : { imageFailureText };
 
   return (
     <div className="workspace-markdown-editor">
@@ -92,6 +96,7 @@ export function WorkspaceMarkdownEditor({
         {view === "rich" ? (
           <MarkdownContent
             className="markdown-reader-content workspace-file-markdown-preview"
+            {...imageProps}
             resolveImage={resolveImage}
             text={content}
           />

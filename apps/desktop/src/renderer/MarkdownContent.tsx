@@ -301,6 +301,8 @@ function externalHttpAnchor(
   return anchor && container.contains(anchor) ? anchor : undefined;
 }
 
+// Default English copy; workspace readers pass a localized failure message
+// through the imageFailureText prop while timeline Markdown keeps the default.
 const WORKSPACE_IMAGE_FAILURE_TEXT = "image failed to load";
 
 // A workspace image whose resolver rejects or yields a non-image payload is
@@ -311,11 +313,10 @@ const WORKSPACE_IMAGE_FAILURE_TEXT = "image failed to load";
 function replaceWorkspaceImageWithPlaceholder(
   image: HTMLImageElement,
   href: string,
+  failureText: string,
 ): void {
   const alt = image.getAttribute("alt")?.trim() ?? "";
-  const label = alt
-    ? `${alt} (${WORKSPACE_IMAGE_FAILURE_TEXT})`
-    : `${WORKSPACE_IMAGE_FAILURE_TEXT}: ${href}`;
+  const label = alt ? `${alt} (${failureText})` : `${failureText}: ${href}`;
   const placeholder = document.createElement("span");
   placeholder.setAttribute("aria-label", label);
   placeholder.dataset.workspaceImageFailed = href;
@@ -328,6 +329,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   className,
   externalLinkIcons = false,
   fileLinkIcons = false,
+  imageFailureText = WORKSPACE_IMAGE_FAILURE_TEXT,
   onExternalLink,
   onFileLink,
   onFileLinkContextMenu,
@@ -337,6 +339,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   className?: string;
   externalLinkIcons?: boolean;
   fileLinkIcons?: boolean;
+  imageFailureText?: string;
   onExternalLink?: (href: string) => void;
   onFileLink?: (href: string) => void;
   onFileLinkContextMenu?: (
@@ -463,7 +466,7 @@ export const MarkdownContent = memo(function MarkdownContent({
               source,
             )
           ) {
-            replaceWorkspaceImageWithPlaceholder(image, href);
+            replaceWorkspaceImageWithPlaceholder(image, href, imageFailureText);
             return;
           }
           image.src = source;
@@ -471,14 +474,14 @@ export const MarkdownContent = memo(function MarkdownContent({
         })
         .catch(() => {
           if (active) {
-            replaceWorkspaceImageWithPlaceholder(image, href);
+            replaceWorkspaceImageWithPlaceholder(image, href, imageFailureText);
           }
         });
     }
     return () => {
       active = false;
     };
-  }, [html, resolveImage]);
+  }, [html, imageFailureText, resolveImage]);
 
   const openDelegatedLink = (event: MouseEvent<HTMLElement>) => {
     const fileAnchor = workspaceFileAnchor(event.target, event.currentTarget);

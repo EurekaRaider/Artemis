@@ -31,6 +31,7 @@ interface WorkspacePreviewProps {
 
 interface MarkdownReaderProps extends WorkspacePreviewProps {
   editLabel: string;
+  imageFailureMessage: string;
   richLabel: string;
   saveLabel: string;
   savedLabel: string;
@@ -451,6 +452,7 @@ export function MarkdownReaderPanel(props: MarkdownReaderProps) {
       ) : view === "rich" ? (
         <MarkdownContent
           className="markdown-reader-content"
+          imageFailureText={props.imageFailureMessage}
           resolveImage={resolveImage}
           text={draft}
         />

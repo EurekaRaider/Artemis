@@ -409,6 +409,7 @@ const copy = {
     filterFiles: "Filter files…",
     openFileFromTree: "Choose a file from the workspace tree.",
     binaryFile: "Binary files cannot be previewed.",
+    imageFailedToLoad: "image failed to load",
     fileLinkMenu: "File actions",
     openLinkedFile: "Open in reader",
     revealLinkedFile: "Show in folder",
@@ -686,6 +687,7 @@ const copy = {
     filterFiles: "筛选文件…",
     openFileFromTree: "从工作区目录树中选择文件。",
     binaryFile: "二进制文件无法预览。",
+    imageFailedToLoad: "图片加载失败",
     fileLinkMenu: "文件操作",
     openLinkedFile: "在阅读器中打开",
     revealLinkedFile: "打开文件目录",
@@ -8509,6 +8511,7 @@ export function App() {
                             <MarkdownReaderPanel
                               editLabel={t.editFile}
                               emptyMessage={t.noMarkdownPreview}
+                              imageFailureMessage={t.imageFailedToLoad}
                               path={tab.path ?? latestMarkdownChange?.path}
                               refreshLabel={t.refreshPreview}
                               revision={
@@ -8528,6 +8531,7 @@ export function App() {
                             <WorkspaceFilesPanel
                               binaryMessage={t.binaryFile}
                               editFileLabel={t.editFile}
+                              imageFailureMessage={t.imageFailedToLoad}
                               filterPlaceholder={t.filterFiles}
                               onFileSelected={(path) =>
                                 dispatchWorkspaceTab({

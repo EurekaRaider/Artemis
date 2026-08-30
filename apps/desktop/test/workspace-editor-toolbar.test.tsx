@@ -207,6 +207,32 @@ describe("WorkspaceEditorToolbar contract (D#76 PR7 §5 shared toolbar)", () => 
     expect(handlers.onSave).toHaveBeenCalledTimes(1);
   });
 
+  it("matches CapsLock's uppercase chord case-insensitively across states (shortcuts)", () => {
+    const { handlers, rerenderToolbar } = renderToolbar({
+      overrides: { dirty: true },
+    });
+    expect(keyDownTracked(editorBox(), { key: "S", metaKey: true })).toEqual([
+      true,
+    ]);
+    expect(handlers.onSave).toHaveBeenCalledTimes(1);
+    expect(keyDownTracked(editorBox(), { key: "S", ctrlKey: true })).toEqual([
+      true,
+    ]);
+    expect(handlers.onSave).toHaveBeenCalledTimes(2);
+
+    rerenderToolbar({ dirty: false });
+    expect(keyDownTracked(editorBox(), { key: "S", metaKey: true })).toEqual([
+      true,
+    ]);
+    expect(handlers.onSave).toHaveBeenCalledTimes(2);
+
+    rerenderToolbar({ dirty: true, readOnly: true });
+    expect(keyDownTracked(editorBox(), { key: "S", metaKey: true })).toEqual([
+      true,
+    ]);
+    expect(handlers.onSave).toHaveBeenCalledTimes(2);
+  });
+
   it("ignores Meta+S during IME composition, then submits on a clean chord (ime)", () => {
     const { handlers } = renderToolbar({ overrides: { dirty: true } });
     expect(
