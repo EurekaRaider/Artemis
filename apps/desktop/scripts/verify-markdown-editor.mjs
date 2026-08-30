@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import {
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   stat,
@@ -144,7 +145,11 @@ try {
         electronPath,
         [
           appDirectory,
-          `--user-data-dir=${join(temporaryDirectory, `${caseId}${attempt ? `-retry${attempt}` : ""}`)}`,
+          `--user-data-dir=${join(
+            temporaryDirectory,
+            "user-data",
+            `${caseId}-attempt-${attempt}`,
+          )}`,
           "--disable-gpu",
           "--disable-gpu-compositing",
           "--disable-gpu-sandbox",
@@ -216,6 +221,29 @@ try {
     if (!commonPass) {
       throw new Error(
         `${caseId} did not render the files panel: ${JSON.stringify(editor)}`,
+      );
+    }
+    // The fixture workspace must stay pure: Electron user data (Cache,
+    // Local Storage, Partitions, artemis.sqlite, ...) lives in a separate
+    // per-case per-attempt directory, so nothing beyond the seeded fixtures
+    // may ever appear at the workspace top level.
+    const expectedWorkspaceEntries = [binaryFileName, markdownFileName];
+    const workspaceEntries = (await readdir(caseWorkspace)).sort();
+    const unexpectedEntries = workspaceEntries.filter(
+      (entry) => !expectedWorkspaceEntries.includes(entry),
+    );
+    if (
+      !assert(
+        "workspace-purity",
+        unexpectedEntries.length === 0,
+        unexpectedEntries,
+        [],
+      ).pass
+    ) {
+      throw new Error(
+        `${caseId} workspace is not pure: unexpected top-level entries ${JSON.stringify(
+          unexpectedEntries,
+        )}. Electron user data must stay out of the fixture workspace.`,
       );
     }
     const placeholder = editor.imagePlaceholders?.[0] ?? null;
@@ -567,7 +595,10 @@ try {
         ];
       },
     };
-    const stepAssertions = await expectations[id]();
+    // Common assertions (files-panel-open, path-shown, workspace-purity) are
+    // recorded alongside the per-step expectations so every counted
+    // assertion appears in the audit JSON.
+    const stepAssertions = [...assertions, ...(await expectations[id]())];
     const failed = stepAssertions.filter((assertion) => !assertion.pass);
     if (failed.length) {
       throw new Error(`${caseId} assertions failed: ${JSON.stringify(failed)}`);
@@ -615,7 +646,7 @@ try {
     );
   }
   const totalAssertions = results.reduce(
-    (sum, result) => sum + result.assertions.length + 2,
+    (sum, result) => sum + result.assertions.length,
     0,
   );
   const auditReport = {
@@ -629,6 +660,11 @@ try {
       binary: binaryFileName,
       failingImageHref: "missing-reference.png",
       note: "Fixtures live in a throwaway workspace directory; only the save-error view intercepts writeWorkspaceFile in the main process.",
+    },
+    userDataIsolation: {
+      directory:
+        "user-data/<caseId>-attempt-<attempt> under the throwaway run root",
+      note: "Electron user data never shares a path with the fixture workspace and every case x attempt retry gets its own directory. The workspace-purity assertion on every case proves the workspace top level only ever holds the seeded fixtures.",
     },
     evidenceSplit: {
       productionReadOnly:
