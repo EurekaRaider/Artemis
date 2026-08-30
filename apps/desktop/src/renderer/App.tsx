@@ -5341,7 +5341,10 @@ export function App() {
   );
 
   const replaceQueuedMessages = useCallback(
-    async (followUp: Array<{ sourceIndex: number; text: string }>) => {
+    async (
+      followUp: Array<{ sourceIndex: number; text: string }>,
+      options?: { silent?: boolean },
+    ) => {
       if (!activeThread || busy) return false;
       setBusy(true);
       try {
@@ -5353,9 +5356,11 @@ export function App() {
         setEditingQueuedMessage(undefined);
         return true;
       } catch (error) {
-        setToast(
-          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
-        );
+        if (!options?.silent) {
+          setToast(
+            `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
         return false;
       } finally {
         setBusy(false);
@@ -5399,6 +5404,7 @@ export function App() {
           sourceIndex,
           text: sourceIndex === index ? message : text,
         })),
+        { silent: true },
       );
     },
     [queuedFollowUps, replaceQueuedMessages],
@@ -6703,7 +6709,7 @@ export function App() {
                                 <li
                                   className="queued-message-item"
                                   data-queued-index={index}
-                                  key={`${index}:${message}`}
+                                  key={String(index)}
                                 >
                                   <span
                                     aria-hidden="true"
