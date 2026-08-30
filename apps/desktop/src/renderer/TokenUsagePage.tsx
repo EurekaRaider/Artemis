@@ -7,7 +7,6 @@ import {
   buildTokenUsageByModel,
   buildTokenUsageCells,
   filterTokenUsageEvents,
-  formatTokenUsageTooltip,
   TOKEN_USAGE_COPY,
   tokenUsageValue,
   tokenUsageModelsForTable,
@@ -19,6 +18,8 @@ import {
 import { legacyLocale } from "../shared/locales.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { userInitials } from "./user-profile.js";
+import { StatCard } from "./StatCard.js";
+import { TokenUsageHeatmap } from "./TokenUsageHeatmap.js";
 
 function dateKey(value: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -75,11 +76,6 @@ function currentStreak(cells: readonly TokenUsageCell[]): number {
     streak += 1;
   }
   return streak;
-}
-
-function intensity(value: number, maximum: number): number {
-  if (value <= 0 || maximum <= 0) return 0;
-  return Math.max(1, Math.ceil((value / maximum) * 4));
 }
 
 export function TokenUsagePage({
@@ -189,10 +185,6 @@ export function TokenUsagePage({
     maximumFractionDigits: 1,
   });
   const exactNumber = new Intl.NumberFormat(locale);
-  const monthFormatter = new Intl.DateTimeFormat(locale, {
-    month: "short",
-    timeZone: "UTC",
-  });
   const detailDateFormatter = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeZone: "UTC",
@@ -210,17 +202,6 @@ export function TokenUsagePage({
     .filter(([, count]) => Number(count) > 0)
     .map(([label, count]) => `${label} ${exactNumber.format(Number(count))}`)
     .join(" · ");
-  const monthLabels = cells.flatMap((cell, index) => {
-    if (index % 7 !== 0) return [];
-    const previous = cells[index - 7];
-    if (previous?.date.slice(0, 7) === cell.date.slice(0, 7)) return [];
-    return [
-      {
-        column: Math.floor(index / 7) + 1,
-        label: monthFormatter.format(new Date(`${cell.date}T12:00:00.000Z`)),
-      },
-    ];
-  });
   const summary = [
     { label: t.totalTokens, value: number.format(totalTokens) },
     { label: t.peakDay, value: number.format(peakDay) },
@@ -324,10 +305,7 @@ export function TokenUsagePage({
 
       <section className="token-usage-summary" aria-label={t.title}>
         {summary.map((item) => (
-          <div className="token-usage-summary-item" key={item.label}>
-            <strong>{item.value}</strong>
-            <span>{item.label}</span>
-          </div>
+          <StatCard key={item.label} label={item.label} value={item.value} />
         ))}
       </section>
 
@@ -373,56 +351,15 @@ export function TokenUsagePage({
         </div>
 
         <div className="token-usage-chart-scroll">
-          <div className="token-usage-chart">
-            <div className="token-usage-grid" role="grid">
-              {cells.map((cell, index) => {
-                const tooltip = formatTokenUsageTooltip(cell, view, locale);
-                const samePeriod =
-                  hovered &&
-                  (view === "weekly"
-                    ? hovered.weekStart === cell.weekStart
-                    : hovered.date === cell.date);
-                const rightEdge = Math.floor(index / 7) >= 49;
-                return (
-                  <button
-                    aria-label={tooltip}
-                    className={`token-usage-cell${samePeriod ? " period-hovered" : ""}`}
-                    data-level={intensity(tokenUsageValue(cell, view), maximum)}
-                    key={cell.date}
-                    onBlur={() => setHovered(undefined)}
-                    onFocus={() => setHovered(cell)}
-                    onMouseEnter={() => setHovered(cell)}
-                    onMouseLeave={() => setHovered(undefined)}
-                    role="gridcell"
-                    type="button"
-                  >
-                    {hovered?.date === cell.date && (
-                      <span
-                        className={
-                          rightEdge
-                            ? "token-usage-tooltip align-right"
-                            : "token-usage-tooltip"
-                        }
-                        role="tooltip"
-                      >
-                        {tooltip}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="token-usage-months" aria-hidden="true">
-              {monthLabels.map((month) => (
-                <span
-                  key={`${month.column}-${month.label}`}
-                  style={{ gridColumnStart: month.column }}
-                >
-                  {month.label}
-                </span>
-              ))}
-            </div>
-          </div>
+          <TokenUsageHeatmap
+            cells={cells}
+            hovered={hovered}
+            label={t.activity}
+            locale={locale}
+            maximum={maximum}
+            onHoveredChange={setHovered}
+            view={view}
+          />
         </div>
         {loadError ? (
           <p className="token-usage-empty error" role="alert">
