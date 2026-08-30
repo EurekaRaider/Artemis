@@ -1,10 +1,5 @@
-// Render-only stub for D#76 PR6 task 3 (failing-tests-first).
-// It satisfies the QueuedMessageEditor props contract with a controlled
-// textarea plus Save/Cancel buttons so the interaction suite in
-// test/queued-message-editor.test.tsx fails per missing behavior instead of
-// import errors. Keyboard shortcuts, submit state (aria-busy/disabled), the
-// error/retry region, and focus-return logic are intentionally absent; the
-// real implementation lands in a later PR task.
+import { useEffect, useState, type KeyboardEvent } from "react";
+
 export interface QueuedMessageEditorProps {
   busy: boolean; // Parent-level busy flag.
   cancelLabel: string;
@@ -21,17 +16,86 @@ export interface QueuedMessageEditorProps {
 }
 
 export function QueuedMessageEditor(props: QueuedMessageEditorProps) {
+  const { busy, value } = props;
+  const [error, setError] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const canSubmit = value.trim() !== "" && !busy && !submitting;
+
+  // A draft change invalidates any previous save failure (section 8 h).
+  useEffect(() => {
+    setError(false);
+  }, [value]);
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setError(false);
+    setSubmitting(true);
+    let saved = false;
+    try {
+      saved = await props.onSave();
+    } catch {
+      saved = false;
+    }
+    setSubmitting(false);
+    if (saved) {
+      props.onSuccess();
+      window.setTimeout(() => {
+        props.focusReturnTarget()?.focus();
+      }, 0);
+    } else {
+      setError(true);
+    }
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME composition must never trigger shortcuts (house pattern, see
+    // GoalEditorPanel's keydown guard).
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (canSubmit) void submit();
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!busy && !submitting) props.onCancel();
+    }
+  };
+
   return (
-    <div>
+    <div
+      aria-busy={submitting || undefined}
+      className="queued-message-editor"
+    >
       <textarea
         aria-label={props.textareaLabel}
-        value={props.value}
         onChange={(event) => props.onValueChange(event.target.value)}
+        onKeyDown={handleKeyDown}
+        value={props.value}
       />
-      <button type="button" onClick={() => void props.onSave()}>
+      {error && (
+        <p className="queued-message-editor-error" role="alert">
+          {props.errorLabel}{" "}
+          <button
+            disabled={!canSubmit}
+            onClick={() => void submit()}
+            type="button"
+          >
+            {props.retryLabel}
+          </button>
+        </p>
+      )}
+      <button disabled={!canSubmit} onClick={() => void submit()} type="button">
         {props.saveLabel}
       </button>
-      <button type="button" onClick={props.onCancel}>
+      <button
+        disabled={busy || submitting}
+        onClick={props.onCancel}
+        type="button"
+      >
         {props.cancelLabel}
       </button>
     </div>
