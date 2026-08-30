@@ -1,6 +1,6 @@
 {
   "name": "@artemis/desktop",
-  "version": "1.4.32",
+  "version": "1.4.33",
   "private": true,
   "type": "module",
   "description": "Artemis desktop application",
@@ -28,9 +28,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@artemis/agent-host": "1.4.32",
-    "@artemis/platform": "1.4.32",
-    "@artemis/protocol": "1.4.32",
+    "@artemis/agent-host": "1.4.33",
+    "@artemis/platform": "1.4.33",
+    "@artemis/protocol": "1.4.33",
     "@earendil-works/pi-ai": "0.84.3",
     "@earendil-works/pi-coding-agent": "0.84.3",
     "@js-temporal/polyfill": "^0.5.1",
