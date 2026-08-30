@@ -965,6 +965,7 @@ export function AutomationPage(props: {
                 <label>
                   <span>{t.date}</span>
                   <input
+                    disabled={busy}
                     onChange={(event) =>
                       setDraft({ ...draft, date: event.target.value })
                     }

@@ -18,7 +18,13 @@
 // for this file — no real project, credential, or user image appears here.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Temporal } from "@js-temporal/polyfill";
 import { describe, expect, it, vi } from "vitest";
@@ -174,9 +180,7 @@ async function openAutomationDraftDialog() {
     />,
   );
   await act(async () => {});
-  await userEvent.click(
-    screen.getByRole("button", { name: "New automation" }),
-  );
+  await userEvent.click(screen.getByRole("button", { name: "New automation" }));
 }
 
 async function fillValidDraft() {
@@ -331,11 +335,15 @@ describe("avatar file field contract (SettingsPanel general tab, §5 file-合同
         }),
     );
     stubSettingsApi(
-      settingsSnapshot({ profileAvatar: "data:image/webp;base64,c3ludGhldGlj" }),
+      settingsSnapshot({
+        profileAvatar: "data:image/webp;base64,c3ludGhldGlj",
+      }),
       { setProfileAvatar },
     );
     await renderSettingsPanel(
-      settingsSnapshot({ profileAvatar: "data:image/webp;base64,c3ludGhldGlj" }),
+      settingsSnapshot({
+        profileAvatar: "data:image/webp;base64,c3ludGhldGlj",
+      }),
     );
     const input = screen.getByLabelText("Change image") as HTMLInputElement;
     const remove = screen.getByRole("button", { name: "Remove" });
