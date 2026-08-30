@@ -301,6 +301,29 @@ function externalHttpAnchor(
   return anchor && container.contains(anchor) ? anchor : undefined;
 }
 
+const WORKSPACE_IMAGE_FAILURE_TEXT = "image failed to load";
+
+// A workspace image whose resolver rejects or yields a non-image payload is
+// swapped for an accessible, text-bearing placeholder so its slot never
+// collapses into a bare broken <img>. A resolver that returns no source yet
+// leaves the image pending instead: the preview panel resolves images only
+// after its file finishes loading, and a placeholder could never be retried.
+function replaceWorkspaceImageWithPlaceholder(
+  image: HTMLImageElement,
+  href: string,
+): void {
+  const alt = image.getAttribute("alt")?.trim() ?? "";
+  const label = alt
+    ? `${alt} (${WORKSPACE_IMAGE_FAILURE_TEXT})`
+    : `${WORKSPACE_IMAGE_FAILURE_TEXT}: ${href}`;
+  const placeholder = document.createElement("span");
+  placeholder.setAttribute("aria-label", label);
+  placeholder.dataset.workspaceImageFailed = href;
+  placeholder.setAttribute("role", "img");
+  placeholder.textContent = label;
+  image.replaceWith(placeholder);
+}
+
 export const MarkdownContent = memo(function MarkdownContent({
   className,
   externalLinkIcons = false,
@@ -432,19 +455,25 @@ export const MarkdownContent = memo(function MarkdownContent({
       if (!href) continue;
       void resolveImage(href)
         .then((source) => {
+          if (!active || !source) {
+            return;
+          }
           if (
-            !active ||
-            !source ||
             !/^data:image\/(?:avif|gif|jpeg|png|svg\+xml|webp);base64,/iu.test(
               source,
             )
           ) {
+            replaceWorkspaceImageWithPlaceholder(image, href);
             return;
           }
           image.src = source;
           delete image.dataset.workspaceImage;
         })
-        .catch(() => undefined);
+        .catch(() => {
+          if (active) {
+            replaceWorkspaceImageWithPlaceholder(image, href);
+          }
+        });
     }
     return () => {
       active = false;

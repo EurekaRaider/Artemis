@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { JSDOM } from "jsdom";
+
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -313,5 +315,156 @@ describe("MarkdownContent", () => {
       "onFileLinkContextMenu={onFileLinkContextMenu}",
     );
     expect(assistantMessage).toContain("text={part.text}");
+  });
+});
+
+/**
+ * The workspace-image failure path only runs inside a real DOM (the resolve
+ * effect mutates rendered nodes), but this file must stay in the default node
+ * environment: four suites above read repository files via
+ * `fileURLToPath(import.meta.url)`, which breaks under a file-level jsdom
+ * pragma because `import.meta.url` loses its file scheme. These tests install
+ * a private JSDOM document on the globals for the duration of one render and
+ * restore the previous values afterwards.
+ */
+async function renderMarkdownInDom<T>(
+  props: {
+    resolveImage?: (href: string) => Promise<string | undefined>;
+    text: string;
+  },
+  assertions: (document: Document) => T | Promise<T>,
+): Promise<T> {
+  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
+    pretendToBeVisual: true,
+  });
+  const globals = globalThis as unknown as Record<string, unknown>;
+  const previousWindow = globals.window;
+  const previousDocument = globals.document;
+  const previousActEnvironment = globals.IS_REACT_ACT_ENVIRONMENT;
+  globals.window = dom.window;
+  globals.document = dom.window.document;
+  globals.IS_REACT_ACT_ENVIRONMENT = true;
+  const { act } = await import("react");
+  const { createRoot } = await import("react-dom/client");
+  const container = dom.window.document.createElement("div");
+  dom.window.document.body.append(container);
+  const root = createRoot(container);
+  try {
+    const { resolveImage, text } = props;
+    await act(async () => {
+      root.render(
+        resolveImage ? (
+          <MarkdownContent resolveImage={resolveImage} text={text} />
+        ) : (
+          <MarkdownContent text={text} />
+        ),
+      );
+    });
+    await act(async () => undefined);
+    return await assertions(dom.window.document);
+  } finally {
+    await act(async () => {
+      root.unmount();
+    });
+    globals.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+    globals.window = previousWindow;
+    globals.document = previousDocument;
+  }
+}
+
+describe("MarkdownContent workspace image placeholders", () => {
+  it("replaces a rejected workspace image with an accessible placeholder", async () => {
+    await renderMarkdownInDom(
+      {
+        resolveImage: () =>
+          Promise.reject(new Error("workspace image unreadable")),
+        text: "![diagram](./docs/diagram.png)",
+      },
+      (document) => {
+        const placeholder = document.querySelector<HTMLElement>(
+          "span[data-workspace-image-failed]",
+        );
+        expect(placeholder).not.toBeNull();
+        expect(placeholder?.getAttribute("role")).toBe("img");
+        expect(placeholder?.getAttribute("aria-label")).toBe(
+          "diagram (image failed to load)",
+        );
+        expect(placeholder?.textContent).toBe("diagram (image failed to load)");
+        expect(document.querySelector("img")).toBeNull();
+      },
+    );
+  });
+
+  it("keeps a resolved workspace image as a regular img element", async () => {
+    const source = "data:image/png;base64,iVBORw0KGgo=";
+    await renderMarkdownInDom(
+      {
+        resolveImage: async () => source,
+        text: "![diagram](./docs/diagram.png)",
+      },
+      (document) => {
+        expect(document.querySelector("img[data-workspace-image]")).toBeNull();
+        const image = document.querySelector("img");
+        expect(image?.getAttribute("src")).toBe(source);
+        expect(image?.getAttribute("alt")).toBe("diagram");
+        expect(
+          document.querySelector("[data-workspace-image-failed]"),
+        ).toBeNull();
+      },
+    );
+  });
+
+  it("leaves timeline Markdown without a resolver exactly as before", async () => {
+    await renderMarkdownInDom(
+      { text: "![diagram](./docs/diagram.png)" },
+      (document) => {
+        expect(document.querySelector("img")).toBeNull();
+        expect(
+          document.querySelector("[data-workspace-image-failed]"),
+        ).toBeNull();
+        expect(document.body.textContent).not.toContain("image failed to load");
+      },
+    );
+  });
+
+  it("replaces invalid workspace image payloads without collapsing slots", async () => {
+    await renderMarkdownInDom(
+      {
+        resolveImage: async () => "not-a-data-url",
+        text: "![chart](reports/chart.png)\n\n![logo](assets/logo.png)",
+      },
+      (document) => {
+        expect(
+          document.querySelectorAll("[data-workspace-image-failed]"),
+        ).toHaveLength(2);
+        expect(document.querySelector("img")).toBeNull();
+        for (const placeholder of document.querySelectorAll<HTMLElement>(
+          "[data-workspace-image-failed]",
+        )) {
+          expect(placeholder.getAttribute("role")).toBe("img");
+          expect(placeholder.getAttribute("aria-label")).toContain(
+            "image failed to load",
+          );
+          expect(placeholder.textContent?.length ?? 0).toBeGreaterThan(0);
+        }
+      },
+    );
+  });
+
+  it("keeps workspace images pending while the resolver has no source yet", async () => {
+    await renderMarkdownInDom(
+      {
+        resolveImage: async () => undefined,
+        text: "![diagram](./docs/diagram.png)",
+      },
+      (document) => {
+        const image = document.querySelector("img[data-workspace-image]");
+        expect(image).not.toBeNull();
+        expect(image?.getAttribute("src")).toBeNull();
+        expect(
+          document.querySelector("[data-workspace-image-failed]"),
+        ).toBeNull();
+      },
+    );
   });
 });
