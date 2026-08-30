@@ -11,6 +11,21 @@ const tokenUsagePageSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/TokenUsagePage.tsx", import.meta.url)),
   "utf8",
 );
+// D#76 PR9B §2.7 migration: the heatmap cell markup now lives in
+// TokenUsageHeatmap.tsx. The guarded read keeps the other suites green if
+// the component file is temporarily absent.
+const tokenUsageHeatmapSource = (() => {
+  try {
+    return readFileSync(
+      fileURLToPath(
+        new URL("../src/renderer/TokenUsageHeatmap.tsx", import.meta.url),
+      ),
+      "utf8",
+    );
+  } catch {
+    return "";
+  }
+})();
 const stylesSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/styles.css", import.meta.url)),
   "utf8",
@@ -81,19 +96,25 @@ describe("token usage navigation", () => {
   });
 
   it("shows the same cell tooltip from pointer hover and keyboard focus", () => {
-    const cellClass = tokenUsagePageSource.indexOf(
+    // D#76 PR9B §2.7 anchor migration: identical assertions, retargeted from
+    // TokenUsagePage.tsx to TokenUsageHeatmap.tsx. The only textual change is
+    // setHovered(cell) -> onHoveredChange(cell), because the extracted
+    // component reports hover through a controlled callback while the page
+    // keeps resetting it on view/model changes.
+    const cellClass = tokenUsageHeatmapSource.indexOf(
       "className={`token-usage-cell",
     );
-    const cellStart = tokenUsagePageSource.lastIndexOf("<button", cellClass);
+    const cellStart = tokenUsageHeatmapSource.lastIndexOf("<button", cellClass);
     const cellEnd =
-      tokenUsagePageSource.indexOf("</button>", cellClass) + "</button>".length;
-    const cellSource = tokenUsagePageSource.slice(cellStart, cellEnd);
+      tokenUsageHeatmapSource.indexOf("</button>", cellClass) +
+      "</button>".length;
+    const cellSource = tokenUsageHeatmapSource.slice(cellStart, cellEnd);
 
     expect(cellClass).toBeGreaterThan(-1);
     expect(cellStart).toBeGreaterThan(-1);
     expect(cellEnd).toBeGreaterThan(cellStart);
-    expect(cellSource).toContain("onMouseEnter={() => setHovered(cell)}");
-    expect(cellSource).toContain("onFocus={() => setHovered(cell)}");
+    expect(cellSource).toContain("onMouseEnter={() => onHoveredChange(cell)}");
+    expect(cellSource).toContain("onFocus={() => onHoveredChange(cell)}");
     expect(cellSource).toContain("hovered?.date === cell.date");
     expect(cellSource).toContain('role="tooltip"');
     expect(stylesSource).toMatch(
