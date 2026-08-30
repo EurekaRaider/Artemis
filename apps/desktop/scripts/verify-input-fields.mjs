@@ -55,105 +55,6 @@ const cases = steps.flatMap((step) =>
   themes.map((theme) => ({ ...step, theme, caseId: `${step.id}-${theme}` })),
 );
 
-// Pixel-binds the focused screenshot to the visible focus state with PIL
-// (python3 + Pillow on the evidence workstation; a missing runtime or any
-// analysis failure surfaces as a failing assertion, never a silent pass).
-// The focused capture must differ from the default one, and the ring color
-// computed at focus time must appear inside the border band around the
-// target's focus-time bounding rect — the 2px outline sits 2px outside the
-// rect edge, so the band spans 1..5 CSS px beyond it, scaled by the
-// capture's device pixel ratio (2x on this Retina harness).
-const analyzeFocusPixels = ({
-  defaultPath,
-  focusedPath,
-  ringColor,
-  ringRect,
-  viewportWidth,
-}) => {
-  const analysisScript = `
-import json
-import sys
-
-from PIL import Image, ImageChops
-
-payload = json.loads(sys.argv[1])
-default = Image.open(payload["defaultPath"]).convert("RGB")
-focused = Image.open(payload["focusedPath"]).convert("RGB")
-if default.size != focused.size:
-    print(json.dumps({"error": "size-mismatch", "sizes": [default.size, focused.size]}))
-    sys.exit(0)
-width, height = focused.size
-scale = width / payload["viewportWidth"]
-difference = ImageChops.difference(default, focused)
-thresholded = difference.point(lambda value: 255 if value > 8 else 0).convert("L")
-changed = sum(thresholded.histogram()[1:])
-rect = payload["ringRect"]
-inner, outer = 1.0, 5.0
-left = max(0, int(round((rect["x"] - outer) * scale)))
-top = max(0, int(round((rect["y"] - outer) * scale)))
-right = min(width, int(round((rect["x"] + rect["width"] + outer) * scale)))
-bottom = min(height, int(round((rect["y"] + rect["height"] + outer) * scale)))
-if right <= left or bottom <= top:
-    print(json.dumps({"error": "band-outside-capture"}))
-    sys.exit(0)
-band = focused.crop((left, top, right, bottom))
-inner_left = int(round((rect["x"] - inner) * scale)) - left
-inner_top = int(round((rect["y"] - inner) * scale)) - top
-inner_right = int(round((rect["x"] + rect["width"] + inner) * scale)) - left
-inner_bottom = int(round((rect["y"] + rect["height"] + inner) * scale)) - top
-target_r, target_g, target_b = payload["ringColor"]
-ring = 0
-band_width = band.size[0]
-for index, (r, g, b) in enumerate(band.getdata()):
-    x = index % band_width
-    y = index // band_width
-    if inner_left <= x < inner_right and inner_top <= y < inner_bottom:
-        continue
-    if abs(r - target_r) <= 60 and abs(g - target_g) <= 60 and abs(b - target_b) <= 60:
-        ring += 1
-print(json.dumps({
-    "changedPixelCount": changed,
-    "ringPixelCount": ring,
-    "ringColor": payload["ringColor"],
-    "scale": scale,
-    "band": [left, top, right, bottom],
-    "sizes": [width, height],
-}))
-`;
-  const invocation = spawnSync(
-    "python3",
-    [
-      "-c",
-      analysisScript,
-      JSON.stringify({
-        defaultPath,
-        focusedPath,
-        ringColor,
-        ringRect,
-        viewportWidth,
-      }),
-    ],
-    { encoding: "utf8", maxBuffer: 4 * 1024 * 1024, timeout: 30_000 },
-  );
-  if (invocation.error || invocation.status !== 0) {
-    return {
-      error:
-        invocation.error?.message ??
-        (invocation.stderr || invocation.stdout || "analysis failed").slice(
-          0,
-          400,
-        ),
-    };
-  }
-  try {
-    return JSON.parse(invocation.stdout);
-  } catch {
-    return {
-      error: `unexpected analysis output: ${invocation.stdout.slice(0, 200)}`,
-    };
-  }
-};
-
 const results = [];
 await mkdir(outputDirectory, { recursive: true });
 try {
@@ -428,9 +329,14 @@ try {
     // capture must differ from the default capture, and the theme ring
     // color read at focus time must appear inside the border band around
     // the target's focus-time bounding rect (avatar: the Choose image
-    // trigger label; once: the date input). Missing probe geometry, an
-    // unparsable ring color, or an unavailable pixel analysis fails the
-    // case: an uncapturable visible state must be red, never green.
+    // trigger label; once: the date input). The analysis itself runs
+    // inside the Electron driver with nativeImage (the repo-locked
+    // runtime; probe.focusPixels with analysisRuntime
+    // "electron-nativeImage"), so a clean npm-install environment needs
+    // no system scripting runtime beyond the repo-locked dependencies.
+    // Missing probe geometry, an unparsable
+    // ring color, or an unavailable pixel analysis fails the case: an
+    // uncapturable visible state must be red, never green.
     const focusProbe = probe?.focus ?? null;
     const focusCapture = probe?.focusRingCapture ?? null;
     const targetUsesLabel = id === "input-fields-settings-avatar";
@@ -488,42 +394,37 @@ try {
         `${caseId} cannot run the visible-ring analysis: the focus probe lacks the ring color, the ${targetUsesLabel ? "trigger label" : "date input"} rect, or the viewport geometry.`,
       );
     }
-    const focusPixels = analyzeFocusPixels({
-      defaultPath: screenshotPath,
-      focusedPath: focusedScreenshotPath,
-      ringColor: [
-        Number(ringColorMatch[1]),
-        Number(ringColorMatch[2]),
-        Number(ringColorMatch[3]),
-      ],
-      ringRect,
-      viewportWidth: focusViewport.innerWidth,
-    });
+    // F3: the pixel analysis ran inside the Electron driver with
+    // nativeImage; this script asserts the recorded probe numbers with the
+    // same criteria the previous pixel analysis applied, so the gates stay
+    // equivalent
+    // while the runtime dependency disappears.
+    const focusPixels = probe?.focusPixels ?? null;
     keyboardChain([
       {
         name: "focus-pixel-analysis-ran",
-        pass: focusPixels.error === undefined,
-        actual: focusPixels.error ?? "ok",
-        expected: "ok",
+        pass: focusPixels?.analysisRuntime === "electron-nativeImage",
+        actual: focusPixels?.analysisRuntime ?? focusPixels?.error ?? null,
+        expected: "electron-nativeImage",
       },
       {
         name: "focused-screenshot-differs-from-default",
         pass:
-          Number.isFinite(focusPixels.changedPixelCount) &&
+          Number.isFinite(focusPixels?.changedPixelCount) &&
           focusPixels.changedPixelCount > 0,
-        actual: focusPixels.changedPixelCount ?? null,
+        actual: focusPixels?.changedPixelCount ?? null,
         expected: "> 0 pixels differing from the default capture",
       },
       {
         name: "focus-ring-visible-on-target",
         pass:
-          Number.isFinite(focusPixels.ringPixelCount) &&
+          Number.isFinite(focusPixels?.ringPixelCount) &&
           focusPixels.ringPixelCount > 0,
         actual: {
-          ringPixelCount: focusPixels.ringPixelCount ?? null,
-          sampledBand: focusPixels.band ?? null,
-          ringColor: focusPixels.ringColor ?? null,
-          scale: focusPixels.scale ?? null,
+          ringPixelCount: focusPixels?.ringPixelCount ?? null,
+          sampledBand: focusPixels?.sampledBand ?? null,
+          ringColor: focusPixels?.ringColor ?? null,
+          scale: focusPixels?.scale ?? null,
         },
         expected: `> 0 ${targetUsesLabel ? "--blue" : "focus-ring"} pixels inside the target border band`,
       },
@@ -791,7 +692,7 @@ try {
       tabTraversal:
         "Real DevTools-protocol Input.dispatchKeyEvent Tab presses from document start until the target control holds document.activeElement (cap 200).",
       focusRing:
-        "Computed outline read from the focused control (date: input:focus-visible; avatar: label focus-within) while it held real keyboard focus after webContents.focus() on the offscreen window. The focused capture then waits for a double rAF plus a presented compositor frame (beginFrameSubscription) with the active element re-read at capture time, and the verify script pixel-binds the artifact: the focused capture must differ from the default one and carry ring-colored pixels inside the target's focus-time border band (ringPixelCount in results[].measured.focusPixels).",
+        "Computed outline read from the focused control (date: input:focus-visible; avatar: label focus-within) while it held real keyboard focus after webContents.focus() on the offscreen window. The focused capture then waits for a double rAF plus a presented compositor frame (beginFrameSubscription) with the active element re-read at capture time, and the Electron driver itself pixel-binds the artifact with nativeImage (analysisRuntime electron-nativeImage in probe.focusPixels): the focused capture must differ from the default one and carry ring-colored pixels inside the target's focus-time border band (ringPixelCount in results[].measured.focusPixels).",
       enterActivation:
         "Enter is dispatched as a real key event to the focused avatar input; Chromium's own file chooser then opens as Page.fileChooserOpened over the DevTools protocol (no native dialog ever shows), and Page.fileChooserAccepted feeds the synthetic PNG so the real change -> clear -> preview -> remove chain runs.",
     },

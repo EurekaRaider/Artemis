@@ -23,6 +23,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   nativeTheme,
   net,
   Notification,
@@ -10135,6 +10136,215 @@ type SmokeFocusFrameEvidence = {
   frameSignal: "beginFrameSubscription" | "unavailable";
 };
 
+type SmokeInputFieldsRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type SmokeInputFieldsFocusProbe = {
+  outlineColor?: string | null;
+  labelOutlineColor?: string | null;
+  targetRect?: SmokeInputFieldsRect | null;
+  labelRect?: SmokeInputFieldsRect | null;
+  viewport?: { innerWidth?: number | null } | null;
+} | null;
+
+type SmokeFocusPixelsEvidence = {
+  analysisRuntime?: "electron-nativeImage";
+  error?: string;
+  changedPixelCount?: number;
+  ringPixelCount?: number;
+  scale?: number;
+  sampledBand?: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  };
+  ringColor?: [number, number, number];
+  sizes?: { width: number; height: number }[];
+};
+
+// PR9C review F3: the focused-capture pixel analysis moved out of the
+// verify script, which spawned system python3 + Pillow - a runtime this
+// repo's package.json/lock never provided, so a clean install environment
+// failed with ModuleNotFoundError before any assertion could run. The
+// analysis now runs inside the Electron driver with nativeImage, which
+// ships with the repo-locked electron dependency: zero new dependencies
+// and zero lockfile changes. Both analyses replicate the previous PIL
+// semantics exactly: changedPixelCount counts pixels whose RGB channels
+// differ by more than 8 between the default and focused captures, and
+// ringPixelCount counts pixels within 60/channel of the focus-time ring
+// color (alpha > 0) inside the 1..5 CSS px border band around the
+// focus-time rect, scaled by capture width / CSS viewport width. Any
+// missing input or unreadable artifact returns an error record so the
+// verify script's analysis-ran gate fails loudly, never silently.
+const analyzeSmokeFocusPixels = ({
+  defaultPath,
+  focusedPath,
+  ringColorSource,
+  ringRect,
+  viewportWidth,
+}: {
+  defaultPath: string | undefined;
+  focusedPath: string | undefined;
+  ringColorSource: string | null | undefined;
+  ringRect: SmokeInputFieldsRect | null;
+  viewportWidth: number | null | undefined;
+}): SmokeFocusPixelsEvidence => {
+  if (!defaultPath || !focusedPath) {
+    return { error: "missing capture artifact path" };
+  }
+  if (
+    !ringRect ||
+    ![ringRect.x, ringRect.y, ringRect.width, ringRect.height].every((value) =>
+      Number.isFinite(value),
+    )
+  ) {
+    return { error: "missing finite focus-time rect" };
+  }
+  if (typeof viewportWidth !== "number" || viewportWidth <= 0) {
+    return { error: "missing positive viewport width" };
+  }
+  const ringColorMatch = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/u.exec(
+    ringColorSource ?? "",
+  );
+  if (!ringColorMatch) {
+    return { error: "unparsable focus-time ring color: " + ringColorSource };
+  }
+  const targetRed = Number(ringColorMatch[1]);
+  const targetGreen = Number(ringColorMatch[2]);
+  const targetBlue = Number(ringColorMatch[3]);
+  const defaultImage = nativeImage.createFromPath(defaultPath);
+  const focusedImage = nativeImage.createFromPath(focusedPath);
+  if (defaultImage.isEmpty() || focusedImage.isEmpty()) {
+    return { error: "unreadable capture artifact" };
+  }
+  const defaultSize = defaultImage.getSize();
+  const focusedSize = focusedImage.getSize();
+  if (
+    defaultSize.width !== focusedSize.width ||
+    defaultSize.height !== focusedSize.height
+  ) {
+    return { error: "size-mismatch", sizes: [defaultSize, focusedSize] };
+  }
+  const width = focusedSize.width;
+  const height = focusedSize.height;
+  const scale = width / viewportWidth;
+  // toBitmap() hands back raw 4-byte BGRA pixels (alpha last; a pure red
+  // probe pixel decodes to 00 00 ff ff) - the same lossless RGBA pixel
+  // grid the previous PIL decode produced from the identical PNG, so the
+  // byte-wise comparison preserves the old numeric criteria exactly.
+  const defaultBitmap = defaultImage.toBitmap();
+  const focusedBitmap = focusedImage.toBitmap();
+  const expectedBytes = width * height * 4;
+  if (
+    defaultBitmap.length !== expectedBytes ||
+    focusedBitmap.length !== expectedBytes
+  ) {
+    return {
+      error: "unexpected bitmap stride",
+      sizes: [defaultSize, focusedSize],
+    };
+  }
+  let changedPixelCount = 0;
+  for (let offset = 0; offset < expectedBytes; offset += 4) {
+    if (
+      Math.abs(
+        defaultBitmap.readUInt8(offset) - focusedBitmap.readUInt8(offset),
+      ) > 8 ||
+      Math.abs(
+        defaultBitmap.readUInt8(offset + 1) -
+          focusedBitmap.readUInt8(offset + 1),
+      ) > 8 ||
+      Math.abs(
+        defaultBitmap.readUInt8(offset + 2) -
+          focusedBitmap.readUInt8(offset + 2),
+      ) > 8
+    ) {
+      changedPixelCount += 1;
+    }
+  }
+  // Python's round() rounds halves to even; replicating it keeps the
+  // sampled band byte-identical to the previous PIL implementation so the
+  // counts stay directly comparable across the migration.
+  const roundHalfToEven = (value: number): number => {
+    const floor = Math.floor(value);
+    const fraction = value - floor;
+    if (fraction > 0.5) {
+      return floor + 1;
+    }
+    if (fraction < 0.5) {
+      return floor;
+    }
+    return floor % 2 === 0 ? floor : floor + 1;
+  };
+  const inner = 1.0;
+  const outer = 5.0;
+  const left = Math.max(0, roundHalfToEven((ringRect.x - outer) * scale));
+  const top = Math.max(0, roundHalfToEven((ringRect.y - outer) * scale));
+  const right = Math.min(
+    width,
+    roundHalfToEven((ringRect.x + ringRect.width + outer) * scale),
+  );
+  const bottom = Math.min(
+    height,
+    roundHalfToEven((ringRect.y + ringRect.height + outer) * scale),
+  );
+  const sampledBand = { left, top, right, bottom };
+  if (right <= left || bottom <= top) {
+    return {
+      error: "band-outside-capture",
+      scale,
+      sampledBand,
+      ringColor: [targetRed, targetGreen, targetBlue],
+    };
+  }
+  const innerLeft = roundHalfToEven((ringRect.x - inner) * scale) - left;
+  const innerTop = roundHalfToEven((ringRect.y - inner) * scale) - top;
+  const innerRight =
+    roundHalfToEven((ringRect.x + ringRect.width + inner) * scale) - left;
+  const innerBottom =
+    roundHalfToEven((ringRect.y + ringRect.height + inner) * scale) - top;
+  let ringPixelCount = 0;
+  for (let y = top; y < bottom; y += 1) {
+    const bandY = y - top;
+    for (let x = left; x < right; x += 1) {
+      const bandX = x - left;
+      if (
+        bandX >= innerLeft &&
+        bandX < innerRight &&
+        bandY >= innerTop &&
+        bandY < innerBottom
+      ) {
+        continue;
+      }
+      const offset = (y * width + x) * 4;
+      if (focusedBitmap.readUInt8(offset + 3) <= 0) {
+        continue;
+      }
+      if (
+        Math.abs(focusedBitmap.readUInt8(offset) - targetBlue) <= 60 &&
+        Math.abs(focusedBitmap.readUInt8(offset + 1) - targetGreen) <= 60 &&
+        Math.abs(focusedBitmap.readUInt8(offset + 2) - targetRed) <= 60
+      ) {
+        ringPixelCount += 1;
+      }
+    }
+  }
+  return {
+    analysisRuntime: "electron-nativeImage",
+    changedPixelCount,
+    ringPixelCount,
+    scale,
+    sampledBand,
+    ringColor: [targetRed, targetGreen, targetBlue],
+    sizes: [defaultSize, focusedSize],
+  };
+};
+
 // PR9C input-fields evidence driver (checklist §6-2): after the
 // default-state screenshot, the driver focuses the web contents (PR9B
 // offscreen precedent: showInactive never gives the document OS focus, so
@@ -10149,6 +10359,7 @@ type SmokeFocusFrameEvidence = {
 async function driveSmokeInputFieldsEvidence(
   window: BrowserWindow,
   artifacts: {
+    defaultScreenshot?: string | undefined;
     focusedScreenshot?: string | undefined;
     pickedScreenshot?: string | undefined;
   },
@@ -10368,7 +10579,9 @@ async function driveSmokeInputFieldsEvidence(
   if (view === "input-fields-automations-once") {
     const dateSelector = '.automation-dialog input[type="date"]';
     const tab = await tabUntilFocused(dateSelector);
-    const focus = await evaluate(focusProbeScript(dateSelector));
+    const focus = (await evaluate(
+      focusProbeScript(dateSelector),
+    )) as SmokeInputFieldsFocusProbe;
     // Capture only after the focused frame was produced and presented, and
     // prove the target still held focus at that exact moment.
     const focusRingCapture = await waitForFocusedFrame(dateSelector);
@@ -10376,6 +10589,15 @@ async function driveSmokeInputFieldsEvidence(
       const image = await contents.capturePage();
       await writeFile(artifacts.focusedScreenshot, image.toPNG());
     }
+    // F3: pixel-bind both on-disk captures with the repo-locked Electron
+    // runtime instead of the verify script's system python3 + Pillow.
+    const focusPixels = analyzeSmokeFocusPixels({
+      defaultPath: artifacts.defaultScreenshot,
+      focusedPath: artifacts.focusedScreenshot,
+      ringColorSource: focus?.outlineColor ?? null,
+      ringRect: focus?.targetRect ?? null,
+      viewportWidth: focus?.viewport?.innerWidth ?? null,
+    });
     const busy = await evaluate(`(async () => {
       const wait = (milliseconds) =>
         new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -10455,6 +10677,7 @@ async function driveSmokeInputFieldsEvidence(
         tab: ${JSON.stringify(tab)},
         focus: ${JSON.stringify(focus ?? null)},
         focusRingCapture: ${JSON.stringify(focusRingCapture)},
+        focusPixels: ${JSON.stringify(focusPixels)},
         busy: ${JSON.stringify(busy ?? null)},
         activation: null,
         pick: null,
@@ -10466,9 +10689,9 @@ async function driveSmokeInputFieldsEvidence(
   if (view === "input-fields-settings-avatar") {
     const avatarSelector = ".profile-avatar-input";
     const tab = await tabUntilFocused(avatarSelector);
-    const focus = await evaluate(
+    const focus = (await evaluate(
       focusProbeScript(avatarSelector, "label.settings-secondary-action"),
-    );
+    )) as SmokeInputFieldsFocusProbe;
     // Capture only after the focused frame was produced and presented, and
     // prove the avatar input still held focus at that exact moment.
     const focusRingCapture = await waitForFocusedFrame(avatarSelector);
@@ -10476,6 +10699,15 @@ async function driveSmokeInputFieldsEvidence(
       const image = await contents.capturePage();
       await writeFile(artifacts.focusedScreenshot, image.toPNG());
     }
+    // F3: same Electron-side pixel binding, against the trigger label's
+    // focus-within ring rect and color.
+    const focusPixels = analyzeSmokeFocusPixels({
+      defaultPath: artifacts.defaultScreenshot,
+      focusedPath: artifacts.focusedScreenshot,
+      ringColorSource: focus?.labelOutlineColor ?? null,
+      ringRect: focus?.labelRect ?? null,
+      viewportWidth: focus?.viewport?.innerWidth ?? null,
+    });
     await evaluate(`(() => {
       window.__inputFieldsEnterClicks = 0;
       const input = document.querySelector(${JSON.stringify(avatarSelector)});
@@ -10621,6 +10853,7 @@ async function driveSmokeInputFieldsEvidence(
         tab: ${JSON.stringify(tab)},
         focus: ${JSON.stringify(focus ?? null)},
         focusRingCapture: ${JSON.stringify(focusRingCapture)},
+        focusPixels: ${JSON.stringify(focusPixels)},
         busy: null,
         activation: ${JSON.stringify(activation)},
         pick: ${JSON.stringify(pick ?? null)},
@@ -12410,6 +12643,7 @@ function createMainWindow(): BrowserWindow {
           // the accessibility audit snapshot reads window.__inputFieldsProbe.
           if (smokeMode && requestedSmokeView?.startsWith("input-fields-")) {
             await driveSmokeInputFieldsEvidence(window, {
+              defaultScreenshot: smokeScreenshot,
               focusedScreenshot: smokeFocusedScreenshot,
               pickedScreenshot: smokePickedScreenshot,
             });
