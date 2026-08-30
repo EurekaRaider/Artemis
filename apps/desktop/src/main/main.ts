@@ -9996,6 +9996,80 @@ async function seedSmokeIconSizingFixture(): Promise<void> {
   });
 }
 
+// PR9B card-heatmap smoke: synthetic assistant.usage sequence. The events
+// ride the real renderer agent-event IPC channel (the same IPC.agentEvent
+// stream live usage events use) with backdated timestamps so the 53-week
+// grid renders a genuine data-level distribution. Identity stays synthetic
+// (reserved ids, one fake provider/model), nothing touches the store, and
+// no provider or endpoint is ever dialed, so the seed performs zero
+// network activity. The daily totals below are chosen against the derived
+// maximum (38,000) so the daily view covers intensity levels 1-4.
+const SMOKE_CARD_HEATMAP_USAGE_DAYS: readonly {
+  daysAgo: number;
+  totalTokens: number;
+}[] = [
+  { daysAgo: 0, totalTokens: 38_000 },
+  { daysAgo: 1, totalTokens: 28_000 },
+  { daysAgo: 2, totalTokens: 19_000 },
+  { daysAgo: 3, totalTokens: 9_000 },
+  { daysAgo: 7, totalTokens: 36_000 },
+  { daysAgo: 8, totalTokens: 21_000 },
+  { daysAgo: 15, totalTokens: 15_000 },
+  { daysAgo: 22, totalTokens: 7_000 },
+  { daysAgo: 33, totalTokens: 34_000 },
+  { daysAgo: 47, totalTokens: 26_000 },
+  { daysAgo: 61, totalTokens: 13_000 },
+  { daysAgo: 76, totalTokens: 6_000 },
+  { daysAgo: 100, totalTokens: 37_000 },
+  { daysAgo: 130, totalTokens: 24_000 },
+  { daysAgo: 160, totalTokens: 17_000 },
+  { daysAgo: 190, totalTokens: 8_000 },
+  { daysAgo: 230, totalTokens: 33_000 },
+  { daysAgo: 270, totalTokens: 27_000 },
+  { daysAgo: 310, totalTokens: 14_000 },
+  { daysAgo: 350, totalTokens: 5_000 },
+];
+
+function emitSmokeCardHeatmapUsageEvents(target: BrowserWindow): void {
+  // The smokeMode guard matches seedSmokeIconSizingFixture: injection must
+  // stay a smoke-harness-only behavior so a merely VIEW-tagged process can
+  // never receive synthetic usage events (non-smoke paths are unchanged).
+  if (!smokeMode || process.env.ARTEMIS_SMOKE_VIEW !== "card-heatmap") {
+    return;
+  }
+  const now = new Date();
+  const threadId = "artemis-smoke-card-heatmap-thread";
+  for (const day of SMOKE_CARD_HEATMAP_USAGE_DAYS) {
+    // Calendar-exact local noon so the renderer's timezone date key maps
+    // each event to the intended heatmap column on every machine.
+    const stamped = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - day.daysAgo,
+      12,
+    );
+    const inputTokens = Math.round(day.totalTokens * 0.6);
+    target.webContents.send(IPC.agentEvent, {
+      protocolVersion: PROTOCOL_VERSION,
+      eventId: `artemis-smoke-card-heatmap-${day.daysAgo}`,
+      threadId,
+      turnId: `artemis-smoke-card-heatmap-turn-${day.daysAgo}`,
+      seq: 0,
+      timestamp: stamped.toISOString(),
+      payload: {
+        type: "assistant.usage",
+        providerId: "artemis-smoke",
+        modelId: "card-heatmap-probe",
+        inputTokens,
+        outputTokens: day.totalTokens - inputTokens,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        totalTokens: day.totalTokens,
+      },
+    } satisfies AgentEvent);
+  }
+}
+
 async function seedSmokeEnvironmentFixture(): Promise<void> {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
   // The icon-sizing smoke harness reuses this same synthetic repository
@@ -10398,6 +10472,14 @@ function createMainWindow(): BrowserWindow {
         );
       }
       const requestedSmokeView = process.env.ARTEMIS_SMOKE_VIEW;
+      // The smoke window is shown offscreen via showInactive(), so the
+      // renderer document never has OS focus and element.focus() would only
+      // move activeElement without firing focus events. Focusing the web
+      // contents first lets the card-heatmap cell focus run the real
+      // onFocus -> hovered -> tooltip chain for the §6 focus evidence.
+      if (smokeMode && requestedSmokeView === "card-heatmap") {
+        window.webContents.focus();
+      }
       const prepareSmokeView = process.env.ARTEMIS_SMOKE_USER_INPUT
         ? window.webContents.executeJavaScript(
             "document.querySelector('.thread-select')?.click()",
@@ -11521,6 +11603,34 @@ function createMainWindow(): BrowserWindow {
                   }
                   return;
                 }
+                if (view === 'card-heatmap') {
+                  const waitForSelector = async (selector) => {
+                    const deadline = Date.now() + 5000;
+                    while (Date.now() < deadline) {
+                      const found = document.querySelector(selector);
+                      if (found) return found;
+                      await wait(100);
+                    }
+                    return null;
+                  };
+                  document.querySelectorAll('.activity-button')[2]?.click();
+                  await waitForSelector('.token-usage-grid');
+                  document
+                    .querySelector('.token-usage-summary')
+                    ?.scrollIntoView({ block: 'start' });
+                  await wait(300);
+                  // Focus today's cell (the last grid column) so the
+                  // checklist §6 focus-tooltip evidence lands in both the
+                  // screenshot and the audit: the tooltip DOM commits
+                  // during this wait, before the capture chain runs.
+                  const grid = document.querySelector('.token-usage-grid');
+                  const lastCell = grid?.lastElementChild;
+                  if (lastCell instanceof HTMLButtonElement) {
+                    lastCell.focus();
+                  }
+                  await wait(400);
+                  return;
+                }
                 if (view === 'token-usage') {
                   document.querySelectorAll('.activity-button')[2]?.click();
                   await wait(1_000);
@@ -11626,6 +11736,13 @@ function createMainWindow(): BrowserWindow {
       void prepareSmokeView
         .then(() => new Promise((resolve) => setTimeout(resolve, settleDelay)))
         .then(async () => {
+          // PR9B card-heatmap smoke: view routing has settled, so the Token
+          // Usage page is mounted with its live subscription active and the
+          // synthetic usage sequence can ride the real agent-event channel.
+          emitSmokeCardHeatmapUsageEvents(window);
+          if (smokeMode && process.env.ARTEMIS_SMOKE_VIEW === "card-heatmap") {
+            await new Promise((resolve) => setTimeout(resolve, 1_000));
+          }
           if (smokeScreenshot) {
             const image = await window.webContents.capturePage();
             await writeFile(smokeScreenshot, image.toPNG());
@@ -11635,6 +11752,9 @@ function createMainWindow(): BrowserWindow {
               (() => {
                 const issues = [];
                 const iconSizingView = ${JSON.stringify(
+                  requestedSmokeView ?? "",
+                )};
+                const cardHeatmapView = ${JSON.stringify(
                   requestedSmokeView ?? "",
                 )};
                 const visible = (element) => {
@@ -12334,6 +12454,84 @@ function createMainWindow(): BrowserWindow {
                           };
                         })
                     : [],
+                  cardHeatmap: cardHeatmapView === "card-heatmap"
+                    ? (() => {
+                        const summarySection = document.querySelector(
+                          ".token-usage-summary",
+                        );
+                        const summaryItems = [
+                          ...document.querySelectorAll(
+                            ".token-usage-summary-item",
+                          ),
+                        ];
+                        const grid = document.querySelector(
+                          ".token-usage-grid",
+                        );
+                        const cells = [
+                          ...document.querySelectorAll(".token-usage-cell"),
+                        ];
+                        const dataLevelHistogram = {};
+                        for (const cell of cells) {
+                          const level = cell.getAttribute("data-level") ?? "missing";
+                          dataLevelHistogram[level] =
+                            (dataLevelHistogram[level] ?? 0) + 1;
+                        }
+                        const months = document.querySelector(
+                          ".token-usage-months",
+                        );
+                        const monthLabels = [
+                          ...(months?.querySelectorAll("span") ?? []),
+                        ];
+                        // The routing branch focused today's cell and the
+                        // tooltip DOM has committed, so the probe reads the
+                        // focused state synchronously (a fresh .focus()
+                        // here would race React's re-render).
+                        const focusedCell =
+                          cells.find(
+                            (cell) => cell === document.activeElement,
+                          ) ?? null;
+                        const focusTooltipProbe = {
+                          focused: focusedCell !== null,
+                          tooltipRolePresent:
+                            focusedCell?.querySelector('[role="tooltip"]') !==
+                            null,
+                        };
+                        return {
+                          view: cardHeatmapView,
+                          summary: {
+                            present: summarySection !== null,
+                            className: summarySection?.getAttribute("class"),
+                            ariaLabel:
+                              summarySection?.getAttribute("aria-label") ?? null,
+                            itemCount: summaryItems.length,
+                            items: summaryItems.map((item) => ({
+                              value:
+                                item.querySelector("strong")?.textContent ?? null,
+                              label:
+                                item.querySelector("span")?.textContent ?? null,
+                              itemClassName: item.getAttribute("class"),
+                            })),
+                          },
+                          heatmap: {
+                            gridPresent: grid !== null,
+                            gridClassName: grid?.getAttribute("class"),
+                            gridRole: grid?.getAttribute("role") ?? null,
+                            gridAriaLabel:
+                              grid?.getAttribute("aria-label") ?? null,
+                            cellCount: cells.length,
+                            cellRole: cells[0]?.getAttribute("role") ?? null,
+                            cellTagName:
+                              cells[0]?.tagName.toLowerCase() ?? null,
+                            dataLevelHistogram,
+                            monthContainerAriaHidden:
+                              months?.getAttribute("aria-hidden") ?? null,
+                            monthLabelCount: monthLabels.length,
+                            monthLabels: monthLabels.map((label) => label.textContent),
+                            focusTooltipProbe,
+                          },
+                        };
+                      })()
+                    : null,
                   iconSizing: iconSizingView.startsWith("icon-sizing-")
                     ? (() => {
                         const measure = (selector) => {

@@ -19,6 +19,7 @@
     "verify:mac-native": "node scripts/verify-macos-native.mjs",
     "verify:win-native": "node scripts/verify-windows-native.mjs",
     "verify:bundled-plugins": "vitest run --no-file-parallelism test/codex-plugin-service.test.ts -t \"exposes all four Lite plugins from packaged resources without a runtime\"",
+    "verify:card-heatmap": "npm run build && node scripts/verify-card-heatmap.mjs",
     "verify:environment-panel": "npm run build && node scripts/verify-environment-panel-responsive.mjs",
     "verify:goal-parity": "npm run build && node scripts/verify-goal-parity.mjs",
     "verify:icon-sizing": "npm run build && node scripts/verify-icon-sizing.mjs",
