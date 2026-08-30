@@ -9013,6 +9013,74 @@ button.sources-panel-entry.attachment:focus-visible {
   min-width: 120px;
 }
 
+/* D#76 PR8: feedback chrome rendered by McpEditorFeedback. */
+.mcp-editor-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mcp-editor-busy,
+.mcp-editor-test-status {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+.mcp-editor-validation,
+.mcp-editor-action-error,
+.mcp-editor-test-failure {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border-radius: 10px;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+}
+
+.mcp-editor-validation-heading {
+  margin: 0;
+}
+
+.mcp-editor-validation ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.mcp-editor-action-error p,
+.mcp-editor-test-failure p {
+  margin: 0;
+}
+
+.mcp-editor-action-retry {
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  margin-left: 8px;
+}
+
+.mcp-editor-test {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mcp-editor-test-failure {
+  flex-basis: 100%;
+}
+
+.mcp-editor-remove {
+  align-self: flex-start;
+  background: color-mix(in srgb, var(--danger) 13%, var(--panel-3));
+  border-radius: 9px;
+  color: var(--danger);
+  cursor: pointer;
+  min-height: 36px;
+  padding: 0 13px;
+}
+
 .settings-checkbox {
   align-items: center;
   display: flex !important;
