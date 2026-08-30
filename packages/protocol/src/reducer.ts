@@ -358,20 +358,29 @@ function applyMultiQuestionResolution(
   if (!question) return false;
   const current = input.answers[payload.questionId];
   if (current && current.status !== "pending") return false;
-  if (payload.source === "user") {
+  if (payload.source === "user" || payload.source === "timeout") {
     const resolvedAtMs = Date.parse(event.timestamp);
     const expiresAtMs = Date.parse(question.expiresAt);
     // Date.parse yields NaN for malformed timestamps and NaN comparisons are
-    // always false; fail closed by treating any non-finite parse as already
-    // expired so the resolution is dropped.
+    // always false; fail closed by treating any non-finite parse as a
+    // discard so malformed data can neither answer nor time out a question.
     if (!Number.isFinite(resolvedAtMs) || !Number.isFinite(expiresAtMs)) {
       return false;
     }
-    // Only user answers are rejected after the expiry. Timeout and cancelled
-    // resolutions are emitted by design once the deadline has passed (a timer
-    // fires at or after expiresAt), so they must still close the question.
-    if (resolvedAtMs > expiresAtMs) return false;
+    if (payload.source === "user") {
+      // User answers are valid up to and including the expiry instant.
+      if (resolvedAtMs > expiresAtMs) return false;
+    } else {
+      // Reverse gate for timeouts: a real timer fires at or after expiresAt,
+      // so a timeout stamped before the deadline (clock skew or replay) is
+      // discarded whole — accepting it would mark the question timed-out and
+      // steal the user's remaining answer time.
+      if (resolvedAtMs < expiresAtMs) return false;
+    }
   }
+  // Cancelled resolutions skip time gating entirely: lifecycle cancellation
+  // (turn cancel, host exit, crash recovery) can legitimately happen at any
+  // moment relative to the deadline.
   if (
     payload.selectedOption !== undefined &&
     !question.options.some((option) => option.label === payload.selectedOption)
@@ -404,21 +413,40 @@ function applyMultiQuestionResolution(
 }
 
 // Translates a legacy (kind-less) cancelled/timeout resolution into a
-// whole-card close: every still-pending question is closed with the status
+// whole-card close: still-pending questions are closed with the status
 // mapped from the source, answered questions keep their answers, and the
-// aggregate status is recomputed. Returns whether any question changed.
+// aggregate status is recomputed. Timeout translations apply the same
+// reverse time gate per question: only pending questions whose expiresAt
+// has been reached by the event timestamp may close, so a kind-less timeout
+// firing between two deadlines closes only the expired question and leaves
+// the card (and thread) waiting on the rest. Cancelled translations skip
+// the gate because lifecycle cancellation can happen at any moment. Returns
+// whether any question changed.
 function applyLegacyMultiQuestionClose(
   state: ThreadViewState,
+  event: AgentEvent,
   payload: UserInputResolvedPayload,
 ): boolean {
   const closeStatus = payload.source === "timeout" ? "timed-out" : "cancelled";
   const input = state.userInputs[payload.requestId];
   if (!input || !("questions" in input)) return false;
+  const resolvedAtMs =
+    payload.source === "timeout" ? Date.parse(event.timestamp) : undefined;
   let changed = false;
   const answers: Record<string, UserInputQuestionState> = { ...input.answers };
   for (const question of input.questions) {
     const current = answers[question.questionId];
     if (current && current.status !== "pending") continue;
+    if (resolvedAtMs !== undefined) {
+      const expiresAtMs = Date.parse(question.expiresAt);
+      // NaN parses compare false everywhere, so unparseable timestamps
+      // fail closed and leave the question pending instead of closing it
+      // ahead of its deadline.
+      if (!Number.isFinite(resolvedAtMs) || !Number.isFinite(expiresAtMs)) {
+        continue;
+      }
+      if (resolvedAtMs < expiresAtMs) continue;
+    }
     answers[question.questionId] = { status: closeStatus };
     changed = true;
   }
@@ -689,15 +717,16 @@ function applyAgentPayload(
         // crash-restore (store), turn-cancellation, and host-exit paths.
         // Bind the nonce first: a resolution whose nonce does not match the
         // request is discarded whole. Then translate by source — cancelled
-        // and timeout resolutions close every still-pending question (a
-        // whole-card terminal state that per-question payloads cannot
-        // express), while a "user" answer cannot be mapped onto individual
-        // questions and is still dropped whole. The translation never
-        // touches the top-level answer, so no mixed
-        // top-level-cancelled + answers-pending state can result.
+        // resolutions close every still-pending question (a whole-card
+        // terminal state that per-question payloads cannot express), while
+        // timeout resolutions close only the pending questions whose
+        // deadline the event timestamp has reached, and a "user" answer
+        // cannot be mapped onto individual questions and is still dropped
+        // whole. The translation never touches the top-level answer, so no
+        // mixed top-level-cancelled + answers-pending state can result.
         if (input.nonce !== payload.nonce) return;
         if (payload.source === "user") return;
-        if (applyLegacyMultiQuestionClose(state, payload)) {
+        if (applyLegacyMultiQuestionClose(state, event, payload)) {
           state.status = pendingInteractionStatus(state);
         }
         return;
