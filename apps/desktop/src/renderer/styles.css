@@ -238,7 +238,8 @@ button {
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+[role="treeitem"]:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
 }
@@ -478,7 +479,7 @@ summary:focus-visible {
   margin-top: 14px;
 }
 
-.project-collection + .nested-project {
+.project-collection-rows > .nested-project:first-child {
   margin-top: 6px;
 }
 

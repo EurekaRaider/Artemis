@@ -43,7 +43,7 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
   it("uses one exact text column for folder and conversation labels while preserving the selected row", () => {
     const projectTree = sourceBetween(
       appSource,
-      '<div className="project-tree">',
+      '<div\n          aria-label={t.projects}\n          className="project-tree"',
       '<div className="sidebar-footer">',
     );
     expect(projectTree).toContain(
@@ -97,12 +97,12 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
   it("keeps root groups icon-free and aligns their contents at the first project level", () => {
     const projects = sourceBetween(
       appSource,
-      '<section className="project-group project-collection">',
+      'className="project-group project-collection"',
       "{projects.map((project) => {",
     );
     const temporary = sourceBetween(
       appSource,
-      '<section className="project-group temporary-conversations">',
+      'className="project-group temporary-conversations"',
       '<div className="sidebar-footer">',
     );
 
@@ -122,7 +122,7 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
   it("scrolls only overflowing conversation titles while their text is hovered", () => {
     const projectTree = sourceBetween(
       appSource,
-      '<div className="project-tree">',
+      '<div\n          aria-label={t.projects}\n          className="project-tree"',
       '<div className="sidebar-footer">',
     );
 
