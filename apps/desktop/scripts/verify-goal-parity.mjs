@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
 import {
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   stat,
@@ -108,13 +110,22 @@ try {
       ARTEMIS_SMOKE_VIEW: view,
       ARTEMIS_SMOKE_WINDOW_WIDTH: String(width),
     };
+    // Never inherit a live dev server: the smoke must exercise the built
+    // production renderer from this checkout, not whatever serves 127.0.0.1.
     delete environment.ELECTRON_RUN_AS_NODE;
-    const launch = (disableRendererSandbox) =>
-      spawnSync(
+    delete environment.ARTEMIS_DEV_SERVER_URL;
+    // Electron user data (Cache, Local Storage, artemis.sqlite, ...) lives
+    // in a dedicated user-data subtree with one fresh directory per case x
+    // attempt, never directly at the throwaway run root's case level.
+    const caseUserDataDirectory = (attempt) =>
+      join(temporaryDirectory, "user-data", `${id}-attempt-${attempt}`);
+    const launch = (disableRendererSandbox, attempt) => {
+      const userDataPreexisting = existsSync(caseUserDataDirectory(attempt));
+      const result = spawnSync(
         electronPath,
         [
           appDirectory,
-          `--user-data-dir=${join(temporaryDirectory, id)}`,
+          `--user-data-dir=${caseUserDataDirectory(attempt)}`,
           "--disable-gpu",
           "--disable-gpu-compositing",
           "--disable-gpu-sandbox",
@@ -129,10 +140,16 @@ try {
           timeout: 45_000,
         },
       );
-    let launchResult = launch(false);
-    if ((launchResult.error || launchResult.status !== 0) && !process.env.CI) {
-      launchResult = launch(true);
+      return { result, userDataPreexisting };
+    };
+    let launchOutcome = launch(false, 0);
+    if (
+      (launchOutcome.result.error || launchOutcome.result.status !== 0) &&
+      !process.env.CI
+    ) {
+      launchOutcome = launch(true, 1);
     }
+    const launchResult = launchOutcome.result;
     if (launchResult.error || launchResult.status !== 0) {
       throw new Error(
         [
@@ -143,6 +160,22 @@ try {
         ]
           .filter(Boolean)
           .join("\n"),
+      );
+    }
+    // Goal parity has no disk workspace: the state under test is the seeded
+    // goal state living inside the isolated user-data directory itself, so
+    // the isolation gate mirrors the queued-steer verifier -- the winning
+    // launch must start from a directory that did not exist yet, and the
+    // throwaway run root may only ever hold the dedicated user-data subtree.
+    const unexpectedRunRootEntries = (await readdir(temporaryDirectory))
+      .sort()
+      .filter((entry) => entry !== "user-data");
+    if (launchOutcome.userDataPreexisting || unexpectedRunRootEntries.length) {
+      throw new Error(
+        `${id} user-data isolation drifted: ${JSON.stringify({
+          preexistingUserDataDirectory: launchOutcome.userDataPreexisting,
+          unexpectedRunRootEntries,
+        })}`,
       );
     }
 
@@ -279,12 +312,29 @@ try {
       actions: audit.goalActionLabels,
       geometry: { leftInset, rightInset, overlap },
       editorVisible: audit.goalEditorVisible,
+      userDataIsolation: {
+        freshStart: !launchOutcome.userDataPreexisting,
+        runRootUnexpectedEntries: unexpectedRunRootEntries,
+      },
     });
   }
   const manifestPath = join(outputDirectory, "manifest.json");
   await writeFile(
     manifestPath,
-    `${JSON.stringify({ format: "artemis-goal-parity", version: 2, results }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        format: "artemis-goal-parity",
+        version: 2,
+        userDataIsolation: {
+          directory:
+            "user-data/<id>-attempt-<attempt> under the throwaway run root",
+          note: "Electron user data never sits directly at the run-root case level; every case x attempt launch gets its own fresh directory, and each case records freshStart plus the run-root purity check. The state under test is the seeded goal state inside that isolated directory.",
+        },
+        results,
+      },
+      null,
+      2,
+    )}\n`,
     "utf8",
   );
   console.log(manifestPath);
