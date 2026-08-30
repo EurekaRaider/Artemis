@@ -159,8 +159,9 @@ describe("card and heatmap local components (D#76 PR9B §5)", () => {
     expect(heatmapSource).toMatch(
       /onHoveredChange:\s*\(cell: TokenUsageCell \| undefined\) => void;/u,
     );
-    expect(statCardSource).toMatch(/label:\s*string;/u);
-    expect(statCardSource).toMatch(/value:\s*string;/u);
+    expect(statCardSource).toMatch(
+      /\{[^}]*\blabel:\s*string;\s*value:\s*string\s*\}/u,
+    );
   });
 
   it("renders each stat with its value above its label in the summary bar shape", async () => {
