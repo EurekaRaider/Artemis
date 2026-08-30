@@ -10070,6 +10070,448 @@ function emitSmokeCardHeatmapUsageEvents(target: BrowserWindow): void {
   }
 }
 
+// PR9C input-fields smoke: synthetic fixtures for the two real entry points
+// (checklist §0). Identity stays synthetic (reserved ids, a fixture-only
+// project path inside the isolated user-data tree) and the seed performs
+// zero dial-out: no provider, endpoint, or process is ever contacted. The
+// once schedule this harness saves uses a far-future date, so the scheduler
+// never fires the automation before the smoke app quits.
+const SMOKE_INPUT_FIELDS_AVATAR_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+async function seedSmokeInputFieldsFixture(): Promise<void> {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  // The smokeMode guard matches seedSmokeIconSizingFixture: seeding must
+  // stay a smoke-harness-only behavior so a merely VIEW-tagged process can
+  // never write smoke fixtures into a real profile.
+  if (!store || !smokeMode || !view?.startsWith("input-fields-")) {
+    return;
+  }
+  const fixtureDirectory = join(
+    app.getPath("userData"),
+    "fixtures",
+    "input-fields",
+  );
+  await mkdir(fixtureDirectory, { recursive: true });
+  // Synthetic avatar source for the Enter-activation chain (checklist §6-2):
+  // a fixture-generated 1x1 PNG, never a real user photo.
+  await writeFile(
+    join(fixtureDirectory, "avatar.png"),
+    SMOKE_INPUT_FIELDS_AVATAR_PNG_BASE64,
+    "base64",
+  );
+  if (view !== "input-fields-automations-once") {
+    return;
+  }
+  // The automation create button stays disabled without a project, so seed
+  // one synthetic project whose path points inside the isolated user-data
+  // tree (no real repository, no watcher, no network).
+  const projectDirectory = join(fixtureDirectory, "project");
+  await mkdir(projectDirectory, { recursive: true });
+  const now = new Date().toISOString();
+  store.upsertProject({
+    id: "artemis-smoke-input-fields-project",
+    name: "Artemis Smoke Input Fields",
+    path: projectDirectory,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+type SmokeInputFieldsActivationEvidence = {
+  interceptionArmed: boolean;
+  armError?: string;
+  entered: boolean;
+  fileChooserOpened: boolean;
+  acceptedFiles: string[];
+  acceptError?: string;
+};
+
+// PR9C input-fields evidence driver (checklist §6-2): after the
+// default-state screenshot, the driver focuses the web contents (PR9B
+// offscreen precedent: showInactive never gives the document OS focus, so
+// element.focus() alone cannot run the real focus chain) and drives the
+// keyboard chain with real DevTools-protocol key events — Tab traversal
+// until the target control holds focus, the visible focus evidence, then
+// the case-specific contract chain. Enter on the avatar file input
+// activates the real Chromium file chooser, which is intercepted through
+// the DevTools protocol so no native dialog ever opens headless; the
+// intercepted chooser is then satisfied with the synthetic fixture PNG so
+// the real pick -> clear -> preview -> remove chain runs.
+async function driveSmokeInputFieldsEvidence(
+  window: BrowserWindow,
+  artifacts: {
+    focusedScreenshot?: string | undefined;
+    pickedScreenshot?: string | undefined;
+  },
+): Promise<void> {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (!smokeMode || !view?.startsWith("input-fields-")) {
+    return;
+  }
+  const contents = window.webContents;
+  const evaluate = async <T>(script: string): Promise<T> =>
+    (await contents.executeJavaScript(script)) as T;
+  const wait = (milliseconds: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+  const activation: SmokeInputFieldsActivationEvidence = {
+    interceptionArmed: false,
+    entered: false,
+    fileChooserOpened: false,
+    acceptedFiles: [],
+  };
+  let debuggerAttached = false;
+  const ensureDebugger = async (): Promise<void> => {
+    if (debuggerAttached) return;
+    if (!contents.debugger.isAttached()) {
+      contents.debugger.attach("1.3");
+    }
+    debuggerAttached = true;
+  };
+  const pressKey = async (
+    key: string,
+    virtualKeyCode: number,
+    text?: string,
+  ): Promise<void> => {
+    await ensureDebugger();
+    const parameters = {
+      key,
+      code: key,
+      windowsVirtualKeyCode: virtualKeyCode,
+      nativeVirtualKeyCode: virtualKeyCode,
+      ...(text ? { text } : {}),
+    };
+    // Control keys only need the raw keydown for their default action
+    // (Tab focus traversal); activating a control with Enter additionally
+    // needs the char event, so that dispatch carries the key text exactly
+    // like a real keyboard pipeline (Playwright does the same).
+    await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+      ...parameters,
+      type: text ? "keyDown" : "rawKeyDown",
+    });
+    await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+      ...parameters,
+      type: "keyUp",
+    });
+  };
+  const tabUntilFocused = async (
+    selector: string,
+  ): Promise<{ presses: number; reached: boolean }> => {
+    const maxPresses = 200;
+    for (let presses = 0; presses < maxPresses; presses += 1) {
+      const active = await evaluate<boolean>(
+        `document.activeElement instanceof Element && document.activeElement.matches(${JSON.stringify(
+          selector,
+        )})`,
+      );
+      if (active) {
+        return { presses, reached: true };
+      }
+      await pressKey("Tab", 9);
+      await wait(15);
+    }
+    return { presses: maxPresses, reached: false };
+  };
+  const focusProbeScript = (selector: string, labelSelector?: string) => `
+    (() => {
+      const input = document.querySelector(${JSON.stringify(selector)});
+      if (!(input instanceof HTMLInputElement)) return null;
+      const style = getComputedStyle(input);
+      const label = ${
+        labelSelector
+          ? `input.closest(${JSON.stringify(labelSelector)})`
+          : "null"
+      };
+      const labelStyle = label ? getComputedStyle(label) : null;
+      const tabbables = Array.from(
+        document.querySelectorAll(
+          'a[href], button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
+        ),
+      ).filter((element) => {
+        const computed = getComputedStyle(element);
+        return (
+          computed.display !== "none" &&
+          computed.visibility !== "hidden" &&
+          element.getClientRects().length > 0
+        );
+      });
+      return {
+        focused: document.activeElement === input,
+        matchesFocusVisible: input.matches(":focus-visible"),
+        outlineStyle: style.outlineStyle,
+        outlineWidth: style.outlineWidth,
+        outlineColor: style.outlineColor,
+        tabIndex: input.tabIndex,
+        tabbableCount: tabbables.length,
+        tabOrderIndex: tabbables.indexOf(input),
+        hasFocus: document.hasFocus(),
+        labelMatchesFocusWithin:
+          label instanceof HTMLElement ? label.matches(":focus-within") : false,
+        labelOutlineStyle: labelStyle ? labelStyle.outlineStyle : null,
+        labelOutlineWidth: labelStyle ? labelStyle.outlineWidth : null,
+        labelOutlineColor: labelStyle ? labelStyle.outlineColor : null,
+      };
+    })()`;
+  // The smoke window is shown offscreen via showInactive(), so focusing the
+  // web contents first is what makes the document hold real OS focus for
+  // the Tab traversal and :focus-visible evidence below.
+  contents.focus();
+  if (view === "input-fields-automations-once") {
+    const dateSelector = '.automation-dialog input[type="date"]';
+    const tab = await tabUntilFocused(dateSelector);
+    const focus = await evaluate(focusProbeScript(dateSelector));
+    if (artifacts.focusedScreenshot) {
+      const image = await contents.capturePage();
+      await writeFile(artifacts.focusedScreenshot, image.toPNG());
+    }
+    const busy = await evaluate(`(async () => {
+      const wait = (milliseconds) =>
+        new Promise((resolve) => setTimeout(resolve, milliseconds));
+      const form = document.querySelector("form.automation-dialog");
+      const date = document.querySelector(${JSON.stringify(dateSelector)});
+      const name = document.querySelector(".automation-dialog input:not([type])");
+      const prompt = document.querySelector(".automation-dialog textarea");
+      if (
+        !(form instanceof HTMLFormElement) ||
+        !(date instanceof HTMLInputElement) ||
+        !(name instanceof HTMLInputElement) ||
+        !(prompt instanceof HTMLTextAreaElement)
+      ) {
+        return { error: "once form controls missing" };
+      }
+      const inputSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      const textareaSetter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value",
+      )?.set;
+      inputSetter?.call(name, "Artemis smoke once schedule");
+      name.dispatchEvent(new Event("input", { bubbles: true }));
+      inputSetter?.call(date, "2099-06-15");
+      date.dispatchEvent(new Event("input", { bubbles: true }));
+      textareaSetter?.call(
+        prompt,
+        "Synthetic smoke prompt for the once date contract; this automation never runs.",
+      );
+      prompt.dispatchEvent(new Event("input", { bubbles: true }));
+      await wait(150);
+      const preSubmit = {
+        formNoValidate: form.noValidate,
+        formRole: form.getAttribute("role"),
+        formAriaModal: form.getAttribute("aria-modal"),
+        dateRequired: date.required,
+        dateType: date.type,
+        dateValue: date.value,
+        dateDisabled: date.disabled,
+        nameRequired: name.required,
+        promptRequired: prompt.required,
+      };
+      const disabledTransitions = [];
+      const observer = new MutationObserver(() => {
+        const probe = document.querySelector(${JSON.stringify(dateSelector)});
+        if (probe instanceof HTMLInputElement) {
+          disabledTransitions.push(probe.disabled);
+        }
+      });
+      observer.observe(form, {
+        attributes: true,
+        attributeFilter: ["disabled"],
+        subtree: true,
+      });
+      form.requestSubmit();
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        if (!document.querySelector(".automation-dialog")) break;
+        await wait(25);
+      }
+      observer.disconnect();
+      return {
+        preSubmit,
+        disabledTransitions,
+        busyDisabledObserved: disabledTransitions.includes(true),
+        dialogClosedAfterSave: !document.querySelector(".automation-dialog"),
+        errorMessage: document.querySelector(".automation-message")
+          ?.textContent ?? null,
+      };
+    })()`);
+    await evaluate(`(() => {
+      window.__inputFieldsProbe = {
+        view: ${JSON.stringify(view)},
+        documentHasFocus: document.hasFocus(),
+        tab: ${JSON.stringify(tab)},
+        focus: ${JSON.stringify(focus ?? null)},
+        busy: ${JSON.stringify(busy ?? null)},
+        activation: null,
+        pick: null,
+      };
+      return true;
+    })()`);
+    return;
+  }
+  if (view === "input-fields-settings-avatar") {
+    const avatarSelector = ".profile-avatar-input";
+    const tab = await tabUntilFocused(avatarSelector);
+    const focus = await evaluate(
+      focusProbeScript(avatarSelector, "label.settings-secondary-action"),
+    );
+    if (artifacts.focusedScreenshot) {
+      const image = await contents.capturePage();
+      await writeFile(artifacts.focusedScreenshot, image.toPNG());
+    }
+    await evaluate(`(() => {
+      window.__inputFieldsEnterClicks = 0;
+      const input = document.querySelector(${JSON.stringify(avatarSelector)});
+      input?.addEventListener("click", () => {
+        window.__inputFieldsEnterClicks += 1;
+      });
+      return true;
+    })()`);
+    try {
+      await ensureDebugger();
+      await contents.debugger.sendCommand("Page.enable");
+      await contents.debugger.sendCommand(
+        "Page.setInterceptFileChooserDialog",
+        { enabled: true, interceptAll: true },
+      );
+      activation.interceptionArmed = true;
+    } catch (error) {
+      activation.armError = String(error).slice(0, 240);
+    }
+    // The avatar save is a fast settings-store write, so the busy-state
+    // observer must already be watching when the pick commits; arm it
+    // before the intercepted chooser is satisfied.
+    await evaluate(`(() => {
+      window.__inputFieldsAvatarDisabled = [];
+      const actions = document.querySelector(
+        ".settings-profile-avatar-actions",
+      );
+      const observer = new MutationObserver(() => {
+        const probe = document.querySelector(".profile-avatar-input");
+        if (probe instanceof HTMLInputElement) {
+          window.__inputFieldsAvatarDisabled.push(probe.disabled);
+        }
+      });
+      if (actions) {
+        observer.observe(actions, {
+          attributes: true,
+          attributeFilter: ["disabled"],
+          subtree: true,
+        });
+        window.__inputFieldsAvatarObserver = observer;
+      }
+      return true;
+    })()`);
+    if (activation.interceptionArmed) {
+      let chooserBackendNodeId: number | undefined;
+      const chooserOpened = new Promise<boolean>((resolve) => {
+        const handle = (_event: unknown, method: string, params?: unknown) => {
+          if (method === "Page.fileChooserOpened") {
+            const backendNodeId = (params as { backendNodeId?: number })
+              ?.backendNodeId;
+            if (typeof backendNodeId === "number") {
+              chooserBackendNodeId = backendNodeId;
+            }
+            contents.debugger.removeListener("message", handle);
+            resolve(true);
+          }
+        };
+        contents.debugger.on("message", handle);
+        void wait(4_000).then(() => {
+          contents.debugger.removeListener("message", handle);
+          resolve(false);
+        });
+      });
+      await pressKey("Enter", 13, "\r");
+      activation.entered = true;
+      activation.fileChooserOpened = await chooserOpened;
+      if (activation.fileChooserOpened) {
+        const avatarPath = join(
+          app.getPath("userData"),
+          "fixtures",
+          "input-fields",
+          "avatar.png",
+        );
+        try {
+          // Satisfy the intercepted chooser the way Playwright does: point
+          // the chooser's input node at the synthetic fixture file, which
+          // makes Chromium set the input's files and fire the real change
+          // event through the normal pick path.
+          await contents.debugger.sendCommand("DOM.setFileInputFiles", {
+            files: [avatarPath],
+            ...(typeof chooserBackendNodeId === "number"
+              ? { backendNodeId: chooserBackendNodeId }
+              : {}),
+          });
+          activation.acceptedFiles = ["avatar.png"];
+        } catch (error) {
+          activation.acceptError = String(error).slice(0, 240);
+        }
+      }
+    }
+    const pick = await evaluate(`(async () => {
+      const wait = (milliseconds) =>
+        new Promise((resolve) => setTimeout(resolve, milliseconds));
+      const input = document.querySelector(${JSON.stringify(avatarSelector)});
+      if (!(input instanceof HTMLInputElement)) {
+        return { error: "avatar input missing" };
+      }
+      const deadline = Date.now() + 6000;
+      let settled = false;
+      while (Date.now() < deadline) {
+        const preview = document.querySelector(
+          ".settings-profile-avatar-preview img",
+        );
+        const remove = document.querySelector(
+          ".settings-profile-avatar-actions button",
+        );
+        if (preview && remove && !input.disabled) {
+          settled = true;
+          break;
+        }
+        await wait(25);
+      }
+      window.__inputFieldsAvatarObserver?.disconnect();
+      const disabledTransitions =
+        window.__inputFieldsAvatarDisabled ?? [];
+      return {
+        valueCleared: input.value === "",
+        previewImagePresent:
+          document.querySelector(".settings-profile-avatar-preview img") !==
+          null,
+        removePresent:
+          document.querySelector(".settings-profile-avatar-actions button") !==
+          null,
+        disabledTransitions,
+        busyDisabledObserved: disabledTransitions.includes(true),
+        settled,
+      };
+    })()`);
+    if (artifacts.pickedScreenshot) {
+      const image = await contents.capturePage();
+      await writeFile(artifacts.pickedScreenshot, image.toPNG());
+    }
+    const enterClicks = await evaluate<number>(
+      "window.__inputFieldsEnterClicks ?? 0",
+    );
+    await evaluate(`(() => {
+      window.__inputFieldsProbe = {
+        view: ${JSON.stringify(view)},
+        documentHasFocus: document.hasFocus(),
+        tab: ${JSON.stringify(tab)},
+        focus: ${JSON.stringify(focus ?? null)},
+        busy: null,
+        activation: ${JSON.stringify(activation)},
+        pick: ${JSON.stringify(pick ?? null)},
+        enterClicks: ${JSON.stringify(enterClicks ?? 0)},
+      };
+      return true;
+    })()`);
+    return;
+  }
+}
+
 async function seedSmokeEnvironmentFixture(): Promise<void> {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
   // The icon-sizing smoke harness reuses this same synthetic repository
@@ -10314,6 +10756,8 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
 function createMainWindow(): BrowserWindow {
   const smokeScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT;
   const smokeAccessibility = process.env.ARTEMIS_SMOKE_ACCESSIBILITY;
+  const smokeFocusedScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT_FOCUSED;
+  const smokePickedScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT_PICKED;
   const smokeArtifacts = Boolean(smokeScreenshot || smokeAccessibility);
   const requestedSmokeWidth = Number(process.env.ARTEMIS_SMOKE_WINDOW_WIDTH);
   const requestedSmokeResizeWidth = Number(
@@ -10599,6 +11043,92 @@ function createMainWindow(): BrowserWindow {
                       .querySelector('.goal-editor-footer .primary-button')
                       ?.click();
                     await wait(view === 'goal-editor-saving' ? 200 : 800);
+                  }
+                  return;
+                }
+                if (view.startsWith('input-fields-')) {
+                  const waitForElement = async (selector) => {
+                    const deadline = Date.now() + 8000;
+                    while (Date.now() < deadline) {
+                      const found = document.querySelector(selector);
+                      if (found) return found;
+                      await wait(100);
+                    }
+                    return null;
+                  };
+                  const clickActivity = (label) => {
+                    const button = [
+                      ...document.querySelectorAll('.activity-button'),
+                    ].find(
+                      (candidate) =>
+                        candidate.getAttribute('aria-label') === label ||
+                        candidate.getAttribute('title') === label,
+                    );
+                    button?.click();
+                    return Boolean(button);
+                  };
+                  if (view === 'input-fields-automations-once') {
+                    if (!clickActivity('Automations')) {
+                      throw new Error('Automations activity button missing.');
+                    }
+                    if (!(await waitForElement('.automation-page'))) {
+                      throw new Error('Automation page did not render.');
+                    }
+                    const createButton = await waitForElement(
+                      '.automation-create-button:not(:disabled)',
+                    );
+                    if (!createButton) {
+                      throw new Error(
+                        'Automation create button stayed disabled.',
+                      );
+                    }
+                    createButton.click();
+                    if (!(await waitForElement('.automation-dialog'))) {
+                      throw new Error('Automation dialog did not open.');
+                    }
+                    const presetSelect = [
+                      ...document.querySelectorAll('.automation-dialog select'),
+                    ].find((select) =>
+                      [...select.options].some(
+                        (option) => option.value === 'once',
+                      ),
+                    );
+                    if (!presetSelect) {
+                      throw new Error('Schedule preset select missing.');
+                    }
+                    const setter = Object.getOwnPropertyDescriptor(
+                      HTMLSelectElement.prototype,
+                      'value',
+                    )?.set;
+                    setter?.call(presetSelect, 'once');
+                    presetSelect.dispatchEvent(
+                      new Event('change', { bubbles: true }),
+                    );
+                    if (
+                      !(await waitForElement(
+                        '.automation-dialog input[type="date"]',
+                      ))
+                    ) {
+                      throw new Error('Once date field did not render.');
+                    }
+                    return;
+                  }
+                  if (view === 'input-fields-settings-avatar') {
+                    if (!clickActivity('Settings')) {
+                      throw new Error('Settings activity button missing.');
+                    }
+                    if (!(await waitForElement('.settings-panel'))) {
+                      throw new Error('Settings panel did not render.');
+                    }
+                    if (
+                      !(await waitForElement('.profile-avatar-input')) ||
+                      !(await waitForElement(
+                        '.settings-profile-avatar-actions label.settings-secondary-action',
+                      ))
+                    ) {
+                      throw new Error('Avatar field did not render.');
+                    }
+                    return;
                   }
                   return;
                 }
@@ -11747,6 +12277,16 @@ function createMainWindow(): BrowserWindow {
             const image = await window.webContents.capturePage();
             await writeFile(smokeScreenshot, image.toPNG());
           }
+          // PR9C input-fields smoke: after the default-state screenshot the
+          // keyboard-evidence driver runs (real Tab traversal, focus probes,
+          // busy-driven disable, Enter -> intercepted file chooser) before
+          // the accessibility audit snapshot reads window.__inputFieldsProbe.
+          if (smokeMode && requestedSmokeView?.startsWith("input-fields-")) {
+            await driveSmokeInputFieldsEvidence(window, {
+              focusedScreenshot: smokeFocusedScreenshot,
+              pickedScreenshot: smokePickedScreenshot,
+            });
+          }
           if (smokeAccessibility) {
             const result = (await window.webContents.executeJavaScript(`
               (() => {
@@ -11755,6 +12295,9 @@ function createMainWindow(): BrowserWindow {
                   requestedSmokeView ?? "",
                 )};
                 const cardHeatmapView = ${JSON.stringify(
+                  requestedSmokeView ?? "",
+                )};
+                const inputFieldsView = ${JSON.stringify(
                   requestedSmokeView ?? "",
                 )};
                 const visible = (element) => {
@@ -12639,6 +13182,74 @@ function createMainWindow(): BrowserWindow {
                         };
                       })()
                     : null,
+                  inputFields: inputFieldsView.startsWith("input-fields-")
+                    ? (() => {
+                        const probe = window.__inputFieldsProbe ?? null;
+                        const avatarInput = document.querySelector(
+                          ".profile-avatar-input",
+                        );
+                        const avatarLabel =
+                          avatarInput?.closest(
+                            "label.settings-secondary-action",
+                          ) ?? null;
+                        const avatarStyle = avatarInput
+                          ? getComputedStyle(avatarInput)
+                          : null;
+                        const labelStyle = avatarLabel
+                          ? getComputedStyle(avatarLabel)
+                          : null;
+                        const previewImage = document.querySelector(
+                          ".settings-profile-avatar-preview img",
+                        );
+                        return {
+                          view: inputFieldsView,
+                          probe,
+                          avatar: avatarInput
+                            ? {
+                                accept: avatarInput.getAttribute("accept"),
+                                type: avatarInput.type,
+                                disabled: avatarInput.disabled,
+                                srOnly: {
+                                  display: avatarStyle?.display ?? null,
+                                  position: avatarStyle?.position ?? null,
+                                  clipPath: avatarStyle?.clipPath ?? null,
+                                  overflow: avatarStyle?.overflow ?? null,
+                                  width: avatarStyle?.width ?? null,
+                                  height: avatarStyle?.height ?? null,
+                                  whiteSpace: avatarStyle?.whiteSpace ?? null,
+                                },
+                                geometry: {
+                                  offsetParentPresent:
+                                    avatarInput.offsetParent !== null,
+                                  offsetWidth: avatarInput.offsetWidth,
+                                  offsetHeight: avatarInput.offsetHeight,
+                                },
+                                tabIndex: avatarInput.tabIndex,
+                                labelTagName:
+                                  avatarLabel?.tagName.toLowerCase() ?? null,
+                                labelClass:
+                                  avatarLabel?.getAttribute("class") ?? null,
+                                labelCurrentOutline: {
+                                  style: labelStyle?.outlineStyle ?? null,
+                                  width: labelStyle?.outlineWidth ?? null,
+                                  color: labelStyle?.outlineColor ?? null,
+                                },
+                                previewImagePresent: previewImage !== null,
+                                previewImageSrcPrefix: (
+                                  previewImage?.getAttribute("src") ?? ""
+                                ).slice(0, 22),
+                                removePresent:
+                                  document.querySelector(
+                                    ".settings-profile-avatar-actions button",
+                                  ) !== null,
+                              }
+                            : null,
+                          automationDialogPresent:
+                            document.querySelector(".automation-dialog") !==
+                            null,
+                        };
+                      })()
+                    : null,
                   interactiveCount: document.querySelectorAll(
                     "button, a[href], summary, input, select, textarea, [role='button'], [role='tab']",
                   ).length,
@@ -12769,6 +13380,7 @@ app
     );
     await seedSmokeMcpEditorFixture();
     await seedSmokeIconSizingFixture();
+    await seedSmokeInputFieldsFixture();
     mcpOAuthStore = new McpOAuthStore(
       join(app.getPath("userData"), "mcp-oauth.json"),
       safeStorage,

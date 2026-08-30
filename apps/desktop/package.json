@@ -23,6 +23,7 @@
     "verify:environment-panel": "npm run build && node scripts/verify-environment-panel-responsive.mjs",
     "verify:goal-parity": "npm run build && node scripts/verify-goal-parity.mjs",
     "verify:icon-sizing": "npm run build && node scripts/verify-icon-sizing.mjs",
+    "verify:input-fields": "npm run build && node scripts/verify-input-fields.mjs",
     "verify:markdown-editor": "npm run build && node scripts/verify-markdown-editor.mjs",
     "verify:mcp-editor": "npm run build && node scripts/verify-mcp-editor.mjs",
     "verify:queued-steer": "npm run build && node scripts/verify-queued-steer.mjs",
