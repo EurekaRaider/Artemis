@@ -471,6 +471,143 @@ describe("multi-question user input contract", () => {
     ).toBe("answered");
   });
 
+  it("applies timeout resolutions that fire after the deadline", () => {
+    const base = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [question("q1")]) as AgentEvent["payload"],
+      ),
+    ]);
+
+    const timedOut = reduceAgentEvent(
+      base,
+      event(
+        "ans-timeout",
+        2,
+        multiResolved(
+          "input-1",
+          "q1",
+          { selectedOption: "option-q1-a" },
+          "timeout",
+        ) as AgentEvent["payload"],
+        AFTER_EXPIRY,
+      ),
+    );
+    const input = asMulti(timedOut.userInputs["input-1"]);
+    expect(input.answers["q1"]?.status).toBe("timed-out");
+    expect(input.status).toBe("timed-out");
+    expect(timedOut.status).not.toBe("waiting-user-input");
+  });
+
+  it("applies cancelled resolutions that fire after the deadline", () => {
+    const base = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [question("q1")]) as AgentEvent["payload"],
+      ),
+    ]);
+
+    const cancelled = reduceAgentEvent(
+      base,
+      event(
+        "ans-cancelled",
+        2,
+        multiResolved(
+          "input-1",
+          "q1",
+          { selectedOption: "option-q1-a" },
+          "cancelled",
+        ) as AgentEvent["payload"],
+        AFTER_EXPIRY,
+      ),
+    );
+    const input = asMulti(cancelled.userInputs["input-1"]);
+    expect(input.answers["q1"]?.status).toBe("cancelled");
+    expect(input.status).toBe("cancelled");
+    expect(cancelled.status).not.toBe("waiting-user-input");
+  });
+
+  it("drops multi-question resolutions whose nonce does not match the request", () => {
+    const base = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [
+          question("q1"),
+          question("q2"),
+        ]) as AgentEvent["payload"],
+      ),
+    ]);
+
+    const wrongNonce = reduceAgentEvent(
+      base,
+      event("ans-wrong-nonce", 2, {
+        ...multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }),
+        nonce: "ffffffffffffffff",
+      } as AgentEvent["payload"]),
+    );
+    expect(wrongNonce.userInputs["input-1"]).toBe(base.userInputs["input-1"]);
+    expect(
+      asMulti(wrongNonce.userInputs["input-1"]).answers["q1"]?.status,
+    ).toBe("pending");
+    expect(
+      asMulti(wrongNonce.userInputs["input-1"]).answers["q2"]?.status,
+    ).toBe("pending");
+    expect(wrongNonce.status).toBe("waiting-user-input");
+
+    const correctNonce = reduceAgentEvent(
+      wrongNonce,
+      event(
+        "ans-correct-nonce",
+        3,
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
+      ),
+    );
+    expect(
+      asMulti(correctNonce.userInputs["input-1"]).answers["q1"]?.status,
+    ).toBe("answered");
+  });
+
+  it("keeps thread status when a wrong-nonce resolution replays after the turn closed", () => {
+    const closed = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [question("q1")]) as AgentEvent["payload"],
+      ),
+      event(
+        "ans-1",
+        2,
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
+      ),
+      event("turn-1", 3, {
+        type: "turn.completed",
+        reason: "completed",
+      } as AgentEvent["payload"]),
+    ]);
+    expect(closed.status).toBe("idle");
+
+    const replay = reduceAgentEvent(
+      closed,
+      event("ans-wrong-nonce-replay", 4, {
+        ...multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-b",
+        }),
+        nonce: "ffffffffffffffff",
+      } as AgentEvent["payload"]),
+    );
+    expect(replay.userInputs["input-1"]).toBe(closed.userInputs["input-1"]);
+    expect(replay.status).toBe("idle");
+  });
+
   it("fails closed on answers for an unknown question or option", () => {
     const state = reduceAgentEvents("thread-1", [
       event(
@@ -545,6 +682,9 @@ describe("multi-question user input contract", () => {
           { selectedOption: "option-q2-a" },
           "timeout",
         ) as AgentEvent["payload"],
+        // Real timeout timers fire after the deadline, so model the real
+        // timing: the resolution lands at least 1ms past expiresAt.
+        AFTER_EXPIRY,
       ),
     );
     expect(asMulti(timedOut.userInputs["input-1"]).answers["q2"]?.status).toBe(

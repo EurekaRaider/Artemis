@@ -344,13 +344,20 @@ function applyMultiQuestionResolution(
   if (!question) return;
   const current = input.answers[payload.questionId];
   if (current && current.status !== "pending") return;
-  const resolvedAtMs = Date.parse(event.timestamp);
-  const expiresAtMs = Date.parse(question.expiresAt);
-  // Date.parse yields NaN for malformed timestamps and NaN comparisons are
-  // always false; fail closed by treating any non-finite parse as already
-  // expired so the resolution is dropped.
-  if (!Number.isFinite(resolvedAtMs) || !Number.isFinite(expiresAtMs)) return;
-  if (resolvedAtMs > expiresAtMs) return;
+  if (payload.source === "user") {
+    const resolvedAtMs = Date.parse(event.timestamp);
+    const expiresAtMs = Date.parse(question.expiresAt);
+    // Date.parse yields NaN for malformed timestamps and NaN comparisons are
+    // always false; fail closed by treating any non-finite parse as already
+    // expired so the resolution is dropped.
+    if (!Number.isFinite(resolvedAtMs) || !Number.isFinite(expiresAtMs)) {
+      return;
+    }
+    // Only user answers are rejected after the expiry. Timeout and cancelled
+    // resolutions are emitted by design once the deadline has passed (a timer
+    // fires at or after expiresAt), so they must still close the question.
+    if (resolvedAtMs > expiresAtMs) return;
+  }
   if (
     payload.selectedOption !== undefined &&
     !question.options.some((option) => option.label === payload.selectedOption)
@@ -607,11 +614,22 @@ function applyAgentPayload(
     }
     case "user-input.resolved": {
       if (payload.kind === "multi-question") {
-        // The nonce is deliberately not compared against the requested nonce
-        // here: the trust boundary is the event-log write-side schema, which
-        // shape-validates nonces when events are persisted. Replay safety in
-        // the reducer rests on the requestId + questionId + expiry checks in
-        // applyMultiQuestionResolution instead.
+        // The nonce is bound to the request here, before any question,
+        // option, or status change: a resolution whose nonce does not match
+        // the requested nonce is discarded whole, leaving the question state
+        // and thread status untouched. The trust boundary is two layers —
+        // the event-log write-side schema shape-validates the nonce when
+        // events are persisted, and the reducer binds it to the request,
+        // mirroring the policy layer's consume() nonce check
+        // (user-input-policy.ts).
+        const requested = state.userInputs[payload.requestId];
+        if (
+          requested &&
+          "questions" in requested &&
+          requested.nonce !== payload.nonce
+        ) {
+          return;
+        }
         applyMultiQuestionResolution(state, event, payload);
         state.status = pendingInteractionStatus(state);
         return;
