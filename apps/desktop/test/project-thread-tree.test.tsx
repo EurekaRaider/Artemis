@@ -83,9 +83,14 @@ function SidebarTreeHarness({
     }
   }, [projectsOpen, query]);
   const toggleProjectsExpansion = useCallback(() => {
-    setProjectsExpanded((open) => !open);
-    setProjectsOpen((open) => !open);
-  }, []);
+    // Compute ONE next value from the authoritative visible state and sync
+    // both states to it — two independent functional toggles can diverge
+    // after the search auto-expansion (expanded=true, open=false) and the
+    // leave-search restore would then undo the user's collapse.
+    const next = !projectsExpanded;
+    setProjectsExpanded(next);
+    setProjectsOpen(next);
+  }, [projectsExpanded]);
   const [temporaryOpen, setTemporaryOpen] = useState(true);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(
     () => new Set(),
@@ -659,6 +664,79 @@ describe("project/thread tree keyboard (rendered, production markup)", () => {
     await user.keyboard("{ArrowRight}");
     expect(onExpand).toHaveBeenCalledWith("collection:projects");
     expect(rowIds()).toContain("project:alpha");
+  });
+
+  it("keeps a search-time collapse collapsed after the query clears", async () => {
+    const user = userEvent.setup();
+    const onActivate = vi.fn();
+    const { rerender } = render(
+      <SidebarTreeHarness
+        initialProjectsOpen={false}
+        onActivate={onActivate}
+        projects={PROJECTS}
+        query="thread"
+        temporaryThreads={TEMPORARY}
+      />,
+    );
+    // Internal button click collapses the real state everywhere.
+    await user.click(screen.getByRole("button", { name: "Collapse projects" }));
+    expect(row("collection:projects")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(
+      screen.getByRole("button", { name: "Expand projects" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(rowIds()).not.toContain("project:alpha");
+
+    // Clearing the query keeps the user's collapse (no re-expand).
+    rerender(
+      <SidebarTreeHarness
+        initialProjectsOpen={false}
+        onActivate={onActivate}
+        projects={PROJECTS}
+        temporaryThreads={TEMPORARY}
+      />,
+    );
+    expect(row("collection:projects")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(rowIds()).not.toContain("project:alpha");
+
+    // Re-entering the search auto-expands again; the root treeitem's Enter
+    // follows the same single next value and stays collapsed afterwards.
+    rerender(
+      <SidebarTreeHarness
+        initialProjectsOpen={false}
+        onActivate={onActivate}
+        projects={PROJECTS}
+        query="thread"
+        temporaryThreads={TEMPORARY}
+      />,
+    );
+    expect(row("collection:projects")).toHaveAttribute("aria-expanded", "true");
+    row("collection:projects").focus();
+    await user.keyboard("{Enter}");
+    expect(onActivate).toHaveBeenCalledWith("collection:projects");
+    expect(row("collection:projects")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(rowIds()).not.toContain("project:alpha");
+    rerender(
+      <SidebarTreeHarness
+        initialProjectsOpen={false}
+        onActivate={onActivate}
+        projects={PROJECTS}
+        temporaryThreads={TEMPORARY}
+      />,
+    );
+    expect(row("collection:projects")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(rowIds()).not.toContain("project:alpha");
   });
 
   it("keeps auxiliary controls reachable by Tab from the active row", async () => {

@@ -1720,9 +1720,14 @@ export function App() {
     }
   }, [projectsOpen, query]);
   const toggleProjectsExpansion = useCallback(() => {
-    setProjectsExpanded((open) => !open);
-    setProjectsOpen((open) => !open);
-  }, []);
+    // Compute ONE next value from the authoritative visible state and sync
+    // both states to it — two independent functional toggles can diverge
+    // after the search auto-expansion (expanded=true, open=false) and the
+    // leave-search restore would then undo the user's collapse.
+    const next = !projectsExpanded;
+    setProjectsExpanded(next);
+    setProjectsOpen(next);
+  }, [projectsExpanded]);
   const toggleProjectRow = useCallback((rowId: string, collapsed: boolean) => {
     const projectId = rowId.replace(/^project:/, "");
     setCollapsedProjectIds((current) => {
