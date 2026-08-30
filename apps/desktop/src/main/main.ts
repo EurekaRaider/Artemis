@@ -6488,6 +6488,9 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.mcpServerReconnect,
     async (_event, serverId: string): Promise<SettingsSnapshot> => {
+      if (smokeMode) {
+        smokeMcpEditorReconnectIpcCalls += 1;
+      }
       if (
         smokeMode &&
         process.env.ARTEMIS_SMOKE_VIEW?.startsWith("mcp-editor")
@@ -9915,6 +9918,11 @@ function seedSmokeMarkdownEditorFixture(): void {
 // drive the same request through the recovering path.
 let smokeMcpEditorSaveFailureInjected = false;
 let smokeMcpEditorRemoveFailureInjected = false;
+// PR8 review F3: every mcpServerReconnect IPC invocation during a smoke run
+// is counted in the main process so the stdio draft-drift case can prove a
+// programmatic click on the disabled test control reaches the handler zero
+// times.
+let smokeMcpEditorReconnectIpcCalls = 0;
 
 async function seedSmokeMcpEditorFixture(): Promise<void> {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
@@ -9936,6 +9944,24 @@ async function seedSmokeMcpEditorFixture(): Promise<void> {
     enabled: false,
     url: "https://mcp.artemis-smoke.example.test/mcp",
     auth: "bearer",
+  });
+  // Second synthetic seed (PR8 review F3): a stdio server so the Electron
+  // drift coverage exercises command-transport arguments, not only the HTTP
+  // URL. The command is a path that cannot exist and enabled stays false, so
+  // the fixture performs zero spawn and zero dial-out at startup. The empty
+  // workspace is synthesized by the store inside the isolated user-data
+  // directory (McpConfigStore.withDefaultWorkspace).
+  await mcpConfigStore.upsert({
+    id: "artemis-smoke-local",
+    name: "Artemis Smoke Local",
+    transport: "stdio",
+    enabled: false,
+    command: "/artemis-smoke-mcp-editor/stdio-server",
+    args: ["--smoke"],
+    env: {},
+    envVars: [],
+    workspacePath: "",
+    allowNetwork: false,
   });
 }
 
@@ -10798,24 +10824,32 @@ function createMainWindow(): BrowserWindow {
                       .querySelectorAll('.resource-management-tabs button')
                       [2]?.click();
                     await waitFor('.resource-list-heading-actions');
-                    // Zero-dial evidence (PR8 review F2): the seeded row must
-                    // render its offline state ("Disabled · N tools"), proving
-                    // the fixture entered mcp.json with enabled:false and was
-                    // never auto-connected at startup.
-                    const seededRow = [
-                      ...document.querySelectorAll('.resource-management-row'),
-                    ].find(
-                      (candidate) =>
-                        candidate.querySelector('strong')?.textContent?.trim() ===
-                        'Artemis Smoke Remote',
+                    const readSeedRowByName = (serverName) => {
+                      const seededRow = [
+                        ...document.querySelectorAll('.resource-management-row'),
+                      ].find(
+                        (candidate) =>
+                          candidate.querySelector('strong')?.textContent?.trim() ===
+                          serverName,
+                      );
+                      return seededRow
+                        ? {
+                            stateText:
+                              seededRow.querySelector('small')?.textContent?.trim() ??
+                              null,
+                          }
+                        : null;
+                    };
+                    // Zero-dial evidence (PR8 review F2/F3): both seeded rows
+                    // must render their offline state ("Disabled · N tools"),
+                    // proving the fixtures entered mcp.json with enabled:false
+                    // and were never auto-connected at startup.
+                    window.__mcpEditorSeedRow = readSeedRowByName(
+                      'Artemis Smoke Remote',
                     );
-                    window.__mcpEditorSeedRow = seededRow
-                      ? {
-                          stateText:
-                            seededRow.querySelector('small')?.textContent?.trim() ??
-                            null,
-                        }
-                      : null;
+                    window.__mcpEditorSeedStdioRow = readSeedRowByName(
+                      'Artemis Smoke Local',
+                    );
                   };
                   const openNewServerEditor = async () => {
                     await openManageMcpTab();
@@ -10833,7 +10867,7 @@ function createMainWindow(): BrowserWindow {
                       throw new Error('MCP server editor did not open.');
                     }
                   };
-                  const openSeededServerEditor = async () => {
+                  const openSeededServerEditorByName = async (serverName) => {
                     await openManageMcpTab();
                     await waitFor('.resource-management-list .resource-management-row');
                     const row = [
@@ -10841,10 +10875,12 @@ function createMainWindow(): BrowserWindow {
                     ].find(
                       (candidate) =>
                         candidate.querySelector('strong')?.textContent?.trim() ===
-                        'Artemis Smoke Remote',
+                        serverName,
                     );
                     if (!row) {
-                      throw new Error('Seeded MCP server row did not render.');
+                      throw new Error(
+                        'Seeded MCP server row did not render: ' + serverName,
+                      );
                     }
                     row.querySelector('.resource-icon-button')?.click();
                     await waitFor('.mcp-editor');
@@ -10853,6 +10889,8 @@ function createMainWindow(): BrowserWindow {
                       throw new Error('Edit-mode test control did not render.');
                     }
                   };
+                  const openSeededServerEditor = () =>
+                    openSeededServerEditorByName('Artemis Smoke Remote');
                   if (view === 'mcp-editor-new') {
                     await openNewServerEditor();
                     return;
@@ -10899,6 +10937,76 @@ function createMainWindow(): BrowserWindow {
                       'https://mcp.artemis-smoke.example.test/mcp-drift',
                     );
                     await wait(400);
+                    return;
+                  }
+                  if (view === 'mcp-editor-test-drift-stdio') {
+                    await openSeededServerEditorByName('Artemis Smoke Local');
+                    const readArgsDraft = () =>
+                      [
+                        ...document.querySelectorAll(
+                          '.mcp-editor input[aria-label^="Arguments "]',
+                        ),
+                      ].map((input) => input.value);
+                    const readTestGate = () => {
+                      const button = document.querySelector(
+                        '.mcp-editor-test-button',
+                      );
+                      const hint = document.querySelector(
+                        '.mcp-editor-test .mcp-editor-test-hint',
+                      );
+                      return {
+                        testDisabled:
+                          button instanceof HTMLButtonElement
+                            ? button.disabled
+                            : null,
+                        testHintPresent: hint != null,
+                        testHintText: hint?.textContent?.trim() ?? null,
+                      };
+                    };
+                    window.__mcpEditorProbe = {
+                      driftField: 'args',
+                      before: {
+                        argsValues: readArgsDraft(),
+                        ...readTestGate(),
+                      },
+                    };
+                    // Append a draft-only argument: Add argument -> --drift.
+                    document
+                      .querySelector('.mcp-editor .mcp-add-row')
+                      ?.click();
+                    await wait(200);
+                    const added = document.querySelector(
+                      '.mcp-editor input[aria-label="Arguments 2"]',
+                    );
+                    if (!(added instanceof HTMLInputElement)) {
+                      throw new Error('Added argument input did not render.');
+                    }
+                    setInputValue(added, '--drift');
+                    await wait(400);
+                    window.__mcpEditorProbe.drifted = {
+                      argsValues: readArgsDraft(),
+                      ...readTestGate(),
+                    };
+                    // A programmatic click on the drifted (disabled) control
+                    // must stay a no-op: the main process counts reconnect
+                    // IPC invocations and the audit asserts zero (PR8 F3).
+                    document.querySelector('.mcp-editor-test-button')?.click();
+                    await wait(500);
+                    window.__mcpEditorProbe.afterClick = {
+                      argsValues: readArgsDraft(),
+                      ...readTestGate(),
+                    };
+                    // Revert the draft so it matches the saved config again.
+                    document
+                      .querySelector('.mcp-editor input[aria-label="Arguments 2"]')
+                      ?.closest('.mcp-argument-row')
+                      ?.querySelector('.mcp-remove-row')
+                      ?.click();
+                    await wait(400);
+                    window.__mcpEditorProbe.reverted = {
+                      argsValues: readArgsDraft(),
+                      ...readTestGate(),
+                    };
                     return;
                   }
                   if (view.startsWith('mcp-editor-test-')) {
@@ -12028,6 +12136,11 @@ function createMainWindow(): BrowserWindow {
                         urlInput instanceof HTMLInputElement ? urlInput.value : null,
                       urlDisabled:
                         urlInput instanceof HTMLInputElement ? urlInput.disabled : null,
+                      argsValues: [
+                        ...document.querySelectorAll(
+                          '.mcp-editor input[aria-label^="Arguments "]',
+                        ),
+                      ].map((input) => input.value),
                       bearerMasked:
                         bearerInput instanceof HTMLInputElement
                           ? bearerInput.type === 'password'
@@ -12073,6 +12186,7 @@ function createMainWindow(): BrowserWindow {
                       probe: window.__mcpEditorProbe ?? null,
                       consoleCapture: window.__mcpEditorConsoleCapture ?? null,
                       seedRow: window.__mcpEditorSeedRow ?? null,
+                      seedStdioRow: window.__mcpEditorSeedStdioRow ?? null,
                     };
                   })(),
                   messageActionLabels: [...document.querySelectorAll(
@@ -12135,7 +12249,12 @@ function createMainWindow(): BrowserWindow {
             await writeFile(
               smokeAccessibility,
               `${JSON.stringify(
-                { ...result, zoomFactor: smokeScale, startupTimings },
+                {
+                  ...result,
+                  zoomFactor: smokeScale,
+                  startupTimings,
+                  reconnectIpcCalls: smokeMcpEditorReconnectIpcCalls,
+                },
                 undefined,
                 2,
               )}\n`,

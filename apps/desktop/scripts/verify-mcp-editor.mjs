@@ -41,6 +41,10 @@ const testFailureDetail = "Simulated MCP connection test rejection.";
 const testSavedOnlyHint =
   "Tests the saved configuration — save your changes first";
 const driftedUrl = "https://mcp.artemis-smoke.example.test/mcp-drift";
+const seededStdioServerName = "Artemis Smoke Local";
+const seededStdioCommand = "/artemis-smoke-mcp-editor/stdio-server";
+const seededStdioArgs = ["--smoke"];
+const driftedArgument = "--drift";
 const confirmUninstallPrefix = `Uninstall ${seededServerName}?`;
 // The manage row renders "Disabled · N tools" while config.enabled is false,
 // which is the renderer-visible proof that the seeded fixture never dialed.
@@ -49,8 +53,9 @@ const seedOfflineRowPrefix = "Disabled";
 // Each step drives one checklist §6 interaction to its end state, then the
 // harness captures one screenshot and one accessibility audit for that state.
 // Every identity is synthetic: the seeded streamable-http server points at a
-// reserved .test hostname with an unset bearer, and the new stdio server uses
-// a nonexistent synthetic command.
+// reserved .test hostname with an unset bearer, and both stdio identities
+// (the seeded server and the one step c creates) use command paths that
+// cannot exist.
 const steps = [
   {
     id: "a-new",
@@ -123,6 +128,12 @@ const steps = [
     view: "mcp-editor-test-drift",
     scenario:
       "Edit the saved server URL without saving: the test button disables behind the saved-only hint ('Tests the saved configuration — save your changes first'); the seeded saved config is untouched.",
+  },
+  {
+    id: "m-test-drift-stdio",
+    view: "mcp-editor-test-drift-stdio",
+    scenario:
+      "Edit the saved stdio server's arguments without saving: the test button disables behind the saved-only hint, a programmatic click on it still fires zero reconnect IPC, and reverting the argument re-enables testing; both seeded rows stay offline.",
   },
 ];
 const themes = ["light", "dark"];
@@ -778,6 +789,108 @@ try {
           'not "true"',
         ),
       ],
+      "m-test-drift-stdio": () => {
+        const probe = editor.probe ?? {};
+        const before = probe.before ?? null;
+        const drifted = probe.drifted ?? null;
+        const afterClick = probe.afterClick ?? null;
+        const reverted = probe.reverted ?? null;
+        return [
+          assert(
+            "editor-visible",
+            editor.editorVisible === true,
+            editor.editorVisible,
+            true,
+          ),
+          assert(
+            "drift-field-args",
+            probe.driftField === "args",
+            probe.driftField,
+            "args",
+          ),
+          assert(
+            "test-enabled-before-drift",
+            before?.testDisabled === false,
+            before?.testDisabled,
+            false,
+          ),
+          assert(
+            "stdio-args-seeded",
+            JSON.stringify(before?.argsValues) ===
+              JSON.stringify(seededStdioArgs),
+            before?.argsValues,
+            seededStdioArgs,
+          ),
+          assert(
+            "args-drifted-not-saved",
+            JSON.stringify(drifted?.argsValues) ===
+              JSON.stringify([...seededStdioArgs, driftedArgument]),
+            drifted?.argsValues,
+            [...seededStdioArgs, driftedArgument],
+          ),
+          assert(
+            "test-button-disabled-on-args-drift",
+            drifted?.testDisabled === true,
+            drifted?.testDisabled,
+            true,
+          ),
+          assert(
+            "saved-only-hint-visible-on-drift",
+            drifted?.testHintPresent === true &&
+              typeof drifted?.testHintText === "string" &&
+              drifted.testHintText.includes(testSavedOnlyHint),
+            { present: drifted?.testHintPresent, text: drifted?.testHintText },
+            `visible hint containing "${testSavedOnlyHint}"`,
+          ),
+          assert(
+            "programmatic-click-zero-reconnect",
+            audit.reconnectIpcCalls === 0,
+            audit.reconnectIpcCalls,
+            0,
+          ),
+          assert(
+            "still-disabled-after-programmatic-click",
+            afterClick?.testDisabled === true,
+            afterClick?.testDisabled,
+            true,
+          ),
+          assert(
+            "args-reverted-to-saved",
+            JSON.stringify(reverted?.argsValues) ===
+              JSON.stringify(seededStdioArgs) &&
+              JSON.stringify(editor.argsValues) ===
+                JSON.stringify(seededStdioArgs),
+            { reverted: reverted?.argsValues, final: editor.argsValues },
+            seededStdioArgs,
+          ),
+          assert(
+            "test-re-enabled-after-revert",
+            reverted?.testDisabled === false &&
+              editor.testButtonDisabled === false,
+            {
+              reverted: reverted?.testDisabled,
+              final: editor.testButtonDisabled,
+            },
+            { reverted: false, final: false },
+          ),
+          assert(
+            "hint-gone-after-revert",
+            reverted?.testHintPresent === false &&
+              editor.testHintPresent === false,
+            {
+              reverted: reverted?.testHintPresent,
+              final: editor.testHintPresent,
+            },
+            { reverted: false, final: false },
+          ),
+          assert(
+            "no-bearer-marker-in-audit",
+            JSON.stringify(audit).includes(syntheticBearerMarker) === false,
+            JSON.stringify(audit).includes(syntheticBearerMarker),
+            false,
+          ),
+        ];
+      },
       "k-credentials": () => {
         const before = editor.probe?.beforeSave ?? null;
         const after = editor.probe?.afterSave ?? null;
@@ -847,6 +960,13 @@ try {
       editor.seedRow ?? null,
       `stateText starting with "${seedOfflineRowPrefix}"`,
     );
+    assert(
+      "seed-stdio-stays-offline",
+      typeof editor.seedStdioRow?.stateText === "string" &&
+        editor.seedStdioRow.stateText.startsWith(seedOfflineRowPrefix),
+      editor.seedStdioRow ?? null,
+      `stateText starting with "${seedOfflineRowPrefix}"`,
+    );
     const stepAssertions = [...assertions, ...expectations[id]()];
     const failed = stepAssertions.filter((assertion) => !assertion.pass);
     if (failed.length) {
@@ -886,6 +1006,7 @@ try {
       },
       manageServerNames: editor.manageServerNames,
       seedRow: editor.seedRow ?? null,
+      seedStdioRow: editor.seedStdioRow ?? null,
       busyTrace: editor.busyTrace,
       probe: editor.probe,
       consoleCapture: editor.consoleCapture,
@@ -918,12 +1039,23 @@ try {
         auth: "bearer (credential intentionally unset)",
         enabled: false,
       },
+      seededStdioServer: {
+        id: "artemis-smoke-local",
+        name: seededStdioServerName,
+        transport: "stdio",
+        command: seededStdioCommand,
+        args: seededStdioArgs,
+        env: "(empty)",
+        workspace:
+          "synthesized by the store inside the isolated user-data directory",
+        enabled: false,
+      },
       newServer: {
         id: newServerName,
         transport: "stdio",
         command: newServerName,
       },
-      note: "Every identity is synthetic: the .test hostname never resolves and the stdio command never exists, so no smoke run can reach a real endpoint or spawn a real process. The seeded server also persists with enabled:false — initializeOptionalCapabilities only auto-connects enabled servers, so the seed performs zero dial-out at startup, and every case asserts the seeded manage row renders its offline state (seed-stays-offline).",
+      note: "Every identity is synthetic: the .test hostname never resolves and the stdio command paths never exist, so no smoke run can reach a real endpoint or spawn a real process. Both seeded servers persist with enabled:false — initializeOptionalCapabilities only auto-connects enabled servers, so the seeds perform zero dial-out at startup, and every case asserts both seeded manage rows render their offline state (seed-stays-offline, seed-stdio-stays-offline).",
     },
     userDataIsolation: {
       directory:
@@ -936,7 +1068,7 @@ try {
       intercepted:
         "Only failure injection (one-shot save/remove rejections) and the synthetic reconnect snapshots (busy/success/failed) are intercepted in the main process; the connect step of a successful save is simulated away because the synthetic identity must never spawn or dial anything, and the bearer token is dropped before persistence.",
       componentContract:
-        "The jsdom suites lock the component-level contract: mcp-editor-feedback.test.tsx and mcp-server-editor.test.tsx cover the aria-busy wrapper, validation alert, retry affordance, tri-state test control, confirm-deferral behavior, the four-way save/remove/test/confirm mutual exclusion (UI disable plus editor-level handler guards), and the saved-config drift gate on connection testing.",
+        "The jsdom suites lock the component-level contract: mcp-editor-feedback.test.tsx and mcp-server-editor.test.tsx cover the aria-busy wrapper, validation alert, retry affordance, tri-state test control, confirm-deferral behavior, the four-way save/remove/test/confirm mutual exclusion (UI disable plus editor-level handler guards), and the saved-config drift gate on connection testing (HTTP URL in step l, stdio arguments in step m).",
     },
     security: {
       credentials:
