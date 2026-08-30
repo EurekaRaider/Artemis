@@ -66,10 +66,7 @@ export function QueuedMessageEditor(props: QueuedMessageEditorProps) {
   };
 
   return (
-    <div
-      aria-busy={submitting || undefined}
-      className="queued-message-editor"
-    >
+    <div aria-busy={submitting || undefined} className="queued-message-editor">
       <textarea
         aria-label={props.textareaLabel}
         onChange={(event) => props.onValueChange(event.target.value)}

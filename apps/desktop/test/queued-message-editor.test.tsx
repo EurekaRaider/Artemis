@@ -92,11 +92,7 @@ function renderEditor(
     focusSpy,
     rerenderEditor: (nextBusy: boolean) =>
       utils.rerender(
-        <EditorHarness
-          busy={nextBusy}
-          initial={initial}
-          handlers={handlers}
-        />,
+        <EditorHarness busy={nextBusy} initial={initial} handlers={handlers} />,
       ),
   };
 }

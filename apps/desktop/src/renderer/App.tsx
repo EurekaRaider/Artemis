@@ -6738,7 +6738,10 @@ export function App() {
                                         setEditingQueuedMessage(undefined)
                                       }
                                       onValueChange={(value) =>
-                                        setEditingQueuedMessage({ index, value })
+                                        setEditingQueuedMessage({
+                                          index,
+                                          value,
+                                        })
                                       }
                                     />
                                   ) : (
