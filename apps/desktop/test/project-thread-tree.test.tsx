@@ -67,9 +67,25 @@ function SidebarTreeHarness({
   const treeElement = useRef<HTMLDivElement>(null);
   const [activeRowId, setActiveRowId] = useState<string>();
   const [projectsOpen, setProjectsOpen] = useState(initialProjectsOpen);
-  // Mirrors App.tsx: one derived expansion state drives the DOM, ARIA and
-  // the keyboard branches (searching makes the Projects root expanded).
-  const projectsExpanded = projectsOpen || query.trim().length > 0;
+  // Mirrors App.tsx: one mutable expansion state drives the root treeitem,
+  // the internal toggle, the child-group visibility and the keyboard
+  // branches; entering a search auto-expands, user collapse is honoured.
+  const [projectsExpanded, setProjectsExpanded] = useState(initialProjectsOpen);
+  const projectsSearchQueryRef = useRef("");
+  useEffect(() => {
+    const wasSearching = projectsSearchQueryRef.current.trim().length > 0;
+    const isSearching = query.trim().length > 0;
+    projectsSearchQueryRef.current = query;
+    if (isSearching && !wasSearching) {
+      setProjectsExpanded(true);
+    } else if (!isSearching && wasSearching) {
+      setProjectsExpanded(projectsOpen);
+    }
+  }, [projectsOpen, query]);
+  const toggleProjectsExpansion = useCallback(() => {
+    setProjectsExpanded((open) => !open);
+    setProjectsOpen((open) => !open);
+  }, []);
   const [temporaryOpen, setTemporaryOpen] = useState(true);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(
     () => new Set(),
@@ -99,9 +115,24 @@ function SidebarTreeHarness({
         handleProjectTreeKeyDown(event.nativeEvent, {
           container: treeElement.current,
           focusRow,
-          collapseRow: (rowId) => onCollapse?.(rowId),
-          expandRow: (rowId) => onExpand?.(rowId),
-          activateRow: (rowId) => onActivate?.(rowId),
+          collapseRow: (rowId) => {
+            onCollapse?.(rowId);
+            if (rowId === "collection:projects") {
+              setProjectsExpanded(false);
+              setProjectsOpen(false);
+            }
+          },
+          expandRow: (rowId) => {
+            onExpand?.(rowId);
+            if (rowId === "collection:projects") {
+              setProjectsExpanded(true);
+              setProjectsOpen(true);
+            }
+          },
+          activateRow: (rowId) => {
+            onActivate?.(rowId);
+            if (rowId === "collection:projects") toggleProjectsExpansion();
+          },
         })
       }
       ref={treeElement}
@@ -120,8 +151,13 @@ function SidebarTreeHarness({
       >
         <div className="project-row project-group-row">
           <button
+            aria-expanded={projectsExpanded}
+            aria-label={
+              projectsExpanded ? "Collapse projects" : "Expand projects"
+            }
             className="project-group-select"
-            onClick={() => setProjectsOpen((open) => !open)}
+            onClick={() => toggleProjectsExpansion()}
+            title={projectsExpanded ? "Collapse projects" : "Expand projects"}
             type="button"
           >
             <span className="project-group-title">Projects</span>
@@ -479,6 +515,10 @@ describe("project/thread tree keyboard (rendered, production markup)", () => {
     row("collection:projects").focus();
     await user.keyboard("{ArrowLeft}");
     expect(onCollapse).toHaveBeenCalledWith("collection:projects");
+    // The collapse really closed the group; expand it back for the block
+    // below (real state change).
+    await user.keyboard("{ArrowRight}");
+    expect(onExpand).toHaveBeenCalledWith("collection:projects");
 
     // Collapsed branch: ArrowLeft focuses the parent row (WAI-ARIA).
     row("project:beta").focus();
@@ -574,7 +614,7 @@ describe("project/thread tree keyboard (rendered, production markup)", () => {
     expect(onActivate).not.toHaveBeenCalled();
   });
 
-  it("treats a collapsed Projects root as expanded while searching", async () => {
+  it("auto-expands on search and honours user collapse end-to-end", async () => {
     const user = userEvent.setup();
     const onCollapse = vi.fn();
     const onExpand = vi.fn();
@@ -588,15 +628,37 @@ describe("project/thread tree keyboard (rendered, production markup)", () => {
         temporaryThreads={TEMPORARY}
       />,
     );
+    // Entering the search auto-expanded the collapsed root (real state).
     expect(row("collection:projects")).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("button", { name: "Collapse projects" }),
+    ).toHaveAttribute("aria-expanded", "true");
     expect(rowIds()).toContain("project:alpha");
+
+    // ArrowRight enters the first visible child (no redundant expand call).
     row("collection:projects").focus();
     await user.keyboard("{ArrowRight}");
     expect(row("project:alpha")).toHaveFocus();
     expect(onExpand).not.toHaveBeenCalled();
+
+    // ArrowLeft on the open root really closes the group and syncs the
+    // root treeitem AND the internal toggle button.
     row("collection:projects").focus();
     await user.keyboard("{ArrowLeft}");
     expect(onCollapse).toHaveBeenCalledWith("collection:projects");
+    expect(row("collection:projects")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(
+      screen.getByRole("button", { name: "Expand projects" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(rowIds()).not.toContain("project:alpha");
+
+    // ArrowRight expands it back (real state change).
+    await user.keyboard("{ArrowRight}");
+    expect(onExpand).toHaveBeenCalledWith("collection:projects");
+    expect(rowIds()).toContain("project:alpha");
   });
 
   it("keeps auxiliary controls reachable by Tab from the active row", async () => {
@@ -607,7 +669,7 @@ describe("project/thread tree keyboard (rendered, production markup)", () => {
     row("collection:projects").focus();
     await user.tab();
     expect(
-      screen.getByRole("button", { name: "Projects", exact: false }),
+      screen.getByRole("button", { name: "Collapse projects" }),
     ).toHaveFocus();
     await user.tab();
     expect(screen.getByRole("button", { name: "Open project" })).toHaveFocus();

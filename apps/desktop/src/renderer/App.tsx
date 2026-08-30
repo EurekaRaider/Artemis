@@ -1702,10 +1702,27 @@ export function App() {
       clampTreeActiveRowId(projectTreeElement.current, current),
     );
   });
-  // The Projects root is effectively expanded whenever a search makes its
-  // children visible; one derived state must drive the DOM, ARIA and the
-  // keyboard branches so they can never diverge.
-  const projectsExpanded = projectsOpen || query.trim().length > 0;
+  // One mutable expansion state drives the root treeitem, the internal
+  // toggle, the child-group visibility and every keyboard entry point
+  // (click / Enter / Space / ArrowLeft). Entering a search auto-expands
+  // once; collapsing during the search is honoured and persisted; leaving
+  // the search restores the persisted preference.
+  const [projectsExpanded, setProjectsExpanded] = useState(projectsOpen);
+  const projectsSearchQueryRef = useRef(query);
+  useEffect(() => {
+    const wasSearching = projectsSearchQueryRef.current.trim().length > 0;
+    const isSearching = query.trim().length > 0;
+    projectsSearchQueryRef.current = query;
+    if (isSearching && !wasSearching) {
+      setProjectsExpanded(true);
+    } else if (!isSearching && wasSearching) {
+      setProjectsExpanded(projectsOpen);
+    }
+  }, [projectsOpen, query]);
+  const toggleProjectsExpansion = useCallback(() => {
+    setProjectsExpanded((open) => !open);
+    setProjectsOpen((open) => !open);
+  }, []);
   const toggleProjectRow = useCallback((rowId: string, collapsed: boolean) => {
     const projectId = rowId.replace(/^project:/, "");
     setCollapsedProjectIds((current) => {
@@ -2102,6 +2119,7 @@ export function App() {
   const collapseProjectTreeRow = useCallback(
     (rowId: string) => {
       if (rowId === "collection:projects") {
+        setProjectsExpanded(false);
         setProjectsOpen(false);
         return;
       }
@@ -2120,6 +2138,7 @@ export function App() {
   const expandProjectTreeRow = useCallback(
     (rowId: string) => {
       if (rowId === "collection:projects") {
+        setProjectsExpanded(true);
         setProjectsOpen(true);
         return;
       }
@@ -2138,7 +2157,7 @@ export function App() {
   const activateProjectTreeRow = useCallback(
     (rowId: string) => {
       if (rowId === "collection:projects") {
-        setProjectsOpen((open) => !open);
+        toggleProjectsExpansion();
         return;
       }
       if (rowId === "temporary:conversations") {
@@ -5555,13 +5574,13 @@ export function App() {
           >
             <div className="project-row project-group-row">
               <button
-                aria-expanded={projectsOpen}
+                aria-expanded={projectsExpanded}
                 aria-label={
-                  projectsOpen ? t.collapseProjects : t.expandProjects
+                  projectsExpanded ? t.collapseProjects : t.expandProjects
                 }
                 className="project-group-select"
-                onClick={() => setProjectsOpen((open) => !open)}
-                title={projectsOpen ? t.collapseProjects : t.expandProjects}
+                onClick={() => toggleProjectsExpansion()}
+                title={projectsExpanded ? t.collapseProjects : t.expandProjects}
                 type="button"
               >
                 <span className="project-group-title">{t.projects}</span>
