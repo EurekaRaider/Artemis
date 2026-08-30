@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 export interface QueuedMessageEditorProps {
   busy: boolean; // Parent-level busy flag.
   cancelLabel: string;
+  errorDetail?: string | null; // Optional reason for the latest silent save failure.
   errorLabel: string; // Save-failure message text.
   retryLabel: string;
   saveLabel: string;
@@ -89,6 +90,13 @@ export function QueuedMessageEditor(props: QueuedMessageEditorProps) {
       {error && (
         <p className="queued-message-editor-error" role="alert">
           {props.errorLabel}{" "}
+          {props.errorDetail ? (
+            <>
+              <small className="queued-message-editor-error-detail">
+                {props.errorDetail}
+              </small>{" "}
+            </>
+          ) : null}
           <button
             disabled={!canSubmit}
             onClick={() => void submit()}

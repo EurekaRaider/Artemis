@@ -40,10 +40,12 @@ const editorBox = () =>
 
 function EditorHarness({
   busy,
+  errorDetail,
   initial,
   handlers,
 }: {
   busy: boolean;
+  errorDetail?: string | null;
   initial: string;
   handlers: EditorHandlers;
 }) {
@@ -52,6 +54,7 @@ function EditorHarness({
     <QueuedMessageEditor
       busy={busy}
       cancelLabel={labels.cancelLabel}
+      errorDetail={errorDetail}
       errorLabel={labels.errorLabel}
       retryLabel={labels.retryLabel}
       saveLabel={labels.saveLabel}
@@ -69,6 +72,7 @@ function EditorHarness({
 function renderEditor(
   options: {
     busy?: boolean;
+    errorDetail?: string | null;
     initial?: string;
     onSave?: EditorHandlers["onSave"];
   } = {},
@@ -84,7 +88,12 @@ function renderEditor(
   const busy = options.busy ?? false;
   const initial = options.initial ?? "Queued steer text";
   const utils = render(
-    <EditorHarness busy={busy} initial={initial} handlers={handlers} />,
+    <EditorHarness
+      busy={busy}
+      errorDetail={options.errorDetail}
+      initial={initial}
+      handlers={handlers}
+    />,
   );
   return {
     ...utils,
@@ -388,5 +397,51 @@ describe("QueuedMessageEditor interactions (D#76 PR6 section 8 contract)", () =>
     expect(handlers.onCancel).not.toHaveBeenCalled();
     expect(handlers.focusReturnTarget).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(box);
+  });
+
+  it("renders the save error detail when provided", async () => {
+    renderEditor({
+      errorDetail: "Task has no active turn.",
+      onSave: vi.fn(async () => false),
+    });
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: labels.saveLabel }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(labels.errorLabel);
+    const detail = alert.querySelector(
+      "small.queued-message-editor-error-detail",
+    );
+    expect(detail).not.toBeNull();
+    expect(detail).toHaveTextContent("Task has no active turn.");
+  });
+
+  it("omits the detail affordance when none", async () => {
+    const withoutDetail = renderEditor({
+      onSave: vi.fn(async () => false),
+    });
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: labels.saveLabel }));
+    const defaultAlert = await screen.findByRole("alert");
+    expect(defaultAlert).toHaveTextContent(labels.errorLabel);
+    expect(
+      defaultAlert.querySelector("small.queued-message-editor-error-detail"),
+    ).toBeNull();
+    withoutDetail.unmount();
+
+    renderEditor({
+      errorDetail: null,
+      onSave: vi.fn(async () => false),
+    });
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: labels.saveLabel }));
+    const nullAlert = await screen.findByRole("alert");
+    expect(nullAlert).toHaveTextContent(labels.errorLabel);
+    expect(
+      nullAlert.querySelector("small.queued-message-editor-error-detail"),
+    ).toBeNull();
   });
 });

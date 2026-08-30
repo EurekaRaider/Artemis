@@ -1904,6 +1904,9 @@ export function App() {
     index: number;
     value: string;
   }>();
+  const [queuedSaveErrorDetail, setQueuedSaveErrorDetail] = useState<
+    string | null
+  >(null);
   const timelineScroll = useRef<HTMLDivElement>(null);
   const timelinePinned = useRef(true);
   const timelineScrollSnapshots = useRef(
@@ -5345,7 +5348,10 @@ export function App() {
       followUp: Array<{ sourceIndex: number; text: string }>,
       options?: { silent?: boolean },
     ) => {
-      if (!activeThread || busy) return false;
+      if (!activeThread || busy) {
+        setQueuedSaveErrorDetail(null);
+        return false;
+      }
       setBusy(true);
       try {
         await window.artemis.replaceTurnQueue({
@@ -5354,12 +5360,14 @@ export function App() {
           followUp,
         });
         setEditingQueuedMessage(undefined);
+        setQueuedSaveErrorDetail(null);
         return true;
       } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         if (!options?.silent) {
-          setToast(
-            `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
-          );
+          setToast(`${t.taskError} ${message}`);
+        } else {
+          setQueuedSaveErrorDetail(message);
         }
         return false;
       } finally {
@@ -6721,6 +6729,7 @@ export function App() {
                                     <QueuedMessageEditor
                                       busy={busy}
                                       cancelLabel={t.queueCancel}
+                                      errorDetail={queuedSaveErrorDetail}
                                       errorLabel={t.queueSaveError}
                                       retryLabel={t.queueRetry}
                                       saveLabel={t.queueSave}

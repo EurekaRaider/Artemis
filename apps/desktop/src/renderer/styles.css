@@ -5272,6 +5272,11 @@ button.environment-row:disabled {
   font: inherit;
 }
 
+.queued-message-editor-error-detail {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .queued-message-bar + .composer {
   z-index: 1;
 }
