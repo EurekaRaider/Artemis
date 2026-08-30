@@ -91,7 +91,6 @@ import {
   runModeSchema,
   shellRuntimeConfigurationSchema,
   threadCommandSchema,
-  userInputRequestedPayloadSchema,
   userInputResolutionSchema,
   worktreeCommandSchema,
 } from "@artemis/protocol";
@@ -133,7 +132,9 @@ import {
   PendingMultiUserInputRegistry,
   PendingUserInputRegistry,
   USER_INPUT_TIMEOUT_MILLISECONDS,
+  isMultiQuestionUserInputRequest,
   prepareMultiQuestionUserInputRegistration,
+  prepareSingleQuestionUserInputRegistration,
 } from "./user-input-policy.js";
 import {
   externalHttpUrl,
@@ -3106,15 +3107,6 @@ function completeUserInput(
   });
 }
 
-// Dispatches on the value, not the key (review nit 6): structured clone
-// preserves an explicit `questions: undefined` key, which must stay on the
-// legacy single-question path instead of reaching the multi handler.
-function isMultiQuestionUserInputRequest(
-  request: Extract<BrokerExecutionRequest, { kind: "user.input" }>,
-): request is MultiQuestionUserInputRequest {
-  return Array.isArray((request as { questions?: unknown }).questions);
-}
-
 function handleUserInputBrokerRequest(
   workerRequestId: string,
   request: Extract<BrokerExecutionRequest, { kind: "user.input" }>,
@@ -3124,60 +3116,33 @@ function handleUserInputBrokerRequest(
     handleMultiQuestionUserInputBrokerRequest(workerRequestId, request);
     return;
   }
+  // Every rejection branch (thread/turn/mode ownership, option shape,
+  // frozen-schema parse including a carried `questions` key, duplicate
+  // pending) is decided by the pure validator so it stays unit-testable
+  // and every failure path answers with one broker reject (review P1-2).
   const thread = store.getThread(request.threadId);
-  if (
-    !thread ||
-    cancellingTurns.has(request.threadId) ||
-    activeTurns.get(request.threadId) !== request.turnId ||
-    thread.mode !== request.mode
-  ) {
-    rejectBrokerRequest(
-      workerRequestId,
-      request,
-      "User input requires the active task turn.",
-    );
+  const prepared = prepareSingleQuestionUserInputRegistration(
+    request,
+    {
+      threadExists: thread !== null,
+      turnCancelling: cancellingTurns.has(request.threadId),
+      turnActive: activeTurns.get(request.threadId) === request.turnId,
+      modeMatches: thread?.mode === request.mode,
+      duplicatePending: pendingUserInputs.hasWhere(
+        (pending) => pending.request.approvalId === request.approvalId,
+      ),
+    },
+    { nonce: randomUUID(), now: Date.now() },
+  );
+  if (!prepared.ok) {
+    rejectBrokerRequest(workerRequestId, request, prepared.reason);
     return;
   }
-  const recommendedOption = request.options.findIndex(
+  const payload = prepared.payload;
+  const nonce = payload.nonce;
+  const recommendedOption = payload.options.findIndex(
     (option) => option.recommended,
   );
-  if (
-    request.options.length < 2 ||
-    request.options.length > 3 ||
-    recommendedOption < 0 ||
-    request.options.filter((option) => option.recommended).length !== 1
-  ) {
-    rejectBrokerRequest(
-      workerRequestId,
-      request,
-      "User input requires two or three options and one recommendation.",
-    );
-    return;
-  }
-
-  const nonce = randomUUID();
-  const expiresAt = new Date(
-    Date.now() + USER_INPUT_TIMEOUT_MILLISECONDS,
-  ).toISOString();
-  let payload: ReturnType<typeof userInputRequestedPayloadSchema.parse>;
-  try {
-    payload = userInputRequestedPayloadSchema.parse({
-      type: "user-input.requested",
-      requestId: request.approvalId,
-      nonce,
-      header: request.header,
-      question: request.question,
-      options: request.options,
-      expiresAt,
-    });
-  } catch (error) {
-    rejectBrokerRequest(
-      workerRequestId,
-      request,
-      error instanceof Error ? error.message : "User input is invalid.",
-    );
-    return;
-  }
   // Register before arming the timer (review item 2, single-path closeout):
   // a rejected registration can never leak an orphan timer, and a duplicate
   // approval id is answered with one broker reject instead of an unhandled

@@ -4,7 +4,12 @@ import {
   PendingMultiUserInputRegistry,
   PendingUserInputRegistry,
   USER_INPUT_TIMEOUT_MILLISECONDS,
+  type MultiQuestionUserInputRequestValidation,
+  type SingleQuestionUserInputRegistration,
+  type UserInputBrokerRequest,
+  isMultiQuestionUserInputRequest,
   prepareMultiQuestionUserInputRegistration,
+  prepareSingleQuestionUserInputRegistration,
 } from "../src/main/user-input-policy.js";
 
 const options = [
@@ -335,6 +340,149 @@ describe("PendingMultiUserInputRegistry", () => {
     expect(registry.getQuestionExpiresAt("gone", "q1")).toBeUndefined();
     expect(registry.size).toBe(1);
   });
+
+  it("refuses protocol-invalid answers before consuming and stays retryable (review P1-3)", () => {
+    const registry = new PendingMultiUserInputRegistry<string>();
+    registry.register({
+      requestId: "multi-1",
+      nonce: "multi-nonce-000001",
+      questions: multiQuestions,
+      value: "pending",
+    });
+
+    // A 2,001-character custom answer is what the frozen
+    // resolved-payload schema refuses: consumption must throw BEFORE any
+    // state change, leaving the entry pending and the question retryable.
+    expect(() =>
+      registry.consumeQuestion({
+        requestId: "multi-1",
+        nonce: "multi-nonce-000001",
+        questionId: "q1",
+        customAnswer: "x".repeat(2_001),
+        source: "user",
+      }),
+    ).toThrow(/2,000/);
+    expect(registry.size).toBe(1);
+    expect(registry.getQuestionExpiresAt("multi-1", "q1")).toBe(
+      "2999-01-01T00:00:00.000Z",
+    );
+
+    // Filling both the option label and the custom answer is the XOR
+    // violation the same schema refuses — identical prove-and-retry
+    // contract, attempted here on the LAST pending question so the
+    // whole-card delete path is guarded too.
+    const first = registry.consumeQuestion({
+      requestId: "multi-1",
+      nonce: "multi-nonce-000001",
+      questionId: "q1",
+      selectedOptionLabel: "Ship now",
+      source: "user",
+    });
+    expect(first.final).toBeUndefined();
+    expect(() =>
+      registry.consumeQuestion({
+        requestId: "multi-1",
+        nonce: "multi-nonce-000001",
+        questionId: "q2",
+        selectedOptionLabel: "Ship later",
+        customAnswer: "Both fields at once",
+        source: "user",
+      }),
+    ).toThrow(/one offered option label or one custom answer/i);
+    expect(registry.size).toBe(1);
+    expect(registry.getQuestionExpiresAt("multi-1", "q2")).toBe(
+      "2999-01-01T00:00:00.000Z",
+    );
+
+    // The refused answers consumed nothing: a legal retry still settles
+    // the last question, aggregates the card, and only then deletes.
+    const settled = registry.consumeQuestion({
+      requestId: "multi-1",
+      nonce: "multi-nonce-000001",
+      questionId: "q2",
+      customAnswer: "Legal retry",
+      source: "user",
+    });
+    expect(settled.final?.answers).toEqual([
+      {
+        questionId: "q1",
+        answer: "Ship now",
+        selectedOptionLabel: "Ship now",
+        source: "user",
+      },
+      {
+        questionId: "q2",
+        answer: "Legal retry",
+        customAnswer: "Legal retry",
+        source: "user",
+      },
+    ]);
+    expect(registry.size).toBe(0);
+  });
+
+  it("keeps per-question sources under both settlement orders (review P1-1)", () => {
+    // Order A — timeout lands first, the user answers the remaining one.
+    const timeoutFirst = new PendingMultiUserInputRegistry<string>();
+    timeoutFirst.register({
+      requestId: "multi-a",
+      nonce: "multi-nonce-00000a",
+      questions: multiQuestions,
+      value: "pending",
+    });
+    timeoutFirst.consumeRecommendedQuestion(
+      "multi-a",
+      "multi-nonce-00000a",
+      "q1",
+    );
+    const settledTimeoutFirst = timeoutFirst.consumeQuestion({
+      requestId: "multi-a",
+      nonce: "multi-nonce-00000a",
+      questionId: "q2",
+      customAnswer: "User typed this",
+      source: "user",
+    });
+    expect(
+      settledTimeoutFirst.final?.answers.map((answer) => [
+        answer.questionId,
+        answer.source,
+      ]),
+    ).toEqual([
+      ["q1", "timeout"],
+      ["q2", "user"],
+    ]);
+
+    // Order B — the user answers first, the timeout closes the card: the
+    // aggregate must still carry each question's own provenance rather
+    // than the last answer's source.
+    const userFirst = new PendingMultiUserInputRegistry<string>();
+    userFirst.register({
+      requestId: "multi-b",
+      nonce: "multi-nonce-00000b",
+      questions: multiQuestions,
+      value: "pending",
+    });
+    userFirst.consumeQuestion({
+      requestId: "multi-b",
+      nonce: "multi-nonce-00000b",
+      questionId: "q1",
+      selectedOptionLabel: "Ship now",
+      source: "user",
+    });
+    const settledUserFirst = userFirst.consumeRecommendedQuestion(
+      "multi-b",
+      "multi-nonce-00000b",
+      "q2",
+    );
+    expect(
+      settledUserFirst.final?.answers.map((answer) => [
+        answer.questionId,
+        answer.source,
+      ]),
+    ).toEqual([
+      ["q1", "user"],
+      ["q2", "timeout"],
+    ]);
+  });
 });
 
 describe("prepareMultiQuestionUserInputRegistration", () => {
@@ -492,6 +640,122 @@ describe("prepareMultiQuestionUserInputRegistration", () => {
           { ...validQuestions[0]!, expiresAt: "2026-08-30T00:05:00.000Z" },
           { ...validQuestions[1]!, expiresAt: "2026-08-30T00:05:00.000Z" },
         ],
+      },
+    });
+  });
+});
+
+describe("user.input broker request boundary (review P1-2)", () => {
+  const twoOptions = [
+    {
+      label: "Ship it",
+      description: "Release the build.",
+      recommended: true,
+    },
+    {
+      label: "Hold",
+      description: "Wait one more day.",
+      recommended: false,
+    },
+  ];
+  const activeTurn = {
+    threadExists: true,
+    turnCancelling: false,
+    turnActive: true,
+    modeMatches: true,
+    duplicatePending: false,
+  };
+  const assembly = {
+    nonce: "0123456789abcdef",
+    now: Date.parse("2026-08-30T00:00:00.000Z"),
+  };
+  const singleFields = {
+    kind: "user.input",
+    approvalId: "single-1",
+    threadId: "thread-1",
+    turnId: "turn-1",
+    workspacePath: "/tmp/workspace",
+    header: "Scope",
+    question: "Ship on Friday?",
+    options: twoOptions,
+    mode: "execute",
+  };
+
+  // Both malformed shapes below would be valid single-question requests if
+  // the stray `questions` key were dropped: routing must stay value-based
+  // (single path) and the frozen schema's routing-hole guard must reject
+  // the carried key — one explicit broker reject, never a TypeError.
+  for (const variant of [
+    { label: "explicit undefined key", questions: undefined },
+    { label: "non-array value", questions: "not-an-array" },
+  ] as const) {
+    it(`rejects a single-question request carrying a ${variant.label} without a TypeError`, () => {
+      const request = {
+        ...singleFields,
+        questions: variant.questions,
+      } as unknown as UserInputBrokerRequest;
+
+      let routedMulti = false;
+      expect(() => {
+        routedMulti = isMultiQuestionUserInputRequest(request);
+      }).not.toThrow();
+      expect(routedMulti).toBe(false);
+
+      let result: SingleQuestionUserInputRegistration | undefined;
+      expect(() => {
+        result = prepareSingleQuestionUserInputRegistration(
+          request,
+          activeTurn,
+          assembly,
+        );
+      }).not.toThrow();
+      expect(result?.ok).toBe(false);
+      if (result && !result.ok) {
+        expect(result.reason).toMatch(/questions/i);
+      }
+    });
+  }
+
+  it("routes a garbage questions array to the multi validator which rejects it", () => {
+    const request = {
+      ...singleFields,
+      questions: [{ garbage: true }],
+    } as unknown as UserInputBrokerRequest;
+
+    let routedMulti = false;
+    expect(() => {
+      routedMulti = isMultiQuestionUserInputRequest(request);
+    }).not.toThrow();
+    expect(routedMulti).toBe(true);
+
+    let result:
+      ReturnType<typeof prepareMultiQuestionUserInputRegistration> | undefined;
+    expect(() => {
+      result = prepareMultiQuestionUserInputRegistration(
+        request as unknown as MultiQuestionUserInputRequestValidation,
+        activeTurn,
+        assembly,
+      );
+    }).not.toThrow();
+    expect(result?.ok).toBe(false);
+  });
+
+  it("accepts a clean single-question request through the same prepare", () => {
+    const result = prepareSingleQuestionUserInputRegistration(
+      singleFields,
+      activeTurn,
+      assembly,
+    );
+    expect(result).toEqual({
+      ok: true,
+      payload: {
+        type: "user-input.requested",
+        requestId: "single-1",
+        nonce: "0123456789abcdef",
+        header: "Scope",
+        question: "Ship on Friday?",
+        options: twoOptions,
+        expiresAt: "2026-08-30T00:05:00.000Z",
       },
     });
   });

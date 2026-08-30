@@ -3,8 +3,11 @@ import { timingSafeEqual } from "node:crypto";
 import {
   MAX_USER_INPUT_QUESTIONS,
   userInputMultiQuestionRequestedPayloadSchema,
+  userInputRequestedPayloadSchema,
+  type BrokerExecutionRequest,
   type UserInputMultiQuestionRequestedPayload,
   type UserInputOption,
+  type UserInputRequestedPayload,
   type UserInputResolution,
 } from "@artemis/protocol";
 
@@ -256,6 +259,23 @@ export class PendingMultiUserInputRegistry<T> {
       throw new Error("User input is no longer pending.");
     }
 
+    // Protocol-isomorphic pre-commit validation (review P1-3): the frozen
+    // userInputMultiQuestionResolvedPayloadSchema refuses an answer that
+    // fills both fields or neither. Validating after consumption would mark
+    // the question answered (and delete the entry on the last one), so the
+    // store's later schema rejection would strand the card with no event
+    // and no broker resolve — a permanent hang. Every check in this method
+    // runs before any state change, so a refused answer leaves the entry
+    // pending and the question retryable.
+    if (
+      (resolution.selectedOptionLabel !== undefined) ===
+      (resolution.customAnswer !== undefined)
+    ) {
+      throw new Error(
+        "Resolve one user-input question with one offered option label or one custom answer.",
+      );
+    }
+
     let answered: AnsweredMultiUserInputQuestion;
     if (resolution.selectedOptionLabel !== undefined) {
       const selected = question.options.find(
@@ -274,6 +294,14 @@ export class PendingMultiUserInputRegistry<T> {
       const answer = resolution.customAnswer?.trim() ?? "";
       if (!answer) {
         throw new Error("A custom user-input answer cannot be empty.");
+      }
+      // Same mirror as the XOR gate above: the schema caps the trimmed
+      // custom answer at 2,000 characters, and an oversized answer must be
+      // refused before the entry is consumed (review P1-3).
+      if (answer.length > 2_000) {
+        throw new Error(
+          "A custom user-input answer exceeds the 2,000-character limit.",
+        );
       }
       answered = {
         questionId: question.questionId,
@@ -372,7 +400,10 @@ export interface MultiQuestionUserInputRequestValidation {
   }>;
 }
 
-export interface MultiQuestionUserInputRequestContext {
+// Turn-ownership facts shared by both broker-request validators: the
+// single- and multi-question preps reject on the same gates so every
+// failure path answers with one broker reject.
+export interface UserInputBrokerRequestContext {
   threadExists: boolean;
   turnCancelling: boolean;
   turnActive: boolean;
@@ -386,7 +417,7 @@ export type MultiQuestionUserInputRegistration =
 
 export function prepareMultiQuestionUserInputRegistration(
   request: MultiQuestionUserInputRequestValidation,
-  context: MultiQuestionUserInputRequestContext,
+  context: UserInputBrokerRequestContext,
   assembly: { nonce: string; now: number },
 ): MultiQuestionUserInputRegistration {
   if (
@@ -441,6 +472,100 @@ export function prepareMultiQuestionUserInputRegistration(
           assembly.now + USER_INPUT_TIMEOUT_MILLISECONDS,
         ).toISOString(),
       })),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : "User input is invalid.",
+    };
+  }
+  if (context.duplicatePending) {
+    return { ok: false, reason: "User input is already pending." };
+  }
+  return { ok: true, payload };
+}
+
+// Value-based routing for broker user.input requests (review P1-2): IPC
+// structured clone preserves an explicit `questions: undefined` key, so the
+// key's presence must never decide the path — only an actual array takes
+// the multi-question handler; every other shape stays on the legacy
+// single-question path where the frozen schema's routing-hole guard
+// rejects the carried key.
+export type UserInputBrokerRequest = Extract<
+  BrokerExecutionRequest,
+  { kind: "user.input" }
+>;
+
+export function isMultiQuestionUserInputRequest(
+  request: UserInputBrokerRequest,
+): request is Extract<
+  UserInputBrokerRequest,
+  { questions: { questionId: string }[] }
+> {
+  return Array.isArray((request as { questions?: unknown }).questions);
+}
+
+export interface SingleQuestionUserInputRequestValidation {
+  approvalId: string;
+  header: string;
+  question: string;
+  options: UserInputOption[];
+  // Declared so an IPC-preserved explicit `questions` key reaches the
+  // frozen schema's routing-hole guard instead of being dropped before
+  // validation.
+  questions?: unknown;
+}
+
+export type SingleQuestionUserInputRegistration =
+  | { ok: true; payload: UserInputRequestedPayload }
+  | { ok: false; reason: string };
+
+export function prepareSingleQuestionUserInputRegistration(
+  request: SingleQuestionUserInputRequestValidation,
+  context: UserInputBrokerRequestContext,
+  assembly: { nonce: string; now: number },
+): SingleQuestionUserInputRegistration {
+  if (
+    !context.threadExists ||
+    context.turnCancelling ||
+    !context.turnActive ||
+    !context.modeMatches
+  ) {
+    return {
+      ok: false,
+      reason: "User input requires the active task turn.",
+    };
+  }
+  if (
+    request.options.length < 2 ||
+    request.options.length > 3 ||
+    request.options.findIndex((option) => option.recommended) < 0 ||
+    request.options.filter((option) => option.recommended).length !== 1
+  ) {
+    return {
+      ok: false,
+      reason:
+        "User input requires two or three options and one recommendation.",
+    };
+  }
+  let payload: UserInputRequestedPayload;
+  try {
+    payload = userInputRequestedPayloadSchema.parse({
+      type: "user-input.requested",
+      requestId: request.approvalId,
+      nonce: assembly.nonce,
+      header: request.header,
+      question: request.question,
+      options: request.options,
+      expiresAt: new Date(
+        assembly.now + USER_INPUT_TIMEOUT_MILLISECONDS,
+      ).toISOString(),
+      // Fail closed like the frozen schema demands (review P1-2): an
+      // IPC-preserved explicit `questions` key — any value, including
+      // undefined — must reach the schema's routing-hole guard so the
+      // request is answered with one broker reject instead of being
+      // silently accepted with the key dropped.
+      ...("questions" in request ? { questions: request.questions } : {}),
     });
   } catch (error) {
     return {
