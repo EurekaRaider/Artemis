@@ -444,4 +444,39 @@ describe("QueuedMessageEditor interactions (D#76 PR6 section 8 contract)", () =>
       nullAlert.querySelector("small.queued-message-editor-error-detail"),
     ).toBeNull();
   });
+
+  it("focuses the textarea when the editor opens (review fix: autofocus)", () => {
+    renderEditor();
+    expect(document.activeElement).toBe(editorBox());
+  });
+
+  it("returns focus to the target when the Cancel button is clicked (review fix: cancel focus return)", async () => {
+    let target: HTMLElement | null = null;
+    const handlers: EditorHandlers = {
+      onCancel: vi.fn(),
+      onSave: vi.fn(async () => true),
+      onSuccess: vi.fn(),
+      focusReturnTarget: vi.fn(() => target),
+    };
+    render(
+      <div>
+        <button data-testid="row-steer" type="button">
+          Row steer
+        </button>
+        <EditorHarness
+          busy={false}
+          initial="Queued steer text"
+          handlers={handlers}
+        />
+      </div>,
+    );
+    target = screen.getByTestId("row-steer");
+    const cancel = screen.getByRole("button", { name: labels.cancelLabel });
+    expect(cancel).toBeEnabled();
+
+    await userEvent.setup().click(cancel);
+    expect(handlers.onCancel).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(document.activeElement).toBe(target));
+    expect(handlers.onSave).not.toHaveBeenCalled();
+  });
 });
