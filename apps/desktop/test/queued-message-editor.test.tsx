@@ -266,4 +266,127 @@ describe("QueuedMessageEditor interactions (D#76 PR6 section 8 contract)", () =>
     await waitFor(() => expect(handlers.onSave).toHaveBeenCalledTimes(1));
     expect(parentKeyDown).not.toHaveBeenCalled();
   });
+
+  it("wraps Save and Cancel in an actions container that is a direct child of the root (review fix: actions container)", async () => {
+    const { container } = renderEditor({
+      onSave: vi.fn(async () => false),
+    });
+    const root = container.firstElementChild as HTMLElement;
+    const actions = container.querySelector(
+      "div.queued-message-editor-actions",
+    );
+    expect(actions).not.toBeNull();
+    expect(actions?.parentElement).toBe(root);
+
+    const save = screen.getByRole("button", { name: labels.saveLabel });
+    const cancel = screen.getByRole("button", { name: labels.cancelLabel });
+    expect(save.closest("div.queued-message-editor-actions")).toBe(actions);
+    expect(cancel.closest("div.queued-message-editor-actions")).toBe(actions);
+
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: labels.saveLabel }));
+    const alert = await screen.findByRole("alert");
+    const retry = screen.getByRole("button", { name: labels.retryLabel });
+    expect(retry.closest('[role="alert"]')).toBe(alert);
+    expect(retry.closest("div.queued-message-editor-actions")).toBeNull();
+  });
+
+  it("returns focus to the target after Esc cancels the editor (review fix: escape focus return)", async () => {
+    let target: HTMLElement | null = null;
+    const handlers: EditorHandlers = {
+      onCancel: vi.fn(),
+      onSave: vi.fn(async () => true),
+      onSuccess: vi.fn(),
+      focusReturnTarget: vi.fn(() => target),
+    };
+    render(
+      <div>
+        <button data-testid="row-steer" type="button">
+          Row steer
+        </button>
+        <EditorHarness
+          busy={false}
+          initial="Queued steer text"
+          handlers={handlers}
+        />
+      </div>,
+    );
+    target = screen.getByTestId("row-steer");
+    const box = editorBox();
+    box.focus();
+    expect(document.activeElement).toBe(box);
+
+    fireEvent.keyDown(box, { key: "Escape" });
+    await waitFor(() => expect(handlers.onCancel).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(document.activeElement).toBe(target));
+  });
+
+  it("shares the focus return between save success and Esc cancel without saving on cancel (review fix)", async () => {
+    let target: HTMLElement | null = null;
+    const handlers: EditorHandlers = {
+      onCancel: vi.fn(),
+      onSave: vi.fn(async () => true),
+      onSuccess: vi.fn(),
+      focusReturnTarget: vi.fn(() => target),
+    };
+    render(
+      <div>
+        <button data-testid="row-steer" type="button">
+          Row steer
+        </button>
+        <EditorHarness
+          busy={false}
+          initial="Queued steer text"
+          handlers={handlers}
+        />
+      </div>,
+    );
+    target = screen.getByTestId("row-steer");
+    const box = editorBox();
+    box.focus();
+
+    fireEvent.keyDown(box, { key: "Escape" });
+    await waitFor(() => expect(handlers.onCancel).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(document.activeElement).toBe(target));
+    expect(handlers.onSave).not.toHaveBeenCalled();
+    expect(handlers.onSuccess).not.toHaveBeenCalled();
+
+    box.focus();
+    fireEvent.keyDown(box, { key: "Enter", metaKey: true });
+    await waitFor(() => expect(handlers.onSave).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(handlers.onSuccess).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(handlers.focusReturnTarget).toHaveBeenCalledTimes(2),
+    );
+    expect(document.activeElement).toBe(target);
+  });
+
+  it("keeps focus in the textarea when Esc is pressed while the parent is busy (review fix: no focus return)", async () => {
+    let target: HTMLElement | null = null;
+    const handlers: EditorHandlers = {
+      onCancel: vi.fn(),
+      onSave: vi.fn(async () => true),
+      onSuccess: vi.fn(),
+      focusReturnTarget: vi.fn(() => target),
+    };
+    render(
+      <div>
+        <button data-testid="row-steer" type="button">
+          Row steer
+        </button>
+        <EditorHarness busy initial="Queued steer text" handlers={handlers} />
+      </div>,
+    );
+    target = screen.getByTestId("row-steer");
+    const box = editorBox();
+    box.focus();
+    expect(document.activeElement).toBe(box);
+
+    fireEvent.keyDown(box, { key: "Escape" });
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+    expect(handlers.onCancel).not.toHaveBeenCalled();
+    expect(handlers.focusReturnTarget).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(box);
+  });
 });
