@@ -434,7 +434,12 @@ export const userInputSingleQuestionResolvedPayloadSchema = z
     requestId: z.string().min(1),
     nonce: z.string().min(16),
     answer: z.string().max(2_000),
-    selectedOption: z.number().int().min(0).max(2).optional(),
+    selectedOption: z
+      .number()
+      .int()
+      .min(0)
+      .max(USER_INPUT_MAX_OPTIONS - 1)
+      .optional(),
     source: z.enum(["user", "timeout", "cancelled"]),
   })
   .strict();
@@ -1105,7 +1110,12 @@ export const userInputResolutionSchema = z
   .object({
     requestId: z.string().min(1),
     nonce: z.string().min(16),
-    selectedOption: z.number().int().min(0).max(2).optional(),
+    selectedOption: z
+      .number()
+      .int()
+      .min(0)
+      .max(USER_INPUT_MAX_OPTIONS - 1)
+      .optional(),
     customAnswer: z.string().trim().min(1).max(2_000).optional(),
   })
   .superRefine((resolution, context) => {

@@ -337,7 +337,7 @@ describe("multi-question user input contract", () => {
     expect(reduceAgentEvent(third, resolved)).toBe(third);
   });
 
-  it("overwrites idempotently only when the same question IDs are re-requested", () => {
+  it("no-ops identical re-requests and fails closed on changed question sets", () => {
     const state = reduceAgentEvents("thread-1", [
       event(
         "req-1",
@@ -371,7 +371,7 @@ describe("multi-question user input contract", () => {
       ),
     );
     expect(asMulti(reordered.userInputs["input-1"]).answers["q1"]?.status).toBe(
-      "pending",
+      "answered",
     );
 
     const changed = reduceAgentEvent(
@@ -629,5 +629,230 @@ describe("multi-question user input contract", () => {
     expect(input.answers["q2"]?.status).toBe("pending");
     expect(input.status).toBe("pending");
     expect(state.status).toBe("waiting-user-input");
+  });
+  it("drops legacy kind-less resolutions against multi-question state", () => {
+    const base = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [
+          question("q1"),
+          question("q2"),
+        ]) as AgentEvent["payload"],
+      ),
+    ]);
+    const cancelled = reduceAgentEvent(
+      base,
+      event("legacy-cancel", 2, {
+        type: "user-input.resolved",
+        requestId: "input-1",
+        nonce: NONCE,
+        answer: "",
+        source: "cancelled",
+      } as AgentEvent["payload"]),
+    );
+    const input = asMulti(cancelled.userInputs["input-1"]);
+    expect(input.status).toBe("pending");
+    expect(input.answers["q1"]?.status).toBe("pending");
+    expect(input.answers["q2"]?.status).toBe("pending");
+    expect(cancelled.status).toBe("waiting-user-input");
+
+    const late = reduceAgentEvent(
+      cancelled,
+      event(
+        "ans-late",
+        3,
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
+      ),
+    );
+    expect(asMulti(late.userInputs["input-1"]).answers["q1"]?.status).toBe(
+      "answered",
+    );
+  });
+
+  it("keeps multi-question state when a legacy kind-less requested reuses the requestId", () => {
+    const base = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [
+          question("q1"),
+          question("q2"),
+        ]) as AgentEvent["payload"],
+      ),
+      event(
+        "ans-1",
+        2,
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
+      ),
+    ]);
+    const legacyReplay = reduceAgentEvent(
+      base,
+      event("legacy-req", 3, {
+        type: "user-input.requested",
+        requestId: "input-1",
+        nonce: NONCE,
+        header: "Scope",
+        question: "Which target should be optimized first?",
+        options: [
+          {
+            label: "Whole sweep",
+            description: "Optimize end-to-end runtime.",
+            recommended: true,
+          },
+          {
+            label: "Single point",
+            description: "Optimize latency for one point.",
+            recommended: false,
+          },
+        ],
+        expiresAt: EXPIRES_AT,
+      } as AgentEvent["payload"]),
+    );
+    const input = asMulti(legacyReplay.userInputs["input-1"]);
+    expect(input.questions).toHaveLength(2);
+    expect(input.answers["q1"]?.status).toBe("answered");
+    expect(input.answers["q2"]?.status).toBe("pending");
+    expect(input.status).toBe("pending");
+    expect(legacyReplay.status).toBe("waiting-user-input");
+  });
+
+  it("fails closed when a re-request swaps content under the same question IDs", () => {
+    const base = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [question("q1")]) as AgentEvent["payload"],
+      ),
+    ]);
+
+    const swappedOptions = reduceAgentEvent(
+      base,
+      event(
+        "req-2",
+        2,
+        multiRequested("input-1", [
+          question("q1", {
+            options: [
+              {
+                label: "swapped-a",
+                description: "Swapped first option",
+                recommended: true,
+              },
+              {
+                label: "swapped-b",
+                description: "Swapped second option",
+                recommended: false,
+              },
+            ],
+          }),
+        ]) as AgentEvent["payload"],
+      ),
+    );
+    expect(swappedOptions.userInputs["input-1"]).toBe(
+      base.userInputs["input-1"],
+    );
+
+    const swappedExpiry = reduceAgentEvent(
+      base,
+      event(
+        "req-3",
+        3,
+        multiRequested("input-1", [
+          question("q1", { expiresAt: "2026-08-02T11:15:00.000Z" }),
+        ]) as AgentEvent["payload"],
+      ),
+    );
+    expect(swappedExpiry.userInputs["input-1"]).toBe(
+      base.userInputs["input-1"],
+    );
+    expect(
+      asMulti(swappedExpiry.userInputs["input-1"]).questions[0]?.expiresAt,
+    ).toBe(EXPIRES_AT);
+  });
+
+  it("does not let newline-embedded question IDs collide with distinct sets", () => {
+    const base = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [
+          question("a"),
+          question("b"),
+        ]) as AgentEvent["payload"],
+      ),
+      event(
+        "ans-1",
+        2,
+        multiResolved("input-1", "a", {
+          selectedOption: "option-a-a",
+        }) as AgentEvent["payload"],
+      ),
+    ]);
+    const colliding = reduceAgentEvent(
+      base,
+      event(
+        "req-2",
+        3,
+        multiRequested("input-1", [question("a\nb")]) as AgentEvent["payload"],
+      ),
+    );
+    const input = asMulti(colliding.userInputs["input-1"]);
+    expect(input.questions.map((entry) => entry.questionId)).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(input.answers["a"]?.status).toBe("answered");
+  });
+
+  it("fails closed when expiry timestamps cannot be parsed", () => {
+    const malformedExpiry = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [
+          question("q1", { expiresAt: "not-a-datetime" }),
+        ]) as AgentEvent["payload"],
+      ),
+    ]);
+    const answered = reduceAgentEvent(
+      malformedExpiry,
+      event(
+        "ans-1",
+        2,
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
+      ),
+    );
+    expect(asMulti(answered.userInputs["input-1"]).answers["q1"]?.status).toBe(
+      "pending",
+    );
+
+    const validExpiry = reduceAgentEvents("thread-1", [
+      event(
+        "req-2",
+        1,
+        multiRequested("input-1", [question("q1")]) as AgentEvent["payload"],
+      ),
+    ]);
+    const malformedEventTime = reduceAgentEvent(
+      validExpiry,
+      event(
+        "ans-2",
+        2,
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
+        "not-a-datetime",
+      ),
+    );
+    expect(
+      asMulti(malformedEventTime.userInputs["input-1"]).answers["q1"]?.status,
+    ).toBe("pending");
   });
 });

@@ -267,11 +267,27 @@ function clearThinkingParts(
   state.order = state.order.filter((entry) => !thinkingEntries.has(entry));
 }
 
-function multiQuestionIds(questions: UserInputQuestion[]): string {
-  return questions
-    .map((question) => question.questionId)
-    .sort()
-    .join("\n");
+function multiQuestionFingerprint(questions: UserInputQuestion[]): string {
+  // Deterministic, collision-free serialization of the full request content.
+  // Joining IDs with a separator string could collide (an ID containing the
+  // separator), so canonicalize each question with JSON.stringify instead;
+  // sorting makes the fingerprint independent of question order.
+  return JSON.stringify(
+    questions
+      .map((question) => ({
+        questionId: question.questionId,
+        question: question.question,
+        options: question.options,
+        expiresAt: question.expiresAt,
+      }))
+      .sort((left, right) =>
+        left.questionId < right.questionId
+          ? -1
+          : left.questionId > right.questionId
+            ? 1
+            : 0,
+      ),
+  );
 }
 
 function multiQuestionAggregateStatus(
@@ -328,7 +344,13 @@ function applyMultiQuestionResolution(
   if (!question) return;
   const current = input.answers[payload.questionId];
   if (current && current.status !== "pending") return;
-  if (Date.parse(event.timestamp) > Date.parse(question.expiresAt)) return;
+  const resolvedAtMs = Date.parse(event.timestamp);
+  const expiresAtMs = Date.parse(question.expiresAt);
+  // Date.parse yields NaN for malformed timestamps and NaN comparisons are
+  // always false; fail closed by treating any non-finite parse as already
+  // expired so the resolution is dropped.
+  if (!Number.isFinite(resolvedAtMs) || !Number.isFinite(expiresAtMs)) return;
+  if (resolvedAtMs > expiresAtMs) return;
   if (
     payload.selectedOption !== undefined &&
     !question.options.some((option) => option.label === payload.selectedOption)
@@ -545,18 +567,34 @@ function applyAgentPayload(
     case "user-input.requested": {
       if (payload.kind === "multi-question") {
         const existing = state.userInputs[payload.requestId];
-        if (
-          existing &&
-          (!("questions" in existing) ||
-            multiQuestionIds(existing.questions) !==
-              multiQuestionIds(payload.questions))
-        ) {
+        if (existing) {
+          if (
+            "questions" in existing &&
+            multiQuestionFingerprint(existing.questions) ===
+              multiQuestionFingerprint(payload.questions)
+          ) {
+            // True replay of identical content: complete no-op so
+            // already-collected answers survive instead of being reset.
+            return;
+          }
+          // Reusing the requestId with different content (different question
+          // IDs, options, or expiry — including sets that only appear equal
+          // through separator-embedded IDs) or over an existing
+          // single-question input: fail closed and keep the current state.
           return;
         }
         state.userInputs[payload.requestId] =
           createMultiQuestionUserInputState(payload);
         state.status = "waiting-user-input";
         appendOnce(state.order, orderedItems, `input:${payload.requestId}`);
+        return;
+      }
+      const existingInput = state.userInputs[payload.requestId];
+      if (existingInput && "questions" in existingInput) {
+        // Symmetric fail-closed guard: a legacy (kind-less) requested reusing
+        // a multi-question requestId must leave the multi-question state and
+        // thread status untouched instead of clobbering it with a
+        // single-question payload.
         return;
       }
       state.userInputs[payload.requestId] = {
@@ -569,11 +607,25 @@ function applyAgentPayload(
     }
     case "user-input.resolved": {
       if (payload.kind === "multi-question") {
+        // The nonce is deliberately not compared against the requested nonce
+        // here: the trust boundary is the event-log write-side schema, which
+        // shape-validates nonces when events are persisted. Replay safety in
+        // the reducer rests on the requestId + questionId + expiry checks in
+        // applyMultiQuestionResolution instead.
         applyMultiQuestionResolution(state, event, payload);
         state.status = pendingInteractionStatus(state);
         return;
       }
       const input = state.userInputs[payload.requestId];
+      if (input && "questions" in input) {
+        // Fail-closed guard: legacy (kind-less) resolutions are still emitted
+        // by cancel and crash-restore paths. When one collides with a
+        // multi-question request, drop it whole — state and thread status
+        // untouched — so the input cannot become a top-level-cancelled +
+        // answers-pending hybrid that a late per-question resolution would
+        // flip back to waiting-user-input.
+        return;
+      }
       if (input) {
         state.userInputs[payload.requestId] = {
           ...input,
