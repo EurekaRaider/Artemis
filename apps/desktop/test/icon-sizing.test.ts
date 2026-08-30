@@ -207,6 +207,15 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     },
   );
 
+  it("shields the resource search icon from flex shrinking inside its field", () => {
+    // The search field lives in a shrinkable toolbar (flex: 0 1 300px on
+    // .resource-management-search) while its input claims width: 100%; without
+    // an explicit flex defense the flex shrink algorithm compresses the icon
+    // below the base tier (smoke-measured 14.66x16 instead of 16x16).
+    const block = cssRuleBlock(stylesSource, ".resource-search-field svg");
+    expect(block).toMatch(/flex:\s*none|flex-shrink:\s*0/);
+  });
+
   const UNMIGRATED_RULES: Array<[string, number, boolean]> = [
     [".environment-trigger svg", 20, false],
     [".tool-disclosure svg", 14, false],

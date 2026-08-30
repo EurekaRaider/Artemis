@@ -10478,6 +10478,14 @@ button.sources-panel-entry.attachment:focus-visible {
   width: var(--icon-size-base);
 }
 
+/* The field itself sits in a shrinkable toolbar (flex: 0 1 300px on
+   .resource-management-search) and its input claims width: 100%, so without
+   this guard the flex shrink algorithm squeezes the icon below its tier size
+   (measured 14.66x16). Keep the glyph a fixed square inside the field. */
+.resource-search-field svg {
+  flex: none;
+}
+
 .resource-add-button {
   background: var(--text);
   border-radius: 9px;

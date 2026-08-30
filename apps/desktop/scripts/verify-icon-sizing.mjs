@@ -98,6 +98,7 @@ const requiredTargetsByView = {
   "icon-sizing-resource-manage": [
     "resource-avatar-semantic",
     "resource-discovery-search",
+    "resource-search-field",
     "resource-avatar-fallback",
   ],
   "icon-sizing-add-plugin": ["resource-add-plugin-card"],
