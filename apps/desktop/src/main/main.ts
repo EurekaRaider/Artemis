@@ -73,6 +73,7 @@ import type {
 
 import {
   AGENT_CONCURRENCY_FALLBACK,
+  MAX_USER_INPUT_QUESTIONS,
   PROTOCOL_VERSION,
   appLocaleSchema,
   appLanguageSchema,
@@ -91,6 +92,7 @@ import {
   runModeSchema,
   shellRuntimeConfigurationSchema,
   threadCommandSchema,
+  userInputMultiQuestionRequestedPayloadSchema,
   userInputRequestedPayloadSchema,
   userInputResolutionSchema,
   worktreeCommandSchema,
@@ -130,6 +132,7 @@ import {
   createApprovalFingerprint,
 } from "./approval-policy.js";
 import {
+  PendingMultiUserInputRegistry,
   PendingUserInputRegistry,
   USER_INPUT_TIMEOUT_MILLISECONDS,
 } from "./user-input-policy.js";
@@ -340,10 +343,25 @@ interface PendingApproval {
   fingerprint: string;
 }
 
+type SingleQuestionUserInputRequest = Extract<
+  Extract<BrokerExecutionRequest, { kind: "user.input" }>,
+  { question: string }
+>;
+type MultiQuestionUserInputRequest = Extract<
+  Extract<BrokerExecutionRequest, { kind: "user.input" }>,
+  { questions: { questionId: string }[] }
+>;
+
 interface PendingUserInput {
   workerRequestId: string;
-  request: Extract<BrokerExecutionRequest, { kind: "user.input" }>;
+  request: SingleQuestionUserInputRequest;
   timeout: ReturnType<typeof setTimeout>;
+}
+
+interface PendingMultiUserInput {
+  workerRequestId: string;
+  request: MultiQuestionUserInputRequest;
+  timeouts: Map<string, ReturnType<typeof setTimeout>>;
 }
 
 let mainWindow: BrowserWindow | undefined;
@@ -648,6 +666,8 @@ const cancellingTurns = new Set<string>();
 const compactingThreads = new Set<string>();
 const pendingApprovals = new PendingApprovalRegistry<PendingApproval>();
 const pendingUserInputs = new PendingUserInputRegistry<PendingUserInput>();
+const pendingMultiUserInputs =
+  new PendingMultiUserInputRegistry<PendingMultiUserInput>();
 const scheduledGoalContinuations = new Set<string>();
 const goalTurnContexts = new Map<
   string,
@@ -1254,6 +1274,25 @@ function interruptTurnsAfterAgentHostExit(): void {
   }
   for (const cancelled of pendingUserInputs.cancelWhere(() => true)) {
     clearTimeout(cancelled.value.timeout);
+    emitPayload(
+      cancelled.value.request.threadId,
+      cancelled.value.request.turnId,
+      {
+        type: "user-input.resolved",
+        requestId: cancelled.requestId,
+        nonce: cancelled.nonce,
+        answer: "",
+        source: "cancelled",
+      },
+    );
+  }
+  for (const cancelled of pendingMultiUserInputs.cancelWhere(() => true)) {
+    for (const timeout of cancelled.value.timeouts.values()) {
+      clearTimeout(timeout);
+    }
+    // One kind-less cancelled resolution per request: the reducer's legacy
+    // translation layer closes every still-pending question on the card, so
+    // no per-question events are needed here.
     emitPayload(
       cancelled.value.request.threadId,
       cancelled.value.request.turnId,
@@ -2480,6 +2519,9 @@ function applyPayloadSideEffects(
         ) ||
         pendingUserInputs.hasWhere(
           (pending) => pending.request.threadId === threadId,
+        ) ||
+        pendingMultiUserInputs.hasWhere(
+          (pending) => pending.request.threadId === threadId,
         );
       store.updateThread(threadId, {
         status: stillWaiting ? "waiting-approval" : "running",
@@ -2571,6 +2613,9 @@ function scheduleGoalContinuation(
         (pending) => pending.request.threadId === threadId,
       ) ||
       pendingUserInputs.hasWhere(
+        (pending) => pending.request.threadId === threadId,
+      ) ||
+      pendingMultiUserInputs.hasWhere(
         (pending) => pending.request.threadId === threadId,
       )
     ) {
@@ -3054,6 +3099,10 @@ function handleUserInputBrokerRequest(
   request: Extract<BrokerExecutionRequest, { kind: "user.input" }>,
 ): void {
   if (!agentProcess || !store) return;
+  if ("questions" in request) {
+    handleMultiQuestionUserInputBrokerRequest(workerRequestId, request);
+    return;
+  }
   const thread = store.getThread(request.threadId);
   if (
     !thread ||
@@ -3134,6 +3183,181 @@ function handleUserInputBrokerRequest(
     nonce,
     options: payload.options,
     value: { workerRequestId, request, timeout },
+  });
+  emitPayload(request.threadId, request.turnId, payload);
+}
+
+function completeMultiUserInputQuestion(
+  requestId: string,
+  nonce: string,
+  questionId: string,
+  source: "user" | "timeout",
+  selection: { selectedOptionLabel?: string; customAnswer?: string } = {},
+): void {
+  if (!agentProcess || !store) throw new Error("Application is not ready.");
+  const resolved =
+    source === "timeout"
+      ? pendingMultiUserInputs.consumeRecommendedQuestion(
+          requestId,
+          nonce,
+          questionId,
+        )
+      : pendingMultiUserInputs.consumeQuestion({
+          requestId,
+          nonce,
+          questionId,
+          ...selection,
+        });
+  const { request, workerRequestId, timeouts } = resolved.value;
+  const timeout = timeouts.get(questionId);
+  if (timeout !== undefined) clearTimeout(timeout);
+  emitPayload(request.threadId, request.turnId, {
+    type: "user-input.resolved",
+    kind: "multi-question",
+    requestId,
+    nonce,
+    questionId,
+    ...(resolved.selectedOptionLabel === undefined
+      ? {}
+      : { selectedOptionLabel: resolved.selectedOptionLabel }),
+    ...(resolved.customAnswer === undefined
+      ? {}
+      : { customAnswer: resolved.customAnswer }),
+    source,
+  });
+  if (!resolved.final) return;
+  // Dual-channel backfill: the renderer already saw one kind'd resolved
+  // event per question; the agent's tool promise settles exactly once with
+  // an aggregated result covering every question on the card.
+  agentProcess.post({
+    type: "broker.resolve",
+    requestId: workerRequestId,
+    resolution: {
+      approvalId: requestId,
+      nonce,
+      approved: true,
+      scope: "once",
+      source: source === "timeout" ? "policy" : "user",
+    },
+    result: {
+      answers: resolved.final.answers,
+      source,
+    },
+  });
+}
+
+function handleMultiQuestionUserInputBrokerRequest(
+  workerRequestId: string,
+  request: MultiQuestionUserInputRequest,
+): void {
+  if (!agentProcess || !store) return;
+  const thread = store.getThread(request.threadId);
+  if (
+    !thread ||
+    cancellingTurns.has(request.threadId) ||
+    activeTurns.get(request.threadId) !== request.turnId ||
+    thread.mode !== request.mode
+  ) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "User input requires the active task turn.",
+    );
+    return;
+  }
+  const questionIds = new Set<string>();
+  const invalidQuestion = request.questions.some((question) => {
+    if (
+      !question.questionId ||
+      questionIds.has(question.questionId) ||
+      question.options.length < 2 ||
+      question.options.length > 3 ||
+      question.options.filter((option) => option.recommended).length !== 1
+    ) {
+      return true;
+    }
+    questionIds.add(question.questionId);
+    return false;
+  });
+  if (
+    request.questions.length < 1 ||
+    request.questions.length > MAX_USER_INPUT_QUESTIONS ||
+    invalidQuestion
+  ) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "User input requires one to three unique questions with two or three options and one recommendation each.",
+    );
+    return;
+  }
+
+  const nonce = randomUUID();
+  const requestedAt = Date.now();
+  let payload: ReturnType<
+    typeof userInputMultiQuestionRequestedPayloadSchema.parse
+  >;
+  try {
+    payload = userInputMultiQuestionRequestedPayloadSchema.parse({
+      type: "user-input.requested",
+      kind: "multi-question",
+      requestId: request.approvalId,
+      nonce,
+      header: request.header,
+      questions: request.questions.map((question) => ({
+        questionId: question.questionId,
+        question: question.question,
+        options: question.options,
+        expiresAt: new Date(
+          requestedAt + USER_INPUT_TIMEOUT_MILLISECONDS,
+        ).toISOString(),
+      })),
+    });
+  } catch (error) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      error instanceof Error ? error.message : "User input is invalid.",
+    );
+    return;
+  }
+  // Per-question timers (independent five-minute clocks): each expiry
+  // resolves only its own question with its own recommended label; the
+  // reducer's reverse time gate (timestamp >= expiresAt) accepts exactly
+  // these events.
+  const timeouts = new Map<string, ReturnType<typeof setTimeout>>();
+  for (const question of payload.questions) {
+    timeouts.set(
+      question.questionId,
+      setTimeout(() => {
+        try {
+          completeMultiUserInputQuestion(
+            request.approvalId,
+            nonce,
+            question.questionId,
+            "timeout",
+          );
+        } catch (error) {
+          diagnosticBundleService?.record({
+            source: "main",
+            severity: "error",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Timed-out user input could not be resolved.",
+          });
+        }
+      }, USER_INPUT_TIMEOUT_MILLISECONDS),
+    );
+  }
+  pendingMultiUserInputs.register({
+    requestId: request.approvalId,
+    nonce,
+    questions: payload.questions.map((question) => ({
+      questionId: question.questionId,
+      options: question.options,
+    })),
+    value: { workerRequestId, request, timeouts },
   });
   emitPayload(request.threadId, request.turnId, payload);
 }
@@ -5548,6 +5772,39 @@ async function cancelTaskTurn(threadId: string): Promise<void> {
   );
   for (const cancelled of cancelledUserInputs) {
     clearTimeout(cancelled.value.timeout);
+    emitPayload(
+      cancelled.value.request.threadId,
+      cancelled.value.request.turnId,
+      {
+        type: "user-input.resolved",
+        requestId: cancelled.requestId,
+        nonce: cancelled.nonce,
+        answer: "",
+        source: "cancelled",
+      },
+    );
+    agentProcess.post({
+      type: "broker.resolve",
+      requestId: cancelled.value.workerRequestId,
+      resolution: {
+        approvalId: cancelled.requestId,
+        nonce: cancelled.nonce,
+        approved: false,
+        scope: "once",
+        source: "user",
+      },
+      error: "The turn was cancelled.",
+    });
+  }
+  const cancelledMultiUserInputs = pendingMultiUserInputs.cancelWhere(
+    (pending) => pending.request.threadId === thread.id,
+  );
+  for (const cancelled of cancelledMultiUserInputs) {
+    for (const timeout of cancelled.value.timeouts.values()) {
+      clearTimeout(timeout);
+    }
+    // Kind-less cancelled resolution: the reducer's translation layer closes
+    // every still-pending question; the agent-host must not hang waiting.
     emitPayload(
       cancelled.value.request.threadId,
       cancelled.value.request.turnId,
@@ -13967,6 +14224,11 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   for (const pending of pendingUserInputs.cancelWhere(() => true)) {
     clearTimeout(pending.value.timeout);
+  }
+  for (const pending of pendingMultiUserInputs.cancelWhere(() => true)) {
+    for (const timeout of pending.value.timeouts.values()) {
+      clearTimeout(timeout);
+    }
   }
   automationScheduler?.stop();
   stopAgentCapacityMonitoring();
