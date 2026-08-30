@@ -11,7 +11,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
@@ -156,10 +156,6 @@ try {
       );
     }
 
-    const screenshotSizes = [];
-    for (const artifactPath of expectedScreenshots) {
-      screenshotSizes.push((await stat(artifactPath)).size);
-    }
     const audit = JSON.parse(await readFile(accessibilityPath, "utf8"));
     const inputFields = audit.inputFields;
     const probe = inputFields?.probe ?? null;
@@ -201,17 +197,6 @@ try {
           unexpectedRunRootEntries,
         )}. Electron user data must stay inside the user-data subtree.`,
       );
-    }
-    if (
-      !assert(
-        "screenshots-not-empty",
-        screenshotSizes.length === expectedScreenshots.length &&
-          screenshotSizes.every((bytes) => bytes > 10_000),
-        screenshotSizes,
-        `${expectedScreenshots.length} screenshots > 10000 bytes`,
-      ).pass
-    ) {
-      throw new Error(`${caseId} produced an unexpectedly small screenshot.`);
     }
     if (
       !assert(
@@ -312,6 +297,32 @@ try {
         expected: { tabIndex: 0, tabOrderIndex: ">= 0" },
       },
     ]);
+    // Screenshot artifacts are only statted after the semantic keyboard
+    // gates above: a failed Tab traversal must surface as its named
+    // assertion (with the probe evidence) instead of a bare ENOENT from
+    // stat() running before the assertion chain.
+    const screenshotSizes = [];
+    for (const artifactPath of expectedScreenshots) {
+      try {
+        screenshotSizes.push((await stat(artifactPath)).size);
+      } catch {
+        const artifactName = basename(artifactPath);
+        throw new Error(
+          `${caseId} exited cleanly without writing screenshot artifact ${artifactName}; the evidence driver likely stopped before capturing it.`,
+        );
+      }
+    }
+    if (
+      !assert(
+        "screenshots-not-empty",
+        screenshotSizes.length === expectedScreenshots.length &&
+          screenshotSizes.every((bytes) => bytes > 10_000),
+        screenshotSizes,
+        `${expectedScreenshots.length} screenshots > 10000 bytes`,
+      ).pass
+    ) {
+      throw new Error(`${caseId} produced an unexpectedly small screenshot.`);
+    }
     if (id === "input-fields-automations-once") {
       const preSubmit = probe?.busy?.preSubmit ?? null;
       keyboardChain([
@@ -529,7 +540,7 @@ try {
       theme,
       scenario,
       screenshots: expectedScreenshots.map((artifactPath) =>
-        artifactPath.split("/").pop(),
+        basename(artifactPath),
       ),
       screenshotBytes: screenshotSizes,
       assertions,

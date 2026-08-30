@@ -86,7 +86,11 @@ function savedAutomation(): Automation {
     mode: "review",
     target: "local",
     schedule: {
-      kind: "daily",
+      // The UI "Every day" preset persists as the protocol's real weekly
+      // shape with all seven days (AutomationPage scheduleForDraft), so this
+      // fixture mirrors the persisted record; the protocol never had a
+      // "daily" schedule kind.
+      kind: "weekly",
       daysOfWeek: [1, 2, 3, 4, 5, 6, 7],
       localTime: "09:00",
       timeZone: "UTC",

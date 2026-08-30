@@ -10510,6 +10510,12 @@ async function driveSmokeInputFieldsEvidence(
     })()`);
     return;
   }
+  // An input-fields-* view without a driver branch must fail loudly here:
+  // a silent return would exit clean with no probe written, and the verify
+  // script would only report missing audit data far away from the cause.
+  throw new Error(
+    `Unknown input-fields smoke view: ${view}. Implemented views are input-fields-automations-once and input-fields-settings-avatar.`,
+  );
 }
 
 async function seedSmokeEnvironmentFixture(): Promise<void> {

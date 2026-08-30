@@ -8718,6 +8718,9 @@ button.sources-panel-entry.attachment:focus-visible {
   width: 1px;
 }
 
+/* Known tradeoff: the sr-only file input never matches :focus-visible for
+   mouse activation, so :focus-within paints this ring for mouse clicks on
+   the label and keyboard focus alike. */
 .settings-profile-avatar-actions
   > label.settings-secondary-action:focus-within {
   outline: 2px solid var(--blue);
