@@ -380,23 +380,38 @@ export const userInputSingleQuestionRequestedPayloadSchema = z
     question: z.string().trim().min(1).max(1_000),
     options: userInputOptionsSchema,
     expiresAt: z.string().datetime({ offset: true }),
+    // Declared so the superRefine below can observe the key. Strip (not
+    // strict) semantics keep legacy logs replayable: rows persisted by older
+    // builds may carry keys this schema no longer knows, and the single
+    // write-side gate (store appendEventsCore) already strips unknown keys
+    // when events are first persisted.
+    questions: z.unknown().optional(),
   })
-  .strict();
+  .superRefine((payload, context) => {
+    // Routing-hole guard: a payload carrying multi-question content must not
+    // be silently accepted as single-question with its questions array
+    // stripped.
+    if (payload.questions !== undefined) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Single-question user-input requests must not carry a questions array",
+      });
+    }
+  });
 export const userInputRequestedPayloadSchema =
   userInputSingleQuestionRequestedPayloadSchema;
 export type UserInputRequestedPayload = Omit<
   z.infer<typeof userInputRequestedPayloadSchema>,
-  "kind"
+  "kind" | "questions"
 >;
 
-export const userInputQuestionSchema = z
-  .object({
-    questionId: z.string().min(1).max(USER_INPUT_QUESTION_ID_MAX_LENGTH),
-    question: z.string().trim().min(1).max(1_000),
-    options: userInputOptionsSchema,
-    expiresAt: z.string().datetime({ offset: true }),
-  })
-  .strict();
+export const userInputQuestionSchema = z.object({
+  questionId: z.string().min(1).max(USER_INPUT_QUESTION_ID_MAX_LENGTH),
+  question: z.string().trim().min(1).max(1_000),
+  options: userInputOptionsSchema,
+  expiresAt: z.string().datetime({ offset: true }),
+});
 export type UserInputQuestion = z.infer<typeof userInputQuestionSchema>;
 
 export const userInputMultiQuestionRequestedPayloadSchema = z
@@ -411,7 +426,6 @@ export const userInputMultiQuestionRequestedPayloadSchema = z
       .min(1)
       .max(MAX_USER_INPUT_QUESTIONS),
   })
-  .strict()
   .superRefine((payload, context) => {
     const questionIds = payload.questions.map(
       (question) => question.questionId,
@@ -427,22 +441,20 @@ export type UserInputMultiQuestionRequestedPayload = z.infer<
   typeof userInputMultiQuestionRequestedPayloadSchema
 >;
 
-export const userInputSingleQuestionResolvedPayloadSchema = z
-  .object({
-    type: z.literal("user-input.resolved"),
-    kind: z.literal("single-question").optional(),
-    requestId: z.string().min(1),
-    nonce: z.string().min(16),
-    answer: z.string().max(2_000),
-    selectedOption: z
-      .number()
-      .int()
-      .min(0)
-      .max(USER_INPUT_MAX_OPTIONS - 1)
-      .optional(),
-    source: z.enum(["user", "timeout", "cancelled"]),
-  })
-  .strict();
+export const userInputSingleQuestionResolvedPayloadSchema = z.object({
+  type: z.literal("user-input.resolved"),
+  kind: z.literal("single-question").optional(),
+  requestId: z.string().min(1),
+  nonce: z.string().min(16),
+  answer: z.string().max(2_000),
+  selectedOption: z
+    .number()
+    .int()
+    .min(0)
+    .max(USER_INPUT_MAX_OPTIONS - 1)
+    .optional(),
+  source: z.enum(["user", "timeout", "cancelled"]),
+});
 export const userInputResolvedPayloadSchema =
   userInputSingleQuestionResolvedPayloadSchema;
 export type UserInputResolvedPayload = Omit<
@@ -461,7 +473,6 @@ export const userInputMultiQuestionResolvedPayloadSchema = z
     customAnswer: z.string().trim().min(1).max(2_000).optional(),
     source: z.enum(["user", "timeout", "cancelled"]),
   })
-  .strict()
   .superRefine((payload, context) => {
     if (
       (payload.selectedOption === undefined) ===

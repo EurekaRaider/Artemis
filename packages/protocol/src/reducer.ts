@@ -16,6 +16,7 @@ import type {
   UserInputMultiQuestionResolvedPayload,
   UserInputQuestion,
   UserInputRequestedPayload,
+  UserInputResolvedPayload,
 } from "./schema.js";
 import { isLegacyInternalAgentMessage } from "./internal-messages.js";
 
@@ -42,6 +43,10 @@ export interface ApprovalState extends ApprovalRequestedPayload {
 }
 
 export interface UserInputState extends UserInputRequestedPayload {
+  // Unified discriminant: kind-ed producers set it explicitly; kind-less
+  // (legacy) states leave it undefined and stay discriminated by the
+  // duck-typed "questions" key check below.
+  kind?: "single-question" | "multi-question" | undefined;
   status: "pending" | "answered" | "timed-out" | "cancelled";
   answer?: string;
   selectedOption?: number;
@@ -267,13 +272,22 @@ function clearThinkingParts(
   state.order = state.order.filter((entry) => !thinkingEntries.has(entry));
 }
 
-function multiQuestionFingerprint(questions: UserInputQuestion[]): string {
+function multiQuestionFingerprint(request: {
+  nonce: string;
+  header: string;
+  questions: UserInputQuestion[];
+}): string {
   // Deterministic, collision-free serialization of the full request content.
   // Joining IDs with a separator string could collide (an ID containing the
   // separator), so canonicalize each question with JSON.stringify instead;
-  // sorting makes the fingerprint independent of question order.
-  return JSON.stringify(
-    questions
+  // sorting makes the fingerprint independent of question order. The request
+  // nonce and header are part of the identity: a resend carrying identical
+  // questions but a different nonce or header is a new request, not a true
+  // replay, and must fail closed so the persisted state stays authoritative.
+  return JSON.stringify({
+    nonce: request.nonce,
+    header: request.header,
+    questions: request.questions
       .map((question) => ({
         questionId: question.questionId,
         question: question.question,
@@ -287,7 +301,7 @@ function multiQuestionFingerprint(questions: UserInputQuestion[]): string {
             ? 1
             : 0,
       ),
-  );
+  });
 }
 
 function multiQuestionAggregateStatus(
@@ -335,15 +349,15 @@ function applyMultiQuestionResolution(
   state: ThreadViewState,
   event: AgentEvent,
   payload: UserInputMultiQuestionResolvedPayload,
-): void {
+): boolean {
   const input = state.userInputs[payload.requestId];
-  if (!input || !("questions" in input)) return;
+  if (!input || !("questions" in input)) return false;
   const question = input.questions.find(
     (candidate) => candidate.questionId === payload.questionId,
   );
-  if (!question) return;
+  if (!question) return false;
   const current = input.answers[payload.questionId];
-  if (current && current.status !== "pending") return;
+  if (current && current.status !== "pending") return false;
   if (payload.source === "user") {
     const resolvedAtMs = Date.parse(event.timestamp);
     const expiresAtMs = Date.parse(question.expiresAt);
@@ -351,18 +365,18 @@ function applyMultiQuestionResolution(
     // always false; fail closed by treating any non-finite parse as already
     // expired so the resolution is dropped.
     if (!Number.isFinite(resolvedAtMs) || !Number.isFinite(expiresAtMs)) {
-      return;
+      return false;
     }
     // Only user answers are rejected after the expiry. Timeout and cancelled
     // resolutions are emitted by design once the deadline has passed (a timer
     // fires at or after expiresAt), so they must still close the question.
-    if (resolvedAtMs > expiresAtMs) return;
+    if (resolvedAtMs > expiresAtMs) return false;
   }
   if (
     payload.selectedOption !== undefined &&
     !question.options.some((option) => option.label === payload.selectedOption)
   ) {
-    return;
+    return false;
   }
   const answer = payload.customAnswer ?? payload.selectedOption;
   const next: MultiQuestionUserInputState = {
@@ -386,6 +400,34 @@ function applyMultiQuestionResolution(
   next.status = multiQuestionAggregateStatus(next);
   syncMultiQuestionLegacyView(next);
   state.userInputs[payload.requestId] = next;
+  return true;
+}
+
+// Translates a legacy (kind-less) cancelled/timeout resolution into a
+// whole-card close: every still-pending question is closed with the status
+// mapped from the source, answered questions keep their answers, and the
+// aggregate status is recomputed. Returns whether any question changed.
+function applyLegacyMultiQuestionClose(
+  state: ThreadViewState,
+  payload: UserInputResolvedPayload,
+): boolean {
+  const closeStatus = payload.source === "timeout" ? "timed-out" : "cancelled";
+  const input = state.userInputs[payload.requestId];
+  if (!input || !("questions" in input)) return false;
+  let changed = false;
+  const answers: Record<string, UserInputQuestionState> = { ...input.answers };
+  for (const question of input.questions) {
+    const current = answers[question.questionId];
+    if (current && current.status !== "pending") continue;
+    answers[question.questionId] = { status: closeStatus };
+    changed = true;
+  }
+  if (!changed) return false;
+  const next: MultiQuestionUserInputState = { ...input, answers };
+  next.status = multiQuestionAggregateStatus(next);
+  syncMultiQuestionLegacyView(next);
+  state.userInputs[payload.requestId] = next;
+  return true;
 }
 
 function pendingInteractionStatus(
@@ -577,16 +619,17 @@ function applyAgentPayload(
         if (existing) {
           if (
             "questions" in existing &&
-            multiQuestionFingerprint(existing.questions) ===
-              multiQuestionFingerprint(payload.questions)
+            multiQuestionFingerprint(existing) ===
+              multiQuestionFingerprint(payload)
           ) {
-            // True replay of identical content: complete no-op so
-            // already-collected answers survive instead of being reset.
+            // True replay of identical content (same questions, request
+            // nonce, and header): complete no-op so already-collected
+            // answers survive instead of being reset.
             return;
           }
           // Reusing the requestId with different content (different question
-          // IDs, options, or expiry — including sets that only appear equal
-          // through separator-embedded IDs) or over an existing
+          // IDs, options, expiry, nonce, or header — including sets that only
+          // appear equal through separator-embedded IDs) or over an existing
           // single-question input: fail closed and keep the current state.
           return;
         }
@@ -630,18 +673,33 @@ function applyAgentPayload(
         ) {
           return;
         }
-        applyMultiQuestionResolution(state, event, payload);
-        state.status = pendingInteractionStatus(state);
+        // Recalculate the thread status only when the resolution actually
+        // changed question state: a discarded resolution (expired, unknown
+        // question, already answered, or aimed at a single-question request)
+        // must not resurrect waiting-user-input or flip an idle thread back
+        // to running.
+        if (applyMultiQuestionResolution(state, event, payload)) {
+          state.status = pendingInteractionStatus(state);
+        }
         return;
       }
       const input = state.userInputs[payload.requestId];
       if (input && "questions" in input) {
-        // Fail-closed guard: legacy (kind-less) resolutions are still emitted
-        // by cancel and crash-restore paths. When one collides with a
-        // multi-question request, drop it whole — state and thread status
-        // untouched — so the input cannot become a top-level-cancelled +
-        // answers-pending hybrid that a late per-question resolution would
-        // flip back to waiting-user-input.
+        // Legacy (kind-less) resolutions are still emitted by the
+        // crash-restore (store), turn-cancellation, and host-exit paths.
+        // Bind the nonce first: a resolution whose nonce does not match the
+        // request is discarded whole. Then translate by source — cancelled
+        // and timeout resolutions close every still-pending question (a
+        // whole-card terminal state that per-question payloads cannot
+        // express), while a "user" answer cannot be mapped onto individual
+        // questions and is still dropped whole. The translation never
+        // touches the top-level answer, so no mixed
+        // top-level-cancelled + answers-pending state can result.
+        if (input.nonce !== payload.nonce) return;
+        if (payload.source === "user") return;
+        if (applyLegacyMultiQuestionClose(state, payload)) {
+          state.status = pendingInteractionStatus(state);
+        }
         return;
       }
       if (input) {

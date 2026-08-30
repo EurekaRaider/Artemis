@@ -83,6 +83,49 @@ function multiResolved(
   };
 }
 
+const SINGLE_QUESTION = "Which target should be optimized first?";
+const SINGLE_OPTIONS = [
+  {
+    label: "Whole sweep",
+    description: "Optimize end-to-end runtime.",
+    recommended: true,
+  },
+  {
+    label: "Single point",
+    description: "Optimize latency for one point.",
+    recommended: false,
+  },
+];
+
+function singleRequested(
+  requestId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    type: "user-input.requested" as const,
+    requestId,
+    nonce: NONCE,
+    header: "Scope",
+    question: SINGLE_QUESTION,
+    options: SINGLE_OPTIONS,
+    expiresAt: EXPIRES_AT,
+    ...overrides,
+  };
+}
+
+function legacyKindlessResolved(
+  requestId: string,
+  source: "user" | "timeout" | "cancelled",
+) {
+  return {
+    type: "user-input.resolved" as const,
+    requestId,
+    nonce: NONCE,
+    answer: source === "user" ? "all of them" : "",
+    source,
+  };
+}
+
 function asMulti(input: unknown): MultiQuestionUserInputState {
   return input as MultiQuestionUserInputState;
 }
@@ -434,7 +477,9 @@ describe("multi-question user input contract", () => {
       ),
     ]);
     expect(state.userInputs["input-1"]).toBeUndefined();
-    expect(state.status).toBe("running");
+    // A discarded resolution no longer recalculates thread status, so a
+    // fresh thread stays idle instead of being flipped to running.
+    expect(state.status).toBe("idle");
   });
 
   it("fails closed on answers that arrive after the question expiry", () => {
@@ -770,7 +815,125 @@ describe("multi-question user input contract", () => {
     expect(input.status).toBe("pending");
     expect(state.status).toBe("waiting-user-input");
   });
-  it("drops legacy kind-less resolutions against multi-question state", () => {
+  it("translates legacy kind-less cancellations into whole-card closes", () => {
+    // Crash recovery (store.ts) synthesizes { answer: "", source: "cancelled" }
+    // without a kind discriminator; the reducer must translate it into closing
+    // every still-pending question instead of dropping the event and leaving
+    // the card suspended forever.
+    const base = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [
+          question("q1"),
+          question("q2"),
+          question("q3"),
+        ]) as AgentEvent["payload"],
+      ),
+      event(
+        "ans-1",
+        2,
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
+      ),
+    ]);
+    expect(base.status).toBe("waiting-user-input");
+
+    const recovered = reduceAgentEvent(
+      base,
+      event(
+        "legacy-cancel",
+        3,
+        legacyKindlessResolved("input-1", "cancelled") as AgentEvent["payload"],
+      ),
+    );
+    const input = asMulti(recovered.userInputs["input-1"]);
+    expect(input.answers["q1"]).toMatchObject({
+      status: "answered",
+      answer: "option-q1-a",
+    });
+    expect(input.answers["q2"]).toMatchObject({ status: "cancelled" });
+    expect(input.answers["q3"]).toMatchObject({ status: "cancelled" });
+    expect(input.status).toBe("cancelled");
+    expect("answer" in input).toBe(false);
+    expect(recovered.status).toBe("running");
+
+    const late = reduceAgentEvent(
+      recovered,
+      event(
+        "ans-late",
+        4,
+        multiResolved("input-1", "q2", {
+          selectedOption: "option-q2-a",
+        }) as AgentEvent["payload"],
+      ),
+    );
+    expect(late.userInputs["input-1"]).toBe(recovered.userInputs["input-1"]);
+    expect(late.status).toBe("running");
+  });
+
+  it("translates turn cancellations and kind-less timeouts the same way", () => {
+    const base = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [
+          question("q1"),
+          question("q2"),
+          question("q3"),
+        ]) as AgentEvent["payload"],
+      ),
+      event(
+        "ans-1",
+        2,
+        multiResolved("input-1", "q2", {
+          selectedOption: "option-q2-a",
+        }) as AgentEvent["payload"],
+      ),
+    ]);
+
+    // The turn-cancellation path (main.ts) emits the same kind-less
+    // cancelled shape as crash recovery.
+    const turnCancelled = reduceAgentEvent(
+      base,
+      event(
+        "turn-cancel",
+        3,
+        legacyKindlessResolved("input-1", "cancelled") as AgentEvent["payload"],
+        AFTER_EXPIRY,
+      ),
+    );
+    let input = asMulti(turnCancelled.userInputs["input-1"]);
+    expect(input.answers["q1"]?.status).toBe("cancelled");
+    expect(input.answers["q2"]).toMatchObject({
+      status: "answered",
+      answer: "option-q2-a",
+    });
+    expect(input.answers["q3"]?.status).toBe("cancelled");
+    expect(input.status).toBe("cancelled");
+    expect(turnCancelled.status).toBe("running");
+
+    // Kind-less timeouts map to timed-out even though they fire after the
+    // deadline by design.
+    const timedOut = reduceAgentEvent(
+      base,
+      event(
+        "legacy-timeout",
+        4,
+        legacyKindlessResolved("input-1", "timeout") as AgentEvent["payload"],
+        AFTER_EXPIRY,
+      ),
+    );
+    input = asMulti(timedOut.userInputs["input-1"]);
+    expect(input.answers["q1"]?.status).toBe("timed-out");
+    expect(input.answers["q3"]?.status).toBe("timed-out");
+    expect(input.answers["q2"]?.status).toBe("answered");
+    expect(input.status).toBe("timed-out");
+    expect(timedOut.status).toBe("running");
+  });
+
+  it("drops kind-less cancellations bound to a different nonce", () => {
     const base = reduceAgentEvents("thread-1", [
       event(
         "req-1",
@@ -781,35 +944,42 @@ describe("multi-question user input contract", () => {
         ]) as AgentEvent["payload"],
       ),
     ]);
-    const cancelled = reduceAgentEvent(
+    const forged = reduceAgentEvent(
       base,
-      event("legacy-cancel", 2, {
-        type: "user-input.resolved",
-        requestId: "input-1",
-        nonce: NONCE,
-        answer: "",
-        source: "cancelled",
+      event("legacy-cancel-forged", 2, {
+        ...legacyKindlessResolved("input-1", "cancelled"),
+        nonce: "ffffffffffffffff",
       } as AgentEvent["payload"]),
     );
-    const input = asMulti(cancelled.userInputs["input-1"]);
-    expect(input.status).toBe("pending");
-    expect(input.answers["q1"]?.status).toBe("pending");
-    expect(input.answers["q2"]?.status).toBe("pending");
-    expect(cancelled.status).toBe("waiting-user-input");
+    expect(forged.userInputs["input-1"]).toBe(base.userInputs["input-1"]);
+    expect(asMulti(forged.userInputs["input-1"]).status).toBe("pending");
+    expect(forged.status).toBe("waiting-user-input");
+  });
 
-    const late = reduceAgentEvent(
-      cancelled,
+  it("still drops kind-less user answers against multi-question state", () => {
+    const base = reduceAgentEvents("thread-1", [
       event(
-        "ans-late",
-        3,
-        multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
-        }) as AgentEvent["payload"],
+        "req-1",
+        1,
+        multiRequested("input-1", [
+          question("q1"),
+          question("q2"),
+        ]) as AgentEvent["payload"],
+      ),
+    ]);
+    const userAnswer = reduceAgentEvent(
+      base,
+      event(
+        "legacy-user",
+        2,
+        legacyKindlessResolved("input-1", "user") as AgentEvent["payload"],
       ),
     );
-    expect(asMulti(late.userInputs["input-1"]).answers["q1"]?.status).toBe(
-      "answered",
-    );
+    expect(userAnswer.userInputs["input-1"]).toBe(base.userInputs["input-1"]);
+    expect(
+      asMulti(userAnswer.userInputs["input-1"]).answers["q1"]?.status,
+    ).toBe("pending");
+    expect(userAnswer.status).toBe("waiting-user-input");
   });
 
   it("keeps multi-question state when a legacy kind-less requested reuses the requestId", () => {
@@ -994,5 +1164,295 @@ describe("multi-question user input contract", () => {
     expect(
       asMulti(malformedEventTime.userInputs["input-1"]).answers["q1"]?.status,
     ).toBe("pending");
+  });
+
+  it("keeps the thread idle when late multi resolutions are discarded", () => {
+    const buildClosed = () =>
+      reduceAgentEvents("thread-1", [
+        event(
+          "req-1",
+          1,
+          multiRequested("input-1", [
+            question("q1"),
+            question("q2"),
+          ]) as AgentEvent["payload"],
+        ),
+        event(
+          "ans-1",
+          2,
+          multiResolved("input-1", "q1", {
+            selectedOption: "option-q1-a",
+          }) as AgentEvent["payload"],
+        ),
+        event("turn-1", 3, {
+          type: "turn.completed",
+          reason: "completed",
+        } as AgentEvent["payload"]),
+      ]);
+
+    const lateResolutions = [
+      {
+        label: "expired user answer",
+        payload: multiResolved("input-1", "q2", {
+          selectedOption: "option-q2-a",
+        }),
+        timestamp: AFTER_EXPIRY,
+      },
+      {
+        label: "unknown question id",
+        payload: multiResolved("input-1", "q9", {
+          selectedOption: "option-q2-a",
+        }),
+        timestamp: REQUESTED_AT,
+      },
+      {
+        label: "already answered question",
+        payload: multiResolved("input-1", "q1", {
+          customAnswer: "A different answer",
+        }),
+        timestamp: REQUESTED_AT,
+      },
+    ];
+    for (const { label, payload, timestamp } of lateResolutions) {
+      const closed = buildClosed();
+      expect(closed.status, label).toBe("idle");
+      const replayed = reduceAgentEvent(
+        closed,
+        event(`late-${label}`, 4, payload as AgentEvent["payload"], timestamp),
+      );
+      expect(replayed.status, label).toBe("idle");
+      expect(replayed.userInputs["input-1"], label).toBe(
+        closed.userInputs["input-1"],
+      );
+    }
+  });
+
+  it("fails closed on re-requests carrying a different nonce or header", () => {
+    const base = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [
+          question("q1"),
+          question("q2"),
+        ]) as AgentEvent["payload"],
+      ),
+      event(
+        "ans-1",
+        2,
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
+      ),
+    ]);
+
+    const differentNonce = reduceAgentEvent(
+      base,
+      event("req-2", 3, {
+        ...multiRequested("input-1", [question("q1"), question("q2")]),
+        nonce: "ffffffffffffffff",
+      } as AgentEvent["payload"]),
+    );
+    expect(differentNonce.userInputs["input-1"]).toBe(
+      base.userInputs["input-1"],
+    );
+    expect(
+      asMulti(differentNonce.userInputs["input-1"]).answers["q1"]?.status,
+    ).toBe("answered");
+
+    // The state's nonce stays authoritative: the replayed nonce never
+    // resolves the card, the original nonce still does.
+    const replayedNonceResolution = reduceAgentEvent(
+      differentNonce,
+      event("ans-2", 4, {
+        ...multiResolved("input-1", "q2", { selectedOption: "option-q2-a" }),
+        nonce: "ffffffffffffffff",
+      } as AgentEvent["payload"]),
+    );
+    expect(
+      asMulti(replayedNonceResolution.userInputs["input-1"]).answers["q2"]
+        ?.status,
+    ).toBe("pending");
+    const originalNonceResolution = reduceAgentEvent(
+      replayedNonceResolution,
+      event(
+        "ans-3",
+        5,
+        multiResolved("input-1", "q2", {
+          selectedOption: "option-q2-a",
+        }) as AgentEvent["payload"],
+      ),
+    );
+    expect(
+      asMulti(originalNonceResolution.userInputs["input-1"]).answers["q2"]
+        ?.status,
+    ).toBe("answered");
+
+    const differentHeader = reduceAgentEvent(
+      base,
+      event("req-3", 6, {
+        ...multiRequested("input-1", [question("q1"), question("q2")]),
+        header: "Timing",
+      } as AgentEvent["payload"]),
+    );
+    expect(differentHeader.userInputs["input-1"]).toBe(
+      base.userInputs["input-1"],
+    );
+    expect(asMulti(differentHeader.userInputs["input-1"]).header).toBe("Scope");
+  });
+
+  it("aggregates mixed per-question statuses with a deterministic priority", () => {
+    const answeredPlusCancelled = reduceAgentEvents("thread-1", [
+      event(
+        "req-1",
+        1,
+        multiRequested("input-1", [
+          question("q1"),
+          question("q2"),
+        ]) as AgentEvent["payload"],
+      ),
+      event(
+        "ans-1",
+        2,
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
+      ),
+      event(
+        "cancel-1",
+        3,
+        multiResolved(
+          "input-1",
+          "q2",
+          { selectedOption: "option-q2-a" },
+          "cancelled",
+        ) as AgentEvent["payload"],
+      ),
+    ]);
+    expect(asMulti(answeredPlusCancelled.userInputs["input-1"]).status).toBe(
+      "cancelled",
+    );
+
+    const timedOutPlusCancelled = reduceAgentEvents("thread-1", [
+      event(
+        "req-2",
+        1,
+        multiRequested("input-2", [
+          question("q1"),
+          question("q2"),
+        ]) as AgentEvent["payload"],
+      ),
+      event(
+        "timeout-1",
+        2,
+        multiResolved(
+          "input-2",
+          "q1",
+          { selectedOption: "option-q1-a" },
+          "timeout",
+        ) as AgentEvent["payload"],
+      ),
+      event(
+        "cancel-1",
+        3,
+        multiResolved(
+          "input-2",
+          "q2",
+          { selectedOption: "option-q2-a" },
+          "cancelled",
+        ) as AgentEvent["payload"],
+      ),
+    ]);
+    expect(asMulti(timedOutPlusCancelled.userInputs["input-2"]).status).toBe(
+      "timed-out",
+    );
+  });
+
+  it("ignores multi-question resolutions aimed at single-question requests", () => {
+    const base = reduceAgentEvents("thread-1", [
+      event("req-1", 1, singleRequested("input-1") as AgentEvent["payload"]),
+    ]);
+    expect(base.status).toBe("waiting-user-input");
+
+    const misrouted = reduceAgentEvent(
+      base,
+      event(
+        "ans-1",
+        2,
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
+      ),
+    );
+    expect(misrouted.userInputs["input-1"]).toBe(base.userInputs["input-1"]);
+    expect(misrouted.userInputs["input-1"]?.status).toBe("pending");
+    expect("questions" in (misrouted.userInputs["input-1"] ?? {})).toBe(false);
+    expect(misrouted.status).toBe("waiting-user-input");
+  });
+
+  it("rejects single-question requests that smuggle questions but strips unknown legacy keys", () => {
+    const hybrid = agentPayloadSchema.safeParse({
+      ...singleRequested("input-1"),
+      questions: [question("q1")],
+    });
+    expect(hybrid.success).toBe(false);
+
+    const kindlessSingle = agentPayloadSchema.safeParse({
+      ...singleRequested("input-2"),
+      kind: "single-question",
+      questions: [question("q1")],
+    });
+    expect(kindlessSingle.success).toBe(false);
+
+    for (const payload of [
+      { ...singleRequested("input-3"), legacyExtra: "tolerated" },
+      {
+        ...multiRequested("input-4", [question("q1")]),
+        legacyExtra: "tolerated",
+      },
+      {
+        ...multiResolved("input-4", "q1", { selectedOption: "option-q1-a" }),
+        legacyExtra: "tolerated",
+      },
+      {
+        type: "user-input.resolved",
+        requestId: "input-3",
+        nonce: NONCE,
+        answer: "Whole sweep",
+        source: "user",
+        legacyExtra: "tolerated",
+      },
+    ]) {
+      const parsed = agentPayloadSchema.safeParse(payload);
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect("legacyExtra" in (parsed.data as object)).toBe(false);
+      }
+    }
+  });
+
+  it("carries the kind discriminant on user input states", () => {
+    const state = reduceAgentEvents("thread-1", [
+      event(
+        "req-legacy",
+        1,
+        singleRequested("legacy-1") as AgentEvent["payload"],
+      ),
+      event(
+        "req-single",
+        2,
+        singleRequested("single-1", {
+          kind: "single-question",
+        }) as AgentEvent["payload"],
+      ),
+      event(
+        "req-multi",
+        3,
+        multiRequested("multi-1", [question("q1")]) as AgentEvent["payload"],
+      ),
+    ]);
+    expect(state.userInputs["legacy-1"]?.kind).toBeUndefined();
+    expect(state.userInputs["single-1"]?.kind).toBe("single-question");
+    expect(state.userInputs["multi-1"]?.kind).toBe("multi-question");
   });
 });
