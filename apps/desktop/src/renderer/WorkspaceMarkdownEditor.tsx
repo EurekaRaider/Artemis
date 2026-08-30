@@ -1,12 +1,18 @@
-import { useCallback, useState, type KeyboardEvent } from "react";
+import { useCallback, useState } from "react";
 
 import { MarkdownContent } from "./MarkdownContent.js";
+import {
+  WorkspaceEditorToolbar,
+  type WorkspaceEditorView,
+} from "./WorkspaceEditorToolbar.js";
 
 interface WorkspaceMarkdownEditorProps {
   ariaLabel: string;
   content: string;
   dirty: boolean;
+  imageFailureText?: string;
   path: string;
+  readOnly?: boolean;
   richLabel: string;
   saveError: string | undefined;
   saveLabel: string;
@@ -24,7 +30,9 @@ export function WorkspaceMarkdownEditor({
   ariaLabel,
   content,
   dirty,
+  imageFailureText,
   path,
+  readOnly = false,
   richLabel,
   saveError,
   saveLabel,
@@ -50,80 +58,59 @@ export function WorkspaceMarkdownEditor({
     },
     [path, threadId],
   );
-
-  const saveFromKeyboard = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-      event.preventDefault();
-      onSave();
-    }
+  // The shared toolbar owns the mode toggle; map its controlled view onto the
+  // local editing state one mode at a time.
+  const changeView = (next: WorkspaceEditorView) => {
+    if (next === "rich") setView("rich");
+    else setView("source");
   };
+
+  // exactOptionalPropertyTypes: forward saveError only when defined so the
+  // shared toolbar's optional prop stays absent rather than explicitly
+  // undefined.
+  const errorProps = saveError === undefined ? {} : { saveError };
+  // Same contract for the optional localized image-failure copy.
+  const imageProps = imageFailureText === undefined ? {} : { imageFailureText };
 
   return (
     <div className="workspace-markdown-editor">
-      <div className="workspace-file-viewer-path">
-        <span title={path}>{path}</span>
-        <span className="workspace-file-editor-actions">
-          <span
+      <WorkspaceEditorToolbar
+        dirty={dirty}
+        modeToggle={{
+          ariaLabel,
+          onChange: changeView,
+          richLabel,
+          sourceLabel,
+          value: view,
+        }}
+        path={path}
+        readOnly={readOnly}
+        {...errorProps}
+        saveLabel={saveLabel}
+        savedLabel={savedLabel}
+        saveState={saveState}
+        savingLabel={savingLabel}
+        unsavedLabel={unsavedLabel}
+        onSave={onSave}
+      >
+        {view === "rich" ? (
+          <MarkdownContent
+            className="markdown-reader-content workspace-file-markdown-preview"
+            {...imageProps}
+            resolveImage={resolveImage}
+            text={content}
+          />
+        ) : (
+          <textarea
             aria-label={ariaLabel}
-            className="workspace-markdown-mode-toggle"
-            role="group"
-          >
-            <button
-              aria-pressed={view === "rich"}
-              onClick={() => setView("rich")}
-            >
-              {richLabel}
-            </button>
-            <button
-              aria-pressed={view === "source"}
-              onClick={() => setView("source")}
-            >
-              {sourceLabel}
-            </button>
-          </span>
-          <span
-            className={
-              dirty
-                ? "workspace-file-save-state dirty"
-                : "workspace-file-save-state"
-            }
-          >
-            {saveState === "saving"
-              ? savingLabel
-              : dirty
-                ? unsavedLabel
-                : saveState === "saved"
-                  ? savedLabel
-                  : ""}
-          </span>
-          <button
-            className="workspace-file-save"
-            disabled={!dirty || saveState === "saving"}
-            onClick={onSave}
-          >
-            {saveLabel}
-          </button>
-        </span>
-      </div>
-      {saveError && (
-        <div className="workspace-file-editor-error">{saveError}</div>
-      )}
-      {view === "rich" ? (
-        <MarkdownContent
-          className="markdown-reader-content workspace-file-markdown-preview"
-          resolveImage={resolveImage}
-          text={content}
-        />
-      ) : (
-        <textarea
-          aria-label={ariaLabel}
-          className="markdown-reader-source"
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={saveFromKeyboard}
-          spellCheck={false}
-          value={content}
-        />
-      )}
+            className="markdown-reader-source"
+            disabled={readOnly}
+            onChange={(event) => onChange(event.target.value)}
+            spellCheck={false}
+            value={content}
+          />
+        )}
+      </WorkspaceEditorToolbar>
     </div>
   );
 }

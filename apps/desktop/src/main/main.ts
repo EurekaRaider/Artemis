@@ -7632,6 +7632,12 @@ function registerIpc(): void {
       if (!store) {
         throw new Error("Application store is not ready.");
       }
+      if (
+        smokeMode &&
+        process.env.ARTEMIS_SMOKE_VIEW === "markdown-editor-save-error"
+      ) {
+        throw new Error("Simulated workspace file save failure.");
+      }
       const thread = store.getThread(String(threadId ?? ""));
       if (!thread || thread.archived) {
         throw new Error("Active task not found.");
@@ -9790,6 +9796,40 @@ function seedSmokeQueuedSteerFixture(): void {
   ]);
 }
 
+function seedSmokeMarkdownEditorFixture(): void {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  const workspacePath = process.env.ARTEMIS_SMOKE_WORKSPACE;
+  if (!store || !view?.startsWith("markdown-editor") || !workspacePath) {
+    return;
+  }
+  const now = new Date().toISOString();
+  const projectId = "artemis-smoke-markdown-editor-project";
+  const threadId = "artemis-smoke-markdown-editor-thread";
+  // The verify harness owns the fixtures: ARTEMIS_SMOKE_WORKSPACE points at a
+  // throwaway directory holding NOTES.md plus the binary cover.png, so the
+  // production list/read/write/image IPC handlers exercise real files while
+  // only the save-error view is intercepted above.
+  store.upsertProject({
+    id: projectId,
+    name: "Artemis",
+    path: workspacePath,
+    createdAt: now,
+    updatedAt: now,
+  });
+  store.createThread({
+    id: threadId,
+    projectId,
+    title: "Markdown editor smoke",
+    mode: "execute",
+    target: "local",
+    status: "idle",
+    pinned: false,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
 async function seedSmokeEnvironmentFixture(): Promise<void> {
   if (!store || !process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment")) {
     return;
@@ -10390,6 +10430,179 @@ function createMainWindow(): BrowserWindow {
                       ) !== null;
                     return;
                   }
+                  return;
+                }
+                if (view.startsWith('markdown-editor')) {
+                  const waitFor = async (selector) => {
+                    const deadline = Date.now() + 5000;
+                    while (Date.now() < deadline) {
+                      const found = document.querySelector(selector);
+                      if (found) return found;
+                      await wait(100);
+                    }
+                    return null;
+                  };
+                  document.querySelector('.thread-select')?.click();
+                  await wait(400);
+                  document.querySelector('.right-sidebar-toggle')?.click();
+                  await waitFor('.workspace-tab-add');
+                  document.querySelector('.workspace-tab-add')?.click();
+                  await waitFor('.workspace-tab-menu');
+                  const filesTabButton = [
+                    ...document.querySelectorAll('.workspace-tab-menu button'),
+                  ].find((button) =>
+                    (button.textContent ?? '').trim().startsWith('Files'),
+                  );
+                  if (!filesTabButton) {
+                    throw new Error('Files tab entry did not render.');
+                  }
+                  filesTabButton.click();
+                  await waitFor('.workspace-file-tree');
+                  const treeRowFor = (fileName) =>
+                    [...document.querySelectorAll('.workspace-file-tree-row')].find(
+                      (button) => button.getAttribute('title') === fileName,
+                    );
+                  if (view === 'markdown-editor-binary') {
+                    const binaryRow = treeRowFor('cover.png');
+                    if (!binaryRow) {
+                      throw new Error('Seeded binary file did not render.');
+                    }
+                    binaryRow.click();
+                    await waitFor('.workspace-files-panel .preview-empty');
+                    return;
+                  }
+                  const markdownRow = treeRowFor('NOTES.md');
+                  if (!markdownRow) {
+                    throw new Error('Seeded markdown file did not render.');
+                  }
+                  markdownRow.click();
+                  await waitFor('.workspace-markdown-editor');
+                  await waitFor('[data-workspace-image-failed]');
+                  const openSourceView = async () => {
+                    const sourceButton = [
+                      ...document.querySelectorAll(
+                        '.workspace-editor-mode-toggle button',
+                      ),
+                    ].find(
+                      (button) =>
+                        (button.textContent ?? '').trim() === 'Source',
+                    );
+                    sourceButton?.click();
+                    await wait(300);
+                    return document.querySelector(
+                      '.workspace-markdown-editor textarea',
+                    );
+                  };
+                  const setSourceValue = async (textarea, value) => {
+                    const setter = Object.getOwnPropertyDescriptor(
+                      HTMLTextAreaElement.prototype,
+                      'value',
+                    )?.set;
+                    setter?.call(textarea, value);
+                    textarea.dispatchEvent(
+                      new Event('input', { bubbles: true }),
+                    );
+                    await wait(250);
+                  };
+                  if (view === 'markdown-editor-open') {
+                    return;
+                  }
+                  if (view === 'markdown-editor-image-failure') {
+                    document
+                      .querySelector('[data-workspace-image-failed]')
+                      ?.scrollIntoView({ block: 'center' });
+                    await wait(300);
+                    return;
+                  }
+                  if (view === 'markdown-editor-toggle') {
+                    const toggleStates = () => {
+                      const buttons = [
+                        ...document.querySelectorAll(
+                          '.workspace-editor-mode-toggle button',
+                        ),
+                      ];
+                      return {
+                        richPressed:
+                          buttons[0]?.getAttribute('aria-pressed') ?? null,
+                        sourcePressed:
+                          buttons[1]?.getAttribute('aria-pressed') ?? null,
+                        textareaPresent:
+                          document.querySelector(
+                            '.workspace-markdown-editor textarea',
+                          ) !== null,
+                        previewPresent:
+                          document.querySelector(
+                            '.workspace-file-markdown-preview',
+                          ) !== null,
+                      };
+                    };
+                    const sourceButton = [
+                      ...document.querySelectorAll(
+                        '.workspace-editor-mode-toggle button',
+                      ),
+                    ].find(
+                      (button) =>
+                        (button.textContent ?? '').trim() === 'Source',
+                    );
+                    sourceButton?.click();
+                    await wait(300);
+                    const afterSource = toggleStates();
+                    const richButton = [
+                      ...document.querySelectorAll(
+                        '.workspace-editor-mode-toggle button',
+                      ),
+                    ].find(
+                      (button) =>
+                        (button.textContent ?? '').trim() === 'Rich text',
+                    );
+                    richButton?.click();
+                    await waitFor('.workspace-file-markdown-preview');
+                    await waitFor('[data-workspace-image-failed]');
+                    const afterRich = toggleStates();
+                    sourceButton?.click();
+                    await wait(300);
+                    window.__markdownEditorToggleProbe = {
+                      afterSource,
+                      afterRich,
+                    };
+                    return;
+                  }
+                  const textarea = await openSourceView();
+                  if (!(textarea instanceof HTMLTextAreaElement)) {
+                    throw new Error('Source editing surface did not open.');
+                  }
+                  await setSourceValue(
+                    textarea,
+                    textarea.value +
+                      '\\n\\nEdited line appended by the markdown editor smoke run.',
+                  );
+                  if (view === 'markdown-editor-dirty') {
+                    return;
+                  }
+                  textarea.focus();
+                  const statusRegion = document.querySelector(
+                    '.workspace-markdown-editor .workspace-file-save-state',
+                  );
+                  window.__markdownEditorStatusTrace = [];
+                  if (statusRegion) {
+                    new MutationObserver(() => {
+                      const text = statusRegion.textContent?.trim() ?? '';
+                      const trace = window.__markdownEditorStatusTrace;
+                      if (trace[trace.length - 1] !== text) trace.push(text);
+                    }).observe(statusRegion, {
+                      childList: true,
+                      characterData: true,
+                      subtree: true,
+                    });
+                  }
+                  textarea.dispatchEvent(
+                    new KeyboardEvent('keydown', {
+                      key: 's',
+                      metaKey: true,
+                      bubbles: true,
+                    }),
+                  );
+                  await wait(1000);
                   return;
                 }
                 if (view.startsWith('turn-changes')) {
@@ -11138,6 +11351,126 @@ function createMainWindow(): BrowserWindow {
                     editTimeActions: window.__queuedSteerActions ?? null,
                     probe: window.__queuedSteerProbe ?? null,
                   },
+                  markdownEditor: (() => {
+                    const panel = document.querySelector(
+                      '.workspace-files-panel',
+                    );
+                    const editor = document.querySelector(
+                      '.workspace-markdown-editor',
+                    );
+                    const toolbar = document.querySelector(
+                      '.workspace-markdown-editor .workspace-editor-toolbar',
+                    );
+                    const status = document.querySelector(
+                      '.workspace-markdown-editor .workspace-file-save-state',
+                    );
+                    const save = document.querySelector(
+                      '.workspace-markdown-editor .workspace-file-save',
+                    );
+                    const alert = document.querySelector(
+                      '.workspace-markdown-editor .workspace-file-editor-error[role="alert"]',
+                    );
+                    const textarea = document.querySelector(
+                      '.workspace-markdown-editor textarea',
+                    );
+                    const preview = document.querySelector(
+                      '.workspace-markdown-editor .workspace-file-markdown-preview',
+                    );
+                    const modeToggle = document.querySelector(
+                      '.workspace-markdown-editor .workspace-editor-mode-toggle',
+                    );
+                    const toggleButtons = [
+                      ...document.querySelectorAll(
+                        '.workspace-markdown-editor .workspace-editor-mode-toggle button',
+                      ),
+                    ];
+                    const placeholders = [
+                      ...document.querySelectorAll(
+                        '.workspace-markdown-editor [data-workspace-image-failed]',
+                      ),
+                    ];
+                    const binaryEmpty = panel?.querySelector('.preview-empty');
+                    return {
+                      panelOpen: panel ? visible(panel) : false,
+                      editorVisible: editor ? visible(editor) : false,
+                      toolbarVisible: toolbar ? visible(toolbar) : false,
+                      path:
+                        panel
+                          ?.querySelector(
+                            '.workspace-file-viewer-path > span[title]',
+                          )
+                          ?.getAttribute('title') ?? null,
+                      statusRole: status?.getAttribute('role') ?? null,
+                      statusLive: status?.getAttribute('aria-live') ?? null,
+                      statusText: status?.textContent?.trim() ?? null,
+                      statusDirty:
+                        status?.classList.contains('dirty') ?? false,
+                      savePresent: save !== null,
+                      saveDisabled:
+                        save instanceof HTMLButtonElement
+                          ? save.disabled
+                          : null,
+                      saveLabel: save?.textContent?.trim() ?? null,
+                      alertVisible: alert ? visible(alert) : false,
+                      alertText: alert?.textContent?.trim() ?? null,
+                      sourceVisible:
+                        textarea instanceof HTMLTextAreaElement
+                          ? visible(textarea)
+                          : false,
+                      sourceValue:
+                        textarea instanceof HTMLTextAreaElement
+                          ? textarea.value
+                          : null,
+                      sourceDisabled:
+                        textarea instanceof HTMLTextAreaElement
+                          ? textarea.disabled
+                          : null,
+                      previewVisible: preview ? visible(preview) : false,
+                      previewHeading:
+                        preview?.querySelector('h1')?.textContent?.trim() ??
+                        null,
+                      previewImageCount: preview
+                        ? preview.querySelectorAll('img').length
+                        : 0,
+                      modeToggleRole:
+                        modeToggle?.getAttribute('role') ?? null,
+                      modeToggleLabels: toggleButtons.map((button) =>
+                        (button.textContent ?? '').trim(),
+                      ),
+                      richPressed:
+                        toggleButtons[0]?.getAttribute('aria-pressed') ?? null,
+                      sourcePressed:
+                        toggleButtons[1]?.getAttribute('aria-pressed') ?? null,
+                      imagePlaceholders: placeholders.map((placeholder) => ({
+                        role: placeholder.getAttribute('role'),
+                        ariaLabel: placeholder.getAttribute('aria-label'),
+                        href: placeholder.getAttribute(
+                          'data-workspace-image-failed',
+                        ),
+                        text: placeholder.textContent?.trim() ?? null,
+                        visible: visible(placeholder),
+                      })),
+                      readOnlyBinary: {
+                        previewEmptyVisible: binaryEmpty
+                          ? visible(binaryEmpty)
+                          : false,
+                        previewEmptyText:
+                          binaryEmpty?.textContent?.trim() ?? null,
+                        saveAbsent:
+                          panel?.querySelector('.workspace-file-save') == null,
+                        statusAbsent:
+                          panel?.querySelector('.workspace-file-save-state') ==
+                          null,
+                        editorAbsent:
+                          panel?.querySelector('.workspace-markdown-editor') ==
+                            null &&
+                          panel?.querySelector('textarea') == null,
+                      },
+                      focusTag: document.activeElement?.tagName ?? null,
+                      statusTrace: window.__markdownEditorStatusTrace ?? null,
+                      toggleProbe: window.__markdownEditorToggleProbe ?? null,
+                    };
+                  })(),
                   messageActionLabels: [...document.querySelectorAll(
                     ".message-action",
                   )].map((button) => button.getAttribute("aria-label")),
@@ -11307,6 +11640,7 @@ app
     seedSmokeTurnChangesFixture();
     seedSmokeMessageActionsFixture();
     seedSmokeQueuedSteerFixture();
+    seedSmokeMarkdownEditorFixture();
     mcpConfigStore = new McpConfigStore(
       join(app.getPath("userData"), "mcp.json"),
     );

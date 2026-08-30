@@ -301,10 +301,35 @@ function externalHttpAnchor(
   return anchor && container.contains(anchor) ? anchor : undefined;
 }
 
+// Default English copy; workspace readers pass a localized failure message
+// through the imageFailureText prop while timeline Markdown keeps the default.
+const WORKSPACE_IMAGE_FAILURE_TEXT = "image failed to load";
+
+// A workspace image whose resolver rejects or yields a non-image payload is
+// swapped for an accessible, text-bearing placeholder so its slot never
+// collapses into a bare broken <img>. A resolver that returns no source yet
+// leaves the image pending instead: the preview panel resolves images only
+// after its file finishes loading, and a placeholder could never be retried.
+function replaceWorkspaceImageWithPlaceholder(
+  image: HTMLImageElement,
+  href: string,
+  failureText: string,
+): void {
+  const alt = image.getAttribute("alt")?.trim() ?? "";
+  const label = alt ? `${alt} (${failureText})` : `${failureText}: ${href}`;
+  const placeholder = document.createElement("span");
+  placeholder.setAttribute("aria-label", label);
+  placeholder.dataset.workspaceImageFailed = href;
+  placeholder.setAttribute("role", "img");
+  placeholder.textContent = label;
+  image.replaceWith(placeholder);
+}
+
 export const MarkdownContent = memo(function MarkdownContent({
   className,
   externalLinkIcons = false,
   fileLinkIcons = false,
+  imageFailureText = WORKSPACE_IMAGE_FAILURE_TEXT,
   onExternalLink,
   onFileLink,
   onFileLinkContextMenu,
@@ -314,6 +339,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   className?: string;
   externalLinkIcons?: boolean;
   fileLinkIcons?: boolean;
+  imageFailureText?: string;
   onExternalLink?: (href: string) => void;
   onFileLink?: (href: string) => void;
   onFileLinkContextMenu?: (
@@ -432,24 +458,30 @@ export const MarkdownContent = memo(function MarkdownContent({
       if (!href) continue;
       void resolveImage(href)
         .then((source) => {
+          if (!active || !source) {
+            return;
+          }
           if (
-            !active ||
-            !source ||
             !/^data:image\/(?:avif|gif|jpeg|png|svg\+xml|webp);base64,/iu.test(
               source,
             )
           ) {
+            replaceWorkspaceImageWithPlaceholder(image, href, imageFailureText);
             return;
           }
           image.src = source;
           delete image.dataset.workspaceImage;
         })
-        .catch(() => undefined);
+        .catch(() => {
+          if (active) {
+            replaceWorkspaceImageWithPlaceholder(image, href, imageFailureText);
+          }
+        });
     }
     return () => {
       active = false;
     };
-  }, [html, resolveImage]);
+  }, [html, imageFailureText, resolveImage]);
 
   const openDelegatedLink = (event: MouseEvent<HTMLElement>) => {
     const fileAnchor = workspaceFileAnchor(event.target, event.currentTarget);

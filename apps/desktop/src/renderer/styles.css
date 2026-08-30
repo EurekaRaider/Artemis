@@ -7798,6 +7798,17 @@ button.sources-panel-entry.attachment:focus-visible {
   color: var(--danger);
 }
 
+/* D#76 PR7 review: a workspace image whose resolver failed is swapped for a
+   text placeholder; give it minimal muted chrome in line with the
+   preview-empty notices so it reads as an intentional slot, not noise. */
+[data-workspace-image-failed] {
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  display: inline-block;
+  padding: 6px 10px;
+}
+
 .markdown-reader-actions,
 .markdown-reader-mode-toggle {
   align-items: center;
@@ -8223,7 +8234,17 @@ button.sources-panel-entry.attachment:focus-visible {
   overflow: hidden;
 }
 
-.workspace-markdown-mode-toggle {
+/* D#76 PR7: the shared editor toolbar fills the editor column like the
+   per-editor wrappers it replaces, and carries the same mode-toggle chrome. */
+.workspace-editor-toolbar {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-editor-mode-toggle {
   align-items: center;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -8233,7 +8254,7 @@ button.sources-panel-entry.attachment:focus-visible {
   padding: 2px;
 }
 
-.workspace-markdown-mode-toggle button {
+.workspace-editor-mode-toggle button {
   border-radius: 6px;
   color: var(--muted);
   cursor: pointer;
@@ -8242,7 +8263,7 @@ button.sources-panel-entry.attachment:focus-visible {
   padding: 0 9px;
 }
 
-.workspace-markdown-mode-toggle button[aria-pressed="true"] {
+.workspace-editor-mode-toggle button[aria-pressed="true"] {
   background: var(--selected);
   color: var(--text);
 }
