@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 /** Tri-state reported by the parent for the edit-mode connection check. */
 export type McpEditorTestConnectionState =
@@ -93,10 +93,134 @@ export interface McpEditorFeedbackProps {
  * - This component performs no logging whatsoever (no `console.*` in any
  *   state transition), so no feedback path can leak a credential into logs.
  */
-// D#76 PR8 render-only stub: the contract tests in
-// test/mcp-editor-feedback.test.tsx drive the real implementation
-// (validation alert, aria-busy wrapper + busy live region, action-error
-// retry, test-connection tri-state, danger-toned remove confirmation).
-export function McpEditorFeedback(_props: McpEditorFeedbackProps): ReactNode {
-  return <div className="mcp-editor-feedback" />;
+// D#76 PR8: wrapper `aria-busy` is driven only by the save/remove `busy`
+// prop; a pending connection check marks its own `.mcp-editor-test` region
+// instead (parent ruling), so the form fields are never announced as busy
+// while the user edits credentials mid-test.
+export function McpEditorFeedback(props: McpEditorFeedbackProps): ReactNode {
+  const {
+    actionError,
+    actionErrorRetryLabel,
+    busy,
+    busyLabel,
+    children,
+    onActionErrorRetry,
+    remove,
+    testConnection,
+    validationErrors,
+    validationHeading,
+  } = props;
+
+  // Pending-confirmation guard: while the danger alertdialog chain is open,
+  // a second Uninstall click must not re-enter `onConfirm`. The guard resets
+  // on both denial and completion, so a denied flow stays fully usable.
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+
+  const handleRemove = async () => {
+    if (!remove || confirmingRemove) return;
+    setConfirmingRemove(true);
+    try {
+      const confirmed = await remove.onConfirm(remove.confirmMessage, "danger");
+      if (confirmed) remove.onRemove();
+    } finally {
+      setConfirmingRemove(false);
+    }
+  };
+
+  const testState = testConnection?.state;
+  const testPending = testState?.status === "busy";
+
+  return (
+    <div aria-busy={busy ? "true" : undefined} className="mcp-editor-feedback">
+      {busy && busyLabel ? (
+        <p aria-live="polite" className="mcp-editor-busy" role="status">
+          {busyLabel}
+        </p>
+      ) : null}
+      {validationErrors && validationErrors.length > 0 ? (
+        <div className="mcp-editor-validation" role="alert">
+          {validationHeading ? (
+            <p className="mcp-editor-validation-heading">{validationHeading}</p>
+          ) : null}
+          <ul>
+            {validationErrors.map((error, index) => (
+              <li key={`${index}-${error}`}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {actionError ? (
+        <div className="mcp-editor-action-error" role="alert">
+          {actionError}
+          {actionErrorRetryLabel && onActionErrorRetry ? (
+            <button
+              className="mcp-editor-action-retry"
+              onClick={() => onActionErrorRetry()}
+              type="button"
+            >
+              {actionErrorRetryLabel}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {children}
+      {testConnection ? (
+        <div
+          aria-busy={testPending ? "true" : undefined}
+          className="mcp-editor-test"
+        >
+          <button
+            className="mcp-editor-test-button"
+            disabled={busy || testPending}
+            onClick={() => testConnection.onTest()}
+            type="button"
+          >
+            {testConnection.label}
+          </button>
+          {testPending ? (
+            <p
+              aria-live="polite"
+              className="mcp-editor-test-status"
+              role="status"
+            >
+              {testConnection.busyLabel}
+            </p>
+          ) : null}
+          {testState?.status === "success" ? (
+            <p
+              aria-live="polite"
+              className="mcp-editor-test-status"
+              role="status"
+            >
+              {testConnection.successLabel}
+              {testState.detail ? (
+                <small className="mcp-editor-test-detail">
+                  {" "}
+                  {testState.detail}
+                </small>
+              ) : null}
+            </p>
+          ) : null}
+          {testState?.status === "failure" ? (
+            <div className="mcp-editor-test-failure" role="alert">
+              <p>{testConnection.failureLabel}</p>
+              <p className="mcp-editor-test-failure-message">
+                {testState.message}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {remove ? (
+        <button
+          className="mcp-editor-remove"
+          disabled={busy || confirmingRemove}
+          onClick={handleRemove}
+          type="button"
+        >
+          {remove.label}
+        </button>
+      ) : null}
+    </div>
+  );
 }
