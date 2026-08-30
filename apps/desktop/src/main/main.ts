@@ -9965,8 +9965,48 @@ async function seedSmokeMcpEditorFixture(): Promise<void> {
   });
 }
 
+async function seedSmokeIconSizingFixture(): Promise<void> {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  // The smokeMode guard matches seedSmokeMcpEditorFixture: seeding must stay
+  // a smoke-harness-only behavior so a merely VIEW-tagged process can never
+  // write a synthetic server into a real mcp.json.
+  if (!smokeMode || !view?.startsWith("icon-sizing-")) {
+    return;
+  }
+  if (!mcpConfigStore) {
+    throw new Error("MCP service is not ready.");
+  }
+  // Synthetic identity only (mcp-editor seed precedent): a stdio command
+  // path that cannot exist and enabled:false, so the seeded row performs
+  // zero spawn and zero dial-out at startup. The Resource Center manage
+  // view renders this row's ResourceAvatar with the semantic icon, which is
+  // the .resource-avatar .resource-semantic-icon sizing surface this smoke
+  // measures.
+  await mcpConfigStore.upsert({
+    id: "artemis-smoke-icon-sizing",
+    name: "Artemis Smoke Icon Sizing",
+    transport: "stdio",
+    enabled: false,
+    command: "/artemis-smoke-icon-sizing/stdio-server",
+    args: ["--smoke"],
+    env: {},
+    envVars: [],
+    workspacePath: "",
+    allowNetwork: false,
+  });
+}
+
 async function seedSmokeEnvironmentFixture(): Promise<void> {
-  if (!store || !process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment")) {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  // The icon-sizing smoke harness reuses this same synthetic repository
+  // fixture so the branch popover, commit dialog, and environment rows all
+  // render against real git data that lives entirely inside the isolated
+  // user-data directory (no network, no real project identity).
+  if (
+    !store ||
+    (!view?.startsWith("environment") &&
+      !view?.startsWith("icon-sizing-environment"))
+  ) {
     return;
   }
   const now = new Date().toISOString();
@@ -10375,6 +10415,58 @@ function createMainWindow(): BrowserWindow {
                   button?.click();
                 };
                 const view = ${JSON.stringify(requestedSmokeView)};
+                if (view.startsWith('icon-sizing-')) {
+                  if (view.startsWith('icon-sizing-environment')) {
+                    document.querySelector('.thread-select')?.click();
+                    await wait(600);
+                    const trigger = document.querySelector(
+                      '.environment-trigger',
+                    );
+                    if (trigger?.getAttribute('aria-expanded') !== 'true') {
+                      trigger?.click();
+                      await wait(500);
+                    }
+                    if (view === 'icon-sizing-environment-branch-menu') {
+                      document
+                        .querySelector(
+                          '.environment-branch-control > .environment-row',
+                        )
+                        ?.click();
+                      await wait(500);
+                    }
+                    if (view === 'icon-sizing-environment-commit') {
+                      document.querySelector('.commit-push-row')?.click();
+                      await wait(500);
+                    }
+                    return;
+                  }
+                  document.querySelectorAll('.activity-button')[1]?.click();
+                  await wait(1_000);
+                  if (view === 'icon-sizing-add-plugin') {
+                    document.querySelector('.resource-add-button')?.click();
+                    await wait(500);
+                  } else if (view === 'icon-sizing-resource-manage') {
+                    document
+                      .querySelector(
+                        '.resource-installed-overview .resource-icon-button',
+                      )
+                      ?.click();
+                    await wait(500);
+                    clickByText('.resource-management-tabs button', 'MCP');
+                    await wait(300);
+                    // Open the official MCP discovery panel: its form search
+                    // icon rides the same styles rule group as the manage
+                    // toolbar search icon but sits in block flow, so the
+                    // measurement is not skewed by toolbar flex shrink.
+                    document
+                      .querySelector(
+                        '.resource-list-heading-actions .resource-add-button',
+                      )
+                      ?.click();
+                    await wait(300);
+                  }
+                  return;
+                }
                 if (view.startsWith('goal-')) {
                   document.querySelector('.thread-select')?.click();
                   await wait(700);
@@ -11542,6 +11634,9 @@ function createMainWindow(): BrowserWindow {
             const result = (await window.webContents.executeJavaScript(`
               (() => {
                 const issues = [];
+                const iconSizingView = ${JSON.stringify(
+                  requestedSmokeView ?? "",
+                )};
                 const visible = (element) => {
                   const style = getComputedStyle(element);
                   return style.display !== "none" &&
@@ -12239,6 +12334,113 @@ function createMainWindow(): BrowserWindow {
                           };
                         })
                     : [],
+                  iconSizing: iconSizingView.startsWith("icon-sizing-")
+                    ? (() => {
+                        const measure = (selector) => {
+                          const elements = [...document.querySelectorAll(selector)];
+                          const first = elements[0] ?? null;
+                          if (!first) {
+                            return { selector, count: 0, sample: null };
+                          }
+                          const rect = first.getBoundingClientRect();
+                          const style = getComputedStyle(first);
+                          return {
+                            selector,
+                            count: elements.length,
+                            sample: {
+                              tagName: first.tagName.toLowerCase(),
+                              className: first.getAttribute("class"),
+                              attributeWidth: first.getAttribute("width"),
+                              attributeHeight: first.getAttribute("height"),
+                              viewBox: first.getAttribute("viewBox"),
+                              rectWidth: Math.round(rect.width * 100) / 100,
+                              rectHeight: Math.round(rect.height * 100) / 100,
+                              computedWidth: style.width,
+                              computedHeight: style.height,
+                            },
+                          };
+                        };
+                        // .resource-avatar svg is the non-semantic fallback
+                        // rule; no current consumer renders a bare svg inside
+                        // an avatar, so measure the rule's applied size with
+                        // a temporary probe element instead of the UI.
+                        const probeAvatarFallback = () => {
+                          const host = document.createElement("span");
+                          host.className = "resource-avatar";
+                          const svg = document.createElementNS(
+                            "http://www.w3.org/2000/svg",
+                            "svg",
+                          );
+                          host.appendChild(svg);
+                          document.body.appendChild(host);
+                          try {
+                            const rect = svg.getBoundingClientRect();
+                            const style = getComputedStyle(svg);
+                            return {
+                              selector: "css-probe .resource-avatar svg",
+                              count: 1,
+                              sample: {
+                                tagName: "svg",
+                                className: null,
+                                attributeWidth: null,
+                                attributeHeight: null,
+                                viewBox: null,
+                                origin: "css-probe",
+                                rectWidth: Math.round(rect.width * 100) / 100,
+                                rectHeight:
+                                  Math.round(rect.height * 100) / 100,
+                                computedWidth: style.width,
+                                computedHeight: style.height,
+                              },
+                            };
+                          } finally {
+                            host.remove();
+                          }
+                        };
+                        return {
+                          view: iconSizingView,
+                          targets: {
+                            "environment-row-icon": measure(
+                              ".environment-row-icon svg:not(.child-agent-mark)",
+                            ),
+                            "environment-header-action": measure(
+                              ".environment-header-action svg",
+                            ),
+                            "environment-chevron": measure(
+                              ".environment-chevron svg",
+                            ),
+                            "environment-external": measure(
+                              ".environment-external svg",
+                            ),
+                            "environment-branch-search": measure(
+                              ".environment-branch-search > svg",
+                            ),
+                            "environment-branch-list-check": measure(
+                              ".environment-branch-list button i svg",
+                            ),
+                            "environment-branch-actions": measure(
+                              ".environment-branch-actions > button > svg",
+                            ),
+                            "environment-git-destination-chevron": measure(
+                              ".environment-git-destination-trigger > svg:last-of-type",
+                            ),
+                            "resource-avatar-semantic": measure(
+                              ".resource-avatar .resource-semantic-icon",
+                            ),
+                            "resource-search-field": measure(
+                              ".resource-search-field svg",
+                            ),
+                            "resource-discovery-search": measure(
+                              ".resource-discovery-panel form > svg",
+                            ),
+                            "resource-add-plugin-card": measure(
+                              ".resource-add-plugin-card button svg",
+                            ),
+                            "resource-avatar-fallback": probeAvatarFallback(),
+                          },
+                        };
+                      })()
+                    : null,
                   interactiveCount: document.querySelectorAll(
                     "button, a[href], summary, input, select, textarea, [role='button'], [role='tab']",
                   ).length,
@@ -12368,6 +12570,7 @@ app
       join(app.getPath("userData"), "mcp.json"),
     );
     await seedSmokeMcpEditorFixture();
+    await seedSmokeIconSizingFixture();
     mcpOAuthStore = new McpOAuthStore(
       join(app.getPath("userData"), "mcp-oauth.json"),
       safeStorage,
