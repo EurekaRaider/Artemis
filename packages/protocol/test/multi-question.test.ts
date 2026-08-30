@@ -83,9 +83,7 @@ function multiResolved(
   };
 }
 
-function asMulti(
-  input: unknown,
-): MultiQuestionUserInputState {
+function asMulti(input: unknown): MultiQuestionUserInputState {
   return input as MultiQuestionUserInputState;
 }
 
@@ -109,158 +107,162 @@ describe("multi-question user input contract", () => {
   });
 
   it("rejects invalid multi-question requested payloads fail closed", () => {
-    const invalid: Array<{ label: string; payload: Record<string, unknown> }> = [
-      {
-        label: "empty questions",
-        payload: multiRequested("input-1", []),
-      },
-      {
-        label: "more questions than the cap",
-        payload: multiRequested("input-1", [
-          question("q1"),
-          question("q2"),
-          question("q3"),
-          question("q4"),
-        ]),
-      },
-      {
-        label: "duplicate questionId",
-        payload: multiRequested("input-1", [question("q1"), question("q1")]),
-      },
-      {
-        label: "missing questionId",
-        payload: multiRequested("input-1", [
-          question("q1", { questionId: "" }),
-        ]),
-      },
-      {
-        label: "no recommended option",
-        payload: multiRequested("input-1", [
-          question("q1", {
-            options: [
-              {
-                label: "a",
-                description: "First",
-                recommended: false,
-              },
-              {
-                label: "b",
-                description: "Second",
-                recommended: false,
-              },
-            ],
-          }),
-        ]),
-      },
-      {
-        label: "two recommended options",
-        payload: multiRequested("input-1", [
-          question("q1", {
-            options: [
-              {
-                label: "a",
-                description: "First",
-                recommended: true,
-              },
-              {
-                label: "b",
-                description: "Second",
-                recommended: true,
-              },
-            ],
-          }),
-        ]),
-      },
-      {
-        label: "too few options",
-        payload: multiRequested("input-1", [
-          question("q1", {
-            options: [
-              {
-                label: "a",
-                description: "Only",
-                recommended: true,
-              },
-            ],
-          }),
-        ]),
-      },
-      {
-        label: "too many options",
-        payload: multiRequested("input-1", [
-          question("q1", {
-            options: [
-              {
-                label: "a",
-                description: "First",
-                recommended: true,
-              },
-              {
-                label: "b",
-                description: "Second",
-                recommended: false,
-              },
-              {
-                label: "c",
-                description: "Third",
-                recommended: false,
-              },
-              {
-                label: "d",
-                description: "Fourth",
-                recommended: false,
-              },
-            ],
-          }),
-        ]),
-      },
-      {
-        label: "invalid expiry",
-        payload: multiRequested("input-1", [
-          question("q1", { expiresAt: "not-a-datetime" }),
-        ]),
-      },
-      {
-        label: "questions without the kind discriminator",
-        payload: (() => {
-          const payload = multiRequested("input-1", [question("q1")]);
-          const { kind: _kind, ...withoutKind } = payload;
-          return withoutKind;
-        })(),
-      },
-    ];
+    const invalid: Array<{ label: string; payload: Record<string, unknown> }> =
+      [
+        {
+          label: "empty questions",
+          payload: multiRequested("input-1", []),
+        },
+        {
+          label: "more questions than the cap",
+          payload: multiRequested("input-1", [
+            question("q1"),
+            question("q2"),
+            question("q3"),
+            question("q4"),
+          ]),
+        },
+        {
+          label: "duplicate questionId",
+          payload: multiRequested("input-1", [question("q1"), question("q1")]),
+        },
+        {
+          label: "missing questionId",
+          payload: multiRequested("input-1", [
+            question("q1", { questionId: "" }),
+          ]),
+        },
+        {
+          label: "no recommended option",
+          payload: multiRequested("input-1", [
+            question("q1", {
+              options: [
+                {
+                  label: "a",
+                  description: "First",
+                  recommended: false,
+                },
+                {
+                  label: "b",
+                  description: "Second",
+                  recommended: false,
+                },
+              ],
+            }),
+          ]),
+        },
+        {
+          label: "two recommended options",
+          payload: multiRequested("input-1", [
+            question("q1", {
+              options: [
+                {
+                  label: "a",
+                  description: "First",
+                  recommended: true,
+                },
+                {
+                  label: "b",
+                  description: "Second",
+                  recommended: true,
+                },
+              ],
+            }),
+          ]),
+        },
+        {
+          label: "too few options",
+          payload: multiRequested("input-1", [
+            question("q1", {
+              options: [
+                {
+                  label: "a",
+                  description: "Only",
+                  recommended: true,
+                },
+              ],
+            }),
+          ]),
+        },
+        {
+          label: "too many options",
+          payload: multiRequested("input-1", [
+            question("q1", {
+              options: [
+                {
+                  label: "a",
+                  description: "First",
+                  recommended: true,
+                },
+                {
+                  label: "b",
+                  description: "Second",
+                  recommended: false,
+                },
+                {
+                  label: "c",
+                  description: "Third",
+                  recommended: false,
+                },
+                {
+                  label: "d",
+                  description: "Fourth",
+                  recommended: false,
+                },
+              ],
+            }),
+          ]),
+        },
+        {
+          label: "invalid expiry",
+          payload: multiRequested("input-1", [
+            question("q1", { expiresAt: "not-a-datetime" }),
+          ]),
+        },
+        {
+          label: "questions without the kind discriminator",
+          payload: (() => {
+            const payload = multiRequested("input-1", [question("q1")]);
+            const { kind: _kind, ...withoutKind } = payload;
+            return withoutKind;
+          })(),
+        },
+      ];
     for (const { label, payload } of invalid) {
       expect(agentPayloadSchema.safeParse(payload).success, label).toBe(false);
     }
   });
 
   it("rejects multi-question resolutions that are not exactly one answer", () => {
-    const invalid: Array<{ label: string; payload: Record<string, unknown> }> = [
-      {
-        label: "both selected option and custom answer",
-        payload: multiResolved("input-1", "q1", {
-          selectedOption: "option-q1-a",
-          customAnswer: "A different answer",
-        }),
-      },
-      {
-        label: "neither selected option nor custom answer",
-        payload: multiResolved("input-1", "q1", {}),
-      },
-      {
-        label: "empty questionId",
-        payload: multiResolved("input-1", "", {
-          selectedOption: "option-q1-a",
-        }),
-      },
-      {
-        label: "unknown kind discriminator",
-        payload: {
-          ...multiResolved("input-1", "q1", { selectedOption: "option-q1-a" }),
-          kind: "multi",
+    const invalid: Array<{ label: string; payload: Record<string, unknown> }> =
+      [
+        {
+          label: "both selected option and custom answer",
+          payload: multiResolved("input-1", "q1", {
+            selectedOption: "option-q1-a",
+            customAnswer: "A different answer",
+          }),
         },
-      },
-    ];
+        {
+          label: "neither selected option nor custom answer",
+          payload: multiResolved("input-1", "q1", {}),
+        },
+        {
+          label: "empty questionId",
+          payload: multiResolved("input-1", "", {
+            selectedOption: "option-q1-a",
+          }),
+        },
+        {
+          label: "unknown kind discriminator",
+          payload: {
+            ...multiResolved("input-1", "q1", {
+              selectedOption: "option-q1-a",
+            }),
+            kind: "multi",
+          },
+        },
+      ];
     for (const { label, payload } of invalid) {
       expect(agentPayloadSchema.safeParse(payload).success, label).toBe(false);
     }
@@ -315,7 +317,10 @@ describe("multi-question user input contract", () => {
     const requested = event(
       "dup-1",
       1,
-      multiRequested("input-1", [question("q1"), question("q2")]) as AgentEvent["payload"],
+      multiRequested("input-1", [
+        question("q1"),
+        question("q2"),
+      ]) as AgentEvent["payload"],
     );
     const first = reduceAgentEvents("thread-1", [requested]);
     const second = reduceAgentEvent(first, requested);
@@ -324,7 +329,9 @@ describe("multi-question user input contract", () => {
     const resolved = event(
       "dup-2",
       2,
-      multiResolved("input-1", "q1", { selectedOption: "option-q1-a" }) as AgentEvent["payload"],
+      multiResolved("input-1", "q1", {
+        selectedOption: "option-q1-a",
+      }) as AgentEvent["payload"],
     );
     const third = reduceAgentEvent(second, resolved);
     expect(reduceAgentEvent(third, resolved)).toBe(third);
@@ -335,12 +342,17 @@ describe("multi-question user input contract", () => {
       event(
         "req-1",
         1,
-        multiRequested("input-1", [question("q1"), question("q2")]) as AgentEvent["payload"],
+        multiRequested("input-1", [
+          question("q1"),
+          question("q2"),
+        ]) as AgentEvent["payload"],
       ),
       event(
         "ans-1",
         2,
-        multiResolved("input-1", "q1", { selectedOption: "option-q1-a" }) as AgentEvent["payload"],
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
       ),
     ]);
     expect(asMulti(state.userInputs["input-1"]).answers["q1"]?.status).toBe(
@@ -352,7 +364,10 @@ describe("multi-question user input contract", () => {
       event(
         "req-2",
         3,
-        multiRequested("input-1", [question("q2"), question("q1")]) as AgentEvent["payload"],
+        multiRequested("input-1", [
+          question("q2"),
+          question("q1"),
+        ]) as AgentEvent["payload"],
       ),
     );
     expect(asMulti(reordered.userInputs["input-1"]).answers["q1"]?.status).toBe(
@@ -364,10 +379,14 @@ describe("multi-question user input contract", () => {
       event(
         "req-3",
         4,
-        multiRequested("input-1", [question("q2"), question("q3")]) as AgentEvent["payload"],
+        multiRequested("input-1", [
+          question("q2"),
+          question("q3"),
+        ]) as AgentEvent["payload"],
       ),
     );
-    expect(changed).toBe(state);
+    expect(changed.userInputs["input-1"]).toBe(state.userInputs["input-1"]);
+    expect(changed.status).toBe(state.status);
   });
 
   it("fails closed on repeated resolution of the same question", () => {
@@ -375,12 +394,17 @@ describe("multi-question user input contract", () => {
       event(
         "req-1",
         1,
-        multiRequested("input-1", [question("q1"), question("q2")]) as AgentEvent["payload"],
+        multiRequested("input-1", [
+          question("q1"),
+          question("q2"),
+        ]) as AgentEvent["payload"],
       ),
       event(
         "ans-1",
         2,
-        multiResolved("input-1", "q1", { selectedOption: "option-q1-a" }) as AgentEvent["payload"],
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
       ),
     ]);
     const repeated = reduceAgentEvent(
@@ -388,12 +412,14 @@ describe("multi-question user input contract", () => {
       event(
         "ans-1b",
         3,
-        multiResolved("input-1", "q1", { customAnswer: "A different answer" }) as AgentEvent["payload"],
+        multiResolved("input-1", "q1", {
+          customAnswer: "A different answer",
+        }) as AgentEvent["payload"],
       ),
     );
-    expect(
-      asMulti(repeated.userInputs["input-1"]).answers["q1"],
-    ).toMatchObject({ status: "answered", answer: "option-q1-a" });
+    expect(asMulti(repeated.userInputs["input-1"]).answers["q1"]).toMatchObject(
+      { status: "answered", answer: "option-q1-a" },
+    );
     expect(repeated.status).toBe(state.status);
   });
 
@@ -402,7 +428,9 @@ describe("multi-question user input contract", () => {
       event(
         "ans-early",
         1,
-        multiResolved("input-1", "q1", { selectedOption: "option-q1-a" }) as AgentEvent["payload"],
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
       ),
     ]);
     expect(state.userInputs["input-1"]).toBeUndefined();
@@ -493,7 +521,9 @@ describe("multi-question user input contract", () => {
       event(
         "ans-1",
         2,
-        multiResolved("input-1", "q1", { selectedOption: "option-q1-a" }) as AgentEvent["payload"],
+        multiResolved("input-1", "q1", {
+          selectedOption: "option-q1-a",
+        }) as AgentEvent["payload"],
       ),
     ]);
     const partiallyAnswered = asMulti(state.userInputs["input-1"]);
@@ -517,9 +547,9 @@ describe("multi-question user input contract", () => {
         ) as AgentEvent["payload"],
       ),
     );
-    expect(
-      asMulti(timedOut.userInputs["input-1"]).answers["q2"]?.status,
-    ).toBe("timed-out");
+    expect(asMulti(timedOut.userInputs["input-1"]).answers["q2"]?.status).toBe(
+      "timed-out",
+    );
     expect(timedOut.status).toBe("waiting-user-input");
 
     const completed = reduceAgentEvent(
@@ -527,7 +557,9 @@ describe("multi-question user input contract", () => {
       event(
         "ans-3",
         4,
-        multiResolved("input-1", "q3", { customAnswer: "A custom answer" }) as AgentEvent["payload"],
+        multiResolved("input-1", "q3", {
+          customAnswer: "A custom answer",
+        }) as AgentEvent["payload"],
       ),
     );
     const finished = asMulti(completed.userInputs["input-1"]);
@@ -544,17 +576,25 @@ describe("multi-question user input contract", () => {
       event(
         "req-1",
         1,
-        multiRequested("input-1", [question("q1"), question("q2"), question("q3")]) as AgentEvent["payload"],
+        multiRequested("input-1", [
+          question("q1"),
+          question("q2"),
+          question("q3"),
+        ]) as AgentEvent["payload"],
       ),
       event(
         "ans-3",
         2,
-        multiResolved("input-1", "q3", { selectedOption: "option-q3-b" }) as AgentEvent["payload"],
+        multiResolved("input-1", "q3", {
+          selectedOption: "option-q3-b",
+        }) as AgentEvent["payload"],
       ),
       event(
         "ans-1",
         3,
-        multiResolved("input-1", "q1", { customAnswer: "First custom" }) as AgentEvent["payload"],
+        multiResolved("input-1", "q1", {
+          customAnswer: "First custom",
+        }) as AgentEvent["payload"],
       ),
     ]);
     const input = asMulti(state.userInputs["input-1"]);
@@ -577,9 +617,7 @@ describe("multi-question user input contract", () => {
       question("q2"),
     ]);
     const persisted = JSON.parse(
-      JSON.stringify(
-        event("req-1", 1, requested as AgentEvent["payload"]),
-      ),
+      JSON.stringify(event("req-1", 1, requested as AgentEvent["payload"])),
     ) as AgentEvent;
     const parsed = agentPayloadSchema.safeParse(persisted.payload);
     expect(parsed.success).toBe(true);

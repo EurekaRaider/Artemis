@@ -12,6 +12,9 @@ import type {
   TurnChangeSetUpdatedPayload,
   ToolStartedPayload,
   TurnActivityPayload,
+  UserInputMultiQuestionRequestedPayload,
+  UserInputMultiQuestionResolvedPayload,
+  UserInputQuestion,
   UserInputRequestedPayload,
 } from "./schema.js";
 import { isLegacyInternalAgentMessage } from "./internal-messages.js";
@@ -42,6 +45,18 @@ export interface UserInputState extends UserInputRequestedPayload {
   status: "pending" | "answered" | "timed-out" | "cancelled";
   answer?: string;
   selectedOption?: number;
+}
+
+export interface UserInputQuestionState {
+  status: "pending" | "answered" | "timed-out" | "cancelled";
+  answer?: string;
+  selectedOption?: string;
+}
+
+export interface MultiQuestionUserInputState extends UserInputState {
+  kind: "multi-question";
+  questions: UserInputQuestion[];
+  answers: Record<string, UserInputQuestionState>;
 }
 
 export interface ChildAgentState extends ChildAgentPayload {}
@@ -105,7 +120,7 @@ export interface ThreadViewState {
   messageParts: Record<string, MessagePartState>;
   tools: Record<string, ToolState>;
   approvals: Record<string, ApprovalState>;
-  userInputs: Record<string, UserInputState>;
+  userInputs: Record<string, UserInputState | MultiQuestionUserInputState>;
   childAgents: Record<string, ChildAgentState>;
   agentTeams: Record<string, AgentTeamState>;
   agentTeamMessages: Record<string, AgentTeamMessageState>;
@@ -250,6 +265,98 @@ function clearThinkingParts(
     orderedItems.delete(entry);
   }
   state.order = state.order.filter((entry) => !thinkingEntries.has(entry));
+}
+
+function multiQuestionIds(questions: UserInputQuestion[]): string {
+  return questions
+    .map((question) => question.questionId)
+    .sort()
+    .join("\n");
+}
+
+function multiQuestionAggregateStatus(
+  input: MultiQuestionUserInputState,
+): MultiQuestionUserInputState["status"] {
+  const statuses = input.questions.map(
+    (question) => input.answers[question.questionId]?.status ?? "pending",
+  );
+  if (statuses.some((status) => status === "pending")) return "pending";
+  if (statuses.some((status) => status === "timed-out")) return "timed-out";
+  if (statuses.some((status) => status === "cancelled")) return "cancelled";
+  return "answered";
+}
+
+function syncMultiQuestionLegacyView(input: MultiQuestionUserInputState): void {
+  const active =
+    input.questions.find(
+      (question) => input.answers[question.questionId]?.status === "pending",
+    ) ?? input.questions[0]!;
+  input.question = active.question;
+  input.options = active.options;
+  input.expiresAt = active.expiresAt;
+}
+
+function createMultiQuestionUserInputState(
+  payload: UserInputMultiQuestionRequestedPayload,
+): MultiQuestionUserInputState {
+  const first = payload.questions[0]!;
+  return {
+    ...payload,
+    status: "pending",
+    answers: Object.fromEntries(
+      payload.questions.map((question) => [
+        question.questionId,
+        { status: "pending" as const },
+      ]),
+    ),
+    question: first.question,
+    options: first.options,
+    expiresAt: first.expiresAt,
+  };
+}
+
+function applyMultiQuestionResolution(
+  state: ThreadViewState,
+  event: AgentEvent,
+  payload: UserInputMultiQuestionResolvedPayload,
+): void {
+  const input = state.userInputs[payload.requestId];
+  if (!input || !("questions" in input)) return;
+  const question = input.questions.find(
+    (candidate) => candidate.questionId === payload.questionId,
+  );
+  if (!question) return;
+  const current = input.answers[payload.questionId];
+  if (current && current.status !== "pending") return;
+  if (Date.parse(event.timestamp) > Date.parse(question.expiresAt)) return;
+  if (
+    payload.selectedOption !== undefined &&
+    !question.options.some((option) => option.label === payload.selectedOption)
+  ) {
+    return;
+  }
+  const answer = payload.customAnswer ?? payload.selectedOption;
+  const next: MultiQuestionUserInputState = {
+    ...input,
+    answers: {
+      ...input.answers,
+      [payload.questionId]: {
+        status:
+          payload.source === "timeout"
+            ? "timed-out"
+            : payload.source === "cancelled"
+              ? "cancelled"
+              : "answered",
+        ...(answer === undefined ? {} : { answer }),
+        ...(payload.selectedOption === undefined
+          ? {}
+          : { selectedOption: payload.selectedOption }),
+      },
+    },
+  };
+  next.status = multiQuestionAggregateStatus(next);
+  syncMultiQuestionLegacyView(next);
+  state.userInputs[payload.requestId] = next;
 }
 
 function pendingInteractionStatus(
@@ -436,6 +543,22 @@ function applyAgentPayload(
       return;
     }
     case "user-input.requested": {
+      if (payload.kind === "multi-question") {
+        const existing = state.userInputs[payload.requestId];
+        if (
+          existing &&
+          (!("questions" in existing) ||
+            multiQuestionIds(existing.questions) !==
+              multiQuestionIds(payload.questions))
+        ) {
+          return;
+        }
+        state.userInputs[payload.requestId] =
+          createMultiQuestionUserInputState(payload);
+        state.status = "waiting-user-input";
+        appendOnce(state.order, orderedItems, `input:${payload.requestId}`);
+        return;
+      }
       state.userInputs[payload.requestId] = {
         ...payload,
         status: "pending",
@@ -445,6 +568,11 @@ function applyAgentPayload(
       return;
     }
     case "user-input.resolved": {
+      if (payload.kind === "multi-question") {
+        applyMultiQuestionResolution(state, event, payload);
+        state.status = pendingInteractionStatus(state);
+        return;
+      }
       const input = state.userInputs[payload.requestId];
       if (input) {
         state.userInputs[payload.requestId] = {
