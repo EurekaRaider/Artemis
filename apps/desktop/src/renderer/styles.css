@@ -5260,6 +5260,23 @@ button.environment-row:disabled {
   opacity: 0.45;
 }
 
+.queued-message-editor-error {
+  color: var(--danger);
+  font-size: 12px;
+  margin: 0;
+}
+
+.queued-message-editor-error button {
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.queued-message-editor-error-detail {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .queued-message-bar + .composer {
   z-index: 1;
 }

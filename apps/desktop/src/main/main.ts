@@ -8899,7 +8899,33 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.turnQueueReplace,
-    (_event, input: ReplaceQueuedTurnInput) => replaceTurnQueue(input),
+    async (_event, input: ReplaceQueuedTurnInput) => {
+      if (
+        smokeMode &&
+        process.env.ARTEMIS_SMOKE_VIEW?.startsWith("queued-steer")
+      ) {
+        if (process.env.ARTEMIS_SMOKE_VIEW === "queued-steer-save-error") {
+          throw new Error("Simulated queued message save failure.");
+        }
+        emitPayload(input.threadId, undefined, {
+          type: "queue.updated",
+          steering: [],
+          followUp: input.expectedFollowUp.map(
+            (text, index) =>
+              input.followUp.find((item) => item.sourceIndex === index)?.text ??
+              text,
+          ),
+        });
+        // The runtime applies the queue change, emits queue.updated, and only
+        // then acknowledges the request. Mirror that order and give the
+        // renderer's rAF-batched event flush time to commit the new queue
+        // before the acknowledgment closes the editor, so the focus-return
+        // target is the final row rather than one that remounts.
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        return;
+      }
+      return replaceTurnQueue(input);
+    },
   );
 
   ipcMain.handle(IPC.turnCancel, (_event, threadId: string) =>
@@ -9708,6 +9734,62 @@ function seedSmokeMessageActionsFixture(): void {
   ]);
 }
 
+function seedSmokeQueuedSteerFixture(): void {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (!store || !view?.startsWith("queued-steer")) return;
+  const now = new Date().toISOString();
+  const projectId = "artemis-smoke-queued-steer-project";
+  const threadId = "artemis-smoke-queued-steer-thread";
+  const turnId = "artemis-smoke-queued-steer-turn";
+  store.upsertProject({
+    id: projectId,
+    name: "Artemis",
+    path: process.cwd(),
+    createdAt: now,
+    updatedAt: now,
+  });
+  store.createThread({
+    id: threadId,
+    projectId,
+    title: "Queued steer smoke",
+    mode: "execute",
+    target: "local",
+    status: "running",
+    pinned: false,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+  store.appendEvents(threadId, [
+    {
+      eventId: "artemis-smoke-queued-steer-user",
+      turnId,
+      payload: {
+        type: "user.message",
+        messageId: "artemis-smoke-queued-steer-user",
+        text: "把格式检查和类型检查排进队列，完成后再汇报。",
+      },
+    },
+    {
+      eventId: "artemis-smoke-queued-steer-started",
+      turnId,
+      payload: { type: "turn.started", mode: "execute" },
+    },
+    {
+      eventId: "artemis-smoke-queued-steer-queue",
+      turnId,
+      payload: {
+        type: "queue.updated",
+        steering: [],
+        followUp: [
+          "排队消息一：运行格式检查并修复告警",
+          "排队消息二：运行类型检查并确认通过",
+        ],
+      },
+    },
+  ]);
+}
+
 async function seedSmokeEnvironmentFixture(): Promise<void> {
   if (!store || !process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment")) {
     return;
@@ -10168,6 +10250,145 @@ function createMainWindow(): BrowserWindow {
                       .querySelector('.goal-editor-footer .primary-button')
                       ?.click();
                     await wait(view === 'goal-editor-saving' ? 200 : 800);
+                  }
+                  return;
+                }
+                if (view.startsWith('queued-steer')) {
+                  const waitFor = async (selector) => {
+                    const deadline = Date.now() + 5000;
+                    while (Date.now() < deadline) {
+                      const found = document.querySelector(selector);
+                      if (found) return found;
+                      await wait(100);
+                    }
+                    return null;
+                  };
+                  document.querySelector('.thread-select')?.click();
+                  await waitFor('.queued-message-bar');
+                  if (!document.querySelector('.queued-message-bar')) {
+                    throw new Error('Queued message bar did not render.');
+                  }
+                  const captureActionsGeometry = () => {
+                    const container = document.querySelector(
+                      '.queued-message-editor-actions',
+                    );
+                    if (!container) {
+                      window.__queuedSteerActions = null;
+                      return;
+                    }
+                    const buttons = Array.from(
+                      container.querySelectorAll('button'),
+                    );
+                    const style = getComputedStyle(container);
+                    const bounds = container.getBoundingClientRect();
+                    window.__queuedSteerActions = {
+                      present: true,
+                      directChildOfEditorRoot:
+                        container.parentElement ===
+                        container.closest('.queued-message-editor'),
+                      display: style.display,
+                      flexDirection: style.flexDirection,
+                      justifyContent: style.justifyContent,
+                      gap: style.gap,
+                      buttonCount: buttons.length,
+                      buttonLabels: buttons.map((button) =>
+                        (button.textContent ?? '').trim(),
+                      ),
+                      containerWidth: bounds.width,
+                      buttonWidths: buttons.map(
+                        (button) => button.getBoundingClientRect().width,
+                      ),
+                      buttonTops: buttons.map(
+                        (button) => button.getBoundingClientRect().top,
+                      ),
+                    };
+                  };
+                  const openEditor = async () => {
+                    document
+                      .querySelector('[data-queued-index="0"] .queued-message-edit')
+                      ?.click();
+                    await wait(350);
+                    const editor = document.querySelector(
+                      '.queued-message-editor textarea',
+                    );
+                    if (!(editor instanceof HTMLTextAreaElement)) {
+                      throw new Error('Queued message editor did not open.');
+                    }
+                    captureActionsGeometry();
+                    return editor;
+                  };
+                  const setEditorValue = async (editor, value) => {
+                    const setter = Object.getOwnPropertyDescriptor(
+                      HTMLTextAreaElement.prototype,
+                      'value',
+                    )?.set;
+                    setter?.call(editor, value);
+                    editor.dispatchEvent(new Event('input', { bubbles: true }));
+                    await wait(250);
+                  };
+                  if (view === 'queued-steer-edit') {
+                    await openEditor();
+                    return;
+                  }
+                  if (view === 'queued-steer-cancel') {
+                    const editor = await openEditor();
+                    editor.dispatchEvent(
+                      new KeyboardEvent('keydown', {
+                        key: 'Escape',
+                        bubbles: true,
+                      }),
+                    );
+                    await wait(350);
+                    return;
+                  }
+                  if (
+                    view === 'queued-steer-save' ||
+                    view === 'queued-steer-save-error'
+                  ) {
+                    const editor = await openEditor();
+                    await setEditorValue(
+                      editor,
+                      '排队消息一（已编辑）：格式检查通过，继续类型检查',
+                    );
+                    editor.dispatchEvent(
+                      new KeyboardEvent('keydown', {
+                        key: 'Enter',
+                        metaKey: true,
+                        bubbles: true,
+                      }),
+                    );
+                    await wait(800);
+                    return;
+                  }
+                  if (view === 'queued-steer-ime') {
+                    const editor = await openEditor();
+                    await setEditorValue(
+                      editor,
+                      '排队消息一（输入法组合中）：正在输入中文',
+                    );
+                    editor.dispatchEvent(
+                      new CompositionEvent('compositionstart', {
+                        bubbles: true,
+                      }),
+                    );
+                    const composingEnter = new KeyboardEvent('keydown', {
+                      key: 'Enter',
+                      metaKey: true,
+                      bubbles: true,
+                      isComposing: true,
+                    });
+                    window.__queuedSteerProbe = {
+                      compositionstartDispatched: true,
+                      dispatchedIsComposing: composingEnter.isComposing,
+                      submitBlocked: false,
+                    };
+                    editor.dispatchEvent(composingEnter);
+                    await wait(500);
+                    window.__queuedSteerProbe.submitBlocked =
+                      document.querySelector(
+                        '.queued-message-editor textarea',
+                      ) !== null;
+                    return;
                   }
                   return;
                 }
@@ -10672,6 +10893,16 @@ function createMainWindow(): BrowserWindow {
                 const composer = document.querySelector(".composer");
                 const composerBounds = composer?.getBoundingClientRect();
                 const goalEditor = document.querySelector(".goal-editor-panel");
+                const queuedSteerBar = document.querySelector(
+                  ".queued-message-bar",
+                );
+                const queuedSteerEditor = document.querySelector(
+                  ".queued-message-editor textarea",
+                );
+                const queuedSteerError = document.querySelector(
+                  ".queued-message-editor-error[role='alert']",
+                );
+                const queuedSteerFocus = document.activeElement;
                 const composerInput = document.querySelector(".composer textarea");
                 const sourceImageEntry = document.querySelector(
                   "button.sources-panel-entry.attachment",
@@ -10825,6 +11056,88 @@ function createMainWindow(): BrowserWindow {
                   goalEditorAlert:
                     document.querySelector(".transient-notice[role='alert']")
                       ?.textContent?.trim() ?? null,
+                  queuedSteer: {
+                    barVisible: queuedSteerBar ? visible(queuedSteerBar) : false,
+                    itemCount: document.querySelectorAll(
+                      ".queued-message-item",
+                    ).length,
+                    editorVisible:
+                      queuedSteerEditor instanceof HTMLTextAreaElement
+                        ? visible(queuedSteerEditor)
+                        : false,
+                    editorValue:
+                      queuedSteerEditor instanceof HTMLTextAreaElement
+                        ? queuedSteerEditor.value
+                        : null,
+                    firstItemText:
+                      document
+                        .querySelector(
+                          '[data-queued-index="0"] .queued-message-content',
+                        )
+                        ?.textContent?.trim() ?? null,
+                    errorVisible: queuedSteerError
+                      ? visible(queuedSteerError)
+                      : false,
+                    errorText: queuedSteerError?.textContent?.trim() ?? null,
+                    retryDisabled: queuedSteerError?.querySelector("button")
+                      ?.disabled ?? null,
+                    focusTag: queuedSteerFocus?.tagName ?? null,
+                    focusQueuedIndex:
+                      queuedSteerFocus?.closest?.("[data-queued-index]")
+                        ?.getAttribute("data-queued-index") ?? null,
+                    focusOnFirstSteer:
+                      queuedSteerFocus instanceof HTMLElement
+                        ? queuedSteerFocus.matches(
+                            '[data-queued-index="0"] .queued-message-steer',
+                          )
+                        : false,
+                    genericNoticeVisible: [...document.querySelectorAll(
+                      ".transient-notice",
+                    )].some((notice) => visible(notice)),
+                    genericNoticeCount: document.querySelectorAll(
+                      ".transient-notice",
+                    ).length,
+                    genericNoticeText:
+                      document
+                        .querySelector(".transient-notice")
+                        ?.textContent?.trim() ?? null,
+                    actions: (() => {
+                      const container = document.querySelector(
+                        ".queued-message-editor-actions",
+                      );
+                      if (!container) {
+                        return null;
+                      }
+                      const buttons = Array.from(
+                        container.querySelectorAll("button"),
+                      );
+                      const style = getComputedStyle(container);
+                      const bounds = container.getBoundingClientRect();
+                      return {
+                        present: true,
+                        directChildOfEditorRoot:
+                          container.parentElement ===
+                          container.closest(".queued-message-editor"),
+                        display: style.display,
+                        flexDirection: style.flexDirection,
+                        justifyContent: style.justifyContent,
+                        gap: style.gap,
+                        buttonCount: buttons.length,
+                        buttonLabels: buttons.map((button) =>
+                          (button.textContent ?? "").trim(),
+                        ),
+                        containerWidth: bounds.width,
+                        buttonWidths: buttons.map(
+                          (button) => button.getBoundingClientRect().width,
+                        ),
+                        buttonTops: buttons.map(
+                          (button) => button.getBoundingClientRect().top,
+                        ),
+                      };
+                    })(),
+                    editTimeActions: window.__queuedSteerActions ?? null,
+                    probe: window.__queuedSteerProbe ?? null,
+                  },
                   messageActionLabels: [...document.querySelectorAll(
                     ".message-action",
                   )].map((button) => button.getAttribute("aria-label")),
@@ -10993,6 +11306,7 @@ app
     seedSmokeGoalFixture();
     seedSmokeTurnChangesFixture();
     seedSmokeMessageActionsFixture();
+    seedSmokeQueuedSteerFixture();
     mcpConfigStore = new McpConfigStore(
       join(app.getPath("userData"), "mcp.json"),
     );
