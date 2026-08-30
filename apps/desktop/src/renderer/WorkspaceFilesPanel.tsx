@@ -361,6 +361,7 @@ export function WorkspaceFilesPanel({
                 }}
                 onSave={saveFile}
                 path={selectedFile.path}
+                readOnly={selectedFile.binary}
                 richLabel={richLabel}
                 saveError={saveError}
                 saveLabel={saveLabel}

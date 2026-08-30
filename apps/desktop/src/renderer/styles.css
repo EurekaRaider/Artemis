@@ -8247,6 +8247,40 @@ button.sources-panel-entry.attachment:focus-visible {
   color: var(--text);
 }
 
+/* D#76 PR7: the shared editor toolbar fills the editor column like the
+   per-editor wrappers it replaces, and carries the same mode-toggle chrome. */
+.workspace-editor-toolbar {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-editor-mode-toggle {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+}
+
+.workspace-editor-mode-toggle button {
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  min-height: 25px;
+  padding: 0 9px;
+}
+
+.workspace-editor-mode-toggle button[aria-pressed="true"] {
+  background: var(--selected);
+  color: var(--text);
+}
+
 .workspace-file-markdown-preview {
   flex: 1;
   font-family: var(--ui-font);
