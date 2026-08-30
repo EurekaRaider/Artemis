@@ -80,6 +80,7 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
 import { GoalBar } from "./GoalBar.js";
 import { GoalEditorPanel } from "./GoalEditorPanel.js";
 import { EnvironmentPanel } from "./EnvironmentPanel.js";
+import { QueuedMessageEditor } from "./QueuedMessageEditor.js";
 import {
   clampTreeActiveRowId,
   handleProjectTreeKeyDown,
@@ -509,6 +510,8 @@ const copy = {
     queueEdit: "Edit queued message",
     queueSave: "Save queued message",
     queueCancel: "Cancel edit",
+    queueSaveError: "Couldn't save the queued message",
+    queueRetry: "Retry",
     copyMessage: "Copy message",
     editAndResend: "Edit and resend",
     messageCopied: "Message copied",
@@ -781,6 +784,8 @@ const copy = {
     queueEdit: "编辑排队消息",
     queueSave: "保存排队消息",
     queueCancel: "取消编辑",
+    queueSaveError: "保存排队消息失败",
+    queueRetry: "重试",
     copyMessage: "复制消息",
     editAndResend: "编辑后重新发送",
     messageCopied: "已复制消息",
@@ -5337,7 +5342,7 @@ export function App() {
 
   const replaceQueuedMessages = useCallback(
     async (followUp: Array<{ sourceIndex: number; text: string }>) => {
-      if (!activeThread || busy) return;
+      if (!activeThread || busy) return false;
       setBusy(true);
       try {
         await window.artemis.replaceTurnQueue({
@@ -5346,10 +5351,12 @@ export function App() {
           followUp,
         });
         setEditingQueuedMessage(undefined);
+        return true;
       } catch (error) {
         setToast(
           `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
         );
+        return false;
       } finally {
         setBusy(false);
       }
@@ -6695,6 +6702,7 @@ export function App() {
                               return (
                                 <li
                                   className="queued-message-item"
+                                  data-queued-index={index}
                                   key={`${index}:${message}`}
                                 >
                                   <span
@@ -6704,45 +6712,35 @@ export function App() {
                                     {index + 1}
                                   </span>
                                   {editing ? (
-                                    <div className="queued-message-editor">
-                                      <textarea
-                                        aria-label={t.queueEdit}
-                                        onChange={(event) =>
-                                          setEditingQueuedMessage({
-                                            index,
-                                            value: event.target.value,
-                                          })
-                                        }
-                                        rows={2}
-                                        value={editingQueuedMessage.value}
-                                      />
-                                      <div className="queued-message-editor-actions">
-                                        <button
-                                          disabled={
-                                            busy ||
-                                            !editingQueuedMessage.value.trim()
-                                          }
-                                          onClick={() =>
-                                            void saveQueuedMessage(
-                                              index,
-                                              editingQueuedMessage.value,
-                                            )
-                                          }
-                                          type="button"
-                                        >
-                                          {t.queueSave}
-                                        </button>
-                                        <button
-                                          disabled={busy}
-                                          onClick={() =>
-                                            setEditingQueuedMessage(undefined)
-                                          }
-                                          type="button"
-                                        >
-                                          {t.queueCancel}
-                                        </button>
-                                      </div>
-                                    </div>
+                                    <QueuedMessageEditor
+                                      busy={busy}
+                                      cancelLabel={t.queueCancel}
+                                      errorLabel={t.queueSaveError}
+                                      retryLabel={t.queueRetry}
+                                      saveLabel={t.queueSave}
+                                      textareaLabel={t.queueEdit}
+                                      value={editingQueuedMessage.value}
+                                      focusReturnTarget={() =>
+                                        document.querySelector<HTMLElement>(
+                                          `[data-queued-index="${index}"] .queued-message-steer`,
+                                        )
+                                      }
+                                      onCancel={() =>
+                                        setEditingQueuedMessage(undefined)
+                                      }
+                                      onSave={async () =>
+                                        (await saveQueuedMessage(
+                                          index,
+                                          editingQueuedMessage.value,
+                                        )) === true
+                                      }
+                                      onSuccess={() =>
+                                        setEditingQueuedMessage(undefined)
+                                      }
+                                      onValueChange={(value) =>
+                                        setEditingQueuedMessage({ index, value })
+                                      }
+                                    />
                                   ) : (
                                     <>
                                       <span
