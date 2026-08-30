@@ -21,6 +21,7 @@
     "verify:bundled-plugins": "vitest run --no-file-parallelism test/codex-plugin-service.test.ts -t \"exposes all four Lite plugins from packaged resources without a runtime\"",
     "verify:environment-panel": "npm run build && node scripts/verify-environment-panel-responsive.mjs",
     "verify:goal-parity": "npm run build && node scripts/verify-goal-parity.mjs",
+    "verify:markdown-editor": "npm run build && node scripts/verify-markdown-editor.mjs",
     "verify:queued-steer": "npm run build && node scripts/verify-queued-steer.mjs",
     "verify:screenshot-matrix": "npm run build && node scripts/capture-screenshot-matrix.mjs",
     "test": "vitest run --no-file-parallelism",
