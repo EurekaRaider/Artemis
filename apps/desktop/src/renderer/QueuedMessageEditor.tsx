@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 export interface QueuedMessageEditorProps {
   busy: boolean; // Parent-level busy flag.
@@ -19,6 +19,7 @@ export function QueuedMessageEditor(props: QueuedMessageEditorProps) {
   const { busy, value } = props;
   const [error, setError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const focusReturnTimerRef = useRef<number | null>(null);
 
   const canSubmit = value.trim() !== "" && !busy && !submitting;
 
@@ -26,6 +27,26 @@ export function QueuedMessageEditor(props: QueuedMessageEditorProps) {
   useEffect(() => {
     setError(false);
   }, [value]);
+
+  // Never run the delayed focus return after the editor unmounts (review nit).
+  useEffect(() => {
+    return () => {
+      if (focusReturnTimerRef.current !== null) {
+        window.clearTimeout(focusReturnTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Shared delayed focus return for the save-success and Esc-cancel paths.
+  const scheduleFocusReturn = () => {
+    if (focusReturnTimerRef.current !== null) {
+      window.clearTimeout(focusReturnTimerRef.current);
+    }
+    focusReturnTimerRef.current = window.setTimeout(() => {
+      focusReturnTimerRef.current = null;
+      props.focusReturnTarget()?.focus();
+    }, 0);
+  };
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -40,9 +61,7 @@ export function QueuedMessageEditor(props: QueuedMessageEditorProps) {
     setSubmitting(false);
     if (saved) {
       props.onSuccess();
-      window.setTimeout(() => {
-        props.focusReturnTarget()?.focus();
-      }, 0);
+      scheduleFocusReturn();
     } else {
       setError(true);
     }
@@ -61,7 +80,10 @@ export function QueuedMessageEditor(props: QueuedMessageEditorProps) {
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      if (!busy && !submitting) props.onCancel();
+      if (!busy && !submitting) {
+        props.onCancel();
+        scheduleFocusReturn();
+      }
     }
   };
 
@@ -85,16 +107,22 @@ export function QueuedMessageEditor(props: QueuedMessageEditorProps) {
           </button>
         </p>
       )}
-      <button disabled={!canSubmit} onClick={() => void submit()} type="button">
-        {props.saveLabel}
-      </button>
-      <button
-        disabled={busy || submitting}
-        onClick={props.onCancel}
-        type="button"
-      >
-        {props.cancelLabel}
-      </button>
+      <div className="queued-message-editor-actions">
+        <button
+          disabled={!canSubmit}
+          onClick={() => void submit()}
+          type="button"
+        >
+          {props.saveLabel}
+        </button>
+        <button
+          disabled={busy || submitting}
+          onClick={props.onCancel}
+          type="button"
+        >
+          {props.cancelLabel}
+        </button>
+      </div>
     </div>
   );
 }
