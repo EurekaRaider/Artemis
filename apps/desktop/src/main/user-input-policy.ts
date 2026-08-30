@@ -1,6 +1,12 @@
 import { timingSafeEqual } from "node:crypto";
 
-import type { UserInputOption, UserInputResolution } from "@artemis/protocol";
+import {
+  MAX_USER_INPUT_QUESTIONS,
+  userInputMultiQuestionRequestedPayloadSchema,
+  type UserInputMultiQuestionRequestedPayload,
+  type UserInputOption,
+  type UserInputResolution,
+} from "@artemis/protocol";
 
 export const USER_INPUT_TIMEOUT_MILLISECONDS = 5 * 60 * 1_000;
 
@@ -112,6 +118,10 @@ export class PendingUserInputRegistry<T> {
 export interface PendingMultiUserInputQuestion {
   questionId: string;
   options: UserInputOption[];
+  // Frozen per-question deadline (from the persisted requested payload) so
+  // the main process can apply the same expiry gates the reducer will apply
+  // when the resolution event is replayed.
+  expiresAt: string;
 }
 
 export interface MultiUserInputQuestionResolution {
@@ -120,6 +130,7 @@ export interface MultiUserInputQuestionResolution {
   questionId: string;
   selectedOptionLabel?: string;
   customAnswer?: string;
+  source: "user" | "timeout";
 }
 
 export interface AnsweredMultiUserInputQuestion {
@@ -127,6 +138,9 @@ export interface AnsweredMultiUserInputQuestion {
   answer: string;
   selectedOptionLabel?: string;
   customAnswer?: string;
+  // Per-question provenance so the aggregated broker backfill can tell a
+  // user choice from a timeout's recommended fallback (review item 4).
+  source: "user" | "timeout";
 }
 
 export interface ResolvedMultiUserInputQuestion<T> {
@@ -146,6 +160,7 @@ interface PendingMultiUserInputEntry<T> {
   questions: Array<{
     questionId: string;
     options: UserInputOption[];
+    expiresAt: string;
     answered?: AnsweredMultiUserInputQuestion;
   }>;
   value: T;
@@ -187,6 +202,7 @@ export class PendingMultiUserInputRegistry<T> {
       questions: input.questions.map((question) => ({
         questionId: question.questionId,
         options: question.options,
+        expiresAt: question.expiresAt,
       })),
       value: input.value,
     });
@@ -199,6 +215,19 @@ export class PendingMultiUserInputRegistry<T> {
     return false;
   }
 
+  // Peeks the frozen deadline for one pending question without consuming
+  // it: the main process expiry gate must run before consumption so a late
+  // user answer never mutates registry state.
+  getQuestionExpiresAt(
+    requestId: string,
+    questionId: string,
+  ): string | undefined {
+    const entry = this.pending.get(requestId);
+    return entry?.questions.find(
+      (candidate) => candidate.questionId === questionId,
+    )?.expiresAt;
+  }
+
   consumeQuestion(
     resolution: MultiUserInputQuestionResolution,
   ): ResolvedMultiUserInputQuestion<T> {
@@ -207,6 +236,16 @@ export class PendingMultiUserInputRegistry<T> {
     if (!nonceMatches(entry.nonce, resolution.nonce)) {
       throw new Error("User-input nonce does not match.");
     }
+    return this.consumeQuestionFromEntry(entry, resolution);
+  }
+
+  // Shared consumption core: both public consumers look the entry up once
+  // and delegate here, so the recommended fallback does not re-walk the
+  // registry the way the old double lookup did (review nit 9).
+  private consumeQuestionFromEntry(
+    entry: PendingMultiUserInputEntry<T>,
+    resolution: MultiUserInputQuestionResolution,
+  ): ResolvedMultiUserInputQuestion<T> {
     const question = entry.questions.find(
       (candidate) => candidate.questionId === resolution.questionId,
     );
@@ -229,6 +268,7 @@ export class PendingMultiUserInputRegistry<T> {
         questionId: question.questionId,
         answer: selected.label,
         selectedOptionLabel: selected.label,
+        source: resolution.source,
       };
     } else {
       const answer = resolution.customAnswer?.trim() ?? "";
@@ -239,6 +279,7 @@ export class PendingMultiUserInputRegistry<T> {
         questionId: question.questionId,
         answer,
         customAnswer: answer,
+        source: resolution.source,
       };
     }
     question.answered = answered;
@@ -281,6 +322,9 @@ export class PendingMultiUserInputRegistry<T> {
   ): ResolvedMultiUserInputQuestion<T> {
     const entry = this.pending.get(requestId);
     if (!entry) throw new Error("User input is no longer pending.");
+    if (!nonceMatches(entry.nonce, nonce)) {
+      throw new Error("User-input nonce does not match.");
+    }
     const question = entry.questions.find(
       (candidate) => candidate.questionId === questionId,
     );
@@ -291,11 +335,12 @@ export class PendingMultiUserInputRegistry<T> {
     if (!recommended) {
       throw new Error("User input requires exactly one recommended option.");
     }
-    return this.consumeQuestion({
+    return this.consumeQuestionFromEntry(entry, {
       requestId,
       nonce,
       questionId,
       selectedOptionLabel: recommended.label,
+      source: "timeout",
     });
   }
 
@@ -312,4 +357,99 @@ export class PendingMultiUserInputRegistry<T> {
     }
     return cancelled;
   }
+}
+
+// Rejection reasons shared by the broker handler and its unit tests: the
+// main process must answer every invalid request with one broker reject
+// instead of a thrown, unhandled promise rejection (review items 2 and 5).
+export interface MultiQuestionUserInputRequestValidation {
+  approvalId: string;
+  header: string;
+  questions: Array<{
+    questionId: string;
+    question: string;
+    options: UserInputOption[];
+  }>;
+}
+
+export interface MultiQuestionUserInputRequestContext {
+  threadExists: boolean;
+  turnCancelling: boolean;
+  turnActive: boolean;
+  modeMatches: boolean;
+  duplicatePending: boolean;
+}
+
+export type MultiQuestionUserInputRegistration =
+  | { ok: true; payload: UserInputMultiQuestionRequestedPayload }
+  | { ok: false; reason: string };
+
+export function prepareMultiQuestionUserInputRegistration(
+  request: MultiQuestionUserInputRequestValidation,
+  context: MultiQuestionUserInputRequestContext,
+  assembly: { nonce: string; now: number },
+): MultiQuestionUserInputRegistration {
+  if (
+    !context.threadExists ||
+    context.turnCancelling ||
+    !context.turnActive ||
+    !context.modeMatches
+  ) {
+    return {
+      ok: false,
+      reason: "User input requires the active task turn.",
+    };
+  }
+  const questionIds = new Set<string>();
+  const invalidQuestion = request.questions.some((question) => {
+    if (
+      !question.questionId ||
+      questionIds.has(question.questionId) ||
+      question.options.length < 2 ||
+      question.options.length > 3 ||
+      question.options.filter((option) => option.recommended).length !== 1
+    ) {
+      return true;
+    }
+    questionIds.add(question.questionId);
+    return false;
+  });
+  if (
+    request.questions.length < 1 ||
+    request.questions.length > MAX_USER_INPUT_QUESTIONS ||
+    invalidQuestion
+  ) {
+    return {
+      ok: false,
+      reason:
+        "User input requires one to three unique questions with two or three options and one recommendation each.",
+    };
+  }
+  let payload: UserInputMultiQuestionRequestedPayload;
+  try {
+    payload = userInputMultiQuestionRequestedPayloadSchema.parse({
+      type: "user-input.requested",
+      kind: "multi-question",
+      requestId: request.approvalId,
+      nonce: assembly.nonce,
+      header: request.header,
+      questions: request.questions.map((question) => ({
+        questionId: question.questionId,
+        question: question.question,
+        options: question.options,
+        expiresAt: new Date(
+          assembly.now + USER_INPUT_TIMEOUT_MILLISECONDS,
+        ).toISOString(),
+      })),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : "User input is invalid.",
+    };
+  }
+  if (context.duplicatePending) {
+    return { ok: false, reason: "User input is already pending." };
+  }
+  return { ok: true, payload };
 }

@@ -1356,6 +1356,106 @@ describe("AppStore", () => {
     });
   });
 
+  it("closes remaining multi questions after a crash answered only some of them", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-multi-partial-"));
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "state.sqlite");
+    const now = "2026-08-30T00:00:00.000Z";
+    const options = [
+      {
+        label: "Ship now",
+        description: "Release the current build.",
+        recommended: true,
+      },
+      {
+        label: "Ship later",
+        description: "Wait for the sweep to finish.",
+        recommended: false,
+      },
+    ];
+    const questions = ["q1", "q2", "q3"].map((questionId, index) => ({
+      questionId,
+      question: `Decision ${index + 1}?`,
+      options,
+      expiresAt: "2999-01-01T00:00:00.000Z",
+    }));
+
+    const first = new AppStore(databasePath);
+    first.upsertProject({
+      id: "project-1",
+      name: "Workspace",
+      path: join(directory, "workspace"),
+      createdAt: now,
+      updatedAt: now,
+    });
+    first.createThread({
+      id: "thread-partial",
+      projectId: "project-1",
+      title: "Partially answered multi",
+      mode: "execute",
+      target: "local",
+      status: "waiting-approval",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    first.appendEvent(randomUUID(), "thread-partial", "turn-1", {
+      type: "user-input.requested",
+      kind: "multi-question",
+      requestId: "multi-thread-partial",
+      nonce: "multi-nonce-thread-partial",
+      header: "Scope",
+      questions,
+    });
+    first.appendEvent(randomUUID(), "thread-partial", "turn-1", {
+      type: "user-input.resolved",
+      kind: "multi-question",
+      requestId: "multi-thread-partial",
+      nonce: "multi-nonce-thread-partial",
+      questionId: "q1",
+      selectedOptionLabel: "Ship now",
+      source: "user",
+    });
+    first.close();
+
+    const reopened = new AppStore(databasePath);
+    const recovered = reopened.recoverInterruptedThreads();
+    const events = reopened.getThreadEvents("thread-partial");
+    const state = reduceAgentEvents("thread-partial", events);
+    reopened.close();
+
+    // Answering one of three questions is not a whole-card close: recovery
+    // must still synthesize the kind-less cancelled resolution.
+    expect(
+      recovered.filter(
+        (event) =>
+          event.payload.type === "user-input.resolved" &&
+          event.payload.requestId === "multi-thread-partial",
+      ),
+    ).toHaveLength(1);
+    const closePayload = events.at(-2)?.payload;
+    expect(closePayload).toMatchObject({
+      type: "user-input.resolved",
+      requestId: "multi-thread-partial",
+      nonce: "multi-nonce-thread-partial",
+      answer: "",
+      source: "cancelled",
+    });
+    expect(
+      (closePayload as { kind?: string } | undefined)?.kind,
+    ).toBeUndefined();
+    expect(state.userInputs["multi-thread-partial"]).toMatchObject({
+      kind: "multi-question",
+      status: "cancelled",
+      answers: {
+        q1: { status: "answered", answer: "Ship now" },
+        q2: { status: "cancelled" },
+        q3: { status: "cancelled" },
+      },
+    });
+  });
+
   it("persists and deletes line-anchored Review comments", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-comments-"));
     temporaryDirectories.push(directory);

@@ -379,10 +379,24 @@ try {
       (post) => post.type === "broker.resolve",
     );
     assert(
-      "broker-resolve-count-exactly-four",
-      brokerResolves.length === 4,
+      "broker-resolve-count-exactly-five",
+      brokerResolves.length === 5,
       brokerResolves.length,
-      "legacy user 1 + multi final 1 + expired final 1 + cancel 1 = 4",
+      "legacy user 1 + duplicate-injection reject 1 + multi final 1 + expired final 1 + cancel 1 = 5",
+    );
+    const duplicateReject = brokerResolves.find(
+      (post) =>
+        post.requestId === "artemis-smoke-multi-worker" &&
+        post.resolution?.approved === false &&
+        post.error === "User input is already pending.",
+    );
+    assert(
+      "broker-duplicate-injection-reject-receipt",
+      Boolean(duplicateReject),
+      brokerResolves.filter(
+        (post) => post.requestId === "artemis-smoke-multi-worker",
+      ),
+      "one approved:false reject for the duplicate injection saying 'User input is already pending.'",
     );
     assert(
       "renderer-no-pending-cards-at-rest",

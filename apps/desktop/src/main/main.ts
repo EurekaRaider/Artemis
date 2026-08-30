@@ -73,7 +73,6 @@ import type {
 
 import {
   AGENT_CONCURRENCY_FALLBACK,
-  MAX_USER_INPUT_QUESTIONS,
   PROTOCOL_VERSION,
   appLocaleSchema,
   appLanguageSchema,
@@ -92,7 +91,6 @@ import {
   runModeSchema,
   shellRuntimeConfigurationSchema,
   threadCommandSchema,
-  userInputMultiQuestionRequestedPayloadSchema,
   userInputRequestedPayloadSchema,
   userInputResolutionSchema,
   worktreeCommandSchema,
@@ -135,6 +133,7 @@ import {
   PendingMultiUserInputRegistry,
   PendingUserInputRegistry,
   USER_INPUT_TIMEOUT_MILLISECONDS,
+  prepareMultiQuestionUserInputRegistration,
 } from "./user-input-policy.js";
 import {
   externalHttpUrl,
@@ -355,7 +354,10 @@ type MultiQuestionUserInputRequest = Extract<
 interface PendingUserInput {
   workerRequestId: string;
   request: SingleQuestionUserInputRequest;
-  timeout: ReturnType<typeof setTimeout>;
+  // Assigned synchronously right after registration succeeds (review item
+  // 2): registration runs first so a rejected registration can never leak
+  // an orphan timer.
+  timeout?: ReturnType<typeof setTimeout> | undefined;
 }
 
 interface PendingMultiUserInput {
@@ -1273,7 +1275,9 @@ function interruptTurnsAfterAgentHostExit(): void {
     );
   }
   for (const cancelled of pendingUserInputs.cancelWhere(() => true)) {
-    clearTimeout(cancelled.value.timeout);
+    if (cancelled.value.timeout !== undefined) {
+      clearTimeout(cancelled.value.timeout);
+    }
     emitPayload(
       cancelled.value.request.threadId,
       cancelled.value.request.turnId,
@@ -2759,6 +2763,11 @@ function emitPayload(
   threadId: string,
   turnId: string | undefined,
   payload: AgentPayload,
+  // Optional stamp override used by the multi-question expiry clamp: the
+  // emitted timestamp is pinned onto the question's frozen deadline so the
+  // reducer's time gates always agree with the main-process gate (review
+  // item 1, scenarios A and B).
+  timestamp?: string,
 ): AgentEvent {
   if (!store) {
     throw new Error("Application store is not ready.");
@@ -2773,6 +2782,7 @@ function emitPayload(
     threadId,
     turnId,
     preparedPayload,
+    timestamp,
   );
   mainWindow?.webContents.send(IPC.agentEvent, event);
   applyPayloadSideEffects(threadId, preparedPayload);
@@ -3059,7 +3069,9 @@ function completeUserInput(
           resolution.nonce,
         )
       : pendingUserInputs.consume(resolution);
-  clearTimeout(resolved.value.timeout);
+  if (resolved.value.timeout !== undefined) {
+    clearTimeout(resolved.value.timeout);
+  }
   const { request, workerRequestId } = resolved.value;
   emitPayload(request.threadId, request.turnId, {
     type: "user-input.resolved",
@@ -3094,12 +3106,21 @@ function completeUserInput(
   });
 }
 
+// Dispatches on the value, not the key (review nit 6): structured clone
+// preserves an explicit `questions: undefined` key, which must stay on the
+// legacy single-question path instead of reaching the multi handler.
+function isMultiQuestionUserInputRequest(
+  request: Extract<BrokerExecutionRequest, { kind: "user.input" }>,
+): request is MultiQuestionUserInputRequest {
+  return Array.isArray((request as { questions?: unknown }).questions);
+}
+
 function handleUserInputBrokerRequest(
   workerRequestId: string,
   request: Extract<BrokerExecutionRequest, { kind: "user.input" }>,
 ): void {
   if (!agentProcess || !store) return;
-  if ("questions" in request) {
+  if (isMultiQuestionUserInputRequest(request)) {
     handleMultiQuestionUserInputBrokerRequest(workerRequestId, request);
     return;
   }
@@ -3157,7 +3178,47 @@ function handleUserInputBrokerRequest(
     );
     return;
   }
-  const timeout = setTimeout(() => {
+  // Register before arming the timer (review item 2, single-path closeout):
+  // a rejected registration can never leak an orphan timer, and a duplicate
+  // approval id is answered with one broker reject instead of an unhandled
+  // throw that would strand the worker's tool call.
+  if (
+    pendingUserInputs.hasWhere(
+      (pending) => pending.request.approvalId === request.approvalId,
+    )
+  ) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "User input is already pending.",
+    );
+    return;
+  }
+  const pendingValue: PendingUserInput = {
+    workerRequestId,
+    request,
+    timeout: undefined,
+  };
+  try {
+    pendingUserInputs.register({
+      requestId: request.approvalId,
+      nonce,
+      options: payload.options,
+      value: pendingValue,
+    });
+  } catch (error) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      error instanceof Error && error.message.includes("already pending")
+        ? "User input is already pending."
+        : error instanceof Error
+          ? error.message
+          : "User input is invalid.",
+    );
+    return;
+  }
+  pendingValue.timeout = setTimeout(() => {
     try {
       completeUserInput(
         {
@@ -3168,22 +3229,20 @@ function handleUserInputBrokerRequest(
         "timeout",
       );
     } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Timed-out user input could not be resolved.";
       diagnosticBundleService?.record({
         source: "main",
-        severity: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Timed-out user input could not be resolved.",
+        // The user answering just before the timer fires is a normal race,
+        // not a fault: keep that noise out of the error channel (nit 8).
+        severity:
+          message === "User input is no longer pending." ? "warning" : "error",
+        message,
       });
     }
   }, USER_INPUT_TIMEOUT_MILLISECONDS);
-  pendingUserInputs.register({
-    requestId: request.approvalId,
-    nonce,
-    options: payload.options,
-    value: { workerRequestId, request, timeout },
-  });
   emitPayload(request.threadId, request.turnId, payload);
 }
 
@@ -3195,6 +3254,25 @@ function completeMultiUserInputQuestion(
   selection: { selectedOptionLabel?: string; customAnswer?: string } = {},
 ): void {
   if (!agentProcess || !store) throw new Error("Application is not ready.");
+  // Main-process expiry gate mirroring the reducer's own (review item 1):
+  // a user answer past expiresAt is refused before consumption so the
+  // caller perceives the rejection, and the emitted timestamp is clamped
+  // onto the frozen deadline so the reducer's time gates can never disagree
+  // with this gate (scenario A's millisecond race between consume and
+  // stamp, scenario B's clock step-back).
+  const expiresAt = pendingMultiUserInputs.getQuestionExpiresAt(
+    requestId,
+    questionId,
+  );
+  const expiresAtMs =
+    expiresAt === undefined ? Number.NaN : Date.parse(expiresAt);
+  if (
+    source === "user" &&
+    Number.isFinite(expiresAtMs) &&
+    Date.now() > expiresAtMs
+  ) {
+    throw new Error("User input has expired.");
+  }
   const resolved =
     source === "timeout"
       ? pendingMultiUserInputs.consumeRecommendedQuestion(
@@ -3206,25 +3284,38 @@ function completeMultiUserInputQuestion(
           requestId,
           nonce,
           questionId,
+          source,
           ...selection,
         });
   const { request, workerRequestId, timeouts } = resolved.value;
   const timeout = timeouts.get(questionId);
   if (timeout !== undefined) clearTimeout(timeout);
-  emitPayload(request.threadId, request.turnId, {
-    type: "user-input.resolved",
-    kind: "multi-question",
-    requestId,
-    nonce,
-    questionId,
-    ...(resolved.selectedOptionLabel === undefined
-      ? {}
-      : { selectedOptionLabel: resolved.selectedOptionLabel }),
-    ...(resolved.customAnswer === undefined
-      ? {}
-      : { customAnswer: resolved.customAnswer }),
-    source,
-  });
+  // User answers are stamped at or before the deadline; timeouts at or
+  // after it — exactly the windows the reducer accepts.
+  const resolvedAtMs = Number.isFinite(expiresAtMs)
+    ? source === "user"
+      ? Math.min(Date.now(), expiresAtMs)
+      : Math.max(Date.now(), expiresAtMs)
+    : Date.now();
+  emitPayload(
+    request.threadId,
+    request.turnId,
+    {
+      type: "user-input.resolved",
+      kind: "multi-question",
+      requestId,
+      nonce,
+      questionId,
+      ...(resolved.selectedOptionLabel === undefined
+        ? {}
+        : { selectedOptionLabel: resolved.selectedOptionLabel }),
+      ...(resolved.customAnswer === undefined
+        ? {}
+        : { customAnswer: resolved.customAnswer }),
+      source,
+    },
+    new Date(resolvedAtMs).toISOString(),
+  );
   if (!resolved.final) return;
   // Dual-channel backfill: the renderer already saw one kind'd resolved
   // event per question; the agent's tool promise settles exactly once with
@@ -3252,72 +3343,57 @@ function handleMultiQuestionUserInputBrokerRequest(
 ): void {
   if (!agentProcess || !store) return;
   const thread = store.getThread(request.threadId);
-  if (
-    !thread ||
-    cancellingTurns.has(request.threadId) ||
-    activeTurns.get(request.threadId) !== request.turnId ||
-    thread.mode !== request.mode
-  ) {
-    rejectBrokerRequest(
-      workerRequestId,
-      request,
-      "User input requires the active task turn.",
-    );
+  // Every rejection branch (thread/turn/mode ownership, question count and
+  // shape, frozen-schema parse, duplicate injection) is decided by the pure
+  // validator so it stays unit-testable (review item 5) and every failure
+  // path answers with one broker reject instead of a thrown error.
+  const prepared = prepareMultiQuestionUserInputRegistration(
+    request,
+    {
+      threadExists: thread !== null,
+      turnCancelling: cancellingTurns.has(request.threadId),
+      turnActive: activeTurns.get(request.threadId) === request.turnId,
+      modeMatches: thread?.mode === request.mode,
+      duplicatePending: pendingMultiUserInputs.hasWhere(
+        (pending) => pending.request.approvalId === request.approvalId,
+      ),
+    },
+    { nonce: randomUUID(), now: Date.now() },
+  );
+  if (!prepared.ok) {
+    rejectBrokerRequest(workerRequestId, request, prepared.reason);
     return;
   }
-  const questionIds = new Set<string>();
-  const invalidQuestion = request.questions.some((question) => {
-    if (
-      !question.questionId ||
-      questionIds.has(question.questionId) ||
-      question.options.length < 2 ||
-      question.options.length > 3 ||
-      question.options.filter((option) => option.recommended).length !== 1
-    ) {
-      return true;
-    }
-    questionIds.add(question.questionId);
-    return false;
-  });
-  if (
-    request.questions.length < 1 ||
-    request.questions.length > MAX_USER_INPUT_QUESTIONS ||
-    invalidQuestion
-  ) {
-    rejectBrokerRequest(
-      workerRequestId,
-      request,
-      "User input requires one to three unique questions with two or three options and one recommendation each.",
-    );
-    return;
-  }
-
-  const nonce = randomUUID();
-  const requestedAt = Date.now();
-  let payload: ReturnType<
-    typeof userInputMultiQuestionRequestedPayloadSchema.parse
-  >;
+  const payload = prepared.payload;
+  // Register before arming the timers (review item 2): a rejected
+  // registration can never leak orphan timers that before-quit cleanup
+  // cannot reach, and duplicates were already answered above with one
+  // broker reject instead of an unhandled throw.
+  const pendingValue: PendingMultiUserInput = {
+    workerRequestId,
+    request,
+    timeouts: new Map(),
+  };
   try {
-    payload = userInputMultiQuestionRequestedPayloadSchema.parse({
-      type: "user-input.requested",
-      kind: "multi-question",
+    pendingMultiUserInputs.register({
       requestId: request.approvalId,
-      nonce,
-      header: request.header,
-      questions: request.questions.map((question) => ({
+      nonce: payload.nonce,
+      questions: payload.questions.map((question) => ({
         questionId: question.questionId,
-        question: question.question,
         options: question.options,
-        expiresAt: new Date(
-          requestedAt + USER_INPUT_TIMEOUT_MILLISECONDS,
-        ).toISOString(),
+        expiresAt: question.expiresAt,
       })),
+      value: pendingValue,
     });
   } catch (error) {
     rejectBrokerRequest(
       workerRequestId,
       request,
-      error instanceof Error ? error.message : "User input is invalid.",
+      error instanceof Error && error.message.includes("already pending")
+        ? "User input is already pending."
+        : error instanceof Error
+          ? error.message
+          : "User input is invalid.",
     );
     return;
   }
@@ -3325,40 +3401,37 @@ function handleMultiQuestionUserInputBrokerRequest(
   // resolves only its own question with its own recommended label; the
   // reducer's reverse time gate (timestamp >= expiresAt) accepts exactly
   // these events.
-  const timeouts = new Map<string, ReturnType<typeof setTimeout>>();
   for (const question of payload.questions) {
-    timeouts.set(
+    pendingValue.timeouts.set(
       question.questionId,
       setTimeout(() => {
         try {
           completeMultiUserInputQuestion(
             request.approvalId,
-            nonce,
+            payload.nonce,
             question.questionId,
             "timeout",
           );
         } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Timed-out user input could not be resolved.";
           diagnosticBundleService?.record({
             source: "main",
-            severity: "error",
-            message:
-              error instanceof Error
-                ? error.message
-                : "Timed-out user input could not be resolved.",
+            // The user answering just before the timer fires is a normal
+            // race, not a fault: keep that noise out of the error channel
+            // (nit 8).
+            severity:
+              message === "User input is no longer pending."
+                ? "warning"
+                : "error",
+            message,
           });
         }
       }, USER_INPUT_TIMEOUT_MILLISECONDS),
     );
   }
-  pendingMultiUserInputs.register({
-    requestId: request.approvalId,
-    nonce,
-    questions: payload.questions.map((question) => ({
-      questionId: question.questionId,
-      options: question.options,
-    })),
-    value: { workerRequestId, request, timeouts },
-  });
   emitPayload(request.threadId, request.turnId, payload);
 }
 
@@ -5771,7 +5844,9 @@ async function cancelTaskTurn(threadId: string): Promise<void> {
     (pending) => pending.request.threadId === thread.id,
   );
   for (const cancelled of cancelledUserInputs) {
-    clearTimeout(cancelled.value.timeout);
+    if (cancelled.value.timeout !== undefined) {
+      clearTimeout(cancelled.value.timeout);
+    }
     emitPayload(
       cancelled.value.request.threadId,
       cancelled.value.request.turnId,
@@ -11653,8 +11728,10 @@ async function driveSmokeUserInputTransportEvidence(
       1,
     );
 
-    // §6-4 duplicate injection: the same approval id cannot register twice
-    // and the store keeps exactly one requested event.
+    // §6-4 duplicate injection: the same approval id cannot register twice;
+    // the duplicate is answered with one broker reject (approved:false,
+    // "User input is already pending.") instead of a thrown error, and the
+    // store keeps exactly one requested event.
     let duplicateInjectionError = "";
     try {
       handleUserInputBrokerRequest("artemis-smoke-multi-worker", {
@@ -11670,11 +11747,21 @@ async function driveSmokeUserInputTransportEvidence(
     } catch (error) {
       duplicateInjectionError = error instanceof Error ? error.message : "";
     }
+    const duplicateInjectionPost = brokerPosts.find(
+      (post) =>
+        post.requestId === "artemis-smoke-multi-worker" &&
+        (post.resolution as { approved?: boolean } | undefined)?.approved ===
+          false &&
+        post.error === "User input is already pending.",
+    );
     assert(
       "duplicate-injection-rejected",
-      duplicateInjectionError.includes("already pending"),
-      duplicateInjectionError,
-      "an 'already pending' rejection",
+      duplicateInjectionError === "" && Boolean(duplicateInjectionPost),
+      {
+        thrown: duplicateInjectionError,
+        post: duplicateInjectionPost ?? null,
+      },
+      "no throw and one approved:false broker reject saying 'User input is already pending.'",
     );
     assert(
       "duplicate-injection-single-requested-event",
@@ -11722,10 +11809,16 @@ async function driveSmokeUserInputTransportEvidence(
     const multiFinalPost = brokerPosts.find(
       (post) =>
         (post.resolution as { approvalId?: string } | undefined)?.approvalId ===
-        "artemis-smoke-multi",
+          "artemis-smoke-multi" &&
+        (post.resolution as { approved?: boolean } | undefined)?.approved ===
+          true,
     );
     const multiFinalResult = (multiFinalPost?.result ?? {}) as {
-      answers?: Array<{ questionId?: string; answer?: string }>;
+      answers?: Array<{
+        questionId?: string;
+        answer?: string;
+        source?: string;
+      }>;
       source?: string;
     };
     assert(
@@ -11741,9 +11834,11 @@ async function driveSmokeUserInputTransportEvidence(
       multiFinalResult.answers?.length === 3 &&
         multiFinalResult.answers[0]?.answer === "Ship it" &&
         multiFinalResult.answers[1]?.answer === "Email digest" &&
-        multiFinalResult.answers[2]?.answer === "Add a changelog entry first.",
+        multiFinalResult.answers[2]?.answer ===
+          "Add a changelog entry first." &&
+        multiFinalResult.answers.every((answer) => answer.source === "user"),
       multiFinalResult,
-      "aggregated answers for q1/q2/q3 in order",
+      "aggregated answers for q1/q2/q3 in order, each with source user",
     );
     assert(
       "multi-registry-drained-after-final",
@@ -11771,6 +11866,13 @@ async function driveSmokeUserInputTransportEvidence(
     // only the minted expiresAt is synthesized (checklist §6-2 fallback).
     const expiredRequestId = "artemis-smoke-multi-expired";
     const expiredNonce = "artemis-smoke-expired-nonce";
+    // One set of frozen deadlines shared by the registry snapshot and the
+    // emitted payload: the main-process expiry gate reads the registry copy,
+    // the reducer reads the payload copy, and the two must agree exactly.
+    const expiredQuestionDeadlines = [
+      new Date(Date.now() - 60_000).toISOString(),
+      new Date(Date.now() + 300_000).toISOString(),
+    ];
     const expiredQuestions = [
       {
         questionId: "e1",
@@ -11808,7 +11910,10 @@ async function driveSmokeUserInputTransportEvidence(
     pendingMultiUserInputs.register({
       requestId: expiredRequestId,
       nonce: expiredNonce,
-      questions: expiredQuestions,
+      questions: expiredQuestions.map((question, index) => ({
+        ...question,
+        expiresAt: expiredQuestionDeadlines[index]!,
+      })),
       value: {
         workerRequestId: "artemis-smoke-multi-expired-worker",
         request: {
@@ -11834,9 +11939,7 @@ async function driveSmokeUserInputTransportEvidence(
         questionId: question.questionId,
         question: question.question,
         options: question.options,
-        expiresAt: new Date(
-          Date.now() + (index === 0 ? -60_000 : 300_000),
-        ).toISOString(),
+        expiresAt: expiredQuestionDeadlines[index]!,
       })),
     });
     const expiredRendered = await waitForDomState(
@@ -11872,9 +11975,11 @@ async function driveSmokeUserInputTransportEvidence(
     );
     assert(
       "timeout-no-broker-resolve-before-final",
-      brokerPosts.length === 2,
+      // legacy backfill (1) + duplicate-injection reject (2) + multi final
+      // backfill (3): nothing else may reach the agent host.
+      brokerPosts.length === 3,
       brokerPosts.length,
-      2,
+      3,
     );
     const afterExpiredTimeoutDom = await waitForDomState(
       "expired-deadline card projecting e2 after the e1 timeout",
@@ -11921,7 +12026,11 @@ async function driveSmokeUserInputTransportEvidence(
         expiredRequestId,
     );
     const expiredFinalResult = (expiredFinalPost?.result ?? {}) as {
-      answers?: Array<{ questionId?: string; answer?: string }>;
+      answers?: Array<{
+        questionId?: string;
+        answer?: string;
+        source?: string;
+      }>;
     };
     assert(
       "mixed-expiry-final-broker-backfill",
@@ -11930,9 +12039,11 @@ async function driveSmokeUserInputTransportEvidence(
           ?.approved === true &&
         expiredFinalResult.answers?.length === 2 &&
         expiredFinalResult.answers[0]?.answer === "Archive it" &&
-        expiredFinalResult.answers[1]?.answer === "Email digest",
+        expiredFinalResult.answers[1]?.answer === "Email digest" &&
+        expiredFinalResult.answers[0]?.source === "timeout" &&
+        expiredFinalResult.answers[1]?.source === "user",
       expiredFinalPost ?? null,
-      "one approved backfill aggregating the timed-out and user-chosen answers",
+      "one approved backfill aggregating the timed-out and user-chosen answers with per-question source",
     );
     const expiredSettledDom = await waitForDomState(
       "mixed-expiry card settled timed-out",
@@ -15144,7 +15255,9 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   for (const pending of pendingUserInputs.cancelWhere(() => true)) {
-    clearTimeout(pending.value.timeout);
+    if (pending.value.timeout !== undefined) {
+      clearTimeout(pending.value.timeout);
+    }
   }
   for (const pending of pendingMultiUserInputs.cancelWhere(() => true)) {
     for (const timeout of pending.value.timeouts.values()) {

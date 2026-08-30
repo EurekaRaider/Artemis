@@ -4,6 +4,7 @@ import {
   PendingMultiUserInputRegistry,
   PendingUserInputRegistry,
   USER_INPUT_TIMEOUT_MILLISECONDS,
+  prepareMultiQuestionUserInputRegistration,
 } from "../src/main/user-input-policy.js";
 
 const options = [
@@ -113,8 +114,16 @@ describe("PendingMultiUserInputRegistry", () => {
   ];
 
   const multiQuestions = [
-    { questionId: "q1", options: questionOptions("Ship now") },
-    { questionId: "q2", options: questionOptions("Ship later") },
+    {
+      questionId: "q1",
+      options: questionOptions("Ship now"),
+      expiresAt: "2999-01-01T00:00:00.000Z",
+    },
+    {
+      questionId: "q2",
+      options: questionOptions("Ship later"),
+      expiresAt: "2999-01-01T00:00:00.000Z",
+    },
   ];
 
   it("registers per-question snapshots and validates each question", () => {
@@ -184,6 +193,7 @@ describe("PendingMultiUserInputRegistry", () => {
         nonce: "wrong-nonce-00001",
         questionId: "q1",
         selectedOptionLabel: "Ship now",
+        source: "user",
       }),
     ).toThrow(/nonce/i);
 
@@ -193,6 +203,7 @@ describe("PendingMultiUserInputRegistry", () => {
         nonce: "multi-nonce-000001",
         questionId: "missing",
         selectedOptionLabel: "Ship now",
+        source: "user",
       }),
     ).toThrow(/not offered/i);
 
@@ -202,6 +213,7 @@ describe("PendingMultiUserInputRegistry", () => {
         nonce: "multi-nonce-000001",
         questionId: "q1",
         selectedOptionLabel: "Never offered",
+        source: "user",
       }),
     ).toThrow(/not offered/i);
 
@@ -210,6 +222,7 @@ describe("PendingMultiUserInputRegistry", () => {
       nonce: "multi-nonce-000001",
       questionId: "q1",
       selectedOptionLabel: "Ship now",
+      source: "user",
     });
     expect(first).toMatchObject({
       questionId: "q1",
@@ -225,6 +238,7 @@ describe("PendingMultiUserInputRegistry", () => {
         nonce: "multi-nonce-000001",
         questionId: "q1",
         selectedOptionLabel: "Ship now",
+        source: "user",
       }),
     ).toThrow(/no longer pending/i);
     expect(registry.size).toBe(1);
@@ -257,6 +271,7 @@ describe("PendingMultiUserInputRegistry", () => {
       nonce: "multi-nonce-000001",
       questionId: "q2",
       customAnswer: "Both targets",
+      source: "user",
     });
     expect(custom).toMatchObject({
       questionId: "q2",
@@ -268,11 +283,13 @@ describe("PendingMultiUserInputRegistry", () => {
         questionId: "q1",
         answer: "Ship now",
         selectedOptionLabel: "Ship now",
+        source: "timeout",
       },
       {
         questionId: "q2",
         answer: "Both targets",
         customAnswer: "Both targets",
+        source: "user",
       },
     ]);
     expect(registry.size).toBe(0);
@@ -301,5 +318,181 @@ describe("PendingMultiUserInputRegistry", () => {
       },
     ]);
     expect(registry.size).toBe(1);
+  });
+
+  it("peeks per-question expiry deadlines without consuming them", () => {
+    const registry = new PendingMultiUserInputRegistry<string>();
+    registry.register({
+      requestId: "multi-1",
+      nonce: "multi-nonce-000001",
+      questions: multiQuestions,
+      value: "pending",
+    });
+    expect(registry.getQuestionExpiresAt("multi-1", "q1")).toBe(
+      "2999-01-01T00:00:00.000Z",
+    );
+    expect(registry.getQuestionExpiresAt("multi-1", "missing")).toBeUndefined();
+    expect(registry.getQuestionExpiresAt("gone", "q1")).toBeUndefined();
+    expect(registry.size).toBe(1);
+  });
+});
+
+describe("prepareMultiQuestionUserInputRegistration", () => {
+  const twoOptions = [
+    {
+      label: "Ship it",
+      description: "Release the build.",
+      recommended: true,
+    },
+    {
+      label: "Hold",
+      description: "Wait one more day.",
+      recommended: false,
+    },
+  ];
+  const validQuestions = [
+    {
+      questionId: "q1",
+      question: "Ship on Friday?",
+      options: twoOptions,
+    },
+    {
+      questionId: "q2",
+      question: "Notify users first?",
+      options: twoOptions,
+    },
+  ];
+  const baseRequest = {
+    approvalId: "multi-approve-1",
+    header: "Scope",
+    questions: validQuestions,
+  };
+  const activeTurn = {
+    threadExists: true,
+    turnCancelling: false,
+    turnActive: true,
+    modeMatches: true,
+    duplicatePending: false,
+  };
+  const assembly = {
+    nonce: "0123456789abcdef",
+    now: Date.parse("2026-08-30T00:00:00.000Z"),
+  };
+  const prepare = prepareMultiQuestionUserInputRegistration;
+
+  it("rejects requests that the active task turn does not own", () => {
+    for (const context of [
+      { ...activeTurn, threadExists: false },
+      { ...activeTurn, turnCancelling: true },
+      { ...activeTurn, turnActive: false },
+      { ...activeTurn, modeMatches: false },
+    ]) {
+      expect(prepare(baseRequest, context, assembly)).toEqual({
+        ok: false,
+        reason: "User input requires the active task turn.",
+      });
+    }
+  });
+
+  it("rejects invalid question counts, ids, and option shapes", () => {
+    const cases: Array<typeof validQuestions> = [
+      [],
+      [
+        validQuestions[0]!,
+        validQuestions[1]!,
+        { questionId: "q3", question: "Third?", options: twoOptions },
+        { questionId: "q4", question: "Fourth?", options: twoOptions },
+      ],
+      [
+        { ...validQuestions[0]!, questionId: "q1" },
+        { ...validQuestions[1]!, questionId: "q1" },
+      ],
+      [
+        {
+          questionId: "q1",
+          question: "One option?",
+          options: [twoOptions[0]!],
+        },
+      ],
+      [
+        {
+          questionId: "q1",
+          question: "Four options?",
+          options: [
+            ...twoOptions,
+            { label: "Third", description: "Also fine.", recommended: false },
+            { label: "Fourth", description: "Too many.", recommended: false },
+          ],
+        },
+      ],
+      [
+        {
+          questionId: "q1",
+          question: "No recommendation?",
+          options: twoOptions.map((option) => ({
+            ...option,
+            recommended: false,
+          })),
+        },
+      ],
+      [
+        {
+          questionId: "q1",
+          question: "Two recommendations?",
+          options: twoOptions.map((option) => ({
+            ...option,
+            recommended: true,
+          })),
+        },
+      ],
+      [{ questionId: "", question: "Empty id?", options: twoOptions }],
+    ];
+    for (const questions of cases) {
+      expect(
+        prepare({ ...baseRequest, questions }, activeTurn, assembly),
+      ).toEqual({
+        ok: false,
+        reason:
+          "User input requires one to three unique questions with two or three options and one recommendation each.",
+      });
+    }
+  });
+
+  it("rejects payloads the frozen protocol schema refuses", () => {
+    const result = prepare(
+      { ...baseRequest, header: "0123456789012" },
+      activeTurn,
+      assembly,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("rejects duplicate pending requests", () => {
+    expect(
+      prepare(baseRequest, { ...activeTurn, duplicatePending: true }, assembly),
+    ).toEqual({
+      ok: false,
+      reason: "User input is already pending.",
+    });
+  });
+
+  it("freezes the payload with per-question expiry from the assembly clock", () => {
+    expect(prepare(baseRequest, activeTurn, assembly)).toEqual({
+      ok: true,
+      payload: {
+        type: "user-input.requested",
+        kind: "multi-question",
+        requestId: "multi-approve-1",
+        nonce: "0123456789abcdef",
+        header: "Scope",
+        questions: [
+          { ...validQuestions[0]!, expiresAt: "2026-08-30T00:05:00.000Z" },
+          { ...validQuestions[1]!, expiresAt: "2026-08-30T00:05:00.000Z" },
+        ],
+      },
+    });
   });
 });

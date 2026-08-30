@@ -8,6 +8,7 @@ import {
   automationSchema,
   isLegacyInternalAgentMessage,
   modelSelectionSchema,
+  reduceAgentEvents,
   type AgentEvent,
   type AgentPayload,
   type AppSnapshot,
@@ -18,6 +19,7 @@ import {
   type AutomationRunTrigger,
   type AutomationTarget,
   type ModelSelection,
+  type MultiQuestionUserInputState,
   type Project,
   type RunMode,
   type TaskWorktree,
@@ -179,6 +181,9 @@ export interface EventAppendInput {
   eventId: string;
   turnId?: string;
   payload: AgentPayload;
+  // Optional stamp override for callers that must pin an event to a frozen
+  // deadline (multi-question expiry clamping); defaults to append time.
+  timestamp?: string;
 }
 
 export interface ApprovalGrant {
@@ -2058,9 +2063,15 @@ export class AppStore {
     threadId: string,
     turnId: string | undefined,
     payload: AgentPayload,
+    timestamp?: string,
   ): AgentEvent {
     return this.appendEventsCore(threadId, [
-      { eventId, ...(turnId ? { turnId } : {}), payload },
+      {
+        eventId,
+        ...(turnId ? { turnId } : {}),
+        payload,
+        ...(timestamp ? { timestamp } : {}),
+      },
     ])[0]!;
   }
 
@@ -2112,7 +2123,7 @@ export class AppStore {
     const insert = this.database.prepare(
       "INSERT INTO events (event_id, thread_id, seq, body, created_at) VALUES (?, ?, ?, ?, ?)",
     );
-    const timestamp = new Date().toISOString();
+    const stampedAt = new Date().toISOString();
     return inputs.map((input, index) => {
       const event = agentEventSchema.parse({
         protocolVersion: PROTOCOL_VERSION,
@@ -2120,7 +2131,7 @@ export class AppStore {
         threadId,
         ...(input.turnId ? { turnId: input.turnId } : {}),
         seq: seqRow.next_seq + index,
-        timestamp,
+        timestamp: input.timestamp ?? stampedAt,
         payload: persistentAgentPayload(input.payload),
       });
       insert.run(
@@ -2371,6 +2382,7 @@ export class AppStore {
           string,
           { nonce: string; turnId?: string }
         >();
+        const multiRequestIds = new Set<string>();
         for (const event of events) {
           if (event.payload.type === "approval.requested") {
             unresolvedApprovals.set(event.payload.approvalId, {
@@ -2384,8 +2396,35 @@ export class AppStore {
               nonce: event.payload.nonce,
               ...(event.turnId ? { turnId: event.turnId } : {}),
             });
-          } else if (event.payload.type === "user-input.resolved") {
+            if (event.payload.kind === "multi-question") {
+              multiRequestIds.add(event.payload.requestId);
+            }
+          } else if (
+            event.payload.type === "user-input.resolved" &&
+            event.payload.kind === undefined
+          ) {
             unresolvedUserInputs.delete(event.payload.requestId);
+          }
+        }
+        if (multiRequestIds.size > 0) {
+          // Kind'd per-question resolutions close only their own question,
+          // so "answered one of three, then crashed" is not a whole-card
+          // close: replay through the same reducer the renderer uses and
+          // keep only requests it still shows with pending questions.
+          const viewState = reduceAgentEvents(row.id, events, row.mode);
+          for (const requestId of multiRequestIds) {
+            // The kind check remains the runtime guard; the cast only gives
+            // the per-question answers their protocol type.
+            const input = viewState.userInputs[requestId] as
+              MultiQuestionUserInputState | undefined;
+            if (
+              input?.kind === "multi-question" &&
+              Object.values(input.answers).every(
+                (answer) => answer.status !== "pending",
+              )
+            ) {
+              unresolvedUserInputs.delete(requestId);
+            }
           }
         }
         for (const [requestId, input] of unresolvedUserInputs) {
