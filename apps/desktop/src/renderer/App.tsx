@@ -2191,6 +2191,7 @@ export function App() {
       discardNewConversationDraft,
       snapshot?.threads,
       toggleProjectHistory,
+      toggleProjectsExpansion,
       toggleTemporaryConversations,
     ],
   );
@@ -5556,6 +5557,7 @@ export function App() {
               collapseRow: collapseProjectTreeRow,
               expandRow: expandProjectTreeRow,
               activateRow: activateProjectTreeRow,
+              rtl: document.documentElement.dir === "rtl",
             })
           }
           ref={projectTreeElement}
@@ -5568,7 +5570,10 @@ export function App() {
             data-tree-kind="collection"
             data-tree-level={1}
             data-tree-row-id="collection:projects"
-            onFocus={() => setTreeActiveRowId("collection:projects")}
+            onFocus={(event) => {
+              if (event.target !== event.currentTarget) return;
+              setTreeActiveRowId("collection:projects");
+            }}
             role="treeitem"
             tabIndex={
               treeActiveRowId === "collection:projects" ||
@@ -5689,7 +5694,10 @@ export function App() {
                     }}
                     data-tree-level={2}
                     data-tree-row-id={`project:${project.id}`}
-                    onFocus={() => setTreeActiveRowId(`project:${project.id}`)}
+                    onFocus={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      setTreeActiveRowId(`project:${project.id}`);
+                    }}
                     role="treeitem"
                     tabIndex={
                       treeActiveRowId === `project:${project.id}` ? 0 : -1
@@ -5800,9 +5808,10 @@ export function App() {
                             data-tree-kind="thread"
                             data-tree-level={3}
                             data-tree-row-id={`thread:${thread.id}`}
-                            onFocus={() =>
-                              setTreeActiveRowId(`thread:${thread.id}`)
-                            }
+                            onFocus={(event) => {
+                              if (event.target !== event.currentTarget) return;
+                              setTreeActiveRowId(`thread:${thread.id}`);
+                            }}
                             role="treeitem"
                             tabIndex={
                               treeActiveRowId === `thread:${thread.id}` ? 0 : -1
@@ -6010,9 +6019,10 @@ export function App() {
                             data-tree-kind="show-more"
                             data-tree-level={3}
                             data-tree-row-id={`show-more:${project.id}`}
-                            onFocus={() =>
-                              setTreeActiveRowId(`show-more:${project.id}`)
-                            }
+                            onFocus={(event) => {
+                              if (event.target !== event.currentTarget) return;
+                              setTreeActiveRowId(`show-more:${project.id}`);
+                            }}
                             role="treeitem"
                             tabIndex={
                               treeActiveRowId === `show-more:${project.id}`
@@ -6052,7 +6062,10 @@ export function App() {
             data-tree-kind="temporary"
             data-tree-level={1}
             data-tree-row-id="temporary:conversations"
-            onFocus={() => setTreeActiveRowId("temporary:conversations")}
+            onFocus={(event) => {
+              if (event.target !== event.currentTarget) return;
+              setTreeActiveRowId("temporary:conversations");
+            }}
             role="treeitem"
             tabIndex={treeActiveRowId === "temporary:conversations" ? 0 : -1}
           >
@@ -6103,7 +6116,10 @@ export function App() {
                   data-tree-level={2}
                   data-tree-row-id={`thread:${thread.id}`}
                   key={thread.id}
-                  onFocus={() => setTreeActiveRowId(`thread:${thread.id}`)}
+                  onFocus={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    setTreeActiveRowId(`thread:${thread.id}`);
+                  }}
                   role="treeitem"
                   tabIndex={treeActiveRowId === `thread:${thread.id}` ? 0 : -1}
                 >

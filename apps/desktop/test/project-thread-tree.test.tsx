@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   useCallback,
@@ -46,6 +46,7 @@ function SidebarTreeHarness({
   initialProjectsOpen = true,
   query = "",
   renamingThreadId,
+  rtl,
   onActivate,
   onCollapse,
   onExpand,
@@ -58,6 +59,7 @@ function SidebarTreeHarness({
   initialProjectsOpen?: boolean;
   query?: string;
   renamingThreadId?: string;
+  rtl?: boolean;
   onActivate?: (rowId: string) => void;
   onCollapse?: (rowId: string) => void;
   onExpand?: (rowId: string) => void;
@@ -91,6 +93,16 @@ function SidebarTreeHarness({
     setProjectsExpanded(next);
     setProjectsOpen(next);
   }, [projectsExpanded]);
+
+  // Production-shaped wiring: a memoized activateRow whose deps include
+  // toggleProjectsExpansion (stale closures flip the toggle the wrong way).
+  const activateRow = useCallback(
+    (rowId: string) => {
+      onActivate?.(rowId);
+      if (rowId === "collection:projects") toggleProjectsExpansion();
+    },
+    [onActivate, toggleProjectsExpansion],
+  );
   const [temporaryOpen, setTemporaryOpen] = useState(true);
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(
     () => new Set(),
@@ -134,10 +146,8 @@ function SidebarTreeHarness({
               setProjectsOpen(true);
             }
           },
-          activateRow: (rowId) => {
-            onActivate?.(rowId);
-            if (rowId === "collection:projects") toggleProjectsExpansion();
-          },
+          activateRow,
+          rtl,
         })
       }
       ref={treeElement}
@@ -150,7 +160,10 @@ function SidebarTreeHarness({
         data-tree-kind="collection"
         data-tree-level={1}
         data-tree-row-id="collection:projects"
-        onFocus={() => setActiveRowId("collection:projects")}
+        onFocus={(event) => {
+          if (event.target !== event.currentTarget) return;
+          setActiveRowId("collection:projects");
+        }}
         role="treeitem"
         tabIndex={tabIndexFor("collection:projects", true)}
       >
@@ -193,7 +206,10 @@ function SidebarTreeHarness({
                 data-tree-level={2}
                 data-tree-row-id={`project:${project.id}`}
                 key={project.id}
-                onFocus={() => setActiveRowId(`project:${project.id}`)}
+                onFocus={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  setActiveRowId(`project:${project.id}`);
+                }}
                 role="treeitem"
                 tabIndex={tabIndexFor(`project:${project.id}`)}
               >
@@ -250,7 +266,10 @@ function SidebarTreeHarness({
                         data-tree-level={3}
                         data-tree-row-id={`thread:${thread.id}`}
                         key={thread.id}
-                        onFocus={() => setActiveRowId(`thread:${thread.id}`)}
+                        onFocus={(event) => {
+                          if (event.target !== event.currentTarget) return;
+                          setActiveRowId(`thread:${thread.id}`);
+                        }}
                         role="treeitem"
                         tabIndex={tabIndexFor(`thread:${thread.id}`)}
                       >
@@ -303,9 +322,10 @@ function SidebarTreeHarness({
                         data-tree-kind="show-more"
                         data-tree-level={3}
                         data-tree-row-id={`show-more:${project.id}`}
-                        onFocus={() =>
-                          setActiveRowId(`show-more:${project.id}`)
-                        }
+                        onFocus={(event) => {
+                          if (event.target !== event.currentTarget) return;
+                          setActiveRowId(`show-more:${project.id}`);
+                        }}
                         role="treeitem"
                         tabIndex={tabIndexFor(`show-more:${project.id}`)}
                         onClick={() => onButtonActivate?.("show-more")}
@@ -328,7 +348,10 @@ function SidebarTreeHarness({
         data-tree-kind="temporary"
         data-tree-level={1}
         data-tree-row-id="temporary:conversations"
-        onFocus={() => setActiveRowId("temporary:conversations")}
+        onFocus={(event) => {
+          if (event.target !== event.currentTarget) return;
+          setActiveRowId("temporary:conversations");
+        }}
         role="treeitem"
         tabIndex={tabIndexFor("temporary:conversations")}
       >
@@ -363,7 +386,10 @@ function SidebarTreeHarness({
               data-tree-level={2}
               data-tree-row-id={`thread:${thread.id}`}
               key={thread.id}
-              onFocus={() => setActiveRowId(`thread:${thread.id}`)}
+              onFocus={(event) => {
+                if (event.target !== event.currentTarget) return;
+                setActiveRowId(`thread:${thread.id}`);
+              }}
               role="treeitem"
               tabIndex={tabIndexFor(`thread:${thread.id}`)}
             >
@@ -737,6 +763,77 @@ describe("project/thread tree keyboard (rendered, production markup)", () => {
       "false",
     );
     expect(rowIds()).not.toContain("project:alpha");
+  });
+
+  it("keeps the roving Tab stop on the focused nested row", () => {
+    render(
+      <SidebarTreeHarness projects={PROJECTS} temporaryThreads={TEMPORARY} />,
+    );
+    act(() => {
+      row("thread:a1").focus();
+    });
+    const tabStops = rowIds().filter((id) => row(id).tabIndex === 0);
+    expect(tabStops).toEqual(["thread:a1"]);
+
+    act(() => {
+      row("project:beta").focus();
+    });
+    const afterBeta = rowIds().filter((id) => row(id).tabIndex === 0);
+    expect(afterBeta).toEqual(["project:beta"]);
+  });
+
+  it("toggles the collection root back on a second Enter (no stale closure)", async () => {
+    const user = userEvent.setup();
+    render(
+      <SidebarTreeHarness projects={PROJECTS} temporaryThreads={TEMPORARY} />,
+    );
+    row("collection:projects").focus();
+    await user.keyboard("{Enter}");
+    expect(row("collection:projects")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await user.keyboard("{Enter}");
+    expect(row("collection:projects")).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("mirrors the horizontal keys in RTL locales", async () => {
+    const user = userEvent.setup();
+    const onCollapse = vi.fn();
+    const onExpand = vi.fn();
+    render(
+      <SidebarTreeHarness
+        onCollapse={onCollapse}
+        onExpand={onExpand}
+        projects={PROJECTS}
+        rtl
+        temporaryThreads={TEMPORARY}
+      />,
+    );
+    row("project:alpha").focus();
+    await user.keyboard("{ArrowRight}");
+    expect(onCollapse).toHaveBeenCalledWith("project:alpha");
+    expect(onExpand).not.toHaveBeenCalled();
+  });
+
+  it("lets modified keys fall through to the browser", async () => {
+    const user = userEvent.setup();
+    const onActivate = vi.fn();
+    const onCollapse = vi.fn();
+    render(
+      <SidebarTreeHarness
+        onActivate={onActivate}
+        onCollapse={onCollapse}
+        projects={PROJECTS}
+        temporaryThreads={TEMPORARY}
+      />,
+    );
+    row("thread:a1").focus();
+    await user.keyboard("{Control>}{Home}{/Control}");
+    await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+    expect(row("thread:a1")).toHaveFocus();
+    expect(onActivate).not.toHaveBeenCalled();
+    expect(onCollapse).not.toHaveBeenCalled();
   });
 
   it("keeps auxiliary controls reachable by Tab from the active row", async () => {

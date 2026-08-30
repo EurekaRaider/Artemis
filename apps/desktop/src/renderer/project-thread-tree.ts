@@ -103,6 +103,10 @@ export function handleProjectTreeKeyDown(
   event: {
     key: string;
     target: EventTarget | null;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+    altKey?: boolean;
+    shiftKey?: boolean;
     preventDefault(): void;
   },
   deps: {
@@ -111,8 +115,14 @@ export function handleProjectTreeKeyDown(
     collapseRow: (rowId: string) => void;
     expandRow: (rowId: string) => void;
     activateRow: (rowId: string) => void;
+    rtl?: boolean;
   },
 ): void {
+  // Modified keys (Ctrl/Cmd+Home, Shift+arrows, …) belong to the browser;
+  // the tree only owns the bare navigation keys.
+  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
+    return;
+  }
   const rowId = rowIdFromEventTarget(event.target);
   if (!rowId) return;
   const rows = readVisibleTreeRows(deps.container);
@@ -145,11 +155,13 @@ export function handleProjectTreeKeyDown(
   }
 
   if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    // In RTL locales the horizontal directions are mirrored.
+    const isLeft = event.key === (deps.rtl ? "ArrowRight" : "ArrowLeft");
     if (row.kind === "thread" || row.kind === "show-more") {
       // Leaf rows: Left focuses the parent branch, Right does nothing.
       // Either way the key is consumed so the sidebar never scrolls.
       event.preventDefault();
-      if (event.key === "ArrowLeft") {
+      if (isLeft) {
         const parentId = parentRowId(deps.container, rowId);
         if (parentId) deps.focusRow(parentId);
       }
@@ -158,7 +170,7 @@ export function handleProjectTreeKeyDown(
     const expanded = rowElement(deps.container, rowId)?.getAttribute(
       "aria-expanded",
     );
-    if (event.key === "ArrowLeft") {
+    if (isLeft) {
       event.preventDefault();
       if (expanded === "true") {
         deps.collapseRow(rowId);
