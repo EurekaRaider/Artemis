@@ -36,6 +36,9 @@ const labels = {
   validationHeading: "Fix these issues before saving:",
   validationCommandRequired: "Enter the launch command for the MCP server.",
   validationUrlInvalid: "Enter a valid http:// or https:// server URL.",
+  workspace: "Working directory",
+  mcpAllowNetwork: "Allow network access",
+  mcpFullAccess: "Full local access (compatibility mode)",
   testConnection: "Test connection",
   testConnectionBusy: "Testing the connection…",
   testConnectionSuccess: "Connected.",
@@ -575,6 +578,138 @@ describe("McpServerEditor feedback wiring (D#76 PR8 §10 state matrix)", () => {
     expect(testButton).toBeDisabled();
     expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
     expect(document.body.textContent ?? "").not.toContain(syntheticBearer);
+  });
+
+  it("gates the test connection while stdio arguments drift from the saved config (full drift gate)", async () => {
+    const api: Partial<EditorApi> = {
+      reconnectMcpServer: vi.fn(() =>
+        Promise.resolve(snapshotOf([{ ...stdioServer, state: "connected" }])),
+      ),
+    };
+    renderEditor({ api, server: stdioServer });
+    const user = userEvent.setup();
+    const argumentInput = screen.getByRole("textbox", {
+      name: "Arguments 1",
+    });
+    const testButton = screen.getByRole("button", {
+      name: labels.testConnection,
+    });
+    expect(testButton).toBeEnabled();
+    fireEvent.change(argumentInput, {
+      target: { value: "synthetic-mcp-v2" },
+    });
+    expect(testButton).toBeDisabled();
+    expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
+    fireEvent.click(testButton);
+    expect(api.reconnectMcpServer).not.toHaveBeenCalled();
+    // Reverting the argument restores testing against the saved config.
+    fireEvent.change(argumentInput, { target: { value: "synthetic-mcp" } });
+    expect(testButton).toBeEnabled();
+    expect(
+      screen.queryByText(labels.testSavedOnlyHint),
+    ).not.toBeInTheDocument();
+    await user.click(testButton);
+    expect(api.reconnectMcpServer).toHaveBeenCalledTimes(1);
+  });
+
+  it("gates the test connection while environment entries and passthrough names drift (full drift gate)", () => {
+    renderEditor({ server: stdioServer });
+    const valueInput = screen.getByRole("textbox", { name: "Value 1" });
+    const passthroughInput = screen.getByRole("textbox", {
+      name: "Variable name 1",
+    });
+    const testButton = screen.getByRole("button", {
+      name: labels.testConnection,
+    });
+    expect(testButton).toBeEnabled();
+    fireEvent.change(valueInput, { target: { value: "2" } });
+    expect(testButton).toBeDisabled();
+    expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
+    // Reverting the value while adding a passthrough name keeps the draft
+    // drifted: the saved envVars would change on save.
+    fireEvent.change(valueInput, { target: { value: "1" } });
+    fireEvent.change(passthroughInput, {
+      target: { value: "SYNTHETIC_FLAG" },
+    });
+    expect(testButton).toBeDisabled();
+    fireEvent.change(passthroughInput, { target: { value: "" } });
+    expect(testButton).toBeEnabled();
+    expect(
+      screen.queryByText(labels.testSavedOnlyHint),
+    ).not.toBeInTheDocument();
+  });
+
+  it("gates the test connection while the working directory drifts (full drift gate)", () => {
+    renderEditor({ server: stdioServer });
+    const workspaceInput = screen.getByRole("textbox", {
+      name: labels.workspace,
+    });
+    const testButton = screen.getByRole("button", {
+      name: labels.testConnection,
+    });
+    expect(testButton).toBeEnabled();
+    fireEvent.change(workspaceInput, {
+      target: { value: "/tmp/synthetic-workspace" },
+    });
+    expect(testButton).toBeDisabled();
+    expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
+    fireEvent.change(workspaceInput, { target: { value: "" } });
+    expect(testButton).toBeEnabled();
+    expect(
+      screen.queryByText(labels.testSavedOnlyHint),
+    ).not.toBeInTheDocument();
+  });
+
+  it("gates the test connection while the permission draft drifts (full drift gate)", async () => {
+    renderEditor({ server: stdioServer });
+    const user = userEvent.setup();
+    const fullAccessToggle = screen.getByRole("checkbox", {
+      name: labels.mcpFullAccess,
+    });
+    const allowNetworkToggle = screen.getByRole("checkbox", {
+      name: labels.mcpAllowNetwork,
+    });
+    const testButton = screen.getByRole("button", {
+      name: labels.testConnection,
+    });
+    expect(testButton).toBeEnabled();
+    await user.click(fullAccessToggle);
+    expect(testButton).toBeDisabled();
+    expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
+    // Unchecking full access leaves allowNetwork forced on, so the draft
+    // would still save a different permission set than the saved config.
+    await user.click(fullAccessToggle);
+    expect(allowNetworkToggle).toBeEnabled();
+    expect(testButton).toBeDisabled();
+    await user.click(allowNetworkToggle);
+    expect(testButton).toBeEnabled();
+    expect(
+      screen.queryByText(labels.testSavedOnlyHint),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps Save disabled while the URL draft is blank or invalid and enables it once valid", async () => {
+    const api: Partial<EditorApi> = {
+      saveMcpServer: vi.fn(),
+      removeMcpServer: vi.fn(),
+      reconnectMcpServer: vi.fn(),
+    };
+    renderEditor({ api, server: httpServer });
+    const user = userEvent.setup();
+    const urlInput = screen.getByRole("textbox", { name: labels.serverUrl });
+    const saveButton = screen.getByRole("button", { name: labels.save });
+    expect(saveButton).toBeEnabled();
+    await user.clear(urlInput);
+    expect(saveButton).toBeDisabled();
+    await user.type(urlInput, "not-a-valid-url");
+    expect(saveButton).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      labels.validationUrlInvalid,
+    );
+    await user.clear(urlInput);
+    await user.type(urlInput, "https://mcp.example.test/stream-v2");
+    expect(saveButton).toBeEnabled();
+    expect(api.saveMcpServer).not.toHaveBeenCalled();
   });
 
   it("routes Uninstall through the danger confirmation and never removes on denial", async () => {

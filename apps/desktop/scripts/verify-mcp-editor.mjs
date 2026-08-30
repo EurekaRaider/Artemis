@@ -42,6 +42,9 @@ const testSavedOnlyHint =
   "Tests the saved configuration — save your changes first";
 const driftedUrl = "https://mcp.artemis-smoke.example.test/mcp-drift";
 const confirmUninstallPrefix = `Uninstall ${seededServerName}?`;
+// The manage row renders "Disabled · N tools" while config.enabled is false,
+// which is the renderer-visible proof that the seeded fixture never dialed.
+const seedOfflineRowPrefix = "Disabled";
 
 // Each step drives one checklist §6 interaction to its end state, then the
 // harness captures one screenshot and one accessibility audit for that state.
@@ -833,9 +836,17 @@ try {
         ];
       },
     };
-    // Common assertions (user-data-fresh-start, run-root-purity) are recorded
-    // alongside the per-step expectations so every counted assertion appears
-    // in the audit JSON.
+    // Common assertions (user-data-fresh-start, run-root-purity,
+    // seed-stays-offline) are recorded alongside the per-step expectations so
+    // every counted assertion appears in the audit JSON.
+    // assert() records into `assertions` itself; no outer push needed.
+    assert(
+      "seed-stays-offline",
+      typeof editor.seedRow?.stateText === "string" &&
+        editor.seedRow.stateText.startsWith(seedOfflineRowPrefix),
+      editor.seedRow ?? null,
+      `stateText starting with "${seedOfflineRowPrefix}"`,
+    );
     const stepAssertions = [...assertions, ...expectations[id]()];
     const failed = stepAssertions.filter((assertion) => !assertion.pass);
     if (failed.length) {
@@ -874,6 +885,7 @@ try {
         manageMessageText: editor.manageMessageText,
       },
       manageServerNames: editor.manageServerNames,
+      seedRow: editor.seedRow ?? null,
       busyTrace: editor.busyTrace,
       probe: editor.probe,
       consoleCapture: editor.consoleCapture,
@@ -904,13 +916,14 @@ try {
         transport: "streamable-http",
         url: "https://mcp.artemis-smoke.example.test/mcp",
         auth: "bearer (credential intentionally unset)",
+        enabled: false,
       },
       newServer: {
         id: newServerName,
         transport: "stdio",
         command: newServerName,
       },
-      note: "Every identity is synthetic: the .test hostname never resolves and the stdio command never exists, so no smoke run can reach a real endpoint or spawn a real process.",
+      note: "Every identity is synthetic: the .test hostname never resolves and the stdio command never exists, so no smoke run can reach a real endpoint or spawn a real process. The seeded server also persists with enabled:false — initializeOptionalCapabilities only auto-connects enabled servers, so the seed performs zero dial-out at startup, and every case asserts the seeded manage row renders its offline state (seed-stays-offline).",
     },
     userDataIsolation: {
       directory:

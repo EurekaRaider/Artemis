@@ -9918,15 +9918,22 @@ let smokeMcpEditorRemoveFailureInjected = false;
 
 async function seedSmokeMcpEditorFixture(): Promise<void> {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
-  if (!mcpConfigStore || !view?.startsWith("mcp-editor")) return;
+  // The smokeMode guard matches the IPC interception gates above: seeding
+  // must stay a smoke-harness-only behavior so a merely VIEW-tagged process
+  // can never write a synthetic server into a real mcp.json.
+  if (!smokeMode || !mcpConfigStore || !view?.startsWith("mcp-editor")) {
+    return;
+  }
   // Synthetic identity only: the URL uses the reserved .test TLD and the
   // bearer credential stays unset, so no real endpoint, account, or secret
-  // can ever enter the seeded snapshot.
+  // can ever enter the seeded snapshot. enabled stays false because
+  // initializeOptionalCapabilities only auto-connects enabled servers — the
+  // seeded fixture therefore performs zero dial-out at startup.
   await mcpConfigStore.upsert({
     id: "artemis-smoke-remote",
     name: "Artemis Smoke Remote",
     transport: "streamable-http",
-    enabled: true,
+    enabled: false,
     url: "https://mcp.artemis-smoke.example.test/mcp",
     auth: "bearer",
   });
@@ -10791,6 +10798,24 @@ function createMainWindow(): BrowserWindow {
                       .querySelectorAll('.resource-management-tabs button')
                       [2]?.click();
                     await waitFor('.resource-list-heading-actions');
+                    // Zero-dial evidence (PR8 review F2): the seeded row must
+                    // render its offline state ("Disabled · N tools"), proving
+                    // the fixture entered mcp.json with enabled:false and was
+                    // never auto-connected at startup.
+                    const seededRow = [
+                      ...document.querySelectorAll('.resource-management-row'),
+                    ].find(
+                      (candidate) =>
+                        candidate.querySelector('strong')?.textContent?.trim() ===
+                        'Artemis Smoke Remote',
+                    );
+                    window.__mcpEditorSeedRow = seededRow
+                      ? {
+                          stateText:
+                            seededRow.querySelector('small')?.textContent?.trim() ??
+                            null,
+                        }
+                      : null;
                   };
                   const openNewServerEditor = async () => {
                     await openManageMcpTab();
@@ -12047,6 +12072,7 @@ function createMainWindow(): BrowserWindow {
                       busyTrace: window.__mcpEditorBusyTrace ?? null,
                       probe: window.__mcpEditorProbe ?? null,
                       consoleCapture: window.__mcpEditorConsoleCapture ?? null,
+                      seedRow: window.__mcpEditorSeedRow ?? null,
                     };
                   })(),
                   messageActionLabels: [...document.querySelectorAll(

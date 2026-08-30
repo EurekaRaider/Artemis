@@ -183,6 +183,27 @@ function deriveMcpIdentity(
   return { id, name };
 }
 
+function sameStringList(
+  draft: readonly string[],
+  saved: readonly string[],
+): boolean {
+  return (
+    draft.length === saved.length &&
+    draft.every((value, index) => value === saved[index])
+  );
+}
+
+function sameEnvironmentDraft(
+  draft: Record<string, string>,
+  saved: Record<string, string>,
+): boolean {
+  const keys = Object.keys(draft);
+  return (
+    keys.length === Object.keys(saved).length &&
+    keys.every((key) => draft[key] === saved[key])
+  );
+}
+
 function isValidServerUrl(value: string): boolean {
   try {
     const parsed = new URL(value);
@@ -273,11 +294,15 @@ export function McpServerEditor({
     server?.config.transport === "streamable-http" &&
     server.config.auth === "headers";
   const testPending = testState.status === "busy";
-  // Draft drift (PR8 review F1): reconnectMcpServer only tests the saved
-  // configuration, so testing is gated while the draft differs from it. The
-  // bearer is deliberately excluded from the "matches" side: the editor never
-  // backfills it (useState("")), so an empty bearer counts as unmodified and
-  // only a newly typed token marks the draft as drifted.
+  // Draft drift (PR8 review F1/F2): reconnectMcpServer only tests the saved
+  // configuration, so testing is gated while the draft differs from it. Every
+  // field save() assembles participates, mirroring the exact config a save
+  // would persist: endpoint, auth, args, env, envVars, workspace, and the
+  // permission pair (allowNetwork compares the same mcpFullAccess ||
+  // mcpAllowNetwork composite save() writes). The bearer is deliberately
+  // excluded from the "matches" side: the editor never backfills it
+  // (useState("")), so an empty bearer counts as unmodified and only a newly
+  // typed token marks the draft as drifted.
   const draftMatchesSaved =
     server === undefined ||
     (endpoint ===
@@ -288,7 +313,24 @@ export function McpServerEditor({
         (server.config.transport === "streamable-http"
           ? (server.config.auth ?? "none")
           : "none") &&
-      bearer === "");
+      bearer === "" &&
+      (server.config.transport !== "stdio" ||
+        (sameStringList(argumentsList, server.config.args) &&
+          sameEnvironmentDraft(
+            Object.fromEntries(
+              environment
+                .filter((entry) => entry.key.trim())
+                .map((entry) => [entry.key, entry.value]),
+            ),
+            server.config.env,
+          ) &&
+          sameStringList(
+            environmentVariables.filter((name) => name.trim()),
+            server.config.envVars,
+          ) &&
+          workspace === server.config.workspacePath &&
+          mcpFullAccess === Boolean(server.config.fullAccess) &&
+          (mcpFullAccess || mcpAllowNetwork) === server.config.allowNetwork)));
   // Four-way action lock (saving / removing / testing / confirming): the UI
   // layer disables every control and the handler layer re-checks it below.
   const actionsLocked = busy || testPending || confirmingRemove;
@@ -808,7 +850,7 @@ export function McpServerEditor({
 
         <button
           className="mcp-editor-save"
-          disabled={actionsLocked || !endpoint.trim()}
+          disabled={actionsLocked || validationErrors.length > 0}
           onClick={attemptSave}
           type="button"
         >
