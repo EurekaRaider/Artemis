@@ -23,6 +23,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   nativeTheme,
   net,
   Notification,
@@ -10070,6 +10071,807 @@ function emitSmokeCardHeatmapUsageEvents(target: BrowserWindow): void {
   }
 }
 
+// PR9C input-fields smoke: synthetic fixtures for the two real entry points
+// (checklist §0). Identity stays synthetic (reserved ids, a fixture-only
+// project path inside the isolated user-data tree) and the seed performs
+// zero dial-out: no provider, endpoint, or process is ever contacted. The
+// once schedule this harness saves uses a far-future date, so the scheduler
+// never fires the automation before the smoke app quits.
+const SMOKE_INPUT_FIELDS_AVATAR_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+async function seedSmokeInputFieldsFixture(): Promise<void> {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  // The smokeMode guard matches seedSmokeIconSizingFixture: seeding must
+  // stay a smoke-harness-only behavior so a merely VIEW-tagged process can
+  // never write smoke fixtures into a real profile.
+  if (!store || !smokeMode || !view?.startsWith("input-fields-")) {
+    return;
+  }
+  const fixtureDirectory = join(
+    app.getPath("userData"),
+    "fixtures",
+    "input-fields",
+  );
+  await mkdir(fixtureDirectory, { recursive: true });
+  // Synthetic avatar source for the Enter-activation chain (checklist §6-2):
+  // a fixture-generated 1x1 PNG, never a real user photo.
+  await writeFile(
+    join(fixtureDirectory, "avatar.png"),
+    SMOKE_INPUT_FIELDS_AVATAR_PNG_BASE64,
+    "base64",
+  );
+  if (view !== "input-fields-automations-once") {
+    return;
+  }
+  // The automation create button stays disabled without a project, so seed
+  // one synthetic project whose path points inside the isolated user-data
+  // tree (no real repository, no watcher, no network).
+  const projectDirectory = join(fixtureDirectory, "project");
+  await mkdir(projectDirectory, { recursive: true });
+  const now = new Date().toISOString();
+  store.upsertProject({
+    id: "artemis-smoke-input-fields-project",
+    name: "Artemis Smoke Input Fields",
+    path: projectDirectory,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+type SmokeInputFieldsActivationEvidence = {
+  interceptionArmed: boolean;
+  armError?: string;
+  entered: boolean;
+  fileChooserOpened: boolean;
+  acceptedFiles: string[];
+  acceptError?: string;
+};
+
+type SmokeFocusFrameEvidence = {
+  targetStillFocused: boolean;
+  activeElementAtCapture: string;
+  doubleRafCompleted: boolean;
+  framePresented: boolean;
+  frameSignal: "beginFrameSubscription" | "unavailable";
+};
+
+type SmokeInputFieldsRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+type SmokeInputFieldsFocusProbe = {
+  outlineColor?: string | null;
+  labelOutlineColor?: string | null;
+  targetRect?: SmokeInputFieldsRect | null;
+  labelRect?: SmokeInputFieldsRect | null;
+  viewport?: { innerWidth?: number | null } | null;
+} | null;
+
+type SmokeFocusPixelsEvidence = {
+  analysisRuntime?: "electron-nativeImage";
+  error?: string;
+  changedPixelCount?: number;
+  ringPixelCount?: number;
+  scale?: number;
+  sampledBand?: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  };
+  ringColor?: [number, number, number];
+  sizes?: { width: number; height: number }[];
+};
+
+// PR9C review F3: the focused-capture pixel analysis moved out of the
+// verify script, which spawned system python3 + Pillow - a runtime this
+// repo's package.json/lock never provided, so a clean install environment
+// failed with ModuleNotFoundError before any assertion could run. The
+// analysis now runs inside the Electron driver with nativeImage, which
+// ships with the repo-locked electron dependency: zero new dependencies
+// and zero lockfile changes. Both analyses replicate the previous PIL
+// semantics exactly: changedPixelCount counts pixels whose RGB channels
+// differ by more than 8 between the default and focused captures, and
+// ringPixelCount counts pixels within 60/channel of the focus-time ring
+// color (alpha > 0) inside the 1..5 CSS px border band around the
+// focus-time rect, scaled by capture width / CSS viewport width. Any
+// missing input or unreadable artifact returns an error record so the
+// verify script's analysis-ran gate fails loudly, never silently.
+const analyzeSmokeFocusPixels = ({
+  defaultPath,
+  focusedPath,
+  ringColorSource,
+  ringRect,
+  viewportWidth,
+}: {
+  defaultPath: string | undefined;
+  focusedPath: string | undefined;
+  ringColorSource: string | null | undefined;
+  ringRect: SmokeInputFieldsRect | null;
+  viewportWidth: number | null | undefined;
+}): SmokeFocusPixelsEvidence => {
+  if (!defaultPath || !focusedPath) {
+    return { error: "missing capture artifact path" };
+  }
+  if (
+    !ringRect ||
+    ![ringRect.x, ringRect.y, ringRect.width, ringRect.height].every((value) =>
+      Number.isFinite(value),
+    )
+  ) {
+    return { error: "missing finite focus-time rect" };
+  }
+  if (typeof viewportWidth !== "number" || viewportWidth <= 0) {
+    return { error: "missing positive viewport width" };
+  }
+  const ringColorMatch = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/u.exec(
+    ringColorSource ?? "",
+  );
+  if (!ringColorMatch) {
+    return { error: "unparsable focus-time ring color: " + ringColorSource };
+  }
+  const targetRed = Number(ringColorMatch[1]);
+  const targetGreen = Number(ringColorMatch[2]);
+  const targetBlue = Number(ringColorMatch[3]);
+  const defaultImage = nativeImage.createFromPath(defaultPath);
+  const focusedImage = nativeImage.createFromPath(focusedPath);
+  if (defaultImage.isEmpty() || focusedImage.isEmpty()) {
+    return { error: "unreadable capture artifact" };
+  }
+  const defaultSize = defaultImage.getSize();
+  const focusedSize = focusedImage.getSize();
+  if (
+    defaultSize.width !== focusedSize.width ||
+    defaultSize.height !== focusedSize.height
+  ) {
+    return { error: "size-mismatch", sizes: [defaultSize, focusedSize] };
+  }
+  const width = focusedSize.width;
+  const height = focusedSize.height;
+  const scale = width / viewportWidth;
+  // toBitmap() hands back raw 4-byte BGRA pixels (alpha last; a pure red
+  // probe pixel decodes to 00 00 ff ff) - the same lossless RGBA pixel
+  // grid the previous PIL decode produced from the identical PNG, so the
+  // byte-wise comparison preserves the old numeric criteria exactly.
+  const defaultBitmap = defaultImage.toBitmap();
+  const focusedBitmap = focusedImage.toBitmap();
+  const expectedBytes = width * height * 4;
+  if (
+    defaultBitmap.length !== expectedBytes ||
+    focusedBitmap.length !== expectedBytes
+  ) {
+    return {
+      error: "unexpected bitmap stride",
+      sizes: [defaultSize, focusedSize],
+    };
+  }
+  let changedPixelCount = 0;
+  for (let offset = 0; offset < expectedBytes; offset += 4) {
+    if (
+      Math.abs(
+        defaultBitmap.readUInt8(offset) - focusedBitmap.readUInt8(offset),
+      ) > 8 ||
+      Math.abs(
+        defaultBitmap.readUInt8(offset + 1) -
+          focusedBitmap.readUInt8(offset + 1),
+      ) > 8 ||
+      Math.abs(
+        defaultBitmap.readUInt8(offset + 2) -
+          focusedBitmap.readUInt8(offset + 2),
+      ) > 8
+    ) {
+      changedPixelCount += 1;
+    }
+  }
+  // Python's round() rounds halves to even; replicating it keeps the
+  // sampled band byte-identical to the previous PIL implementation so the
+  // counts stay directly comparable across the migration.
+  const roundHalfToEven = (value: number): number => {
+    const floor = Math.floor(value);
+    const fraction = value - floor;
+    if (fraction > 0.5) {
+      return floor + 1;
+    }
+    if (fraction < 0.5) {
+      return floor;
+    }
+    return floor % 2 === 0 ? floor : floor + 1;
+  };
+  const inner = 1.0;
+  const outer = 5.0;
+  const left = Math.max(0, roundHalfToEven((ringRect.x - outer) * scale));
+  const top = Math.max(0, roundHalfToEven((ringRect.y - outer) * scale));
+  const right = Math.min(
+    width,
+    roundHalfToEven((ringRect.x + ringRect.width + outer) * scale),
+  );
+  const bottom = Math.min(
+    height,
+    roundHalfToEven((ringRect.y + ringRect.height + outer) * scale),
+  );
+  const sampledBand = { left, top, right, bottom };
+  if (right <= left || bottom <= top) {
+    return {
+      error: "band-outside-capture",
+      scale,
+      sampledBand,
+      ringColor: [targetRed, targetGreen, targetBlue],
+    };
+  }
+  const innerLeft = roundHalfToEven((ringRect.x - inner) * scale) - left;
+  const innerTop = roundHalfToEven((ringRect.y - inner) * scale) - top;
+  const innerRight =
+    roundHalfToEven((ringRect.x + ringRect.width + inner) * scale) - left;
+  const innerBottom =
+    roundHalfToEven((ringRect.y + ringRect.height + inner) * scale) - top;
+  let ringPixelCount = 0;
+  for (let y = top; y < bottom; y += 1) {
+    const bandY = y - top;
+    for (let x = left; x < right; x += 1) {
+      const bandX = x - left;
+      if (
+        bandX >= innerLeft &&
+        bandX < innerRight &&
+        bandY >= innerTop &&
+        bandY < innerBottom
+      ) {
+        continue;
+      }
+      const offset = (y * width + x) * 4;
+      if (focusedBitmap.readUInt8(offset + 3) <= 0) {
+        continue;
+      }
+      if (
+        Math.abs(focusedBitmap.readUInt8(offset) - targetBlue) <= 60 &&
+        Math.abs(focusedBitmap.readUInt8(offset + 1) - targetGreen) <= 60 &&
+        Math.abs(focusedBitmap.readUInt8(offset + 2) - targetRed) <= 60
+      ) {
+        ringPixelCount += 1;
+      }
+    }
+  }
+  return {
+    analysisRuntime: "electron-nativeImage",
+    changedPixelCount,
+    ringPixelCount,
+    scale,
+    sampledBand,
+    ringColor: [targetRed, targetGreen, targetBlue],
+    sizes: [defaultSize, focusedSize],
+  };
+};
+
+// PR9C input-fields evidence driver (checklist §6-2): after the
+// default-state screenshot, the driver focuses the web contents (PR9B
+// offscreen precedent: showInactive never gives the document OS focus, so
+// element.focus() alone cannot run the real focus chain) and drives the
+// keyboard chain with real DevTools-protocol key events — Tab traversal
+// until the target control holds focus, the visible focus evidence, then
+// the case-specific contract chain. Enter on the avatar file input
+// activates the real Chromium file chooser, which is intercepted through
+// the DevTools protocol so no native dialog ever opens headless; the
+// intercepted chooser is then satisfied with the synthetic fixture PNG so
+// the real pick -> clear -> preview -> remove chain runs.
+async function driveSmokeInputFieldsEvidence(
+  window: BrowserWindow,
+  artifacts: {
+    defaultScreenshot?: string | undefined;
+    focusedScreenshot?: string | undefined;
+    pickedScreenshot?: string | undefined;
+  },
+): Promise<void> {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (!smokeMode || !view?.startsWith("input-fields-")) {
+    return;
+  }
+  const contents = window.webContents;
+  const evaluate = async <T>(script: string): Promise<T> =>
+    (await contents.executeJavaScript(script)) as T;
+  const wait = (milliseconds: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+  const activation: SmokeInputFieldsActivationEvidence = {
+    interceptionArmed: false,
+    entered: false,
+    fileChooserOpened: false,
+    acceptedFiles: [],
+  };
+  let debuggerAttached = false;
+  const ensureDebugger = async (): Promise<void> => {
+    if (debuggerAttached) return;
+    if (!contents.debugger.isAttached()) {
+      contents.debugger.attach("1.3");
+    }
+    debuggerAttached = true;
+  };
+  const pressKey = async (
+    key: string,
+    virtualKeyCode: number,
+    text?: string,
+  ): Promise<void> => {
+    await ensureDebugger();
+    const parameters = {
+      key,
+      code: key,
+      windowsVirtualKeyCode: virtualKeyCode,
+      nativeVirtualKeyCode: virtualKeyCode,
+      ...(text ? { text } : {}),
+    };
+    // Control keys only need the raw keydown for their default action
+    // (Tab focus traversal); activating a control with Enter additionally
+    // needs the char event, so that dispatch carries the key text exactly
+    // like a real keyboard pipeline (Playwright does the same).
+    await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+      ...parameters,
+      type: text ? "keyDown" : "rawKeyDown",
+    });
+    await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+      ...parameters,
+      type: "keyUp",
+    });
+  };
+  const tabUntilFocused = async (
+    selector: string,
+  ): Promise<{ presses: number; reached: boolean }> => {
+    const maxPresses = 200;
+    for (let presses = 0; presses < maxPresses; presses += 1) {
+      const active = await evaluate<boolean>(
+        `document.activeElement instanceof Element && document.activeElement.matches(${JSON.stringify(
+          selector,
+        )})`,
+      );
+      if (active) {
+        return { presses, reached: true };
+      }
+      await pressKey("Tab", 9);
+      await wait(15);
+    }
+    return { presses: maxPresses, reached: false };
+  };
+  // PR9C review fix: a computed outline only proves the style tree. The
+  // focused screenshot must come from a frame that was produced AND
+  // presented after focus landed, otherwise capturePage can hand back the
+  // stale pre-focus frame (the review caught the ring rendered on the
+  // previously focused control instead of the target). Double rAF
+  // guarantees the renderer produced a frame containing the focused ring;
+  // the compositor frame subscription — armed before the rAF wait, since
+  // pending rAF callbacks force frame production — confirms such a frame
+  // was presented. The active element is re-read at capture time so a
+  // focus that silently moved between the probe and the capture becomes
+  // recorded evidence instead of a hidden assumption.
+  const waitForFocusedFrame = async (
+    selector: string,
+  ): Promise<SmokeFocusFrameEvidence> => {
+    let frameSignal: SmokeFocusFrameEvidence["frameSignal"] =
+      "beginFrameSubscription";
+    const frameArrival = new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (presented: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        try {
+          contents.endFrameSubscription();
+        } catch {
+          // Not subscribed (the subscription API was unavailable).
+        }
+        resolve(presented);
+      };
+      const timeout = setTimeout(() => finish(false), 1_500);
+      try {
+        contents.beginFrameSubscription(() => finish(true));
+      } catch {
+        frameSignal = "unavailable";
+        finish(false);
+      }
+    });
+    const doubleRafCompleted = await evaluate<boolean>(`
+      new Promise((resolve) => {
+        let second = 0;
+        const first = requestAnimationFrame(() => {
+          second = requestAnimationFrame(() => resolve(true));
+        });
+        setTimeout(() => {
+          cancelAnimationFrame(first);
+          cancelAnimationFrame(second);
+          resolve(false);
+        }, 1_500);
+      })`);
+    const framePresented = await frameArrival;
+    const active = await evaluate<{
+      targetStillFocused: boolean;
+      activeElementAtCapture: string;
+    } | null>(`(function () {
+      const target = document.querySelector(${JSON.stringify(selector)});
+      const activeElement = document.activeElement;
+      if (!(target instanceof Element)) {
+        return null;
+      }
+      const describe = (element) =>
+        element instanceof Element
+          ? element.tagName.toLowerCase() +
+            (typeof element.className === "string" && element.className
+              ? "." + element.className.trim().split(/\s+/).join(".")
+              : "")
+          : "none";
+      return {
+        targetStillFocused: activeElement === target,
+        activeElementAtCapture: describe(activeElement),
+      };
+    })()`);
+    return {
+      targetStillFocused: active?.targetStillFocused ?? false,
+      activeElementAtCapture: active?.activeElementAtCapture ?? "unavailable",
+      doubleRafCompleted,
+      framePresented,
+      frameSignal,
+    };
+  };
+  const focusProbeScript = (selector: string, labelSelector?: string) => `
+    (() => {
+      const input = document.querySelector(${JSON.stringify(selector)});
+      if (!(input instanceof HTMLInputElement)) return null;
+      const style = getComputedStyle(input);
+      const label = ${
+        labelSelector
+          ? `input.closest(${JSON.stringify(labelSelector)})`
+          : "null"
+      };
+      const labelStyle = label ? getComputedStyle(label) : null;
+      const rect = input.getBoundingClientRect();
+      const labelRect =
+        label instanceof HTMLElement ? label.getBoundingClientRect() : null;
+      const tabbables = Array.from(
+        document.querySelectorAll(
+          'a[href], button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
+        ),
+      ).filter((element) => {
+        const computed = getComputedStyle(element);
+        return (
+          computed.display !== "none" &&
+          computed.visibility !== "hidden" &&
+          element.getClientRects().length > 0
+        );
+      });
+      return {
+        focused: document.activeElement === input,
+        matchesFocusVisible: input.matches(":focus-visible"),
+        outlineStyle: style.outlineStyle,
+        outlineWidth: style.outlineWidth,
+        outlineColor: style.outlineColor,
+        tabIndex: input.tabIndex,
+        tabbableCount: tabbables.length,
+        tabOrderIndex: tabbables.indexOf(input),
+        hasFocus: document.hasFocus(),
+        labelMatchesFocusWithin:
+          label instanceof HTMLElement ? label.matches(":focus-within") : false,
+        labelOutlineStyle: labelStyle ? labelStyle.outlineStyle : null,
+        labelOutlineWidth: labelStyle ? labelStyle.outlineWidth : null,
+        labelOutlineColor: labelStyle ? labelStyle.outlineColor : null,
+        targetRect: {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        },
+        labelRect: labelRect
+          ? {
+              x: labelRect.x,
+              y: labelRect.y,
+              width: labelRect.width,
+              height: labelRect.height,
+            }
+          : null,
+        viewport: {
+          innerWidth: window.innerWidth,
+          innerHeight: window.innerHeight,
+          devicePixelRatio: window.devicePixelRatio,
+        },
+      };
+    })()`;
+  // The smoke window is shown offscreen via showInactive(), so focusing the
+  // web contents first is what makes the document hold real OS focus for
+  // the Tab traversal and :focus-visible evidence below.
+  contents.focus();
+  if (view === "input-fields-automations-once") {
+    const dateSelector = '.automation-dialog input[type="date"]';
+    const tab = await tabUntilFocused(dateSelector);
+    const focus = (await evaluate(
+      focusProbeScript(dateSelector),
+    )) as SmokeInputFieldsFocusProbe;
+    // Capture only after the focused frame was produced and presented, and
+    // prove the target still held focus at that exact moment.
+    const focusRingCapture = await waitForFocusedFrame(dateSelector);
+    if (artifacts.focusedScreenshot) {
+      const image = await contents.capturePage();
+      await writeFile(artifacts.focusedScreenshot, image.toPNG());
+    }
+    // F3: pixel-bind both on-disk captures with the repo-locked Electron
+    // runtime instead of the verify script's system python3 + Pillow.
+    const focusPixels = analyzeSmokeFocusPixels({
+      defaultPath: artifacts.defaultScreenshot,
+      focusedPath: artifacts.focusedScreenshot,
+      ringColorSource: focus?.outlineColor ?? null,
+      ringRect: focus?.targetRect ?? null,
+      viewportWidth: focus?.viewport?.innerWidth ?? null,
+    });
+    const busy = await evaluate(`(async () => {
+      const wait = (milliseconds) =>
+        new Promise((resolve) => setTimeout(resolve, milliseconds));
+      const form = document.querySelector("form.automation-dialog");
+      const date = document.querySelector(${JSON.stringify(dateSelector)});
+      const name = document.querySelector(".automation-dialog input:not([type])");
+      const prompt = document.querySelector(".automation-dialog textarea");
+      if (
+        !(form instanceof HTMLFormElement) ||
+        !(date instanceof HTMLInputElement) ||
+        !(name instanceof HTMLInputElement) ||
+        !(prompt instanceof HTMLTextAreaElement)
+      ) {
+        return { error: "once form controls missing" };
+      }
+      const inputSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      const textareaSetter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value",
+      )?.set;
+      inputSetter?.call(name, "Artemis smoke once schedule");
+      name.dispatchEvent(new Event("input", { bubbles: true }));
+      inputSetter?.call(date, "2099-06-15");
+      date.dispatchEvent(new Event("input", { bubbles: true }));
+      textareaSetter?.call(
+        prompt,
+        "Synthetic smoke prompt for the once date contract; this automation never runs.",
+      );
+      prompt.dispatchEvent(new Event("input", { bubbles: true }));
+      await wait(150);
+      const preSubmit = {
+        formNoValidate: form.noValidate,
+        formRole: form.getAttribute("role"),
+        formAriaModal: form.getAttribute("aria-modal"),
+        dateRequired: date.required,
+        dateType: date.type,
+        dateValue: date.value,
+        dateDisabled: date.disabled,
+        nameRequired: name.required,
+        promptRequired: prompt.required,
+      };
+      const disabledTransitions = [];
+      const observer = new MutationObserver(() => {
+        const probe = document.querySelector(${JSON.stringify(dateSelector)});
+        if (probe instanceof HTMLInputElement) {
+          disabledTransitions.push(probe.disabled);
+        }
+      });
+      observer.observe(form, {
+        attributes: true,
+        attributeFilter: ["disabled"],
+        subtree: true,
+      });
+      form.requestSubmit();
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        if (!document.querySelector(".automation-dialog")) break;
+        await wait(25);
+      }
+      observer.disconnect();
+      return {
+        preSubmit,
+        disabledTransitions,
+        busyDisabledObserved: disabledTransitions.includes(true),
+        dialogClosedAfterSave: !document.querySelector(".automation-dialog"),
+        errorMessage: document.querySelector(".automation-message")
+          ?.textContent ?? null,
+      };
+    })()`);
+    await evaluate(`(() => {
+      window.__inputFieldsProbe = {
+        view: ${JSON.stringify(view)},
+        documentHasFocus: document.hasFocus(),
+        tab: ${JSON.stringify(tab)},
+        focus: ${JSON.stringify(focus ?? null)},
+        focusRingCapture: ${JSON.stringify(focusRingCapture)},
+        focusPixels: ${JSON.stringify(focusPixels)},
+        busy: ${JSON.stringify(busy ?? null)},
+        activation: null,
+        pick: null,
+      };
+      return true;
+    })()`);
+    return;
+  }
+  if (view === "input-fields-settings-avatar") {
+    const avatarSelector = ".profile-avatar-input";
+    const tab = await tabUntilFocused(avatarSelector);
+    const focus = (await evaluate(
+      focusProbeScript(avatarSelector, "label.settings-secondary-action"),
+    )) as SmokeInputFieldsFocusProbe;
+    // Capture only after the focused frame was produced and presented, and
+    // prove the avatar input still held focus at that exact moment.
+    const focusRingCapture = await waitForFocusedFrame(avatarSelector);
+    if (artifacts.focusedScreenshot) {
+      const image = await contents.capturePage();
+      await writeFile(artifacts.focusedScreenshot, image.toPNG());
+    }
+    // F3: same Electron-side pixel binding, against the trigger label's
+    // focus-within ring rect and color.
+    const focusPixels = analyzeSmokeFocusPixels({
+      defaultPath: artifacts.defaultScreenshot,
+      focusedPath: artifacts.focusedScreenshot,
+      ringColorSource: focus?.labelOutlineColor ?? null,
+      ringRect: focus?.labelRect ?? null,
+      viewportWidth: focus?.viewport?.innerWidth ?? null,
+    });
+    await evaluate(`(() => {
+      window.__inputFieldsEnterClicks = 0;
+      const input = document.querySelector(${JSON.stringify(avatarSelector)});
+      input?.addEventListener("click", () => {
+        window.__inputFieldsEnterClicks += 1;
+      });
+      return true;
+    })()`);
+    try {
+      await ensureDebugger();
+      await contents.debugger.sendCommand("Page.enable");
+      await contents.debugger.sendCommand(
+        "Page.setInterceptFileChooserDialog",
+        { enabled: true, interceptAll: true },
+      );
+      activation.interceptionArmed = true;
+    } catch (error) {
+      activation.armError = String(error).slice(0, 240);
+    }
+    // The avatar save is a fast settings-store write, so the busy-state
+    // observer must already be watching when the pick commits; arm it
+    // before the intercepted chooser is satisfied.
+    await evaluate(`(() => {
+      window.__inputFieldsAvatarDisabled = [];
+      const actions = document.querySelector(
+        ".settings-profile-avatar-actions",
+      );
+      const observer = new MutationObserver(() => {
+        const probe = document.querySelector(".profile-avatar-input");
+        if (probe instanceof HTMLInputElement) {
+          window.__inputFieldsAvatarDisabled.push(probe.disabled);
+        }
+      });
+      if (actions) {
+        observer.observe(actions, {
+          attributes: true,
+          attributeFilter: ["disabled"],
+          subtree: true,
+        });
+        window.__inputFieldsAvatarObserver = observer;
+      }
+      return true;
+    })()`);
+    if (activation.interceptionArmed) {
+      let chooserBackendNodeId: number | undefined;
+      const chooserOpened = new Promise<boolean>((resolve) => {
+        const handle = (_event: unknown, method: string, params?: unknown) => {
+          if (method === "Page.fileChooserOpened") {
+            const backendNodeId = (params as { backendNodeId?: number })
+              ?.backendNodeId;
+            if (typeof backendNodeId === "number") {
+              chooserBackendNodeId = backendNodeId;
+            }
+            contents.debugger.removeListener("message", handle);
+            resolve(true);
+          }
+        };
+        contents.debugger.on("message", handle);
+        void wait(4_000).then(() => {
+          contents.debugger.removeListener("message", handle);
+          resolve(false);
+        });
+      });
+      await pressKey("Enter", 13, "\r");
+      activation.entered = true;
+      activation.fileChooserOpened = await chooserOpened;
+      if (activation.fileChooserOpened) {
+        const avatarPath = join(
+          app.getPath("userData"),
+          "fixtures",
+          "input-fields",
+          "avatar.png",
+        );
+        try {
+          // Satisfy the intercepted chooser the way Playwright does: point
+          // the chooser's input node at the synthetic fixture file, which
+          // makes Chromium set the input's files and fire the real change
+          // event through the normal pick path.
+          await contents.debugger.sendCommand("DOM.setFileInputFiles", {
+            files: [avatarPath],
+            ...(typeof chooserBackendNodeId === "number"
+              ? { backendNodeId: chooserBackendNodeId }
+              : {}),
+          });
+          activation.acceptedFiles = ["avatar.png"];
+        } catch (error) {
+          activation.acceptError = String(error).slice(0, 240);
+        }
+      }
+    }
+    const pick = await evaluate(`(async () => {
+      const wait = (milliseconds) =>
+        new Promise((resolve) => setTimeout(resolve, milliseconds));
+      const input = document.querySelector(${JSON.stringify(avatarSelector)});
+      if (!(input instanceof HTMLInputElement)) {
+        return { error: "avatar input missing" };
+      }
+      const deadline = Date.now() + 6000;
+      let settled = false;
+      while (Date.now() < deadline) {
+        const preview = document.querySelector(
+          ".settings-profile-avatar-preview img",
+        );
+        const remove = document.querySelector(
+          ".settings-profile-avatar-actions button",
+        );
+        if (preview && remove && !input.disabled) {
+          settled = true;
+          break;
+        }
+        await wait(25);
+      }
+      window.__inputFieldsAvatarObserver?.disconnect();
+      const disabledTransitions =
+        window.__inputFieldsAvatarDisabled ?? [];
+      return {
+        valueCleared: input.value === "",
+        previewImagePresent:
+          document.querySelector(".settings-profile-avatar-preview img") !==
+          null,
+        removePresent:
+          document.querySelector(".settings-profile-avatar-actions button") !==
+          null,
+        disabledTransitions,
+        busyDisabledObserved: disabledTransitions.includes(true),
+        settled,
+      };
+    })()`);
+    // Same presented-frame guarantee for the picked-state capture so that
+    // artifact cannot regress to a pre-pick stale frame either.
+    const pickedFrameCapture = await waitForFocusedFrame(avatarSelector);
+    if (artifacts.pickedScreenshot) {
+      const image = await contents.capturePage();
+      await writeFile(artifacts.pickedScreenshot, image.toPNG());
+    }
+    const enterClicks = await evaluate<number>(
+      "window.__inputFieldsEnterClicks ?? 0",
+    );
+    await evaluate(`(() => {
+      window.__inputFieldsProbe = {
+        view: ${JSON.stringify(view)},
+        documentHasFocus: document.hasFocus(),
+        tab: ${JSON.stringify(tab)},
+        focus: ${JSON.stringify(focus ?? null)},
+        focusRingCapture: ${JSON.stringify(focusRingCapture)},
+        focusPixels: ${JSON.stringify(focusPixels)},
+        busy: null,
+        activation: ${JSON.stringify(activation)},
+        pick: ${JSON.stringify(pick ?? null)},
+        pickedFrameCapture: ${JSON.stringify(pickedFrameCapture)},
+        enterClicks: ${JSON.stringify(enterClicks ?? 0)},
+      };
+      return true;
+    })()`);
+    return;
+  }
+  // An input-fields-* view without a driver branch must fail loudly here:
+  // a silent return would exit clean with no probe written, and the verify
+  // script would only report missing audit data far away from the cause.
+  throw new Error(
+    `Unknown input-fields smoke view: ${view}. Implemented views are input-fields-automations-once and input-fields-settings-avatar.`,
+  );
+}
+
 async function seedSmokeEnvironmentFixture(): Promise<void> {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
   // The icon-sizing smoke harness reuses this same synthetic repository
@@ -10314,6 +11116,8 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
 function createMainWindow(): BrowserWindow {
   const smokeScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT;
   const smokeAccessibility = process.env.ARTEMIS_SMOKE_ACCESSIBILITY;
+  const smokeFocusedScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT_FOCUSED;
+  const smokePickedScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT_PICKED;
   const smokeArtifacts = Boolean(smokeScreenshot || smokeAccessibility);
   const requestedSmokeWidth = Number(process.env.ARTEMIS_SMOKE_WINDOW_WIDTH);
   const requestedSmokeResizeWidth = Number(
@@ -10599,6 +11403,92 @@ function createMainWindow(): BrowserWindow {
                       .querySelector('.goal-editor-footer .primary-button')
                       ?.click();
                     await wait(view === 'goal-editor-saving' ? 200 : 800);
+                  }
+                  return;
+                }
+                if (view.startsWith('input-fields-')) {
+                  const waitForElement = async (selector) => {
+                    const deadline = Date.now() + 8000;
+                    while (Date.now() < deadline) {
+                      const found = document.querySelector(selector);
+                      if (found) return found;
+                      await wait(100);
+                    }
+                    return null;
+                  };
+                  const clickActivity = (label) => {
+                    const button = [
+                      ...document.querySelectorAll('.activity-button'),
+                    ].find(
+                      (candidate) =>
+                        candidate.getAttribute('aria-label') === label ||
+                        candidate.getAttribute('title') === label,
+                    );
+                    button?.click();
+                    return Boolean(button);
+                  };
+                  if (view === 'input-fields-automations-once') {
+                    if (!clickActivity('Automations')) {
+                      throw new Error('Automations activity button missing.');
+                    }
+                    if (!(await waitForElement('.automation-page'))) {
+                      throw new Error('Automation page did not render.');
+                    }
+                    const createButton = await waitForElement(
+                      '.automation-create-button:not(:disabled)',
+                    );
+                    if (!createButton) {
+                      throw new Error(
+                        'Automation create button stayed disabled.',
+                      );
+                    }
+                    createButton.click();
+                    if (!(await waitForElement('.automation-dialog'))) {
+                      throw new Error('Automation dialog did not open.');
+                    }
+                    const presetSelect = [
+                      ...document.querySelectorAll('.automation-dialog select'),
+                    ].find((select) =>
+                      [...select.options].some(
+                        (option) => option.value === 'once',
+                      ),
+                    );
+                    if (!presetSelect) {
+                      throw new Error('Schedule preset select missing.');
+                    }
+                    const setter = Object.getOwnPropertyDescriptor(
+                      HTMLSelectElement.prototype,
+                      'value',
+                    )?.set;
+                    setter?.call(presetSelect, 'once');
+                    presetSelect.dispatchEvent(
+                      new Event('change', { bubbles: true }),
+                    );
+                    if (
+                      !(await waitForElement(
+                        '.automation-dialog input[type="date"]',
+                      ))
+                    ) {
+                      throw new Error('Once date field did not render.');
+                    }
+                    return;
+                  }
+                  if (view === 'input-fields-settings-avatar') {
+                    if (!clickActivity('Settings')) {
+                      throw new Error('Settings activity button missing.');
+                    }
+                    if (!(await waitForElement('.settings-panel'))) {
+                      throw new Error('Settings panel did not render.');
+                    }
+                    if (
+                      !(await waitForElement('.profile-avatar-input')) ||
+                      !(await waitForElement(
+                        '.settings-profile-avatar-actions label.settings-secondary-action',
+                      ))
+                    ) {
+                      throw new Error('Avatar field did not render.');
+                    }
+                    return;
                   }
                   return;
                 }
@@ -11747,6 +12637,17 @@ function createMainWindow(): BrowserWindow {
             const image = await window.webContents.capturePage();
             await writeFile(smokeScreenshot, image.toPNG());
           }
+          // PR9C input-fields smoke: after the default-state screenshot the
+          // keyboard-evidence driver runs (real Tab traversal, focus probes,
+          // busy-driven disable, Enter -> intercepted file chooser) before
+          // the accessibility audit snapshot reads window.__inputFieldsProbe.
+          if (smokeMode && requestedSmokeView?.startsWith("input-fields-")) {
+            await driveSmokeInputFieldsEvidence(window, {
+              defaultScreenshot: smokeScreenshot,
+              focusedScreenshot: smokeFocusedScreenshot,
+              pickedScreenshot: smokePickedScreenshot,
+            });
+          }
           if (smokeAccessibility) {
             const result = (await window.webContents.executeJavaScript(`
               (() => {
@@ -11755,6 +12656,9 @@ function createMainWindow(): BrowserWindow {
                   requestedSmokeView ?? "",
                 )};
                 const cardHeatmapView = ${JSON.stringify(
+                  requestedSmokeView ?? "",
+                )};
+                const inputFieldsView = ${JSON.stringify(
                   requestedSmokeView ?? "",
                 )};
                 const visible = (element) => {
@@ -12639,6 +13543,74 @@ function createMainWindow(): BrowserWindow {
                         };
                       })()
                     : null,
+                  inputFields: inputFieldsView.startsWith("input-fields-")
+                    ? (() => {
+                        const probe = window.__inputFieldsProbe ?? null;
+                        const avatarInput = document.querySelector(
+                          ".profile-avatar-input",
+                        );
+                        const avatarLabel =
+                          avatarInput?.closest(
+                            "label.settings-secondary-action",
+                          ) ?? null;
+                        const avatarStyle = avatarInput
+                          ? getComputedStyle(avatarInput)
+                          : null;
+                        const labelStyle = avatarLabel
+                          ? getComputedStyle(avatarLabel)
+                          : null;
+                        const previewImage = document.querySelector(
+                          ".settings-profile-avatar-preview img",
+                        );
+                        return {
+                          view: inputFieldsView,
+                          probe,
+                          avatar: avatarInput
+                            ? {
+                                accept: avatarInput.getAttribute("accept"),
+                                type: avatarInput.type,
+                                disabled: avatarInput.disabled,
+                                srOnly: {
+                                  display: avatarStyle?.display ?? null,
+                                  position: avatarStyle?.position ?? null,
+                                  clipPath: avatarStyle?.clipPath ?? null,
+                                  overflow: avatarStyle?.overflow ?? null,
+                                  width: avatarStyle?.width ?? null,
+                                  height: avatarStyle?.height ?? null,
+                                  whiteSpace: avatarStyle?.whiteSpace ?? null,
+                                },
+                                geometry: {
+                                  offsetParentPresent:
+                                    avatarInput.offsetParent !== null,
+                                  offsetWidth: avatarInput.offsetWidth,
+                                  offsetHeight: avatarInput.offsetHeight,
+                                },
+                                tabIndex: avatarInput.tabIndex,
+                                labelTagName:
+                                  avatarLabel?.tagName.toLowerCase() ?? null,
+                                labelClass:
+                                  avatarLabel?.getAttribute("class") ?? null,
+                                labelCurrentOutline: {
+                                  style: labelStyle?.outlineStyle ?? null,
+                                  width: labelStyle?.outlineWidth ?? null,
+                                  color: labelStyle?.outlineColor ?? null,
+                                },
+                                previewImagePresent: previewImage !== null,
+                                previewImageSrcPrefix: (
+                                  previewImage?.getAttribute("src") ?? ""
+                                ).slice(0, 22),
+                                removePresent:
+                                  document.querySelector(
+                                    ".settings-profile-avatar-actions button",
+                                  ) !== null,
+                              }
+                            : null,
+                          automationDialogPresent:
+                            document.querySelector(".automation-dialog") !==
+                            null,
+                        };
+                      })()
+                    : null,
                   interactiveCount: document.querySelectorAll(
                     "button, a[href], summary, input, select, textarea, [role='button'], [role='tab']",
                   ).length,
@@ -12769,6 +13741,7 @@ app
     );
     await seedSmokeMcpEditorFixture();
     await seedSmokeIconSizingFixture();
+    await seedSmokeInputFieldsFixture();
     mcpOAuthStore = new McpOAuthStore(
       join(app.getPath("userData"), "mcp-oauth.json"),
       safeStorage,

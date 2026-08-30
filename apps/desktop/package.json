@@ -1,6 +1,6 @@
 {
   "name": "@artemis/desktop",
-  "version": "1.4.37",
+  "version": "1.4.38",
   "private": true,
   "type": "module",
   "description": "Artemis desktop application",
@@ -23,6 +23,7 @@
     "verify:environment-panel": "npm run build && node scripts/verify-environment-panel-responsive.mjs",
     "verify:goal-parity": "npm run build && node scripts/verify-goal-parity.mjs",
     "verify:icon-sizing": "npm run build && node scripts/verify-icon-sizing.mjs",
+    "verify:input-fields": "npm run build && node scripts/verify-input-fields.mjs",
     "verify:markdown-editor": "npm run build && node scripts/verify-markdown-editor.mjs",
     "verify:mcp-editor": "npm run build && node scripts/verify-mcp-editor.mjs",
     "verify:queued-steer": "npm run build && node scripts/verify-queued-steer.mjs",
@@ -31,9 +32,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@artemis/agent-host": "1.4.37",
-    "@artemis/platform": "1.4.37",
-    "@artemis/protocol": "1.4.37",
+    "@artemis/agent-host": "1.4.38",
+    "@artemis/platform": "1.4.38",
+    "@artemis/protocol": "1.4.38",
     "@earendil-works/pi-ai": "0.84.3",
     "@earendil-works/pi-coding-agent": "0.84.3",
     "@js-temporal/polyfill": "^0.5.1",
