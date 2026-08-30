@@ -1,6 +1,6 @@
 {
   "name": "@artemis/platform",
-  "version": "1.4.31",
+  "version": "1.4.32",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -20,7 +20,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@artemis/protocol": "1.4.31",
+    "@artemis/protocol": "1.4.32",
     "flatbuffers": "^25.2.10"
   }
 }
