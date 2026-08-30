@@ -1,6 +1,6 @@
 {
   "name": "@artemis/desktop",
-  "version": "1.4.35",
+  "version": "1.4.36",
   "private": true,
   "type": "module",
   "description": "Artemis desktop application",
@@ -21,6 +21,7 @@
     "verify:bundled-plugins": "vitest run --no-file-parallelism test/codex-plugin-service.test.ts -t \"exposes all four Lite plugins from packaged resources without a runtime\"",
     "verify:environment-panel": "npm run build && node scripts/verify-environment-panel-responsive.mjs",
     "verify:goal-parity": "npm run build && node scripts/verify-goal-parity.mjs",
+    "verify:icon-sizing": "npm run build && node scripts/verify-icon-sizing.mjs",
     "verify:markdown-editor": "npm run build && node scripts/verify-markdown-editor.mjs",
     "verify:mcp-editor": "npm run build && node scripts/verify-mcp-editor.mjs",
     "verify:queued-steer": "npm run build && node scripts/verify-queued-steer.mjs",
@@ -29,9 +30,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@artemis/agent-host": "1.4.35",
-    "@artemis/platform": "1.4.35",
-    "@artemis/protocol": "1.4.35",
+    "@artemis/agent-host": "1.4.36",
+    "@artemis/platform": "1.4.36",
+    "@artemis/protocol": "1.4.36",
     "@earendil-works/pi-ai": "0.84.3",
     "@earendil-works/pi-coding-agent": "0.84.3",
     "@js-temporal/polyfill": "^0.5.1",

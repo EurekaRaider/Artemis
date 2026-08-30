@@ -293,9 +293,8 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain("view === 'environment-sources'");
     expect(mainSource).toContain("view === 'environment-open'");
     expect(mainSource).toContain("view === 'environment-branch-menu'");
-    expect(mainSource).toContain(
-      'ARTEMIS_SMOKE_VIEW?.startsWith("environment")',
-    );
+    expect(mainSource).toContain('view?.startsWith("environment")');
+    expect(mainSource).toContain('view?.startsWith("icon-sizing-environment")');
     expect(mainSource).toContain('"environment-empty"');
     expect(mainSource).toContain("environment-repository");
     expect(mainSource).toContain("view === 'environment-outside-click'");

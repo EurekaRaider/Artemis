@@ -91,9 +91,9 @@ export function EnvironmentLocalIcon(props: IconProps) {
   return (
     <svg
       fill="none"
-      height="21"
+      height="20"
       viewBox="0 0 21 21"
-      width="21"
+      width="20"
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
@@ -211,9 +211,9 @@ export function EnvironmentCheckIcon(props: IconProps) {
   return (
     <svg
       fill="none"
-      height="17"
+      height="16"
       viewBox="0 0 17 17"
-      width="17"
+      width="16"
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
