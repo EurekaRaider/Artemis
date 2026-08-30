@@ -6442,6 +6442,28 @@ function registerIpc(): void {
       input: McpServerConfig,
       bearerToken?: string,
     ): Promise<SettingsSnapshot> => {
+      if (
+        smokeMode &&
+        process.env.ARTEMIS_SMOKE_VIEW?.startsWith("mcp-editor")
+      ) {
+        if (!mcpConfigStore) {
+          throw new Error("MCP service is not ready.");
+        }
+        if (
+          process.env.ARTEMIS_SMOKE_VIEW === "mcp-editor-save-error" &&
+          !smokeMcpEditorSaveFailureInjected
+        ) {
+          smokeMcpEditorSaveFailureInjected = true;
+          throw new Error("Simulated MCP server save failure.");
+        }
+        // Keep the durable half of the production chain: the config still
+        // round-trips the real McpConfigStore persistence. Only the connect
+        // step is simulated away (the synthetic identity must never spawn a
+        // process or dial an endpoint) and the bearer token is dropped.
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));
+        await mcpConfigStore.upsert(input);
+        return getSettingsSnapshot();
+      }
       return saveMcpConfiguration(input, bearerToken);
     },
   );
@@ -6466,6 +6488,42 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.mcpServerReconnect,
     async (_event, serverId: string): Promise<SettingsSnapshot> => {
+      if (
+        smokeMode &&
+        process.env.ARTEMIS_SMOKE_VIEW?.startsWith("mcp-editor")
+      ) {
+        if (!mcpConfigStore) {
+          throw new Error("MCP service is not ready.");
+        }
+        if (process.env.ARTEMIS_SMOKE_VIEW === "mcp-editor-test-busy") {
+          await new Promise((resolvePromise) =>
+            setTimeout(resolvePromise, 10_000),
+          );
+        }
+        const snapshot = await getSettingsSnapshot();
+        if (process.env.ARTEMIS_SMOKE_VIEW === "mcp-editor-test-failure") {
+          return {
+            ...snapshot,
+            mcpServers: snapshot.mcpServers.map((server) =>
+              server.config.id === serverId
+                ? {
+                    ...server,
+                    state: "failed" as const,
+                    error: "Simulated MCP connection test rejection.",
+                  }
+                : server,
+            ),
+          };
+        }
+        return {
+          ...snapshot,
+          mcpServers: snapshot.mcpServers.map((server) =>
+            server.config.id === serverId
+              ? { ...server, state: "connected" as const }
+              : server,
+          ),
+        };
+      }
       if (!mcpConfigStore || !mcpClientManager) {
         throw new Error("MCP service is not ready.");
       }
@@ -6498,6 +6556,28 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.mcpServerRemove,
     async (_event, serverId: string): Promise<SettingsSnapshot> => {
+      if (
+        smokeMode &&
+        process.env.ARTEMIS_SMOKE_VIEW?.startsWith("mcp-editor")
+      ) {
+        if (!mcpConfigStore) {
+          throw new Error("MCP service is not ready.");
+        }
+        if (
+          process.env.ARTEMIS_SMOKE_VIEW === "mcp-editor-remove-error" &&
+          !smokeMcpEditorRemoveFailureInjected
+        ) {
+          smokeMcpEditorRemoveFailureInjected = true;
+          throw new Error("Simulated MCP server removal failure.");
+        }
+        // Keep the durable half of the production chain (the real
+        // McpConfigStore.remove); the plugin scan, agent-thread reset, and
+        // runtime re-apply are skipped because the isolated profile has no
+        // plugins or open threads and the synthetic server never connected.
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));
+        await mcpConfigStore.remove(serverId);
+        return getSettingsSnapshot();
+      }
       if (!mcpConfigStore || !mcpClientManager || !settingsStore) {
         throw new Error("MCP service is not ready.");
       }
@@ -9830,6 +9910,28 @@ function seedSmokeMarkdownEditorFixture(): void {
   });
 }
 
+// One-shot failure latches for the mcp-editor smoke: the injected save and
+// remove rejections fire exactly once per process so the Retry affordance can
+// drive the same request through the recovering path.
+let smokeMcpEditorSaveFailureInjected = false;
+let smokeMcpEditorRemoveFailureInjected = false;
+
+async function seedSmokeMcpEditorFixture(): Promise<void> {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (!mcpConfigStore || !view?.startsWith("mcp-editor")) return;
+  // Synthetic identity only: the URL uses the reserved .test TLD and the
+  // bearer credential stays unset, so no real endpoint, account, or secret
+  // can ever enter the seeded snapshot.
+  await mcpConfigStore.upsert({
+    id: "artemis-smoke-remote",
+    name: "Artemis Smoke Remote",
+    transport: "streamable-http",
+    enabled: true,
+    url: "https://mcp.artemis-smoke.example.test/mcp",
+    auth: "bearer",
+  });
+}
+
 async function seedSmokeEnvironmentFixture(): Promise<void> {
   if (!store || !process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment")) {
     return;
@@ -10603,6 +10705,325 @@ function createMainWindow(): BrowserWindow {
                     }),
                   );
                   await wait(1000);
+                  return;
+                }
+                if (view.startsWith('mcp-editor')) {
+                  const waitFor = async (selector) => {
+                    const deadline = Date.now() + 5000;
+                    while (Date.now() < deadline) {
+                      const found = document.querySelector(selector);
+                      if (found) return found;
+                      await wait(100);
+                    }
+                    return null;
+                  };
+                  const setInputValue = (input, value) => {
+                    const setter = Object.getOwnPropertyDescriptor(
+                      HTMLInputElement.prototype,
+                      'value',
+                    )?.set;
+                    setter?.call(input, value);
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                  };
+                  const captureDisabledState = () => ({
+                    ariaBusy:
+                      document
+                        .querySelector('.mcp-editor-feedback')
+                        ?.getAttribute('aria-busy') ?? null,
+                    busyText:
+                      document.querySelector('.mcp-editor-busy')?.textContent?.trim() ??
+                      null,
+                    saveDisabled:
+                      document.querySelector('.mcp-editor-save') instanceof
+                      HTMLButtonElement
+                        ? document.querySelector('.mcp-editor-save').disabled
+                        : null,
+                    removeDisabled:
+                      document.querySelector('.mcp-editor-remove') instanceof
+                      HTMLButtonElement
+                        ? document.querySelector('.mcp-editor-remove').disabled
+                        : null,
+                    testDisabled:
+                      document.querySelector('.mcp-editor-test-button') instanceof
+                      HTMLButtonElement
+                        ? document.querySelector('.mcp-editor-test-button').disabled
+                        : null,
+                    backDisabled:
+                      document.querySelector('.mcp-editor-back') instanceof
+                      HTMLButtonElement
+                        ? document.querySelector('.mcp-editor-back').disabled
+                        : null,
+                    urlDisabled:
+                      document.querySelector('.mcp-editor input[type="url"]') instanceof
+                      HTMLInputElement
+                        ? document.querySelector('.mcp-editor input[type="url"]').disabled
+                        : null,
+                  });
+                  const installBusyTrace = () => {
+                    window.__mcpEditorBusyTrace = [];
+                    const feedback = document.querySelector('.mcp-editor-feedback');
+                    if (!feedback) return;
+                    const record = () => {
+                      const trace = window.__mcpEditorBusyTrace;
+                      const next = captureDisabledState();
+                      const last = trace[trace.length - 1];
+                      if (last && JSON.stringify(last) === JSON.stringify(next)) {
+                        return;
+                      }
+                      trace.push(next);
+                    };
+                    record();
+                    new MutationObserver(record).observe(feedback, {
+                      attributes: true,
+                      attributeFilter: ['aria-busy'],
+                      childList: true,
+                      subtree: true,
+                    });
+                  };
+                  const openManageMcpTab = async () => {
+                    document.querySelectorAll('.activity-button')[1]?.click();
+                    await waitFor('.resource-installed-overview .resource-icon-button');
+                    document
+                      .querySelector('.resource-installed-overview .resource-icon-button')
+                      ?.click();
+                    await waitFor('.resource-management-tabs button');
+                    document
+                      .querySelectorAll('.resource-management-tabs button')
+                      [2]?.click();
+                    await waitFor('.resource-list-heading-actions');
+                  };
+                  const openNewServerEditor = async () => {
+                    await openManageMcpTab();
+                    const addButton = [
+                      ...document.querySelectorAll('.resource-add-button'),
+                    ].find((button) =>
+                      (button.textContent ?? '').trim().startsWith('Add server'),
+                    );
+                    if (!addButton) {
+                      throw new Error('Add server button did not render.');
+                    }
+                    addButton.click();
+                    await waitFor('.mcp-editor');
+                    if (!document.querySelector('.mcp-editor')) {
+                      throw new Error('MCP server editor did not open.');
+                    }
+                  };
+                  const openSeededServerEditor = async () => {
+                    await openManageMcpTab();
+                    await waitFor('.resource-management-list .resource-management-row');
+                    const row = [
+                      ...document.querySelectorAll('.resource-management-row'),
+                    ].find(
+                      (candidate) =>
+                        candidate.querySelector('strong')?.textContent?.trim() ===
+                        'Artemis Smoke Remote',
+                    );
+                    if (!row) {
+                      throw new Error('Seeded MCP server row did not render.');
+                    }
+                    row.querySelector('.resource-icon-button')?.click();
+                    await waitFor('.mcp-editor');
+                    await waitFor('.mcp-editor-test');
+                    if (!document.querySelector('.mcp-editor-test')) {
+                      throw new Error('Edit-mode test control did not render.');
+                    }
+                  };
+                  if (view === 'mcp-editor-new') {
+                    await openNewServerEditor();
+                    return;
+                  }
+                  if (view === 'mcp-editor-validation') {
+                    await openNewServerEditor();
+                    const command = document.querySelector(
+                      '.mcp-editor input[aria-label="Launch command"]',
+                    );
+                    if (!(command instanceof HTMLInputElement)) {
+                      throw new Error('Launch command input did not render.');
+                    }
+                    setInputValue(command, '   ');
+                    await wait(250);
+                    document.querySelector('.mcp-editor-save')?.click();
+                    await wait(300);
+                    return;
+                  }
+                  if (view === 'mcp-editor-save' || view === 'mcp-editor-save-error') {
+                    await openNewServerEditor();
+                    const command = document.querySelector(
+                      '.mcp-editor input[aria-label="Launch command"]',
+                    );
+                    if (!(command instanceof HTMLInputElement)) {
+                      throw new Error('Launch command input did not render.');
+                    }
+                    setInputValue(command, 'artemis-smoke-mcp-server');
+                    await wait(300);
+                    installBusyTrace();
+                    document.querySelector('.mcp-editor-save')?.click();
+                    await wait(1_200);
+                    return;
+                  }
+                  if (view.startsWith('mcp-editor-test-')) {
+                    await openSeededServerEditor();
+                    document.querySelector('.mcp-editor-test-button')?.click();
+                    await wait(view === 'mcp-editor-test-busy' ? 400 : 1_500);
+                    return;
+                  }
+                  if (view === 'mcp-editor-remove-confirm') {
+                    await openSeededServerEditor();
+                    const readDialog = () => {
+                      const dialog = document.querySelector('.confirmation-dialog');
+                      return {
+                        present: dialog !== null,
+                        role: dialog?.getAttribute('role') ?? null,
+                        tone: dialog?.getAttribute('class') ?? null,
+                        message:
+                          dialog
+                            ?.querySelector('#confirmation-message')
+                            ?.textContent?.trim() ?? null,
+                        cancelLabel:
+                          dialog
+                            ?.querySelector('.secondary-button')
+                            ?.textContent?.trim() ?? null,
+                        confirmLabel:
+                          dialog
+                            ?.querySelector('.primary-button')
+                            ?.textContent?.trim() ?? null,
+                      };
+                    };
+                    document.querySelector('.mcp-editor-remove')?.click();
+                    await waitFor('.confirmation-dialog.danger');
+                    window.__mcpEditorProbe = { dialog: readDialog() };
+                    document
+                      .querySelector('.confirmation-actions .secondary-button')
+                      ?.click();
+                    await wait(400);
+                    window.__mcpEditorProbe.rejection = {
+                      dialogGone: document.querySelector('.confirmation-dialog') === null,
+                      editorStillOpen: document.querySelector('.mcp-editor') !== null,
+                    };
+                    document.querySelector('.mcp-editor-remove')?.click();
+                    await waitFor('.confirmation-dialog.danger');
+                    return;
+                  }
+                  if (view === 'mcp-editor-remove' || view === 'mcp-editor-remove-error') {
+                    await openSeededServerEditor();
+                    installBusyTrace();
+                    document.querySelector('.mcp-editor-remove')?.click();
+                    await waitFor('.confirmation-dialog.danger');
+                    document
+                      .querySelector('.confirmation-actions .primary-button.danger')
+                      ?.click();
+                    if (view === 'mcp-editor-remove') {
+                      await wait(1_500);
+                      return;
+                    }
+                    await wait(1_000);
+                    window.__mcpEditorProbe = {
+                      injectedFailure: {
+                        alertText:
+                          document
+                            .querySelector('.mcp-editor-action-error')
+                            ?.textContent?.trim() ?? null,
+                        retryDisabled:
+                          document.querySelector(
+                            '.mcp-editor-action-retry',
+                          ) instanceof HTMLButtonElement
+                            ? document.querySelector('.mcp-editor-action-retry').disabled
+                            : null,
+                        editorStillOpen:
+                          document.querySelector('.mcp-editor') !== null,
+                      },
+                    };
+                    document.querySelector('.mcp-editor-action-retry')?.click();
+                    await wait(1_500);
+                    return;
+                  }
+                  if (view === 'mcp-editor-credentials') {
+                    await openSeededServerEditor();
+                    window.__mcpEditorConsoleCapture = { entries: [] };
+                    for (const method of ['log', 'info', 'warn', 'error', 'debug']) {
+                      const original = console[method].bind(console);
+                      console[method] = (...args) => {
+                        const text = args
+                          .map((argument) => String(argument))
+                          .join(' ');
+                        window.__mcpEditorConsoleCapture.entries.push({
+                          method,
+                          length: text.length,
+                          mentionsCredential: text.includes('artemis-smoke-bearer'),
+                        });
+                        original(...args);
+                      };
+                    }
+                    const bearer = 'artemis-smoke-bearer-SYNTHETIC-NEVER-LEAK';
+                    const input = document.querySelector(
+                      '.mcp-editor input[type="password"]',
+                    );
+                    if (!(input instanceof HTMLInputElement)) {
+                      throw new Error('Bearer input did not render.');
+                    }
+                    setInputValue(input, bearer);
+                    await wait(300);
+                    const scanForBearer = () => {
+                      let textHits = 0;
+                      const walker = document.createTreeWalker(
+                        document.body,
+                        NodeFilter.SHOW_TEXT,
+                      );
+                      while (walker.nextNode()) {
+                        if (walker.currentNode.textContent?.includes(bearer)) {
+                          textHits += 1;
+                        }
+                      }
+                      let attributeHits = 0;
+                      const attributeHitDetails = [];
+                      for (const element of document.querySelectorAll('*')) {
+                        for (const attribute of element.attributes) {
+                          if (attribute.value.includes(bearer)) {
+                            attributeHits += 1;
+                            attributeHitDetails.push({
+                              tag: element.tagName,
+                              attribute: attribute.name,
+                              maskedCredentialInput: element === input,
+                            });
+                          }
+                        }
+                      }
+                      // React reflects a controlled input's value into its
+                      // own value attribute, so the masked credential input
+                      // may legitimately carry the token; serialize a clone
+                      // with every password input removed to prove no other
+                      // markup node ever exposes it.
+                      const sanitizedClone =
+                        document.documentElement.cloneNode(true);
+                      for (const masked of sanitizedClone.querySelectorAll(
+                        'input[type="password"]',
+                      )) {
+                        masked.remove();
+                      }
+                      return {
+                        textHits,
+                        attributeHits,
+                        attributeHitDetails,
+                        markupHits: sanitizedClone.outerHTML.includes(bearer)
+                          ? 1
+                          : 0,
+                      };
+                    };
+                    window.__mcpEditorProbe = {
+                      beforeSave: {
+                        masked: input.type === 'password',
+                        ...scanForBearer(),
+                      },
+                    };
+                    document.querySelector('.mcp-editor-save')?.click();
+                    await wait(1_200);
+                    window.__mcpEditorProbe.afterSave = scanForBearer();
+                    window.__mcpEditorConsoleCapture.credentialEntries =
+                      window.__mcpEditorConsoleCapture.entries.filter(
+                        (entry) => entry.mentionsCredential,
+                      ).length;
+                    return;
+                  }
                   return;
                 }
                 if (view.startsWith('turn-changes')) {
@@ -11471,6 +11892,143 @@ function createMainWindow(): BrowserWindow {
                       toggleProbe: window.__markdownEditorToggleProbe ?? null,
                     };
                   })(),
+                  mcpEditor: (() => {
+                    const editor = document.querySelector('.mcp-editor');
+                    const validation = document.querySelector(
+                      '.mcp-editor .mcp-editor-validation',
+                    );
+                    const actionError = document.querySelector(
+                      '.mcp-editor .mcp-editor-action-error',
+                    );
+                    const retry = document.querySelector(
+                      '.mcp-editor .mcp-editor-action-retry',
+                    );
+                    const busyRegion = document.querySelector(
+                      '.mcp-editor .mcp-editor-busy',
+                    );
+                    const test = document.querySelector('.mcp-editor-test');
+                    const testButton = test?.querySelector(
+                      '.mcp-editor-test-button',
+                    );
+                    const testStatus = test?.querySelector(
+                      '.mcp-editor-test-status',
+                    );
+                    const testFailure = test?.querySelector(
+                      '.mcp-editor-test-failure',
+                    );
+                    const removeButton = document.querySelector(
+                      '.mcp-editor .mcp-editor-remove',
+                    );
+                    const saveButton = document.querySelector(
+                      '.mcp-editor .mcp-editor-save',
+                    );
+                    const backButton = document.querySelector(
+                      '.mcp-editor .mcp-editor-back',
+                    );
+                    const commandInput = document.querySelector(
+                      '.mcp-editor input[aria-label="Launch command"]',
+                    );
+                    const urlInput = document.querySelector(
+                      '.mcp-editor input[aria-label="Server URL"]',
+                    );
+                    const bearerInput = document.querySelector(
+                      '.mcp-editor input[type="password"]',
+                    );
+                    const dialog = document.querySelector('.confirmation-dialog');
+                    return {
+                      editorVisible: editor ? visible(editor) : false,
+                      heading: editor?.querySelector('h1')?.textContent?.trim() ?? null,
+                      feedbackAriaBusy:
+                        document
+                          .querySelector('.mcp-editor-feedback')
+                          ?.getAttribute('aria-busy') ?? null,
+                      busyText: busyRegion?.textContent?.trim() ?? null,
+                      validationVisible: validation ? visible(validation) : false,
+                      validationRole: validation?.getAttribute('role') ?? null,
+                      validationText: validation?.textContent?.trim() ?? null,
+                      actionErrorVisible: actionError ? visible(actionError) : false,
+                      actionErrorRole: actionError?.getAttribute('role') ?? null,
+                      actionErrorText: actionError?.textContent?.trim() ?? null,
+                      retryPresent: retry != null,
+                      retryDisabled:
+                        retry instanceof HTMLButtonElement ? retry.disabled : null,
+                      testPresent: test != null,
+                      testAriaBusy: test?.getAttribute('aria-busy') ?? null,
+                      testStatusText: testStatus?.textContent?.trim() ?? null,
+                      testFailureVisible: testFailure ? visible(testFailure) : false,
+                      testFailureText: testFailure?.textContent?.trim() ?? null,
+                      testButtonDisabled:
+                        testButton instanceof HTMLButtonElement
+                          ? testButton.disabled
+                          : null,
+                      removePresent: removeButton != null,
+                      removeDisabled:
+                        removeButton instanceof HTMLButtonElement
+                          ? removeButton.disabled
+                          : null,
+                      savePresent: saveButton != null,
+                      saveDisabled:
+                        saveButton instanceof HTMLButtonElement
+                          ? saveButton.disabled
+                          : null,
+                      backDisabled:
+                        backButton instanceof HTMLButtonElement
+                          ? backButton.disabled
+                          : null,
+                      commandValue:
+                        commandInput instanceof HTMLInputElement
+                          ? commandInput.value
+                          : null,
+                      urlValue:
+                        urlInput instanceof HTMLInputElement ? urlInput.value : null,
+                      urlDisabled:
+                        urlInput instanceof HTMLInputElement ? urlInput.disabled : null,
+                      bearerMasked:
+                        bearerInput instanceof HTMLInputElement
+                          ? bearerInput.type === 'password'
+                          : null,
+                      confirmDialog:
+                        dialog instanceof HTMLElement
+                          ? {
+                              visible: visible(dialog),
+                              role: dialog.getAttribute('role'),
+                              tone: dialog.getAttribute('class') ?? '',
+                              title:
+                                dialog
+                                  .querySelector('#confirmation-title')
+                                  ?.textContent?.trim() ?? null,
+                              message:
+                                dialog
+                                  .querySelector('#confirmation-message')
+                                  ?.textContent?.trim() ?? null,
+                              cancelLabel:
+                                dialog
+                                  .querySelector('.secondary-button')
+                                  ?.textContent?.trim() ?? null,
+                              confirmLabel:
+                                dialog
+                                  .querySelector('.primary-button')
+                                  ?.textContent?.trim() ?? null,
+                              confirmDanger:
+                                dialog
+                                  .querySelector('.primary-button')
+                                  ?.classList.contains('danger') ?? false,
+                            }
+                          : null,
+                      manageMessageText:
+                        document.querySelector('.catalog-message')?.textContent?.trim() ??
+                        null,
+                      manageServerNames: [
+                        ...document.querySelectorAll(
+                          '.resource-management-list .resource-management-row strong',
+                        ),
+                      ].map((name) => name.textContent?.trim() ?? ''),
+                      focusTag: document.activeElement?.tagName ?? null,
+                      busyTrace: window.__mcpEditorBusyTrace ?? null,
+                      probe: window.__mcpEditorProbe ?? null,
+                      consoleCapture: window.__mcpEditorConsoleCapture ?? null,
+                    };
+                  })(),
                   messageActionLabels: [...document.querySelectorAll(
                     ".message-action",
                   )].map((button) => button.getAttribute("aria-label")),
@@ -11644,6 +12202,7 @@ app
     mcpConfigStore = new McpConfigStore(
       join(app.getPath("userData"), "mcp.json"),
     );
+    await seedSmokeMcpEditorFixture();
     mcpOAuthStore = new McpOAuthStore(
       join(app.getPath("userData"), "mcp-oauth.json"),
       safeStorage,
