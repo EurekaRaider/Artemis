@@ -29,6 +29,7 @@ const originalSecondMessage = "排队消息二：运行类型检查并确认通�
 const editedFirstMessage = "排队消息一（已编辑）：格式检查通过，继续类型检查";
 const composingFirstMessage = "排队消息一（输入法组合中）：正在输入中文";
 const saveErrorLabel = "Couldn't save the queued message";
+const saveFailureDetail = "Simulated queued message save failure.";
 
 // The actions-layout gate compares the production renderer's computed styles
 // against the frozen stylesheet, so the smoke proves production equivalence
@@ -383,6 +384,13 @@ try {
             queued.errorText.includes(saveErrorLabel),
           queued.errorText,
           `contains "${saveErrorLabel}"`,
+        ),
+        assert(
+          "alert-failure-detail",
+          typeof queued.errorText === "string" &&
+            queued.errorText.includes(saveFailureDetail),
+          queued.errorText,
+          `contains "${saveFailureDetail}"`,
         ),
         assert(
           "retry-enabled",
