@@ -10268,6 +10268,41 @@ function createMainWindow(): BrowserWindow {
                   if (!document.querySelector('.queued-message-bar')) {
                     throw new Error('Queued message bar did not render.');
                   }
+                  const captureActionsGeometry = () => {
+                    const container = document.querySelector(
+                      '.queued-message-editor-actions',
+                    );
+                    if (!container) {
+                      window.__queuedSteerActions = null;
+                      return;
+                    }
+                    const buttons = Array.from(
+                      container.querySelectorAll('button'),
+                    );
+                    const style = getComputedStyle(container);
+                    const bounds = container.getBoundingClientRect();
+                    window.__queuedSteerActions = {
+                      present: true,
+                      directChildOfEditorRoot:
+                        container.parentElement ===
+                        container.closest('.queued-message-editor'),
+                      display: style.display,
+                      flexDirection: style.flexDirection,
+                      justifyContent: style.justifyContent,
+                      gap: style.gap,
+                      buttonCount: buttons.length,
+                      buttonLabels: buttons.map((button) =>
+                        (button.textContent ?? '').trim(),
+                      ),
+                      containerWidth: bounds.width,
+                      buttonWidths: buttons.map(
+                        (button) => button.getBoundingClientRect().width,
+                      ),
+                      buttonTops: buttons.map(
+                        (button) => button.getBoundingClientRect().top,
+                      ),
+                    };
+                  };
                   const openEditor = async () => {
                     document
                       .querySelector('[data-queued-index="0"] .queued-message-edit')
@@ -10279,6 +10314,7 @@ function createMainWindow(): BrowserWindow {
                     if (!(editor instanceof HTMLTextAreaElement)) {
                       throw new Error('Queued message editor did not open.');
                     }
+                    captureActionsGeometry();
                     return editor;
                   };
                   const setEditorValue = async (editor, value) => {
@@ -11055,6 +11091,51 @@ function createMainWindow(): BrowserWindow {
                             '[data-queued-index="0"] .queued-message-steer',
                           )
                         : false,
+                    genericNoticeVisible: [...document.querySelectorAll(
+                      ".transient-notice",
+                    )].some((notice) => visible(notice)),
+                    genericNoticeCount: document.querySelectorAll(
+                      ".transient-notice",
+                    ).length,
+                    genericNoticeText:
+                      document
+                        .querySelector(".transient-notice")
+                        ?.textContent?.trim() ?? null,
+                    actions: (() => {
+                      const container = document.querySelector(
+                        ".queued-message-editor-actions",
+                      );
+                      if (!container) {
+                        return null;
+                      }
+                      const buttons = Array.from(
+                        container.querySelectorAll("button"),
+                      );
+                      const style = getComputedStyle(container);
+                      const bounds = container.getBoundingClientRect();
+                      return {
+                        present: true,
+                        directChildOfEditorRoot:
+                          container.parentElement ===
+                          container.closest(".queued-message-editor"),
+                        display: style.display,
+                        flexDirection: style.flexDirection,
+                        justifyContent: style.justifyContent,
+                        gap: style.gap,
+                        buttonCount: buttons.length,
+                        buttonLabels: buttons.map((button) =>
+                          (button.textContent ?? "").trim(),
+                        ),
+                        containerWidth: bounds.width,
+                        buttonWidths: buttons.map(
+                          (button) => button.getBoundingClientRect().width,
+                        ),
+                        buttonTops: buttons.map(
+                          (button) => button.getBoundingClientRect().top,
+                        ),
+                      };
+                    })(),
+                    editTimeActions: window.__queuedSteerActions ?? null,
                     probe: window.__queuedSteerProbe ?? null,
                   },
                   messageActionLabels: [...document.querySelectorAll(

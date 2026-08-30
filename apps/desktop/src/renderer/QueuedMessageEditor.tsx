@@ -28,15 +28,6 @@ export function QueuedMessageEditor(props: QueuedMessageEditorProps) {
     setError(false);
   }, [value]);
 
-  // Never run the delayed focus return after the editor unmounts (review nit).
-  useEffect(() => {
-    return () => {
-      if (focusReturnTimerRef.current !== null) {
-        window.clearTimeout(focusReturnTimerRef.current);
-      }
-    };
-  }, []);
-
   // Shared delayed focus return for the save-success and Esc-cancel paths.
   const scheduleFocusReturn = () => {
     if (focusReturnTimerRef.current !== null) {

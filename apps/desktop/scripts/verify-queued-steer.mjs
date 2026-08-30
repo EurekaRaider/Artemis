@@ -30,6 +30,39 @@ const editedFirstMessage = "排队消息一（已编辑）：格式检查通过�
 const composingFirstMessage = "排队消息一（输入法组合中）：正在输入中文";
 const saveErrorLabel = "Couldn't save the queued message";
 
+// The actions-layout gate compares the production renderer's computed styles
+// against the frozen stylesheet, so the smoke proves production equivalence
+// instead of hard-coding geometry expectations here.
+const stylesPath = join(appDirectory, "src", "renderer", "styles.css");
+const stylesCss = await readFile(stylesPath, "utf8");
+const actionsStyleBlock =
+  stylesCss.match(/\.queued-message-editor-actions\s*\{([^}]*)\}/)?.[1] ?? null;
+if (actionsStyleBlock === null) {
+  throw new Error(
+    "styles.css no longer declares .queued-message-editor-actions.",
+  );
+}
+const readDeclaration = (property) =>
+  actionsStyleBlock
+    .match(new RegExp(`${property}\\s*:\\s*([^;]+);`))?.[1]
+    ?.trim() ?? null;
+const actionsStyle = {
+  display: readDeclaration("display"),
+  flexDirection: readDeclaration("flex-direction") ?? "row",
+  justifyContent: readDeclaration("justify-content"),
+  gap: readDeclaration("gap"),
+};
+if (actionsStyle.display !== "flex") {
+  throw new Error(
+    `.queued-message-editor-actions must keep display: flex in styles.css (found: ${actionsStyle.display}).`,
+  );
+}
+if (actionsStyle.justifyContent === null || actionsStyle.gap === null) {
+  throw new Error(
+    ".queued-message-editor-actions must keep declaring justify-content and gap in styles.css.",
+  );
+}
+
 // Each step drives one §8 interaction to its end state, then the harness
 // captures one screenshot and one accessibility audit for that state.
 const steps = [
@@ -67,6 +100,80 @@ const cases = steps.flatMap((step) =>
   themes.map((theme) => ({ ...step, theme, caseId: `${step.id}-${theme}` })),
 );
 const results = [];
+
+// Geometry gates for the Save/Cancel actions row: the container must exist,
+// sit directly under the editor root, compute the stylesheet's row layout,
+// and lay the two buttons out inline rather than full-width stacked.
+const assertActionsGeometry = (assert, geometry, label) => {
+  if (!geometry) {
+    return [assert(`${label}-present`, false, null, "geometry snapshot")];
+  }
+  const sameRow =
+    Array.isArray(geometry.buttonTops) &&
+    geometry.buttonTops.length === 2 &&
+    Math.abs(geometry.buttonTops[0] - geometry.buttonTops[1]) < 1;
+  const notFullWidth =
+    Array.isArray(geometry.buttonWidths) &&
+    geometry.buttonWidths.length === 2 &&
+    typeof geometry.containerWidth === "number" &&
+    geometry.buttonWidths.every((width) => width < geometry.containerWidth);
+  return [
+    assert(
+      `${label}-present`,
+      geometry.present === true,
+      geometry.present,
+      true,
+    ),
+    assert(
+      `${label}-direct-child-of-editor-root`,
+      geometry.directChildOfEditorRoot === true,
+      geometry.directChildOfEditorRoot,
+      true,
+    ),
+    assert(
+      `${label}-row-layout`,
+      geometry.display === actionsStyle.display &&
+        geometry.flexDirection === actionsStyle.flexDirection,
+      { display: geometry.display, flexDirection: geometry.flexDirection },
+      {
+        display: actionsStyle.display,
+        flexDirection: actionsStyle.flexDirection,
+      },
+    ),
+    assert(
+      `${label}-justify-content`,
+      geometry.justifyContent === actionsStyle.justifyContent,
+      geometry.justifyContent,
+      actionsStyle.justifyContent,
+    ),
+    assert(
+      `${label}-gap`,
+      geometry.gap === actionsStyle.gap,
+      geometry.gap,
+      actionsStyle.gap,
+    ),
+    assert(
+      `${label}-save-cancel-pair`,
+      geometry.buttonCount === 2,
+      geometry.buttonCount,
+      2,
+    ),
+    assert(
+      `${label}-buttons-not-stacked`,
+      sameRow === true && notFullWidth === true,
+      { sameRow, notFullWidth },
+      { sameRow: true, notFullWidth: true },
+    ),
+  ];
+};
+
+const assertLiveActionsPresent = (assert, actions) =>
+  assert(
+    "actions-live-present",
+    actions?.present === true,
+    actions?.present ?? null,
+    true,
+  );
 
 await mkdir(outputDirectory, { recursive: true });
 try {
@@ -175,6 +282,12 @@ try {
           queued.editorValue,
           originalFirstMessage,
         ),
+        ...assertActionsGeometry(
+          assert,
+          queued.editTimeActions,
+          "actions-edit-time",
+        ),
+        assertLiveActionsPresent(assert, queued.actions),
       ],
       "b-esc-cancel": () => [
         assert(
@@ -188,6 +301,24 @@ try {
           queued.firstItemText === originalFirstMessage,
           queued.firstItemText,
           originalFirstMessage,
+        ),
+        assert(
+          "focus-tag-button",
+          queued.focusTag === "BUTTON",
+          queued.focusTag,
+          "BUTTON",
+        ),
+        assert(
+          "focus-queued-index",
+          queued.focusQueuedIndex === "0",
+          queued.focusQueuedIndex,
+          "0",
+        ),
+        assert(
+          "focus-on-first-steer",
+          queued.focusOnFirstSteer === true,
+          queued.focusOnFirstSteer,
+          true,
         ),
       ],
       "c-save-shortcut": () => [
@@ -220,6 +351,11 @@ try {
           queued.errorVisible === false,
           queued.errorVisible,
           false,
+        ),
+        ...assertActionsGeometry(
+          assert,
+          queued.editTimeActions,
+          "actions-edit-time",
         ),
       ],
       "d-save-error": () => [
@@ -254,6 +390,25 @@ try {
           queued.retryDisabled,
           false,
         ),
+        assert(
+          "generic-notice-hidden",
+          queued.genericNoticeVisible === false,
+          queued.genericNoticeVisible,
+          false,
+        ),
+        assert(
+          "generic-notice-no-save-error",
+          queued.genericNoticeText === null ||
+            !queued.genericNoticeText.includes(saveErrorLabel),
+          queued.genericNoticeText,
+          `absent or without "${saveErrorLabel}"`,
+        ),
+        ...assertActionsGeometry(
+          assert,
+          queued.editTimeActions,
+          "actions-edit-time",
+        ),
+        assertLiveActionsPresent(assert, queued.actions),
       ],
       "e-ime-composing": () => [
         assert(
@@ -286,6 +441,12 @@ try {
           queued.errorVisible,
           false,
         ),
+        ...assertActionsGeometry(
+          assert,
+          queued.editTimeActions,
+          "actions-edit-time",
+        ),
+        assertLiveActionsPresent(assert, queued.actions),
       ],
     };
     const stepAssertions = expectations[id]();
@@ -312,6 +473,15 @@ try {
         errorText: queued.errorText,
         retryDisabled: queued.retryDisabled,
       },
+      genericNotice: {
+        visible: queued.genericNoticeVisible ?? null,
+        count: queued.genericNoticeCount ?? null,
+        text: queued.genericNoticeText ?? null,
+      },
+      actions: {
+        editTime: queued.editTimeActions ?? null,
+        live: queued.actions ?? null,
+      },
       imeProbe: queued.probe ?? null,
       viewport: {
         requestedWidth: windowWidth,
@@ -333,6 +503,11 @@ try {
     generatedAt: new Date().toISOString(),
     locale,
     windowWidth,
+    actionsStyleSource: {
+      file: "apps/desktop/src/renderer/styles.css",
+      selector: ".queued-message-editor-actions",
+      ...actionsStyle,
+    },
     note: "Window height is fixed at 920 by the shared smoke harness; screenshots capture the resulting viewport.",
     summary: {
       cases: results.length,
