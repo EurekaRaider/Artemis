@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
 import {
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   stat,
@@ -198,12 +200,18 @@ try {
     // production renderer from this checkout, not whatever serves 127.0.0.1.
     delete environment.ELECTRON_RUN_AS_NODE;
     delete environment.ARTEMIS_DEV_SERVER_URL;
-    const launch = (disableRendererSandbox, attempt) =>
-      spawnSync(
+    // Electron user data (Cache, Local Storage, artemis.sqlite, ...) lives
+    // in a dedicated user-data subtree with one fresh directory per case x
+    // attempt, never directly at the throwaway run root's case level.
+    const caseUserDataDirectory = (attempt) =>
+      join(temporaryDirectory, "user-data", `${caseId}-attempt-${attempt}`);
+    const launch = (disableRendererSandbox, attempt) => {
+      const userDataPreexisting = existsSync(caseUserDataDirectory(attempt));
+      const result = spawnSync(
         electronPath,
         [
           appDirectory,
-          `--user-data-dir=${join(temporaryDirectory, `${caseId}${attempt ? `-retry${attempt}` : ""}`)}`,
+          `--user-data-dir=${caseUserDataDirectory(attempt)}`,
           "--disable-gpu",
           "--disable-gpu-compositing",
           "--disable-gpu-sandbox",
@@ -218,13 +226,22 @@ try {
           timeout: 45_000,
         },
       );
-    let launchResult = launch(false, 0);
-    if ((launchResult.error || launchResult.status !== 0) && !process.env.CI) {
-      launchResult = launch(true, 1);
+      return { result, userDataPreexisting };
+    };
+    let launchOutcome = launch(false, 0);
+    if (
+      (launchOutcome.result.error || launchOutcome.result.status !== 0) &&
+      !process.env.CI
+    ) {
+      launchOutcome = launch(true, 1);
     }
-    if ((launchResult.error || launchResult.status !== 0) && !process.env.CI) {
-      launchResult = launch(false, 2);
+    if (
+      (launchOutcome.result.error || launchOutcome.result.status !== 0) &&
+      !process.env.CI
+    ) {
+      launchOutcome = launch(false, 2);
     }
+    const launchResult = launchOutcome.result;
     if (launchResult.error || launchResult.status !== 0) {
       throw new Error(
         [
@@ -267,6 +284,42 @@ try {
     if (!commonPass) {
       throw new Error(
         `${caseId} did not render the queued message bar: ${JSON.stringify(queued)}`,
+      );
+    }
+    // Queued steer has no disk workspace: the state under test is the seeded
+    // store living inside the isolated user-data directory itself, so the
+    // isolation gates are (1) the winning launch started from a directory
+    // that did not exist yet -- no other case or attempt residue can feed
+    // this run's seeded queue -- and (2) the throwaway run root only ever
+    // holds the dedicated user-data subtree, so no Electron or app write
+    // escapes beside it.
+    if (
+      !assert(
+        "user-data-fresh-start",
+        launchOutcome.userDataPreexisting === false,
+        launchOutcome.userDataPreexisting,
+        false,
+      ).pass
+    ) {
+      throw new Error(
+        `${caseId} user-data directory already existed before launch; another case or attempt left residue behind.`,
+      );
+    }
+    const unexpectedRunRootEntries = (await readdir(temporaryDirectory))
+      .sort()
+      .filter((entry) => entry !== "user-data");
+    if (
+      !assert(
+        "run-root-purity",
+        unexpectedRunRootEntries.length === 0,
+        unexpectedRunRootEntries,
+        [],
+      ).pass
+    ) {
+      throw new Error(
+        `${caseId} run root is not pure: unexpected top-level entries ${JSON.stringify(
+          unexpectedRunRootEntries,
+        )}. Electron user data must stay inside the user-data subtree.`,
       );
     }
     const expectations = {
@@ -457,7 +510,11 @@ try {
         assertLiveActionsPresent(assert, queued.actions),
       ],
     };
-    const stepAssertions = expectations[id]();
+    // Common assertions (queued-bar-visible, queued-item-count,
+    // user-data-fresh-start, run-root-purity) are recorded alongside the
+    // per-step expectations so every counted assertion appears in the audit
+    // JSON.
+    const stepAssertions = [...assertions, ...expectations[id]()];
     const failed = stepAssertions.filter((assertion) => !assertion.pass);
     if (failed.length) {
       throw new Error(`${caseId} assertions failed: ${JSON.stringify(failed)}`);
@@ -502,7 +559,7 @@ try {
     );
   }
   const totalAssertions = results.reduce(
-    (sum, result) => sum + result.assertions.length + 2,
+    (sum, result) => sum + result.assertions.length,
     0,
   );
   const auditReport = {
@@ -515,6 +572,11 @@ try {
       file: "apps/desktop/src/renderer/styles.css",
       selector: ".queued-message-editor-actions",
       ...actionsStyle,
+    },
+    userDataIsolation: {
+      directory:
+        "user-data/<caseId>-attempt-<attempt> under the throwaway run root",
+      note: "Electron user data never sits directly at the run-root case level; every case x attempt launch gets its own fresh directory (user-data-fresh-start), and run-root-purity proves the run root only ever holds the user-data subtree. The state under test is the seeded store inside that isolated directory.",
     },
     note: "Window height is fixed at 920 by the shared smoke harness; screenshots capture the resulting viewport.",
     summary: {
