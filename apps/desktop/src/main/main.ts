@@ -10127,6 +10127,14 @@ type SmokeInputFieldsActivationEvidence = {
   acceptError?: string;
 };
 
+type SmokeFocusFrameEvidence = {
+  targetStillFocused: boolean;
+  activeElementAtCapture: string;
+  doubleRafCompleted: boolean;
+  framePresented: boolean;
+  frameSignal: "beginFrameSubscription" | "unavailable";
+};
+
 // PR9C input-fields evidence driver (checklist §6-2): after the
 // default-state screenshot, the driver focuses the web contents (PR9B
 // offscreen precedent: showInactive never gives the document OS focus, so
@@ -10212,6 +10220,85 @@ async function driveSmokeInputFieldsEvidence(
     }
     return { presses: maxPresses, reached: false };
   };
+  // PR9C review fix: a computed outline only proves the style tree. The
+  // focused screenshot must come from a frame that was produced AND
+  // presented after focus landed, otherwise capturePage can hand back the
+  // stale pre-focus frame (the review caught the ring rendered on the
+  // previously focused control instead of the target). Double rAF
+  // guarantees the renderer produced a frame containing the focused ring;
+  // the compositor frame subscription — armed before the rAF wait, since
+  // pending rAF callbacks force frame production — confirms such a frame
+  // was presented. The active element is re-read at capture time so a
+  // focus that silently moved between the probe and the capture becomes
+  // recorded evidence instead of a hidden assumption.
+  const waitForFocusedFrame = async (
+    selector: string,
+  ): Promise<SmokeFocusFrameEvidence> => {
+    let frameSignal: SmokeFocusFrameEvidence["frameSignal"] =
+      "beginFrameSubscription";
+    const frameArrival = new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (presented: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        try {
+          contents.endFrameSubscription();
+        } catch {
+          // Not subscribed (the subscription API was unavailable).
+        }
+        resolve(presented);
+      };
+      const timeout = setTimeout(() => finish(false), 1_500);
+      try {
+        contents.beginFrameSubscription(() => finish(true));
+      } catch {
+        frameSignal = "unavailable";
+        finish(false);
+      }
+    });
+    const doubleRafCompleted = await evaluate<boolean>(`
+      new Promise((resolve) => {
+        let second = 0;
+        const first = requestAnimationFrame(() => {
+          second = requestAnimationFrame(() => resolve(true));
+        });
+        setTimeout(() => {
+          cancelAnimationFrame(first);
+          cancelAnimationFrame(second);
+          resolve(false);
+        }, 1_500);
+      })`);
+    const framePresented = await frameArrival;
+    const active = await evaluate<{
+      targetStillFocused: boolean;
+      activeElementAtCapture: string;
+    } | null>(`(function () {
+      const target = document.querySelector(${JSON.stringify(selector)});
+      const activeElement = document.activeElement;
+      if (!(target instanceof Element)) {
+        return null;
+      }
+      const describe = (element) =>
+        element instanceof Element
+          ? element.tagName.toLowerCase() +
+            (typeof element.className === "string" && element.className
+              ? "." + element.className.trim().split(/\s+/).join(".")
+              : "")
+          : "none";
+      return {
+        targetStillFocused: activeElement === target,
+        activeElementAtCapture: describe(activeElement),
+      };
+    })()`);
+    return {
+      targetStillFocused: active?.targetStillFocused ?? false,
+      activeElementAtCapture: active?.activeElementAtCapture ?? "unavailable",
+      doubleRafCompleted,
+      framePresented,
+      frameSignal,
+    };
+  };
   const focusProbeScript = (selector: string, labelSelector?: string) => `
     (() => {
       const input = document.querySelector(${JSON.stringify(selector)});
@@ -10223,6 +10310,9 @@ async function driveSmokeInputFieldsEvidence(
           : "null"
       };
       const labelStyle = label ? getComputedStyle(label) : null;
+      const rect = input.getBoundingClientRect();
+      const labelRect =
+        label instanceof HTMLElement ? label.getBoundingClientRect() : null;
       const tabbables = Array.from(
         document.querySelectorAll(
           'a[href], button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
@@ -10250,6 +10340,25 @@ async function driveSmokeInputFieldsEvidence(
         labelOutlineStyle: labelStyle ? labelStyle.outlineStyle : null,
         labelOutlineWidth: labelStyle ? labelStyle.outlineWidth : null,
         labelOutlineColor: labelStyle ? labelStyle.outlineColor : null,
+        targetRect: {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        },
+        labelRect: labelRect
+          ? {
+              x: labelRect.x,
+              y: labelRect.y,
+              width: labelRect.width,
+              height: labelRect.height,
+            }
+          : null,
+        viewport: {
+          innerWidth: window.innerWidth,
+          innerHeight: window.innerHeight,
+          devicePixelRatio: window.devicePixelRatio,
+        },
       };
     })()`;
   // The smoke window is shown offscreen via showInactive(), so focusing the
@@ -10260,6 +10369,9 @@ async function driveSmokeInputFieldsEvidence(
     const dateSelector = '.automation-dialog input[type="date"]';
     const tab = await tabUntilFocused(dateSelector);
     const focus = await evaluate(focusProbeScript(dateSelector));
+    // Capture only after the focused frame was produced and presented, and
+    // prove the target still held focus at that exact moment.
+    const focusRingCapture = await waitForFocusedFrame(dateSelector);
     if (artifacts.focusedScreenshot) {
       const image = await contents.capturePage();
       await writeFile(artifacts.focusedScreenshot, image.toPNG());
@@ -10342,6 +10454,7 @@ async function driveSmokeInputFieldsEvidence(
         documentHasFocus: document.hasFocus(),
         tab: ${JSON.stringify(tab)},
         focus: ${JSON.stringify(focus ?? null)},
+        focusRingCapture: ${JSON.stringify(focusRingCapture)},
         busy: ${JSON.stringify(busy ?? null)},
         activation: null,
         pick: null,
@@ -10356,6 +10469,9 @@ async function driveSmokeInputFieldsEvidence(
     const focus = await evaluate(
       focusProbeScript(avatarSelector, "label.settings-secondary-action"),
     );
+    // Capture only after the focused frame was produced and presented, and
+    // prove the avatar input still held focus at that exact moment.
+    const focusRingCapture = await waitForFocusedFrame(avatarSelector);
     if (artifacts.focusedScreenshot) {
       const image = await contents.capturePage();
       await writeFile(artifacts.focusedScreenshot, image.toPNG());
@@ -10488,6 +10604,9 @@ async function driveSmokeInputFieldsEvidence(
         settled,
       };
     })()`);
+    // Same presented-frame guarantee for the picked-state capture so that
+    // artifact cannot regress to a pre-pick stale frame either.
+    const pickedFrameCapture = await waitForFocusedFrame(avatarSelector);
     if (artifacts.pickedScreenshot) {
       const image = await contents.capturePage();
       await writeFile(artifacts.pickedScreenshot, image.toPNG());
@@ -10501,9 +10620,11 @@ async function driveSmokeInputFieldsEvidence(
         documentHasFocus: document.hasFocus(),
         tab: ${JSON.stringify(tab)},
         focus: ${JSON.stringify(focus ?? null)},
+        focusRingCapture: ${JSON.stringify(focusRingCapture)},
         busy: null,
         activation: ${JSON.stringify(activation)},
         pick: ${JSON.stringify(pick ?? null)},
+        pickedFrameCapture: ${JSON.stringify(pickedFrameCapture)},
         enterClicks: ${JSON.stringify(enterClicks ?? 0)},
       };
       return true;
