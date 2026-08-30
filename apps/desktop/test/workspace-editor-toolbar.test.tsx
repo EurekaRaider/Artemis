@@ -217,25 +217,25 @@ describe("WorkspaceEditorToolbar contract (D#76 PR7 §5 shared toolbar)", () => 
     expect(handlers.onSave).toHaveBeenCalledTimes(1);
   });
 
-  it("ignores the shortcut when clean or saving, then submits once submittable (shortcuts)", () => {
+  it("prevents the chord default while clean or saving but submits once submittable (shortcuts)", () => {
     const { handlers, rerenderToolbar } = renderToolbar();
-    keyDownTracked(editorBox(), { metaKey: true });
+    expect(keyDownTracked(editorBox(), { metaKey: true })).toEqual([true]);
     expect(handlers.onSave).not.toHaveBeenCalled();
 
     rerenderToolbar({ dirty: true, saveState: "saving" });
-    keyDownTracked(editorBox(), { metaKey: true });
+    expect(keyDownTracked(editorBox(), { metaKey: true })).toEqual([true]);
     expect(handlers.onSave).not.toHaveBeenCalled();
 
     rerenderToolbar({ dirty: true, saveState: "idle" });
-    keyDownTracked(editorBox(), { metaKey: true });
+    expect(keyDownTracked(editorBox(), { metaKey: true })).toEqual([true]);
     expect(handlers.onSave).toHaveBeenCalledTimes(1);
   });
 
-  it("blocks the shortcut entirely when readOnly: no onSave and no preventDefault (read-only)", () => {
+  it("prevents the chord default when readOnly but never calls onSave (read-only)", () => {
     const { handlers } = renderToolbar({
       overrides: { dirty: true, readOnly: true },
     });
-    expect(keyDownTracked(editorBox(), { metaKey: true })).toEqual([false]);
+    expect(keyDownTracked(editorBox(), { metaKey: true })).toEqual([true]);
     expect(handlers.onSave).not.toHaveBeenCalled();
   });
 
