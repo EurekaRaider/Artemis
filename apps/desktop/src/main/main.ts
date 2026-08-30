@@ -9763,6 +9763,44 @@ function seedSmokeUserInputFixture(): void {
   });
 }
 
+async function seedSmokeUserInputTransportFixture(): Promise<void> {
+  // The smokeMode guard matches seedSmokeInputFieldsFixture: seeding stays
+  // a smoke-harness-only behavior so a merely VIEW-tagged process can never
+  // write smoke fixtures into a real profile.
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (!store || !smokeMode || view !== "user-input-transport") {
+    return;
+  }
+  const fixtureDirectory = join(
+    app.getPath("userData"),
+    "fixtures",
+    "user-input-transport",
+  );
+  await mkdir(fixtureDirectory, { recursive: true });
+  const now = new Date().toISOString();
+  const projectId = "artemis-smoke-project";
+  const threadId = "artemis-smoke-user-input-transport";
+  store.upsertProject({
+    id: projectId,
+    name: "Artemis",
+    path: fixtureDirectory,
+    createdAt: now,
+    updatedAt: now,
+  });
+  store.createThread({
+    id: threadId,
+    projectId,
+    title: "Transport smoke",
+    mode: "execute",
+    target: "local",
+    status: "running",
+    pinned: false,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
 function seedSmokeTokenUsageFixture(): void {
   if (!store || process.env.ARTEMIS_SMOKE_VIEW !== "token-usage") return;
   const now = new Date();
@@ -11129,6 +11167,874 @@ async function driveSmokeInputFieldsEvidence(
   );
 }
 
+type SmokeUserInputTransportCheck = {
+  name: string;
+  pass: boolean;
+  actual: unknown;
+  expected: unknown;
+};
+
+type SmokeUserInputTransportDomState = {
+  pendingCards: number;
+  cancelledCards: number;
+  answeredCards: number;
+  timedOutCards: number;
+  cardTexts: string[];
+};
+
+type SmokeUserInputRequestedView = {
+  requestId: string;
+  nonce: string;
+  kind?: string;
+  questions?: Array<{ questionId: string; expiresAt?: string }>;
+};
+
+type SmokeUserInputResolvedView = {
+  requestId: string;
+  nonce?: string;
+  answer?: string;
+  questionId?: string;
+  selectedOptionLabel?: string;
+  customAnswer?: string;
+  source?: string;
+  kind?: string;
+};
+
+type SmokeUserInputTransportEvidence = {
+  view: "user-input-transport";
+  generatedAt: string;
+  checks: SmokeUserInputTransportCheck[];
+  brokerPosts: Array<Record<string, unknown>>;
+  storeChecks: {
+    legacyRequested: number;
+    legacyResolved: number;
+    multiRequested: number;
+    multiResolved: number;
+    multiExpiredRequested: number;
+    multiExpiredResolved: number;
+    multiCancelRequested: number;
+    multiCancelResolved: number;
+  };
+  renderer: SmokeUserInputTransportDomState;
+};
+
+let smokeUserInputTransportEvidence:
+  SmokeUserInputTransportEvidence | undefined;
+
+async function driveSmokeUserInputTransportEvidence(
+  window: BrowserWindow,
+): Promise<void> {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (!smokeMode || view !== "user-input-transport") {
+    return;
+  }
+  const agentHost = agentProcess;
+  const appStore = store;
+  if (!agentHost || !appStore) {
+    throw new Error(
+      "User-input transport smoke requires a live agent host and store.",
+    );
+  }
+  const threadId = "artemis-smoke-user-input-transport";
+  const turnId = "smoke-turn-transport";
+  const workspacePath = join(
+    app.getPath("userData"),
+    "fixtures",
+    "user-input-transport",
+  );
+  const checks: SmokeUserInputTransportCheck[] = [];
+  const assert = (
+    name: string,
+    pass: boolean,
+    actual: unknown,
+    expected: unknown,
+  ): void => {
+    checks.push({ name, pass, actual, expected });
+    if (!pass) {
+      throw new Error(
+        `User-input transport smoke check failed: ${name} (actual ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}).`,
+      );
+    }
+  };
+  const domState = async (): Promise<SmokeUserInputTransportDomState> =>
+    (await window.webContents.executeJavaScript(`(() => ({
+      pendingCards: document.querySelectorAll(".user-input-card.pending").length,
+      cancelledCards: document.querySelectorAll(".user-input-card.cancelled").length,
+      answeredCards: document.querySelectorAll(".user-input-card.answered").length,
+      timedOutCards: document.querySelectorAll(".user-input-card.timed-out").length,
+      cardTexts: [...document.querySelectorAll(".user-input-card")].map(
+        (card) => (card.textContent ?? "").replace(/\\s+/gu, " ").trim(),
+      ),
+    }))()`)) as SmokeUserInputTransportDomState;
+  const waitForDomState = async (
+    description: string,
+    predicate: (state: SmokeUserInputTransportDomState) => boolean,
+  ): Promise<SmokeUserInputTransportDomState> => {
+    const deadline = Date.now() + 8_000;
+    for (;;) {
+      const state = await domState();
+      if (predicate(state)) return state;
+      if (Date.now() >= deadline) {
+        throw new Error(
+          `User-input transport smoke timed out waiting for ${description}; last state ${JSON.stringify(state)}.`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  };
+  const wait = (milliseconds: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+  const requestedEvents = (requestId: string): SmokeUserInputRequestedView[] =>
+    appStore
+      .getThreadEvents(threadId)
+      .map((event) => event.payload)
+      .filter(
+        (payload) =>
+          payload.type === "user-input.requested" &&
+          (payload as { requestId?: string }).requestId === requestId,
+      ) as unknown as SmokeUserInputRequestedView[];
+  const resolvedEvents = (requestId: string): SmokeUserInputResolvedView[] =>
+    appStore
+      .getThreadEvents(threadId)
+      .map((event) => event.payload)
+      .filter(
+        (payload) =>
+          payload.type === "user-input.resolved" &&
+          (payload as { requestId?: string }).requestId === requestId,
+      ) as unknown as SmokeUserInputResolvedView[];
+  const multiPending = (requestId: string): boolean =>
+    pendingMultiUserInputs.hasWhere(
+      (pending) => pending.request.approvalId === requestId,
+    );
+
+  const legacyOptions = [
+    {
+      label: "Yes, implement this plan",
+      description: "Continue with the plan as written.",
+      recommended: true,
+    },
+    {
+      label: "Revise the plan first",
+      description: "Describe what should change before continuing.",
+      recommended: false,
+    },
+  ];
+  const multiQuestions = [
+    {
+      questionId: "q1",
+      question: "Ship on Friday?",
+      options: [
+        {
+          label: "Ship it",
+          description: "Release the build.",
+          recommended: true,
+        },
+        {
+          label: "Hold",
+          description: "Wait one more day.",
+          recommended: false,
+        },
+      ],
+    },
+    {
+      questionId: "q2",
+      question: "Notify users first?",
+      options: [
+        {
+          label: "Email digest",
+          description: "Send a summary.",
+          recommended: true,
+        },
+        {
+          label: "In-app only",
+          description: "Show a banner.",
+          recommended: false,
+        },
+      ],
+    },
+    {
+      questionId: "q3",
+      question: "Anything to add?",
+      options: [
+        {
+          label: "No, ship as-is",
+          description: "Nothing extra.",
+          recommended: true,
+        },
+        {
+          label: "Yes, add notes",
+          description: "Attach release notes.",
+          recommended: false,
+        },
+      ],
+    },
+  ];
+  const cancelQuestions = [
+    {
+      questionId: "c1",
+      question: "Roll out to everyone?",
+      options: [
+        {
+          label: "Staged rollout",
+          description: "Ten percent first.",
+          recommended: true,
+        },
+        {
+          label: "Full rollout",
+          description: "Everyone now.",
+          recommended: false,
+        },
+      ],
+    },
+    {
+      questionId: "c2",
+      question: "Announce the release?",
+      options: [
+        {
+          label: "Changelog only",
+          description: "Quiet update.",
+          recommended: true,
+        },
+        {
+          label: "Blog post",
+          description: "Public announcement.",
+          recommended: false,
+        },
+      ],
+    },
+  ];
+
+  // The real agent host drops broker resolutions for unknown worker request
+  // ids (agent-worker.ts), so capturing the posts at this boundary observes
+  // the exact commands main sends without changing production behavior.
+  const brokerPosts: Array<Record<string, unknown>> = [];
+  const originalPost = agentHost.post.bind(agentHost);
+  agentHost.post = (command: Parameters<AgentProcess["post"]>[0]): void => {
+    brokerPosts.push(command as unknown as Record<string, unknown>);
+    originalPost(command);
+  };
+  activeTurns.set(threadId, turnId);
+  try {
+    // §6-6 legacy chain: the real single-question broker handler registers,
+    // persists, and renders the existing card end to end.
+    handleUserInputBrokerRequest("artemis-smoke-single-worker", {
+      kind: "user.input",
+      approvalId: "artemis-smoke-single",
+      threadId,
+      turnId,
+      workspacePath,
+      header: "Confirmation",
+      question: "Implement this plan?",
+      options: legacyOptions,
+      mode: "execute",
+    });
+    const legacyRequested = requestedEvents("artemis-smoke-single");
+    assert(
+      "legacy-request-persisted",
+      legacyRequested.length === 1,
+      legacyRequested.length,
+      1,
+    );
+    const legacyNonce = legacyRequested[0]?.nonce ?? "";
+    const legacyRendered = await waitForDomState(
+      "legacy card pending",
+      (state) => state.pendingCards === 1,
+    );
+    assert(
+      "legacy-card-pending-rendered",
+      legacyRendered.pendingCards === 1,
+      legacyRendered.pendingCards,
+      1,
+    );
+    assert(
+      "legacy-card-shows-question",
+      legacyRendered.cardTexts.some((text) =>
+        text.includes("Implement this plan?"),
+      ),
+      legacyRendered.cardTexts,
+      "a card containing 'Implement this plan?'",
+    );
+
+    // §6-1 no-lost-events: the real multi-question broker handler persists
+    // the frozen payload and the renderer replays it through the protocol
+    // reducer (the translated card renders beside the legacy one).
+    handleUserInputBrokerRequest("artemis-smoke-multi-worker", {
+      kind: "user.input",
+      approvalId: "artemis-smoke-multi",
+      threadId,
+      turnId,
+      workspacePath,
+      header: "Plan check",
+      questions: multiQuestions,
+      mode: "execute",
+    });
+    const multiRequested = requestedEvents("artemis-smoke-multi");
+    assert(
+      "multi-request-persisted",
+      multiRequested.length === 1,
+      multiRequested.length,
+      1,
+    );
+    const multiRequest = multiRequested[0];
+    assert(
+      "multi-request-frozen-kind",
+      multiRequest?.kind === "multi-question",
+      multiRequest?.kind ?? null,
+      "multi-question",
+    );
+    const multiQuestionSnapshot = multiRequest?.questions ?? [];
+    assert(
+      "multi-request-three-questions",
+      multiQuestionSnapshot.length === 3,
+      multiQuestionSnapshot.length,
+      3,
+    );
+    assert(
+      "multi-request-per-question-expiry",
+      multiQuestionSnapshot.every(
+        (question) =>
+          typeof question.expiresAt === "string" &&
+          Number.isFinite(Date.parse(question.expiresAt)),
+      ),
+      multiQuestionSnapshot.map((question) => question.expiresAt ?? null),
+      "a finite ISO expiresAt per question",
+    );
+    const multiNonce = multiRequested[0]?.nonce ?? "";
+    const multiRendered = await waitForDomState(
+      "multi card pending beside legacy card",
+      (state) => state.pendingCards === 2,
+    );
+    assert(
+      "multi-card-translated-pending",
+      multiRendered.pendingCards === 2,
+      multiRendered.pendingCards,
+      2,
+    );
+    assert(
+      "multi-card-projects-first-pending-question",
+      multiRendered.cardTexts.some((text) => text.includes("Ship on Friday?")),
+      multiRendered.cardTexts,
+      "a translated card showing 'Ship on Friday?'",
+    );
+
+    // §6-2 no-auto-answer: no user action and no timeout expiry yet.
+    await wait(1_200);
+    assert(
+      "no-resolution-before-timeout-window",
+      resolvedEvents("artemis-smoke-multi").length === 0,
+      resolvedEvents("artemis-smoke-multi").length,
+      0,
+    );
+    const beforeTimeoutDom = await domState();
+    assert(
+      "cards-still-pending-without-user-action",
+      beforeTimeoutDom.pendingCards === 2,
+      beforeTimeoutDom.pendingCards,
+      2,
+    );
+    assert(
+      "multi-registry-still-pending",
+      multiPending("artemis-smoke-multi"),
+      multiPending("artemis-smoke-multi"),
+      true,
+    );
+    assert(
+      "no-broker-resolve-before-final-answer",
+      brokerPosts.length === 0,
+      brokerPosts.length,
+      0,
+    );
+
+    // §6-6 legacy user resolution through the IPC handler's own entry
+    // function: the renderer event and the broker result must agree.
+    completeUserInput(
+      {
+        requestId: "artemis-smoke-single",
+        nonce: legacyNonce,
+        selectedOption: 0,
+      },
+      "user",
+    );
+    const legacyResolved = resolvedEvents("artemis-smoke-single");
+    assert(
+      "legacy-resolved-once",
+      legacyResolved.length === 1,
+      legacyResolved.length,
+      1,
+    );
+    assert(
+      "legacy-resolved-answer-is-label",
+      legacyResolved[0]?.answer === "Yes, implement this plan",
+      legacyResolved[0]?.answer ?? null,
+      "Yes, implement this plan",
+    );
+    const legacyPost = brokerPosts.find(
+      (post) =>
+        (post.resolution as { approvalId?: string } | undefined)?.approvalId ===
+        "artemis-smoke-single",
+    );
+    const legacyResult = (legacyPost?.result ?? {}) as {
+      answer?: string;
+      selectedOption?: number;
+      selectedLabel?: string;
+      source?: string;
+    };
+    assert(
+      "legacy-broker-backfill-dual-channel-consistent",
+      Boolean(legacyPost) &&
+        legacyResult.answer === "Yes, implement this plan" &&
+        legacyResult.selectedLabel === "Yes, implement this plan" &&
+        legacyResult.selectedOption === 0 &&
+        legacyResult.source === "user",
+      { post: legacyPost ?? null },
+      "answer, selectedLabel, and selectedOption(0) agree with the event",
+    );
+    const afterLegacy = await waitForDomState(
+      "legacy card settled",
+      (state) => state.pendingCards === 1,
+    );
+    assert(
+      "legacy-card-settled-rendered",
+      afterLegacy.pendingCards === 1 && afterLegacy.answeredCards >= 1,
+      afterLegacy,
+      "one pending card (multi) and at least one answered card",
+    );
+
+    // All questions of the live request are answered through both user
+    // channels; each answer advances the translated card to the next
+    // pending question and the last one triggers the aggregated backfill.
+    completeMultiUserInputQuestion(
+      "artemis-smoke-multi",
+      multiNonce,
+      "q1",
+      "user",
+      { selectedOptionLabel: "Ship it" },
+    );
+    const afterFirstAnswerDom = await waitForDomState(
+      "translated card projecting q2 after the q1 answer",
+      (state) =>
+        state.pendingCards === 1 &&
+        state.cardTexts.some((text) => text.includes("Notify users first?")),
+    );
+    assert(
+      "multi-card-projects-next-pending-question",
+      afterFirstAnswerDom.pendingCards === 1 &&
+        afterFirstAnswerDom.cardTexts.some((text) =>
+          text.includes("Notify users first?"),
+        ),
+      afterFirstAnswerDom,
+      "the translated card now shows 'Notify users first?'",
+    );
+
+    // §6-4 duplicate resolution: an already-answered question cannot be
+    // answered twice and the store keeps exactly one resolved event.
+    let duplicateResolutionError = "";
+    try {
+      completeMultiUserInputQuestion(
+        "artemis-smoke-multi",
+        multiNonce,
+        "q1",
+        "user",
+        { selectedOptionLabel: "Ship it" },
+      );
+    } catch (error) {
+      duplicateResolutionError = error instanceof Error ? error.message : "";
+    }
+    assert(
+      "duplicate-question-resolution-rejected",
+      duplicateResolutionError.includes("no longer pending"),
+      duplicateResolutionError,
+      "a 'no longer pending' rejection",
+    );
+    assert(
+      "duplicate-resolution-single-side-effect",
+      resolvedEvents("artemis-smoke-multi").length === 1,
+      resolvedEvents("artemis-smoke-multi").length,
+      1,
+    );
+
+    // §6-4 duplicate injection: the same approval id cannot register twice
+    // and the store keeps exactly one requested event.
+    let duplicateInjectionError = "";
+    try {
+      handleUserInputBrokerRequest("artemis-smoke-multi-worker", {
+        kind: "user.input",
+        approvalId: "artemis-smoke-multi",
+        threadId,
+        turnId,
+        workspacePath,
+        header: "Plan check",
+        questions: multiQuestions,
+        mode: "execute",
+      });
+    } catch (error) {
+      duplicateInjectionError = error instanceof Error ? error.message : "";
+    }
+    assert(
+      "duplicate-injection-rejected",
+      duplicateInjectionError.includes("already pending"),
+      duplicateInjectionError,
+      "an 'already pending' rejection",
+    );
+    assert(
+      "duplicate-injection-single-requested-event",
+      requestedEvents("artemis-smoke-multi").length === 1,
+      requestedEvents("artemis-smoke-multi").length,
+      1,
+    );
+
+    completeMultiUserInputQuestion(
+      "artemis-smoke-multi",
+      multiNonce,
+      "q2",
+      "user",
+      { selectedOptionLabel: "Email digest" },
+    );
+    const betweenAnswersDom = await waitForDomState(
+      "translated card projecting q3 after the q2 answer",
+      (state) =>
+        state.pendingCards === 1 &&
+        state.cardTexts.some((text) => text.includes("Anything to add?")),
+    );
+    assert(
+      "multi-card-projects-last-pending-question",
+      betweenAnswersDom.pendingCards === 1 &&
+        betweenAnswersDom.cardTexts.some((text) =>
+          text.includes("Anything to add?"),
+        ),
+      betweenAnswersDom,
+      "the translated card now shows 'Anything to add?'",
+    );
+    completeMultiUserInputQuestion(
+      "artemis-smoke-multi",
+      multiNonce,
+      "q3",
+      "user",
+      { customAnswer: "Add a changelog entry first." },
+    );
+    const multiResolved = resolvedEvents("artemis-smoke-multi");
+    assert(
+      "multi-all-questions-resolved",
+      multiResolved.length === 3,
+      multiResolved.length,
+      3,
+    );
+    const multiFinalPost = brokerPosts.find(
+      (post) =>
+        (post.resolution as { approvalId?: string } | undefined)?.approvalId ===
+        "artemis-smoke-multi",
+    );
+    const multiFinalResult = (multiFinalPost?.result ?? {}) as {
+      answers?: Array<{ questionId?: string; answer?: string }>;
+      source?: string;
+    };
+    assert(
+      "final-broker-resolve-approved-once",
+      Boolean(multiFinalPost) &&
+        (multiFinalPost?.resolution as { approved?: boolean } | undefined)
+          ?.approved === true,
+      multiFinalPost ?? null,
+      "exactly one approved broker resolve for the multi request",
+    );
+    assert(
+      "final-broker-resolve-aggregates-answers",
+      multiFinalResult.answers?.length === 3 &&
+        multiFinalResult.answers[0]?.answer === "Ship it" &&
+        multiFinalResult.answers[1]?.answer === "Email digest" &&
+        multiFinalResult.answers[2]?.answer === "Add a changelog entry first.",
+      multiFinalResult,
+      "aggregated answers for q1/q2/q3 in order",
+    );
+    assert(
+      "multi-registry-drained-after-final",
+      !multiPending("artemis-smoke-multi"),
+      multiPending("artemis-smoke-multi"),
+      false,
+    );
+    const multiAnsweredDom = await waitForDomState(
+      "multi card answered",
+      (state) => state.pendingCards === 0 && state.answeredCards >= 2,
+    );
+    assert(
+      "multi-card-answered-rendered",
+      multiAnsweredDom.pendingCards === 0,
+      multiAnsweredDom.pendingCards,
+      0,
+    );
+
+    // §6-2 timeout arm: the five-minute timers cannot be shortened, and the
+    // frozen reducer honors a reverse time gate (a timeout stamped before a
+    // question's expiresAt is discarded whole), so the timeout path is
+    // driven through a synthetic request whose first question already
+    // expired while its second question keeps a live deadline. The request
+    // rides the real emitPayload channel and a real registry registration;
+    // only the minted expiresAt is synthesized (checklist §6-2 fallback).
+    const expiredRequestId = "artemis-smoke-multi-expired";
+    const expiredNonce = "artemis-smoke-expired-nonce";
+    const expiredQuestions = [
+      {
+        questionId: "e1",
+        question: "Archive the old logs?",
+        options: [
+          {
+            label: "Archive it",
+            description: "Move logs to cold storage.",
+            recommended: true,
+          },
+          {
+            label: "Keep them",
+            description: "Leave the logs in place.",
+            recommended: false,
+          },
+        ],
+      },
+      {
+        questionId: "e2",
+        question: "File the report where?",
+        options: [
+          {
+            label: "Internal wiki",
+            description: "Publish internally.",
+            recommended: true,
+          },
+          {
+            label: "Email digest",
+            description: "Send by email.",
+            recommended: false,
+          },
+        ],
+      },
+    ];
+    pendingMultiUserInputs.register({
+      requestId: expiredRequestId,
+      nonce: expiredNonce,
+      questions: expiredQuestions,
+      value: {
+        workerRequestId: "artemis-smoke-multi-expired-worker",
+        request: {
+          kind: "user.input",
+          approvalId: expiredRequestId,
+          threadId,
+          turnId,
+          workspacePath,
+          header: "Expiry",
+          questions: expiredQuestions,
+          mode: "execute",
+        },
+        timeouts: new Map(),
+      },
+    });
+    emitPayload(threadId, turnId, {
+      type: "user-input.requested",
+      kind: "multi-question",
+      requestId: expiredRequestId,
+      nonce: expiredNonce,
+      header: "Expiry",
+      questions: expiredQuestions.map((question, index) => ({
+        questionId: question.questionId,
+        question: question.question,
+        options: question.options,
+        expiresAt: new Date(
+          Date.now() + (index === 0 ? -60_000 : 300_000),
+        ).toISOString(),
+      })),
+    });
+    const expiredRendered = await waitForDomState(
+      "expired-deadline card pending",
+      (state) => state.pendingCards === 1,
+    );
+    assert(
+      "expired-request-card-pending",
+      expiredRendered.pendingCards === 1,
+      expiredRendered.pendingCards,
+      1,
+    );
+    completeMultiUserInputQuestion(
+      expiredRequestId,
+      expiredNonce,
+      "e1",
+      "timeout",
+    );
+    const expiredResolved = resolvedEvents(expiredRequestId);
+    assert(
+      "timeout-resolves-exactly-first-expired-question",
+      expiredResolved.length === 1 &&
+        expiredResolved[0]?.questionId === "e1" &&
+        expiredResolved[0]?.source === "timeout",
+      expiredResolved,
+      "one resolved event for e1 with source timeout",
+    );
+    assert(
+      "timeout-answer-is-recommended-label",
+      expiredResolved[0]?.selectedOptionLabel === "Archive it",
+      expiredResolved[0]?.selectedOptionLabel ?? null,
+      "Archive it",
+    );
+    assert(
+      "timeout-no-broker-resolve-before-final",
+      brokerPosts.length === 2,
+      brokerPosts.length,
+      2,
+    );
+    const afterExpiredTimeoutDom = await waitForDomState(
+      "expired-deadline card projecting e2 after the e1 timeout",
+      (state) =>
+        state.pendingCards === 1 &&
+        state.cardTexts.some((text) => text.includes("File the report where?")),
+    );
+    assert(
+      "timeout-card-still-pending-after-partial-timeout",
+      afterExpiredTimeoutDom.pendingCards === 1,
+      afterExpiredTimeoutDom.pendingCards,
+      1,
+    );
+    assert(
+      "timeout-card-projects-next-pending-question",
+      afterExpiredTimeoutDom.cardTexts.some((text) =>
+        text.includes("File the report where?"),
+      ),
+      afterExpiredTimeoutDom.cardTexts,
+      "the translated card now shows 'File the report where?'",
+    );
+
+    // The still-live second question is answered by user choice (a
+    // non-recommended label), proving per-question independence inside one
+    // card: e1 closed by timeout, e2 closed by choice, one aggregated
+    // broker backfill.
+    completeMultiUserInputQuestion(
+      expiredRequestId,
+      expiredNonce,
+      "e2",
+      "user",
+      { selectedOptionLabel: "Email digest" },
+    );
+    const expiredFinalResolved = resolvedEvents(expiredRequestId);
+    assert(
+      "mixed-expiry-all-questions-resolved",
+      expiredFinalResolved.length === 2,
+      expiredFinalResolved.length,
+      2,
+    );
+    const expiredFinalPost = brokerPosts.find(
+      (post) =>
+        (post.resolution as { approvalId?: string } | undefined)?.approvalId ===
+        expiredRequestId,
+    );
+    const expiredFinalResult = (expiredFinalPost?.result ?? {}) as {
+      answers?: Array<{ questionId?: string; answer?: string }>;
+    };
+    assert(
+      "mixed-expiry-final-broker-backfill",
+      Boolean(expiredFinalPost) &&
+        (expiredFinalPost?.resolution as { approved?: boolean } | undefined)
+          ?.approved === true &&
+        expiredFinalResult.answers?.length === 2 &&
+        expiredFinalResult.answers[0]?.answer === "Archive it" &&
+        expiredFinalResult.answers[1]?.answer === "Email digest",
+      expiredFinalPost ?? null,
+      "one approved backfill aggregating the timed-out and user-chosen answers",
+    );
+    const expiredSettledDom = await waitForDomState(
+      "mixed-expiry card settled timed-out",
+      (state) => state.pendingCards === 0 && state.timedOutCards >= 1,
+    );
+    assert(
+      "mixed-expiry-card-settles-timed-out",
+      expiredSettledDom.pendingCards === 0 &&
+        expiredSettledDom.timedOutCards >= 1,
+      expiredSettledDom,
+      "no pending cards and a timed-out aggregate card",
+    );
+
+    // §6-3 no-infinite-wait: a fresh multi request on the same turn, then
+    // the real thread-cancel path closes every pending question with one
+    // kind-less cancelled event and an approved:false broker receipt.
+    handleUserInputBrokerRequest("artemis-smoke-multi-cancel-worker", {
+      kind: "user.input",
+      approvalId: "artemis-smoke-multi-cancel",
+      threadId,
+      turnId,
+      workspacePath,
+      header: "Release",
+      questions: cancelQuestions,
+      mode: "execute",
+    });
+    const cancelTargetRendered = await waitForDomState(
+      "cancel-target card pending",
+      (state) => state.pendingCards === 1,
+    );
+    assert(
+      "cancel-target-card-pending",
+      cancelTargetRendered.pendingCards === 1,
+      cancelTargetRendered.pendingCards,
+      1,
+    );
+    await cancelTaskTurn(threadId);
+    const cancelResolved = resolvedEvents("artemis-smoke-multi-cancel");
+    assert(
+      "cancel-emits-one-kind-less-cancelled",
+      cancelResolved.length === 1 &&
+        cancelResolved[0]?.kind === undefined &&
+        cancelResolved[0]?.source === "cancelled",
+      cancelResolved,
+      "one kind-less resolved event with source cancelled",
+    );
+    const cancelPost = brokerPosts.find(
+      (post) =>
+        (post.resolution as { approvalId?: string } | undefined)?.approvalId ===
+        "artemis-smoke-multi-cancel",
+    );
+    assert(
+      "cancel-broker-resolve-rejected",
+      Boolean(cancelPost) &&
+        (cancelPost?.resolution as { approved?: boolean } | undefined)
+          ?.approved === false &&
+        cancelPost?.error === "The turn was cancelled.",
+      cancelPost ?? null,
+      "approved:false with 'The turn was cancelled.'",
+    );
+    assert(
+      "cancel-registry-drained",
+      !multiPending("artemis-smoke-multi-cancel"),
+      multiPending("artemis-smoke-multi-cancel"),
+      false,
+    );
+    const cancelledDom = await waitForDomState(
+      "cancelled card rendered",
+      (state) => state.pendingCards === 0 && state.cancelledCards >= 1,
+    );
+    assert(
+      "cancel-closes-card-in-renderer",
+      cancelledDom.pendingCards === 0 && cancelledDom.cancelledCards >= 1,
+      cancelledDom,
+      "no pending cards and a cancelled card",
+    );
+
+    smokeUserInputTransportEvidence = {
+      view: "user-input-transport",
+      generatedAt: new Date().toISOString(),
+      checks,
+      brokerPosts,
+      storeChecks: {
+        legacyRequested: requestedEvents("artemis-smoke-single").length,
+        legacyResolved: resolvedEvents("artemis-smoke-single").length,
+        multiRequested: requestedEvents("artemis-smoke-multi").length,
+        multiResolved: resolvedEvents("artemis-smoke-multi").length,
+        multiExpiredRequested: requestedEvents(expiredRequestId).length,
+        multiExpiredResolved: resolvedEvents(expiredRequestId).length,
+        multiCancelRequested: requestedEvents("artemis-smoke-multi-cancel")
+          .length,
+        multiCancelResolved: resolvedEvents("artemis-smoke-multi-cancel")
+          .length,
+      },
+      renderer: await domState(),
+    };
+  } finally {
+    delete (agentHost as { post?: unknown }).post;
+    activeTurns.delete(threadId);
+  }
+}
+
 async function seedSmokeEnvironmentFixture(): Promise<void> {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
   // The icon-sizing smoke harness reuses this same synthetic repository
@@ -11558,6 +12464,11 @@ function createMainWindow(): BrowserWindow {
                   button?.click();
                 };
                 const view = ${JSON.stringify(requestedSmokeView)};
+                if (view === 'user-input-transport') {
+                  document.querySelector('.thread-select')?.click();
+                  await wait(800);
+                  return;
+                }
                 if (view.startsWith('icon-sizing-')) {
                   if (view.startsWith('icon-sizing-environment')) {
                     document.querySelector('.thread-select')?.click();
@@ -12905,6 +13816,14 @@ function createMainWindow(): BrowserWindow {
               pickedScreenshot: smokePickedScreenshot,
             });
           }
+          // PR10B user-input-transport smoke: with the producer dormant the
+          // only legal driver is the direct broker-request path, so the
+          // evidence driver injects synthetic legacy and multi-question
+          // requests through the real main-process handlers and asserts the
+          // transport contract end to end before the audit snapshot.
+          if (smokeMode && requestedSmokeView === "user-input-transport") {
+            await driveSmokeUserInputTransportEvidence(window);
+          }
           if (smokeAccessibility) {
             const result = (await window.webContents.executeJavaScript(`
               (() => {
@@ -13880,6 +14799,7 @@ function createMainWindow(): BrowserWindow {
               `${JSON.stringify(
                 {
                   ...result,
+                  userInputTransport: smokeUserInputTransportEvidence ?? null,
                   zoomFactor: smokeScale,
                   startupTimings,
                   reconnectIpcCalls: smokeMcpEditorReconnectIpcCalls,
@@ -13987,6 +14907,7 @@ app
     configureBrowserLocaleSession();
     await seedSmokeEnvironmentFixture();
     seedSmokeUserInputFixture();
+    await seedSmokeUserInputTransportFixture();
     seedSmokeTokenUsageFixture();
     seedSmokeGoalFixture();
     seedSmokeTurnChangesFixture();
