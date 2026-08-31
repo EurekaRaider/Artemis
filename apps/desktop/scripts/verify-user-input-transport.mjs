@@ -74,7 +74,15 @@ const checkGroups = {
     "expired-request-card-pending",
     "mixed-expiry-all-questions-resolved",
     "mixed-expiry-final-broker-backfill",
+    "mixed-expiry-broker-backfill-no-top-level-source",
     "mixed-expiry-card-settles-timed-out",
+    "reverse-expiry-card-pending",
+    "reverse-expiry-user-answer-first",
+    "reverse-expiry-card-projects-expired-question",
+    "reverse-expiry-all-questions-resolved",
+    "reverse-expiry-final-broker-backfill",
+    "reverse-expiry-broker-backfill-no-top-level-source",
+    "reverse-expiry-card-settles-timed-out",
   ],
   noInfiniteWait: [
     "cancel-emits-one-kind-less-cancelled",
@@ -101,6 +109,7 @@ const checkGroups = {
     "multi-all-questions-resolved",
     "final-broker-resolve-approved-once",
     "final-broker-resolve-aggregates-answers",
+    "final-broker-resolve-no-top-level-source",
     "multi-registry-drained-after-final",
     "multi-card-answered-rendered",
     "cancel-target-card-pending",
@@ -372,6 +381,18 @@ try {
       storeChecks.multiCancelResolved ?? null,
       1,
     );
+    assert(
+      "store-multi-reverse-requested-once",
+      storeChecks.multiReverseRequested === 1,
+      storeChecks.multiReverseRequested ?? null,
+      1,
+    );
+    assert(
+      "store-multi-reverse-resolved-two",
+      storeChecks.multiReverseResolved === 2,
+      storeChecks.multiReverseResolved ?? null,
+      2,
+    );
     const brokerPosts = Array.isArray(transport?.brokerPosts)
       ? transport.brokerPosts
       : [];
@@ -379,10 +400,10 @@ try {
       (post) => post.type === "broker.resolve",
     );
     assert(
-      "broker-resolve-count-exactly-five",
-      brokerResolves.length === 5,
+      "broker-resolve-count-exactly-six",
+      brokerResolves.length === 6,
       brokerResolves.length,
-      "legacy user 1 + duplicate-injection reject 1 + multi final 1 + expired final 1 + cancel 1 = 5",
+      "legacy user 1 + duplicate-injection reject 1 + multi final 1 + expired final 1 + reverse final 1 + cancel 1 = 6",
     );
     const duplicateReject = brokerResolves.find(
       (post) =>

@@ -3296,8 +3296,11 @@ function completeMultiUserInputQuestion(
       source: source === "timeout" ? "policy" : "user",
     },
     result: {
+      // No top-level source (review R2 P1-3): the aggregate spans every
+      // question and each answer carries its own provenance, so one
+      // card-level source would misstate every question that settled
+      // differently from the last one.
       answers: resolved.final.answers,
-      source,
     },
   });
 }
@@ -11254,6 +11257,8 @@ type SmokeUserInputTransportEvidence = {
     multiExpiredResolved: number;
     multiCancelRequested: number;
     multiCancelResolved: number;
+    multiReverseRequested: number;
+    multiReverseResolved: number;
   };
   renderer: SmokeUserInputTransportDomState;
 };
@@ -11805,6 +11810,15 @@ async function driveSmokeUserInputTransportEvidence(
       multiFinalResult,
       "aggregated answers for q1/q2/q3 in order, each with source user",
     );
+    // Review R2 P1-3: the aggregate covers the whole card, so a top-level
+    // source would misstate every question that settled differently from
+    // the last one — provenance lives per question only.
+    assert(
+      "final-broker-resolve-no-top-level-source",
+      Object.hasOwn(multiFinalResult, "source") === false,
+      multiFinalResult,
+      "no top-level source on the all-user aggregate",
+    );
     assert(
       "multi-registry-drained-after-final",
       !multiPending("artemis-smoke-multi"),
@@ -12010,6 +12024,12 @@ async function driveSmokeUserInputTransportEvidence(
       expiredFinalPost ?? null,
       "one approved backfill aggregating the timed-out and user-chosen answers with per-question source",
     );
+    assert(
+      "mixed-expiry-broker-backfill-no-top-level-source",
+      Object.hasOwn(expiredFinalResult, "source") === false,
+      expiredFinalResult,
+      "no top-level source on the timeout-then-user aggregate",
+    );
     const expiredSettledDom = await waitForDomState(
       "mixed-expiry card settled timed-out",
       (state) => state.pendingCards === 0 && state.timedOutCards >= 1,
@@ -12020,6 +12040,186 @@ async function driveSmokeUserInputTransportEvidence(
         expiredSettledDom.timedOutCards >= 1,
       expiredSettledDom,
       "no pending cards and a timed-out aggregate card",
+    );
+
+    // Review R2 P1-3, reverse settlement order: the user answers the live
+    // first question while the second has already expired, so the card
+    // settles user -> timeout — the mirror of the mixed-expiry card above.
+    // The aggregated backfill must carry per-question provenance only, with
+    // no top-level source relabeling the whole card as the last question's
+    // origin.
+    const reverseRequestId = "artemis-smoke-multi-reverse";
+    const reverseNonce = "artemis-smoke-reverse-nonce";
+    const reverseQuestionDeadlines = [
+      new Date(Date.now() + 300_000).toISOString(),
+      new Date(Date.now() - 60_000).toISOString(),
+    ];
+    const reverseQuestions = [
+      {
+        questionId: "r1",
+        question: "Keep the changelog where?",
+        options: [
+          {
+            label: "In repo",
+            description: "Ship it with the code.",
+            recommended: true,
+          },
+          {
+            label: "Wiki",
+            description: "Publish it separately.",
+            recommended: false,
+          },
+        ],
+      },
+      {
+        questionId: "r2",
+        question: "Delete the stale branches?",
+        options: [
+          {
+            label: "Yes, delete",
+            description: "Remove merged branches.",
+            recommended: true,
+          },
+          {
+            label: "Keep them",
+            description: "Leave the branches alone.",
+            recommended: false,
+          },
+        ],
+      },
+    ];
+    pendingMultiUserInputs.register({
+      requestId: reverseRequestId,
+      nonce: reverseNonce,
+      questions: reverseQuestions.map((question, index) => ({
+        ...question,
+        expiresAt: reverseQuestionDeadlines[index]!,
+      })),
+      value: {
+        workerRequestId: "artemis-smoke-multi-reverse-worker",
+        request: {
+          kind: "user.input",
+          approvalId: reverseRequestId,
+          threadId,
+          turnId,
+          workspacePath,
+          header: "Reverse",
+          questions: reverseQuestions,
+          mode: "execute",
+        },
+        timeouts: new Map(),
+      },
+    });
+    emitPayload(threadId, turnId, {
+      type: "user-input.requested",
+      kind: "multi-question",
+      requestId: reverseRequestId,
+      nonce: reverseNonce,
+      header: "Reverse",
+      questions: reverseQuestions.map((question, index) => ({
+        questionId: question.questionId,
+        question: question.question,
+        options: question.options,
+        expiresAt: reverseQuestionDeadlines[index]!,
+      })),
+    });
+    const reverseRendered = await waitForDomState(
+      "reverse-order card pending",
+      (state) => state.pendingCards === 1,
+    );
+    assert(
+      "reverse-expiry-card-pending",
+      reverseRendered.pendingCards === 1,
+      reverseRendered.pendingCards,
+      1,
+    );
+    completeMultiUserInputQuestion(
+      reverseRequestId,
+      reverseNonce,
+      "r1",
+      "user",
+      { selectedOptionLabel: "Wiki" },
+    );
+    const reverseAfterUser = resolvedEvents(reverseRequestId);
+    assert(
+      "reverse-expiry-user-answer-first",
+      reverseAfterUser.length === 1 &&
+        reverseAfterUser[0]?.questionId === "r1" &&
+        reverseAfterUser[0]?.source === "user" &&
+        reverseAfterUser[0]?.selectedOptionLabel === "Wiki",
+      reverseAfterUser,
+      "one user resolution for r1 choosing the non-recommended 'Wiki'",
+    );
+    const reverseAfterUserDom = await waitForDomState(
+      "reverse-order card projects the expired r2 after the r1 answer",
+      (state) =>
+        state.pendingCards === 1 &&
+        state.cardTexts.some((text) =>
+          text.includes("Delete the stale branches?"),
+        ),
+    );
+    assert(
+      "reverse-expiry-card-projects-expired-question",
+      reverseAfterUserDom.cardTexts.some((text) =>
+        text.includes("Delete the stale branches?"),
+      ),
+      reverseAfterUserDom.cardTexts,
+      "the translated card now shows 'Delete the stale branches?'",
+    );
+    completeMultiUserInputQuestion(
+      reverseRequestId,
+      reverseNonce,
+      "r2",
+      "timeout",
+    );
+    const reverseResolved = resolvedEvents(reverseRequestId);
+    assert(
+      "reverse-expiry-all-questions-resolved",
+      reverseResolved.length === 2,
+      reverseResolved.length,
+      2,
+    );
+    const reverseFinalPost = brokerPosts.find(
+      (post) =>
+        (post.resolution as { approvalId?: string } | undefined)?.approvalId ===
+        reverseRequestId,
+    );
+    const reverseFinalResult = (reverseFinalPost?.result ?? {}) as {
+      answers?: Array<{
+        questionId?: string;
+        answer?: string;
+        source?: string;
+      }>;
+    };
+    assert(
+      "reverse-expiry-final-broker-backfill",
+      Boolean(reverseFinalPost) &&
+        (reverseFinalPost?.resolution as { approved?: boolean } | undefined)
+          ?.approved === true &&
+        reverseFinalResult.answers?.length === 2 &&
+        reverseFinalResult.answers[0]?.answer === "Wiki" &&
+        reverseFinalResult.answers[1]?.answer === "Yes, delete" &&
+        reverseFinalResult.answers[0]?.source === "user" &&
+        reverseFinalResult.answers[1]?.source === "timeout",
+      reverseFinalPost ?? null,
+      "one approved backfill aggregating the user-then-timeout answers with per-question source",
+    );
+    assert(
+      "reverse-expiry-broker-backfill-no-top-level-source",
+      Object.hasOwn(reverseFinalResult, "source") === false,
+      reverseFinalResult,
+      "no top-level source on the user-then-timeout aggregate",
+    );
+    const reverseSettledDom = await waitForDomState(
+      "reverse-order card settled timed-out",
+      (state) => state.pendingCards === 0 && state.timedOutCards >= 2,
+    );
+    assert(
+      "reverse-expiry-card-settles-timed-out",
+      reverseSettledDom.pendingCards === 0 &&
+        reverseSettledDom.timedOutCards >= 2,
+      reverseSettledDom,
+      "no pending cards and a second timed-out aggregate card",
     );
 
     // §6-3 no-infinite-wait: a fresh multi request on the same turn, then
@@ -12102,6 +12302,8 @@ async function driveSmokeUserInputTransportEvidence(
           .length,
         multiCancelResolved: resolvedEvents("artemis-smoke-multi-cancel")
           .length,
+        multiReverseRequested: requestedEvents(reverseRequestId).length,
+        multiReverseResolved: resolvedEvents(reverseRequestId).length,
       },
       renderer: await domState(),
     };

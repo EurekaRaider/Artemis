@@ -32,6 +32,14 @@ export interface CancelledUserInput<T> {
   value: T;
 }
 
+// Non-throwing structural guard for raw (untrusted IPC) broker requests:
+// every nested dereference below must run only after this shape check, so
+// a malformed request reaches the schema parse path — or a single broker
+// reject — instead of a TypeError (review R2 P1-1).
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function nonceMatches(expected: string, actual: string): boolean {
   const expectedBuffer = Buffer.from(expected);
   const actualBuffer = Buffer.from(actual);
@@ -431,24 +439,39 @@ export function prepareMultiQuestionUserInputRegistration(
       reason: "User input requires the active task turn.",
     };
   }
+  // Raw-request shape gate (review R2 P1-1): validate the untrusted
+  // structure without throwing before dereferencing any nested field, so
+  // `questions: [null]` or a question whose options are missing takes the
+  // same single reject below instead of crashing ahead of the schema parse.
+  const structurallySoundQuestions =
+    Array.isArray(request.questions) &&
+    request.questions.every(
+      (question) =>
+        isPlainRecord(question) &&
+        typeof question.questionId === "string" &&
+        Array.isArray(question.options) &&
+        question.options.every((option) => isPlainRecord(option)),
+    );
   const questionIds = new Set<string>();
-  const invalidQuestion = request.questions.some((question) => {
-    if (
-      !question.questionId ||
-      questionIds.has(question.questionId) ||
-      question.options.length < 2 ||
-      question.options.length > 3 ||
-      question.options.filter((option) => option.recommended).length !== 1
-    ) {
-      return true;
-    }
-    questionIds.add(question.questionId);
-    return false;
-  });
+  const invalidQuestion =
+    !structurallySoundQuestions ||
+    request.questions.some((question) => {
+      if (
+        !question.questionId ||
+        questionIds.has(question.questionId) ||
+        question.options.length < 2 ||
+        question.options.length > 3 ||
+        question.options.filter((option) => option.recommended).length !== 1
+      ) {
+        return true;
+      }
+      questionIds.add(question.questionId);
+      return false;
+    });
   if (
+    invalidQuestion ||
     request.questions.length < 1 ||
-    request.questions.length > MAX_USER_INPUT_QUESTIONS ||
-    invalidQuestion
+    request.questions.length > MAX_USER_INPUT_QUESTIONS
   ) {
     return {
       ok: false,
@@ -536,7 +559,14 @@ export function prepareSingleQuestionUserInputRegistration(
       reason: "User input requires the active task turn.",
     };
   }
+  // Same raw-request shape gate as the multi validator (review R2 P1-1):
+  // options must be an array of records before any element field is read,
+  // so a request missing options takes one reject, not a TypeError.
+  const structurallySoundOptions =
+    Array.isArray(request.options) &&
+    request.options.every((option) => isPlainRecord(option));
   if (
+    !structurallySoundOptions ||
     request.options.length < 2 ||
     request.options.length > 3 ||
     request.options.findIndex((option) => option.recommended) < 0 ||

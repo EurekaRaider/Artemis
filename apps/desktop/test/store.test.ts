@@ -1456,6 +1456,142 @@ describe("AppStore", () => {
     });
   });
 
+  it("cancels questions still pending after a kind-less timeout closed only the expired ones", async () => {
+    const directory = await mkdtemp(
+      join(tmpdir(), "artemis-multi-interleaved-"),
+    );
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "state.sqlite");
+    const now = "2026-08-30T00:00:00.000Z";
+    const options = [
+      {
+        label: "Ship now",
+        description: "Release the current build.",
+        recommended: true,
+      },
+      {
+        label: "Ship later",
+        description: "Wait one more day.",
+        recommended: false,
+      },
+    ];
+    // Staggered deadlines: q1 expires at 00:05 and q2 at 00:10.
+    const questions = [
+      {
+        questionId: "q1",
+        question: "Ship the first half?",
+        options,
+        expiresAt: "2026-08-30T00:05:00.000Z",
+      },
+      {
+        questionId: "q2",
+        question: "Ship the second half?",
+        options,
+        expiresAt: "2026-08-30T00:10:00.000Z",
+      },
+    ];
+
+    const first = new AppStore(databasePath);
+    first.upsertProject({
+      id: "project-1",
+      name: "Workspace",
+      path: join(directory, "workspace"),
+      createdAt: now,
+      updatedAt: now,
+    });
+    first.createThread({
+      id: "thread-interleaved",
+      projectId: "project-1",
+      title: "Interleaved multi timeouts",
+      mode: "execute",
+      target: "local",
+      status: "waiting-approval",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    first.appendEvent(
+      randomUUID(),
+      "thread-interleaved",
+      "turn-1",
+      {
+        type: "user-input.requested",
+        kind: "multi-question",
+        requestId: "multi-thread-interleaved",
+        nonce: "interleave-nonce-0001",
+        header: "Stagger",
+        questions,
+      },
+      "2026-08-30T00:00:00.000Z",
+    );
+    // q1 reaches its 00:05 deadline: one kind'd timeout resolution.
+    first.appendEvent(
+      randomUUID(),
+      "thread-interleaved",
+      "turn-1",
+      {
+        type: "user-input.resolved",
+        kind: "multi-question",
+        requestId: "multi-thread-interleaved",
+        nonce: "interleave-nonce-0001",
+        questionId: "q1",
+        selectedOptionLabel: "Ship now",
+        source: "timeout",
+      },
+      "2026-08-30T00:05:00.500Z",
+    );
+    // A kind-less timeout at 00:06 must not close q2, whose deadline is
+    // still four minutes away: the reducer only closes questions whose
+    // deadline the event timestamp has reached.
+    first.appendEvent(
+      randomUUID(),
+      "thread-interleaved",
+      "turn-1",
+      {
+        type: "user-input.resolved",
+        requestId: "multi-thread-interleaved",
+        nonce: "interleave-nonce-0001",
+        answer: "",
+        source: "timeout",
+      },
+      "2026-08-30T00:06:00.000Z",
+    );
+    first.close();
+
+    const reopened = new AppStore(databasePath);
+    const recovered = reopened.recoverInterruptedThreads();
+    const events = reopened.getThreadEvents("thread-interleaved");
+    const state = reduceAgentEvents("thread-interleaved", events);
+    reopened.close();
+
+    // Review R2 P1-2: recovery must derive the unresolved set from the
+    // replayed final state. q2 was still pending when the process stopped,
+    // so recovery synthesizes exactly one kind-less cancelled resolution
+    // that closes it instead of leaving it pending forever.
+    expect(
+      recovered.filter((event) => event.payload.type === "user-input.resolved"),
+    ).toHaveLength(1);
+    const closePayload = events.at(-2)?.payload;
+    expect(closePayload).toMatchObject({
+      type: "user-input.resolved",
+      requestId: "multi-thread-interleaved",
+      nonce: "interleave-nonce-0001",
+      answer: "",
+      source: "cancelled",
+    });
+    expect(
+      (closePayload as { kind?: string } | undefined)?.kind,
+    ).toBeUndefined();
+    expect(state.userInputs["multi-thread-interleaved"]).toMatchObject({
+      kind: "multi-question",
+      answers: {
+        q1: { status: "timed-out" },
+        q2: { status: "cancelled" },
+      },
+    });
+  });
+
   it("persists and deletes line-anchored Review comments", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-comments-"));
     temporaryDirectories.push(directory);

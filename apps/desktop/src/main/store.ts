@@ -2401,30 +2401,40 @@ export class AppStore {
             }
           } else if (
             event.payload.type === "user-input.resolved" &&
-            event.payload.kind === undefined
+            event.payload.kind === undefined &&
+            !multiRequestIds.has(event.payload.requestId)
           ) {
+            // Kind-less resolutions do not decide multi-question closure
+            // on their own (review R2 P1-2): the reducer translates them
+            // per source — a timeout closes only the questions whose
+            // deadline has passed — so the replayed final state below
+            // decides whether the request is still unresolved.
             unresolvedUserInputs.delete(event.payload.requestId);
           }
         }
         if (multiRequestIds.size > 0) {
-          // Kind'd per-question resolutions close only their own question,
-          // so "answered one of three, then crashed" is not a whole-card
-          // close: replay through the same reducer the renderer uses and
-          // keep only requests it still shows with pending questions.
+          // Multi-question closure is derived solely from replay (review
+          // R2 P1-2): replay through the same reducer the renderer uses
+          // and let the final per-question state decide — every question
+          // terminal means the card is resolved; any question still
+          // pending (for example after a kind-less timeout that only
+          // closed the questions whose deadline had passed) keeps the
+          // request unresolved so the recovery cancel below closes it.
           const viewState = reduceAgentEvents(row.id, events, row.mode);
           for (const requestId of multiRequestIds) {
             // The kind check remains the runtime guard; the cast only gives
             // the per-question answers their protocol type.
             const input = viewState.userInputs[requestId] as
               MultiQuestionUserInputState | undefined;
-            if (
+            const everyQuestionTerminal =
               input?.kind === "multi-question" &&
               Object.values(input.answers).every(
                 (answer) => answer.status !== "pending",
-              )
-            ) {
-              unresolvedUserInputs.delete(requestId);
+              );
+            if (!everyQuestionTerminal) {
+              continue;
             }
+            unresolvedUserInputs.delete(requestId);
           }
         }
         for (const [requestId, input] of unresolvedUserInputs) {

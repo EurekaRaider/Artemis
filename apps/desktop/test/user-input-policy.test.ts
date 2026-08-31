@@ -606,6 +606,40 @@ describe("prepareMultiQuestionUserInputRegistration", () => {
     }
   });
 
+  // Review R2 P1-1: raw broker IPC is untrusted input, so no nested field
+  // may be dereferenced before a non-throwing shape check — every
+  // malformed variant answers with exactly one reject, never a TypeError.
+  for (const variant of [
+    { label: "a null question element", questions: [null] },
+    {
+      label: "a valid questionId whose options are missing",
+      questions: [
+        { questionId: "q1", question: "Ship on Friday?", options: undefined },
+      ],
+    },
+  ] as const) {
+    it(`rejects a raw multi request with ${variant.label} using one reject and no TypeError`, () => {
+      let result:
+        | ReturnType<typeof prepareMultiQuestionUserInputRegistration>
+        | undefined;
+      expect(() => {
+        result = prepareMultiQuestionUserInputRegistration(
+          {
+            ...baseRequest,
+            questions: variant.questions,
+          } as unknown as MultiQuestionUserInputRequestValidation,
+          activeTurn,
+          assembly,
+        );
+      }).not.toThrow();
+      expect(result).toEqual({
+        ok: false,
+        reason:
+          "User input requires one to three unique questions with two or three options and one recommendation each.",
+      });
+    });
+  }
+
   it("rejects payloads the frozen protocol schema refuses", () => {
     const result = prepare(
       { ...baseRequest, header: "0123456789012" },
@@ -740,23 +774,24 @@ describe("user.input broker request boundary (review P1-2)", () => {
     expect(result?.ok).toBe(false);
   });
 
-  it("accepts a clean single-question request through the same prepare", () => {
-    const result = prepareSingleQuestionUserInputRegistration(
-      singleFields,
-      activeTurn,
-      assembly,
-    );
+  it("rejects a raw single request whose options are missing using one reject and no TypeError", () => {
+    const request = {
+      ...singleFields,
+      options: undefined,
+    } as unknown as UserInputBrokerRequest;
+
+    let result: SingleQuestionUserInputRegistration | undefined;
+    expect(() => {
+      result = prepareSingleQuestionUserInputRegistration(
+        request,
+        activeTurn,
+        assembly,
+      );
+    }).not.toThrow();
     expect(result).toEqual({
-      ok: true,
-      payload: {
-        type: "user-input.requested",
-        requestId: "single-1",
-        nonce: "0123456789abcdef",
-        header: "Scope",
-        question: "Ship on Friday?",
-        options: twoOptions,
-        expiresAt: "2026-08-30T00:05:00.000Z",
-      },
+      ok: false,
+      reason:
+        "User input requires two or three options and one recommendation.",
     });
   });
 });
