@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { afterEach, describe, expect, it } from "vitest";
-import { PROTOCOL_VERSION } from "@artemis/protocol";
+import { PROTOCOL_VERSION, reduceAgentEvents } from "@artemis/protocol";
 
 import { AppStore } from "../src/main/store.js";
 
@@ -1199,6 +1199,396 @@ describe("AppStore", () => {
     expect(snapshot.events["thread-1"]?.at(-3)?.payload).toMatchObject({
       type: "user-input.resolved",
       source: "cancelled",
+    });
+  });
+
+  it("persists and replays multi-question user-input events with frozen shapes", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-multi-input-"));
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "state.sqlite");
+    const now = "2026-08-30T00:00:00.000Z";
+    const options = [
+      {
+        label: "Ship now",
+        description: "Release the current build.",
+        recommended: true,
+      },
+      {
+        label: "Ship later",
+        description: "Wait for the sweep to finish.",
+        recommended: false,
+      },
+    ];
+    const questions = [
+      {
+        questionId: "q1",
+        question: "Which target should be optimized first?",
+        options,
+        expiresAt: "2999-01-01T00:00:00.000Z",
+      },
+      {
+        questionId: "q2",
+        question: "How should the result be reported?",
+        options,
+        expiresAt: "2999-01-01T00:00:00.000Z",
+      },
+    ];
+
+    const first = new AppStore(databasePath);
+    first.upsertProject({
+      id: "project-1",
+      name: "Workspace",
+      path: join(directory, "workspace"),
+      createdAt: now,
+      updatedAt: now,
+    });
+    for (const [threadId, title] of [
+      ["thread-cancelled", "Cancelled multi"],
+      ["thread-answered", "Answered multi"],
+    ]) {
+      first.createThread({
+        id: threadId,
+        projectId: "project-1",
+        title,
+        mode: "execute",
+        target: "local",
+        status: "waiting-approval",
+        pinned: false,
+        archived: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      first.appendEvent(randomUUID(), threadId, "turn-1", {
+        type: "user-input.requested",
+        kind: "multi-question",
+        requestId: `multi-${threadId}`,
+        nonce: `multi-nonce-${threadId}`,
+        header: "Scope",
+        questions,
+      });
+    }
+    first.appendEvent(randomUUID(), "thread-answered", "turn-1", {
+      type: "user-input.resolved",
+      kind: "multi-question",
+      requestId: "multi-thread-answered",
+      nonce: "multi-nonce-thread-answered",
+      questionId: "q1",
+      selectedOptionLabel: "Ship now",
+      source: "user",
+    });
+    first.appendEvent(randomUUID(), "thread-answered", "turn-1", {
+      type: "user-input.resolved",
+      kind: "multi-question",
+      requestId: "multi-thread-answered",
+      nonce: "multi-nonce-thread-answered",
+      questionId: "q2",
+      customAnswer: "Both targets, in one report",
+      source: "user",
+    });
+    first.close();
+
+    const reopened = new AppStore(databasePath);
+    const recovered = reopened.recoverInterruptedThreads();
+    const cancelledEvents = reopened
+      .getThreadEvents("thread-cancelled")
+      .map((event) => event.payload);
+    const answeredEvents = reopened
+      .getThreadEvents("thread-answered")
+      .map((event) => event.payload);
+    const cancelledState = reduceAgentEvents(
+      "thread-cancelled",
+      reopened.getThreadEvents("thread-cancelled"),
+    );
+    const answeredState = reduceAgentEvents(
+      "thread-answered",
+      reopened.getThreadEvents("thread-answered"),
+    );
+    reopened.close();
+
+    expect(recovered).toHaveLength(3);
+    expect(
+      recovered.filter((event) => event.payload.type === "user-input.resolved"),
+    ).toHaveLength(1);
+    expect(cancelledEvents.at(0)).toMatchObject({
+      type: "user-input.requested",
+      kind: "multi-question",
+      requestId: "multi-thread-cancelled",
+      questions: [
+        { questionId: "q1", options: expect.any(Array) },
+        { questionId: "q2" },
+      ],
+    });
+    expect(cancelledEvents.at(-2)).toMatchObject({
+      type: "user-input.resolved",
+      requestId: "multi-thread-cancelled",
+      nonce: "multi-nonce-thread-cancelled",
+      answer: "",
+      source: "cancelled",
+    });
+    expect(cancelledEvents.at(-2)?.kind).toBeUndefined();
+    // The kind-less cancelled resolution translates into a whole-card close:
+    // every still-pending question ends up cancelled with no answer.
+    expect(cancelledState.userInputs["multi-thread-cancelled"]).toMatchObject({
+      kind: "multi-question",
+      status: "cancelled",
+      answers: {
+        q1: { status: "cancelled" },
+        q2: { status: "cancelled" },
+      },
+    });
+
+    expect(answeredEvents).toHaveLength(4);
+    expect(answeredEvents.at(-1)).toMatchObject({
+      type: "turn.failed",
+      code: "HOST_RESTART",
+    });
+    expect(answeredState.userInputs["multi-thread-answered"]).toMatchObject({
+      kind: "multi-question",
+      status: "answered",
+      answers: {
+        q1: {
+          status: "answered",
+          answer: "Ship now",
+          selectedOptionLabel: "Ship now",
+        },
+        q2: { status: "answered", answer: "Both targets, in one report" },
+      },
+    });
+  });
+
+  it("closes remaining multi questions after a crash answered only some of them", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-multi-partial-"));
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "state.sqlite");
+    const now = "2026-08-30T00:00:00.000Z";
+    const options = [
+      {
+        label: "Ship now",
+        description: "Release the current build.",
+        recommended: true,
+      },
+      {
+        label: "Ship later",
+        description: "Wait for the sweep to finish.",
+        recommended: false,
+      },
+    ];
+    const questions = ["q1", "q2", "q3"].map((questionId, index) => ({
+      questionId,
+      question: `Decision ${index + 1}?`,
+      options,
+      expiresAt: "2999-01-01T00:00:00.000Z",
+    }));
+
+    const first = new AppStore(databasePath);
+    first.upsertProject({
+      id: "project-1",
+      name: "Workspace",
+      path: join(directory, "workspace"),
+      createdAt: now,
+      updatedAt: now,
+    });
+    first.createThread({
+      id: "thread-partial",
+      projectId: "project-1",
+      title: "Partially answered multi",
+      mode: "execute",
+      target: "local",
+      status: "waiting-approval",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    first.appendEvent(randomUUID(), "thread-partial", "turn-1", {
+      type: "user-input.requested",
+      kind: "multi-question",
+      requestId: "multi-thread-partial",
+      nonce: "multi-nonce-thread-partial",
+      header: "Scope",
+      questions,
+    });
+    first.appendEvent(randomUUID(), "thread-partial", "turn-1", {
+      type: "user-input.resolved",
+      kind: "multi-question",
+      requestId: "multi-thread-partial",
+      nonce: "multi-nonce-thread-partial",
+      questionId: "q1",
+      selectedOptionLabel: "Ship now",
+      source: "user",
+    });
+    first.close();
+
+    const reopened = new AppStore(databasePath);
+    const recovered = reopened.recoverInterruptedThreads();
+    const events = reopened.getThreadEvents("thread-partial");
+    const state = reduceAgentEvents("thread-partial", events);
+    reopened.close();
+
+    // Answering one of three questions is not a whole-card close: recovery
+    // must still synthesize the kind-less cancelled resolution.
+    expect(
+      recovered.filter(
+        (event) =>
+          event.payload.type === "user-input.resolved" &&
+          event.payload.requestId === "multi-thread-partial",
+      ),
+    ).toHaveLength(1);
+    const closePayload = events.at(-2)?.payload;
+    expect(closePayload).toMatchObject({
+      type: "user-input.resolved",
+      requestId: "multi-thread-partial",
+      nonce: "multi-nonce-thread-partial",
+      answer: "",
+      source: "cancelled",
+    });
+    expect(
+      (closePayload as { kind?: string } | undefined)?.kind,
+    ).toBeUndefined();
+    expect(state.userInputs["multi-thread-partial"]).toMatchObject({
+      kind: "multi-question",
+      status: "cancelled",
+      answers: {
+        q1: { status: "answered", answer: "Ship now" },
+        q2: { status: "cancelled" },
+        q3: { status: "cancelled" },
+      },
+    });
+  });
+
+  it("cancels questions still pending after a kind-less timeout closed only the expired ones", async () => {
+    const directory = await mkdtemp(
+      join(tmpdir(), "artemis-multi-interleaved-"),
+    );
+    temporaryDirectories.push(directory);
+    const databasePath = join(directory, "state.sqlite");
+    const now = "2026-08-30T00:00:00.000Z";
+    const options = [
+      {
+        label: "Ship now",
+        description: "Release the current build.",
+        recommended: true,
+      },
+      {
+        label: "Ship later",
+        description: "Wait one more day.",
+        recommended: false,
+      },
+    ];
+    // Staggered deadlines: q1 expires at 00:05 and q2 at 00:10.
+    const questions = [
+      {
+        questionId: "q1",
+        question: "Ship the first half?",
+        options,
+        expiresAt: "2026-08-30T00:05:00.000Z",
+      },
+      {
+        questionId: "q2",
+        question: "Ship the second half?",
+        options,
+        expiresAt: "2026-08-30T00:10:00.000Z",
+      },
+    ];
+
+    const first = new AppStore(databasePath);
+    first.upsertProject({
+      id: "project-1",
+      name: "Workspace",
+      path: join(directory, "workspace"),
+      createdAt: now,
+      updatedAt: now,
+    });
+    first.createThread({
+      id: "thread-interleaved",
+      projectId: "project-1",
+      title: "Interleaved multi timeouts",
+      mode: "execute",
+      target: "local",
+      status: "waiting-approval",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    first.appendEvent(
+      randomUUID(),
+      "thread-interleaved",
+      "turn-1",
+      {
+        type: "user-input.requested",
+        kind: "multi-question",
+        requestId: "multi-thread-interleaved",
+        nonce: "interleave-nonce-0001",
+        header: "Stagger",
+        questions,
+      },
+      "2026-08-30T00:00:00.000Z",
+    );
+    // q1 reaches its 00:05 deadline: one kind'd timeout resolution.
+    first.appendEvent(
+      randomUUID(),
+      "thread-interleaved",
+      "turn-1",
+      {
+        type: "user-input.resolved",
+        kind: "multi-question",
+        requestId: "multi-thread-interleaved",
+        nonce: "interleave-nonce-0001",
+        questionId: "q1",
+        selectedOptionLabel: "Ship now",
+        source: "timeout",
+      },
+      "2026-08-30T00:05:00.500Z",
+    );
+    // A kind-less timeout at 00:06 must not close q2, whose deadline is
+    // still four minutes away: the reducer only closes questions whose
+    // deadline the event timestamp has reached.
+    first.appendEvent(
+      randomUUID(),
+      "thread-interleaved",
+      "turn-1",
+      {
+        type: "user-input.resolved",
+        requestId: "multi-thread-interleaved",
+        nonce: "interleave-nonce-0001",
+        answer: "",
+        source: "timeout",
+      },
+      "2026-08-30T00:06:00.000Z",
+    );
+    first.close();
+
+    const reopened = new AppStore(databasePath);
+    const recovered = reopened.recoverInterruptedThreads();
+    const events = reopened.getThreadEvents("thread-interleaved");
+    const state = reduceAgentEvents("thread-interleaved", events);
+    reopened.close();
+
+    // Review R2 P1-2: recovery must derive the unresolved set from the
+    // replayed final state. q2 was still pending when the process stopped,
+    // so recovery synthesizes exactly one kind-less cancelled resolution
+    // that closes it instead of leaving it pending forever.
+    expect(
+      recovered.filter((event) => event.payload.type === "user-input.resolved"),
+    ).toHaveLength(1);
+    const closePayload = events.at(-2)?.payload;
+    expect(closePayload).toMatchObject({
+      type: "user-input.resolved",
+      requestId: "multi-thread-interleaved",
+      nonce: "interleave-nonce-0001",
+      answer: "",
+      source: "cancelled",
+    });
+    expect(
+      (closePayload as { kind?: string } | undefined)?.kind,
+    ).toBeUndefined();
+    expect(state.userInputs["multi-thread-interleaved"]).toMatchObject({
+      kind: "multi-question",
+      answers: {
+        q1: { status: "timed-out" },
+        q2: { status: "cancelled" },
+      },
     });
   });
 

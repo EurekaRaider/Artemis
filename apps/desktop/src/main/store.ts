@@ -8,6 +8,7 @@ import {
   automationSchema,
   isLegacyInternalAgentMessage,
   modelSelectionSchema,
+  reduceAgentEvents,
   type AgentEvent,
   type AgentPayload,
   type AppSnapshot,
@@ -18,6 +19,7 @@ import {
   type AutomationRunTrigger,
   type AutomationTarget,
   type ModelSelection,
+  type MultiQuestionUserInputState,
   type Project,
   type RunMode,
   type TaskWorktree,
@@ -179,6 +181,9 @@ export interface EventAppendInput {
   eventId: string;
   turnId?: string;
   payload: AgentPayload;
+  // Optional stamp override for callers that must pin an event to a frozen
+  // deadline (multi-question expiry clamping); defaults to append time.
+  timestamp?: string;
 }
 
 export interface ApprovalGrant {
@@ -2058,9 +2063,15 @@ export class AppStore {
     threadId: string,
     turnId: string | undefined,
     payload: AgentPayload,
+    timestamp?: string,
   ): AgentEvent {
     return this.appendEventsCore(threadId, [
-      { eventId, ...(turnId ? { turnId } : {}), payload },
+      {
+        eventId,
+        ...(turnId ? { turnId } : {}),
+        payload,
+        ...(timestamp ? { timestamp } : {}),
+      },
     ])[0]!;
   }
 
@@ -2112,7 +2123,7 @@ export class AppStore {
     const insert = this.database.prepare(
       "INSERT INTO events (event_id, thread_id, seq, body, created_at) VALUES (?, ?, ?, ?, ?)",
     );
-    const timestamp = new Date().toISOString();
+    const stampedAt = new Date().toISOString();
     return inputs.map((input, index) => {
       const event = agentEventSchema.parse({
         protocolVersion: PROTOCOL_VERSION,
@@ -2120,7 +2131,7 @@ export class AppStore {
         threadId,
         ...(input.turnId ? { turnId: input.turnId } : {}),
         seq: seqRow.next_seq + index,
-        timestamp,
+        timestamp: input.timestamp ?? stampedAt,
         payload: persistentAgentPayload(input.payload),
       });
       insert.run(
@@ -2371,6 +2382,16 @@ export class AppStore {
           string,
           { nonce: string; turnId?: string }
         >();
+        const multiRequestIds = new Set<string>();
+        // No linear settledness fast path on purpose (review round 3, P1):
+        // counting nonce-matching requestId+questionId pairs is strictly
+        // weaker than the reducer's discard rules, which also reject
+        // premature timeouts (resolvedAtMs < expiresAt), user answers
+        // stamped after expiry, non-finite timestamps, and
+        // selectedOptionLabels the question never offered. Settling on the
+        // weaker check would skip the recovery cancel for questions the
+        // reducer keeps pending and strand them as pending forever in the
+        // persisted view, so the replay below is the sole arbiter.
         for (const event of events) {
           if (event.payload.type === "approval.requested") {
             unresolvedApprovals.set(event.payload.approvalId, {
@@ -2384,8 +2405,49 @@ export class AppStore {
               nonce: event.payload.nonce,
               ...(event.turnId ? { turnId: event.turnId } : {}),
             });
-          } else if (event.payload.type === "user-input.resolved") {
+            if (event.payload.kind === "multi-question") {
+              multiRequestIds.add(event.payload.requestId);
+            }
+          } else if (
+            event.payload.type === "user-input.resolved" &&
+            event.payload.kind === undefined &&
+            !multiRequestIds.has(event.payload.requestId)
+          ) {
+            // Kind-less resolutions do not decide multi-question closure
+            // on their own (review R2 P1-2): the reducer translates them
+            // per source — a timeout closes only the questions whose
+            // deadline has passed — so the replayed final state below
+            // decides whether the request is still unresolved.
             unresolvedUserInputs.delete(event.payload.requestId);
+          }
+        }
+        if (multiRequestIds.size > 0) {
+          // Multi-question closure is derived solely from replay (review
+          // R2 P1-2): replay through the same reducer the renderer uses
+          // and let the final per-question state decide — every question
+          // terminal means the card is resolved; any question still
+          // pending (for example after a kind-less timeout that only
+          // closed the questions whose deadline had passed, or after a
+          // kind'd resolution the reducer discarded on its time or option
+          // gates) keeps the request unresolved so the recovery cancel
+          // below closes it. This replay is the sole settledness arbiter
+          // (review round 3, P1): it runs for every thread that still has
+          // a multi request under the linear scan above.
+          const viewState = reduceAgentEvents(row.id, events, row.mode);
+          for (const requestId of multiRequestIds) {
+            // The kind check remains the runtime guard; the cast only gives
+            // the per-question answers their protocol type.
+            const input = viewState.userInputs[requestId] as
+              MultiQuestionUserInputState | undefined;
+            const everyQuestionTerminal =
+              input?.kind === "multi-question" &&
+              Object.values(input.answers).every(
+                (answer) => answer.status !== "pending",
+              );
+            if (!everyQuestionTerminal) {
+              continue;
+            }
+            unresolvedUserInputs.delete(requestId);
           }
         }
         for (const [requestId, input] of unresolvedUserInputs) {

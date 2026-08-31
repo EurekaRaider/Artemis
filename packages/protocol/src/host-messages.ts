@@ -288,6 +288,25 @@ export type BrokerExecutionRequest =
       mode: RunMode;
     }
   | {
+      // Multi-question variant (D#76): one request carrying 1-3 questions,
+      // each with its own options snapshot and stable question id. Field
+      // names follow the frozen multi-question payload contract
+      // (questionId/question/options); the main process mints the request
+      // nonce and per-question expiry when assembling the protocol payload.
+      kind: "user.input";
+      approvalId: string;
+      threadId: string;
+      turnId: string;
+      workspacePath: string;
+      header: string;
+      questions: Array<{
+        questionId: string;
+        question: string;
+        options: UserInputOption[];
+      }>;
+      mode: RunMode;
+    }
+  | {
       kind: "shell.execute";
       approvalId: string;
       threadId: string;
