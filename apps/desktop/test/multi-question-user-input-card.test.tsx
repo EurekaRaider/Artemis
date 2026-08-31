@@ -518,3 +518,163 @@ describe("multi-question card long copy and layout", () => {
     expect(tabs()[0]).toHaveAttribute("aria-label", `第 1 题 ${longQuestion}`);
   });
 });
+
+describe("multi-question card auto-advance focus (PR10C #125 review fix)", () => {
+  it("moves focus to the next pending question's recommended option after the current question closes", async () => {
+    const user = userEvent.setup();
+    const onResolve = vi.fn();
+    const { view } = renderCard({ onResolve });
+    await user.click(
+      within(currentPanel()).getByRole("option", { name: /预发布/ }),
+    );
+    expect(onResolve).toHaveBeenCalledTimes(1);
+
+    // The parent reducer pushes the recorded answer back down; the card
+    // auto-advances to q2.
+    view.rerender(
+      <MultiQuestionUserInputCard
+        active
+        input={buildInput({
+          answers: {
+            q1: {
+              status: "answered",
+              answer: "预发布",
+              selectedOptionLabel: "预发布",
+            },
+            q2: { status: "pending" },
+            q3: { status: "pending" },
+          },
+        })}
+        locale="zh-CN"
+        onResolve={onResolve}
+      />,
+    );
+
+    // Focus must land on q2's recommended option — not on <body> after the
+    // answered slide turns inert (the pre-fix rAF cancelled itself).
+    expect(screen.getByText("第 2/3 题")).toBeInTheDocument();
+    expect(allPanels()[0]).toHaveAttribute("inert");
+    const options = within(currentPanel()).getAllByRole("option");
+    expect(options[0]).toHaveTextContent("跑全量回归");
+    expect(options[0]).toHaveFocus();
+  });
+
+  it("stays put without crashing when the closing question was the last pending one", async () => {
+    const user = userEvent.setup();
+    const onResolve = vi.fn();
+    const { view } = renderCard({
+      input: buildInput({
+        answers: {
+          q1: { status: "pending" },
+          q2: {
+            status: "answered",
+            answer: "跑全量回归",
+            selectedOptionLabel: "跑全量回归",
+          },
+          q3: {
+            status: "answered",
+            answer: "应用内通知",
+            selectedOptionLabel: "应用内通知",
+          },
+        },
+      }),
+      onResolve,
+    });
+    // Only q1 is pending; the card opens on it as the first pending question.
+    expect(screen.getByText("第 1/3 题")).toBeInTheDocument();
+    await user.click(
+      within(currentPanel()).getByRole("option", { name: /预发布/ }),
+    );
+    expect(onResolve).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      <MultiQuestionUserInputCard
+        active
+        input={buildInput({
+          answers: {
+            q1: {
+              status: "answered",
+              answer: "预发布",
+              selectedOptionLabel: "预发布",
+            },
+            q2: {
+              status: "answered",
+              answer: "跑全量回归",
+              selectedOptionLabel: "跑全量回归",
+            },
+            q3: {
+              status: "answered",
+              answer: "应用内通知",
+              selectedOptionLabel: "应用内通知",
+            },
+          },
+        })}
+        locale="zh-CN"
+        onResolve={onResolve}
+      />,
+    );
+
+    // No pending question remains: the effect must not advance, focus, or
+    // crash; the just-answered slide shows its read-only result strip.
+    expect(screen.getByText("第 1/3 题")).toBeInTheDocument();
+    expect(screen.getByText("已答 3/3")).toBeInTheDocument();
+    const panel = currentPanel();
+    expect(within(panel).queryAllByRole("option")).toHaveLength(0);
+    expect(within(panel).getByText("已选择")).toBeInTheDocument();
+    expect(within(panel).getByText("预发布")).toBeInTheDocument();
+  });
+});
+
+describe("multi-question card other-form roving tab stop (PR10C #125 review fix)", () => {
+  it("pins the roving stop on the last real option while the other form is open so Tab/Shift+Tab keep the list reachable", async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(
+      within(currentPanel()).getByRole("option", { name: /其他…/ }),
+    );
+    const draftInput = screen.getByRole("textbox", { name: "输入其他答案" });
+    expect(draftInput).toHaveFocus();
+
+    // The "其他…" button is unmounted while the form is open; without a
+    // pinned stop every real option would carry tabIndex=-1 and the listbox
+    // would fall out of the tab order entirely.
+    const options = within(currentPanel()).getAllByRole("option");
+    expect(options).toHaveLength(2);
+    const tabbable = options.filter(
+      (option) => option.getAttribute("tabindex") === "0",
+    );
+    expect(tabbable).toHaveLength(1);
+    expect(tabbable[0]).toBe(options[options.length - 1]);
+
+    // Shift+Tab from the draft input reaches the listbox again, and Tab
+    // returns to the input — the list is no longer skipped.
+    await user.tab({ shift: true });
+    expect(options[options.length - 1]).toHaveFocus();
+    await user.tab();
+    expect(draftInput).toHaveFocus();
+  });
+
+  it("restores the original roving semantics after Escape closes the other form", async () => {
+    const user = userEvent.setup();
+    renderCard();
+    await user.click(
+      within(currentPanel()).getByRole("option", { name: /其他…/ }),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "输入其他答案" }),
+    ).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+
+    // The "其他…" button remounts and the roving stop returns to it
+    // (activeOptionIndex was left pointing at otherOptionIndex).
+    const restored = within(currentPanel()).getAllByRole("option");
+    expect(restored).toHaveLength(3);
+    expect(restored[0]).toHaveAttribute("tabindex", "-1");
+    expect(restored[1]).toHaveAttribute("tabindex", "-1");
+    expect(
+      within(currentPanel()).getByRole("option", { name: /其他…/ }),
+    ).toHaveAttribute("tabindex", "0");
+  });
+});

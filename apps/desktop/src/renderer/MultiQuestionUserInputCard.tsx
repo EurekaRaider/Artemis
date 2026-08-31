@@ -189,6 +189,19 @@ function QuestionSlide({
   const [showOther, setShowOther] = useState(false);
   const [draft, setDraft] = useState("");
   const closed = (answer?.status ?? "pending") !== "pending";
+  // While the inline "other" form is open the "other" button is unmounted but
+  // activeOptionIndex still points at otherOptionIndex, which would give every
+  // real option tabIndex=-1 and drop the whole listbox from the tab order
+  // (Tab skips it; Shift+Tab from the draft input cannot reach it). Pin the
+  // roving stop on the last real option — the unmounted button's DOM neighbor
+  // — until the form closes. Once the user focuses or hovers a real option,
+  // activeOptionIndex moves there and the stop follows it as usual; closing
+  // the form remounts the "other" button with activeOptionIndex untouched,
+  // restoring the original roving semantics.
+  const rovingOptionIndex =
+    showOther && activeOptionIndex === otherOptionIndex && otherOptionIndex > 0
+      ? otherOptionIndex - 1
+      : activeOptionIndex;
 
   const closeOther = () => {
     setShowOther(false);
@@ -260,7 +273,7 @@ function QuestionSlide({
                   registerOptionButton(question.questionId, index, button);
                 }}
                 role="option"
-                tabIndex={activeOptionIndex === index ? 0 : -1}
+                tabIndex={rovingOptionIndex === index ? 0 : -1}
                 title={option.label}
                 type="button"
               >
@@ -436,6 +449,7 @@ export function MultiQuestionUserInputCard({
     {},
   );
   const previousAnswers = useRef(input.answers);
+  const pendingAdvanceFocus = useRef<number | null>(null);
   const reactId = useId();
   const currentQuestion = input.questions[activeQuestionIndex];
   const answeredCount = input.questions.filter(
@@ -499,12 +513,28 @@ export function MultiQuestionUserInputCard({
         "pending",
     );
     if (nextIndex < 0) return;
+    // The focus must wait for the commit that activates the next slide (its
+    // inert attribute is removed only there). A rAF scheduled here would be
+    // cancelled by this effect's own cleanup: setActiveQuestionIndex below
+    // re-runs the effect (activeQuestionIndex is a dependency) and React
+    // invokes the previous cleanup first, so the frame never fires and focus
+    // falls to <body>. Consume a one-shot flag from the layout effect below
+    // instead — synchronous post-commit focus, matching the card-activation
+    // effect above.
+    pendingAdvanceFocus.current = nextIndex;
     setActiveQuestionIndex(nextIndex);
-    const frame = window.requestAnimationFrame(() =>
-      focusRecommendedOption(nextIndex),
-    );
-    return () => window.cancelAnimationFrame(frame);
   }, [input.answers, input.questions, input.status, activeQuestionIndex]);
+
+  useLayoutEffect(() => {
+    const target = pendingAdvanceFocus.current;
+    if (target === null) return;
+    pendingAdvanceFocus.current = null;
+    if (!active || input.status !== "pending") return;
+    // The user navigated elsewhere in the same batch; do not yank focus back.
+    if (target !== activeQuestionIndex) return;
+    focusRecommendedOption(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, activeQuestionIndex, input.status]);
 
   if (input.status === "pending" && !active) return null;
 
