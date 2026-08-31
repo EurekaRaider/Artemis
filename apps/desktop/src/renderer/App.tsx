@@ -63,6 +63,10 @@ import { I18N_RESOURCES, localizedCopy } from "../shared/i18n-resources.js";
 import artemisIcon from "../../build/icon.png";
 import { ArchivePage } from "./ArchivePage.js";
 import {
+  isMultiQuestionUserInput,
+  MultiQuestionUserInputCard,
+} from "./MultiQuestionUserInputCard.js";
+import {
   indexAgentTeamTree,
   visibleAgentTeamMembers,
 } from "./agent-team-tree.js";
@@ -10156,6 +10160,17 @@ function Timeline({
     if (kind === "input") {
       const input = state.userInputs[id];
       if (!input) return null;
+      if (isMultiQuestionUserInput(input)) {
+        return (
+          <MultiQuestionUserInputCard
+            active={input.status === "pending"}
+            input={input}
+            key={entry}
+            locale={locale}
+            onResolve={onResolveUserInput}
+          />
+        );
+      }
       return (
         <UserInputCard
           active={input.status === "pending"}
