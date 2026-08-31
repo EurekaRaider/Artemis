@@ -1057,6 +1057,10 @@ bounded subteam and must integrate it before completing.
   likewise never replays an active prompt without a provider resume cursor.
 - Every persisted UI event uses a versioned envelope and an idempotent reducer.
 - The Renderer never imports Electron main-process or Node APIs.
+- The UI foundation is split across `@artemis/theme-contract`, `@artemis/ui`
+  and `@artemis/theme-artemis`. Its private Gallery is excluded from Desktop,
+  and third-party skins are fixed, validated data rather than CSS or JavaScript
+  execution surfaces.
 - Plan and Review writes are denied before an executor runs and do not expose
   Shell, MCP or executable extensions.
 - The platform-native `shell` tool runs with the current desktop user's full
@@ -1087,14 +1091,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.41`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.42`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.41
-git push origin v1.4.41
+git tag v1.4.42
+git push origin v1.4.42
 ```
 
 ### Build and test matrix
@@ -1140,13 +1144,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.41` packaging configuration produces:
+The `1.4.42` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.41.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.41.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.41.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.42.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.42.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.42.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

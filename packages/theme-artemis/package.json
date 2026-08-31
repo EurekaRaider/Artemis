@@ -1,0 +1,35 @@
+{
+  "name": "@artemis/theme-artemis",
+  "version": "1.4.42",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./manifest.json": "./dist/manifest.json",
+    "./tokens.light.json": "./dist/tokens.light.json",
+    "./tokens.dark.json": "./dist/tokens.dark.json",
+    "./tokens.contrast.json": "./dist/tokens.contrast.json",
+    "./integrity.json": "./dist/integrity.json",
+    "./theme.css": "./dist/theme.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "./dist/theme.css"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node ../../scripts/build-ui-package-assets.mjs theme-artemis",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@artemis/theme-contract": "1.4.42"
+  }
+}

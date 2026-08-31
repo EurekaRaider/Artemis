@@ -1,0 +1,22 @@
+:root {
+  color: var(--artemis-color-text-primary);
+  background: var(--artemis-color-canvas);
+  font-family: var(--artemis-typography-body-family);
+  font-size: var(--artemis-typography-body-size);
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  box-sizing: border-box;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--artemis-space-6);
+}
+
+.gallery-eyebrow {
+  color: var(--artemis-color-text-secondary);
+  font-size: var(--artemis-typography-label-size);
+}
