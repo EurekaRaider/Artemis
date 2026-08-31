@@ -69,6 +69,7 @@ import type {
   ThreadGoal,
   ThreadCommand,
   UserInputResolution,
+  UserInputMultiQuestionResolution,
 } from "@artemis/protocol";
 
 import {
@@ -3211,6 +3212,17 @@ function handleUserInputBrokerRequest(
     }
   }, USER_INPUT_TIMEOUT_MILLISECONDS);
   emitPayload(request.threadId, request.turnId, payload);
+}
+
+// IPC dispatch discrimination (D#76 PR10C): the union's single-question
+// member declares the multi-question fields as z.unknown() so its
+// superRefine can observe key presence, which erases the literal
+// discriminant TypeScript needs for automatic narrowing — so the dispatch
+// uses an explicit predicate instead of a bare `kind ===` comparison.
+function isMultiQuestionUserInputResolution(
+  resolution: UserInputResolution,
+): resolution is UserInputMultiQuestionResolution {
+  return resolution.kind === "multi-question";
 }
 
 function completeMultiUserInputQuestion(
@@ -9457,8 +9469,28 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IPC.userInputResolve,
-    (_event, resolution: UserInputResolution) =>
-      completeUserInput(userInputResolutionSchema.parse(resolution), "user"),
+    (_event, resolution: UserInputResolution) => {
+      const parsed = userInputResolutionSchema.parse(resolution);
+      // Fail-closed semantics are unchanged: a malformed resolution of
+      // either form throws in parse and the invoke rejects, and
+      // completeMultiUserInputQuestion re-throws for unknown or
+      // already-answered questions, so duplicate submits stay rejected.
+      if (isMultiQuestionUserInputResolution(parsed)) {
+        completeMultiUserInputQuestion(
+          parsed.requestId,
+          parsed.nonce,
+          parsed.questionId,
+          "user",
+          parsed.customAnswer !== undefined
+            ? { customAnswer: parsed.customAnswer }
+            : parsed.selectedOptionLabel !== undefined
+              ? { selectedOptionLabel: parsed.selectedOptionLabel }
+              : {},
+        );
+        return;
+      }
+      completeUserInput(parsed, "user");
+    },
   );
 
   ipcMain.handle(
