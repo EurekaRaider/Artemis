@@ -62,7 +62,7 @@ const inheritedGalleryAliasConfig = {
 async function fixture(sourcePath, source, manifestOverrides = {}) {
   const root = await mkdtemp(join(tmpdir(), "artemis-ui-boundary-"));
   const manifests = {
-    "package.json": { name: "artemis", version: "1.4.41" },
+    "package.json": { name: "artemis", version: "1.4.42" },
     "packages/theme-contract/package.json": {
       name: "@artemis/theme-contract",
       private: true,
@@ -75,7 +75,7 @@ async function fixture(sourcePath, source, manifestOverrides = {}) {
     "packages/theme-artemis/package.json": {
       name: "@artemis/theme-artemis",
       private: true,
-      dependencies: { "@artemis/theme-contract": "1.4.41" },
+      dependencies: { "@artemis/theme-contract": "1.4.42" },
     },
     "apps/ui-gallery/package.json": {
       name: "@artemis/ui-gallery",
@@ -368,7 +368,7 @@ await runCase(
   undefined,
   false,
   {
-    "package.json": { name: "artemis", version: "1.4.42" },
+    "package.json": { name: "artemis", version: "1.4.43" },
   },
 );
 await runCase(

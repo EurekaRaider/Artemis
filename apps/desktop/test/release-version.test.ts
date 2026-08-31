@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
-const releaseVersion = "1.4.41";
+const releaseVersion = "1.4.42";
 const workspacePaths = [
   "apps/desktop",
   "apps/ui-gallery",
@@ -25,7 +25,7 @@ function json(path: string): Record<string, unknown> {
 }
 
 describe("release version", () => {
-  it("keeps manifests, lockfile, MCP identity, and README at v1.4.41", () => {
+  it("keeps manifests, lockfile, MCP identity, theme, and README at v1.4.42", () => {
     const manifests = [json("package.json")];
     for (const workspacePath of workspacePaths) {
       manifests.push(json(join(workspacePath, "package.json")));
@@ -60,9 +60,18 @@ describe("release version", () => {
       join(root, "apps/desktop/src/main/mcp-client-manager.ts"),
       "utf8",
     );
+    const themeArtemisSource = readFileSync(
+      join(root, "packages/theme-artemis/src/index.ts"),
+      "utf8",
+    );
     const readme = readFileSync(join(root, "README.md"), "utf8");
-    expect(mcp.match(/version: "1\.4\.41"/gu)).toHaveLength(3);
-    expect(readme).toContain("The `1.4.41` packaging configuration produces:");
+    expect(mcp.match(/version: "1\.4\.42"/gu)).toHaveLength(3);
+    expect(
+      themeArtemisSource.match(
+        /ARTEMIS_THEME_VERSION = "([^"]+)" as const;/u,
+      )?.[1],
+    ).toBe(releaseVersion);
+    expect(readme).toContain("The `1.4.42` packaging configuration produces:");
     expect(new Set(readme.match(/\b1\.4\.\d+\b/gu) ?? [])).toEqual(
       new Set([releaseVersion]),
     );

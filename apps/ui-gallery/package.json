@@ -1,6 +1,6 @@
 {
   "name": "@artemis/ui-gallery",
-  "version": "1.4.41",
+  "version": "1.4.42",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,9 +10,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@artemis/theme-artemis": "1.4.41",
-    "@artemis/theme-contract": "1.4.41",
-    "@artemis/ui": "1.4.41",
+    "@artemis/theme-artemis": "1.4.42",
+    "@artemis/theme-contract": "1.4.42",
+    "@artemis/ui": "1.4.42",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
