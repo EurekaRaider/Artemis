@@ -8,9 +8,13 @@ const root = fileURLToPath(new URL("../../../", import.meta.url));
 const releaseVersion = "1.4.41";
 const workspacePaths = [
   "apps/desktop",
+  "apps/ui-gallery",
   "packages/agent-host",
   "packages/platform",
   "packages/protocol",
+  "packages/theme-artemis",
+  "packages/theme-contract",
+  "packages/ui",
 ];
 
 function json(path: string): Record<string, unknown> {

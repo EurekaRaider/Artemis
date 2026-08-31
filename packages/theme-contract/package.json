@@ -1,0 +1,26 @@
+{
+  "name": "@artemis/theme-contract",
+  "version": "1.4.41",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schema/manifest.json": "./dist/schema/manifest.schema.json",
+    "./schema/tokens.json": "./dist/schema/tokens.schema.json",
+    "./schema/integrity.json": "./dist/schema/integrity.schema.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node ../../scripts/build-ui-package-assets.mjs theme-contract",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
