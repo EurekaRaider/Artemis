@@ -1454,6 +1454,20 @@ describe("AppStore", () => {
         q3: { status: "cancelled" },
       },
     });
+    // The synthesized cancel only appends: the original q1 answer stays in
+    // the stream untouched, never rewritten or dropped by recovery.
+    expect(
+      events.filter(
+        (event) =>
+          event.payload.type === "user-input.resolved" &&
+          event.payload.questionId === "q1" &&
+          event.payload.source === "user",
+      ),
+    ).toHaveLength(1);
+    // With the synthesized cancel closing q2/q3, the replayed aggregate has
+    // no pending question left, so the thread settles on the recovery
+    // turn.failed instead of being stuck in waiting-user-input.
+    expect(state.status).toBe("failed");
   });
 
   it("cancels questions still pending after a kind-less timeout closed only the expired ones", async () => {
