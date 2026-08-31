@@ -45,7 +45,9 @@ describe("agent resource overrides", () => {
     expect(prompts?.at(-1)).toContain(
       "call request_user_input instead of printing questions",
     );
-    expect(prompts?.at(-1)).toContain("exactly one question per call");
+    expect(prompts?.at(-1)).toContain(
+      "one focused question or a group of up to three closely related questions per call",
+    );
     expect(prompts?.at(-1)).toContain("after five minutes");
     expect(prompts?.at(-1)).toContain("For tools that require model_approval");
     expect(prompts?.at(-1)).toContain("call update_plan");
