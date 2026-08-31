@@ -11,15 +11,19 @@ import {
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { API } from "typescript/unstable/sync";
 import {
+  NodeFlags,
   SyntaxKind,
   isAssertionExpression,
   isCallExpression,
+  isComputedPropertyName,
   isElementAccessExpression,
   isExportDeclaration,
   isExternalModuleReference,
   isIdentifier,
   isImportDeclaration,
   isImportEqualsDeclaration,
+  isImportSpecifier,
+  isMetaProperty,
   isNoSubstitutionTemplateLiteral,
   isNonNullExpression,
   isObjectBindingPattern,
@@ -153,6 +157,9 @@ function windowRoot(node) {
 
 function bindingPropertyName(element) {
   const property = element.propertyName ?? element.name;
+  if (isComputedPropertyName(property)) {
+    return stringLiteralText(unwrapExpression(property.expression));
+  }
   return isIdentifier(property) ? property.text : stringLiteralText(property);
 }
 
@@ -259,17 +266,24 @@ export function collectTypeScriptReferences(sourceFile) {
 
     if (isPropertyAccessExpression(node)) {
       const root = windowRoot(node.expression);
-      if (root !== undefined && node.name.text === "artemis") {
-        bridgeAccesses.push(`${root}.artemis`);
+      if (
+        root !== undefined &&
+        (node.name.text === "artemis" || NODE_GLOBAL_NAMES.has(node.name.text))
+      ) {
+        bridgeAccesses.push(`${root}.${node.name.text}`);
       }
     } else if (isElementAccessExpression(node)) {
       const root = windowRoot(node.expression);
+      const property =
+        node.argumentExpression === undefined
+          ? undefined
+          : stringLiteralText(unwrapExpression(node.argumentExpression));
       if (
         root !== undefined &&
-        node.argumentExpression !== undefined &&
-        stringLiteralText(node.argumentExpression) === "artemis"
+        property !== undefined &&
+        (property === "artemis" || NODE_GLOBAL_NAMES.has(property))
       ) {
-        bridgeAccesses.push(`${root}["artemis"]`);
+        bridgeAccesses.push(`${root}[${JSON.stringify(property)}]`);
       }
     } else if (
       isVariableDeclaration(node) &&
@@ -436,43 +450,210 @@ function pathPatternCapture(pattern, specifier) {
 async function pathsAliasTargetsGallery(project, specifier, galleryRoot) {
   const { baseUrl, paths, pathsBasePath } = project.compilerOptions;
   if (paths === undefined || typeof paths !== "object") return false;
-  const bases = [
-    pathsBasePath,
-    baseUrl,
-    dirname(project.configFileName),
-  ].filter(
-    (base, index, all) =>
-      typeof base === "string" && all.indexOf(base) === index,
-  );
+  const base =
+    typeof pathsBasePath === "string"
+      ? pathsBasePath
+      : typeof baseUrl === "string"
+        ? baseUrl
+        : dirname(project.configFileName);
   for (const [pattern, substitutions] of Object.entries(paths)) {
     const capture = pathPatternCapture(pattern, specifier);
     if (capture === undefined || !Array.isArray(substitutions)) continue;
     for (const substitution of substitutions) {
       if (typeof substitution !== "string") continue;
       const expanded = substitution.replace("*", capture);
-      const targets = isAbsolute(expanded)
-        ? [expanded]
-        : bases.map((base) => resolve(base, expanded));
-      for (const target of targets) {
-        if (
-          pathInside(target, galleryRoot) ||
-          (await realPathInside(target, galleryRoot))
-        ) {
-          return true;
-        }
+      const target = isAbsolute(expanded) ? expanded : resolve(base, expanded);
+      if (
+        pathInside(target, galleryRoot) ||
+        (await realPathInside(target, galleryRoot))
+      ) {
+        return true;
       }
     }
   }
   return false;
 }
 
-function trustedDesktopComputedImport(root, file, facts, computedImport) {
+function uniqueConstVariableDeclaration(project, file, identifier) {
+  if (!isIdentifier(identifier)) return undefined;
+  const symbol = project.checker.getSymbolAtLocation(identifier);
+  if (symbol?.declarations.length !== 1) return undefined;
+  const handle = symbol.declarations[0];
+  if (resolve(handle.path).toLowerCase() !== resolve(file).toLowerCase()) {
+    return undefined;
+  }
+  const declaration = handle.resolve(project);
+  if (
+    declaration === undefined ||
+    !isVariableDeclaration(declaration) ||
+    (declaration.parent.flags & NodeFlags.Const) === 0
+  ) {
+    return undefined;
+  }
+  return declaration;
+}
+
+function importDeclarationFor(node) {
+  let current = node;
+  while (current !== undefined && !isImportDeclaration(current)) {
+    current = current.parent;
+  }
+  return current;
+}
+
+function identifierIsNamedImport(
+  project,
+  identifier,
+  importedName,
+  moduleName,
+) {
+  if (!isIdentifier(identifier)) return false;
+  const symbol = project.checker.getSymbolAtLocation(identifier);
+  if (symbol?.declarations.length !== 1) return false;
+  const declaration = symbol.declarations[0].resolve(project);
+  if (declaration === undefined || !isImportSpecifier(declaration))
+    return false;
+  const imported = declaration.propertyName?.text ?? declaration.name.text;
+  const importDeclaration = importDeclarationFor(declaration);
   return (
-    relative(root, file) === TRUSTED_DESKTOP_COMPUTED_IMPORT &&
-    facts.computedDynamicImports.length === 1 &&
-    computedImport.argument !== undefined &&
-    isIdentifier(computedImport.argument) &&
-    computedImport.argument.text === "loaderUrl"
+    imported === importedName &&
+    importDeclaration !== undefined &&
+    stringLiteralText(importDeclaration.moduleSpecifier) === moduleName
+  );
+}
+
+function importedCall(node, project, importedName, moduleName) {
+  const expression = unwrapExpression(node);
+  if (
+    !isCallExpression(expression) ||
+    !identifierIsNamedImport(
+      project,
+      unwrapExpression(expression.expression),
+      importedName,
+      moduleName,
+    )
+  ) {
+    return undefined;
+  }
+  return expression;
+}
+
+function identifierDeclares(project, file, identifier, declaration) {
+  return (
+    uniqueConstVariableDeclaration(project, file, identifier)?.id ===
+    declaration.id
+  );
+}
+
+function isImportMetaResolveCall(node) {
+  const call = unwrapExpression(node);
+  if (!isCallExpression(call)) return undefined;
+  const expression = unwrapExpression(call.expression);
+  if (
+    !isPropertyAccessExpression(expression) ||
+    expression.name.text !== "resolve"
+  ) {
+    return undefined;
+  }
+  const target = unwrapExpression(expression.expression);
+  return isMetaProperty(target) &&
+    target.keywordToken === SyntaxKind.ImportKeyword &&
+    target.name.text === "meta"
+    ? call
+    : undefined;
+}
+
+function trustedDesktopComputedImport(
+  root,
+  file,
+  facts,
+  project,
+  computedImport,
+) {
+  if (
+    relative(root, file) !== TRUSTED_DESKTOP_COMPUTED_IMPORT ||
+    facts.computedDynamicImports.length !== 1 ||
+    computedImport.argument === undefined
+  ) {
+    return false;
+  }
+  const loaderDeclaration = uniqueConstVariableDeclaration(
+    project,
+    file,
+    computedImport.argument,
+  );
+  const loaderInitializer =
+    loaderDeclaration?.initializer === undefined
+      ? undefined
+      : unwrapExpression(loaderDeclaration.initializer);
+  if (
+    loaderInitializer === undefined ||
+    !isPropertyAccessExpression(loaderInitializer) ||
+    loaderInitializer.name.text !== "href"
+  ) {
+    return false;
+  }
+  const pathToFileUrlCall = importedCall(
+    loaderInitializer.expression,
+    project,
+    "pathToFileURL",
+    "node:url",
+  );
+  const resolveCall =
+    pathToFileUrlCall?.arguments.length === 1
+      ? importedCall(
+          pathToFileUrlCall.arguments[0],
+          project,
+          "resolve",
+          "node:path",
+        )
+      : undefined;
+  if (
+    resolveCall?.arguments.length !== 4 ||
+    stringLiteralText(resolveCall.arguments[1]) !== "core" ||
+    stringLiteralText(resolveCall.arguments[2]) !== "extensions" ||
+    stringLiteralText(resolveCall.arguments[3]) !== "loader.js"
+  ) {
+    return false;
+  }
+  const dirnameCall = importedCall(
+    resolveCall.arguments[0],
+    project,
+    "dirname",
+    "node:path",
+  );
+  if (dirnameCall?.arguments.length !== 1) return false;
+  const piDeclaration = uniqueConstVariableDeclaration(
+    project,
+    file,
+    dirnameCall.arguments[0],
+  );
+  if (
+    piDeclaration === undefined ||
+    !identifierDeclares(
+      project,
+      file,
+      dirnameCall.arguments[0],
+      piDeclaration,
+    ) ||
+    piDeclaration.initializer === undefined
+  ) {
+    return false;
+  }
+  const fileUrlToPathCall = importedCall(
+    piDeclaration.initializer,
+    project,
+    "fileURLToPath",
+    "node:url",
+  );
+  const importMetaResolveCall =
+    fileUrlToPathCall?.arguments.length === 1
+      ? isImportMetaResolveCall(fileUrlToPathCall.arguments[0])
+      : undefined;
+  return (
+    importMetaResolveCall?.arguments.length === 1 &&
+    stringLiteralText(importMetaResolveCall.arguments[0]) ===
+      "@earendil-works/pi-coding-agent"
   );
 }
 
@@ -517,7 +698,9 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
     }
   }
   for (const computedImport of facts.computedDynamicImports) {
-    if (!trustedDesktopComputedImport(root, file, facts, computedImport)) {
+    if (
+      !trustedDesktopComputedImport(root, file, facts, project, computedImport)
+    ) {
       violations.push(
         `${relative(root, file)}: Desktop computed dynamic import is forbidden`,
       );

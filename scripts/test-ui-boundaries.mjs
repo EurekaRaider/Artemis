@@ -28,6 +28,36 @@ const galleryAliasConfig = {
     include: ["src/**/*.ts"],
   },
 };
+const inheritedSafeAliasConfig = {
+  "tsconfig.paths.json": {
+    compilerOptions: {
+      module: "ESNext",
+      moduleResolution: "Bundler",
+      noEmit: true,
+      paths: { "@safe/*": ["./apps/desktop/src/*"] },
+      target: "ES2024",
+    },
+  },
+  "apps/desktop/tsconfig.json": {
+    extends: "../../tsconfig.paths.json",
+    include: ["src/**/*.ts"],
+  },
+};
+const inheritedGalleryAliasConfig = {
+  "tsconfig.paths.json": {
+    compilerOptions: {
+      module: "ESNext",
+      moduleResolution: "Bundler",
+      noEmit: true,
+      paths: { "@gallery/*": ["./apps/ui-gallery/src/*"] },
+      target: "ES2024",
+    },
+  },
+  "apps/desktop/tsconfig.json": {
+    extends: "../../tsconfig.paths.json",
+    include: ["src/**/*.ts"],
+  },
+};
 
 async function fixture(sourcePath, source, manifestOverrides = {}) {
   const root = await mkdtemp(join(tmpdir(), "artemis-ui-boundary-"));
@@ -73,6 +103,7 @@ async function fixture(sourcePath, source, manifestOverrides = {}) {
     "packages/theme-artemis/src/index.ts",
     "apps/ui-gallery/src/index.ts",
     "apps/desktop/src/index.ts",
+    "apps/desktop/src/safe.ts",
   ]) {
     await mkdir(join(root, path, ".."), { recursive: true });
     await writeFile(join(root, path), "export {};\n", "utf8");
@@ -90,9 +121,22 @@ async function runCase(
   source,
   expectedSuccess,
   manifestOverrides,
+  typecheckDesktop = false,
 ) {
   const root = await fixture(sourcePath, source, manifestOverrides);
   try {
+    if (typecheckDesktop) {
+      const typecheck = spawnSync(
+        process.execPath,
+        [typeScriptCompiler, "-p", join(root, "apps/desktop/tsconfig.json")],
+        { encoding: "utf8" },
+      );
+      if (typecheck.status !== 0) {
+        throw new Error(
+          `${name}: expected Desktop fixture typecheck success, exit=${String(typecheck.status)}\n${typecheck.stdout}${typecheck.stderr}`,
+        );
+      }
+    }
     const result = spawnSync(process.execPath, [checker, "--root", root], {
       encoding: "utf8",
     });
@@ -178,6 +222,20 @@ await runCase(
   true,
 );
 await runCase(
+  "safe exact extension loader",
+  "apps/desktop/src/extension/extension-worker.ts",
+  'import { dirname, resolve } from "node:path";\nimport { fileURLToPath, pathToFileURL } from "node:url";\nconst piEntry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));\nconst loaderUrl = pathToFileURL(resolve(dirname(piEntry), "core", "extensions", "loader.js")).href;\nvoid import(loaderUrl);\n',
+  true,
+);
+await runCase(
+  "safe inherited non-Gallery alias",
+  desktopFixtureSource,
+  'import "@safe/safe";\n',
+  true,
+  inheritedSafeAliasConfig,
+  true,
+);
+await runCase(
   "static forbidden import",
   "packages/theme-contract/src/index.ts",
   'export { reducer } from "@artemis/protocol";\n',
@@ -247,6 +305,30 @@ await runCase(
   "renamed bridge destructuring",
   "packages/ui/src/index.ts",
   "const { artemis: bridge } = globalThis.window as any;\nvoid bridge;\n",
+  false,
+);
+await runCase(
+  "computed bridge destructuring",
+  "packages/ui/src/index.ts",
+  'const { ["artemis"]: artemis } = window as any;\nvoid artemis;\n',
+  false,
+);
+await runCase(
+  "renamed computed bridge destructuring",
+  "packages/ui/src/index.ts",
+  "const { [`artemis`]: bridge } = globalThis.window as any;\nvoid bridge;\n",
+  false,
+);
+await runCase(
+  "globalThis process member",
+  "packages/ui/src/index.ts",
+  "void (globalThis as any).process;\n",
+  false,
+);
+await runCase(
+  "globalThis Buffer member",
+  "packages/ui/src/index.ts",
+  'void globalThis["Buffer"];\n',
   false,
 );
 await runCase(
@@ -352,6 +434,20 @@ await runCase(
   'const page = "index";\nvoid import(`../../../ui-gallery/src/${page}.js`);\n',
   false,
 );
+await runCase(
+  "Desktop spoofed trusted loader",
+  "apps/desktop/src/extension/extension-worker.ts",
+  'const loaderUrl = "../../../ui-gallery/src/index.js";\nvoid import(loaderUrl);\n',
+  false,
+);
+await runCase(
+  "Desktop inherited Gallery alias",
+  desktopFixtureSource,
+  'import "@gallery/index";\n',
+  false,
+  inheritedGalleryAliasConfig,
+  true,
+);
 
 await runThemeContractTypeCase(
   "theme-contract ES ambient",
@@ -373,11 +469,11 @@ await runThemeContractTypeCase(
   "process",
 );
 
-if (acceptedCases !== 4 || rejectedCases !== 31) {
+if (acceptedCases !== 6 || rejectedCases !== 37) {
   throw new Error(
     `Unexpected boundary test count: ${acceptedCases} accepted, ${rejectedCases} rejected`,
   );
 }
 console.log(
-  "UI boundary fixture tests passed (4 safe cases; 31/31 violations rejected)",
+  "UI boundary fixture tests passed (6 safe cases; 37/37 violations rejected)",
 );
