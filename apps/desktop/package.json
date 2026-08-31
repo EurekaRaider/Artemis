@@ -29,6 +29,7 @@
     "verify:queued-steer": "npm run build && node scripts/verify-queued-steer.mjs",
     "verify:screenshot-matrix": "npm run build && node scripts/capture-screenshot-matrix.mjs",
     "verify:user-input-transport": "npm run build && node scripts/verify-user-input-transport.mjs",
+    "verify:user-input-multi-ui": "npm run build && node scripts/verify-user-input-multi-ui.mjs",
     "test": "vitest run --no-file-parallelism",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
