@@ -313,16 +313,21 @@ try {
       "user-input-transport",
     );
     const checks = Array.isArray(transport?.checks) ? transport.checks : [];
+    // Exact count (review round 3, nit 10): the driver records exactly 51
+    // named checks and every one is re-asserted by name below, so a loose
+    // lower bound would silently accept a truncated evidence set.
+    const expectedTransportCheckCount = 51;
     assert(
       "transport-checks-all-pass",
-      checks.length >= 30 && checks.every((check) => check.pass === true),
+      checks.length === expectedTransportCheckCount &&
+        checks.every((check) => check.pass === true),
       {
         count: checks.length,
         failing: checks
           .filter((check) => check.pass !== true)
           .map((check) => check.name),
       },
-      { count: ">= 30", failing: [] },
+      { count: expectedTransportCheckCount, failing: [] },
     );
     for (const [group, names] of Object.entries(checkGroups)) {
       for (const name of names) {

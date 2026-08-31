@@ -183,6 +183,28 @@ describe("PendingMultiUserInputRegistry", () => {
     expect(registry.size).toBe(1);
   });
 
+  it("enforces the question-count cap at the registry layer (nit 7)", () => {
+    // Review round 3, nit 7: prepare usually caps the count, but smoke
+    // drivers and future callers can register directly, so the registry's
+    // own invariant must hold without prepare. MAX_USER_INPUT_QUESTIONS is
+    // 3 today; four valid questions must throw before anything is stored.
+    const registry = new PendingMultiUserInputRegistry<{ threadId: string }>();
+    const fourQuestions = ["q1", "q2", "q3", "q4"].map((questionId) => ({
+      questionId,
+      options: questionOptions(`Ship ${questionId}`),
+      expiresAt: "2999-01-01T00:00:00.000Z",
+    }));
+    expect(() =>
+      registry.register({
+        requestId: "multi-cap",
+        nonce: "multi-nonce-000009",
+        questions: fourQuestions,
+        value: { threadId: "thread-cap" },
+      }),
+    ).toThrow(/maximum number of questions/i);
+    expect(registry.size).toBe(0);
+  });
+
   it("consumes one question at a time by question id and nonce", () => {
     const registry = new PendingMultiUserInputRegistry<string>();
     registry.register({
@@ -792,6 +814,23 @@ describe("user.input broker request boundary (review P1-2)", () => {
       ok: false,
       reason:
         "User input requires two or three options and one recommendation.",
+    });
+  });
+
+  it("closes the ownership gate when the requesting thread is missing (severity 1)", () => {
+    // Wiring guard for review round 3, severity 1: main.ts derives this
+    // flag from Boolean(store.getThread(...)) — getThread signals a
+    // missing thread with undefined, never null — so the false branch must
+    // stay reachable and reject before any option or schema validation
+    // runs, exactly like the multi-question validator already does.
+    const result = prepareSingleQuestionUserInputRegistration(
+      singleFields as unknown as UserInputBrokerRequest,
+      { ...activeTurn, threadExists: false },
+      assembly,
+    );
+    expect(result).toEqual({
+      ok: false,
+      reason: "User input requires the active task turn.",
     });
   });
 });

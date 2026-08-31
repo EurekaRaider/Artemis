@@ -196,6 +196,13 @@ export class PendingMultiUserInputRegistry<T> {
     if (input.questions.length === 0) {
       throw new Error("User input requires at least one question.");
     }
+    // The registry enforces its own cap (review round 3, nit 7): callers
+    // normally route through the prepare validator, but smoke drivers and
+    // future callers can register directly, so the invariant must hold
+    // without relying on prepare.
+    if (input.questions.length > MAX_USER_INPUT_QUESTIONS) {
+      throw new Error("User input exceeds the maximum number of questions.");
+    }
     const questionIds = new Set<string>();
     for (const question of input.questions) {
       if (questionIds.has(question.questionId)) {
@@ -247,22 +254,23 @@ export class PendingMultiUserInputRegistry<T> {
     if (!nonceMatches(entry.nonce, resolution.nonce)) {
       throw new Error("User-input nonce does not match.");
     }
-    return this.consumeQuestionFromEntry(entry, resolution);
-  }
-
-  // Shared consumption core: both public consumers look the entry up once
-  // and delegate here, so the recommended fallback does not re-walk the
-  // registry the way the old double lookup did (review nit 9).
-  private consumeQuestionFromEntry(
-    entry: PendingMultiUserInputEntry<T>,
-    resolution: MultiUserInputQuestionResolution,
-  ): ResolvedMultiUserInputQuestion<T> {
     const question = entry.questions.find(
       (candidate) => candidate.questionId === resolution.questionId,
     );
     if (!question) {
       throw new Error("User-input question was not offered.");
     }
+    return this.consumeQuestionFromEntry(entry, question, resolution);
+  }
+
+  // Shared consumption core: both public consumers locate the entry and
+  // the question exactly once and delegate here, so neither path re-walks
+  // the question list (review round 3, nit 8).
+  private consumeQuestionFromEntry(
+    entry: PendingMultiUserInputEntry<T>,
+    question: PendingMultiUserInputEntry<T>["questions"][number],
+    resolution: MultiUserInputQuestionResolution,
+  ): ResolvedMultiUserInputQuestion<T> {
     if (question.answered) {
       throw new Error("User input is no longer pending.");
     }
@@ -371,7 +379,7 @@ export class PendingMultiUserInputRegistry<T> {
     if (!recommended) {
       throw new Error("User input requires exactly one recommended option.");
     }
-    return this.consumeQuestionFromEntry(entry, {
+    return this.consumeQuestionFromEntry(entry, question, {
       requestId,
       nonce,
       questionId,

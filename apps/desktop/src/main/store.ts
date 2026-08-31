@@ -2383,6 +2383,22 @@ export class AppStore {
           { nonce: string; turnId?: string }
         >();
         const multiRequestIds = new Set<string>();
+        // Per-request open-question tracking for the recovery short-circuit
+        // (review round 3, item 5): a multi request settles without replay
+        // only on conclusive evidence the linear scan can see — every
+        // requested question answered by a nonce-matching per-question
+        // resolution, or a nonce-matching kind-less cancelled close. Every
+        // other shape (kind-less timeouts gated on event time, user-source
+        // kind-less drops, nonce mismatches) stays replay-decided below.
+        const multiOpenQuestions = new Map<
+          string,
+          { nonce: string; openQuestionIds: Set<string> }
+        >();
+        const settleMultiRequest = (requestId: string): void => {
+          multiRequestIds.delete(requestId);
+          multiOpenQuestions.delete(requestId);
+          unresolvedUserInputs.delete(requestId);
+        };
         for (const event of events) {
           if (event.payload.type === "approval.requested") {
             unresolvedApprovals.set(event.payload.approvalId, {
@@ -2398,18 +2414,53 @@ export class AppStore {
             });
             if (event.payload.kind === "multi-question") {
               multiRequestIds.add(event.payload.requestId);
+              multiOpenQuestions.set(event.payload.requestId, {
+                nonce: event.payload.nonce,
+                openQuestionIds: new Set(
+                  event.payload.questions.map(
+                    (question) => question.questionId,
+                  ),
+                ),
+              });
             }
           } else if (
             event.payload.type === "user-input.resolved" &&
-            event.payload.kind === undefined &&
-            !multiRequestIds.has(event.payload.requestId)
+            event.payload.kind === "multi-question"
           ) {
-            // Kind-less resolutions do not decide multi-question closure
-            // on their own (review R2 P1-2): the reducer translates them
-            // per source — a timeout closes only the questions whose
-            // deadline has passed — so the replayed final state below
-            // decides whether the request is still unresolved.
-            unresolvedUserInputs.delete(event.payload.requestId);
+            // Fast-path settledness (review round 3, item 5): a
+            // per-question resolution carrying the requested nonce settles
+            // exactly its own question in the reducer too, so counting the
+            // distinct settled question ids decides whole-card closure
+            // here without the replay pass.
+            const open = multiOpenQuestions.get(event.payload.requestId);
+            if (open && open.nonce === event.payload.nonce) {
+              open.openQuestionIds.delete(event.payload.questionId);
+              if (open.openQuestionIds.size === 0) {
+                settleMultiRequest(event.payload.requestId);
+              }
+            }
+          } else if (
+            event.payload.type === "user-input.resolved" &&
+            event.payload.kind === undefined
+          ) {
+            const openMulti = multiOpenQuestions.get(event.payload.requestId);
+            if (
+              openMulti &&
+              event.payload.source === "cancelled" &&
+              openMulti.nonce === event.payload.nonce
+            ) {
+              // A nonce-matching kind-less cancelled resolution is a
+              // whole-card terminal close in the reducer, so it settles the
+              // request without replay.
+              settleMultiRequest(event.payload.requestId);
+            } else if (!multiRequestIds.has(event.payload.requestId)) {
+              // Kind-less resolutions do not decide multi-question closure
+              // on their own (review R2 P1-2): the reducer translates them
+              // per source — a timeout closes only the questions whose
+              // deadline has passed — so the replayed final state below
+              // decides whether the request is still unresolved.
+              unresolvedUserInputs.delete(event.payload.requestId);
+            }
           }
         }
         if (multiRequestIds.size > 0) {
@@ -2420,6 +2471,10 @@ export class AppStore {
           // pending (for example after a kind-less timeout that only
           // closed the questions whose deadline had passed) keeps the
           // request unresolved so the recovery cancel below closes it.
+          // Requests the linear scan settled conclusively were removed
+          // above (review round 3, item 5), so this second full-event
+          // replay runs only for threads whose multi requests are still
+          // open under the conservative scan.
           const viewState = reduceAgentEvents(row.id, events, row.mode);
           for (const requestId of multiRequestIds) {
             // The kind check remains the runtime guard; the cast only gives

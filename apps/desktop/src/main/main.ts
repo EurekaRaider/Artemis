@@ -3124,13 +3124,25 @@ function handleUserInputBrokerRequest(
   const prepared = prepareSingleQuestionUserInputRegistration(
     request,
     {
-      threadExists: thread !== null,
+      // getThread returns undefined — never null — for a missing thread
+      // (store.ts), so the ownership gate keys on Boolean(thread); a
+      // `!== null` comparison is vacuously true and silently disables the
+      // gate (review round 3, severity 1).
+      threadExists: Boolean(thread),
       turnCancelling: cancellingTurns.has(request.threadId),
       turnActive: activeTurns.get(request.threadId) === request.turnId,
       modeMatches: thread?.mode === request.mode,
-      duplicatePending: pendingUserInputs.hasWhere(
-        (pending) => pending.request.approvalId === request.approvalId,
-      ),
+      // Duplicates are refused across both registries (review round 3,
+      // item 3): the same approval id must never sit in the single and the
+      // multi registry at once, or the reducer's fail-closed second request
+      // would leave a ghost pending card no user can ever answer.
+      duplicatePending:
+        pendingUserInputs.hasWhere(
+          (pending) => pending.request.approvalId === request.approvalId,
+        ) ||
+        pendingMultiUserInputs.hasWhere(
+          (pending) => pending.request.approvalId === request.approvalId,
+        ),
     },
     { nonce: randomUUID(), now: Date.now() },
   );
@@ -3144,21 +3156,11 @@ function handleUserInputBrokerRequest(
     (option) => option.recommended,
   );
   // Register before arming the timer (review item 2, single-path closeout):
-  // a rejected registration can never leak an orphan timer, and a duplicate
-  // approval id is answered with one broker reject instead of an unhandled
-  // throw that would strand the worker's tool call.
-  if (
-    pendingUserInputs.hasWhere(
-      (pending) => pending.request.approvalId === request.approvalId,
-    )
-  ) {
-    rejectBrokerRequest(
-      workerRequestId,
-      request,
-      "User input is already pending.",
-    );
-    return;
-  }
+  // a rejected registration can never leak an orphan timer. Duplicates
+  // were already refused by the pure validator above with one broker
+  // reject, so the registry register()'s throw plus the catch below is the
+  // only single-threaded backstop this path needs (review round 3, item 4
+  // removed the unreachable post-prepare duplicate check).
   const pendingValue: PendingUserInput = {
     workerRequestId,
     request,
@@ -3318,13 +3320,23 @@ function handleMultiQuestionUserInputBrokerRequest(
   const prepared = prepareMultiQuestionUserInputRegistration(
     request,
     {
-      threadExists: thread !== null,
+      // Same Boolean(thread) ownership gate as the single-question handler:
+      // getThread signals a missing thread with undefined, not null (review
+      // round 3, severity 1).
+      threadExists: Boolean(thread),
       turnCancelling: cancellingTurns.has(request.threadId),
       turnActive: activeTurns.get(request.threadId) === request.turnId,
       modeMatches: thread?.mode === request.mode,
-      duplicatePending: pendingMultiUserInputs.hasWhere(
-        (pending) => pending.request.approvalId === request.approvalId,
-      ),
+      // Cross-registry duplicate refusal (review round 3, item 3), sharing
+      // the "User input is already pending." reject reason with the
+      // single-question registry.
+      duplicatePending:
+        pendingMultiUserInputs.hasWhere(
+          (pending) => pending.request.approvalId === request.approvalId,
+        ) ||
+        pendingUserInputs.hasWhere(
+          (pending) => pending.request.approvalId === request.approvalId,
+        ),
     },
     { nonce: randomUUID(), now: Date.now() },
   );
@@ -11268,6 +11280,7 @@ let smokeUserInputTransportEvidence:
 
 async function driveSmokeUserInputTransportEvidence(
   window: BrowserWindow,
+  artifacts: { screenshot?: string | undefined },
 ): Promise<void> {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
   if (!smokeMode || view !== "user-input-transport") {
@@ -11561,6 +11574,52 @@ async function driveSmokeUserInputTransportEvidence(
       multiRendered.cardTexts,
       "a translated card showing 'Ship on Friday?'",
     );
+
+    // PR10B review round 3 (nit 6): capture the scenario screenshot now,
+    // while both the legacy and the translated card are pending, so the
+    // PNG carries visual evidence. A presented compositor frame armed
+    // before a double rAF confirms the cards reached the screen before
+    // capturePage — the same frame-gating the input-fields driver uses.
+    // No new named check: the audit keeps exactly 51 recorded checks.
+    if (artifacts.screenshot) {
+      const frameArrival = new Promise<boolean>((resolve) => {
+        let settled = false;
+        const finish = (presented: boolean) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          try {
+            window.webContents.endFrameSubscription();
+          } catch {
+            // Subscription API unavailable: the double rAF below already
+            // forces one frame.
+          }
+          resolve(presented);
+        };
+        const timeout = setTimeout(() => finish(false), 1_500);
+        try {
+          window.webContents.beginFrameSubscription(() => finish(true));
+        } catch {
+          finish(false);
+        }
+      });
+      await window.webContents.executeJavaScript(
+        `new Promise((resolve) => {
+           let second = 0;
+           const first = requestAnimationFrame(() => {
+             second = requestAnimationFrame(() => resolve(true));
+           });
+           setTimeout(() => {
+             cancelAnimationFrame(first);
+             cancelAnimationFrame(second);
+             resolve(false);
+           }, 1_500);
+         })`,
+      );
+      await frameArrival;
+      const image = await window.webContents.capturePage();
+      await writeFile(artifacts.screenshot, image.toPNG());
+    }
 
     // §6-2 no-auto-answer: no user action and no timeout expiry yet.
     await wait(1_200);
@@ -14079,7 +14138,14 @@ function createMainWindow(): BrowserWindow {
           if (smokeMode && process.env.ARTEMIS_SMOKE_VIEW === "card-heatmap") {
             await new Promise((resolve) => setTimeout(resolve, 1_000));
           }
-          if (smokeScreenshot) {
+          // PR10B review round 3 (nit 6): the user-input-transport PNG is
+          // captured inside its evidence driver after the broker
+          // injections, so the screenshot shows the rendered input cards
+          // instead of an empty thread.
+          if (
+            smokeScreenshot &&
+            requestedSmokeView !== "user-input-transport"
+          ) {
             const image = await window.webContents.capturePage();
             await writeFile(smokeScreenshot, image.toPNG());
           }
@@ -14100,7 +14166,9 @@ function createMainWindow(): BrowserWindow {
           // requests through the real main-process handlers and asserts the
           // transport contract end to end before the audit snapshot.
           if (smokeMode && requestedSmokeView === "user-input-transport") {
-            await driveSmokeUserInputTransportEvidence(window);
+            await driveSmokeUserInputTransportEvidence(window, {
+              screenshot: smokeScreenshot,
+            });
           }
           if (smokeAccessibility) {
             const result = (await window.webContents.executeJavaScript(`
