@@ -1,4 +1,8 @@
-import type { AgentEvent } from "@artemis/protocol";
+import {
+  reduceAgentEvents,
+  type AgentEvent,
+  type ThreadViewState,
+} from "@artemis/protocol";
 
 export type RunPresentationStatus =
   | "idle"
@@ -13,40 +17,10 @@ export interface RunPresentation {
   elapsedMs: number;
 }
 
-type UserInputRequestedEventPayload = Extract<
-  AgentEvent["payload"],
-  { type: "user-input.requested" }
->;
-
-// Question IDs of a multi-question request, or undefined for a
-// single-question request. Kind-less requests carrying a questions array are
-// duck-typed like the reducer's isMultiQuestionInput so legacy multi cards
-// aggregate per question as well.
-function multiQuestionRequestedIds(
-  payload: UserInputRequestedEventPayload,
-): string[] | undefined {
-  if (payload.kind === "multi-question") {
-    return payload.questions.map((question) => question.questionId);
-  }
-  if (Array.isArray(payload.questions)) {
-    const questionIds = payload.questions
-      .map((question) => question?.questionId)
-      .filter(
-        (questionId): questionId is string => typeof questionId === "string",
-      );
-    // An empty surviving set is not a multi-question card: with no trackable
-    // question IDs, registering an empty aggregate would let any kind'd
-    // resolution settle the whole card (size 0 === settled). Normalize to
-    // undefined so the request falls back to single-question close
-    // semantics.
-    return questionIds.length === 0 ? undefined : questionIds;
-  }
-  return undefined;
-}
-
 export function deriveRunPresentation(
   events: readonly AgentEvent[],
   nowMs: number,
+  reducedStatus?: ThreadViewState["status"],
 ): RunPresentation {
   const startIndex = events.findLastIndex(
     (event) => event.payload.type === "turn.started",
@@ -57,83 +31,42 @@ export function deriveRunPresentation(
   }
 
   const startedAt = Date.parse(started.timestamp);
-  let status: RunPresentationStatus = "running";
+  let terminalStatus: "completed" | "failed" | undefined;
   let endedAt: number | undefined;
-  const pendingApprovals = new Set<string>();
-  const pendingUserInputs = new Set<string>();
-  // Multi-question cards aggregate per question (D#76 PR10C obligation 2):
-  // the card keeps the turn on waiting-user-input until every question has
-  // its own resolution, mirroring the reducer's pendingInteractionStatus.
-  const pendingQuestionsByRequest = new Map<string, Set<string>>();
-
-  const waitingStatus = (): RunPresentationStatus =>
-    pendingUserInputs.size > 0
-      ? "waiting-user-input"
-      : pendingApprovals.size > 0
-        ? "waiting-approval"
-        : "running";
 
   for (let index = startIndex + 1; index < events.length; index += 1) {
     const event = events[index]!;
     if (event.turnId !== started.turnId) continue;
 
     switch (event.payload.type) {
-      case "approval.requested":
-        pendingApprovals.add(event.payload.approvalId);
-        status = waitingStatus();
-        break;
-      case "approval.resolved":
-        pendingApprovals.delete(event.payload.approvalId);
-        status = waitingStatus();
-        break;
-      case "user-input.requested": {
-        const questionIds = multiQuestionRequestedIds(event.payload);
-        if (questionIds) {
-          pendingQuestionsByRequest.set(
-            event.payload.requestId,
-            new Set(questionIds),
-          );
-        }
-        pendingUserInputs.add(event.payload.requestId);
-        status = waitingStatus();
-        break;
-      }
-      case "user-input.resolved": {
-        const pendingQuestions = pendingQuestionsByRequest.get(
-          event.payload.requestId,
-        );
-        if (pendingQuestions) {
-          if (event.payload.kind === "multi-question") {
-            // A per-question resolution settles only the named question;
-            // unanswered siblings keep the card (and the waiting status).
-            pendingQuestions.delete(event.payload.questionId);
-            if (pendingQuestions.size === 0) {
-              pendingQuestionsByRequest.delete(event.payload.requestId);
-              pendingUserInputs.delete(event.payload.requestId);
-            }
-          } else {
-            // A kind-less resolution (crash restore, turn cancellation, host
-            // exit) closes the whole card, mirroring the reducer's
-            // applyLegacyMultiQuestionClose translation.
-            pendingQuestionsByRequest.delete(event.payload.requestId);
-            pendingUserInputs.delete(event.payload.requestId);
-          }
-        } else {
-          pendingUserInputs.delete(event.payload.requestId);
-        }
-        status = waitingStatus();
-        break;
-      }
       case "turn.completed":
-        status = "completed";
+        terminalStatus = "completed";
         endedAt = Date.parse(event.timestamp);
         break;
       case "turn.failed":
-        status = "failed";
+        terminalStatus = "failed";
         endedAt = Date.parse(event.timestamp);
         break;
     }
   }
+
+  // The protocol reducer is the single source of truth for pending
+  // interactions. In particular, it binds nonces, validates resolution
+  // sources, applies per-question deadlines, and fails closed on malformed or
+  // stale resolutions. App passes its cached reduced status; isolated callers
+  // (including tests) reduce the current turn here instead of duplicating that
+  // state machine in the renderer.
+  const currentTurnStatus =
+    reducedStatus ??
+    reduceAgentEvents(
+      started.threadId,
+      events
+        .slice(startIndex)
+        .filter((event) => event.turnId === started.turnId),
+    ).status;
+  const status: RunPresentationStatus =
+    terminalStatus ??
+    (currentTurnStatus === "idle" ? "running" : currentTurnStatus);
 
   return {
     status,

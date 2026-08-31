@@ -205,6 +205,11 @@ function QuestionSlide({
 
   const closeOther = () => {
     setShowOther(false);
+    window.requestAnimationFrame(() => {
+      slideOptionButtons.current[otherOptionIndex]?.focus({
+        preventScroll: true,
+      });
+    });
   };
 
   const handleOptionKeyDown = (

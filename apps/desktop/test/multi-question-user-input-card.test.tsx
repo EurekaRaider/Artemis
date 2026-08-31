@@ -10,7 +10,13 @@
 //
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type {
   MultiQuestionUserInputState,
@@ -673,8 +679,10 @@ describe("multi-question card other-form roving tab stop (PR10C #125 review fix)
     expect(restored).toHaveLength(3);
     expect(restored[0]).toHaveAttribute("tabindex", "-1");
     expect(restored[1]).toHaveAttribute("tabindex", "-1");
-    expect(
-      within(currentPanel()).getByRole("option", { name: /其他…/ }),
-    ).toHaveAttribute("tabindex", "0");
+    const otherOption = within(currentPanel()).getByRole("option", {
+      name: /其他…/,
+    });
+    expect(otherOption).toHaveAttribute("tabindex", "0");
+    await waitFor(() => expect(otherOption).toHaveFocus());
   });
 });

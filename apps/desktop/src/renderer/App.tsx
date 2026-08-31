@@ -4131,8 +4131,8 @@ export function App() {
     ],
   );
   const runPresentation = useMemo(
-    () => deriveRunPresentation(activeEvents, clockMs),
-    [activeEvents, clockMs],
+    () => deriveRunPresentation(activeEvents, clockMs, threadState?.status),
+    [activeEvents, clockMs, threadState?.status],
   );
   const taskPlan = useMemo(
     () => deriveTaskPlan(activeEvents, turnActive),

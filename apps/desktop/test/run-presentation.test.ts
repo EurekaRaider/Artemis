@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { PROTOCOL_VERSION, type AgentEvent } from "@artemis/protocol";
+import {
+  PROTOCOL_VERSION,
+  reduceAgentEvents,
+  type AgentEvent,
+} from "@artemis/protocol";
 import {
   deriveRunPresentation,
   formatRunDuration,
@@ -250,6 +254,53 @@ describe("deriveRunPresentation multi-question aggregation (D#76 PR10C obligatio
         Date.parse("2026-08-02T10:00:09.000Z"),
       ),
     ).toMatchObject({ status: "running" });
+  });
+
+  it("keeps the reducer and presentation waiting when a kind-less timeout lands between question deadlines", () => {
+    const questions = [
+      {
+        ...multiQuestion("q1"),
+        expiresAt: "2026-08-02T10:01:00.000Z",
+      },
+      {
+        ...multiQuestion("q2"),
+        expiresAt: "2026-08-02T10:10:00.000Z",
+      },
+    ];
+    const events = [
+      event("1", "turn-1", "2026-08-02T10:00:00.000Z", {
+        type: "turn.started",
+        mode: "execute",
+      }),
+      event("2", "turn-1", "2026-08-02T10:00:01.000Z", {
+        type: "user-input.requested",
+        kind: "multi-question",
+        requestId: "multi-1",
+        nonce: "0123456789abcdef",
+        header: "Scope",
+        questions,
+      }),
+      event("3", "turn-1", "2026-08-02T10:05:00.000Z", {
+        type: "user-input.resolved",
+        requestId: "multi-1",
+        nonce: "0123456789abcdef",
+        answer: "",
+        source: "timeout",
+      }),
+    ];
+
+    const reduced = reduceAgentEvents("thread-1", events);
+    expect(reduced.status).toBe("waiting-user-input");
+    expect(reduced.userInputs["multi-1"]).toMatchObject({
+      status: "pending",
+      answers: {
+        q1: { status: "timed-out" },
+        q2: { status: "pending" },
+      },
+    });
+    expect(
+      deriveRunPresentation(events, Date.parse("2026-08-02T10:05:00.000Z")),
+    ).toMatchObject({ status: "waiting-user-input" });
   });
 
   it("keeps the legacy single-question resolve semantics unchanged", () => {
