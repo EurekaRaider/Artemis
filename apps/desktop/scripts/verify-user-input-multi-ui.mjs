@@ -273,31 +273,6 @@ class Driver {
     }
   }
 
-  async evaluateElementRect(elementExpression) {
-    return this.evaluate(
-      `(() => {
-      const element = ${elementExpression};
-      if (!element) return null;
-      element.scrollIntoView({ block: "center", inline: "center" });
-      return true;
-    })()`,
-    ).then(() =>
-      this.evaluate(`(() => {
-        const element = ${elementExpression};
-        if (!element) return null;
-        const bounds = element.getBoundingClientRect();
-        return {
-          left: bounds.left,
-          right: bounds.right,
-          top: bounds.top,
-          bottom: bounds.bottom,
-          width: bounds.width,
-          height: bounds.height,
-        };
-      })()`),
-    );
-  }
-
   async readBounds(elementExpression) {
     return this.evaluate(`(() => {
       const element = ${elementExpression};
@@ -957,11 +932,14 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     snapshot.legacyCards,
     "legacy card still pending (no final backfill yet)",
   );
+  const q1ResolvedEvents = await driver.storeEvents(
+    multiRequestId,
+    "user-input.resolved",
+  );
   assert(
     "2-no-extra-resolution-events",
-    (await driver.storeEvents(multiRequestId, "user-input.resolved")).length ===
-      1,
-    (await driver.storeEvents(multiRequestId, "user-input.resolved")).length,
+    q1ResolvedEvents.length === 1,
+    q1ResolvedEvents.length,
     1,
   );
   screenshots.push({
@@ -1307,7 +1285,7 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     ),
   });
 
-  // (8) 200% zoom layout pass (light round only).
+  // (8) 200% zoom layout pass (both light and dark rounds of the flow case).
   const zoomEvidence = {
     applied: false,
     presses: 0,
@@ -1712,6 +1690,10 @@ try {
       ARTEMIS_SMOKE_LOCALE: locale,
       ARTEMIS_SMOKE_THEME: theme,
       ARTEMIS_SMOKE_VIEW: view,
+      // PR10C review (severe 1): main.ts arms the multi-question seeding
+      // channel and the view activation only behind this dedicated
+      // sentinel, so a bare ARTEMIS_SMOKE_VIEW match seeds nothing.
+      ARTEMIS_SMOKE_MULTI_UI: "1",
     };
     // Never inherit a live dev server: the smoke must exercise the built
     // production renderer from this checkout, not whatever serves

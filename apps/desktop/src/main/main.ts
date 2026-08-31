@@ -9966,7 +9966,16 @@ function registerSmokeMultiQuestionUiPendingInput(input: {
 
 async function seedSmokeMultiQuestionUiFixture(): Promise<void> {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
-  if (!store || !view?.startsWith("multi-question-ui")) return;
+  // PR10C review (severe 1): dedicated sentinel gate mirroring the
+  // ARTEMIS_SMOKE_USER_INPUT fixture contract — a bare
+  // ARTEMIS_SMOKE_VIEW=multi-question-ui* must never seed the store.
+  if (
+    !store ||
+    process.env.ARTEMIS_SMOKE_MULTI_UI !== "1" ||
+    !view?.startsWith("multi-question-ui")
+  ) {
+    return;
+  }
   const fixtureDirectory = join(
     app.getPath("userData"),
     "fixtures",
@@ -13127,7 +13136,17 @@ function createMainWindow(): BrowserWindow {
           920,
         );
       }
-      const requestedSmokeView = process.env.ARTEMIS_SMOKE_VIEW;
+      // PR10C review (severe 1): a multi-question-ui* view activates the
+      // smoke channel only alongside its dedicated ARTEMIS_SMOKE_MULTI_UI
+      // sentinel; without it the view is unknown here and prepares
+      // nothing — the same contract as the ARTEMIS_SMOKE_USER_INPUT gate
+      // below and the seedSmokeMultiQuestionUiFixture guard.
+      const rawSmokeView = process.env.ARTEMIS_SMOKE_VIEW;
+      const requestedSmokeView = rawSmokeView?.startsWith("multi-question-ui")
+        ? process.env.ARTEMIS_SMOKE_MULTI_UI === "1"
+          ? rawSmokeView
+          : undefined
+        : rawSmokeView;
       // The smoke window is shown offscreen via showInactive(), so the
       // renderer document never has OS focus and element.focus() would only
       // move activeElement without firing focus events. Focusing the web
