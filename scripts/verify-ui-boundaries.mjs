@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { API } from "typescript/unstable/sync";
 import {
   SyntaxKind,
-  isAsExpression,
+  isAssertionExpression,
   isCallExpression,
   isElementAccessExpression,
   isExportDeclaration,
@@ -22,10 +22,12 @@ import {
   isImportEqualsDeclaration,
   isNoSubstitutionTemplateLiteral,
   isNonNullExpression,
+  isObjectBindingPattern,
   isParenthesizedExpression,
   isPropertyAccessExpression,
   isSatisfiesExpression,
   isStringLiteral,
+  isVariableDeclaration,
 } from "typescript/unstable/ast";
 
 const defaultRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -44,6 +46,20 @@ const FORBIDDEN_ARTEMIS_PACKAGES = new Set([
   "@artemis/platform",
   "@artemis/protocol",
 ]);
+const NODE_GLOBAL_NAMES = new Set([
+  "Buffer",
+  "__dirname",
+  "__filename",
+  "process",
+]);
+const DOM_GLOBAL_NAMES = new Set([
+  "HTMLElement",
+  "document",
+  "navigator",
+  "window",
+]);
+const TRUSTED_DESKTOP_COMPUTED_IMPORT =
+  "apps/desktop/src/extension/extension-worker.ts";
 
 const AREAS = [
   {
@@ -95,7 +111,7 @@ function unwrapExpression(node) {
   let current = node;
   while (
     isParenthesizedExpression(current) ||
-    isAsExpression(current) ||
+    isAssertionExpression(current) ||
     isNonNullExpression(current) ||
     isSatisfiesExpression(current)
   ) {
@@ -104,18 +120,91 @@ function unwrapExpression(node) {
   return current;
 }
 
-function bridgeRoot(node) {
+function memberName(node) {
+  if (isPropertyAccessExpression(node)) return node.name.text;
+  if (
+    isElementAccessExpression(node) &&
+    node.argumentExpression !== undefined
+  ) {
+    return stringLiteralText(node.argumentExpression);
+  }
+  return undefined;
+}
+
+function windowRoot(node) {
   const root = unwrapExpression(node);
-  return isIdentifier(root) &&
-    (root.text === "window" || root.text === "globalThis")
-    ? root.text
-    : undefined;
+  if (
+    isIdentifier(root) &&
+    (root.text === "window" ||
+      root.text === "globalThis" ||
+      root.text === "self")
+  ) {
+    return root.text;
+  }
+  if (
+    (isPropertyAccessExpression(root) || isElementAccessExpression(root)) &&
+    (memberName(root) === "window" || memberName(root) === "self")
+  ) {
+    const parentRoot = windowRoot(root.expression);
+    if (parentRoot !== undefined) return `${parentRoot}.${memberName(root)}`;
+  }
+  return undefined;
+}
+
+function bindingPropertyName(element) {
+  const property = element.propertyName ?? element.name;
+  return isIdentifier(property) ? property.text : stringLiteralText(property);
+}
+
+function identifierCanReferenceGlobal(node) {
+  const parent = node.parent;
+  return (
+    parent === undefined ||
+    parent.name !== node ||
+    parent.kind === SyntaxKind.ShorthandPropertyAssignment
+  );
+}
+
+function containsCssImportRule(source) {
+  let quote;
+  let comment = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const current = source[index];
+    const next = source[index + 1];
+    if (comment) {
+      if (current === "*" && next === "/") {
+        comment = false;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote !== undefined) {
+      if (current === "\\") index += 1;
+      else if (current === quote) quote = undefined;
+      continue;
+    }
+    if (current === "/" && next === "*") {
+      comment = true;
+      index += 1;
+      continue;
+    }
+    if (current === '"' || current === "'") {
+      quote = current;
+      continue;
+    }
+    if (current === "@") {
+      const identifier = source.slice(index + 1).match(/^[A-Za-z0-9_-]+/u)?.[0];
+      if (identifier?.toLowerCase() === "import") return true;
+    }
+  }
+  return false;
 }
 
 export function collectTypeScriptReferences(sourceFile) {
   const moduleReferences = [];
   const bridgeAccesses = [];
-  let computedDynamicImports = 0;
+  const computedDynamicImports = [];
+  const globalIdentifiers = [];
   let usesRequire = false;
 
   const addReference = (node, kind) => {
@@ -146,7 +235,10 @@ export function collectTypeScriptReferences(sourceFile) {
           node.arguments.length !== 1 ||
           !addReference(node.arguments[0], "dynamic-import")
         ) {
-          computedDynamicImports += 1;
+          computedDynamicImports.push({
+            argument: node.arguments[0],
+            node,
+          });
         }
       } else {
         const expression = unwrapExpression(node.expression);
@@ -166,12 +258,12 @@ export function collectTypeScriptReferences(sourceFile) {
     }
 
     if (isPropertyAccessExpression(node)) {
-      const root = bridgeRoot(node.expression);
+      const root = windowRoot(node.expression);
       if (root !== undefined && node.name.text === "artemis") {
         bridgeAccesses.push(`${root}.artemis`);
       }
     } else if (isElementAccessExpression(node)) {
-      const root = bridgeRoot(node.expression);
+      const root = windowRoot(node.expression);
       if (
         root !== undefined &&
         node.argumentExpression !== undefined &&
@@ -179,6 +271,28 @@ export function collectTypeScriptReferences(sourceFile) {
       ) {
         bridgeAccesses.push(`${root}["artemis"]`);
       }
+    } else if (
+      isVariableDeclaration(node) &&
+      isObjectBindingPattern(node.name) &&
+      node.initializer !== undefined
+    ) {
+      const root = windowRoot(node.initializer);
+      if (
+        root !== undefined &&
+        node.name.elements.some(
+          (element) => bindingPropertyName(element) === "artemis",
+        )
+      ) {
+        bridgeAccesses.push(`${root} destructures artemis`);
+      }
+    }
+
+    if (
+      isIdentifier(node) &&
+      identifierCanReferenceGlobal(node) &&
+      (NODE_GLOBAL_NAMES.has(node.text) || DOM_GLOBAL_NAMES.has(node.text))
+    ) {
+      globalIdentifiers.push({ name: node.text, node });
     }
 
     node.forEachChild(visit);
@@ -187,6 +301,7 @@ export function collectTypeScriptReferences(sourceFile) {
   return {
     bridgeAccesses,
     computedDynamicImports,
+    globalIdentifiers,
     moduleReferences,
     usesRequire,
   };
@@ -220,7 +335,16 @@ function bareImportAllowed(specifier, allowed) {
   );
 }
 
-function inspectSource(area, file, sourceRoot, source, facts) {
+function identifierIsLocal(project, file, identifier) {
+  const symbol = project.checker.getSymbolAtLocation(identifier.node);
+  return symbol?.declarations.some(
+    (declaration) =>
+      resolve(declaration.path).toLowerCase() === resolve(file).toLowerCase(),
+  );
+}
+
+function inspectSource(area, file, sourceRoot, source, analysisResult) {
+  const { facts, project } = analysisResult ?? {};
   const violations = [];
   const add = (message) =>
     violations.push(`${relative(sourceRoot, file)}: ${message}`);
@@ -228,19 +352,18 @@ function inspectSource(area, file, sourceRoot, source, facts) {
   for (const access of facts?.bridgeAccesses ?? []) {
     add(`${access} is forbidden`);
   }
-  if (/\b(?:Buffer|__dirname|__filename|process)\b/u.test(source)) {
-    add("Node globals are forbidden");
+  for (const identifier of facts?.globalIdentifiers ?? []) {
+    if (identifierIsLocal(project, file, identifier)) continue;
+    if (NODE_GLOBAL_NAMES.has(identifier.name))
+      add("Node globals are forbidden");
+    else if (area.pureContract)
+      add("theme-contract must not depend on DOM globals or types");
   }
   if (facts?.usesRequire === true) add("CommonJS require is forbidden");
-  if (/@import\b/u.test(source)) add("CSS @import is forbidden");
-  if (
-    area.pureContract &&
-    /\bHTMLElement\b|\b(?:document|navigator|window)\s*(?:\.|\[)/u.test(source)
-  ) {
-    add("theme-contract must not depend on DOM globals or types");
-  }
+  if (extname(file) === ".css" && containsCssImportRule(source))
+    add("CSS @import is forbidden");
 
-  if ((facts?.computedDynamicImports ?? 0) > 0) {
+  if ((facts?.computedDynamicImports.length ?? 0) > 0) {
     add("computed dynamic import is forbidden");
   }
 
@@ -295,6 +418,64 @@ async function realPathInside(path, directory) {
   }
 }
 
+function pathPatternCapture(pattern, specifier) {
+  const wildcard = pattern.indexOf("*");
+  if (wildcard === -1) return pattern === specifier ? "" : undefined;
+  const prefix = pattern.slice(0, wildcard);
+  const suffix = pattern.slice(wildcard + 1);
+  if (
+    !specifier.startsWith(prefix) ||
+    !specifier.endsWith(suffix) ||
+    specifier.length < prefix.length + suffix.length
+  ) {
+    return undefined;
+  }
+  return specifier.slice(prefix.length, specifier.length - suffix.length);
+}
+
+async function pathsAliasTargetsGallery(project, specifier, galleryRoot) {
+  const { baseUrl, paths, pathsBasePath } = project.compilerOptions;
+  if (paths === undefined || typeof paths !== "object") return false;
+  const bases = [
+    pathsBasePath,
+    baseUrl,
+    dirname(project.configFileName),
+  ].filter(
+    (base, index, all) =>
+      typeof base === "string" && all.indexOf(base) === index,
+  );
+  for (const [pattern, substitutions] of Object.entries(paths)) {
+    const capture = pathPatternCapture(pattern, specifier);
+    if (capture === undefined || !Array.isArray(substitutions)) continue;
+    for (const substitution of substitutions) {
+      if (typeof substitution !== "string") continue;
+      const expanded = substitution.replace("*", capture);
+      const targets = isAbsolute(expanded)
+        ? [expanded]
+        : bases.map((base) => resolve(base, expanded));
+      for (const target of targets) {
+        if (
+          pathInside(target, galleryRoot) ||
+          (await realPathInside(target, galleryRoot))
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function trustedDesktopComputedImport(root, file, facts, computedImport) {
+  return (
+    relative(root, file) === TRUSTED_DESKTOP_COMPUTED_IMPORT &&
+    facts.computedDynamicImports.length === 1 &&
+    computedImport.argument !== undefined &&
+    isIdentifier(computedImport.argument) &&
+    computedImport.argument.text === "loaderUrl"
+  );
+}
+
 async function inspectDesktopGalleryImports(root, file, analysis) {
   const violations = [];
   const galleryRoot = join(root, "apps/ui-gallery");
@@ -308,6 +489,11 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
       ? resolve(dirname(file), specifier)
       : undefined;
     const moduleSymbol = project.checker.getSymbolAtLocation(reference.node);
+    const aliasTargetsGallery = await pathsAliasTargetsGallery(
+      project,
+      specifier,
+      galleryRoot,
+    );
     let resolvedIntoGallery = false;
     for (const declaration of moduleSymbol?.declarations ?? []) {
       if (
@@ -322,10 +508,18 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
       packageName === "@artemis/ui-gallery" ||
       (relativeTarget !== undefined &&
         pathInside(relativeTarget, galleryRoot)) ||
+      aliasTargetsGallery ||
       resolvedIntoGallery === true
     ) {
       violations.push(
         `${relative(root, file)}: Desktop must not import UI Gallery: ${specifier}`,
+      );
+    }
+  }
+  for (const computedImport of facts.computedDynamicImports) {
+    if (!trustedDesktopComputedImport(root, file, facts, computedImport)) {
+      violations.push(
+        `${relative(root, file)}: Desktop computed dynamic import is forbidden`,
       );
     }
   }
@@ -442,10 +636,12 @@ export async function verifyUiBoundaries(root = defaultRoot) {
   try {
     for (const { area, file, sourceRoot } of areaFiles) {
       const source = await readFile(file, "utf8");
-      const facts = SCRIPT_EXTENSIONS.has(extname(file))
-        ? analysis.file(file).facts
+      const analysisResult = SCRIPT_EXTENSIONS.has(extname(file))
+        ? analysis.file(file)
         : undefined;
-      violations.push(...inspectSource(area, file, sourceRoot, source, facts));
+      violations.push(
+        ...inspectSource(area, file, sourceRoot, source, analysisResult),
+      );
     }
     for (const file of desktopFiles) {
       violations.push(

@@ -15,6 +15,19 @@ const typeScriptCompiler = fileURLToPath(
 );
 let acceptedCases = 0;
 let rejectedCases = 0;
+const desktopFixtureSource = "apps/desktop/src/renderer/index.ts";
+const galleryAliasConfig = {
+  "apps/desktop/tsconfig.json": {
+    compilerOptions: {
+      module: "ESNext",
+      moduleResolution: "Bundler",
+      noEmit: true,
+      paths: { "@gallery/*": ["../../apps/ui-gallery/src/*"] },
+      target: "ES2024",
+    },
+    include: ["src/**/*.ts"],
+  },
+};
 
 async function fixture(sourcePath, source, manifestOverrides = {}) {
   const root = await mkdtemp(join(tmpdir(), "artemis-ui-boundary-"));
@@ -153,6 +166,18 @@ await runCase(
   true,
 );
 await runCase(
+  "safe comments strings and property names",
+  "packages/ui/src/index.ts",
+  'const text = "process window Buffer HTMLElement";\n// process window Buffer\nconst value = { process: text, window: text };\nvoid value.process;\nvoid value.window;\n',
+  true,
+);
+await runCase(
+  "safe CSS comments and strings",
+  "packages/ui/src/safe.css",
+  '/* @import "ignored.css"; */\n@import2 ignored;\n:root { --example: "@import"; }\n',
+  true,
+);
+await runCase(
   "static forbidden import",
   "packages/theme-contract/src/index.ts",
   'export { reducer } from "@artemis/protocol";\n',
@@ -195,6 +220,48 @@ await runCase(
   false,
 );
 await runCase(
+  "globalThis.window bridge",
+  "packages/ui/src/index.ts",
+  "void globalThis.window.artemis;\n",
+  false,
+);
+await runCase(
+  "self bridge",
+  "packages/ui/src/index.ts",
+  'void self["artemis"];\n',
+  false,
+);
+await runCase(
+  "asserted parenthesized bridge",
+  "packages/ui/src/index.ts",
+  'void (((window as any)))["artemis"];\n',
+  false,
+);
+await runCase(
+  "bridge destructuring",
+  "packages/ui/src/index.ts",
+  "const { artemis } = window as any;\nvoid artemis;\n",
+  false,
+);
+await runCase(
+  "renamed bridge destructuring",
+  "packages/ui/src/index.ts",
+  "const { artemis: bridge } = globalThis.window as any;\nvoid bridge;\n",
+  false,
+);
+await runCase(
+  "true Node global",
+  "packages/ui/src/index.ts",
+  "void process.cwd();\n",
+  false,
+);
+await runCase(
+  "true CSS import",
+  "packages/ui/src/unsafe.css",
+  '@import "forbidden.css";\n',
+  false,
+);
+await runCase(
   "Gallery private source traversal",
   "apps/ui-gallery/src/index.ts",
   'import "../../../packages/ui/src/index.js";\n',
@@ -223,33 +290,66 @@ await runCase(
   },
 );
 await runCase(
-  "Desktop bare Gallery import",
-  "apps/desktop/src/renderer/index.ts",
+  "Desktop bare Gallery static import",
+  desktopFixtureSource,
   'import "@artemis/ui-gallery";\n',
   false,
 );
 await runCase(
-  "Desktop Gallery alias import",
-  "apps/desktop/src/renderer/index.ts",
+  "Desktop bare Gallery dynamic import",
+  desktopFixtureSource,
+  'void import("@artemis/ui-gallery");\n',
+  false,
+);
+await runCase(
+  "Desktop bare Gallery require",
+  desktopFixtureSource,
+  'void require("@artemis/ui-gallery");\n',
+  false,
+);
+await runCase(
+  "Desktop Gallery alias static import",
+  desktopFixtureSource,
   'import "@gallery/index";\n',
   false,
-  {
-    "apps/desktop/tsconfig.json": {
-      compilerOptions: {
-        module: "ESNext",
-        moduleResolution: "Bundler",
-        noEmit: true,
-        paths: { "@gallery/*": ["../../apps/ui-gallery/src/*"] },
-        target: "ES2024",
-      },
-      include: ["src/**/*.ts"],
-    },
-  },
+  galleryAliasConfig,
+);
+await runCase(
+  "Desktop Gallery alias dynamic import",
+  desktopFixtureSource,
+  'void import("@gallery/index");\n',
+  false,
+  galleryAliasConfig,
+);
+await runCase(
+  "Desktop Gallery alias require",
+  desktopFixtureSource,
+  'void require("@gallery/index");\n',
+  false,
+  galleryAliasConfig,
+);
+await runCase(
+  "Desktop relative Gallery static import",
+  desktopFixtureSource,
+  'import "../../../ui-gallery/src/index";\n',
+  false,
+);
+await runCase(
+  "Desktop relative Gallery dynamic import",
+  desktopFixtureSource,
+  'void import("../../../ui-gallery/src/index");\n',
+  false,
 );
 await runCase(
   "Desktop relative Gallery require",
-  "apps/desktop/src/renderer/index.ts",
+  desktopFixtureSource,
   'const gallery = require("../../../ui-gallery/src/index");\nvoid gallery;\n',
+  false,
+);
+await runCase(
+  "Desktop computed relative Gallery import",
+  desktopFixtureSource,
+  'const page = "index";\nvoid import(`../../../ui-gallery/src/${page}.js`);\n',
   false,
 );
 
@@ -273,11 +373,11 @@ await runThemeContractTypeCase(
   "process",
 );
 
-if (acceptedCases !== 2 || rejectedCases !== 17) {
+if (acceptedCases !== 4 || rejectedCases !== 31) {
   throw new Error(
     `Unexpected boundary test count: ${acceptedCases} accepted, ${rejectedCases} rejected`,
   );
 }
 console.log(
-  "UI boundary fixture tests passed (2 safe cases; 17/17 violations rejected)",
+  "UI boundary fixture tests passed (4 safe cases; 31/31 violations rejected)",
 );
