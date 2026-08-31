@@ -1130,7 +1130,10 @@ export const approvalResolutionSchema = z.object({
 });
 export type ApprovalResolution = z.infer<typeof approvalResolutionSchema>;
 
-export const userInputResolutionSchema = z
+// Legacy IPC command face (decision D#76 PR10C, decision J case 1): the
+// single-question resolution stays kind-less exactly as before, so existing
+// renderer callers keep working without any change.
+export const userInputSingleQuestionResolutionSchema = z
   .object({
     requestId: z.string().min(1),
     nonce: z.string().min(16),
@@ -1141,6 +1144,13 @@ export const userInputResolutionSchema = z
       .max(USER_INPUT_MAX_OPTIONS - 1)
       .optional(),
     customAnswer: z.string().trim().min(1).max(2_000).optional(),
+    // Declared so the superRefine below can observe key presence. Strip (not
+    // strict) semantics keep the legacy form tolerant of stray keys this
+    // schema no longer knows; multi-question fields must route through the
+    // union's multi branch instead of being silently swallowed here.
+    kind: z.unknown().optional(),
+    questionId: z.unknown().optional(),
+    selectedOptionLabel: z.unknown().optional(),
   })
   .superRefine((resolution, context) => {
     if (
@@ -1152,5 +1162,69 @@ export const userInputResolutionSchema = z
         message: "Choose one offered option or provide one custom answer",
       });
     }
+    // Routing-hole guard (same shape as the requested payload's questions
+    // guard): a resolution carrying multi-question content — including an
+    // unknown kind string — must not be silently accepted as single-question
+    // with those keys stripped. Presence of the key, not its value: IPC
+    // structured clone preserves an explicit `undefined` key and zod keeps
+    // the declared key in the parse output, so a value check would wave the
+    // explicit-undefined form through as legacy.
+    if (
+      "kind" in resolution ||
+      "questionId" in resolution ||
+      "selectedOptionLabel" in resolution
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Single-question user-input resolutions must not carry multi-question fields",
+      });
+    }
   });
+export type UserInputSingleQuestionResolution = z.infer<
+  typeof userInputSingleQuestionResolutionSchema
+>;
+
+// Multi-question IPC command variant (D#76 PR10C, decision J case 1): one
+// resolution answers one question of a pending multi-question card. Field
+// semantics mirror userInputMultiQuestionResolvedPayloadSchema minus the
+// `source` field — the IPC command face never carries provenance; main
+// injects source: "user" on the handler path.
+export const userInputMultiQuestionResolutionSchema = z
+  .object({
+    requestId: z.string().min(1),
+    nonce: z.string().min(16),
+    kind: z.literal("multi-question"),
+    questionId: z.string().min(1).max(USER_INPUT_QUESTION_ID_MAX_LENGTH),
+    // The chosen option *label*, deliberately named differently from the
+    // single-question form's selectedOption numeric index so the two
+    // semantics never share a field name.
+    selectedOptionLabel: z.string().trim().min(1).max(80).optional(),
+    customAnswer: z.string().trim().min(1).max(2_000).optional(),
+    // Declared undefined-only so the single-question numeric index never
+    // rides a multi form, and so the union's inferred type keeps
+    // `selectedOption` readable for unchanged consumers
+    // (PendingUserInputRegistry.consume).
+    selectedOption: z.undefined().optional(),
+  })
+  .superRefine((resolution, context) => {
+    if (
+      (resolution.selectedOptionLabel === undefined) ===
+      (resolution.customAnswer === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Resolve one multi-question item with one offered option label or one custom answer",
+      });
+    }
+  });
+export type UserInputMultiQuestionResolution = z.infer<
+  typeof userInputMultiQuestionResolutionSchema
+>;
+
+export const userInputResolutionSchema = z.union([
+  userInputSingleQuestionResolutionSchema,
+  userInputMultiQuestionResolutionSchema,
+]);
 export type UserInputResolution = z.infer<typeof userInputResolutionSchema>;

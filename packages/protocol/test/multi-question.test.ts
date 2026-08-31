@@ -1832,4 +1832,25 @@ describe("userInputResolutionSchema multi-question IPC variant (D#76 PR10C, deci
       "selectedOptionLabel 与 customAnswer 必须互斥（与 multi resolved payload superRefine 同款）",
     ).toBe(false);
   });
+
+  it("rejects unknown kind strings and kind-less multi fields instead of stripping them", () => {
+    expect(
+      userInputResolutionSchema.safeParse({
+        requestId: "single-resolution-3",
+        nonce: IPC_NONCE,
+        kind: "bogus-question",
+        selectedOption: 0,
+      }).success,
+      "未知 kind 字符串必须整体 reject（IPC 命令面最小防护，与 payload 套件同类），不能被 legacy 形态静默剥离",
+    ).toBe(false);
+    expect(
+      userInputResolutionSchema.safeParse({
+        requestId: "single-resolution-4",
+        nonce: IPC_NONCE,
+        questionId: "q1",
+        selectedOptionLabel: "option-q1-a",
+      }).success,
+      'kind-less 形态携带 multi 字段必须 reject（multi 命令形态必须显式 kind:"multi-question"）',
+    ).toBe(false);
+  });
 });
