@@ -7,6 +7,7 @@ import {
   reduceAgentEvents,
   type AgentEvent,
   type MultiQuestionUserInputState,
+  userInputResolutionSchema,
 } from "../src/index.js";
 
 const NONCE = "1234567890abcdef";
@@ -1756,5 +1757,79 @@ describe("multi-question user input contract", () => {
     expect(state.userInputs["legacy-1"]?.kind).toBeUndefined();
     expect(state.userInputs["single-1"]?.kind).toBe("single-question");
     expect(state.userInputs["multi-1"]?.kind).toBe("multi-question");
+  });
+});
+
+describe("userInputResolutionSchema multi-question IPC variant (D#76 PR10C, decision J)", () => {
+  const IPC_NONCE = "1234567890abcdef";
+
+  it("accepts a multi-question resolution selecting an offered option label", () => {
+    const parsed = userInputResolutionSchema.safeParse({
+      requestId: "multi-resolution-1",
+      nonce: IPC_NONCE,
+      kind: "multi-question",
+      questionId: "q1",
+      selectedOptionLabel: "option-q1-a",
+    });
+    expect(
+      parsed.success,
+      parsed.success
+        ? undefined
+        : `userInputResolutionSchema 应接受 multi 命令形态（kind:"multi-question" + questionId + selectedOptionLabel，决策点 J 案 1，与 userInputMultiQuestionResolvedPayloadSchema 对齐）：${JSON.stringify(
+            parsed.error.issues,
+          )}`,
+    ).toBe(true);
+  });
+
+  it("keeps the questionId of a multi-question custom-answer resolution", () => {
+    const parsed = userInputResolutionSchema.safeParse({
+      requestId: "multi-resolution-2",
+      nonce: IPC_NONCE,
+      kind: "multi-question",
+      questionId: "q2",
+      customAnswer: "Both targets, in one report",
+    });
+    const data = parsed.success
+      ? (parsed.data as Record<string, unknown>)
+      : null;
+    expect(
+      parsed.success &&
+        data?.questionId === "q2" &&
+        data?.customAnswer === "Both targets, in one report",
+      "multi 命令形态必须保留 questionId/customAnswer（按题作答的通道字段，决策点 J 案 1）：当前 questionId 被剥离——kind-less 形态静默吞掉多题语义",
+    ).toBe(true);
+  });
+
+  it("keeps accepting the legacy kind-less single-question resolution", () => {
+    expect(
+      userInputResolutionSchema.safeParse({
+        requestId: "single-resolution-1",
+        nonce: IPC_NONCE,
+        selectedOption: 0,
+      }).success,
+      "legacy kind-less selectedOption 形态必须并存（决策点 J 案 1）",
+    ).toBe(true);
+    expect(
+      userInputResolutionSchema.safeParse({
+        requestId: "single-resolution-2",
+        nonce: IPC_NONCE,
+        customAnswer: "Free-form answer",
+      }).success,
+      "legacy kind-less customAnswer 形态必须并存（决策点 J 案 1）",
+    ).toBe(true);
+  });
+
+  it("rejects a multi-question resolution carrying both a label and a custom answer", () => {
+    expect(
+      userInputResolutionSchema.safeParse({
+        requestId: "multi-resolution-3",
+        nonce: IPC_NONCE,
+        kind: "multi-question",
+        questionId: "q1",
+        selectedOptionLabel: "option-q1-a",
+        customAnswer: "Both targets, in one report",
+      }).success,
+      "selectedOptionLabel 与 customAnswer 必须互斥（与 multi resolved payload superRefine 同款）",
+    ).toBe(false);
   });
 });

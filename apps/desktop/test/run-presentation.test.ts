@@ -181,3 +181,114 @@ describe("formatRunDuration", () => {
     expect(formatRunDuration(milliseconds)).toBe(expected);
   });
 });
+
+describe("deriveRunPresentation multi-question aggregation (D#76 PR10C obligation 2)", () => {
+  const multiQuestion = (questionId: string) => ({
+    questionId,
+    question: `Question ${questionId}`,
+    options: [
+      {
+        label: `option-${questionId}-a`,
+        description: `First option for ${questionId}`,
+        recommended: true,
+      },
+      {
+        label: `option-${questionId}-b`,
+        description: `Second option for ${questionId}`,
+        recommended: false,
+      },
+    ],
+    expiresAt: "2026-08-02T10:15:00.000Z",
+  });
+
+  const multiResolved = (questionId: string) => ({
+    type: "user-input.resolved" as const,
+    kind: "multi-question" as const,
+    requestId: "multi-1",
+    nonce: "0123456789abcdef",
+    questionId,
+    selectedOptionLabel: `option-${questionId}-a`,
+    source: "user" as const,
+  });
+
+  it("keeps waiting on user input while any question of a multi-question card is unanswered", () => {
+    const events = [
+      event("1", "turn-1", "2026-08-02T10:00:00.000Z", {
+        type: "turn.started",
+        mode: "execute",
+      }),
+      event("2", "turn-1", "2026-08-02T10:00:02.000Z", {
+        type: "user-input.requested",
+        kind: "multi-question",
+        requestId: "multi-1",
+        nonce: "0123456789abcdef",
+        header: "Scope",
+        questions: [
+          multiQuestion("q1"),
+          multiQuestion("q2"),
+          multiQuestion("q3"),
+        ],
+      }),
+      event("3", "turn-1", "2026-08-02T10:00:05.000Z", multiResolved("q1")),
+    ];
+
+    // RED anchor (D#76 PR10C §5, obligation 2): the first per-question
+    // resolution must not settle the whole multi-question card — q2/q3 are
+    // still pending, so the turn keeps waiting for user input.
+    expect(
+      deriveRunPresentation(events, Date.parse("2026-08-02T10:00:09.000Z")),
+    ).toMatchObject({ status: "waiting-user-input" });
+
+    const allResolved = [
+      ...events,
+      event("4", "turn-1", "2026-08-02T10:00:07.000Z", multiResolved("q2")),
+      event("5", "turn-1", "2026-08-02T10:00:08.000Z", multiResolved("q3")),
+    ];
+    expect(
+      deriveRunPresentation(
+        allResolved,
+        Date.parse("2026-08-02T10:00:09.000Z"),
+      ),
+    ).toMatchObject({ status: "running" });
+  });
+
+  it("keeps the legacy single-question resolve semantics unchanged", () => {
+    const events = [
+      event("1", "turn-1", "2026-08-02T10:00:00.000Z", {
+        type: "turn.started",
+        mode: "execute",
+      }),
+      event("2", "turn-1", "2026-08-02T10:00:02.000Z", {
+        type: "user-input.requested",
+        requestId: "single-1",
+        nonce: "0123456789abcdef",
+        header: "Target",
+        question: "Which target should be optimized?",
+        options: [
+          {
+            label: "Sweep",
+            description: "Optimize the whole sweep.",
+            recommended: true,
+          },
+          {
+            label: "Latency",
+            description: "Optimize a single point.",
+            recommended: false,
+          },
+        ],
+        expiresAt: "2026-08-02T10:05:02.000Z",
+      }),
+      event("3", "turn-1", "2026-08-02T10:00:05.000Z", {
+        type: "user-input.resolved",
+        requestId: "single-1",
+        nonce: "0123456789abcdef",
+        answer: "Sweep",
+        selectedOption: 0,
+        source: "user",
+      }),
+    ];
+    expect(
+      deriveRunPresentation(events, Date.parse("2026-08-02T10:00:09.000Z")),
+    ).toMatchObject({ status: "running" });
+  });
+});
