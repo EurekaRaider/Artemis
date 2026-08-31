@@ -7,6 +7,14 @@ import { fileURLToPath } from "node:url";
 const checker = fileURLToPath(
   new URL("./verify-ui-boundaries.mjs", import.meta.url),
 );
+const themeContractConfig = fileURLToPath(
+  new URL("../packages/theme-contract/tsconfig.json", import.meta.url),
+);
+const typeScriptCompiler = fileURLToPath(
+  new URL("../node_modules/typescript/bin/tsc", import.meta.url),
+);
+let acceptedCases = 0;
+let rejectedCases = 0;
 
 async function fixture(sourcePath, source, manifestOverrides = {}) {
   const root = await mkdtemp(join(tmpdir(), "artemis-ui-boundary-"));
@@ -31,6 +39,15 @@ async function fixture(sourcePath, source, manifestOverrides = {}) {
       private: true,
     },
     "apps/desktop/package.json": { name: "@artemis/desktop", dependencies: {} },
+    "apps/desktop/tsconfig.json": {
+      compilerOptions: {
+        module: "ESNext",
+        moduleResolution: "Bundler",
+        noEmit: true,
+        target: "ES2024",
+      },
+      include: ["src/**/*.ts"],
+    },
     ...manifestOverrides,
   };
   for (const [path, value] of Object.entries(manifests)) {
@@ -42,11 +59,13 @@ async function fixture(sourcePath, source, manifestOverrides = {}) {
     "packages/ui/src/index.ts",
     "packages/theme-artemis/src/index.ts",
     "apps/ui-gallery/src/index.ts",
+    "apps/desktop/src/index.ts",
   ]) {
     await mkdir(join(root, path, ".."), { recursive: true });
     await writeFile(join(root, path), "export {};\n", "utf8");
   }
   if (sourcePath !== undefined) {
+    await mkdir(join(root, sourcePath, ".."), { recursive: true });
     await writeFile(join(root, sourcePath), source, "utf8");
   }
   return root;
@@ -70,6 +89,58 @@ async function runCase(
         `${name}: expected success=${expectedSuccess}, exit=${String(result.status)}\n${result.stdout}${result.stderr}`,
       );
     }
+    if (expectedSuccess) acceptedCases += 1;
+    else rejectedCases += 1;
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function runThemeContractTypeCase(name, source, missingGlobal) {
+  const root = await mkdtemp(join(tmpdir(), "artemis-theme-contract-types-"));
+  try {
+    const configPath = join(root, "tsconfig.json");
+    await writeFile(join(root, "index.ts"), source, "utf8");
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        extends: themeContractConfig,
+        compilerOptions: {
+          composite: false,
+          declaration: false,
+          declarationMap: false,
+          noEmit: true,
+          rootDir: ".",
+        },
+        files: ["index.ts"],
+        include: [],
+      }),
+      "utf8",
+    );
+    const result = spawnSync(
+      process.execPath,
+      [typeScriptCompiler, "-p", configPath],
+      { encoding: "utf8" },
+    );
+    const output = `${result.stdout}${result.stderr}`;
+    if (missingGlobal === undefined) {
+      if (result.status !== 0) {
+        throw new Error(
+          `${name}: expected source-only typecheck success, exit=${String(result.status)}\n${output}`,
+        );
+      }
+      acceptedCases += 1;
+      return;
+    }
+    if (
+      result.status === 0 ||
+      !output.includes(`Cannot find name '${missingGlobal}'`)
+    ) {
+      throw new Error(
+        `${name}: expected ${missingGlobal} to be unavailable, exit=${String(result.status)}\n${output}`,
+      );
+    }
+    rejectedCases += 1;
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -94,9 +165,33 @@ await runCase(
   false,
 );
 await runCase(
+  "comment-gap dynamic forbidden import",
+  "packages/theme-artemis/src/index.ts",
+  'void import/*gap*/("@artemis/protocol");\n',
+  false,
+);
+await runCase(
   "require bypass",
   "packages/ui/src/index.ts",
   'const host = require("@artemis/agent-host");\n',
+  false,
+);
+await runCase(
+  "import-equals bypass",
+  "packages/ui/src/index.ts",
+  'import host = require("@artemis/agent-host");\n',
+  false,
+);
+await runCase(
+  "window bracket bridge",
+  "packages/ui/src/index.ts",
+  'void window["artemis"];\n',
+  false,
+);
+await runCase(
+  "globalThis bracket bridge",
+  "packages/ui/src/index.ts",
+  'void globalThis["artemis"];\n',
   false,
 );
 await runCase(
@@ -127,5 +222,62 @@ await runCase(
     "package.json": { name: "artemis", version: "1.4.42" },
   },
 );
+await runCase(
+  "Desktop bare Gallery import",
+  "apps/desktop/src/renderer/index.ts",
+  'import "@artemis/ui-gallery";\n',
+  false,
+);
+await runCase(
+  "Desktop Gallery alias import",
+  "apps/desktop/src/renderer/index.ts",
+  'import "@gallery/index";\n',
+  false,
+  {
+    "apps/desktop/tsconfig.json": {
+      compilerOptions: {
+        module: "ESNext",
+        moduleResolution: "Bundler",
+        noEmit: true,
+        paths: { "@gallery/*": ["../../apps/ui-gallery/src/*"] },
+        target: "ES2024",
+      },
+      include: ["src/**/*.ts"],
+    },
+  },
+);
+await runCase(
+  "Desktop relative Gallery require",
+  "apps/desktop/src/renderer/index.ts",
+  'const gallery = require("../../../ui-gallery/src/index");\nvoid gallery;\n',
+  false,
+);
 
-console.log("UI boundary negative tests passed (7/7 rejected)");
+await runThemeContractTypeCase(
+  "theme-contract ES ambient",
+  "const values = new Map<string, number>();\nvoid values;\n",
+);
+await runThemeContractTypeCase(
+  "theme-contract DOM ambient",
+  "declare const value: Document;\nvoid value;\n",
+  "Document",
+);
+await runThemeContractTypeCase(
+  "theme-contract Buffer ambient",
+  "void Buffer.from([]);\n",
+  "Buffer",
+);
+await runThemeContractTypeCase(
+  "theme-contract process ambient",
+  "void process.cwd();\n",
+  "process",
+);
+
+if (acceptedCases !== 2 || rejectedCases !== 17) {
+  throw new Error(
+    `Unexpected boundary test count: ${acceptedCases} accepted, ${rejectedCases} rejected`,
+  );
+}
+console.log(
+  "UI boundary fixture tests passed (2 safe cases; 17/17 violations rejected)",
+);

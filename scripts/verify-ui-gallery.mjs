@@ -1,6 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { desktopGalleryImportViolations } from "./verify-ui-boundaries.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 
@@ -67,6 +68,10 @@ if (
 }
 if (JSON.stringify(desktopManifest.build ?? {}).includes("ui-gallery")) {
   throw new Error("Desktop packaging manifest includes the UI Gallery");
+}
+const desktopGalleryImports = await desktopGalleryImportViolations(root);
+if (desktopGalleryImports.length > 0) {
+  throw new Error(desktopGalleryImports.join("\n"));
 }
 
 const desktopDist = join(root, "apps/desktop/dist-renderer");
