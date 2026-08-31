@@ -29,11 +29,17 @@ function multiQuestionRequestedIds(
     return payload.questions.map((question) => question.questionId);
   }
   if (Array.isArray(payload.questions)) {
-    return payload.questions
+    const questionIds = payload.questions
       .map((question) => question?.questionId)
       .filter(
         (questionId): questionId is string => typeof questionId === "string",
       );
+    // An empty surviving set is not a multi-question card: with no trackable
+    // question IDs, registering an empty aggregate would let any kind'd
+    // resolution settle the whole card (size 0 === settled). Normalize to
+    // undefined so the request falls back to single-question close
+    // semantics.
+    return questionIds.length === 0 ? undefined : questionIds;
   }
   return undefined;
 }

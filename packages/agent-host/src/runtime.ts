@@ -25,7 +25,9 @@ import {
   AGENT_TEAM_MAXIMUM_DEPTH,
   AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN,
   AGENT_TEAM_SPAWN_BUDGET,
+  MAX_USER_INPUT_QUESTIONS,
   OFFICE_DOCUMENT_PROTOCOL_VERSION,
+  USER_INPUT_QUESTION_ID_MAX_LENGTH,
   PiAdapter,
   officeDocumentRequestSchema,
   type AgentPayload,
@@ -2883,7 +2885,7 @@ export class ArtemisAgentHost {
             {
               questionId: Type.String({
                 minLength: 1,
-                maxLength: 200,
+                maxLength: USER_INPUT_QUESTION_ID_MAX_LENGTH,
                 description: "Stable question id, unique across this call.",
               }),
               question: Type.String({ minLength: 1, maxLength: 1_000 }),
@@ -2904,7 +2906,7 @@ export class ArtemisAgentHost {
             },
             { additionalProperties: false },
           ),
-          { minItems: 1, maxItems: 3 },
+          { minItems: 1, maxItems: MAX_USER_INPUT_QUESTIONS },
         ),
       },
       { additionalProperties: false },
@@ -2956,7 +2958,7 @@ export class ArtemisAgentHost {
           const questionIds = questions.map((question) => question.questionId);
           const invalidQuestion =
             questions.length < 1 ||
-            questions.length > 3 ||
+            questions.length > MAX_USER_INPUT_QUESTIONS ||
             questions.some(
               (question) =>
                 !question.questionId ||

@@ -1131,8 +1131,10 @@ export const approvalResolutionSchema = z.object({
 export type ApprovalResolution = z.infer<typeof approvalResolutionSchema>;
 
 // Legacy IPC command face (decision D#76 PR10C, decision J case 1): the
-// single-question resolution stays kind-less exactly as before, so existing
-// renderer callers keep working without any change.
+// single-question resolution stays kind-less by default exactly as before,
+// so existing renderer callers keep working without any change; an explicit
+// kind:"single-question" is also accepted for symmetry with the resolved
+// payload (review batch B3, suggestion 3).
 export const userInputSingleQuestionResolutionSchema = z
   .object({
     requestId: z.string().min(1),
@@ -1144,11 +1146,18 @@ export const userInputSingleQuestionResolutionSchema = z
       .max(USER_INPUT_MAX_OPTIONS - 1)
       .optional(),
     customAnswer: z.string().trim().min(1).max(2_000).optional(),
+    // Optional explicit discriminant, symmetric with the resolved payload's
+    // kind:"single-question" (userInputSingleQuestionResolvedPayloadSchema):
+    // omitted (legacy) or the exact literal both parse; any other kind value
+    // fails this branch's literal check with zod's own invalid-literal error
+    // and the union falls through to the multi branch, so a misrouted
+    // kind:"multi-question" resolution is judged by multi branch semantics
+    // instead of being rejected here with a misleading message.
+    kind: z.literal("single-question").optional(),
     // Declared so the superRefine below can observe key presence. Strip (not
     // strict) semantics keep the legacy form tolerant of stray keys this
     // schema no longer knows; multi-question fields must route through the
     // union's multi branch instead of being silently swallowed here.
-    kind: z.unknown().optional(),
     questionId: z.unknown().optional(),
     selectedOptionLabel: z.unknown().optional(),
   })
@@ -1163,21 +1172,18 @@ export const userInputSingleQuestionResolutionSchema = z
       });
     }
     // Routing-hole guard (same shape as the requested payload's questions
-    // guard): a resolution carrying multi-question content — including an
-    // unknown kind string — must not be silently accepted as single-question
-    // with those keys stripped. Presence of the key, not its value: IPC
-    // structured clone preserves an explicit `undefined` key and zod keeps
-    // the declared key in the parse output, so a value check would wave the
-    // explicit-undefined form through as legacy.
-    if (
-      "kind" in resolution ||
-      "questionId" in resolution ||
-      "selectedOptionLabel" in resolution
-    ) {
+    // guard): a resolution carrying multi-question content keys must not be
+    // silently accepted as single-question with those keys stripped.
+    // Presence of the key, not its value: IPC structured clone preserves an
+    // explicit `undefined` key and zod keeps the declared key in the parse
+    // output, so a value check would wave the explicit-undefined form
+    // through as legacy. The kind key is deliberately absent here — the
+    // literal above owns kind validation.
+    if ("questionId" in resolution || "selectedOptionLabel" in resolution) {
       context.addIssue({
         code: "custom",
         message:
-          "Single-question user-input resolutions must not carry multi-question fields",
+          "Single-question user-input resolutions must not carry multi-question fields (questionId, selectedOptionLabel)",
       });
     }
   });

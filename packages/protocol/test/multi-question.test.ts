@@ -1853,4 +1853,61 @@ describe("userInputResolutionSchema multi-question IPC variant (D#76 PR10C, deci
       'kind-less 形态携带 multi 字段必须 reject（multi 命令形态必须显式 kind:"multi-question"）',
     ).toBe(false);
   });
+
+  it('accepts an explicit kind:"single-question" resolution (payload/IPC kind symmetry, review B3 suggestion 3)', () => {
+    const parsed = userInputResolutionSchema.safeParse({
+      requestId: "single-resolution-kind-1",
+      nonce: IPC_NONCE,
+      kind: "single-question",
+      selectedOption: 1,
+    });
+    expect(
+      parsed.success,
+      parsed.success
+        ? undefined
+        : `kind:"single-question" 是 payload 侧（userInputSingleQuestionResolvedPayloadSchema）合法字面量，IPC 命令面必须对称接受：${JSON.stringify(
+            parsed.error.issues,
+          )}`,
+    ).toBe(true);
+    expect(
+      userInputResolutionSchema.safeParse({
+        requestId: "single-resolution-kind-2",
+        nonce: IPC_NONCE,
+        kind: "single-question",
+        customAnswer: "Free-form answer",
+      }).success,
+      'kind:"single-question" + customAnswer 形态同样合法',
+    ).toBe(true);
+  });
+
+  it('rejects kind:"bogus" via the branch literal without the misleading multi-fields message', () => {
+    const parsed = userInputResolutionSchema.safeParse({
+      requestId: "single-resolution-kind-3",
+      nonce: IPC_NONCE,
+      kind: "bogus",
+      selectedOption: 0,
+    });
+    expect(parsed.success, "未知 kind 必须整体 reject").toBe(false);
+    if (!parsed.success) {
+      expect(
+        JSON.stringify(parsed.error.issues).includes(
+          "must not carry multi-question fields",
+        ),
+        "kind 值非法的报错不得使用误导性的 multi-fields 文案（该文案只属于 questionId/selectedOptionLabel 泄漏守卫）",
+      ).toBe(false);
+    }
+  });
+
+  it('routes kind:"multi-question" without questionId to the multi branch and rejects it', () => {
+    const parsed = userInputResolutionSchema.safeParse({
+      requestId: "multi-resolution-misrouted-1",
+      nonce: IPC_NONCE,
+      kind: "multi-question",
+      selectedOptionLabel: "option-q1-a",
+    });
+    expect(
+      parsed.success,
+      'kind:"multi-question" 必须走 multi 分支语义：缺 questionId 整体 reject，而不是回落 single 分支吞掉 selectedOptionLabel',
+    ).toBe(false);
+  });
 });
