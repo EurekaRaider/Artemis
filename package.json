@@ -57,8 +57,11 @@
   },
   "devDependencies": {
     "@types/node": "26.1.1",
+    "app-builder-lib": "26.15.3",
+    "builder-util": "26.15.3",
     "css-tree": "3.2.1",
     "jsdom": "^29.1.1",
+    "minimatch": "10.2.5",
     "parse5": "8.0.1",
     "postcss": "8.5.23",
     "prettier": "3.9.6",

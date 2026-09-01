@@ -1,8 +1,17 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { FileMatcher } from "app-builder-lib/out/fileMatcher.js";
+import { resolveConfig } from "vite";
 
 const checker = fileURLToPath(
   new URL("./verify-ui-boundaries.mjs", import.meta.url),
@@ -104,11 +113,15 @@ async function fixture(sourcePath, source, manifestOverrides = {}) {
     "apps/ui-gallery/src/index.ts",
     "apps/desktop/src/index.ts",
     "apps/desktop/src/safe.ts",
-    "apps/desktop/vite.config.ts",
   ]) {
     await mkdir(join(root, path, ".."), { recursive: true });
     await writeFile(join(root, path), "export {};\n", "utf8");
   }
+  await writeFile(
+    join(root, "apps/desktop/vite.config.ts"),
+    "export default {};\n",
+    "utf8",
+  );
   await writeFile(
     join(root, "apps/desktop/index.html"),
     '<!doctype html><html><body><script type="module" src="/src/index.ts"></script></body></html>',
@@ -128,9 +141,11 @@ async function runCase(
   expectedSuccess,
   manifestOverrides,
   typecheckDesktop = false,
+  prepare,
 ) {
   const root = await fixture(sourcePath, source, manifestOverrides);
   try {
+    await prepare?.(root);
     if (typecheckDesktop) {
       const typecheck = spawnSync(
         process.execPath,
@@ -156,6 +171,50 @@ async function runCase(
     else rejectedCases += 1;
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function assertViteOracle(root, inlineConfig, expected) {
+  const previousDirectory = process.cwd();
+  try {
+    process.chdir(join(root, "apps/desktop"));
+    const resolved = await resolveConfig(
+      { ...inlineConfig, configFile: false },
+      "build",
+      "production",
+      "production",
+      false,
+    );
+    for (const [name, value] of Object.entries(expected)) {
+      const actual = name === "outDir" ? resolved.build.outDir : resolved[name];
+      if (actual !== value) {
+        throw new Error(
+          `Vite oracle ${name}: expected ${value}, received ${String(actual)}`,
+        );
+      }
+    }
+  } finally {
+    process.chdir(previousDirectory);
+  }
+}
+
+function assertFileMatcherOracle(base, candidate, patterns, expected) {
+  const matcher = new FileMatcher(
+    base,
+    join(base, "out"),
+    (value) => value,
+    patterns,
+  );
+  if (matcher.isEmpty() || matcher.containsOnlyIgnore()) {
+    matcher.prependPattern("**/*");
+  }
+  const actual = matcher.createFilter()(candidate, {
+    isDirectory: () => false,
+  });
+  if (actual !== expected) {
+    throw new Error(
+      `electron-builder FileMatcher oracle expected ${String(expected)}, received ${String(actual)} for ${patterns.join(", ")}`,
+    );
   }
 }
 
@@ -272,6 +331,31 @@ await runCase(
   true,
 );
 await runCase(
+  "safe Desktop Vite root-relative publicDir",
+  "apps/desktop/vite.config.ts",
+  'export default { root: "src", publicDir: "public" };\n',
+  true,
+  undefined,
+  false,
+  async (root) => {
+    const canonicalRoot = await realpath(root);
+    await assertViteOracle(
+      root,
+      { root: "src", publicDir: "public" },
+      {
+        publicDir: join(canonicalRoot, "apps/desktop/src/public"),
+        root: join(canonicalRoot, "apps/desktop/src"),
+      },
+    );
+  },
+);
+await runCase(
+  "safe Desktop Vite alias replacement",
+  "apps/desktop/vite.config.ts",
+  'import { resolve } from "node:path";\nexport default { resolve: { alias: { "@desktop": resolve(import.meta.dirname, "src") } } };\n',
+  true,
+);
+await runCase(
   "safe Desktop builder string shorthand",
   undefined,
   undefined,
@@ -367,6 +451,33 @@ await runCase(
         },
       },
     },
+  },
+);
+await runCase(
+  "safe Desktop builder parent source excludes Gallery",
+  undefined,
+  undefined,
+  true,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      dependencies: {},
+      build: {
+        extraResources: {
+          from: "..",
+          filter: ["**/*", "!ui-gallery/**"],
+        },
+      },
+    },
+  },
+  false,
+  async (root) => {
+    assertFileMatcherOracle(
+      join(root, "apps"),
+      join(root, "apps/ui-gallery/src/index.ts"),
+      ["**/*", "!ui-gallery/**"],
+      false,
+    );
   },
 );
 await runCase(
@@ -654,6 +765,55 @@ await runCase(
   'const resolvePublic = () => "assets";\nexport default { publicDir: resolvePublic() };\n',
   false,
 );
+await runCase(
+  "Desktop Vite root-relative publicDir references Gallery",
+  "apps/desktop/vite.config.ts",
+  'export default { root: "src", publicDir: "../../ui-gallery" };\n',
+  false,
+  undefined,
+  false,
+  async (root) => {
+    const canonicalRoot = await realpath(root);
+    await assertViteOracle(
+      root,
+      { root: "src", publicDir: "../../ui-gallery" },
+      {
+        publicDir: join(canonicalRoot, "apps/ui-gallery"),
+        root: join(canonicalRoot, "apps/desktop/src"),
+      },
+    );
+  },
+);
+await runCase(
+  "Desktop Vite dynamic root is rejected",
+  "apps/desktop/vite.config.ts",
+  'const selectRoot = () => "src";\nexport default { root: selectRoot(), publicDir: "public" };\n',
+  false,
+);
+await runCase(
+  "Desktop Vite duplicate root is rejected",
+  "apps/desktop/vite.config.ts",
+  'export default { root: "src", root: "safe" };\n',
+  false,
+);
+await runCase(
+  "Desktop Vite alias replacement references Gallery",
+  "apps/desktop/vite.config.ts",
+  'export default { resolve: { alias: { "@gallery": "../ui-gallery" } } };\n',
+  false,
+);
+await runCase(
+  "Desktop Vite assetsDir resolves from outDir into Gallery",
+  "apps/desktop/vite.config.ts",
+  'export default { build: { outDir: "dist", assetsDir: "../../ui-gallery" } };\n',
+  false,
+);
+await runCase(
+  "Desktop Vite rollup input resolves from root into Gallery",
+  "apps/desktop/vite.config.ts",
+  'export default { root: "src", build: { rollupOptions: { input: "../../ui-gallery/index.html" } } };\n',
+  false,
+);
 await runCase("Desktop build includes Gallery", undefined, undefined, false, {
   "apps/desktop/package.json": {
     name: "@artemis/desktop",
@@ -739,6 +899,146 @@ await runCase(
     },
   },
 );
+await runCase(
+  "Desktop builder parent source includes Gallery",
+  undefined,
+  undefined,
+  false,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      dependencies: {},
+      build: { extraResources: { from: "..", filter: "**/*" } },
+    },
+  },
+  false,
+  async (root) => {
+    assertFileMatcherOracle(
+      join(root, "apps"),
+      join(root, "apps/ui-gallery/src/index.ts"),
+      ["**/*"],
+      true,
+    );
+  },
+);
+await runCase(
+  "Desktop builder appDir ancestor includes Gallery",
+  undefined,
+  undefined,
+  false,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      dependencies: {},
+      build: { directories: { app: ".." } },
+    },
+  },
+);
+await runCase(
+  "Desktop builder FileSet symlink resolves to Gallery",
+  undefined,
+  undefined,
+  false,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      dependencies: {},
+      build: { extraResources: { from: "gallery-link", filter: "**/*" } },
+    },
+  },
+  false,
+  async (root) => {
+    await symlink(
+      "../ui-gallery",
+      join(root, "apps/desktop/gallery-link"),
+      "dir",
+    );
+  },
+);
+await runCase(
+  "Desktop builder brace pattern includes Gallery",
+  undefined,
+  undefined,
+  false,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      dependencies: {},
+      build: {
+        extraResources: {
+          from: "..",
+          filter: "ui-{gallery,other}/**/*",
+        },
+      },
+    },
+  },
+  false,
+  async (root) => {
+    assertFileMatcherOracle(
+      join(root, "apps"),
+      join(root, "apps/ui-gallery/src/index.ts"),
+      ["ui-{gallery,other}/**/*"],
+      true,
+    );
+  },
+);
+await runCase(
+  "Desktop builder character class includes Gallery",
+  undefined,
+  undefined,
+  false,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      dependencies: {},
+      build: {
+        extraResources: { from: "..", filter: "ui-galler[y]/**/*" },
+      },
+    },
+  },
+);
+await runCase(
+  "Desktop builder actual scoped name macro includes Gallery",
+  undefined,
+  undefined,
+  false,
+  {
+    "apps/desktop/package.json": {
+      name: "@scope/../ui-gallery",
+      version: "1.4.42",
+      dependencies: {},
+      build: {
+        extraResources: { from: "..", filter: "${name}/**/*" },
+      },
+    },
+  },
+);
+await runCase(
+  "Desktop builder Windows os macro uses win",
+  undefined,
+  undefined,
+  false,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      version: "1.4.42",
+      dependencies: {},
+      build: {
+        win: {
+          extraResources: {
+            from: "..",
+            filter: "ui-gallery/${os}/probe",
+          },
+        },
+      },
+    },
+  },
+  false,
+  async (root) => {
+    await mkdir(join(root, "apps/ui-gallery/win"), { recursive: true });
+    await writeFile(join(root, "apps/ui-gallery/win/probe"), "win", "utf8");
+  },
+);
 for (const [platform, resources] of [
   ["mac", { extraFiles: "../ui-gallery" }],
   ["mas", { files: { from: "../ui-gallery" } }],
@@ -794,11 +1094,11 @@ await runThemeContractTypeCase(
   "process",
 );
 
-if (acceptedCases !== 17 || rejectedCases !== 62) {
+if (acceptedCases !== 20 || rejectedCases !== 75) {
   throw new Error(
     `Unexpected boundary test count: ${acceptedCases} accepted, ${rejectedCases} rejected`,
   );
 }
 console.log(
-  "UI boundary fixture tests passed (17 safe cases; 62/62 violations rejected)",
+  "UI boundary fixture tests passed (20 safe cases; 75/75 violations rejected)",
 );

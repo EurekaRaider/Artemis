@@ -112,17 +112,24 @@ paths.
 
 Gallery isolation covers Desktop TypeScript/Vite configuration, CSS imports,
 URLs and `image-set()` string candidates, HTML `src`/`href`/`srcset`, and
-structured electron-builder resources. Vite path properties accept only
-statically resolved literals, const chains, and imported `node:path.resolve`
-calls rooted at `import.meta.dirname`; unknown dynamic values fail closed. The
-builder normalizer covers string and `FileSet` forms for `files`, `asarUnpack`,
-`extraResources`, and `extraFiles` across build, macOS/MAS, Windows, and Linux
-levels with their documented app/project directory bases. Official
-path-safe file macros such as `${os}`, `${platform}`, `${arch}`, product/version
-identifiers, and channel are treated as bounded path segments; environment and
-unknown macros fail closed. Leading `!` exclusion patterns do not import their
-target, while negation remains forbidden for `appDir` and `FileSet.from`. Its
-fixtures prove 17 safe cases and reject 62 cross-boundary cases.
+structured electron-builder resources. Vite configuration first resolves one
+unique static root, then resolves `publicDir`, `envDir`, `cacheDir`, output and
+asset directories, Rollup input, and alias replacements from the effective
+root/output bases; unknown or multivalent values fail closed. Test-only Vite
+`resolveConfig` fixtures confirm the root-relative public directory behavior.
+The builder normalizer covers string and `FileSet` forms for `files`,
+`asarUnpack`, `extraResources`, and `extraFiles` across build, macOS/MAS,
+Windows, and Linux levels with their documented app/project directory bases.
+The root's exact `minimatch@10.2.5`, `app-builder-lib@26.15.3`, and
+`builder-util@26.15.3` development dependencies mirror the locked
+electron-builder `FileMatcher`, macro, and filename-sanitization behavior over
+the actual Gallery file set, including brace and character-class globs. Official macros
+expand from static manifest/config metadata and bounded OS/platform/architecture
+values; environment and unknown macros fail closed. `appDir` and `FileSet.from`
+are checked for lexical and realpath overlap in both directions, including
+directory symlinks, while a parent FileSet remains valid only when its ordered
+filters exclude every Gallery entry. Its fixtures prove 20 safe cases and
+reject 75 cross-boundary cases.
 
 The Gallery build is explicitly single-page: exactly one `index.html`, with the
 exact emitted local module and stylesheet assets. Eight HTML artifact fixtures

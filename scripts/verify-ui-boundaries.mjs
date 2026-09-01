@@ -1,9 +1,10 @@
-import { readFile, readdir, realpath } from "node:fs/promises";
+import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import {
   dirname,
   extname,
   isAbsolute,
   join,
+  posix,
   relative,
   resolve,
   sep,
@@ -12,14 +13,18 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { parse as parseCssValue, walk as walkCssValue } from "css-tree";
 import { parse as parseHtml } from "parse5";
 import postcss from "postcss";
+import { Minimatch } from "minimatch";
+import { sanitizeFileName } from "builder-util/out/filename.js";
 import { API } from "typescript/unstable/sync";
 import {
   NodeFlags,
   SyntaxKind,
+  isArrayLiteralExpression,
   isAssertionExpression,
   isCallExpression,
   isComputedPropertyName,
   isElementAccessExpression,
+  isExportAssignment,
   isExportDeclaration,
   isExternalModuleReference,
   isIdentifier,
@@ -29,10 +34,14 @@ import {
   isMetaProperty,
   isNoSubstitutionTemplateLiteral,
   isNonNullExpression,
+  isObjectLiteralExpression,
   isObjectBindingPattern,
   isParenthesizedExpression,
   isPropertyAccessExpression,
+  isPropertyAssignment,
   isSatisfiesExpression,
+  isShorthandPropertyAssignment,
+  isSpreadAssignment,
   isStringLiteral,
   isVariableDeclaration,
 } from "typescript/unstable/ast";
@@ -68,16 +77,6 @@ const DOM_GLOBAL_NAMES = new Set([
 ]);
 const TRUSTED_DESKTOP_COMPUTED_IMPORT =
   "apps/desktop/src/extension/extension-worker.ts";
-const VITE_PATH_PROPERTY_NAMES = new Set([
-  "assetsDir",
-  "cacheDir",
-  "envDir",
-  "input",
-  "outDir",
-  "publicDir",
-  "replacement",
-  "root",
-]);
 
 const AREAS = [
   {
@@ -225,7 +224,6 @@ export function collectTypeScriptReferences(sourceFile) {
   const moduleReferences = [];
   const bridgeAccesses = [];
   const computedDynamicImports = [];
-  const configPathProperties = [];
   const constInitializers = new Map();
   const globalIdentifiers = [];
   let usesRequire = false;
@@ -291,24 +289,6 @@ export function collectTypeScriptReferences(sourceFile) {
       }
     }
 
-    if (node.kind === SyntaxKind.PropertyAssignment) {
-      const name = isIdentifier(node.name)
-        ? node.name.text
-        : stringLiteralText(node.name);
-      if (name !== undefined && VITE_PATH_PROPERTY_NAMES.has(name)) {
-        configPathProperties.push({ initializer: node.initializer, name });
-      }
-    } else if (
-      node.kind === SyntaxKind.ShorthandPropertyAssignment &&
-      isIdentifier(node.name) &&
-      VITE_PATH_PROPERTY_NAMES.has(node.name.text)
-    ) {
-      configPathProperties.push({
-        initializer: node.name,
-        name: node.name.text,
-      });
-    }
-
     if (isPropertyAccessExpression(node)) {
       const root = windowRoot(node.expression);
       if (
@@ -359,7 +339,6 @@ export function collectTypeScriptReferences(sourceFile) {
   visit(sourceFile);
   return {
     bridgeAccesses,
-    configPathProperties,
     constInitializers,
     computedDynamicImports,
     globalIdentifiers,
@@ -385,6 +364,7 @@ function createTypeScriptAnalysis(root, files) {
       return {
         facts: collectTypeScriptReferences(sourceFile),
         project,
+        sourceFile,
       };
     },
   };
@@ -807,6 +787,490 @@ function evaluateStaticConfigPath(
   return resolve(dirname(file), ...segments);
 }
 
+function staticConfigObject(
+  node,
+  project,
+  file,
+  constInitializers,
+  seen = new Set(),
+) {
+  const expression = unwrapExpression(node);
+  if (isObjectLiteralExpression(expression)) return expression;
+  if (isIdentifier(expression)) {
+    const initializer = constInitializers.get(expression.text);
+    if (initializer === undefined || seen.has(expression.text))
+      return undefined;
+    const nextSeen = new Set(seen);
+    nextSeen.add(expression.text);
+    return staticConfigObject(
+      initializer,
+      project,
+      file,
+      constInitializers,
+      nextSeen,
+    );
+  }
+  const defineConfig = importedCall(
+    expression,
+    project,
+    "defineConfig",
+    "vite",
+  );
+  return defineConfig?.arguments.length === 1
+    ? staticConfigObject(
+        defineConfig.arguments[0],
+        project,
+        file,
+        constInitializers,
+        seen,
+      )
+    : undefined;
+}
+
+function staticConfigArray(node, constInitializers, seen = new Set()) {
+  const expression = unwrapExpression(node);
+  if (isArrayLiteralExpression(expression)) return expression;
+  if (!isIdentifier(expression)) return undefined;
+  const initializer = constInitializers.get(expression.text);
+  if (initializer === undefined || seen.has(expression.text)) return undefined;
+  const nextSeen = new Set(seen);
+  nextSeen.add(expression.text);
+  return staticConfigArray(initializer, constInitializers, nextSeen);
+}
+
+function staticObjectProperty(object, name) {
+  let initializer;
+  let count = 0;
+  let hasSpread = false;
+  for (const property of object.properties) {
+    if (isSpreadAssignment(property)) {
+      hasSpread = true;
+      continue;
+    }
+    if (
+      !isPropertyAssignment(property) &&
+      !isShorthandPropertyAssignment(property)
+    ) {
+      continue;
+    }
+    const propertyName = isIdentifier(property.name)
+      ? property.name.text
+      : stringLiteralText(property.name);
+    if (propertyName !== name) continue;
+    count += 1;
+    initializer = isPropertyAssignment(property)
+      ? property.initializer
+      : property.name;
+  }
+  return { count, hasSpread, initializer };
+}
+
+function nestedStaticConfigObject(
+  parent,
+  name,
+  project,
+  file,
+  constInitializers,
+) {
+  const property = staticObjectProperty(parent, name);
+  if (property.hasSpread || property.count > 1) return { invalid: true };
+  if (property.count === 0) return { object: undefined };
+  const object = staticConfigObject(
+    property.initializer,
+    project,
+    file,
+    constInitializers,
+  );
+  return object === undefined ? { invalid: true } : { object };
+}
+
+function staticPathList(
+  node,
+  project,
+  file,
+  constInitializers,
+  seen = new Set(),
+) {
+  const expression = unwrapExpression(node);
+  const direct = evaluateStaticConfigPath(
+    expression,
+    project,
+    file,
+    constInitializers,
+    seen,
+  );
+  if (typeof direct === "string") return [direct];
+  if (isIdentifier(expression)) {
+    const initializer = constInitializers.get(expression.text);
+    if (initializer === undefined || seen.has(expression.text))
+      return undefined;
+    const nextSeen = new Set(seen);
+    nextSeen.add(expression.text);
+    return staticPathList(
+      initializer,
+      project,
+      file,
+      constInitializers,
+      nextSeen,
+    );
+  }
+  if (isArrayLiteralExpression(expression)) {
+    const values = [];
+    for (const element of expression.elements) {
+      const nested = staticPathList(
+        element,
+        project,
+        file,
+        constInitializers,
+        new Set(seen),
+      );
+      if (nested === undefined) return undefined;
+      values.push(...nested);
+    }
+    return values;
+  }
+  const object = staticConfigObject(
+    expression,
+    project,
+    file,
+    constInitializers,
+    seen,
+  );
+  if (object === undefined) return undefined;
+  const values = [];
+  for (const property of object.properties) {
+    if (
+      !isPropertyAssignment(property) ||
+      isComputedPropertyName(property.name)
+    ) {
+      return undefined;
+    }
+    const nested = staticPathList(
+      property.initializer,
+      project,
+      file,
+      constInitializers,
+      new Set(seen),
+    );
+    if (nested === undefined) return undefined;
+    values.push(...nested);
+  }
+  return values;
+}
+
+async function pathsOverlapGallery(path, galleryRoot) {
+  if (pathInside(path, galleryRoot) || pathInside(galleryRoot, path))
+    return true;
+  try {
+    const [realTarget, realGallery] = await Promise.all([
+      realpath(path),
+      realpath(galleryRoot),
+    ]);
+    return (
+      pathInside(realTarget, realGallery) || pathInside(realGallery, realTarget)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function configIssue(violations, root, file, message) {
+  violations.push(`${relative(root, file)}: Desktop Vite ${message}`);
+}
+
+async function inspectDesktopViteConfig(root, file, analysisResult) {
+  const violations = [];
+  const galleryRoot = join(root, "apps/ui-gallery");
+  const workspaceRoot = dirname(file);
+  const { facts, project, sourceFile } = analysisResult;
+  const exports = sourceFile.statements.filter(isExportAssignment);
+  if (exports.length !== 1) {
+    configIssue(
+      violations,
+      root,
+      file,
+      "configuration must have exactly one static default export",
+    );
+    return violations;
+  }
+  const config = staticConfigObject(
+    exports[0].expression,
+    project,
+    file,
+    facts.constInitializers,
+  );
+  if (config === undefined) {
+    configIssue(
+      violations,
+      root,
+      file,
+      "configuration must resolve to one static object",
+    );
+    return violations;
+  }
+
+  const rootProperty = staticObjectProperty(config, "root");
+  if (rootProperty.hasSpread || rootProperty.count > 1) {
+    configIssue(violations, root, file, "root must be unique and static");
+    return violations;
+  }
+  const configuredRoot =
+    rootProperty.count === 0
+      ? undefined
+      : evaluateStaticConfigPath(
+          rootProperty.initializer,
+          project,
+          file,
+          facts.constInitializers,
+        );
+  if (rootProperty.count === 1 && typeof configuredRoot !== "string") {
+    configIssue(
+      violations,
+      root,
+      file,
+      "root path must be statically evaluable",
+    );
+    return violations;
+  }
+  const effectiveRoot =
+    configuredRoot === undefined || configuredRoot.length === 0
+      ? workspaceRoot
+      : resolve(workspaceRoot, configuredRoot);
+  if (await pathsOverlapGallery(effectiveRoot, galleryRoot)) {
+    configIssue(
+      violations,
+      root,
+      file,
+      `root must not overlap UI Gallery: ${configuredRoot ?? "."}`,
+    );
+    return violations;
+  }
+
+  const checkProperty = async (
+    object,
+    name,
+    base,
+    { allowFalse = false, fallback } = {},
+  ) => {
+    const property = staticObjectProperty(object, name);
+    if (property.hasSpread || property.count > 1) {
+      configIssue(violations, root, file, `${name} must be unique and static`);
+      return undefined;
+    }
+    let value =
+      property.count === 0
+        ? fallback
+        : evaluateStaticConfigPath(
+            property.initializer,
+            project,
+            file,
+            facts.constInitializers,
+          );
+    if (allowFalse && value === false) return false;
+    if (typeof value !== "string") {
+      configIssue(
+        violations,
+        root,
+        file,
+        `${name} path must be statically evaluable`,
+      );
+      return undefined;
+    }
+    const target = isAbsolute(value) ? resolve(value) : resolve(base, value);
+    if (await pathsOverlapGallery(target, galleryRoot)) {
+      configIssue(
+        violations,
+        root,
+        file,
+        `${name} path must not overlap UI Gallery: ${value}`,
+      );
+    }
+    return target;
+  };
+
+  await checkProperty(config, "publicDir", effectiveRoot, {
+    allowFalse: true,
+    fallback: "public",
+  });
+  await checkProperty(config, "envDir", effectiveRoot, { fallback: "." });
+  await checkProperty(config, "cacheDir", effectiveRoot, {
+    fallback: "node_modules/.vite",
+  });
+
+  const buildResult = nestedStaticConfigObject(
+    config,
+    "build",
+    project,
+    file,
+    facts.constInitializers,
+  );
+  if (buildResult.invalid) {
+    configIssue(violations, root, file, "build configuration must be static");
+  } else {
+    const build = buildResult.object;
+    const outDir =
+      build === undefined
+        ? resolve(effectiveRoot, "dist")
+        : await checkProperty(build, "outDir", effectiveRoot, {
+            fallback: "dist",
+          });
+    if (build !== undefined && typeof outDir === "string") {
+      await checkProperty(build, "assetsDir", outDir, { fallback: "assets" });
+      const rollupResult = nestedStaticConfigObject(
+        build,
+        "rollupOptions",
+        project,
+        file,
+        facts.constInitializers,
+      );
+      if (rollupResult.invalid) {
+        configIssue(
+          violations,
+          root,
+          file,
+          "build.rollupOptions must be static",
+        );
+      } else if (rollupResult.object !== undefined) {
+        const input = staticObjectProperty(rollupResult.object, "input");
+        if (input.hasSpread || input.count > 1) {
+          configIssue(
+            violations,
+            root,
+            file,
+            "build.rollupOptions.input must be unique and static",
+          );
+        } else if (input.count === 1) {
+          const values = staticPathList(
+            input.initializer,
+            project,
+            file,
+            facts.constInitializers,
+          );
+          if (values === undefined) {
+            configIssue(
+              violations,
+              root,
+              file,
+              "build.rollupOptions.input must be statically evaluable",
+            );
+          } else {
+            for (const value of values) {
+              const target = isAbsolute(value)
+                ? resolve(value)
+                : resolve(effectiveRoot, value);
+              if (await pathsOverlapGallery(target, galleryRoot)) {
+                configIssue(
+                  violations,
+                  root,
+                  file,
+                  `build.rollupOptions.input must not overlap UI Gallery: ${value}`,
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const resolveResult = nestedStaticConfigObject(
+    config,
+    "resolve",
+    project,
+    file,
+    facts.constInitializers,
+  );
+  if (resolveResult.invalid) {
+    configIssue(violations, root, file, "resolve configuration must be static");
+  } else if (resolveResult.object !== undefined) {
+    const alias = staticObjectProperty(resolveResult.object, "alias");
+    if (alias.hasSpread || alias.count > 1) {
+      configIssue(
+        violations,
+        root,
+        file,
+        "resolve.alias must be unique and static",
+      );
+    } else if (alias.count === 1) {
+      const aliasObject = staticConfigObject(
+        alias.initializer,
+        project,
+        file,
+        facts.constInitializers,
+      );
+      const aliasArray = staticConfigArray(
+        alias.initializer,
+        facts.constInitializers,
+      );
+      const replacements = [];
+      if (aliasObject !== undefined) {
+        for (const property of aliasObject.properties) {
+          if (!isPropertyAssignment(property)) {
+            replacements.push(undefined);
+            continue;
+          }
+          replacements.push(
+            evaluateStaticConfigPath(
+              property.initializer,
+              project,
+              file,
+              facts.constInitializers,
+            ),
+          );
+        }
+      } else if (aliasArray !== undefined) {
+        for (const element of aliasArray.elements) {
+          const aliasEntry = staticConfigObject(
+            element,
+            project,
+            file,
+            facts.constInitializers,
+          );
+          const replacement =
+            aliasEntry === undefined
+              ? { count: 0 }
+              : staticObjectProperty(aliasEntry, "replacement");
+          replacements.push(
+            replacement.count === 1 && !replacement.hasSpread
+              ? evaluateStaticConfigPath(
+                  replacement.initializer,
+                  project,
+                  file,
+                  facts.constInitializers,
+                )
+              : undefined,
+          );
+        }
+      } else {
+        replacements.push(undefined);
+      }
+      for (const replacement of replacements) {
+        if (typeof replacement !== "string") {
+          configIssue(
+            violations,
+            root,
+            file,
+            "resolve.alias replacement must be statically evaluable",
+          );
+          continue;
+        }
+        const target = isAbsolute(replacement)
+          ? resolve(replacement)
+          : resolve(effectiveRoot, replacement);
+        if (await pathsOverlapGallery(target, galleryRoot)) {
+          configIssue(
+            violations,
+            root,
+            file,
+            `resolve.alias replacement must not overlap UI Gallery: ${replacement}`,
+          );
+        }
+      }
+    }
+  }
+  return violations;
+}
+
 function trustedDesktopComputedImport(
   root,
   file,
@@ -904,7 +1368,8 @@ function trustedDesktopComputedImport(
 async function inspectDesktopGalleryImports(root, file, analysis) {
   const violations = [];
   const galleryRoot = join(root, "apps/ui-gallery");
-  const { facts, project } = analysis.file(file);
+  const analysisResult = analysis.file(file);
+  const { facts, project } = analysisResult;
   for (const reference of facts.moduleReferences) {
     const { specifier } = reference;
     const packageName = specifier.startsWith("@")
@@ -951,30 +1416,9 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
     }
   }
   if (relative(root, file) === "apps/desktop/vite.config.ts") {
-    for (const { initializer, name } of facts.configPathProperties) {
-      const value = evaluateStaticConfigPath(
-        initializer,
-        project,
-        file,
-        facts.constInitializers,
-      );
-      if (value === false && name === "publicDir") continue;
-      if (typeof value !== "string") {
-        violations.push(
-          `${relative(root, file)}: Desktop Vite ${name} path must be statically evaluable`,
-        );
-        continue;
-      }
-      const targetsGallery = isAbsolute(value)
-        ? pathInside(value, galleryRoot) ||
-          (await realPathInside(value, galleryRoot))
-        : await referenceTargetsGallery(root, file, value);
-      if (targetsGallery) {
-        violations.push(
-          `${relative(root, file)}: Desktop Vite ${name} path must not reference UI Gallery: ${value}`,
-        );
-      }
-    }
+    violations.push(
+      ...(await inspectDesktopViteConfig(root, file, analysisResult)),
+    );
   }
   return violations;
 }
@@ -1015,17 +1459,12 @@ const BUILDER_RESOURCE_FIELDS = [
 ];
 const BUILDER_PLATFORM_LEVELS = ["mac", "mas", "masDev", "win", "linux"];
 const FILE_SET_FIELDS = new Set(["filter", "from", "to"]);
-const SAFE_BUILDER_FILE_MACROS = new Set([
-  "arch",
-  "buildNumber",
-  "buildVersion",
-  "channel",
-  "name",
-  "os",
-  "platform",
-  "productName",
-  "version",
-]);
+const BUILDER_ARCHES = ["ia32", "x64", "armv7l", "arm64", "universal"];
+const BUILDER_PLATFORMS = [
+  { os: "mac", platform: "darwin" },
+  { os: "win", platform: "win32" },
+  { os: "linux", platform: "linux" },
+];
 
 function isOwnRecord(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -1087,61 +1526,237 @@ function normalizeBuilderResource(value, field, path, violations) {
   return normalized;
 }
 
-function builderPatternPrefix(
-  pattern,
-  projectDir,
-  appDir,
-  allowNegation = false,
-) {
-  let expanded = pattern.trim();
-  const negationLength = expanded.match(/^!+/u)?.[0].length ?? 0;
-  if (negationLength > 0) {
-    if (!allowNegation || negationLength !== 1) {
-      return { invalidNegation: true };
-    }
-    return { excluded: true };
-  }
-  let unknownMacro = false;
-  expanded = expanded.replace(/\$\{([_a-zA-Z./*+]+)\}/gu, (macro, name) => {
-    if (name === "projectDir") return projectDir;
-    if (name === "appDir") return appDir;
-    if (SAFE_BUILDER_FILE_MACROS.has(name)) {
-      return `__artemis_${name}_macro__`;
-    }
-    unknownMacro = true;
-    return macro;
-  });
-  if (unknownMacro || expanded.includes("${")) return { unknownMacro: true };
-  const wildcard = expanded.search(/[*?[\]{}]/u);
-  const prefix = wildcard === -1 ? expanded : expanded.slice(0, wildcard);
-  return { prefix: prefix.replace(/[\\/]+$/u, "") };
+function builderMacroMetadata(rootManifest, desktop) {
+  const config = desktop.build ?? {};
+  const version = desktop.version ?? rootManifest.version;
+  const buildNumber =
+    config.buildNumber ||
+    process.env.BUILD_NUMBER ||
+    process.env.TRAVIS_BUILD_NUMBER ||
+    process.env.APPVEYOR_BUILD_NUMBER ||
+    process.env.CIRCLE_BUILD_NUM ||
+    process.env.BUILD_BUILDNUMBER ||
+    process.env.CI_PIPELINE_IID;
+  const buildVersion =
+    config.buildVersion ??
+    `${version}${buildNumber === undefined || String(buildNumber).trim().length === 0 ? "" : `.${buildNumber}`}`;
+  const productName = config.productName ?? desktop.productName ?? desktop.name;
+  const prerelease = String(version).match(/-([0-9A-Za-z-]+)/u)?.[1];
+  return {
+    buildNumber: String(buildNumber),
+    buildVersion: String(buildVersion),
+    channel: prerelease ?? "latest",
+    name: String(desktop.name),
+    productName: sanitizeFileName(String(productName)),
+    version: String(version),
+  };
 }
 
-async function builderPatternTargetsGallery(
-  root,
-  base,
-  pattern,
-  projectDir,
-  appDir,
-  allowNegation = false,
-) {
-  const { excluded, invalidNegation, prefix, unknownMacro } =
-    builderPatternPrefix(pattern, projectDir, appDir, allowNegation);
-  if (excluded) return false;
-  if (unknownMacro || invalidNegation) return undefined;
-  if (prefix === undefined || prefix.length === 0 || prefix === ".")
-    return false;
-  const target = isAbsolute(prefix) ? resolve(prefix) : resolve(base, prefix);
-  const galleryRoot = join(root, "apps/ui-gallery");
-  return (
-    pathInside(target, galleryRoot) ||
-    (await realPathInside(target, galleryRoot))
+function builderContexts(levelPath) {
+  const platformName = levelPath.split(".")[1];
+  const platforms =
+    platformName === "mac" ||
+    platformName === "mas" ||
+    platformName === "masDev"
+      ? BUILDER_PLATFORMS.filter(({ os }) => os === "mac")
+      : platformName === "win"
+        ? BUILDER_PLATFORMS.filter(({ os }) => os === "win")
+        : platformName === "linux"
+          ? BUILDER_PLATFORMS.filter(({ os }) => os === "linux")
+          : BUILDER_PLATFORMS;
+  return platforms.flatMap((platform) =>
+    BUILDER_ARCHES.map((arch) => ({ ...platform, arch })),
   );
 }
 
-async function builderResourceViolations(root, desktop) {
+function expandBuilderPattern(pattern, context, metadata, projectDir, appDir) {
+  let unsupported = false;
+  const expanded = pattern.replace(
+    /\$\{([_a-zA-Z./*+]+)\}/gu,
+    (macro, name) => {
+      const values = {
+        appDir,
+        arch: context.arch,
+        os: context.os,
+        platform: context.platform,
+        productName: metadata.productName,
+        projectDir,
+        ...metadata,
+      };
+      if (name in values) return values[name];
+      unsupported = true;
+      return macro;
+    },
+  );
+  return unsupported || expanded.includes("${") ? undefined : expanded;
+}
+
+function normalizeBuilderPattern(pattern) {
+  let normalized = pattern.replace(/\\/gu, "/");
+  if (normalized.startsWith("./")) normalized = normalized.slice(2);
+  return posix.normalize(normalized);
+}
+
+function minimatchHasMagic(pattern) {
+  if (pattern.set.length > 1) return true;
+  return pattern.set[0].some((part) => typeof part !== "string");
+}
+
+function parsedBuilderPatterns(patterns) {
+  const effective =
+    patterns.length === 0 ||
+    patterns.every((pattern) => pattern.startsWith("!"))
+      ? ["**/*", ...patterns]
+      : patterns;
+  const parsed = [];
+  for (const pattern of effective) {
+    const matcher = new Minimatch(pattern, { dot: true });
+    parsed.push(matcher);
+    if (!pattern.includes(".") && !minimatchHasMagic(matcher)) {
+      parsed.push(new Minimatch(`${pattern}/**/*`, { dot: true }));
+    }
+  }
+  return parsed;
+}
+
+function builderPatternsInclude(path, patterns, isDirectory = false) {
+  let match = false;
+  for (const pattern of patterns) {
+    if (match !== pattern.negate) continue;
+    match = pattern.match(path, isDirectory && !pattern.negate);
+  }
+  return match;
+}
+
+async function galleryEntries(root) {
+  const galleryRoot = join(root, "apps/ui-gallery");
+  const entries = [{ isDirectory: true, path: galleryRoot }];
+  const visit = async (directory) => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      entries.push({ isDirectory: entry.isDirectory(), path });
+      if (entry.isDirectory()) await visit(path);
+    }
+  };
+  await visit(galleryRoot);
+  return entries;
+}
+
+async function builderPatternsTargetGallery(
+  root,
+  base,
+  patterns,
+  context,
+  metadata,
+  projectDir,
+  appDir,
+) {
+  const expanded = [];
+  for (const pattern of patterns) {
+    const value = expandBuilderPattern(
+      pattern,
+      context,
+      metadata,
+      projectDir,
+      appDir,
+    );
+    if (value === undefined) return undefined;
+    const normalized = normalizeBuilderPattern(value);
+    expanded.push(normalized);
+    if (!normalized.startsWith("!") && !builderPathHasMagic(normalized)) {
+      const target = isAbsolute(normalized)
+        ? resolve(normalized)
+        : resolve(base, normalized);
+      if (
+        pathInside(target, join(root, "apps/ui-gallery")) ||
+        (await realPathInside(target, join(root, "apps/ui-gallery")))
+      ) {
+        return true;
+      }
+    }
+  }
+  let parsed;
+  try {
+    parsed = parsedBuilderPatterns(expanded);
+  } catch {
+    return undefined;
+  }
+  for (const entry of await galleryEntries(root)) {
+    if (entry.isDirectory) continue;
+    const candidate = relative(base, entry.path).split(sep).join("/");
+    if (builderPatternsInclude(candidate, parsed, entry.isDirectory))
+      return true;
+  }
+  return false;
+}
+
+function builderPathHasMagic(path) {
+  try {
+    return minimatchHasMagic(new Minimatch(path, { dot: true }));
+  } catch {
+    return true;
+  }
+}
+
+async function builderPathDetails(path, galleryRoot) {
+  const lexicalInside = pathInside(path, galleryRoot);
+  const lexicalAncestor = pathInside(galleryRoot, path);
+  let realInside = false;
+  let realAncestor = false;
+  let symbolicLink = false;
+  try {
+    symbolicLink = (await lstat(path)).isSymbolicLink();
+  } catch {
+    // Missing inputs are handled by electron-builder; they cannot import Gallery.
+  }
+  try {
+    const [realTarget, realGallery] = await Promise.all([
+      realpath(path),
+      realpath(galleryRoot),
+    ]);
+    realInside = pathInside(realTarget, realGallery);
+    realAncestor = pathInside(realGallery, realTarget);
+  } catch {
+    // Lexical checks still apply to paths not present at verification time.
+  }
+  return {
+    ancestor: lexicalAncestor || realAncestor,
+    inside: lexicalInside || realInside,
+    symbolicLink,
+  };
+}
+
+function resolveBuilderPath(
+  pattern,
+  base,
+  context,
+  metadata,
+  projectDir,
+  appDir,
+) {
+  const expanded = expandBuilderPattern(
+    pattern,
+    context,
+    metadata,
+    projectDir,
+    appDir,
+  );
+  if (
+    expanded === undefined ||
+    expanded.startsWith("!") ||
+    builderPathHasMagic(expanded)
+  ) {
+    return undefined;
+  }
+  return isAbsolute(expanded) ? resolve(expanded) : resolve(base, expanded);
+}
+
+async function builderResourceViolations(root, rootManifest, desktop) {
   const violations = [];
   const projectDir = join(root, "apps/desktop");
+  const galleryRoot = join(root, "apps/ui-gallery");
+  const metadata = builderMacroMetadata(rootManifest, desktop);
+  const allContexts = builderContexts("build");
   const configuredAppDir = desktop.build?.directories?.app;
   if (
     configuredAppDir !== undefined &&
@@ -1152,27 +1767,33 @@ async function builderResourceViolations(root, desktop) {
       "apps/desktop/package.json: build.directories.app must be a string",
     );
   }
-  const configuredAppPrefix =
-    typeof configuredAppDir === "string"
-      ? builderPatternPrefix(configuredAppDir, projectDir, projectDir)
-      : undefined;
-  if (
-    configuredAppPrefix?.unknownMacro ||
-    configuredAppPrefix?.invalidNegation
-  ) {
-    violations.push(
-      "apps/desktop/package.json: build.directories.app contains an unsupported macro or negation",
-    );
-  }
-  const appDir =
-    configuredAppPrefix?.prefix !== undefined &&
-    configuredAppPrefix.prefix.length > 0
-      ? resolve(projectDir, configuredAppPrefix.prefix)
-      : projectDir;
-  if (pathInside(appDir, join(root, "apps/ui-gallery"))) {
-    violations.push(
-      "apps/desktop/package.json: build.directories.app must not reference Gallery",
-    );
+  const appDirs = new Map();
+  for (const context of allContexts) {
+    const key = `${context.os}:${context.arch}`;
+    const appDir =
+      typeof configuredAppDir !== "string"
+        ? projectDir
+        : resolveBuilderPath(
+            configuredAppDir,
+            projectDir,
+            context,
+            metadata,
+            projectDir,
+            projectDir,
+          );
+    if (appDir === undefined) {
+      violations.push(
+        "apps/desktop/package.json: build.directories.app contains an unsupported macro, glob, or negation",
+      );
+      continue;
+    }
+    appDirs.set(key, appDir);
+    const details = await builderPathDetails(appDir, galleryRoot);
+    if (details.inside || details.ancestor) {
+      violations.push(
+        "apps/desktop/package.json: build.directories.app must not overlap Gallery",
+      );
+    }
   }
   const levels = [
     ["build", desktop.build],
@@ -1181,6 +1802,7 @@ async function builderResourceViolations(root, desktop) {
       desktop.build?.[name],
     ]),
   ];
+  const validLevels = new Map();
   for (const [levelPath, level] of levels) {
     if (level === undefined || level === null) continue;
     if (!isOwnRecord(level)) {
@@ -1189,76 +1811,97 @@ async function builderResourceViolations(root, desktop) {
       );
       continue;
     }
+    validLevels.set(levelPath, level);
+  }
+  const buildLevel = validLevels.get("build") ?? {};
+  for (const platformName of BUILDER_PLATFORM_LEVELS) {
+    const levelPath = `build.${platformName}`;
+    const contexts = builderContexts(levelPath);
+    const platformLevel = validLevels.get(levelPath);
     for (const field of BUILDER_RESOURCE_FIELDS) {
-      const fieldPath = `apps/desktop/package.json: ${levelPath}.${field}`;
-      const entries = normalizeBuilderResource(
-        level[field],
-        field,
-        fieldPath,
-        violations,
+      const sources = [
+        ["build", buildLevel[field]],
+        ...(platformLevel === undefined
+          ? []
+          : [[levelPath, platformLevel[field]]]),
+      ];
+      const entries = sources.flatMap(([sourcePath, value]) =>
+        normalizeBuilderResource(
+          value,
+          field,
+          `apps/desktop/package.json: ${sourcePath}.${field}`,
+          violations,
+        ),
       );
-      const base =
-        field === "files" || field === "asarUnpack" ? appDir : projectDir;
-      for (const entry of entries) {
-        if (entry.pattern !== undefined) {
-          const targetsGallery = await builderPatternTargetsGallery(
+      const fieldPath = `apps/desktop/package.json: build + ${levelPath}.${field}`;
+      const patternEntries = entries.filter(
+        (entry) => entry.pattern !== undefined,
+      );
+      const fileSetEntries = entries.filter(
+        (entry) => entry.pattern === undefined,
+      );
+      for (const context of contexts) {
+        const key = `${context.os}:${context.arch}`;
+        const appDir = appDirs.get(key);
+        if (appDir === undefined) continue;
+        const base =
+          field === "files" || field === "asarUnpack" ? appDir : projectDir;
+        if (patternEntries.length > 0) {
+          const targetsGallery = await builderPatternsTargetGallery(
             root,
             base,
-            entry.pattern,
+            patternEntries.map(({ pattern }) => pattern),
+            context,
+            metadata,
             projectDir,
             appDir,
-            true,
           );
           if (targetsGallery === undefined) {
-            violations.push(`${entry.path}: unsupported file macro`);
+            violations.push(`${fieldPath}: unsupported file macro or glob`);
           } else if (targetsGallery) {
             violations.push(
-              `${entry.path}: Desktop builder ${field} pattern must not reference Gallery: ${entry.pattern}`,
+              `${fieldPath}: Desktop builder ${field} patterns include Gallery`,
             );
           }
-          continue;
         }
-        const fromTargetsGallery = await builderPatternTargetsGallery(
-          root,
-          base,
-          entry.from,
-          projectDir,
-          appDir,
-        );
-        if (fromTargetsGallery === undefined) {
-          violations.push(`${entry.path}.from: unsupported file macro`);
-          continue;
-        }
-        if (fromTargetsGallery) {
-          violations.push(
-            `${entry.path}.from: Desktop builder FileSet must not reference Gallery: ${entry.from}`,
-          );
-        }
-        const fromPrefix = builderPatternPrefix(
-          entry.from,
-          projectDir,
-          appDir,
-        ).prefix;
-        const filterBase =
-          fromPrefix === undefined || fromPrefix.length === 0
-            ? base
-            : isAbsolute(fromPrefix)
-              ? resolve(fromPrefix)
-              : resolve(base, fromPrefix);
-        for (const filter of entry.filters) {
-          const filterTargetsGallery = await builderPatternTargetsGallery(
-            root,
-            filterBase,
-            filter,
+        for (const entry of fileSetEntries) {
+          const source = resolveBuilderPath(
+            entry.from,
+            base,
+            context,
+            metadata,
             projectDir,
             appDir,
-            true,
           );
-          if (filterTargetsGallery === undefined) {
-            violations.push(`${entry.path}.filter: unsupported file macro`);
-          } else if (filterTargetsGallery) {
+          if (source === undefined) {
             violations.push(
-              `${entry.path}.filter: Desktop builder FileSet must not reference Gallery: ${filter}`,
+              `${entry.path}.from: unsupported file macro, glob, or negation`,
+            );
+            continue;
+          }
+          const details = await builderPathDetails(source, galleryRoot);
+          if (details.inside || (details.symbolicLink && details.ancestor)) {
+            violations.push(
+              `${entry.path}.from: Desktop builder FileSet must not resolve inside or through Gallery: ${entry.from}`,
+            );
+            continue;
+          }
+          const targetsGallery = await builderPatternsTargetGallery(
+            root,
+            source,
+            entry.filters,
+            context,
+            metadata,
+            projectDir,
+            appDir,
+          );
+          if (targetsGallery === undefined) {
+            violations.push(
+              `${entry.path}.filter: unsupported file macro or glob`,
+            );
+          } else if (targetsGallery) {
+            violations.push(
+              `${entry.path}: Desktop builder FileSet filters include Gallery`,
             );
           }
         }
@@ -1277,21 +1920,26 @@ async function builderResourceViolations(root, desktop) {
       violations.push(`apps/desktop/package.json: ${name} must be a string`);
       continue;
     }
-    const targetsGallery = await builderPatternTargetsGallery(
-      root,
-      projectDir,
-      value,
-      projectDir,
-      appDir,
-    );
-    if (targetsGallery === undefined) {
-      violations.push(
-        `apps/desktop/package.json: ${name} contains an unsupported file macro`,
+    for (const context of allContexts) {
+      const key = `${context.os}:${context.arch}`;
+      const appDir = appDirs.get(key) ?? projectDir;
+      const target = resolveBuilderPath(
+        value,
+        projectDir,
+        context,
+        metadata,
+        projectDir,
+        appDir,
       );
-    } else if (targetsGallery) {
-      violations.push(
-        `apps/desktop/package.json: ${name} must not reference Gallery: ${value}`,
-      );
+      if (target === undefined) {
+        violations.push(
+          `apps/desktop/package.json: ${name} contains an unsupported file macro, glob, or negation`,
+        );
+      } else if ((await builderPathDetails(target, galleryRoot)).inside) {
+        violations.push(
+          `apps/desktop/package.json: ${name} must not reference Gallery: ${value}`,
+        );
+      }
     }
   }
   return violations;
@@ -1363,7 +2011,9 @@ async function manifestViolations(root) {
       "apps/desktop/package.json: Desktop must not depend on Gallery",
     );
   }
-  violations.push(...(await builderResourceViolations(root, desktop)));
+  violations.push(
+    ...(await builderResourceViolations(root, rootManifest, desktop)),
+  );
   return violations;
 }
 
