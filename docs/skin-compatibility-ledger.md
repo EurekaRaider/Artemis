@@ -53,11 +53,13 @@ and is deliberately absent from `integrity.json`.
 
 CL0B adds stable `verify:skin-package` and `verify:skin-conformance` skeletons.
 The package gate validates bundled Artemis data and the synthetic fixture,
-recomputes exact hashes, enforces the five-file data allowlist, and exercises
-eight rejecting fixtures. The conformance gate validates the strict public
+recomputes exact hashes, enforces the five-file data allowlist, rejects nested
+or symlinked entries and a symlinked package root, and exercises 16 rejecting
+fixtures (11 data/package/path plus five CLI). The conformance gate validates the strict public
 `ComponentContract`, public package imports, two valid skin inputs, eight
-behavior cases per skin, six identity/state-preservation switch cases, and 13
-rejecting fixtures (six contract/matrix/package plus seven structural CSS).
+behavior cases per skin, six identity/state-preservation switch cases, and 18
+rejecting fixtures (six contract/matrix/package, seven structural CSS, and five
+CLI).
 Gallery jsdom parameterizes the same eight real behavior
 runners across default and stress (16 executions), including actual stress root
 attributes and its installed generated stylesheet; the JSON matrix is only the
@@ -83,10 +85,18 @@ static string in the public contract. `ConformanceProbe` rejects empty or
 whitespace-only labels before producing DOM; the Gallery's same default/stress
 ARIA behavior runner proves both the rejection and the positive accessible
 name. The built Gallery CSS is parsed to require exactly one full layer-order
-statement, exactly one theme block, exactly one UI block, no reset block, and
-first encounters of `artemis.reset` → `artemis.theme` → `artemis.ui`. The former
-theme-first order plus duplicate theme/UI blocks and duplicate order statements
-are rejecting fixtures.
+statement, one theme block, two UI blocks (public structure and Gallery
+scaffold), no reset block, no unlayered root nodes, and first encounters of
+`artemis.reset` → `artemis.theme` → `artemis.ui`. `!important`, the former
+theme-first order, unknown/nested layers, duplicate blocks/order statements,
+unlayered focus or Gallery overrides, same-layer focus overrides, and any
+Gallery scaffold selector/declaration/value drift are rejecting fixtures. The
+first UI block must remain structurally identical to the public
+`@artemis/ui/styles.css` block, the theme block must remain structurally
+identical to `@artemis/theme-artemis/theme.css`, and the second UI block has an
+exact six-selector Gallery-only allowlist. Twenty-one formal artifact fixtures
+exercise these layer, root-node, public/theme-block, and Gallery-block rejection
+paths.
 
 The Probe structural stylesheet is parsed with PostCSS and compared against an
 exact selector/property/value allowlist. Its consumed `--artemis-*` token set

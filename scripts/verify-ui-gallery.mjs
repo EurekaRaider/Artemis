@@ -7,9 +7,166 @@ import { desktopGalleryImportViolations } from "./verify-ui-boundaries.mjs";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const EXPECTED_LAYER_ORDER = ["artemis.reset", "artemis.theme", "artemis.ui"];
 const EXPECTED_LAYER_ORDER_TEXT = EXPECTED_LAYER_ORDER.join(" → ");
+const GALLERY_SCAFFOLD_RULES = new Map([
+  [
+    ":root",
+    [
+      ["color", "var(--artemis-color-text-primary)"],
+      ["background", "var(--artemis-color-canvas)"],
+      ["font-family", "var(--artemis-typography-body-family)"],
+      ["font-size", "var(--artemis-typography-body-size)"],
+    ],
+  ],
+  ["body", [["margin", "0"]]],
+  [
+    "main",
+    [
+      ["box-sizing", "border-box"],
+      ["max-width", "48rem"],
+      ["margin", "0 auto"],
+      ["padding", "var(--artemis-space-6)"],
+    ],
+  ],
+  [
+    ".gallery-eyebrow",
+    [
+      ["color", "var(--artemis-color-text-secondary)"],
+      ["font-size", "var(--artemis-typography-label-size)"],
+    ],
+  ],
+  [
+    ".gallery-skin-toggle",
+    [
+      ["padding", "var(--artemis-space-2) var(--artemis-space-3)"],
+      ["color", "var(--artemis-color-accent-on-primary)"],
+      ["background", "var(--artemis-color-accent-primary)"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-strong)",
+      ],
+      ["border-radius", "var(--artemis-radius-control)"],
+      ["font", "inherit"],
+    ],
+  ],
+  [
+    ".gallery-probe-section",
+    [
+      ["display", "grid"],
+      ["gap", "var(--artemis-space-3)"],
+      ["margin-block-start", "var(--artemis-space-6)"],
+    ],
+  ],
+]);
 
-function verifyGalleryLayerOrder(css, source) {
+const normalizeWhitespace = (value) => value.replace(/\s+/gu, " ").trim();
+
+function cssNodeSignature(node) {
+  if (node.type === "decl") {
+    return ["decl", node.prop, normalizeWhitespace(node.value), node.important];
+  }
+  if (node.type === "rule") {
+    return [
+      "rule",
+      normalizeWhitespace(node.selector),
+      (node.nodes ?? []).map(cssNodeSignature),
+    ];
+  }
+  if (node.type === "atrule") {
+    return [
+      "atrule",
+      node.name,
+      normalizeWhitespace(node.params),
+      node.nodes?.map(cssNodeSignature),
+    ];
+  }
+  return [node.type, node.toString()];
+}
+
+function layerBlockSignature(css, source, layerName) {
   const parsed = postcss.parse(css, { from: source });
+  const blocks = (parsed.nodes ?? []).filter(
+    (node) =>
+      node.type === "atrule" &&
+      node.name === "layer" &&
+      node.nodes !== undefined &&
+      node.params.trim() === layerName,
+  );
+  if (blocks.length !== 1) {
+    throw new Error(
+      `${source}: public styles must contain exactly one ${layerName} block; found ${blocks.length}`,
+    );
+  }
+  return JSON.stringify((blocks[0].nodes ?? []).map(cssNodeSignature));
+}
+
+function verifyGalleryScaffoldBlock(block, source) {
+  const seenSelectors = new Set();
+  for (const node of block.nodes ?? []) {
+    if (node.type !== "rule") {
+      throw new Error(
+        `${source}: Gallery scaffold artemis.ui block allows only rules`,
+      );
+    }
+    const selector = normalizeWhitespace(node.selector);
+    const expectedDeclarations = GALLERY_SCAFFOLD_RULES.get(selector);
+    if (expectedDeclarations === undefined) {
+      throw new Error(
+        `${source}: Gallery scaffold selector is not allowed: ${selector}`,
+      );
+    }
+    if (seenSelectors.has(selector)) {
+      throw new Error(
+        `${source}: duplicate Gallery scaffold selector: ${selector}`,
+      );
+    }
+    seenSelectors.add(selector);
+    const declarations = (node.nodes ?? []).map((child) => {
+      if (child.type !== "decl" || child.important) {
+        throw new Error(
+          `${source}: Gallery scaffold rule ${selector} allows only ordinary declarations`,
+        );
+      }
+      return [child.prop, normalizeWhitespace(child.value)];
+    });
+    if (JSON.stringify(declarations) !== JSON.stringify(expectedDeclarations)) {
+      throw new Error(
+        `${source}: Gallery scaffold rule ${selector} declarations do not match the exact contract`,
+      );
+    }
+  }
+  if (seenSelectors.size !== GALLERY_SCAFFOLD_RULES.size) {
+    throw new Error(
+      `${source}: Gallery scaffold selector set does not match the exact contract`,
+    );
+  }
+}
+
+function verifyGalleryLayerOrder(
+  css,
+  source,
+  expectedPublicUiSignature,
+  expectedThemeSignature,
+) {
+  const parsed = postcss.parse(css, { from: source });
+  for (const node of parsed.nodes ?? []) {
+    if (node.type !== "atrule" || node.name !== "layer") {
+      throw new Error(
+        `${source}: unlayered root node is forbidden in final Gallery CSS`,
+      );
+    }
+  }
+  let importantDeclaration = "";
+  parsed.walkDecls((declaration) => {
+    if (declaration.important && importantDeclaration.length === 0) {
+      importantDeclaration = declaration.prop;
+    }
+  });
+  if (importantDeclaration.length > 0) {
+    throw new Error(
+      `${source}: !important is forbidden in final Gallery CSS: ${importantDeclaration}`,
+    );
+  }
+
   const layerNodes = [];
   parsed.walkAtRules("layer", (rule) => {
     if (rule.parent !== parsed) {
@@ -76,14 +233,22 @@ function verifyGalleryLayerOrder(css, source) {
       `${source}: duplicate layer order statement; expected exactly one, found ${orderStatementCount}`,
     );
   }
-  for (const name of ["artemis.theme", "artemis.ui"]) {
+  for (const [name, expectedCount] of [
+    ["artemis.theme", 1],
+    ["artemis.ui", 2],
+  ]) {
     const count = blockCounts.get(name) ?? 0;
     if (count === 0) {
       throw new Error(`${source}: ${name} layer block is missing`);
     }
-    if (count > 1) {
+    if (count > expectedCount) {
       throw new Error(
-        `${source}: duplicate ${name} layer block; expected exactly one, found ${count}`,
+        `${source}: duplicate ${name} layer block; expected exactly ${expectedCount}, found ${count}`,
+      );
+    }
+    if (count !== expectedCount) {
+      throw new Error(
+        `${source}: ${name} layer block count must be ${expectedCount}; found ${count}`,
       );
     }
   }
@@ -108,6 +273,31 @@ function verifyGalleryLayerOrder(css, source) {
       `${source}: the layer order statement must precede theme and UI blocks`,
     );
   }
+
+  const uiBlocks = layerNodes.filter(
+    (rule) => rule.nodes !== undefined && rule.params.trim() === "artemis.ui",
+  );
+  const actualPublicUiSignature = JSON.stringify(
+    (uiBlocks[0].nodes ?? []).map(cssNodeSignature),
+  );
+  if (actualPublicUiSignature !== expectedPublicUiSignature) {
+    throw new Error(
+      `${source}: public artemis.ui block drifted from @artemis/ui styles.css`,
+    );
+  }
+  const themeBlock = layerNodes.find(
+    (rule) =>
+      rule.nodes !== undefined && rule.params.trim() === "artemis.theme",
+  );
+  const actualThemeSignature = JSON.stringify(
+    (themeBlock.nodes ?? []).map(cssNodeSignature),
+  );
+  if (actualThemeSignature !== expectedThemeSignature) {
+    throw new Error(
+      `${source}: artemis.theme block drifted from @artemis/theme-artemis theme.css`,
+    );
+  }
+  verifyGalleryScaffoldBlock(uiBlocks[1], source);
 }
 
 async function filesBelow(directory) {
@@ -142,36 +332,228 @@ if (galleryCssFiles.length !== 1) {
   );
 }
 const galleryCss = await readFile(galleryCssFiles[0], "utf8");
-verifyGalleryLayerOrder(galleryCss, relative(root, galleryCssFiles[0]));
+const uiCssPath = join(root, "packages/ui/dist/styles.css");
+const expectedPublicUiSignature = layerBlockSignature(
+  await readFile(uiCssPath, "utf8"),
+  relative(root, uiCssPath),
+  "artemis.ui",
+);
+const themeCssPath = join(root, "packages/theme-artemis/dist/theme.css");
+const expectedThemeSignature = layerBlockSignature(
+  await readFile(themeCssPath, "utf8"),
+  relative(root, themeCssPath),
+  "artemis.theme",
+);
+verifyGalleryLayerOrder(
+  galleryCss,
+  relative(root, galleryCssFiles[0]),
+  expectedPublicUiSignature,
+  expectedThemeSignature,
+);
 
-const validLayerFixture =
-  "@layer artemis.reset, artemis.theme, artemis.ui;@layer artemis.theme{:root{--fixture:1}}@layer artemis.ui{.fixture{display:block}}";
+function mutateUiBlock(css, blockIndex, mutate) {
+  const parsed = postcss.parse(css);
+  const blocks = (parsed.nodes ?? []).filter(
+    (node) =>
+      node.type === "atrule" &&
+      node.name === "layer" &&
+      node.nodes !== undefined &&
+      node.params.trim() === "artemis.ui",
+  );
+  mutate(blocks[blockIndex]);
+  return parsed.toString();
+}
+
+const mutateGalleryUi = (css, mutate) => mutateUiBlock(css, 1, mutate);
+
+function mutateTheme(css, mutate) {
+  const parsed = postcss.parse(css);
+  const block = (parsed.nodes ?? []).find(
+    (node) =>
+      node.type === "atrule" &&
+      node.name === "layer" &&
+      node.nodes !== undefined &&
+      node.params.trim() === "artemis.theme",
+  );
+  mutate(block);
+  return parsed.toString();
+}
+
 const layerNegativeFixtures = [
   {
     name: "legacy-theme-first",
-    css: "@layer artemis.theme{:root{--fixture:1}}@layer artemis.reset, artemis.theme, artemis.ui;@layer artemis.ui{.fixture{display:block}}",
+    css: "@layer artemis.theme{:root{--fixture:1}}@layer artemis.reset, artemis.theme, artemis.ui;@layer artemis.ui{.fixture{display:block}}@layer artemis.ui{.gallery{display:grid}}",
     error: "cascade layer encounter order",
   },
   {
     name: "duplicate-theme-block",
-    css: `${validLayerFixture}@layer artemis.theme{.duplicate{display:block}}`,
+    css: `${galleryCss}@layer artemis.theme{.duplicate{display:block}}`,
     error: "duplicate artemis.theme layer block",
   },
   {
     name: "duplicate-ui-block",
-    css: `${validLayerFixture}@layer artemis.ui{.duplicate{display:block}}`,
+    css: `${galleryCss}@layer artemis.ui{.duplicate{display:block}}`,
     error: "duplicate artemis.ui layer block",
   },
   {
     name: "duplicate-order-statement",
-    css: `${validLayerFixture}@layer artemis.reset, artemis.theme, artemis.ui;`,
+    css: `${galleryCss}@layer artemis.reset, artemis.theme, artemis.ui;`,
     error: "duplicate layer order statement",
+  },
+  {
+    name: "nested-layer",
+    css: "@layer artemis.reset, artemis.theme, artemis.ui;@layer artemis.theme{:root{--fixture:1}}@layer artemis.ui{@layer artemis.ui{.fixture{display:block}}}@layer artemis.ui{.gallery{display:grid}}",
+    error: "nested @layer rules are not allowed",
+  },
+  {
+    name: "unknown-layer",
+    css: `${galleryCss}@layer artemis.unknown{.fixture{display:block}}`,
+    error: "unknown layer",
+  },
+  {
+    name: "wrong-order-params",
+    css: galleryCss.replace(
+      "@layer artemis.reset, artemis.theme, artemis.ui;",
+      "@layer artemis.theme, artemis.reset, artemis.ui;",
+    ),
+    error: "params must be exactly",
+  },
+  {
+    name: "unlayered-probe-focus-override",
+    css: `${galleryCss}[data-artemis-component="conformance-probe"] [data-part="control"]:focus-visible{outline:0!important}`,
+    error: "unlayered root node is forbidden",
+  },
+  {
+    name: "unlayered-generic-focus-override",
+    css: `${galleryCss}input:focus-visible{outline:0}`,
+    error: "unlayered root node is forbidden",
+  },
+  {
+    name: "unlayered-gallery-rule",
+    css: `${galleryCss}.gallery-probe-section{display:none}`,
+    error: "unlayered root node is forbidden",
+  },
+  {
+    name: "layered-important",
+    css: galleryCss.replace("display: grid;", "display: grid !important;"),
+    error: "!important is forbidden",
+  },
+  {
+    name: "layered-probe-focus-override",
+    css: mutateGalleryUi(galleryCss, (block) => {
+      block.append(
+        postcss.rule({
+          selector:
+            '[data-artemis-component="conformance-probe"] [data-part="control"]:focus-visible',
+          nodes: [postcss.decl({ prop: "outline", value: "0" })],
+        }),
+      );
+    }),
+    error: "Gallery scaffold selector is not allowed",
+  },
+  {
+    name: "layered-generic-focus-override",
+    css: mutateGalleryUi(galleryCss, (block) => {
+      block.append(
+        postcss.rule({
+          selector: "input:focus-visible",
+          nodes: [postcss.decl({ prop: "outline", value: "0" })],
+        }),
+      );
+    }),
+    error: "Gallery scaffold selector is not allowed",
+  },
+  {
+    name: "gallery-extra-declaration",
+    css: mutateGalleryUi(galleryCss, (block) => {
+      block.nodes
+        .find((node) => node.type === "rule" && node.selector === ":root")
+        .append(postcss.decl({ prop: "display", value: "block" }));
+    }),
+    error: "declarations do not match the exact contract",
+  },
+  {
+    name: "gallery-changed-value",
+    css: mutateGalleryUi(galleryCss, (block) => {
+      const body = block.nodes.find(
+        (node) => node.type === "rule" && node.selector === "body",
+      );
+      body.nodes.find((node) => node.type === "decl").value = "1px";
+    }),
+    error: "declarations do not match the exact contract",
+  },
+  {
+    name: "gallery-duplicate-selector",
+    css: mutateGalleryUi(galleryCss, (block) => {
+      block.append(
+        postcss.rule({
+          selector: "body",
+          nodes: [postcss.decl({ prop: "margin", value: "0" })],
+        }),
+      );
+    }),
+    error: "duplicate Gallery scaffold selector",
+  },
+  {
+    name: "public-ui-structural-drift",
+    css: mutateUiBlock(galleryCss, 0, (block) => {
+      block.append(
+        postcss.rule({
+          selector: ".public-drift",
+          nodes: [postcss.decl({ prop: "display", value: "block" })],
+        }),
+      );
+    }),
+    error: "public artemis.ui block drifted",
+  },
+  {
+    name: "unknown-root-at-rule",
+    css: `${galleryCss}@import url("evil.css");`,
+    error: "unlayered root node is forbidden",
+  },
+  {
+    name: "gallery-missing-selector",
+    css: mutateGalleryUi(galleryCss, (block) => {
+      block.nodes
+        .find(
+          (node) =>
+            node.type === "rule" && node.selector === ".gallery-probe-section",
+        )
+        .remove();
+    }),
+    error: "selector set does not match the exact contract",
+  },
+  {
+    name: "gallery-duplicate-declaration",
+    css: mutateGalleryUi(galleryCss, (block) => {
+      block.nodes
+        .find((node) => node.type === "rule" && node.selector === "body")
+        .append(postcss.decl({ prop: "margin", value: "0" }));
+    }),
+    error: "declarations do not match the exact contract",
+  },
+  {
+    name: "theme-block-structural-drift",
+    css: mutateTheme(galleryCss, (block) => {
+      block.append(
+        postcss.rule({
+          selector: "input",
+          nodes: [postcss.decl({ prop: "display", value: "none" })],
+        }),
+      );
+    }),
+    error: "artemis.theme block drifted",
   },
 ];
 for (const fixture of layerNegativeFixtures) {
   let failure = "";
   try {
-    verifyGalleryLayerOrder(fixture.css, `${fixture.name}-fixture.css`);
+    verifyGalleryLayerOrder(
+      fixture.css,
+      `${fixture.name}-fixture.css`,
+      expectedPublicUiSignature,
+      expectedThemeSignature,
+    );
   } catch (error) {
     if (error instanceof Error) failure = error.message;
   }

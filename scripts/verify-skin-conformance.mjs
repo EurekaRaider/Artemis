@@ -24,15 +24,42 @@ const REQUIRED_SWITCH_CASES = [
   "focus-preserved",
 ];
 
-const valueAfter = (flag) => {
-  const index = process.argv.indexOf(flag);
-  if (index === -1) return undefined;
-  const value = process.argv[index + 1];
-  if (value === undefined || value.startsWith("--")) {
-    throw new Error(`${flag} requires a path`);
+const CLI_FLAGS = new Map([
+  ["--contract", "contract"],
+  ["--matrix", "matrix"],
+  ["--skin-package", "skinPackage"],
+  ["--css", "css"],
+]);
+
+function parseCli(args) {
+  const values = {};
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    const key = CLI_FLAGS.get(argument);
+    if (key === undefined) {
+      if (argument.startsWith("--")) {
+        throw new Error(`CLI error: unknown flag ${argument}`);
+      }
+      throw new Error(`CLI error: unexpected positional argument ${argument}`);
+    }
+    if (Object.hasOwn(values, key)) {
+      throw new Error(`CLI error: duplicate ${argument} flag`);
+    }
+    const value = args[index + 1];
+    if (
+      value === undefined ||
+      value.startsWith("--") ||
+      value.trim().length === 0
+    ) {
+      throw new Error(`CLI error: ${argument} requires a non-empty path`);
+    }
+    values[key] = value;
+    index += 1;
   }
-  return value;
-};
+  return Object.freeze(values);
+}
+
+const cli = parseCli(process.argv.slice(2));
 const canonical = (value) => JSON.stringify(value);
 const normalizeWhitespace = (value) => value.replace(/\s+/gu, " ").trim();
 const normalizeSelector = (value) =>
@@ -242,7 +269,7 @@ const stress = await import(
   pathToFileURL(join(root, "apps/ui-gallery/src/stress-skin-fixture.mjs")).href
 );
 
-const contractPath = valueAfter("--contract");
+const contractPath = cli.contract;
 const candidateContract =
   contractPath === undefined
     ? conformance.CONFORMANCE_PROBE_CONTRACT
@@ -263,8 +290,7 @@ if (
 }
 
 const matrixPath =
-  valueAfter("--matrix") ??
-  join(root, "apps/ui-gallery/src/conformance-matrix.json");
+  cli.matrix ?? join(root, "apps/ui-gallery/src/conformance-matrix.json");
 const matrix = JSON.parse(await readFile(resolve(matrixPath), "utf8"));
 if (
   matrix === null ||
@@ -352,7 +378,7 @@ if (!hostileFocusReport.valid) {
   );
 }
 
-const externalSkin = valueAfter("--skin-package");
+const externalSkin = cli.skinPackage;
 if (externalSkin !== undefined) {
   const result = spawnSync(
     process.execPath,
@@ -379,9 +405,7 @@ for (const specifier of ["@artemis/ui", "@artemis/ui/conformance"]) {
     );
   }
 }
-const cssPath = resolve(
-  valueAfter("--css") ?? join(root, "packages/ui/dist/styles.css"),
-);
+const cssPath = resolve(cli.css ?? join(root, "packages/ui/dist/styles.css"));
 const css = await readFile(cssPath, "utf8");
 verifyStructuralCss(css, cssPath, candidateContract);
 

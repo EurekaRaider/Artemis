@@ -17,6 +17,7 @@ const baseMatrix = JSON.parse(
 );
 let rejected = 0;
 let rejectedCss = 0;
+let rejectedCli = 0;
 
 async function rejectContract(name, mutate) {
   const directory = await mkdtemp(
@@ -70,6 +71,21 @@ async function rejectCss(name, mutate) {
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+}
+
+function rejectCli(name, args, expectedError) {
+  const result = spawnSync(process.execPath, [verifier, ...args], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  const output = `${result.stdout}${result.stderr}`;
+  if (result.status === 0 || !output.includes(expectedError)) {
+    throw new Error(
+      `${name}: CLI was not rejected for ${expectedError}\n${output}`,
+    );
+  }
+  rejected += 1;
+  rejectedCli += 1;
 }
 
 await rejectContract("missing part", (contract) => contract.parts.pop());
@@ -152,12 +168,30 @@ await rejectCss("skin selector", (css) =>
   ),
 );
 
-if (rejected !== 13 || rejectedCss !== 7) {
+rejectCli(
+  "unknown skin package flag",
+  ["--skin-pakage", "fixture"],
+  "unknown flag",
+);
+rejectCli(
+  "duplicate CSS flag",
+  ["--css", "fixture.css", "--css", "fixture.css"],
+  "duplicate --css flag",
+);
+rejectCli("missing matrix value", ["--matrix"], "requires a non-empty path");
+rejectCli("empty CSS value", ["--css", ""], "requires a non-empty path");
+rejectCli(
+  "conformance positional argument",
+  ["fixture"],
+  "unexpected positional argument",
+);
+
+if (rejected !== 18 || rejectedCss !== 7 || rejectedCli !== 5) {
   throw new Error(
-    `Conformance negative coverage is incomplete: ${rejected}/13 total, ${rejectedCss}/7 CSS`,
+    `Conformance negative coverage is incomplete: ${rejected}/18 total, ${rejectedCss}/7 CSS, ${rejectedCli}/5 CLI`,
   );
 }
 
 console.log(
-  `Skin conformance negative verification passed (${rejected}/13 rejected; ${rejectedCss}/7 CSS fixtures)`,
+  `Skin conformance negative verification passed (${rejected}/18 rejected; ${rejectedCss}/7 CSS fixtures; ${rejectedCli}/5 CLI fixtures)`,
 );

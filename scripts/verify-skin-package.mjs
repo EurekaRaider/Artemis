@@ -14,6 +14,38 @@ const DATA_FILE_NAMES = [
 const FORBIDDEN_CONTENT =
   /url\s*\(|@import|https?:\/\/|data:|<(?:html|script|style)\b/iu;
 
+function parseCli(args) {
+  let packagePath;
+  let packageSeen = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === "--package") {
+      if (packageSeen) {
+        throw new Error("CLI error: duplicate --package flag");
+      }
+      packageSeen = true;
+      const value = args[index + 1];
+      if (
+        value === undefined ||
+        value.startsWith("--") ||
+        value.trim().length === 0
+      ) {
+        throw new Error("CLI error: --package requires a non-empty path");
+      }
+      packagePath = value;
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith("--")) {
+      throw new Error(`CLI error: unknown flag ${argument}`);
+    }
+    throw new Error(`CLI error: unexpected positional argument ${argument}`);
+  }
+  return packagePath;
+}
+
+const packagePath = parseCli(process.argv.slice(2));
+
 function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
 }
@@ -99,6 +131,12 @@ async function verifyFileMap(label, files) {
 }
 
 async function readStrictPackage(directory) {
+  const directoryStat = await lstat(directory);
+  if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
+    throw new Error(
+      "Skin package path must be a real directory, not a symlink",
+    );
+  }
   const entries = await readdir(directory, { withFileTypes: true });
   const files = new Map();
   for (const entry of entries) {
@@ -136,14 +174,11 @@ async function syntheticStressFiles() {
   );
 }
 
-const packageFlag = process.argv.indexOf("--package");
-if (packageFlag !== -1) {
-  const directory = process.argv[packageFlag + 1];
-  if (directory === undefined)
-    throw new Error("--package requires a directory");
+if (packagePath !== undefined) {
+  const directory = resolve(packagePath);
   const count = await verifyFileMap(
-    `external fixture ${resolve(directory)}`,
-    await readStrictPackage(resolve(directory)),
+    `external fixture ${directory}`,
+    await readStrictPackage(directory),
   );
   console.log(
     `Skin package verification passed (external; ${count} exact data files)`,
