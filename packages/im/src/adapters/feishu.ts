@@ -166,7 +166,10 @@ export class FeishuAdapter
   ): Promise<void> {
     const attachments: InboundMessage["attachments"] = [];
     // 图片附件（E7/[G] processImageAttachment）：image_key → 下载 → base64
-    for (const res of msg.resources) {
+    // SDK 归一化会把 image_key 以 markdown 占位符 ![image](key) 留在 content 里；
+    // 该占位符对模型无意义且会原样显示在桌面线程，必须按下载结果清洗。
+    let text = (msg.content ?? "").trim();
+    for (const res of msg.resources ?? []) {
       if (res.type !== "image") continue;
       try {
         const data = await this.channel!.downloadResource(res.fileKey, "image");
@@ -176,13 +179,18 @@ export class FeishuAdapter
             mime: sniffImageMime(data),
             dataBase64: data.toString("base64"),
           });
+          text = replaceImagePlaceholder(text, res.fileKey, "[图片]");
         }
-      } catch {
-        // 单张图片下载失败不阻断整条消息（对齐 [G] debug.Log + continue）
+      } catch (error) {
+        // 单张图片下载失败不阻断整条消息，但必须可见（对齐 [G] debug.Log +
+        // continue；静默吞错曾导致权限类失败在生产不可诊断）
+        console.warn(
+          `[im:${this.name}] image download failed (${res.fileKey}): ${describeDownloadError(error)}`,
+        );
+        text = replaceImagePlaceholder(text, res.fileKey, "[图片下载失败]");
       }
     }
 
-    const text = (msg.content ?? "").trim();
     if (text === "" && attachments.length === 0) return;
 
     onInbound({
@@ -350,6 +358,44 @@ export function buildApprovalCard(
       ],
     },
   };
+}
+
+/** 提取 axios/飞书错误的可诊断信息：HTTP 状态 + 响应体片段（流式响应体则标注跳过） */
+function describeDownloadError(error: unknown): string {
+  const err = error as {
+    message?: string;
+    response?: { status?: number; data?: unknown };
+  };
+  const base = err?.message ?? String(error);
+  const status = err?.response?.status;
+  const data = err?.response?.data;
+  let body = "";
+  if (typeof data === "string") {
+    body = data.slice(0, 300);
+  } else if (
+    data &&
+    typeof data === "object" &&
+    !Buffer.isBuffer(data) &&
+    typeof (data as { pipe?: unknown }).pipe !== "function"
+  ) {
+    try {
+      body = JSON.stringify(data).slice(0, 300);
+    } catch {
+      // 忽略序列化失败
+    }
+  }
+  return `${base}${status !== undefined ? ` (HTTP ${status})` : ""}${body ? ` body=${body}` : ""}`;
+}
+
+/** 把 SDK 归一化出的 ![image](fileKey) 占位符替换为可读标记（无占位符则原样返回） */
+function replaceImagePlaceholder(text: string, fileKey: string, label: string): string {
+  const placeholder = `![image](${fileKey})`;
+  if (!text.includes(placeholder)) return text;
+  return text
+    .split(placeholder)
+    .join(label)
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** 图片 MIME 嗅探（对齐 [G] processImageAttachment 的 image.Decode 嗅探） */

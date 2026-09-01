@@ -440,7 +440,10 @@ apps/desktop/src/main/
 | D5 | §4 PersistedSettings | version 升 2，新增 `imAdapters`；凭据键 `im:feishu:{name}` 用 `api_key.env` 形状存 appId/appSecret | 复用现有 credentials 加密通道 |
 | D6 | —（正文未含） | `ARTEMIS_USER_DATA_DIR` 环境变量支持并行隔离实例 | 真机冒烟需要与日常实例并存（main.ts app ready 前 setPath） |
 | D7 | 配对批准无渠道回执 | `approvePairing` 成功后回发"配对成功，已绑定"（对齐 ggcode） | 真机 UX 反馈 |
+| D8 | §3.2 翻译层假设 `turn.completed.text` / `tool.call` / `tool.result` / `turn.failed.error` | 按 schema.ts 真实形状重写：`message.part.delta` 聚合成全量答复；`turn.failed.message`；`tool.started`/`tool.completed`；`message.superseded` 丢弃被替换 part | 真机缺陷 2026-09-01：旧形状下 turn.completed 永远产出 []，飞书收不到任何答复；旧单测按同一虚构形状编写所以全绿（测试面≠真实面教训） |
+| D9 | E7 图片附件直转 PromptAttachment | 增加 SDK 占位符清洗：`![image](image_key)` → 下载成功 `[图片]` / 失败 `[图片下载失败]`；下载失败从静默 catch 改为 console.warn | 真机缺陷 2026-09-01：占位符原样进入 prompt 并显示在线程 UI；静默吞错使权限类失败（如缺 im:resource）不可诊断 |
 
-**真机冒烟已验证**（2026-09-01，隔离实例）：飞书私聊 → 配对引导回复 → 回码 → 桌面批准 → 渠道回执 → 发消息 → `[FS]` 线程执行 → 答复回发飞书。
-**待验证**：图片附件、审批卡片按钮（需后台配 card.action.trigger）、进程重启恢复、/verbose 切换。
+**真机冒烟已验证**（2026-09-01，隔离实例）：飞书私聊 → 配对引导回复 → 回码 → 桌面批准 → 渠道回执 → `[FS]` 线程执行。
+**2026-09-01 修正**：当时"答复回发飞书"结论不成立——出站翻译层字段与真实协议不匹配（D8），答复实际从未送达；已于同日修复并补真实事件流回归测试。
+**待真机复验**：答复出站（D8 修复后）、图片附件（D9 修复后；若线程显示 `[图片下载失败]`，查 main 进程日志 `[im:*] image download failed`，大概率缺 `im:resource` 权限或未发版）、审批卡片按钮（需后台配 card.action.trigger）、进程重启恢复、/verbose 切换。
 **已知限制**：dev 态未签名 Electron 的 macOS 系统通知被吞（通知权限），配对码以设置页卡片为准。

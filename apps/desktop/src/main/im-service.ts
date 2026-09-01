@@ -62,10 +62,19 @@ export interface IMAdapterConfig {
  */
 export interface IMAgentEventPayload {
   type: string;
-  text?: string | undefined;
-  error?: string | undefined;
+  // turn.completed（schema.ts:829：只有 reason/finalPartId，无文本字段）
+  reason?: string | undefined;
+  // turn.failed（schema.ts:837：字段是 message）
+  message?: string | undefined;
+  // message.part.delta（schema.ts:291：助手文本的唯一载体）
+  partId?: string | undefined;
+  partType?: string | undefined;
+  delta?: string | undefined;
+  // tool.started / tool.completed（schema.ts:299/313）
+  toolCallId?: string | undefined;
   toolName?: string | undefined;
-  detail?: string | undefined;
+  input?: unknown;
+  output?: string | undefined;
   isError?: boolean | undefined;
   // approval.requested / approval.resolved（protocol schema.ts 对齐）
   approvalId?: string | undefined;
@@ -103,7 +112,15 @@ export class IMService {
         });
       },
       onInboundAccepted: (msg, binding) => {
-        void this.handleAcceptedInbound(msg, binding);
+        // submitTurn 可能抛错（如图片超 promptImageSchema 上限）——必须记日志，
+        // 否则 IM 消息投递失败完全不可见（静默丢失）
+        void this.handleAcceptedInbound(msg, binding).catch((error: unknown) => {
+          console.warn(
+            `[im] inbound submit failed (${binding.adapter}/${binding.channelId}): ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
       },
       onApprovalResolved: (approvalId, approved, respondedBy) => {
         const tracker = this.approvalTrackers.get(approvalId);

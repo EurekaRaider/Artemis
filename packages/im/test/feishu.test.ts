@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   FEISHU_MAX_TEXT_BYTES,
@@ -18,6 +18,8 @@ class FakeChannel implements FeishuChannelLike {
   sent: { to: string; input: unknown }[] = [];
   updatedCards: { messageId: string; card: object }[] = [];
   reactions: { messageId: string; emojiType: string }[] = [];
+  /** 注入下载失败（模拟缺 im:resource 权限等真实错误） */
+  downloadError: Error | null = null;
   private handlers: {
     message?: (msg: LarkNormalizedMessage) => void | Promise<void>;
     cardAction?: (evt: LarkCardActionEvent) => void | Promise<void>;
@@ -45,6 +47,7 @@ class FakeChannel implements FeishuChannelLike {
     return "reaction_1";
   }
   async downloadResource(_fileKey: string, _type: string): Promise<Buffer> {
+    if (this.downloadError) throw this.downloadError;
     // PNG magic header + payload
     return Buffer.concat([
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -150,6 +153,56 @@ describe("FeishuAdapter（plan §2.7 / Phase 1.1-1.2）", () => {
     expect(att?.kind).toBe("image");
     expect(att?.mime).toBe("image/png"); // 嗅探出 fake PNG header
     expect(att?.dataBase64.length).toBeGreaterThan(0);
+  });
+
+  it("图片占位符清洗：SDK 归一化的 ![image](key) 不得进入提交文本（用户症状回归）", async () => {
+    const fake = new FakeChannel();
+    const adapter = makeAdapter(fake);
+    const inbound: InboundMessage[] = [];
+    await adapter.start({ signal: new AbortController().signal }, (m) => inbound.push(m));
+    // 真实 SDK 形状（lib/index.js postToPlainText/image 分支）：content 带 markdown 占位符
+    fake.emitMessage(
+      makeMessage({
+        content: "![image](img_v3_x)",
+        rawContentType: "image",
+        resources: [{ type: "image", fileKey: "img_v3_x" }],
+      }),
+    );
+    await new Promise((r) => setTimeout(r, 10));
+    expect(inbound).toHaveLength(1);
+    expect(inbound[0]?.text).not.toContain("img_v3_x");
+    expect(inbound[0]?.text).not.toContain("![image]");
+    expect(inbound[0]?.text).toBe("[图片]");
+    expect(inbound[0]?.attachments).toHaveLength(1);
+  });
+
+  it("图片下载失败：记日志 + 文本标记失败 + 消息仍投递（不静默吞错，对齐 [G] debug.Log）", async () => {
+    const fake = new FakeChannel();
+    fake.downloadError = new Error("feishu code 99991400: permission denied (im:resource)");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const adapter = makeAdapter(fake);
+      const inbound: InboundMessage[] = [];
+      await adapter.start({ signal: new AbortController().signal }, (m) => inbound.push(m));
+      fake.emitMessage(
+        makeMessage({
+          content: "![image](img_v3_x)",
+          rawContentType: "image",
+          resources: [{ type: "image", fileKey: "img_v3_x" }],
+        }),
+      );
+      await new Promise((r) => setTimeout(r, 10));
+      // 消息不丢，文本明确标记失败，附件为空
+      expect(inbound).toHaveLength(1);
+      expect(inbound[0]?.text).toBe("[图片下载失败]");
+      expect(inbound[0]?.attachments).toHaveLength(0);
+      // 失败必须可见（可诊断性）
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("img_v3_x"),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("空文本且无附件 → 丢弃", async () => {

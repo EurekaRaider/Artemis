@@ -288,12 +288,14 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     const { service, adapter } = setup(host, store);
     const binding = await pairChannel(service, store);
 
-    service.onAgentEvent(binding.threadId, { type: "turn.started" });
-    service.onAgentEvent(binding.threadId, { type: "tool.call", toolName: "shell", detail: "ls" });
-    service.onAgentEvent(binding.threadId, {
-      type: "tool.result", toolName: "shell", detail: "ok",
-    });
-    service.onAgentEvent(binding.threadId, { type: "turn.completed", text: "完成" });
+    // 真实协议事件流（schema.ts）：助手文本经 message.part.delta 流式到达，
+    // turn.completed 只有 reason/finalPartId，没有 text 字段（用户症状回归）
+    service.onAgentEvent(binding.threadId, { type: "turn.started", mode: "execute" });
+    service.onAgentEvent(binding.threadId, { type: "tool.started", toolCallId: "tc1", toolName: "shell", input: { command: "ls" } });
+    service.onAgentEvent(binding.threadId, { type: "tool.completed", toolCallId: "tc1", output: "ok", isError: false });
+    service.onAgentEvent(binding.threadId, { type: "message.part.delta", partId: "p1", partType: "text", delta: "完" });
+    service.onAgentEvent(binding.threadId, { type: "message.part.delta", partId: "p1", partType: "text", delta: "成" });
+    service.onAgentEvent(binding.threadId, { type: "turn.completed", reason: "completed" });
     await new Promise((r) => setTimeout(r, 10)); // deliver 是 async
 
     // summary 模式：tool_summary + text 两个事件（排除配对流程的 2 条渠道回复）
@@ -307,7 +309,8 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     const store = await createStore();
     const { host } = makeHost();
     const { service, adapter } = setup(host, store);
-    service.onAgentEvent("thread-unrelated", { type: "turn.completed", text: "x" });
+    service.onAgentEvent("thread-unrelated", { type: "message.part.delta", partId: "p1", partType: "text", delta: "x" });
+    service.onAgentEvent("thread-unrelated", { type: "turn.completed", reason: "completed" });
     await new Promise((r) => setTimeout(r, 10));
     expect(adapter.sent).toHaveLength(0);
   });
@@ -319,7 +322,8 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     const binding = await pairChannel(service, store);
     store.updateImBinding("feishu-main", "oc_a", { muted: true });
     const pairingReplies = adapter.sent.length; // 配对流程回复不算出站事件
-    service.onAgentEvent(binding.threadId, { type: "turn.completed", text: "x" });
+    service.onAgentEvent(binding.threadId, { type: "message.part.delta", partId: "p1", partType: "text", delta: "x" });
+    service.onAgentEvent(binding.threadId, { type: "turn.completed", reason: "completed" });
     await new Promise((r) => setTimeout(r, 10));
     expect(adapter.sent).toHaveLength(pairingReplies);
   });
