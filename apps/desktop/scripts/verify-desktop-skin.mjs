@@ -469,8 +469,8 @@ async function buildSmokePreload() {
       'let desktopSkinSmokeTerminalOpenCount = 0;\nlet desktopSkinSmokeRendererReadyCount = 0;\nlet desktopSkinSmokeTerminalData = "";\n\nconst api: ArtemisApi = {',
     )
     .replace(
-      "rendererReady: () => ipcRenderer.send(IPC.rendererReady),",
-      "rendererReady: () => {\n    desktopSkinSmokeRendererReadyCount += 1;\n    ipcRenderer.send(IPC.rendererReady);\n  },",
+      "rendererReady: () =>\n    ipcRenderer.send(IPC.rendererReady, {\n      contextIsolated: process.contextIsolated === true,\n      sandboxed: process.sandboxed === true,\n    }),",
+      "rendererReady: () => {\n    desktopSkinSmokeRendererReadyCount += 1;\n    ipcRenderer.send(IPC.rendererReady, {\n      contextIsolated: process.contextIsolated === true,\n      sandboxed: process.sandboxed === true,\n    });\n  },",
     )
     .replace(
       "openTerminal: (input) => ipcRenderer.invoke(IPC.terminalOpen, input),",
