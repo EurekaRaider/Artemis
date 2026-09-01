@@ -82,9 +82,11 @@ The accessible-name floor requires the v1 `label` prop to remain a required
 static string in the public contract. `ConformanceProbe` rejects empty or
 whitespace-only labels before producing DOM; the Gallery's same default/stress
 ARIA behavior runner proves both the rejection and the positive accessible
-name. The built Gallery CSS is parsed to prove its first cascade-layer
-encounters remain `artemis.reset` → `artemis.theme` → `artemis.ui`; the former
-theme-first artifact order is a rejecting fixture.
+name. The built Gallery CSS is parsed to require exactly one full layer-order
+statement, exactly one theme block, exactly one UI block, no reset block, and
+first encounters of `artemis.reset` → `artemis.theme` → `artemis.ui`. The former
+theme-first order plus duplicate theme/UI blocks and duplicate order statements
+are rejecting fixtures.
 
 The Probe structural stylesheet is parsed with PostCSS and compared against an
 exact selector/property/value allowlist. Its consumed `--artemis-*` token set

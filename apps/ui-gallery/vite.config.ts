@@ -7,5 +7,6 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    cssMinify: false,
   },
 });
