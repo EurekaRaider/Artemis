@@ -1,6 +1,11 @@
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 import { artemisThemeManifest } from "@artemis/theme-artemis";
+import {
+  SEMANTIC_TOKEN_REGISTRY,
+  type ContrastMode,
+  type ThemeMode,
+} from "@artemis/theme-contract";
 import { ConformanceProbe } from "@artemis/ui/conformance";
 
 import { galleryContract } from "./gallery-contract.js";
@@ -8,11 +13,78 @@ import { STRESS_SKIN_ID, stressSkinCss } from "./stress-skin-fixture.mjs";
 
 export type GallerySkin = "default" | "stress";
 
-export function applyGallerySkin(skin: GallerySkin): void {
+export interface GalleryMode {
+  readonly skin: GallerySkin;
+  readonly theme: ThemeMode;
+  readonly contrast: ContrastMode;
+}
+
+export const GALLERY_TOKEN_PROVENANCE =
+  "@artemis/theme-artemis/theme.css" as const;
+
+type GalleryTokenName = keyof typeof SEMANTIC_TOKEN_REGISTRY;
+const TOKEN_SAMPLE_NAMES = Object.freeze(
+  Object.keys(SEMANTIC_TOKEN_REGISTRY) as GalleryTokenName[],
+);
+export type GalleryTokenSnapshot = Readonly<Record<GalleryTokenName, string>>;
+
+const SURFACE_SAMPLES = [
+  ["base", "Base"],
+  ["raised", "Raised"],
+  ["sunken", "Sunken"],
+  ["composer", "Composer"],
+  ["user", "User"],
+] as const;
+
+const RADIUS_SAMPLES = [
+  ["control", "Control"],
+  ["input", "Input"],
+  ["card", "Card"],
+  ["panel", "Panel"],
+  ["composer", "Composer"],
+] as const;
+
+const THEME_OPTIONS = [
+  ["light", "Light"],
+  ["dark", "Dark"],
+] as const;
+const CONTRAST_OPTIONS = [
+  ["normal", "Normal"],
+  ["high", "High"],
+] as const;
+const SKIN_OPTIONS = [
+  ["default", "Direction A"],
+  ["stress", "Stress"],
+] as const;
+
+function blankTokenSnapshot(): GalleryTokenSnapshot {
+  return Object.fromEntries(
+    TOKEN_SAMPLE_NAMES.map((name) => [name, ""]),
+  ) as unknown as GalleryTokenSnapshot;
+}
+
+export function readGalleryTokenSnapshot(): GalleryTokenSnapshot {
+  if (typeof getComputedStyle !== "function") return blankTokenSnapshot();
+  const computed = getComputedStyle(document.documentElement);
+  return Object.fromEntries(
+    TOKEN_SAMPLE_NAMES.map((name) => [
+      name,
+      computed
+        .getPropertyValue(SEMANTIC_TOKEN_REGISTRY[name].cssVariable)
+        .trim(),
+    ]),
+  ) as unknown as GalleryTokenSnapshot;
+}
+
+export function applyGalleryMode(mode: GalleryMode): void {
   document.documentElement.dataset.artemisSkin =
-    skin === "default" ? artemisThemeManifest.id : STRESS_SKIN_ID;
-  document.documentElement.dataset.artemisTheme = "light";
-  document.documentElement.dataset.artemisContrast = "normal";
+    mode.skin === "default" ? artemisThemeManifest.id : STRESS_SKIN_ID;
+  document.documentElement.dataset.artemisTheme = mode.theme;
+  document.documentElement.dataset.artemisContrast = mode.contrast;
+}
+
+export function applyGallerySkin(skin: GallerySkin): void {
+  applyGalleryMode({ skin, theme: "light", contrast: "normal" });
 }
 
 export function installGalleryStressSkinStyles(): void {
@@ -25,44 +97,178 @@ export function installGalleryStressSkinStyles(): void {
   document.head.append(style);
 }
 
-function currentGallerySkin(): GallerySkin {
-  return document.documentElement.dataset.artemisSkin === STRESS_SKIN_ID
-    ? "stress"
-    : "default";
+function currentGalleryMode(): GalleryMode {
+  return {
+    skin:
+      document.documentElement.dataset.artemisSkin === STRESS_SKIN_ID
+        ? "stress"
+        : "default",
+    theme:
+      document.documentElement.dataset.artemisTheme === "dark"
+        ? "dark"
+        : "light",
+    contrast:
+      document.documentElement.dataset.artemisContrast === "high"
+        ? "high"
+        : "normal",
+  };
+}
+
+function preserveProbeFocus(event: React.MouseEvent<HTMLButtonElement>) {
+  event.preventDefault();
+}
+
+interface GalleryAxisControlProps<T extends string> {
+  readonly label: string;
+  readonly value: T;
+  readonly options: readonly (readonly [T, string])[];
+  readonly onChange: (value: T) => void;
+}
+
+function GalleryAxisControl<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: GalleryAxisControlProps<T>) {
+  return (
+    <fieldset className="gallery-axis-control">
+      <legend>{label}</legend>
+      {options.map(([option, optionLabel]) => (
+        <button
+          key={option}
+          type="button"
+          aria-pressed={option === value}
+          onMouseDown={preserveProbeFocus}
+          onClick={() => onChange(option)}
+        >
+          {optionLabel}
+        </button>
+      ))}
+    </fieldset>
+  );
 }
 
 export function GalleryApp() {
-  const [skin, setSkin] = useState<GallerySkin>(currentGallerySkin);
+  const [mode, setMode] = useState<GalleryMode>(currentGalleryMode);
+  const [tokenSnapshot, setTokenSnapshot] =
+    useState<GalleryTokenSnapshot>(blankTokenSnapshot);
   const [eventOrder, setEventOrder] = useState<readonly string[]>([]);
   const appendEvent = (entry: string) =>
     setEventOrder((current) => [...current, entry]);
 
-  const switchSkin = () => {
-    const nextSkin = skin === "default" ? "stress" : "default";
-    if (nextSkin === "stress") installGalleryStressSkinStyles();
-    applyGallerySkin(nextSkin);
-    setSkin(nextSkin);
+  useLayoutEffect(() => {
+    setTokenSnapshot(readGalleryTokenSnapshot());
+  }, [mode]);
+
+  const changeMode = (nextMode: GalleryMode) => {
+    if (nextMode.skin === "stress") installGalleryStressSkinStyles();
+    applyGalleryMode(nextMode);
+    setMode(nextMode);
   };
 
   return (
     <main>
-      <p className="gallery-eyebrow">CL0B component contract harness</p>
-      <h1>Artemis UI Gallery scaffold</h1>
+      <p className="gallery-eyebrow">CL1A Direction A candidate</p>
+      <h1>Artemis UI Gallery</h1>
       <p>
         Public package consumption is active for UI contract v
         {galleryContract.uiContractVersion} and skin {galleryContract.skinId}.
       </p>
-      <button
-        type="button"
-        className="gallery-skin-toggle"
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={switchSkin}
+      <div className="gallery-axis-grid" aria-label="Gallery mode controls">
+        <GalleryAxisControl
+          label="Skin"
+          value={mode.skin}
+          options={SKIN_OPTIONS}
+          onChange={(skin) => changeMode({ ...mode, skin })}
+        />
+        <GalleryAxisControl
+          label="Theme"
+          value={mode.theme}
+          options={THEME_OPTIONS}
+          onChange={(theme) => changeMode({ ...mode, theme })}
+        />
+        <GalleryAxisControl
+          label="Contrast"
+          value={mode.contrast}
+          options={CONTRAST_OPTIONS}
+          onChange={(contrast) => changeMode({ ...mode, contrast })}
+        />
+      </div>
+      <p
+        aria-live="polite"
+        data-gallery-active-skin={mode.skin}
+        data-gallery-active-theme={mode.theme}
+        data-gallery-active-contrast={mode.contrast}
       >
-        Use {skin === "default" ? "stress" : "default"} skin
-      </button>
-      <p aria-live="polite" data-gallery-active-skin={skin}>
-        Active harness skin: {skin}
+        Active mode: {mode.skin} / {mode.theme} / {mode.contrast}
       </p>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="token-heading"
+      >
+        <h2 id="token-heading">Resolved token output</h2>
+        <p data-gallery-token-provenance={GALLERY_TOKEN_PROVENANCE}>
+          Computed from {GALLERY_TOKEN_PROVENANCE}; no Gallery palette copy.
+        </p>
+        <dl className="gallery-token-grid">
+          {TOKEN_SAMPLE_NAMES.map((name) => (
+            <div key={name}>
+              <dt>{name}</dt>
+              <dd>
+                <output data-gallery-token={name}>
+                  {tokenSnapshot[name] || "unresolved"}
+                </output>
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="surface-heading"
+      >
+        <h2 id="surface-heading">Surface and type samples</h2>
+        <div className="gallery-surface-grid">
+          {SURFACE_SAMPLES.map(([surface, label]) => (
+            <div
+              key={surface}
+              className={`gallery-surface-sample gallery-surface-${surface}`}
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+        <div className="gallery-type-sample">
+          <p className="gallery-type-primary">Primary body text</p>
+          <p className="gallery-type-secondary">Secondary supporting text</p>
+          <p className="gallery-type-tertiary">Tertiary metadata text</p>
+        </div>
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="geometry-heading"
+      >
+        <h2 id="geometry-heading">Radius and motion samples</h2>
+        <div className="gallery-radius-grid">
+          {RADIUS_SAMPLES.map(([radius, label]) => (
+            <div
+              key={radius}
+              className={`gallery-radius-sample gallery-radius-${radius}`}
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+        <div className="gallery-motion-sample">
+          <span className="gallery-motion-swatch" aria-hidden="true" />
+          180 / 320 / 480ms · standard and shell easing
+        </div>
+      </section>
+
       <section
         className="gallery-probe-section"
         aria-labelledby="probe-heading"
@@ -71,7 +277,7 @@ export function GalleryApp() {
         <ConformanceProbe
           id="gallery-probe"
           label="Synthetic value"
-          description="State must survive a skin switch."
+          description="State must survive skin, theme, and contrast switches."
           defaultValue="preserve"
           onValueChange={(value) => appendEvent(`change:${value}`)}
           onCommit={(value) => appendEvent(`commit:${value}`)}

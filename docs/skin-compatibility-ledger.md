@@ -1,7 +1,7 @@
 # Artemis Skin v1 compatibility ledger
 
-Status: CL0B component-contract candidate on merged CL0A base
-`244aacf78978597fec9996458ddbe590adfc8c7a`. This document records what is
+Status: CL1A Direction A skin candidate on merged CL0B base
+`facb26260ac9bba6ef7a4f9646e04a0271b675cc`. This document records what is
 enforced now and which runtime behavior remains owned by later serialized
 milestones.
 
@@ -38,20 +38,20 @@ and is deliberately absent from `integrity.json`.
 
 ## Built-in and stress coverage
 
-| Case                                          | Expected modes                                                                   | Expected result                                                 | Runtime consumer               | Milestone/status                     |
-| --------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------ | ------------------------------------ |
-| Artemis neutral scaffold                      | light/dark × normal/high × comfortable × universal                               | valid; optional omissions reported and filled from the registry | Gallery only                   | CL0A merged at `244aacf`             |
-| Artemis Direction A                           | same minimum matrix, with frozen v17-aligned values                              | valid and visual/contrast evidence                              | Gallery, then Desktop resolver | CL1A pending                         |
-| Synthetic stress skin                         | light/dark × normal/high × compact × universal with extreme allowed token values | valid without changing Probe anatomy, ARIA, or event order      | Gallery test harness           | CL0B candidate; CL1C remains pending |
-| Missing required token                        | any                                                                              | reject the entire skin                                          | validator                      | CL0A tested                          |
-| Unknown token/field                           | any                                                                              | reject the entire skin                                          | validator                      | CL0A tested                          |
-| Invalid CSS-like value or out-of-range number | any                                                                              | reject the entire skin                                          | validator                      | CL0A tested                          |
-| Unsupported schema/UI contract                | any                                                                              | reject the entire skin                                          | validator                      | CL0A tested                          |
-| Missing declared document/mode                | any                                                                              | reject the entire skin                                          | package validator              | CL0A tested                          |
-| Optional token omitted                        | any otherwise valid mode                                                         | accept and report registered safe fallback                      | validator                      | CL0A tested                          |
-| Entire selected skin invalid/unavailable      | host chooses built-in safe skin before rendering                                 | no partial application                                          | Desktop resolver               | CL1B pending; not claimed by CL0A    |
+| Case                                          | Expected modes                                                                   | Expected result                                                 | Runtime consumer               | Milestone/status                  |
+| --------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------ | --------------------------------- |
+| Artemis neutral scaffold                      | light/dark × normal/high × comfortable × universal                               | valid; optional omissions reported and filled from the registry | Gallery only                   | CL0A merged; superseded by CL1A   |
+| Artemis Direction A                           | same minimum matrix, with frozen v17-aligned values                              | valid; 74 explicit values/mode; zero built-in fallback          | Gallery, then Desktop resolver | CL1A candidate; not merged        |
+| Synthetic stress skin                         | light/dark × normal/high × compact × universal with extreme allowed token values | valid without changing Probe anatomy, ARIA, or event order      | Gallery test harness           | CL0B merged; CL1C remains pending |
+| Missing required token                        | any                                                                              | reject the entire skin                                          | validator                      | CL0A tested                       |
+| Unknown token/field                           | any                                                                              | reject the entire skin                                          | validator                      | CL0A tested                       |
+| Invalid CSS-like value or out-of-range number | any                                                                              | reject the entire skin                                          | validator                      | CL0A tested                       |
+| Unsupported schema/UI contract                | any                                                                              | reject the entire skin                                          | validator                      | CL0A tested                       |
+| Missing declared document/mode                | any                                                                              | reject the entire skin                                          | package validator              | CL0A tested                       |
+| Optional token omitted                        | any otherwise valid mode                                                         | accept and report registered safe fallback                      | validator                      | CL0A tested                       |
+| Entire selected skin invalid/unavailable      | host chooses built-in safe skin before rendering                                 | no partial application                                          | Desktop resolver               | CL1B pending; not claimed by CL0A |
 
-CL0B adds stable `verify:skin-package` and `verify:skin-conformance` skeletons.
+CL0B added stable `verify:skin-package` and `verify:skin-conformance` gates.
 The package gate validates bundled Artemis data and the synthetic fixture,
 recomputes exact hashes, enforces the five-file data allowlist, rejects nested
 or symlinked entries and a symlinked package root, reads each file through one
@@ -69,6 +69,48 @@ runners across default and stress (16 executions), including actual stress root
 attributes and its installed generated stylesheet; the JSON matrix is only the
 fail-closed case inventory, never a substitute for those assertions. Full
 default/stress/fallback governance remains CL1C pending.
+
+## CL1A built-in Direction A evidence boundary
+
+The CL1A candidate changes only trusted built-in token data, its fixed CSS
+serializer, and the private Gallery. It does not change the frozen Skin v1
+schema or registry. Every one of the 74 registered tokens is explicit for
+light/dark × normal/high, including all six optional safe values, so the
+built-in package reports an empty fallback list. Independent frozen test data
+compares every value in every mode; it is not derived from the production token
+objects. Generated JSON, CSS, integrity hashes, package exports, and outside
+consumer data remain exact.
+
+Test-side WCAG relative-luminance and alpha-composition code is independent of
+production serialization. Small text pairs are asserted at 4.5:1 on their
+actual carrying surfaces, including secondary, tertiary, and accent text on all
+eight Gallery surface roles; accent/on-primary and status/on-color pairs are
+also 4.5:1. Required `border.default`, `border.strong`, status boundaries, and
+focus tokens are at least 3:1. The lower-alpha `border.subtle` remains decoration
+only and must never be the sole required component boundary. The v17
+translucent focus values were deliberately not copied because their actual
+composites fail 3:1; the ledger records the opaque v17 role replacements.
+
+Skin v1 deliberately has status solid, subtle-background, and on-solid roles,
+but no colored status-text role. Those solid and subtle tokens do not form a
+small-text pair: the prototype uses separate `success-text`, `warning-text`,
+`danger-text`, and accent-text values. CL2 must use `text.primary` plus redundant
+status labelling or pursue a separate finite contract change before rendering
+colored small status text; CL1A neither widens the schema nor lowers 4.5:1.
+
+Gallery keeps skin, theme, and contrast as independent root attributes. Its
+panel calls `getComputedStyle` for all 74 registry variables and names the
+formal `@artemis/theme-artemis/theme.css` provenance; it has no second raw
+Direction A palette. Tests cover all eight default/stress vertices, all 74
+computed values at each vertex, all three pressed-button groups for every
+initial vertex, all 12 single-axis cube edges, and a complete eight-vertex round
+trip that preserves the same Probe node, value, React event-order state, focus,
+selection, anatomy, and ARIA. The existing eight behavior runners still execute
+against both skins (16 runs). A working-tree in-app Browser smoke independently
+traversed the same eight vertices with 74 resolved values, preserved Probe
+value/focus/selection/ARIA, and produced no warning or error console entries;
+reviewed-SHA Browser evidence is still pending. Electron is N/A because no
+Desktop consumer, resolver, persistence, main, or preload code is in CL1A.
 
 ## CL0B component contract boundary
 
@@ -106,7 +148,7 @@ Gallery scaffold selector/declaration/value drift are rejecting fixtures. The
 first UI block must remain structurally identical to the public
 `@artemis/ui/styles.css` block, the theme block must remain structurally
 identical to `@artemis/theme-artemis/theme.css`, and the second UI block has an
-exact six-selector Gallery-only allowlist. Twenty-one formal artifact fixtures
+exact 36-selector/rule Gallery-only allowlist. Twenty-one formal artifact fixtures
 exercise these layer, root-node, public/theme-block, and Gallery-block rejection
 paths.
 
@@ -170,7 +212,7 @@ Built-in CSS generation uses only this controlled selector shape:
 The line breaks above are explanatory; generated selectors are a single root
 selector. Token data cannot add selectors or property names. Host attribute
 resolution and the orthogonal bridge from the existing `AppTheme` value are
-CL1B work. CL0A does not change persisted `AppTheme` or Desktop state.
+CL1B work. CL1A still does not change persisted `AppTheme` or Desktop state.
 
 ## SKIN1 ownership after MIG6
 

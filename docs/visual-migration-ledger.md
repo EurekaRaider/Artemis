@@ -1,20 +1,29 @@
 # Discussion #76 visual migration ledger
 
-Status: CL0B component-contract candidate on merged CL0A base. This ledger
+Status: CL1A Direction A skin candidate on merged CL0B base. This ledger
 separates static prototype evidence, package/Gallery evidence, and production
 Electron evidence. It must not be used to turn a prototype or Gallery pass into
 a migrated production surface.
 
 ## Inputs and evidence boundary
 
-- Candidate base: `244aacf78978597fec9996458ddbe590adfc8c7a` (CL0A merged).
-- v17 specification inputs: `ui-prototype/README.md`, `components.html`,
-  `apple-inspired-ui.html`, `proposal-ui-library.md`, `capability-matrix.md`,
-  `tools/capability-map.json`, `tools/matrix-stats.json`,
-  `contrast/REPORT.md`, `contrast/prototype-contract-result.json`, and
-  `contrast/summary.json`.
+- Candidate base: `facb26260ac9bba6ef7a4f9646e04a0271b675cc` (CL0B merged).
+- Read-only v17 specification inputs:
+  companion `ui-prototype/README.md`
+  (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
+  `ui-prototype/components.html`
+  (`sha256:8e6926592a21edb6bcaf228b8ed2c86aed563c2a106faa702ccbaf2404f5f28c`),
+  `ui-prototype/apple-inspired-ui.html`
+  (`sha256:25bb03a28c1e04dd73e57f64d27d3ac2ab6a24ebfe829053e4a540c351c29bbf`),
+  `ui-prototype/proposal-ui-library.md`,
+  `ui-prototype/capability-matrix.md`,
+  `ui-prototype/tools/capability-map.json`,
+  `ui-prototype/tools/matrix-stats.json`,
+  `ui-prototype/contrast/REPORT.md`,
+  `ui-prototype/contrast/prototype-contract-result.json`, and
+  `ui-prototype/contrast/summary.json`.
 - The prototype directory remains read-only in a companion checkout and is not
-  present in this candidate base. CL0B does not copy or modify it.
+  present in this candidate base. CL1A does not copy or modify it.
 - v17's 70/70 generic card contract, 22/22 targeted historical-gap checks, and
   36 contrast combinations are HTML/Chrome specification evidence only. They do
   not prove React anatomy, Desktop integration, Electron geometry, platform
@@ -22,19 +31,19 @@ a migrated production surface.
 
 ## Token lineage
 
-| Prototype role                                                | CL0A semantic contract                                                  | Owner          | Consumer                             | Legacy/prototype selector                          | Target PR                      | Electron evidence                                 | Status                                       |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------- | ------------------------------------ | -------------------------------------------------- | ------------------------------ | ------------------------------------------------- | -------------------------------------------- |
-| `--bg`, `--bg-sidebar`, `--bg-activity`                       | `color.canvas`, `color.background.sidebar`, `color.background.activity` | theme contract | future shell/layout components       | `:root`, `.app-shell`, `.sidebar`, `.activity-bar` | CL1A values; MIG1 surfaces     | Required on migration SHA                         | Contracted; neutral values only              |
-| `--surface`, `--raised`, `--sunken`, `--panel-2`, `--panel-3` | surface base/raised/sunken/composer/user roles                          | theme contract | controls, panels, Composer, timeline | root theme blocks and renderer `styles.css`        | CL1A values; CL2-CL4 consumers | Required on migration SHA                         | Contracted; neutral values only              |
-| `--hover`, `--selected`                                       | interaction hover/selected roles                                        | theme contract | all interactive anatomy              | component hover/selected selectors                 | CL0B probe; CL2-CL4            | Gallery interaction first, Electron when consumed | Probe contract only; formal controls pending |
-| `--text`, `--text-2`, `--text-3`                              | primary/secondary/tertiary text roles                                   | theme contract | all components and surfaces          | root theme blocks                                  | CL1A values                    | Required on migration SHA                         | Contracted; neutral values only              |
-| `--border`, `--border-soft`                                   | default/strong/subtle border roles                                      | theme contract | controls, cards, splitters, overlays | renderer `styles.css` local declarations           | CL1A values; CL2-CL4           | Required on migration SHA                         | Contracted; neutral values only              |
-| accent fill/text/hover/soft/on-accent                         | primary/hover/subtle/text/on-primary roles                              | theme contract | controls, focus, selection           | v17 role tokens                                    | CL1A values; CL2               | Gallery contrast then Electron                    | Contracted; Direction A values deferred      |
-| success/warning/danger/info + soft/on-color                   | status role families                                                    | theme contract | feedback, approvals, diff, countdown | v17 role tokens and renderer status selectors      | CL1A values; CL2/CL4           | State matrix on exact consumer SHA                | Contracted; behavior unchanged               |
-| terminal/diff roles                                           | terminal foreground/background and diff add/delete pairs                | theme contract | Terminal, change set, editors        | `--terminal-*`, `--diff-*`                         | CL1A values; MIG3-MIG5         | Native Electron evidence required                 | Contracted; not consumed                     |
-| spacing, control sizes, radius, typography                    | bounded numeric and font-stack-ID tokens                                | theme contract | component anatomy and layout         | v17 direction density/radius/font blocks           | CL0B probe; CL1A values        | Gallery geometry then Electron                    | Probe consumes tokens; Direction A pending   |
-| 180/320 timing and shell easing                               | duration/easing IDs with fixed CSS serializers                          | theme contract | transitions only                     | `--t-quick`, `--t-standard`, `--shell-ease`        | CL1A/CL2                       | reduced-motion evidence later                     | Contracted; no motion behavior yet           |
-| card/surface/composer/overlay shadows                         | shadow IDs with fixed CSS serializers                                   | theme contract | cards, Composer, overlays            | `--shadow-*`                                       | CL1A/CL2-CL4                   | Gallery and Electron later                        | Contracted; arbitrary shadows rejected       |
+| Prototype role                                                | CL0A semantic contract                                                  | Owner          | Consumer                             | Legacy/prototype selector                             | Target PR                      | Electron evidence                                 | Status                                       |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------- | ------------------------------------ | ----------------------------------------------------- | ------------------------------ | ------------------------------------------------- | -------------------------------------------- |
+| `--bg`, `--bg-sidebar`, `--bg-activity`                       | `color.canvas`, `color.background.sidebar`, `color.background.activity` | theme contract | future shell/layout components       | `:root`, `.app-shell`, `.sidebar`, `.activity-bar`    | CL1A values; MIG1 surfaces     | Required on migration SHA                         | Direction A candidate; Gallery token output  |
+| `--surface`, `--raised`, `--sunken`, `--panel-2`, `--panel-3` | surface base/raised/sunken/composer/user roles                          | theme contract | controls, panels, Composer, timeline | root theme blocks and renderer `styles.css`           | CL1A values; CL2-CL4 consumers | Required on migration SHA                         | Direction A candidate; Gallery samples       |
+| `--hover`, `--selected`                                       | interaction hover/selected roles                                        | theme contract | all interactive anatomy              | component hover/selected selectors                    | CL0B probe; CL2-CL4            | Gallery interaction first, Electron when consumed | Probe contract only; formal controls pending |
+| `--text`, `--text-2`, `--text-3`                              | primary/secondary/tertiary text roles                                   | theme contract | all components and surfaces          | root theme blocks                                     | CL1A values                    | Required on migration SHA                         | v17 corrected roles; WCAG candidate          |
+| `--border`, `--border-soft`                                   | default/strong/subtle border roles                                      | theme contract | controls, cards, splitters, overlays | renderer `styles.css` local declarations              | CL1A values; CL2-CL4           | Required on migration SHA                         | Required/subtle roles separated and tested   |
+| accent fill/text/hover/soft/on-accent                         | primary/hover/subtle/text/on-primary roles                              | theme contract | controls, focus, selection           | v17 role tokens                                       | CL1A values; CL2               | Gallery contrast then Electron                    | Direction A candidate; WCAG tested           |
+| success/warning/danger/info + soft/on-color                   | status role families                                                    | theme contract | feedback, approvals, diff, countdown | v17 role tokens and renderer status selectors         | CL1A values; CL2/CL4           | State matrix on exact consumer SHA                | Direction A candidate; behavior unchanged    |
+| terminal/diff roles                                           | terminal foreground/background and diff add/delete pairs                | theme contract | Terminal, change set, editors        | `--terminal-*`, `--diff-*`                            | CL1A values; MIG3-MIG5         | Native Electron evidence required                 | Candidate values; no production consumer yet |
+| spacing, control sizes, radius, typography                    | bounded numeric and font-stack-ID tokens                                | theme contract | component anatomy and layout         | v17 direction density/radius/font blocks              | CL0B probe; CL1A values        | Gallery geometry then Electron                    | Direction A Gallery samples                  |
+| 180/320/480 timing and standard/shell easing                  | duration/easing IDs with fixed CSS serializers                          | theme contract | transitions only                     | `--t-quick`, `--t-standard`, `--ease`, `--shell-ease` | CL1A/CL2                       | reduced-motion evidence later                     | Candidate serializer and motion sample       |
+| card/surface/composer/overlay shadows                         | shadow IDs with fixed CSS serializers                                   | theme contract | cards, Composer, overlays            | `--shadow-*`                                          | CL1A/CL2-CL4                   | Gallery and Electron later                        | Static none; mode-aware trusted serializers  |
 
 Primitive palette authoring and component-private tokens remain implementation
 details of `@artemis/theme-artemis` and `@artemis/ui`. Third-party Skin v1 is
@@ -44,26 +53,90 @@ CSS code. Its manifest uses `com.example.skin`-style reverse-DNS IDs,
 contrast. `integrity.json` covers the manifest and declared token data but is not
 an author signature or trust decision.
 
+## CL1A Direction A candidate decisions
+
+`components.html` is authoritative where v17 corrected a semantic role for
+contrast; `apple-inspired-ui.html` supplements shell surfaces, terminal, diff,
+and mode-specific shadows. The README's explicit five-level Direction A
+mapping resolves the component-page naming collision as control/input/card/
+panel/composer = `8/10/12/16/18px`; the comparison page's local
+`--r-card:16px` remains a prototype card-layout alias, not the frozen semantic
+`radius.card`. All alpha colors are serialized as deterministic `#RRGGBBAA`.
+
+| Mode         | Canvas / sidebar / activity     | Base / raised / sunken / composer / user  | Primary / secondary / tertiary text | Default / subtle / strong border | Accent fill / hover / text / focus  |
+| ------------ | ------------------------------- | ----------------------------------------- | ----------------------------------- | -------------------------------- | ----------------------------------- |
+| light normal | `#f5f5f7/#f0f0f2/#ebebef`       | `#fff/#fff/#f5f5f7/#fff/#f0f0f2`          | `#1d1d1f/#5a5a60/#68686c`           | `#0000006b/#00000012/#68686c`    | `#0071e3/#0071e3/#0056ae/#0071e3`   |
+| light high   | same Direction A light surfaces | same Direction A light surfaces           | `#1d1d1f/#3a3a3c/#55555c`           | `#00000080/#0000002e/#55555c`    | same Direction A light accent roles |
+| dark normal  | `#1d1d1f/#1a1a1c/#17171a`       | `#232325/#272729/#1a1a1c/#272729/#2c2c2f` | `#f5f5f7/#bcbcc1/#a6a6aa`           | `#ffffff5c/#ffffff14/#a6a6aa`    | `#2077c9/#2076c7/#89b7e2/#89b7e2`   |
+| dark high    | same Direction A dark surfaces  | same Direction A dark surfaces            | `#f5f5f7/#dcdce0/#bdbdc2`           | `#ffffff80/#ffffff38/#bdbdc2`    | same Direction A dark accent roles  |
+
+- The prototype's 35%/50% translucent focus rings composite to only about
+  1.62:1/2.29:1 on their carrying surfaces. The semantic focus token therefore
+  uses the v17 opaque light accent `#0071e3` and corrected dark accent-text
+  `#89b7e2`; both exceed 3:1 without widening the Skin v1 schema.
+- The prototype's decorative 12%/16% border cannot carry the Probe's required
+  boundary. `border.default` uses the values above (at least 3:1), while
+  `border.subtle` retains the decorative raw alpha and is explicitly not valid
+  as a sole required boundary. Strong border follows the mode's tertiary ink.
+- Light status fills are success/warning/danger/info
+  `#23843b/#b25000/#d70015/#0071e3`; dark fills are
+  `#30d158/#ffd60a/#ff453a/#2077c9`. Independent tests cover their on-color
+  pairs (including dark danger on `#1d1d1f`), solid boundaries, and diff text
+  roles. Light inverse text is the Direction A `#f5f5f7`, not generic white.
+- Status solid roles are fills/boundaries and status subtle roles are
+  backgrounds; they are not an accessible colored-small-text pair. The v17
+  prototype instead has separate `success-text`, `warning-text`, `danger-text`,
+  and accent-text roles, which frozen Skin v1 cannot express. CL2 must use
+  `text.primary` plus a redundant label for colored status text or propose a
+  separately reviewed, finite status-text contract extension; CL1A does not
+  widen the schema or lower the 4.5:1 small-text threshold.
+- Terminal foreground/background is `#e8e8ed/#1d1d1f` in light and
+  `#e8e8ed/#141416` in dark. Diff backgrounds retain the page prototype alpha;
+  diff text uses the components v17 contrast-corrected text roles.
+- Static card/surface shadows are `none`. Existing trusted `raised` and
+  `overlay` IDs serialize with the current light/dark mode: composer
+  `0 10px 36px #0000002e/#00000066`; overlay light
+  `0 12px 40px #00000029, 0 2px 8px #0000000f` and dark
+  `0 12px 40px #00000080, 0 2px 8px #0000004d`. No arbitrary shadow string or
+  third-party CSS surface was added.
+- The six optional safe tokens (overlay scrim, selection background/text,
+  pill radius, overlay shadow, disabled opacity) are explicit in every mode;
+  overlay scrim is the deterministic 32% black `#00000052`, and the built-in
+  skin's validated fallback list is empty. Third-party fallback behavior
+  remains the CL0A contract.
+- Gallery exposes independent skin, light/dark, and normal/high controls,
+  renders all 74 values from `getComputedStyle` with provenance
+  `@artemis/theme-artemis/theme.css`, and retains the CL0B Probe across all
+  eight Gallery vertices. The test matrix verifies all three pressed-button
+  groups at each initialized vertex, all 12 cube edges as single-axis changes,
+  and the Probe node, input state, React event-order state, focus, selection,
+  anatomy, and ARIA throughout the round trip. This is Gallery/jsdom candidate
+  evidence. A working-tree in-app Browser smoke also traversed the eight
+  vertices with all 74 computed values resolved, preserved the same Probe state,
+  and produced no warning or error console entries; reviewed-SHA Browser
+  evidence remains required. Electron is N/A because CL1A adds no Desktop
+  consumer.
+
 ## Component and surface sequence
 
-| Scope                                                                    | Type               | Owner                     | Consumer                   | Legacy selector/source                           | Target PR | Electron evidence                                           | Status                                     |
-| ------------------------------------------------------------------------ | ------------------ | ------------------------- | -------------------------- | ------------------------------------------------ | --------- | ----------------------------------------------------------- | ------------------------------------------ |
-| Manifest/token/integrity schemas, registry, validators, public artifacts | token/package      | `@artemis/theme-contract` | theme packages and Gallery | scattered root variables                         | CL0A      | N/A: no Desktop dependency or UI change                     | Merged at `244aacf`                        |
-| Public React/CSS boundary                                                | package            | `@artemis/ui`             | Gallery, later Desktop     | no package boundary                              | CL0A      | N/A: no components or Desktop consumer                      | Merged at `244aacf`                        |
-| Neutral built-in skin data/CSS/integrity artifacts                       | token/package      | `@artemis/theme-artemis`  | Gallery                    | v17 role vocabulary only                         | CL0A      | N/A: no Desktop resolver                                    | Merged; Direction A still deferred         |
-| Anatomy, states, events, ARIA, focus                                     | component          | `@artemis/ui`             | Gallery harness            | v17 70 cards                                     | CL0B      | Gallery runtime required; Electron not yet production proof | Candidate implemented for ConformanceProbe |
-| Direction A Artemis values                                               | skin               | `@artemis/theme-artemis`  | Gallery                    | v17 A light/dark/high                            | CL1A      | Gallery before/after required                               | Pending                                    |
-| Resolver/registry and host attributes                                    | integration        | Desktop renderer glue     | Desktop                    | current `data-theme` bridge                      | CL1B      | Exact-head Electron required                                | Pending                                    |
-| Default/stress/fallback conformance                                      | governance         | Gallery + validators      | CI                         | v17 A/B/C stress input                           | CL1C      | Gallery proof; Desktop fallback proof when resolver exists  | Pending                                    |
-| Foundation controls                                                      | component          | `@artemis/ui`             | Desktop consumers later    | buttons, badge, inputs, select, switch           | CL2       | Gallery cases first                                         | Pending                                    |
-| Feedback, overlays, layout primitives                                    | component          | `@artemis/ui`             | Desktop consumers later    | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | Gallery cases first                                         | Pending                                    |
-| Artemis-specific presentational patterns                                 | component          | `@artemis/ui`             | Desktop adapter layer      | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                         | Pending                                    |
-| Shell, activity bar, sidebar, navigation                                 | surface            | Desktop                   | users                      | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom matrix                  | Pending                                    |
-| Composer and approval surfaces                                           | surface            | Desktop                   | users                      | renderer Composer/approval selectors             | MIG2      | Exact-head interaction + screenshot evidence                | Pending                                    |
-| Conversation, timeline, sources, task activity                           | surface            | Desktop                   | users                      | timeline/source selectors                        | MIG3      | Exact-head state and Electron evidence                      | Pending                                    |
-| Workspace, Dock, editors, Browser, Terminal                              | surface            | Desktop                   | users                      | workspace/dock/editor selectors                  | MIG4      | Geometry, PTY, Browser boundaries, exact-head Electron      | Pending                                    |
-| Review, Environment, Settings, Resource Center, MCP                      | surface            | Desktop                   | users                      | feature-local renderer styles                    | MIG5      | Feature state matrix + exact-head Electron                  | Pending                                    |
-| Remaining pages and governance cleanup                                   | surface/governance | Desktop + CI              | users/contributors         | remaining legacy selectors                       | MIG6      | Complete exact-head screenshot/runtime matrix               | Pending                                    |
+| Scope                                                                    | Type               | Owner                     | Consumer                   | Legacy selector/source                           | Target PR | Electron evidence                                           | Status                                  |
+| ------------------------------------------------------------------------ | ------------------ | ------------------------- | -------------------------- | ------------------------------------------------ | --------- | ----------------------------------------------------------- | --------------------------------------- |
+| Manifest/token/integrity schemas, registry, validators, public artifacts | token/package      | `@artemis/theme-contract` | theme packages and Gallery | scattered root variables                         | CL0A      | N/A: no Desktop dependency or UI change                     | Merged at `244aacf`                     |
+| Public React/CSS boundary                                                | package            | `@artemis/ui`             | Gallery, later Desktop     | no package boundary                              | CL0A      | N/A: no components or Desktop consumer                      | Merged at `244aacf`                     |
+| Neutral built-in skin data/CSS/integrity artifacts                       | token/package      | `@artemis/theme-artemis`  | Gallery                    | v17 role vocabulary only                         | CL0A      | N/A: no Desktop resolver                                    | Merged at `244aacf`; superseded by CL1A |
+| Anatomy, states, events, ARIA, focus                                     | component          | `@artemis/ui`             | Gallery harness            | v17 70 cards                                     | CL0B      | Gallery runtime required; Electron not yet production proof | Merged at `facb262`                     |
+| Direction A Artemis values                                               | skin               | `@artemis/theme-artemis`  | Gallery                    | v17 A light/dark/high                            | CL1A      | Gallery/browser before/after; Electron N/A                  | Candidate; not merged                   |
+| Resolver/registry and host attributes                                    | integration        | Desktop renderer glue     | Desktop                    | current `data-theme` bridge                      | CL1B      | Exact-head Electron required                                | Pending                                 |
+| Default/stress/fallback conformance                                      | governance         | Gallery + validators      | CI                         | v17 A/B/C stress input                           | CL1C      | Gallery proof; Desktop fallback proof when resolver exists  | Pending                                 |
+| Foundation controls                                                      | component          | `@artemis/ui`             | Desktop consumers later    | buttons, badge, inputs, select, switch           | CL2       | Gallery cases first                                         | Pending                                 |
+| Feedback, overlays, layout primitives                                    | component          | `@artemis/ui`             | Desktop consumers later    | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | Gallery cases first                                         | Pending                                 |
+| Artemis-specific presentational patterns                                 | component          | `@artemis/ui`             | Desktop adapter layer      | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                         | Pending                                 |
+| Shell, activity bar, sidebar, navigation                                 | surface            | Desktop                   | users                      | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom matrix                  | Pending                                 |
+| Composer and approval surfaces                                           | surface            | Desktop                   | users                      | renderer Composer/approval selectors             | MIG2      | Exact-head interaction + screenshot evidence                | Pending                                 |
+| Conversation, timeline, sources, task activity                           | surface            | Desktop                   | users                      | timeline/source selectors                        | MIG3      | Exact-head state and Electron evidence                      | Pending                                 |
+| Workspace, Dock, editors, Browser, Terminal                              | surface            | Desktop                   | users                      | workspace/dock/editor selectors                  | MIG4      | Geometry, PTY, Browser boundaries, exact-head Electron      | Pending                                 |
+| Review, Environment, Settings, Resource Center, MCP                      | surface            | Desktop                   | users                      | feature-local renderer styles                    | MIG5      | Feature state matrix + exact-head Electron                  | Pending                                 |
+| Remaining pages and governance cleanup                                   | surface/governance | Desktop + CI              | users/contributors         | remaining legacy selectors                       | MIG6      | Complete exact-head screenshot/runtime matrix               | Pending                                 |
 
 ## Production behavior regression input
 
@@ -106,6 +179,10 @@ idempotent reducer contract; visual migration must not synthesize that protocol.
   subpath, Gallery-only stress harness, verification scripts, root command
   wiring, package-consumer proof, and these ledgers. It adds no Desktop
   dependency, resolver, persisted skin selection, or production renderer CSS.
+- CL1A rollback is limited to built-in Direction A token values and trusted CSS
+  serialization, Gallery-only mode controls/samples/tests, its exact artifact
+  allowlist, and these ledgers. It adds no Desktop dependency, resolver,
+  persisted selection, protocol, main/preload code, or user-install surface.
 - A later PR may depend only on a CL milestone already merged into the latest
   `main`; a Draft PR or stale candidate SHA is not a dependency.
 - Stop if a component requires Protocol/Desktop/Electron/Node or
