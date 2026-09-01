@@ -5,10 +5,11 @@
   "description": "A local-first cross-platform desktop coding agent powered by Pi.",
   "type": "module",
   "workspaces": [
-    "packages/protocol",
-    "packages/platform",
+    "apps/desktop",
     "packages/agent-host",
-    "apps/desktop"
+    "packages/im",
+    "packages/platform",
+    "packages/protocol"
   ],
   "engines": {
     "node": ">=24.0.0",
