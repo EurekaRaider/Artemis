@@ -727,6 +727,12 @@ async function rememberRuntimeState(connection, includePortal) {
       "real Composer focus",
     );
   }
+  await waitFor(
+    connection,
+    'document.querySelector(".terminal-host .xterm-rows")?.textContent?.includes("Artemis>")',
+    "synthetic PTY prompt after environment layout",
+    15_000,
+  );
   return evaluate(
     connection,
     `globalThis.__ARTEMIS_SKIN_SMOKE__.remember(${JSON.stringify(includePortal ? "environment" : "composer")})`,
