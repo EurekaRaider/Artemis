@@ -338,6 +338,13 @@ if (smokeMode) {
   app.disableHardwareAcceleration();
 }
 
+// 开发/冒烟隔离：并行跑第二个实例时用独立 userData，避免与日常实例共享
+// state.sqlite / settings.json（必须在 app ready 前设置）。
+const isolatedUserDataDir = process.env.ARTEMIS_USER_DATA_DIR?.trim();
+if (isolatedUserDataDir) {
+  app.setPath("userData", isolatedUserDataDir);
+}
+
 interface PendingApproval {
   workerRequestId: string;
   request: BrokerExecutionRequest;
