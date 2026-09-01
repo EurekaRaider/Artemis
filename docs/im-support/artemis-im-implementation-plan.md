@@ -426,3 +426,21 @@ apps/desktop/src/main/
 - 裸实现（仅加 `ws` 包）：对照 [G] 逐行移植，ack/去重/ping 语义完全可控，多约 200 行但少一层框架映射
 - 倾向裸实现：ggcode 全适配器仅用 gorilla/websocket 通用库，证明 Socket Mode 是标准 JSON over WS，无平台私有协议（与飞书必须 SDK 的情形不同）
 
+
+## 附录 B — 实施偏差记录（2026-09-01 真机验证后回写）
+
+> Phase 0–3 已实施并真机验证（配对 + 双向通信链路）。与正文设计的有意偏差：
+
+| # | 正文设计 | 实施结果 | 理由 |
+|---|---|---|---|
+| D1 | §3.1 审批拦截插入 handleBrokerRequest 各 handler | 改走 `emitPayload` 事件路径：`approval.requested` 是所有 ask 分支的唯一出口，在 onAgentEvent 里拦截 | 侵入面更小（main.ts 少 N 个插入点）；automation 优先级靠 `source === "automation"` 跳过自然保持 |
+| D2 | §6 "协议零改动" | `approvalResolutionSchema`/`approvalRequested`/`approvalResolved` 的 source 枚举加了 `"im"` | E3 形状已预留 source 语义，决策 2 要求可审计；reducer/UI 不按 source 分支（已核实），additive 兼容 |
+| D3 | E20 用 WSClient + EventDispatcher | 实际用 SDK 更高层的 `LarkChannel`：token 生命周期/自动重连/消息去重/bot mention 剥离/markdown→card 2.0/429 重试全部内置 | 安装包 types 核实后确认覆盖 E12/E22/E23 全部手写逻辑；E14 dedup 仍在 manager 作第二道防线 |
+| D4 | §2.4 manager 接口 | 新增 `onReplyToChannel`（配对回复出口）、`dropPendingApproval`/`hasPendingApproval`（UI 先决议清理） | 真机缺陷：配对 replyText 起初无发送出口；ggcode 由适配器自回 |
+| D5 | §4 PersistedSettings | version 升 2，新增 `imAdapters`；凭据键 `im:feishu:{name}` 用 `api_key.env` 形状存 appId/appSecret | 复用现有 credentials 加密通道 |
+| D6 | —（正文未含） | `ARTEMIS_USER_DATA_DIR` 环境变量支持并行隔离实例 | 真机冒烟需要与日常实例并存（main.ts app ready 前 setPath） |
+| D7 | 配对批准无渠道回执 | `approvePairing` 成功后回发"配对成功，已绑定"（对齐 ggcode） | 真机 UX 反馈 |
+
+**真机冒烟已验证**（2026-09-01，隔离实例）：飞书私聊 → 配对引导回复 → 回码 → 桌面批准 → 渠道回执 → 发消息 → `[FS]` 线程执行 → 答复回发飞书。
+**待验证**：图片附件、审批卡片按钮（需后台配 card.action.trigger）、进程重启恢复、/verbose 切换。
+**已知限制**：dev 态未签名 Electron 的 macOS 系统通知被吞（通知权限），配对码以设置页卡片为准。
