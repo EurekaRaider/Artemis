@@ -255,6 +255,15 @@ const GALLERY_SCAFFOLD_RULES = new Map([
     ],
   ],
 ]);
+const GALLERY_REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+const GALLERY_REDUCED_MOTION_SIGNATURE = JSON.stringify([
+  ["rule", ".gallery-motion-swatch", [["decl", "transition", "none", null]]],
+  [
+    "rule",
+    ".gallery-motion-sample:hover .gallery-motion-swatch",
+    [["decl", "transform", "none", null]],
+  ],
+]);
 const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-axis-control",
   "gallery-axis-grid",
@@ -295,7 +304,7 @@ const PRIVATE_GALLERY_ATTRIBUTES = new Set([
 const PRIVATE_GALLERY_TEXT_MARKERS = [
   "@artemis/ui-gallery",
   "Artemis UI Gallery",
-  "CL1A Direction A candidate",
+  "CL1C cross-platform conformance",
   "com.artemis.synthetic-stress",
 ];
 
@@ -342,10 +351,36 @@ function layerBlockSignature(css, source, layerName) {
 
 function verifyGalleryScaffoldBlock(block, source) {
   const seenSelectors = new Set();
+  let reducedMotionBlocks = 0;
   for (const node of block.nodes ?? []) {
+    if (node.type === "atrule") {
+      if (
+        node.name !== "media" ||
+        normalizeWhitespace(node.params) !== GALLERY_REDUCED_MOTION_QUERY
+      ) {
+        throw new Error(
+          `${source}: Gallery scaffold at-rule is not allowed: @${node.name} ${node.params}`,
+        );
+      }
+      reducedMotionBlocks += 1;
+      if (reducedMotionBlocks > 1) {
+        throw new Error(
+          `${source}: duplicate Gallery reduced-motion media block`,
+        );
+      }
+      const signature = JSON.stringify(
+        (node.nodes ?? []).map(cssNodeSignature),
+      );
+      if (signature !== GALLERY_REDUCED_MOTION_SIGNATURE) {
+        throw new Error(
+          `${source}: Gallery reduced-motion media block does not match the exact contract`,
+        );
+      }
+      continue;
+    }
     if (node.type !== "rule") {
       throw new Error(
-        `${source}: Gallery scaffold artemis.ui block allows only rules`,
+        `${source}: Gallery scaffold artemis.ui block allows only rules and the exact reduced-motion media block`,
       );
     }
     const selector = normalizeWhitespace(node.selector);
@@ -379,6 +414,9 @@ function verifyGalleryScaffoldBlock(block, source) {
     throw new Error(
       `${source}: Gallery scaffold selector set does not match the exact contract`,
     );
+  }
+  if (reducedMotionBlocks !== 1) {
+    throw new Error(`${source}: Gallery reduced-motion media block is missing`);
   }
 }
 
@@ -930,6 +968,59 @@ const layerNegativeFixtures = [
     error: "declarations do not match the exact contract",
   },
   {
+    name: "gallery-missing-reduced-motion",
+    css: mutateGalleryUi(galleryCss, (block) => {
+      block.nodes
+        .find(
+          (node) =>
+            node.type === "atrule" &&
+            node.name === "media" &&
+            normalizeWhitespace(node.params) === GALLERY_REDUCED_MOTION_QUERY,
+        )
+        .remove();
+    }),
+    error: "Gallery reduced-motion media block is missing",
+  },
+  {
+    name: "gallery-changed-reduced-motion-query",
+    css: mutateGalleryUi(galleryCss, (block) => {
+      block.nodes.find(
+        (node) =>
+          node.type === "atrule" &&
+          node.name === "media" &&
+          normalizeWhitespace(node.params) === GALLERY_REDUCED_MOTION_QUERY,
+      ).params = "(prefers-reduced-motion: no-preference)";
+    }),
+    error: "Gallery scaffold at-rule is not allowed",
+  },
+  {
+    name: "gallery-changed-reduced-motion-value",
+    css: mutateGalleryUi(galleryCss, (block) => {
+      const media = block.nodes.find(
+        (node) =>
+          node.type === "atrule" &&
+          node.name === "media" &&
+          normalizeWhitespace(node.params) === GALLERY_REDUCED_MOTION_QUERY,
+      );
+      media.nodes[0].nodes[0].value = "transform 1s linear";
+    }),
+    error:
+      "Gallery reduced-motion media block does not match the exact contract",
+  },
+  {
+    name: "gallery-duplicate-reduced-motion",
+    css: mutateGalleryUi(galleryCss, (block) => {
+      const media = block.nodes.find(
+        (node) =>
+          node.type === "atrule" &&
+          node.name === "media" &&
+          normalizeWhitespace(node.params) === GALLERY_REDUCED_MOTION_QUERY,
+      );
+      block.append(media.clone());
+    }),
+    error: "duplicate Gallery reduced-motion media block",
+  },
+  {
     name: "theme-block-structural-drift",
     css: mutateTheme(galleryCss, (block) => {
       block.append(
@@ -969,7 +1060,7 @@ const galleryText = (
 ).join("\n");
 for (const marker of [
   "Artemis UI Gallery",
-  "CL1A Direction A candidate",
+  "CL1C cross-platform conformance",
   "com.artemis.synthetic-stress",
   "data-artemis-component",
   "data-gallery-active-skin",

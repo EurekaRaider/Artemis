@@ -69,6 +69,7 @@ describe("Desktop skin DOM identity", () => {
 
     await host.selectSkin("com.example.stress");
     await host.setTheme("dark");
+    await host.setContrast("high");
     await host.selectSkin(DEFAULT_DESKTOP_SKIN_ID);
 
     expect(view.getByRole("textbox", { name: "state anchor" })).toBe(anchor);
@@ -82,6 +83,7 @@ describe("Desktop skin DOM identity", () => {
     expect(document.documentElement.dataset.artemisSkin).toBe(
       DEFAULT_DESKTOP_SKIN_ID,
     );
+    expect(document.documentElement.dataset.artemisContrast).toBe("high");
 
     host.destroy();
     portal.remove();

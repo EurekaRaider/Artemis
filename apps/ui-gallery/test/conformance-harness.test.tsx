@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+
 import {
   cleanup,
   fireEvent,
@@ -37,6 +39,8 @@ import {
   stressSkinPackage,
 } from "../src/stress-skin-fixture.mjs";
 
+const galleryCss = readFileSync("src/gallery.css", "utf8");
+
 type ConformanceCase =
   | "anatomy"
   | "aria-relations"
@@ -68,11 +72,14 @@ class ProbeErrorBoundary extends Component<
 
 beforeEach(() => {
   applyGallerySkin("default");
+  document.documentElement.dir = "ltr";
+  document.documentElement.style.removeProperty("zoom");
   document.head.querySelector("style[data-gallery-stress-skin]")?.remove();
 });
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 function prepareMode(mode: GalleryMode): void {
@@ -341,15 +348,69 @@ const skinCaseMatrix = (["default", "stress"] as const).flatMap((skin) =>
   conformanceCases.map((caseName) => ({ skin, caseName })),
 );
 
-const galleryVertices = (["default", "stress"] as const).flatMap((skin) =>
-  (["light", "dark"] as const).flatMap((theme) =>
-    (["normal", "high"] as const).map((contrast) => ({
-      skin,
-      theme,
-      contrast,
-    })),
+const galleryVertices = (
+  conformanceMatrix.runtimeAxes.skins as GallerySkin[]
+).flatMap((skin) =>
+  (conformanceMatrix.runtimeAxes.themes as GalleryMode["theme"][]).flatMap(
+    (theme) =>
+      (
+        conformanceMatrix.runtimeAxes.contrasts as GalleryMode["contrast"][]
+      ).map((contrast) => ({
+        skin,
+        theme,
+        contrast,
+      })),
   ),
 ) satisfies readonly GalleryMode[];
+
+interface RuntimeEnvironment {
+  readonly direction: "ltr" | "rtl";
+  readonly zoomFactor: 1 | 2;
+  readonly reducedMotion: boolean;
+}
+
+const runtimeEnvironments = (
+  conformanceMatrix.runtimeAxes.directions as RuntimeEnvironment["direction"][]
+).flatMap((direction) =>
+  (
+    conformanceMatrix.runtimeAxes
+      .zoomFactors as RuntimeEnvironment["zoomFactor"][]
+  ).flatMap((zoomFactor) =>
+    conformanceMatrix.runtimeAxes.reducedMotion.map((reducedMotion) => ({
+      direction,
+      zoomFactor,
+      reducedMotion,
+    })),
+  ),
+) satisfies readonly RuntimeEnvironment[];
+
+const runtimeVertices = runtimeEnvironments.flatMap((environment) =>
+  galleryVertices.map((mode) => ({ environment, mode })),
+);
+
+function applyRuntimeEnvironment(environment: RuntimeEnvironment): void {
+  document.documentElement.dir = environment.direction;
+  document.documentElement.style.setProperty(
+    "zoom",
+    String(environment.zoomFactor),
+  );
+  vi.stubGlobal(
+    "matchMedia",
+    (query: string) =>
+      ({
+        matches:
+          query === "(prefers-reduced-motion: reduce)" &&
+          environment.reducedMotion,
+        media: query,
+        onchange: null,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        dispatchEvent: () => true,
+      }) satisfies MediaQueryList,
+  );
+}
 
 const galleryAxes = ["skin", "theme", "contrast"] as const;
 
@@ -505,6 +566,17 @@ describe("default and synthetic stress skin conformance", () => {
   it("uses schema-valid data and a fixed root-only token serializer", () => {
     expect(validateSkinPackage(stressSkinPackage).valid).toBe(true);
     expect(galleryEdges).toHaveLength(12);
+    expect(runtimeVertices).toHaveLength(64);
+    expect(conformanceMatrix.fallbackCases).toEqual([
+      "unknown",
+      "unavailable",
+      "unsupported",
+      "load-failed",
+      "default-fatal",
+    ]);
+    expect(galleryCss).toMatch(
+      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.gallery-motion-swatch\s*\{[\s\S]*?transition:\s*none/u,
+    );
     expect(stressSkinCss).toContain(
       `:root[data-artemis-skin="${STRESS_SKIN_ID}"][data-artemis-theme="light"][data-artemis-contrast="normal"]`,
     );
@@ -606,7 +678,7 @@ describe("default and synthetic stress skin conformance", () => {
     }
   });
 
-  it("traverses all eight vertices and returns without remount or state, selection, focus, anatomy, or ARIA loss", async () => {
+  it("traverses all 64 runtime vertices and returns without remount or state, selection, focus, anatomy, or ARIA loss", async () => {
     const user = userEvent.setup();
     const { container } = render(<GalleryApp />);
     const control = screen.getByRole("textbox", { name: "Synthetic value" });
@@ -632,9 +704,20 @@ describe("default and synthetic stress skin conformance", () => {
     };
     expect(ariaSnapshot.rootLabelledBy).toBe(label?.id);
     expect(ariaSnapshot.labelFor).toBe(control.id);
-    for (const mode of [...galleryVertices, galleryVertices[0]!]) {
+    for (const { environment, mode } of [
+      ...runtimeVertices,
+      runtimeVertices[0]!,
+    ]) {
+      applyRuntimeEnvironment(environment);
       await selectMode(user, mode);
       expectRootMode(mode);
+      expect(document.documentElement.dir).toBe(environment.direction);
+      expect(document.documentElement.style.getPropertyValue("zoom")).toBe(
+        String(environment.zoomFactor),
+      );
+      expect(matchMedia("(prefers-reduced-motion: reduce)").matches).toBe(
+        environment.reducedMotion,
+      );
       const afterSwitch = screen.getByRole("textbox", {
         name: "Synthetic value",
       });
@@ -668,7 +751,7 @@ describe("default and synthetic stress skin conformance", () => {
     expect(
       document.head.querySelector("style[data-gallery-stress-skin]"),
     ).not.toBeNull();
-  });
+  }, 20_000);
 
   it("binds every declared matrix case to a real behavior runner", () => {
     expect(conformanceMatrix.skins.stress).toEqual(

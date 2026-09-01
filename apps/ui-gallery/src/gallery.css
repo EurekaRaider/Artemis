@@ -203,6 +203,16 @@
     transform: translateX(var(--artemis-space-4));
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .gallery-motion-swatch {
+      transition: none;
+    }
+
+    .gallery-motion-sample:hover .gallery-motion-swatch {
+      transform: none;
+    }
+  }
+
   .gallery-probe-section {
     display: grid;
     gap: var(--artemis-space-3);

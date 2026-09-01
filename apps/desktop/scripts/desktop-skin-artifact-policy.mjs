@@ -9,6 +9,10 @@ export const DESKTOP_SKIN_FORBIDDEN_MARKERS = Object.freeze([
   "__ARTEMIS_SKIN_SMOKE",
   "artemis-dedicated-skin-smoke",
   "skin-smoke-style",
+  "com.artemis.smoke-unavailable",
+  "com.artemis.smoke-load-failed",
+  "com.artemis.smoke-unsupported",
+  "dedicated smoke default rejection",
   "@artemis/ui-gallery",
 ]);
 

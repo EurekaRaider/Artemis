@@ -43,6 +43,22 @@ try {
     '{"source":"stress-skin-fixture"}',
   );
   await rejectAt("app.asar.unpacked/fixture.txt", "@artemis/ui-gallery");
+  await rejectAt(
+    "dist-renderer/assets/unavailable.js",
+    'const id = "com.artemis.smoke-unavailable";',
+  );
+  await rejectAt(
+    "dist-renderer/assets/load-failed.js",
+    'const id = "com.artemis.smoke-load-failed";',
+  );
+  await rejectAt(
+    "dist-renderer/assets/unsupported.js",
+    'const id = "com.artemis.smoke-unsupported";',
+  );
+  await rejectAt(
+    "dist-renderer/assets/default-fatal.js",
+    'throw new Error("dedicated smoke default rejection");',
+  );
 
   const asarSource = join(root, "asar-source");
   const archivePath = join(root, "app.asar");

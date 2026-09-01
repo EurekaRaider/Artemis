@@ -99,3 +99,28 @@ jobs:
 
       - name: Verify Desktop skin runtime and package isolation
         run: npm run verify:desktop-skin
+
+  ui-gallery-conformance:
+    name: UI Gallery conformance (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15, windows-2025]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Gallery skin conformance
+        run: npm run verify:ui-gallery-conformance

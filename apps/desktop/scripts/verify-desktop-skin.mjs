@@ -45,10 +45,58 @@ const smokePreloadSourcePath = join(
   "src/preload/.desktop-skin-smoke-preload.ts",
 );
 const screenshots = [];
+const conformanceMatrix = JSON.parse(
+  await readFile(
+    join(repositoryRoot, "apps/ui-gallery/src/conformance-matrix.json"),
+    "utf8",
+  ),
+);
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+const expectedRuntimeAxes = Object.freeze({
+  skins: ["default", "stress"],
+  themes: ["light", "dark"],
+  contrasts: ["normal", "high"],
+  directions: ["ltr", "rtl"],
+  zoomFactors: [1, 2],
+  reducedMotion: [false, true],
+});
+for (const [axis, expected] of Object.entries(expectedRuntimeAxes)) {
+  assert(
+    JSON.stringify(conformanceMatrix.runtimeAxes?.[axis]) ===
+      JSON.stringify(expected),
+    `Desktop runtime matrix axis ${axis} is incomplete.`,
+  );
+}
+const runtimeEnvironments = expectedRuntimeAxes.directions.flatMap(
+  (direction) =>
+    expectedRuntimeAxes.zoomFactors.flatMap((zoomFactor) =>
+      expectedRuntimeAxes.reducedMotion.map((reducedMotion) => ({
+        direction,
+        zoomFactor,
+        reducedMotion,
+      })),
+    ),
+);
+const runtimeConfigurations = runtimeEnvironments.flatMap((environment) =>
+  expectedRuntimeAxes.skins.flatMap((skin) =>
+    expectedRuntimeAxes.themes.flatMap((theme) =>
+      expectedRuntimeAxes.contrasts.map((contrast) => ({
+        ...environment,
+        skin,
+        theme,
+        contrast,
+      })),
+    ),
+  ),
+);
+assert(
+  runtimeConfigurations.length === 64,
+  "Desktop runtime matrix must contain 64 vertices.",
+);
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -123,6 +171,15 @@ const supportedStressManifest = Object.freeze({
     densities: ["comfortable"],
   },
 });
+const unsupportedManifest = Object.freeze({
+  ...supportedStressManifest,
+  id: "com.artemis.smoke-unsupported",
+  name: "Unsupported",
+  capabilities: {
+    ...supportedStressManifest.capabilities,
+    densities: ["compact"],
+  },
+});
 const failureManifest = (id, name) => Object.freeze({
   ...supportedStressManifest,
   id,
@@ -139,7 +196,11 @@ const loadStressCss = async () => {
 export const productionDesktopSkinRegistry = createDesktopSkinRegistry([
   {
     manifest: artemisManifest,
-    load: async () => undefined,
+    load: async () => {
+      if (globalThis.__ARTEMIS_SKIN_SMOKE_FAIL_DEFAULT__) {
+        throw new Error("dedicated smoke default rejection");
+      }
+    },
     ready: () => true,
   },
   {
@@ -159,6 +220,11 @@ export const productionDesktopSkinRegistry = createDesktopSkinRegistry([
     load: async () => {
       throw new Error("dedicated smoke load rejection");
     },
+    ready: () => true,
+  },
+  {
+    manifest: unsupportedManifest,
+    load: async () => undefined,
     ready: () => true,
   },
 ]);
@@ -205,16 +271,23 @@ window.addEventListener("unhandledrejection", (event) => {
 
 let renderEntrySnapshot;
 let references;
+let terminalReferences;
+let composerReference;
 const semanticSnapshot = () =>
   completeDesktopSkinTokenSnapshot(getComputedStyle(document.documentElement));
 const snapshot = () => {
   const root = document.documentElement;
   const tokens = semanticSnapshot();
-  const stateAnchor = document.querySelector(".environment-branch-search input");
+  const environmentInput = document.querySelector(
+    ".environment-branch-search input",
+  );
+  const stateAnchor = references?.stateAnchor ?? environmentInput;
+  const composer = document.querySelector(".composer textarea");
   const portal = document.querySelector("#environment-branch-menu");
   const xterm = document.querySelector(".terminal-host .xterm");
   const xtermScreen = document.querySelector(".terminal-host .xterm-screen");
   const xtermRows = document.querySelector(".terminal-host .xterm-rows");
+  const appShell = document.querySelector(".app-shell");
   const xtermStyle = [...(xterm?.querySelectorAll("style") ?? [])]
     .map((style) => style.textContent ?? "")
     .join("\\n");
@@ -225,6 +298,14 @@ const snapshot = () => {
       theme: root.dataset.artemisTheme ?? null,
       contrast: root.dataset.artemisContrast ?? null,
       legacyTheme: root.dataset.theme ?? null,
+    },
+    environment: {
+      direction: getComputedStyle(root).direction,
+      zoomFactor: preload?.zoomFactor() ?? null,
+      reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+      appShellTransitionDuration: appShell
+        ? getComputedStyle(appShell).transitionDuration
+        : null,
     },
     tokenCount: tokens ? Object.keys(tokens).length : 0,
     tokens,
@@ -239,32 +320,51 @@ const snapshot = () => {
     state: {
       remembered: Boolean(references),
       inputSame: Boolean(references && stateAnchor === references.stateAnchor),
-      inputValue: stateAnchor instanceof HTMLInputElement ? stateAnchor.value : null,
+      inputValue:
+        stateAnchor instanceof HTMLInputElement ||
+        stateAnchor instanceof HTMLTextAreaElement
+          ? stateAnchor.value
+          : null,
       selectionStart:
-        stateAnchor instanceof HTMLInputElement ? stateAnchor.selectionStart : null,
+        stateAnchor instanceof HTMLInputElement ||
+        stateAnchor instanceof HTMLTextAreaElement
+          ? stateAnchor.selectionStart
+          : null,
       selectionEnd:
-        stateAnchor instanceof HTMLInputElement ? stateAnchor.selectionEnd : null,
+        stateAnchor instanceof HTMLInputElement ||
+        stateAnchor instanceof HTMLTextAreaElement
+          ? stateAnchor.selectionEnd
+          : null,
       inputFocused: document.activeElement === stateAnchor,
+      composerSame: Boolean(
+        composerReference && composer === composerReference,
+      ),
+      composerValue:
+        composer instanceof HTMLTextAreaElement ? composer.value : null,
       portalSame: Boolean(references && portal === references.portal),
       portalInBody: Boolean(portal && portal.parentElement === document.body),
       portalInheritedCanvas: portal
         ? getComputedStyle(portal).getPropertyValue("--artemis-color-canvas").trim()
         : null,
+      portalDirection: portal ? getComputedStyle(portal).direction : null,
       environmentOpen:
         document.querySelector(".environment-trigger")?.getAttribute("aria-expanded") === "true",
       branchMenuOpen: portal !== null,
       terminalActive:
         document.querySelector(".workspace-tab-pane.active .terminal-panel") !== null,
-      xtermSame: Boolean(references && xterm === references.xterm),
-      xtermScreenSame: Boolean(
-        references && xtermScreen === references.xtermScreen,
+      xtermSame: Boolean(
+        terminalReferences && xterm === terminalReferences.xterm,
       ),
-      xtermRowsSame: Boolean(references && xtermRows === references.xtermRows),
+      xtermScreenSame: Boolean(
+        terminalReferences && xtermScreen === terminalReferences.xtermScreen,
+      ),
+      xtermRowsSame: Boolean(
+        terminalReferences && xtermRows === terminalReferences.xtermRows,
+      ),
       xtermContent:
         xtermRows?.textContent?.replace(/\\s+/gu, " ").trim() ?? null,
-      xtermContentSame: Boolean(
-        references &&
-          (xtermRows?.textContent ?? "") === references.xtermContent,
+      xtermPromptPreserved: (xtermRows?.textContent ?? "").includes(
+        "Artemis>",
       ),
       legacyPalettePresent:
         xtermStyle.includes("#1f2023") &&
@@ -281,9 +381,25 @@ const snapshot = () => {
     consoleEntries: [...consoleEntries],
   };
 };
-const settle = () => new Promise((resolve) =>
+const nextPaint = () => new Promise((resolve) =>
   requestAnimationFrame(() => requestAnimationFrame(resolve)),
 );
+const settle = async () => {
+  await nextPaint();
+  if (!terminalReferences) return;
+  const deadline = performance.now() + 15_000;
+  let content = "";
+  while (performance.now() < deadline) {
+    content =
+      document.querySelector(".terminal-host .xterm-rows")?.textContent ?? "";
+    if (content.includes("Artemis>")) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(
+    "Timed out waiting for synthetic PTY prompt after transition; content=" +
+      JSON.stringify(content),
+  );
+};
 
 export function App() {
   renderEntrySnapshot ??= snapshot();
@@ -291,15 +407,20 @@ export function App() {
     globalThis.__ARTEMIS_SKIN_SMOKE__ = {
       renderEntrySnapshot,
       snapshot,
-      remember() {
+      remember(anchor = "environment") {
+        const environmentInput = document.querySelector(
+          ".environment-branch-search input",
+        );
+        const composer = document.querySelector(".composer textarea");
         references = {
-          stateAnchor: document.querySelector(".environment-branch-search input"),
+          stateAnchor: anchor === "composer" ? composer : environmentInput,
           portal: document.querySelector("#environment-branch-menu"),
+        };
+        composerReference ??= composer;
+        terminalReferences ??= {
           xterm: document.querySelector(".terminal-host .xterm"),
           xtermScreen: document.querySelector(".terminal-host .xterm-screen"),
           xtermRows: document.querySelector(".terminal-host .xterm-rows"),
-          xtermContent:
-            document.querySelector(".terminal-host .xterm-rows")?.textContent ?? "",
         };
         return snapshot();
       },
@@ -313,9 +434,30 @@ export function App() {
         await settle();
         return { result, snapshot: snapshot() };
       },
+      async setContrast(contrast) {
+        const result = await desktopSkinHost.setContrast(contrast);
+        await settle();
+        return { result, snapshot: snapshot() };
+      },
+      async setDirection(direction) {
+        document.documentElement.dir = direction;
+        await settle();
+        return snapshot();
+      },
+      async setZoomFactor(zoomFactor) {
+        globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.setZoomFactor(zoomFactor);
+        await settle();
+        return snapshot();
+      },
+      async failDefault(value) {
+        globalThis.__ARTEMIS_SKIN_SMOKE_FAIL_DEFAULT__ = value;
+        await settle();
+        return snapshot();
+      },
     };
     return () => {
       delete globalThis.__ARTEMIS_SKIN_SMOKE__;
+      delete globalThis.__ARTEMIS_SKIN_SMOKE_FAIL_DEFAULT__;
     };
   }, []);
   return <ProductionApp />;
@@ -330,6 +472,10 @@ async function buildSmokePreload() {
   );
   const withCounters = productionSource
     .replace(
+      'import { contextBridge, ipcRenderer, webUtils } from "electron";',
+      'import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";',
+    )
+    .replace(
       "const api: ArtemisApi = {",
       "let desktopSkinSmokeTerminalOpenCount = 0;\nlet desktopSkinSmokeRendererReadyCount = 0;\n\nconst api: ArtemisApi = {",
     )
@@ -343,12 +489,13 @@ async function buildSmokePreload() {
     )
     .replace(
       'contextBridge.exposeInMainWorld("artemis", api);',
-      'contextBridge.exposeInMainWorld("__ARTEMIS_SKIN_SMOKE_PRELOAD__", {\n  terminalOpenCount: () => desktopSkinSmokeTerminalOpenCount,\n  rendererReadyCount: () => desktopSkinSmokeRendererReadyCount,\n});\ncontextBridge.exposeInMainWorld("artemis", api);',
+      'contextBridge.exposeInMainWorld("__ARTEMIS_SKIN_SMOKE_PRELOAD__", {\n  terminalOpenCount: () => desktopSkinSmokeTerminalOpenCount,\n  rendererReadyCount: () => desktopSkinSmokeRendererReadyCount,\n  setZoomFactor: (value) => webFrame.setZoomFactor(value),\n  zoomFactor: () => webFrame.getZoomFactor(),\n});\ncontextBridge.exposeInMainWorld("artemis", api);',
     );
   assert(
     withCounters !== productionSource &&
       withCounters.includes("desktopSkinSmokeTerminalOpenCount += 1") &&
       withCounters.includes("desktopSkinSmokeRendererReadyCount += 1") &&
+      withCounters.includes("webFrame.setZoomFactor(value)") &&
       withCounters.includes("__ARTEMIS_SKIN_SMOKE_PRELOAD__"),
     "Could not instrument the temporary smoke preload.",
   );
@@ -449,7 +596,13 @@ async function evaluate(connection, expression) {
   });
   if (result.exceptionDetails) {
     throw new Error(
-      `Runtime.evaluate failed: ${result.exceptionDetails.text ?? "unknown"}`,
+      [
+        `Runtime.evaluate failed: ${result.exceptionDetails.text ?? "unknown"}`,
+        result.exceptionDetails.exception?.description,
+        `Expression: ${expression}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
     );
   }
   return result.result?.value;
@@ -494,6 +647,112 @@ async function screenshot(connection, name) {
   const record = { name, bytes: bytes.length, sha256: sha256(bytes) };
   screenshots.push(record);
   return record;
+}
+
+async function rememberRuntimeState(connection, includePortal) {
+  await evaluate(
+    connection,
+    `(() => {
+      const composer = document.querySelector(".composer textarea");
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value",
+      )?.set;
+      setter?.call(composer, "matrix-preserved");
+      composer?.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    })()`,
+  );
+  await waitFor(
+    connection,
+    'document.querySelector(".composer textarea")?.value === "matrix-preserved"',
+    "real controlled Composer state",
+  );
+  if (includePortal) {
+    await evaluate(
+      connection,
+      `(() => {
+        const trigger = document.querySelector(".environment-trigger");
+        if (trigger?.getAttribute("aria-expanded") !== "true") trigger?.click();
+        return true;
+      })()`,
+    );
+    await waitFor(
+      connection,
+      'Boolean(document.querySelector(".environment-branch-control > .environment-row"))',
+      "real Environment branch control",
+    );
+    await evaluate(
+      connection,
+      `(() => {
+        if (!document.querySelector("#environment-branch-menu")) {
+          document.querySelector(".environment-branch-control > .environment-row")?.click();
+        }
+        return true;
+      })()`,
+    );
+    await waitFor(
+      connection,
+      'Boolean(document.querySelector("#environment-branch-menu"))',
+      "real Environment createPortal node",
+    );
+    await waitFor(
+      connection,
+      'Boolean(document.querySelector(".environment-branch-search input"))',
+      "real Environment portal input",
+    );
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 500));
+    await evaluate(
+      connection,
+      `(() => {
+        const input = document.querySelector(".environment-branch-search input");
+        const setter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+        setter?.call(input, "main");
+        input?.dispatchEvent(new Event("input", { bubbles: true }));
+        input?.focus();
+        input?.setSelectionRange(1, 3);
+        return true;
+      })()`,
+    );
+    await waitFor(
+      connection,
+      'document.querySelector(".environment-branch-search input")?.value === "main"',
+      "real controlled Environment input state",
+    );
+    await waitFor(
+      connection,
+      'document.activeElement === document.querySelector(".environment-branch-search input")',
+      "real Environment input focus",
+    );
+  } else {
+    await evaluate(
+      connection,
+      `(() => {
+        const composer = document.querySelector(".composer textarea");
+        composer?.focus();
+        composer?.setSelectionRange(2, 8);
+        return true;
+      })()`,
+    );
+    await waitFor(
+      connection,
+      'document.activeElement === document.querySelector(".composer textarea")',
+      "real Composer focus",
+    );
+  }
+  await waitFor(
+    connection,
+    'document.querySelector(".terminal-host .xterm-rows")?.textContent?.includes("Artemis>")',
+    "synthetic PTY prompt after environment layout",
+    15_000,
+  );
+  return evaluate(
+    connection,
+    `globalThis.__ARTEMIS_SKIN_SMOKE__.remember(${JSON.stringify(includePortal ? "environment" : "composer")})`,
+  );
 }
 
 async function driveElectron() {
@@ -605,6 +864,33 @@ async function driveElectron() {
         systemDark.tokenCount === 74,
       "System dark bridge was incomplete.",
     );
+    await connection.send("Emulation.setEmulatedMedia", {
+      features: [
+        { name: "prefers-color-scheme", value: "dark" },
+        { name: "prefers-contrast", value: "more" },
+      ],
+    });
+    const systemHighContrast = await evaluate(
+      connection,
+      'globalThis.__ARTEMIS_SKIN_SMOKE__.setContrast("system")',
+    );
+    assert(
+      systemHighContrast.result.status === "applied" &&
+        systemHighContrast.snapshot.attrs.contrast === "high" &&
+        systemHighContrast.snapshot.tokenCount === 74,
+      "System high-contrast bridge was incomplete.",
+    );
+    await connection.send("Emulation.setEmulatedMedia", {
+      features: [
+        { name: "prefers-color-scheme", value: "dark" },
+        { name: "prefers-contrast", value: "no-preference" },
+      ],
+    });
+    await waitFor(
+      connection,
+      'document.documentElement.dataset.artemisContrast === "normal"',
+      "system normal-contrast bridge",
+    );
     const explicitLight = await evaluate(
       connection,
       'globalThis.__ARTEMIS_SKIN_SMOKE__.setTheme("light")',
@@ -699,87 +985,204 @@ async function driveElectron() {
       15_000,
     );
 
-    await evaluate(
-      connection,
-      `(() => {
-        const trigger = document.querySelector(".environment-trigger");
-        if (trigger?.getAttribute("aria-expanded") !== "true") trigger?.click();
-        return true;
-      })()`,
-    );
-    await waitFor(
-      connection,
-      'Boolean(document.querySelector(".environment-branch-control > .environment-row"))',
-      "real Environment branch control",
-    );
-    await evaluate(
-      connection,
-      'document.querySelector(".environment-branch-control > .environment-row")?.click()',
-    );
-    await waitFor(
-      connection,
-      'Boolean(document.querySelector("#environment-branch-menu"))',
-      "real Environment createPortal node",
-    );
-    await waitFor(
-      connection,
-      'Boolean(document.querySelector(".environment-branch-search input"))',
-      "real Environment portal input",
-    );
-    await new Promise((resolvePromise) => setTimeout(resolvePromise, 500));
-
-    await evaluate(
-      connection,
-      `(() => {
-        const input = document.querySelector(".environment-branch-search input");
-        const setter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          "value",
-        )?.set;
-        setter?.call(input, "main");
-        input?.dispatchEvent(new Event("input", { bubbles: true }));
-        input?.focus();
-        input?.setSelectionRange(1, 3);
-        return true;
-      })()`,
-    );
-    await waitFor(
-      connection,
-      'document.querySelector(".environment-branch-search input")?.value === "main"',
-      "real controlled Environment input state",
-    );
-    await waitFor(
-      connection,
-      'document.activeElement === document.querySelector(".environment-branch-search input")',
-      "real Environment input focus",
-    );
-    const remembered = await evaluate(
-      connection,
-      "globalThis.__ARTEMIS_SKIN_SMOKE__.remember()",
-    );
+    const remembered = await rememberRuntimeState(connection, true);
     assert(
       remembered.state.portalInBody &&
         remembered.state.terminalActive &&
         remembered.state.inputFocused &&
+        remembered.state.composerSame &&
+        remembered.state.composerValue === "matrix-preserved" &&
         remembered.state.portalInheritedCanvas ===
           remembered.tokens?.["color.canvas"],
       `Real state anchors were incomplete: ${JSON.stringify(remembered.state)}`,
     );
     await screenshot(connection, "01-default.png");
 
-    const stress = await evaluate(
-      connection,
-      'globalThis.__ARTEMIS_SKIN_SMOKE__.select("com.artemis.synthetic-stress")',
-    );
-    assert(stress.result.status === "applied", "Stress skin did not apply.");
+    const expectedCanvas = {
+      default: {
+        light: { normal: "#f5f5f7", high: "#f5f5f7" },
+        dark: { normal: "#1d1d1f", high: "#1d1d1f" },
+      },
+      stress: {
+        light: { normal: "#fff0a6", high: "#ffffff" },
+        dark: { normal: "#16002a", high: "#000000" },
+      },
+    };
+    const skinIds = {
+      default: "com.artemis.default",
+      stress: "com.artemis.synthetic-stress",
+    };
+    const runtimeMatrix = [];
+    let activeEnvironmentKey;
+    for (const configuration of runtimeConfigurations) {
+      const environmentKey = JSON.stringify([
+        configuration.direction,
+        configuration.zoomFactor,
+        configuration.reducedMotion,
+      ]);
+      if (environmentKey !== activeEnvironmentKey) {
+        await connection.send("Emulation.setEmulatedMedia", {
+          features: [
+            {
+              name: "prefers-reduced-motion",
+              value: configuration.reducedMotion ? "reduce" : "no-preference",
+            },
+          ],
+        });
+        await evaluate(
+          connection,
+          `globalThis.__ARTEMIS_SKIN_SMOKE__.setDirection(${JSON.stringify(configuration.direction)})`,
+        );
+        await evaluate(
+          connection,
+          `globalThis.__ARTEMIS_SKIN_SMOKE__.setZoomFactor(${String(configuration.zoomFactor)})`,
+        );
+        const includePortal = configuration.zoomFactor === 1;
+        const environmentRemembered = await rememberRuntimeState(
+          connection,
+          includePortal,
+        );
+        assert(
+          environmentRemembered.state.inputSame &&
+            environmentRemembered.state.inputFocused &&
+            environmentRemembered.state.composerSame &&
+            environmentRemembered.state.composerValue === "matrix-preserved" &&
+            environmentRemembered.state.xtermSame &&
+            environmentRemembered.state.xtermScreenSame &&
+            environmentRemembered.state.xtermRowsSame &&
+            environmentRemembered.state.xtermPromptPreserved &&
+            environmentRemembered.state.terminalOpenCount === 1 &&
+            (includePortal
+              ? environmentRemembered.state.portalInBody
+              : !environmentRemembered.state.portalInBody),
+          `Could not establish real state for ${environmentKey}: ${JSON.stringify(environmentRemembered.state)}`,
+        );
+        activeEnvironmentKey = environmentKey;
+      }
+      await evaluate(
+        connection,
+        `globalThis.__ARTEMIS_SKIN_SMOKE__.setTheme(${JSON.stringify(configuration.theme)})`,
+      );
+      await evaluate(
+        connection,
+        `globalThis.__ARTEMIS_SKIN_SMOKE__.setContrast(${JSON.stringify(configuration.contrast)})`,
+      );
+      const outcome = await evaluate(
+        connection,
+        `globalThis.__ARTEMIS_SKIN_SMOKE__.select(${JSON.stringify(skinIds[configuration.skin])})`,
+      );
+      const { snapshot } = outcome;
+      const canvas =
+        expectedCanvas[configuration.skin][configuration.theme][
+          configuration.contrast
+        ];
+      const usesPortalAnchor = configuration.zoomFactor === 1;
+      const expectedInput = usesPortalAnchor ? "main" : "matrix-preserved";
+      const expectedSelection = usesPortalAnchor ? [1, 3] : [2, 8];
+      assert(
+        outcome.result.status === "applied" &&
+          snapshot.attrs.skin === skinIds[configuration.skin] &&
+          snapshot.attrs.theme === configuration.theme &&
+          snapshot.attrs.legacyTheme === configuration.theme &&
+          snapshot.attrs.contrast === configuration.contrast &&
+          snapshot.tokenCount === 74 &&
+          snapshot.tokens?.["color.canvas"] === canvas,
+        `Runtime mode failed: ${JSON.stringify({ configuration, outcome })}`,
+      );
+      assert(
+        snapshot.environment.direction === configuration.direction &&
+          Math.abs(
+            Number(snapshot.environment.zoomFactor) - configuration.zoomFactor,
+          ) < 0.001 &&
+          snapshot.environment.reducedMotion === configuration.reducedMotion &&
+          (configuration.reducedMotion
+            ? snapshot.environment.appShellTransitionDuration === "0s"
+            : snapshot.environment.appShellTransitionDuration !== "0s"),
+        `Runtime environment failed: ${JSON.stringify({ configuration, environment: snapshot.environment })}`,
+      );
+      assert(
+        snapshot.state.inputSame &&
+          snapshot.state.composerSame &&
+          snapshot.state.composerValue === "matrix-preserved" &&
+          snapshot.state.xtermSame &&
+          snapshot.state.xtermScreenSame &&
+          snapshot.state.xtermRowsSame &&
+          snapshot.state.xtermPromptPreserved &&
+          snapshot.state.inputValue === expectedInput &&
+          snapshot.state.selectionStart === expectedSelection[0] &&
+          snapshot.state.selectionEnd === expectedSelection[1] &&
+          snapshot.state.inputFocused &&
+          (usesPortalAnchor
+            ? snapshot.state.portalSame &&
+              snapshot.state.portalInBody &&
+              snapshot.state.portalInheritedCanvas === canvas &&
+              snapshot.state.portalDirection === configuration.direction
+            : !snapshot.state.portalInBody) &&
+          snapshot.state.terminalOpenCount === 1,
+        `Runtime state changed: ${JSON.stringify({ configuration, state: snapshot.state })}`,
+      );
+      assert(
+        snapshot.inlineSemanticTokens.length === 0 &&
+          Object.values(snapshot.bodyAttrs).every((value) => value === null) &&
+          snapshot.consoleEntries.length === 0,
+        `Runtime isolation failed: ${JSON.stringify({ configuration, inlineSemanticTokens: snapshot.inlineSemanticTokens, bodyAttrs: snapshot.bodyAttrs, consoleEntries: snapshot.consoleEntries })}`,
+      );
+      runtimeMatrix.push({
+        ...configuration,
+        skinId: snapshot.attrs.skin,
+        canvas,
+        transitionDuration: snapshot.environment.appShellTransitionDuration,
+      });
+      if (
+        configuration.skin === "stress" &&
+        configuration.theme === "light" &&
+        configuration.contrast === "normal" &&
+        configuration.direction === "ltr" &&
+        configuration.zoomFactor === 1 &&
+        !configuration.reducedMotion
+      ) {
+        await screenshot(connection, "02-stress.png");
+      }
+    }
     assert(
-      stress.snapshot.tokens?.["color.canvas"] === "#fff0a6" &&
-        stress.snapshot.state.portalSame &&
-        stress.snapshot.state.portalInheritedCanvas === "#fff0a6",
-      `Stress token did not compute: ${stress.snapshot.tokens?.["color.canvas"]}`,
+      runtimeMatrix.length === 64,
+      "Electron did not traverse 64 vertices.",
     );
-    await screenshot(connection, "02-stress.png");
 
+    await connection.send("Emulation.setEmulatedMedia", {
+      features: [
+        { name: "prefers-color-scheme", value: "light" },
+        { name: "prefers-contrast", value: "no-preference" },
+        { name: "prefers-reduced-motion", value: "no-preference" },
+      ],
+    });
+    await evaluate(
+      connection,
+      'globalThis.__ARTEMIS_SKIN_SMOKE__.setDirection("ltr")',
+    );
+    await evaluate(
+      connection,
+      "globalThis.__ARTEMIS_SKIN_SMOKE__.setZoomFactor(1)",
+    );
+    const fallbackRemembered = await rememberRuntimeState(connection, true);
+    assert(
+      fallbackRemembered.state.portalInBody &&
+        fallbackRemembered.state.inputFocused &&
+        fallbackRemembered.state.composerSame &&
+        fallbackRemembered.state.composerValue === "matrix-preserved" &&
+        fallbackRemembered.state.xtermSame &&
+        fallbackRemembered.state.xtermPromptPreserved &&
+        fallbackRemembered.state.terminalOpenCount === 1,
+      `Could not establish fallback state: ${JSON.stringify(fallbackRemembered.state)}`,
+    );
+    await evaluate(
+      connection,
+      'globalThis.__ARTEMIS_SKIN_SMOKE__.setTheme("light")',
+    );
+    await evaluate(
+      connection,
+      'globalThis.__ARTEMIS_SKIN_SMOKE__.setContrast("normal")',
+    );
     const returnedDefault = await evaluate(
       connection,
       'globalThis.__ARTEMIS_SKIN_SMOKE__.select("com.artemis.default")',
@@ -790,16 +1193,16 @@ async function driveElectron() {
         returnedDefault.snapshot.state.portalSame &&
         returnedDefault.snapshot.state.portalInheritedCanvas ===
           returnedDefault.snapshot.tokens?.["color.canvas"],
-      "Default did not restore after stress.",
+      "Default did not restore after the runtime matrix.",
     );
     await screenshot(connection, "03-returned-default.png");
 
     const fallbackCases = [];
     for (const [id, reason] of [
-      ["com.artemis.smoke-unavailable", "unavailable"],
-      ["com.artemis.smoke-load-failed", "load-failed"],
       ["com.artemis.missing", "unknown"],
-      ["", "unknown"],
+      ["com.artemis.smoke-unavailable", "unavailable"],
+      ["com.artemis.smoke-unsupported", "unsupported"],
+      ["com.artemis.smoke-load-failed", "load-failed"],
     ]) {
       const outcome = await evaluate(
         connection,
@@ -815,8 +1218,40 @@ async function driveElectron() {
             outcome.snapshot.tokens?.["color.canvas"],
         `Fallback was incomplete for ${JSON.stringify(id)}.`,
       );
-      fallbackCases.push({ id, ...outcome });
+      fallbackCases.push({ id, reason, ...outcome });
     }
+    await evaluate(
+      connection,
+      "globalThis.__ARTEMIS_SKIN_SMOKE__.failDefault(true)",
+    );
+    const defaultFatal = await evaluate(
+      connection,
+      'globalThis.__ARTEMIS_SKIN_SMOKE__.select("com.artemis.default")',
+    );
+    assert(
+      defaultFatal.result.status === "fatal" &&
+        defaultFatal.result.activeSkinId === "com.artemis.default" &&
+        defaultFatal.snapshot.attrs.skin === "com.artemis.default" &&
+        defaultFatal.snapshot.tokenCount === 74 &&
+        defaultFatal.snapshot.state.portalSame &&
+        defaultFatal.snapshot.state.portalInheritedCanvas ===
+          defaultFatal.snapshot.tokens?.["color.canvas"],
+      `Default-fatal handling was incomplete: ${JSON.stringify(defaultFatal)}`,
+    );
+    fallbackCases.push({
+      id: "com.artemis.default",
+      reason: "default-fatal",
+      ...defaultFatal,
+    });
+    await evaluate(
+      connection,
+      "globalThis.__ARTEMIS_SKIN_SMOKE__.failDefault(false)",
+    );
+    assert(
+      JSON.stringify(fallbackCases.map(({ reason }) => reason)) ===
+        JSON.stringify(conformanceMatrix.fallbackCases),
+      "Electron fallback coverage diverged from the Gallery contract.",
+    );
     await screenshot(connection, "04-fallback-default.png");
     const finalSnapshot = await evaluate(
       connection,
@@ -825,10 +1260,12 @@ async function driveElectron() {
     assert(
       finalSnapshot.state.inputSame &&
         finalSnapshot.state.portalSame &&
+        finalSnapshot.state.composerSame &&
+        finalSnapshot.state.composerValue === "matrix-preserved" &&
         finalSnapshot.state.xtermSame &&
         finalSnapshot.state.xtermScreenSame &&
         finalSnapshot.state.xtermRowsSame &&
-        finalSnapshot.state.xtermContentSame &&
+        finalSnapshot.state.xtermPromptPreserved &&
         finalSnapshot.state.legacyPalettePresent &&
         finalSnapshot.state.inputValue === "main" &&
         finalSnapshot.state.selectionStart === 1 &&
@@ -858,11 +1295,12 @@ async function driveElectron() {
       bridge: {
         systemLight,
         systemDark,
+        systemHighContrast,
         explicitLight,
         explicitAfterSystemChange,
       },
       remembered,
-      stress,
+      runtimeMatrix,
       returnedDefault,
       fallbackCases,
       finalSnapshot,
@@ -1003,7 +1441,10 @@ async function unchangedSafetyPathEvidence() {
     const committed = run("git", ["show", `HEAD:${path}`]).stdout;
     const currentHash = sha256(current);
     const committedHash = sha256(Buffer.from(committed));
-    assert(currentHash === committedHash, `${path} changed during CL1B.`);
+    assert(
+      currentHash === committedHash,
+      `${path} changed during the skin conformance milestone.`,
+    );
     evidence.push({ path, sha256: currentHash, unchangedFromHead: true });
   }
   return evidence;
