@@ -219,7 +219,14 @@ interface UncontrolledConformanceProbeProps extends ConformanceProbeBaseProps {
 export type ConformanceProbeProps =
   ControlledConformanceProbeProps | UncontrolledConformanceProbeProps;
 
+export const CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR =
+  "ConformanceProbe requires a non-empty accessible label";
+
 export function ConformanceProbe(props: ConformanceProbeProps) {
+  if (typeof props.label !== "string" || props.label.trim().length === 0) {
+    throw new Error(CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR);
+  }
+
   const generatedId = useId().replaceAll(":", "");
   const baseId = props.id ?? `artemis-probe-${generatedId}`;
   const controlId = `${baseId}-control`;

@@ -3,9 +3,21 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { ConformanceProbe } from "../src/conformance.js";
+import {
+  CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR,
+  ConformanceProbe,
+} from "../src/conformance.js";
 
 describe("ConformanceProbe behavior harness", () => {
+  it.each(["", "  \t\n  "])(
+    "fails closed before rendering an empty accessible label (%j)",
+    (label) => {
+      expect(() => render(<ConformanceProbe label={label} />)).toThrowError(
+        CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR,
+      );
+    },
+  );
+
   it("renders stable anatomy and explicit ARIA relationships", () => {
     const { container } = render(
       <ConformanceProbe

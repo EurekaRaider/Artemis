@@ -120,6 +120,18 @@ describe("@artemis/ui CL0A boundary", () => {
           : entry,
       ),
     });
+    const optionalLabel = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      props: CONFORMANCE_PROBE_CONTRACT.props.map((prop) =>
+        prop.name === "label" ? { ...prop, required: false } : prop,
+      ),
+    });
+    const missingLabel = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      props: CONFORMANCE_PROBE_CONTRACT.props.filter(
+        (prop) => prop.name !== "label",
+      ),
+    });
 
     for (const report of [
       callbackTypeMismatch,
@@ -128,6 +140,8 @@ describe("@artemis/ui CL0A boundary", () => {
       unsafeDisabledState,
       unsafeComposition,
       wrongCallbackOrder,
+      optionalLabel,
+      missingLabel,
     ]) {
       expect(report.valid).toBe(false);
       expect(report.issues.length).toBeGreaterThan(0);

@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Component, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ConformanceProbe } from "@artemis/ui/conformance";
+import {
+  CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR,
+  ConformanceProbe,
+} from "@artemis/ui/conformance";
 import { validateSkinPackage } from "@artemis/theme-contract";
 
 import conformanceMatrix from "../src/conformance-matrix.json" with { type: "json" };
@@ -28,6 +32,25 @@ type ConformanceCase =
   | "callback-order"
   | "action-policy"
   | "rtl-inheritance";
+
+class ProbeErrorBoundary extends Component<
+  { readonly children: ReactNode; readonly onError: (error: Error) => void },
+  { readonly failed: boolean }
+> {
+  override state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  override componentDidCatch(error: Error) {
+    this.props.onError(error);
+  }
+
+  override render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 beforeEach(() => {
   applyGallerySkin("default");
@@ -66,6 +89,25 @@ const caseRunners = {
   },
 
   "aria-relations"() {
+    const blankLabelErrors: unknown[] = [];
+    const blankLabelRender = render(
+      <ProbeErrorBoundary onError={(error) => blankLabelErrors.push(error)}>
+        <ConformanceProbe label={"  \t\n  "} />
+      </ProbeErrorBoundary>,
+      { onCaughtError: () => undefined },
+    );
+    expect(blankLabelErrors).toHaveLength(1);
+    expect(blankLabelErrors[0]).toBeInstanceOf(Error);
+    expect((blankLabelErrors[0] as Error).message).toBe(
+      CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR,
+    );
+    expect(
+      blankLabelRender.container.querySelector(
+        '[data-artemis-component="conformance-probe"]',
+      ),
+    ).toBeNull();
+    blankLabelRender.unmount();
+
     const { container } = render(
       <ConformanceProbe
         id="matrix-aria"
@@ -83,6 +125,7 @@ const caseRunners = {
       "matrix-aria-description matrix-aria-error",
     );
     expect(control.getAttribute("aria-invalid")).toBe("true");
+    expect(label?.textContent).toBe("Matrix ARIA");
   },
 
   "finite-states"() {

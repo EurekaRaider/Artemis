@@ -465,6 +465,26 @@ export function validateComponentContract(
       );
     }
   }
+  const labelProp = props.find((prop) => prop.name === "label");
+  if (labelProp === undefined) {
+    addIssue(
+      issues,
+      "missing_field",
+      "$.props",
+      "The v1 accessible label prop is required",
+    );
+  } else if (
+    labelProp.type !== "string" ||
+    labelProp.required !== true ||
+    labelProp.boundary !== "static"
+  ) {
+    addIssue(
+      issues,
+      "invalid_value",
+      "$.props.label",
+      "The v1 label prop must be a required static string",
+    );
+  }
 
   const control = exactRecord(
     contract.controlBoundary,

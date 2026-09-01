@@ -78,6 +78,14 @@ cross-field mismatches between prop types/boundaries, control references,
 required ARIA anatomy, finite-state policies, keyboard/IME outcomes, and
 callback order/count.
 
+The accessible-name floor requires the v1 `label` prop to remain a required
+static string in the public contract. `ConformanceProbe` rejects empty or
+whitespace-only labels before producing DOM; the Gallery's same default/stress
+ARIA behavior runner proves both the rejection and the positive accessible
+name. The built Gallery CSS is parsed to prove its first cascade-layer
+encounters remain `artemis.reset` → `artemis.theme` → `artemis.ui`; the former
+theme-first artifact order is a rejecting fixture.
+
 The Probe structural stylesheet is parsed with PostCSS and compared against an
 exact selector/property/value allowlist. Its consumed `--artemis-*` token set
 must exactly equal the contract's `mutableTokens`; raw named/rgb/hsl/transparent
