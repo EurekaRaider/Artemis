@@ -89,12 +89,23 @@
     display: contents;
   }
 
+  [data-artemis-component="button"] > [data-part="icon"],
+  [data-artemis-component="icon-button"] > [data-part="icon"] {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+  }
+
   [data-artemis-component="button"][data-align="start"] {
     justify-content: flex-start;
   }
 
   [data-artemis-component="icon-button"] {
+    position: relative;
+    gap: 0;
     inline-size: var(--artemis-size-control-compact);
+    overflow: hidden;
     padding: 0;
   }
 
@@ -193,6 +204,26 @@
     color: currentColor;
     font-size: var(--artemis-typography-label-size);
     font-weight: var(--artemis-typography-body-weight);
+  }
+
+  [data-artemis-component="button"][data-state="ready"]
+    > [data-part="state-indicator"],
+  [data-artemis-component="button"][data-state="disabled"]
+    > [data-part="state-indicator"],
+  [data-artemis-component="icon-button"][data-state="ready"]
+    > [data-part="state-indicator"],
+  [data-artemis-component="icon-button"][data-state="disabled"]
+    > [data-part="state-indicator"] {
+    display: none;
+  }
+
+  [data-artemis-component="icon-button"] > [data-part="state-indicator"] {
+    position: absolute;
+    inset-block-end: var(--artemis-space-1);
+    inset-inline-end: var(--artemis-space-1);
+    font-size: var(--artemis-space-2);
+    line-height: 1;
+    pointer-events: none;
   }
 
   [data-artemis-component="icon"] {
@@ -321,6 +352,11 @@
     [data-artemis-component="button"],
     [data-artemis-component="icon-button"] {
       transition: none;
+      transform: none;
+    }
+
+    [data-artemis-component="button"]:active:not(:disabled),
+    [data-artemis-component="icon-button"]:active:not(:disabled) {
       transform: none;
     }
   }

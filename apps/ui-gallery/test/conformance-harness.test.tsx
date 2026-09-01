@@ -53,6 +53,7 @@ type ConformanceCase =
   | "rtl-inheritance"
   | "action-anatomy"
   | "action-states"
+  | "action-variants-sizes"
   | "action-events"
   | "icon-contract"
   | "status-semantics";
@@ -357,9 +358,7 @@ const caseRunners = {
   "action-anatomy"() {
     const { container } = render(
       <div>
-        <Button icon={<MatrixIcon />} label="Matrix button">
-          Button
-        </Button>
+        <Button icon={<MatrixIcon />}>Button</Button>
         <IconButton icon={<MatrixIcon />} label="Matrix icon button" />
         <Badge tone="success">Complete</Badge>
         <Status tone="info">Running</Status>
@@ -376,45 +375,102 @@ const caseRunners = {
   },
 
   "action-states"() {
-    const { rerender } = render(<Button label="Matrix state">Ready</Button>);
-    const state = () =>
-      screen
-        .getByRole("button", { name: "Matrix state" })
-        .getAttribute("data-state");
-    const indicator = screen
-      .getByRole("button", { name: "Matrix state" })
-      .querySelector('[data-part="state-indicator"]');
-    expect(indicator).not.toBeNull();
-    expect(state()).toBe("ready");
-    rerender(
-      <Button label="Matrix state" selected>
-        Selected
-      </Button>,
+    const statePair = (
+      props: Readonly<{
+        disabled?: boolean;
+        error?: boolean;
+        loading?: boolean;
+        selected?: boolean;
+      }> = {},
+    ) => (
+      <div>
+        <Button {...props}>Matrix state</Button>
+        <IconButton
+          {...props}
+          icon={<MatrixIcon />}
+          label="Matrix icon state"
+        />
+      </div>
     );
-    expect(state()).toBe("selected");
+    const { container, rerender } = render(statePair());
+    const states = () =>
+      [...container.querySelectorAll("button")].map((button) =>
+        button.getAttribute("data-state"),
+      );
+    const indicators = [
+      ...container.querySelectorAll('[data-part="state-indicator"]'),
+    ];
+    expect(states()).toEqual(["ready", "ready"]);
+    rerender(statePair({ selected: true }));
+    expect(states()).toEqual(["selected", "selected"]);
+    rerender(statePair({ error: true, selected: true }));
+    expect(states()).toEqual(["error", "error"]);
+    rerender(statePair({ error: true, loading: true, selected: true }));
+    expect(states()).toEqual(["loading", "loading"]);
     rerender(
-      <Button error label="Matrix state">
-        Error
-      </Button>,
+      statePair({ disabled: true, error: true, loading: true, selected: true }),
     );
-    expect(state()).toBe("error");
-    rerender(
-      <Button label="Matrix state" loading>
-        Loading
-      </Button>,
+    expect(states()).toEqual(["disabled", "disabled"]);
+    expect([
+      ...container.querySelectorAll('[data-part="state-indicator"]'),
+    ]).toEqual(indicators);
+  },
+
+  "action-variants-sizes"() {
+    const buttonVariants = ["primary", "secondary", "quiet", "danger"] as const;
+    const iconButtonVariants = ["secondary", "quiet", "danger"] as const;
+    const sizes = ["compact", "comfortable"] as const;
+    const states = [
+      ["ready", {}],
+      ["selected", { selected: true }],
+      ["error", { error: true }],
+      ["loading", { loading: true }],
+      ["disabled", { disabled: true }],
+    ] as const;
+    const { container } = render(
+      <div>
+        {sizes.flatMap((size) =>
+          buttonVariants.map((variant) => (
+            <Button key={`${size}-${variant}`} size={size} variant={variant}>
+              {`${size} ${variant}`}
+            </Button>
+          )),
+        )}
+        {sizes.flatMap((size) =>
+          iconButtonVariants.flatMap((variant) =>
+            states.map(([state, stateProps]) => (
+              <IconButton
+                key={`${size}-${variant}-${state}`}
+                icon={<MatrixIcon />}
+                label={`${size} ${variant} ${state}`}
+                size={size}
+                variant={variant}
+                {...stateProps}
+              />
+            )),
+          ),
+        )}
+      </div>,
     );
-    expect(state()).toBe("loading");
-    rerender(
-      <Button disabled label="Matrix state">
-        Disabled
-      </Button>,
+    const buttons = [
+      ...container.querySelectorAll('[data-artemis-component="button"]'),
+    ];
+    const iconButtons = [
+      ...container.querySelectorAll('[data-artemis-component="icon-button"]'),
+    ];
+    expect(buttons).toHaveLength(sizes.length * buttonVariants.length);
+    expect(iconButtons).toHaveLength(
+      sizes.length * iconButtonVariants.length * states.length,
     );
-    expect(state()).toBe("disabled");
     expect(
-      screen
-        .getByRole("button", { name: "Matrix state" })
-        .querySelector('[data-part="state-indicator"]'),
-    ).toBe(indicator);
+      new Set(iconButtons.map((node) => node.getAttribute("data-state"))),
+    ).toEqual(new Set(states.map(([state]) => state)));
+    expect(
+      new Set(iconButtons.map((node) => node.getAttribute("data-size"))),
+    ).toEqual(new Set(sizes));
+    expect(
+      new Set(iconButtons.map((node) => node.getAttribute("data-variant"))),
+    ).toEqual(new Set(iconButtonVariants));
   },
 
   async "action-events"() {
@@ -423,12 +479,10 @@ const caseRunners = {
     const user = userEvent.setup();
     render(
       <form onSubmit={onSubmit}>
-        <Button label="Matrix activation" onClick={onClick}>
-          Activate
-        </Button>
+        <Button onClick={onClick}>Activate</Button>
       </form>,
     );
-    const action = screen.getByRole("button", { name: "Matrix activation" });
+    const action = screen.getByRole("button", { name: "Activate" });
     await user.click(action);
     action.focus();
     await user.keyboard("{Enter}");
@@ -454,24 +508,46 @@ const caseRunners = {
         (node) => node.getAttribute("data-size"),
       ),
     ).toEqual(["xs", "sm", "base", "lg", "xl", "base"]);
+    expect(
+      [...container.querySelectorAll('[data-artemis-component="icon"]')].every(
+        (node) => node.getAttribute("data-part") === "root",
+      ),
+    ).toBe(true);
+    expect(
+      container.querySelector(
+        '[data-artemis-component="icon-button"] > [data-part="icon"] > [data-artemis-component="icon"]',
+      ),
+    ).not.toBeNull();
     expect(screen.getByRole("button", { name: "图标操作" })).not.toBeNull();
     expect(container.querySelector("[data-artemis-portal]")).toBeNull();
   },
 
   "status-semantics"() {
     const longText = "同步完成，所有变更已安全保存到当前本地项目";
+    const tones = ["neutral", "info", "success", "warning", "danger"] as const;
     const { container } = render(
       <div>
         <Badge tone="success">{longText}</Badge>
-        <Status live="polite" tone="warning">
-          2.5K / 10K
-        </Status>
+        {tones.map((tone) => (
+          <Status
+            key={tone}
+            live={tone === "warning" ? "polite" : undefined}
+            tone={tone}
+          >
+            {`${tone} status`}
+          </Status>
+        ))}
       </div>,
     );
     expect(container.textContent).toContain(longText);
     expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
+    expect(
+      [...container.querySelectorAll('[data-artemis-component="status"]')].map(
+        (node) => node.getAttribute("data-tone"),
+      ),
+    ).toEqual(tones);
     expect(container.querySelectorAll('[data-part="indicator"]')).toHaveLength(
-      2,
+      tones.length + 1,
     );
   },
 } satisfies Record<ConformanceCase, () => void | Promise<void>>;
@@ -827,7 +903,7 @@ describe("default and synthetic stress skin conformance", () => {
     const root = probeRoot;
     const label = probeRoot.querySelector('[data-part="label"]');
     const primaryAction = screen.getByRole("button", {
-      name: "Primary action",
+      name: "compact primary",
     });
     const actionStatus = screen
       .getByText("2.5K / 10K")
@@ -878,7 +954,7 @@ describe("default and synthetic stress skin conformance", () => {
         eventOrder,
       );
       const afterPrimaryAction = screen.getByRole("button", {
-        name: "Primary action",
+        name: "compact primary",
       });
       const afterActionStatus = screen
         .getByText("2.5K / 10K")
@@ -926,7 +1002,7 @@ describe("default and synthetic stress skin conformance", () => {
     expect(Object.keys(caseRunners).sort()).toEqual(
       [...conformanceMatrix.skins.default].sort(),
     );
-    expect(skinCaseMatrix).toHaveLength(26);
+    expect(skinCaseMatrix).toHaveLength(28);
   });
 
   it.each(skinCaseMatrix)(

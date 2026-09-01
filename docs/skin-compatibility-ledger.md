@@ -71,8 +71,9 @@ inventory, never a substitute for those assertions. CL1C upgrades
 that inventory to schema v2, adds six exact runtime axes and five exact fallback
 classes, raises conformance negatives from 18 to 25, and traverses the resulting
 64 vertices without replacing those behavior runners. CL2A adds five Action,
-Icon, Badge, and Status runners, raising the exact inventory to 13 cases per skin
-and 26 real executions while retaining the same 25 rejecting fixtures.
+Icon, Badge, and Status runners, then adds the complete action
+variant/state/size inventory, raising the exact inventory to 14 cases per skin
+and 28 real executions while retaining the same 25 rejecting fixtures.
 
 ## CL1A built-in Direction A evidence boundary
 
@@ -196,30 +197,43 @@ that result or claim a production visual migration.
 ## CL2A Action/Icon candidate boundary
 
 `@artemis/ui/actions` contains only platform-neutral React anatomy and finite
-public props. `Button` and `IconButton` require a perceptible accessible label,
+public props. Text `Button` requires perceptible visible content and derives its
+name from that content unless an explicit accessible label contains the visible
+label in order; `IconButton` requires a perceptible explicit name. Both
 default to `type="button"`, rely on native Enter/Space and disabled behavior,
 emit at most one consumer callback per activation, block loading actions with a
 native disabled control plus `aria-busy`, and expose finite selected/error/loading
-state. `Icon` is decorative and owns xs/sm/base/lg/xl sizing; the consumer owns
+state. Their frozen public contract exposes the exact
+disabled > loading > error > selected > ready priority and an exact validator.
+`Icon` always keeps `data-part="root"`; the action-owned icon slot is a separate
+wrapper. It is decorative and owns xs/sm/base/lg/xl sizing; the consumer owns
 the accessible name and supplies a platform-neutral visual. `Badge` and `Status`
 require visible text and a redundant dot; Status becomes a live region only by
 explicit opt-in. No Apple proprietary asset is copied or embedded.
 
 Action structural CSS uses only the frozen finite selectors and semantic tokens
-declared by its public contract. Status labels always use `text.primary`; the
+declared by its public contract. IconButton state indicators are absolute,
+contained overlays, so the icon remains optically centered in both control
+sizes. Status labels always use `text.primary`; the
 solid tone appears on the redundant dot and the background uses the matching
 subtle role, preserving the Skin v1 small-text boundary. Reduced motion removes
 action transitions and pressed transforms. The focus indicator keeps the same
 non-overridable `2px solid Highlight` safety floor. Skin data cannot branch
 component anatomy, choose variants, add selectors, or supply private classes.
 
-Gallery binds all five new behavior cases to both default and stress skins and
+Gallery binds all six new behavior cases to both default and stress skins and
 retains the same Action/Status nodes and attributes through all 64 runtime
-vertices. Desktop imports only the public stylesheet and action subpath; its
+vertices. It renders every Button variant and size, every IconButton
+variant × state × size combination, and every Badge/Status tone. Desktop imports
+only the public stylesheet and action subpath; its legacy form reset is confined
+to `artemis.reset`, and its
 GoalBar adapter keeps `ThreadGoal` status-to-tone mapping outside the package.
-The 104-case real Electron Goal parity matrix validates the resulting component
+The 105-case real Electron Goal parity matrix has no `--no-sandbox` fallback,
+records the exact HEAD and sandboxed launch mode, and validates the resulting component
 identities, state/variant/tone attributes, computed 28px controls, 14px icons,
-26px status pills, action order, screenshots, and accessibility across locale,
+26px status pills, background/border/color/font contracts, fixed focus outline,
+30 IconButton variant × state × size geometry probes, native pressed behavior
+under reduced motion, action order, screenshots, and accessibility across locale,
 theme, width, and zoom. It does not establish native Windows/Linux parity or
 migrate any other Desktop surface.
 

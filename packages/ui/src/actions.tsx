@@ -1,3 +1,4 @@
+import { Children, isValidElement } from "react";
 import type { ButtonHTMLAttributes, MouseEventHandler, ReactNode } from "react";
 
 function deepFreeze<T>(value: T): T {
@@ -56,13 +57,22 @@ export type ActionTone = "neutral" | "info" | "success" | "warning" | "danger";
 export type ActionState =
   "ready" | "selected" | "error" | "loading" | "disabled";
 
-interface ActionComponentContract {
+export const ACTION_STATE_PRIORITY = /* @__PURE__ */ Object.freeze([
+  "disabled",
+  "loading",
+  "error",
+  "selected",
+  "ready",
+] as const satisfies readonly ActionState[]);
+
+export interface ActionComponentContract {
   readonly schemaVersion: typeof ACTION_COMPONENT_CONTRACT_SCHEMA_VERSION;
   readonly uiContractVersion: 1;
   readonly name: "button" | "icon-button" | "icon" | "badge" | "status";
   readonly parts: readonly string[];
   readonly optionalParts?: readonly string[];
-  readonly states: readonly string[];
+  readonly states: readonly ActionState[];
+  readonly statePriority?: readonly ActionState[];
   readonly variants?: readonly string[];
   readonly sizes?: readonly string[];
   readonly tones?: readonly string[];
@@ -82,6 +92,7 @@ const ACTION_THEME_CONTRACT = {
   mutableTokens: ACTION_COMPONENT_MUTABLE_TOKENS,
   safetyFloor: [
     "accessible-name-required-for-buttons",
+    "button-accessible-name-contains-visible-label",
     "focus-indicator-visible",
     "loading-blocks-action",
     "native-disabled-semantics",
@@ -97,10 +108,12 @@ export const ACTION_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     parts: ["root", "label", "state-indicator"],
     optionalParts: ["icon"],
     states: ["ready", "selected", "error", "loading", "disabled"],
+    statePriority: ACTION_STATE_PRIORITY,
     variants: ["primary", "secondary", "quiet", "danger"],
     sizes: ["compact", "comfortable"],
     accessibility: [
-      "required-perceptible-label",
+      "required-perceptible-visible-label",
+      "optional-aria-label-must-contain-visible-label",
       "aria-busy-while-loading",
       "aria-invalid-on-error",
       "aria-pressed-only-when-selectable",
@@ -119,6 +132,7 @@ export const ACTION_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     name: "icon-button",
     parts: ["root", "icon", "state-indicator"],
     states: ["ready", "selected", "error", "loading", "disabled"],
+    statePriority: ACTION_STATE_PRIORITY,
     variants: ["secondary", "quiet", "danger"],
     sizes: ["compact", "comfortable"],
     accessibility: [
@@ -179,11 +193,73 @@ export const ACTION_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
   },
 } as const satisfies Readonly<Record<string, ActionComponentContract>>);
 
+export interface ActionComponentContractValidationResult {
+  readonly valid: boolean;
+  readonly errors: readonly string[];
+}
+
+export function validateActionComponentContracts(
+  candidate: unknown,
+): ActionComponentContractValidationResult {
+  const errors: string[] = [];
+  const compare = (actual: unknown, expected: unknown, path: string): void => {
+    if (Array.isArray(expected)) {
+      if (!Array.isArray(actual)) {
+        errors.push(`${path} must be an array`);
+        return;
+      }
+      if (actual.length !== expected.length) {
+        errors.push(`${path} must contain ${expected.length} entries`);
+        return;
+      }
+      expected.forEach((entry, index) =>
+        compare(actual[index], entry, `${path}[${index}]`),
+      );
+      return;
+    }
+    if (typeof expected === "object" && expected !== null) {
+      if (
+        typeof actual !== "object" ||
+        actual === null ||
+        Array.isArray(actual)
+      ) {
+        errors.push(`${path} must be an object`);
+        return;
+      }
+      const actualRecord = actual as Record<string, unknown>;
+      const expectedRecord = expected as Record<string, unknown>;
+      const actualKeys = Object.keys(actualRecord).sort();
+      const expectedKeys = Object.keys(expectedRecord).sort();
+      if (JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)) {
+        errors.push(`${path} fields are not exact`);
+        return;
+      }
+      for (const key of expectedKeys) {
+        compare(actualRecord[key], expectedRecord[key], `${path}.${key}`);
+      }
+      return;
+    }
+    if (actual !== expected) {
+      errors.push(`${path} must equal ${JSON.stringify(expected)}`);
+    }
+  };
+
+  compare(candidate, ACTION_COMPONENT_CONTRACTS, "contracts");
+  return Object.freeze({
+    valid: errors.length === 0,
+    errors: Object.freeze(errors),
+  });
+}
+
 const PERCEPTIBLE_LABEL_CHARACTER =
   /[^\p{White_Space}\p{Default_Ignorable_Code_Point}\p{Cc}]/u;
 
 export const ACTION_ACCESSIBLE_NAME_ERROR =
   "Artemis action controls require a non-empty accessible label";
+export const ACTION_BUTTON_VISIBLE_LABEL_ERROR =
+  "Artemis Button requires non-empty visible text";
+export const ACTION_LABEL_IN_NAME_ERROR =
+  "Artemis Button accessible labels must contain the visible label";
 export const ACTION_VISIBLE_TEXT_ERROR =
   "Artemis Badge and Status require non-empty visible text";
 
@@ -202,6 +278,44 @@ function requireVisibleText(children: string): void {
   }
 }
 
+function perceptibleText(node: ReactNode): string {
+  let value = "";
+  Children.forEach(node, (child) => {
+    if (typeof child === "string" || typeof child === "number") {
+      value += String(child);
+      return;
+    }
+    if (!isValidElement(child)) return;
+    const props = child.props as {
+      readonly "aria-hidden"?: boolean | "true" | "false";
+      readonly children?: ReactNode;
+    };
+    if (props["aria-hidden"] === true || props["aria-hidden"] === "true") {
+      return;
+    }
+    const nestedText = perceptibleText(props.children);
+    if (nestedText) value += ` ${nestedText} `;
+  });
+  return value
+    .replace(/[\p{White_Space}\p{Default_Ignorable_Code_Point}\p{Cc}]+/gu, " ")
+    .trim();
+}
+
+function requireButtonLabel(
+  children: ReactNode,
+  label: string | undefined,
+): void {
+  const visibleLabel = perceptibleText(children);
+  if (!PERCEPTIBLE_LABEL_CHARACTER.test(visibleLabel)) {
+    throw new Error(ACTION_BUTTON_VISIBLE_LABEL_ERROR);
+  }
+  if (label === undefined) return;
+  requirePerceptibleLabel(label);
+  if (!perceptibleText(label).includes(visibleLabel)) {
+    throw new Error(ACTION_LABEL_IN_NAME_ERROR);
+  }
+}
+
 function actionState({
   disabled,
   error,
@@ -213,11 +327,14 @@ function actionState({
   readonly loading: boolean | undefined;
   readonly selected: boolean | undefined;
 }): ActionState {
-  if (disabled) return "disabled";
-  if (loading) return "loading";
-  if (error) return "error";
-  if (selected) return "selected";
-  return "ready";
+  const active: Readonly<Record<ActionState, boolean>> = {
+    disabled: Boolean(disabled),
+    loading: Boolean(loading),
+    error: Boolean(error),
+    selected: Boolean(selected),
+    ready: true,
+  };
+  return ACTION_STATE_PRIORITY.find((state) => active[state]) ?? "ready";
 }
 
 function stateIndicator(state: ActionState) {
@@ -245,7 +362,6 @@ interface CommonActionProps {
   readonly disabled?: boolean | undefined;
   readonly error?: boolean | undefined;
   readonly id?: string | undefined;
-  readonly label: string;
   readonly loading?: boolean | undefined;
   readonly onClick?: MouseEventHandler<HTMLButtonElement> | undefined;
   readonly selected?: boolean | undefined;
@@ -259,6 +375,7 @@ export interface ButtonProps extends CommonActionProps {
   readonly children: ReactNode;
   readonly icon?: ReactNode | undefined;
   readonly iconSize?: ActionIconSize | undefined;
+  readonly label?: string | undefined;
   readonly variant?: ActionButtonVariant | undefined;
 }
 
@@ -280,7 +397,7 @@ export function Button({
   type = "button",
   variant = "secondary",
 }: ButtonProps) {
-  requirePerceptibleLabel(label);
+  requireButtonLabel(children, label);
   const state = actionState({ disabled, error, loading, selected });
   return (
     <button
@@ -302,9 +419,9 @@ export function Button({
       type={type}
     >
       {icon === undefined ? null : (
-        <Icon size={iconSize} part="icon">
-          {icon}
-        </Icon>
+        <span data-part="icon">
+          <Icon size={iconSize}>{icon}</Icon>
+        </span>
       )}
       <span data-part="label">{children}</span>
       {stateIndicator(state)}
@@ -315,6 +432,7 @@ export function Button({
 export interface IconButtonProps extends CommonActionProps {
   readonly icon: ReactNode;
   readonly iconSize?: ActionIconSize | undefined;
+  readonly label: string;
   readonly variant?: Exclude<ActionButtonVariant, "primary"> | undefined;
 }
 
@@ -354,9 +472,9 @@ export function IconButton({
       title={title}
       type={type}
     >
-      <Icon size={iconSize} part="icon">
-        {icon}
-      </Icon>
+      <span data-part="icon">
+        <Icon size={iconSize}>{icon}</Icon>
+      </span>
       {stateIndicator(state)}
     </button>
   );
@@ -366,21 +484,15 @@ export interface IconProps {
   readonly children: ReactNode;
   readonly className?: string | undefined;
   readonly size?: ActionIconSize | undefined;
-  readonly part?: "icon" | "root" | undefined;
 }
 
-export function Icon({
-  children,
-  className,
-  part = "root",
-  size = "base",
-}: IconProps) {
+export function Icon({ children, className, size = "base" }: IconProps) {
   return (
     <span
       aria-hidden="true"
       className={className}
       data-artemis-component="icon"
-      data-part={part}
+      data-part="root"
       data-size={size}
       data-state="ready"
     >

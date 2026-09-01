@@ -57,6 +57,23 @@ const SKIN_OPTIONS = [
   ["default", "Direction A"],
   ["stress", "Stress"],
 ] as const;
+const ACTION_CONTROL_SIZES = ["compact", "comfortable"] as const;
+const BUTTON_VARIANTS = ["primary", "secondary", "quiet", "danger"] as const;
+const ICON_BUTTON_VARIANTS = ["secondary", "quiet", "danger"] as const;
+const ACTION_STATES = [
+  ["ready", {}],
+  ["selected", { selected: true }],
+  ["error", { error: true }],
+  ["loading", { loading: true }],
+  ["disabled", { disabled: true }],
+] as const;
+const ACTION_TONES = [
+  "neutral",
+  "info",
+  "success",
+  "warning",
+  "danger",
+] as const;
 
 function blankTokenSnapshot(): GalleryTokenSnapshot {
   return Object.fromEntries(
@@ -241,39 +258,45 @@ export function GalleryApp() {
       >
         <h2 id="action-heading">Action, icon, badge, and status</h2>
         <div className="gallery-surface-grid">
-          <Button
-            icon={<GalleryActionIcon />}
-            label="Primary action"
-            variant="primary"
-          >
-            Primary
-          </Button>
-          <Button label="Secondary action" variant="secondary">
-            Secondary
-          </Button>
-          <Button label="Quiet action" variant="quiet">
-            Quiet
-          </Button>
-          <Button label="Danger action" variant="danger">
-            Danger
-          </Button>
-          <Button label="Selected action" selected>
-            Selected
-          </Button>
-          <Button error label="Error action">
-            Error
-          </Button>
-          <Button label="Loading action" loading>
-            Loading
-          </Button>
-          <Button disabled label="Disabled action">
-            Disabled
-          </Button>
-          <IconButton
-            icon={<GalleryActionIcon />}
-            label="Icon-only action"
-            title="Icon-only action"
-          />
+          {ACTION_CONTROL_SIZES.flatMap((size) =>
+            BUTTON_VARIANTS.map((variant) => (
+              <Button
+                key={`${size}-${variant}`}
+                icon={<GalleryActionIcon />}
+                size={size}
+                variant={variant}
+              >
+                {`${size} ${variant}`}
+              </Button>
+            )),
+          )}
+          {ACTION_CONTROL_SIZES.flatMap((size) =>
+            ACTION_STATES.map(([state, stateProps]) => (
+              <Button key={`${size}-${state}`} size={size} {...stateProps}>
+                {`${size} ${state}`}
+              </Button>
+            )),
+          )}
+        </div>
+        <div className="gallery-surface-grid">
+          {ACTION_CONTROL_SIZES.flatMap((size) =>
+            ICON_BUTTON_VARIANTS.flatMap((variant) =>
+              ACTION_STATES.map(([state, stateProps]) => {
+                const label = `${size} ${variant} ${state} icon action`;
+                return (
+                  <IconButton
+                    key={label}
+                    icon={<GalleryActionIcon />}
+                    label={label}
+                    size={size}
+                    title={label}
+                    variant={variant}
+                    {...stateProps}
+                  />
+                );
+              }),
+            ),
+          )}
         </div>
         <div className="gallery-surface-grid">
           {(["xs", "sm", "base", "lg", "xl"] as const).map((size) => (
@@ -281,16 +304,20 @@ export function GalleryApp() {
               <GalleryActionIcon />
             </Icon>
           ))}
-          {(["neutral", "info", "success", "warning", "danger"] as const).map(
-            (tone) => (
-              <Badge key={tone} tone={tone}>
-                {`${tone} badge`}
-              </Badge>
-            ),
-          )}
-          <Status live="polite" tone="info">
-            2.5K / 10K
-          </Status>
+          {ACTION_TONES.map((tone) => (
+            <Badge key={tone} tone={tone}>
+              {`${tone} badge`}
+            </Badge>
+          ))}
+          {ACTION_TONES.map((tone) => (
+            <Status
+              key={tone}
+              live={tone === "info" ? "polite" : undefined}
+              tone={tone}
+            >
+              {tone === "info" ? "2.5K / 10K" : `${tone} status`}
+            </Status>
+          ))}
         </div>
       </section>
 

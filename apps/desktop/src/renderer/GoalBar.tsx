@@ -111,6 +111,7 @@ export function GoalBar({
   const objective = displayGoalObjective(goal.objective);
   const resumable = ["paused", "blocked", "usageLimited"].includes(goal.status);
   const tone = GOAL_TONES[goal.status];
+  const progress = formatGoalProgress(goal, locale, clockMs);
   return (
     <section
       aria-busy={disabled || undefined}
@@ -123,7 +124,7 @@ export function GoalBar({
         disabled={disabled}
         icon={<TargetIcon weight="regular" />}
         iconSize="sm"
-        label={copy.edit}
+        label={`${copy[goal.status]} ${objective} ${progress} — ${copy.edit}`}
         onClick={onEdit}
         title={objective}
         variant="quiet"
@@ -136,7 +137,7 @@ export function GoalBar({
           <span aria-hidden="true"> •</span>
         </span>
         <Status className="goal-bar-progress" tone={tone}>
-          {formatGoalProgress(goal, locale, clockMs)}
+          {progress}
         </Status>
       </Button>
       <div className="goal-bar-actions">

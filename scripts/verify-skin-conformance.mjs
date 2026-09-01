@@ -16,6 +16,7 @@ const REQUIRED_SKIN_CASES = [
   "rtl-inheritance",
   "action-anatomy",
   "action-states",
+  "action-variants-sizes",
   "action-events",
   "icon-contract",
   "status-semantics",
@@ -179,11 +180,23 @@ const expectedCssRules = new Map([
   ],
   [`normal|${BUTTON}`, { "padding-inline": "var(--artemis-space-3)" }],
   [`normal|${BUTTON} > [data-part="label"]`, { display: "contents" }],
+  [
+    `normal|${BUTTON} > [data-part="icon"], ${ICON_BUTTON} > [data-part="icon"]`,
+    {
+      display: "inline-flex",
+      flex: "0 0 auto",
+      "align-items": "center",
+      "justify-content": "center",
+    },
+  ],
   [`normal|${BUTTON}[data-align="start"]`, { "justify-content": "flex-start" }],
   [
     `normal|${ICON_BUTTON}`,
     {
+      position: "relative",
+      gap: "0",
       "inline-size": "var(--artemis-size-control-compact)",
+      overflow: "hidden",
       padding: "0",
     },
   ],
@@ -271,6 +284,21 @@ const expectedCssRules = new Map([
       color: "currentColor",
       "font-size": "var(--artemis-typography-label-size)",
       "font-weight": "var(--artemis-typography-body-weight)",
+    },
+  ],
+  [
+    `normal|${BUTTON}[data-state="ready"] > [data-part="state-indicator"], ${BUTTON}[data-state="disabled"] > [data-part="state-indicator"], ${ICON_BUTTON}[data-state="ready"] > [data-part="state-indicator"], ${ICON_BUTTON}[data-state="disabled"] > [data-part="state-indicator"]`,
+    { display: "none" },
+  ],
+  [
+    `normal|${ICON_BUTTON} > [data-part="state-indicator"]`,
+    {
+      position: "absolute",
+      "inset-block-end": "var(--artemis-space-1)",
+      "inset-inline-end": "var(--artemis-space-1)",
+      "font-size": "var(--artemis-space-2)",
+      "line-height": "1",
+      "pointer-events": "none",
     },
   ],
   [
@@ -378,6 +406,10 @@ const expectedCssRules = new Map([
     `reduced-motion|${BUTTON}, ${ICON_BUTTON}`,
     { transition: "none", transform: "none" },
   ],
+  [
+    `reduced-motion|${BUTTON}:active:not(:disabled), ${ICON_BUTTON}:active:not(:disabled)`,
+    { transform: "none" },
+  ],
 ]);
 
 function verifyStructuralCss(css, from, componentContract, actionTokens) {
@@ -482,7 +514,7 @@ function verifyStructuralCss(css, from, componentContract, actionTokens) {
       node.name !== "media" ||
       normalizeWhitespace(node.params) !== "(prefers-reduced-motion: reduce)" ||
       node.nodes === undefined ||
-      node.nodes.length !== 2
+      node.nodes.length !== 3
     ) {
       throw new Error("UI structural CSS contains an unexpected at-rule");
     }

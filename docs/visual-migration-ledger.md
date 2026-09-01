@@ -178,28 +178,37 @@ CL2A adds the public `@artemis/ui/actions` subpath with `Button`, `IconButton`,
 primary/secondary/quiet/danger variants, compact/comfortable controls,
 xs/sm/base/lg/xl icons, five finite tones, state priority, native disabled and
 default non-submit semantics, opt-in live status, required perceptible action
-names, RTL inheritance, and reduced motion. Loading, error, and selected states
+names, Label-in-Name enforcement for text buttons, RTL inheritance, and reduced
+motion. The public contract includes an exact validator and a frozen
+disabled > loading > error > selected > ready priority. Loading, error, and selected states
 include visible non-color indicators. Status text stays
 `color.text.primary`; tone is carried by a redundant dot and subtle background,
 so Skin v1 is not widened with inaccessible colored-small-text roles.
 
-The private Gallery renders every action variant and state, all five icon sizes,
-all five tones, long text, and an explicit live status. Five real behavior
-runners raise the matrix from 8 to 13 cases per skin (26 executions) while the
+The private Gallery renders both control sizes, every Button variant, every
+IconButton variant × state × size combination, all five icon sizes, all five
+Badge and Status tones, long text, and an explicit live status. Six real behavior
+runners raise the matrix from 8 to 14 cases per skin (28 executions) while the
 64-vertex traversal preserves the original Probe plus the same Action and
 Status nodes, anatomy, state, variant, tone, and ARIA. The public structural CSS
 continues to have an exact selector/property/value allowlist; its consumed token
 set must equal the union of the Probe and Action contracts, while the fixed
 `2px solid Highlight` focus floor remains outside skin control.
 
-Desktop consumes the public package through a thin `GoalBar` adapter: protocol
+Desktop consumes the public package through a thin `GoalBar` adapter. Its
+legacy form reset is isolated in `artemis.reset`, so it cannot override the
+public `artemis.ui` background, border, color, typography, or fixed focus floor. Protocol
 status-to-tone mapping remains in Desktop, while the main edit action, all
 icon-only actions, status badge, progress status, and five-size icon wrapper are
-owned by `@artemis/ui`. The existing Goal parity driver now verifies 104 real
+owned by `@artemis/ui`. The Goal parity driver now verifies 105 sandboxed real
 Electron cases across six Goal states, two locales, light/dark, two widths, two
-zoom levels, and eight editor states. It checks screenshots, accessibility,
+zoom levels, eight editor states, and one native reduced-motion press. It records
+the exact candidate HEAD and launch mode, has no `--no-sandbox` fallback, and
+checks screenshots, accessibility,
 action ordering, 28px controls, 14px icons, shared component identities,
-finite state/variant/tone attributes, and resolved computed geometry. This is
+finite state/variant/tone attributes, resolved background/border/color/font,
+the fixed focus outline, plus 30 IconButton variant × state × size geometry
+probes with centered icons and contained state indicators. This is
 one migrated production consumer; CL2B and CL2C still own their distinct field
 and tab consumers.
 
@@ -221,7 +230,7 @@ Electron/Node APIs, private Gallery state, or skin-specific structural branches.
 | Direction A Artemis values                                               | skin               | `@artemis/theme-artemis`  | Gallery and Desktop host   | v17 A light/dark/high                            | CL1A      | Gallery/browser; Desktop first-frame variables in CL1B      | Merged at `3457e0d`                     |
 | Resolver/registry and host attributes                                    | integration        | Desktop renderer glue     | Desktop                    | current `data-theme` bridge                      | CL1B      | Exact-head Electron state/Portal/xterm/package proof        | Merged at `70691d9`                     |
 | Default/stress/fallback conformance                                      | governance         | Gallery + validators      | CI                         | v17 A/B/C stress input                           | CL1C      | 64-vertex Gallery + exact-head Desktop matrix               | Merged at `38e40ae`                     |
-| Action and icon controls                                                 | component          | `@artemis/ui`             | Gallery + GoalBar          | buttons, icon buttons, badge, status, icon sizes | CL2A      | 104-case Goal parity Electron matrix                        | Candidate                               |
+| Action and icon controls                                                 | component          | `@artemis/ui`             | Gallery + GoalBar          | buttons, icon buttons, badge, status, icon sizes | CL2A      | 105-case sandboxed Goal parity Electron matrix              | Candidate                               |
 | Field and selection controls                                             | component          | `@artemis/ui`             | Desktop consumer pending   | field, search, select, checkbox, switch          | CL2B      | Gallery then exact real consumer                            | Pending                                 |
 | Tabs and segmented controls                                              | component          | `@artemis/ui`             | Desktop consumer pending   | tabs and segmented controls                      | CL2C      | Gallery then exact real consumer                            | Pending                                 |
 | Feedback, overlays, layout primitives                                    | component          | `@artemis/ui`             | Desktop consumers later    | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | Gallery cases first                                         | Pending                                 |

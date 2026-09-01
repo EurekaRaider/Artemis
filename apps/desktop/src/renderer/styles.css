@@ -227,26 +227,28 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-button,
-input,
-select,
-textarea {
-  color: inherit;
-  font: inherit;
-}
+@layer artemis.reset {
+  button,
+  input,
+  select,
+  textarea {
+    color: inherit;
+    font: inherit;
+  }
 
-button {
-  background: transparent;
-  border: 0;
-}
+  button {
+    background: transparent;
+    border: 0;
+  }
 
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-summary:focus-visible,
-[role="treeitem"]:focus-visible {
-  outline: 2px solid var(--blue);
-  outline-offset: 2px;
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible,
+  [role="treeitem"]:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 2px;
+  }
 }
 
 .app-shell {

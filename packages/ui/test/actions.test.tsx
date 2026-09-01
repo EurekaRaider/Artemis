@@ -6,13 +6,18 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   ACTION_ACCESSIBLE_NAME_ERROR,
+  ACTION_BUTTON_VISIBLE_LABEL_ERROR,
   ACTION_COMPONENT_CONTRACTS,
+  ACTION_LABEL_IN_NAME_ERROR,
+  ACTION_STATE_PRIORITY,
   ACTION_VISIBLE_TEXT_ERROR,
+  type ActionState,
   Badge,
   Button,
   Icon,
   IconButton,
   Status,
+  validateActionComponentContracts,
 } from "../src/actions.js";
 
 const TestIcon = () => (
@@ -38,6 +43,16 @@ describe("Action component contracts", () => {
       "loading",
       "disabled",
     ]);
+    expect(ACTION_COMPONENT_CONTRACTS.button.statePriority).toEqual(
+      ACTION_STATE_PRIORITY,
+    );
+    expect(ACTION_COMPONENT_CONTRACTS.iconButton.statePriority).toEqual([
+      "disabled",
+      "loading",
+      "error",
+      "selected",
+      "ready",
+    ]);
     expect(ACTION_COMPONENT_CONTRACTS.icon.sizes).toEqual([
       "xs",
       "sm",
@@ -53,6 +68,34 @@ describe("Action component contracts", () => {
       "danger",
     ]);
   });
+
+  it("validates the exact public contract and rejects anatomy or priority drift", () => {
+    expect(
+      validateActionComponentContracts(ACTION_COMPONENT_CONTRACTS),
+    ).toEqual({ valid: true, errors: [] });
+    const anatomyDrift = structuredClone(ACTION_COMPONENT_CONTRACTS);
+    (anatomyDrift.icon.parts as string[])[0] = "icon";
+    const anatomyReport = validateActionComponentContracts(anatomyDrift);
+    expect(anatomyReport.valid).toBe(false);
+    expect(anatomyReport.errors).toContain(
+      'contracts.icon.parts[0] must equal "root"',
+    );
+
+    const priorityDrift = structuredClone(ACTION_COMPONENT_CONTRACTS);
+    (priorityDrift.button.statePriority as ActionState[]).reverse();
+    const priorityReport = validateActionComponentContracts(priorityDrift);
+    expect(priorityReport.valid).toBe(false);
+    expect(priorityReport.errors.length).toBeGreaterThan(0);
+
+    const extraField = structuredClone(ACTION_COMPONENT_CONTRACTS) as Record<
+      string,
+      unknown
+    >;
+    extraField.unreviewed = {};
+    expect(validateActionComponentContracts(extraField).errors).toContain(
+      "contracts fields are not exact",
+    );
+  });
 });
 
 describe("Button and IconButton behavior", () => {
@@ -61,10 +104,10 @@ describe("Button and IconButton behavior", () => {
     const user = userEvent.setup();
     const { rerender } = render(
       <form onSubmit={onSubmit}>
-        <Button label="Safe action">Run</Button>
+        <Button>Run</Button>
       </form>,
     );
-    const action = screen.getByRole("button", { name: "Safe action" });
+    const action = screen.getByRole("button", { name: "Run" });
     expect(action.getAttribute("type")).toBe("button");
     await user.click(action);
     expect(onSubmit).not.toHaveBeenCalled();
@@ -119,11 +162,11 @@ describe("Button and IconButton behavior", () => {
     expect(onClick).not.toHaveBeenCalled();
 
     rerender(
-      <Button label="Loading" loading onClick={onClick}>
+      <Button loading onClick={onClick}>
         Preserve label
       </Button>,
     );
-    action = screen.getByRole("button", { name: "Loading" });
+    action = screen.getByRole("button", { name: "Preserve label" });
     expect((action as HTMLButtonElement).disabled).toBe(true);
     expect(action.getAttribute("aria-busy")).toBe("true");
     expect(action.getAttribute("data-state")).toBe("loading");
@@ -135,24 +178,80 @@ describe("Button and IconButton behavior", () => {
 
   it("exposes selected and error states with non-color indicators", () => {
     const { rerender } = render(
-      <Button label="Selection" selected>
+      <Button label="Selected choice" selected>
         Selected
       </Button>,
     );
-    let action = screen.getByRole("button", { name: "Selection" });
+    let action = screen.getByRole("button", { name: "Selected choice" });
     expect(action.getAttribute("aria-pressed")).toBe("true");
     expect(action.getAttribute("data-state")).toBe("selected");
     expect(action.textContent).toContain("✓");
 
     rerender(
-      <Button error label="Invalid action">
+      <Button error label="Retry invalid action">
         Retry
       </Button>,
     );
-    action = screen.getByRole("button", { name: "Invalid action" });
+    action = screen.getByRole("button", { name: "Retry invalid action" });
     expect(action.getAttribute("aria-invalid")).toBe("true");
     expect(action.getAttribute("data-state")).toBe("error");
     expect(action.textContent).toContain("!");
+  });
+
+  it("applies the frozen state priority to combined Button and IconButton states", () => {
+    const { rerender } = render(
+      <Button disabled error loading selected>
+        Priority
+      </Button>,
+    );
+    expect(
+      screen
+        .getByRole("button", { name: "Priority" })
+        .getAttribute("data-state"),
+    ).toBe("disabled");
+    rerender(
+      <Button error loading selected>
+        Priority
+      </Button>,
+    );
+    expect(
+      screen
+        .getByRole("button", { name: "Priority" })
+        .getAttribute("data-state"),
+    ).toBe("loading");
+    rerender(
+      <IconButton error icon={<TestIcon />} label="Priority icon" selected />,
+    );
+    expect(
+      screen
+        .getByRole("button", { name: "Priority icon" })
+        .getAttribute("data-state"),
+    ).toBe("error");
+  });
+
+  it("uses visible Button text for naming and rejects label-in-name drift", () => {
+    const { rerender } = render(<Button>Run</Button>);
+    expect(
+      screen.getByRole("button", { name: "Run" }).getAttribute("aria-label"),
+    ).toBeNull();
+    rerender(<Button label="Run safely">Run</Button>);
+    expect(
+      screen
+        .getByRole("button", { name: "Run safely" })
+        .getAttribute("aria-label"),
+    ).toBe("Run safely");
+    expect(() => render(<Button label="Safe action">Run</Button>)).toThrowError(
+      ACTION_LABEL_IN_NAME_ERROR,
+    );
+    expect(() =>
+      renderToString(
+        <Button>
+          <Icon>
+            <TestIcon />
+          </Icon>
+        </Button>,
+      ),
+    ).toThrowError(ACTION_BUTTON_VISIBLE_LABEL_ERROR);
   });
 
   it("requires a perceptible IconButton name before DOM or SSR output", () => {
@@ -174,6 +273,22 @@ describe("Button and IconButton behavior", () => {
 });
 
 describe("Icon, Badge, and Status semantics", () => {
+  it("keeps action icon slots separate from the Icon root anatomy", () => {
+    const { container } = render(
+      <div>
+        <Button icon={<TestIcon />}>Run</Button>
+        <IconButton icon={<TestIcon />} label="Icon action" />
+      </div>,
+    );
+    const slots = container.querySelectorAll(
+      '[data-part="icon"] > [data-artemis-component="icon"]',
+    );
+    expect(slots).toHaveLength(2);
+    expect(
+      [...slots].every((icon) => icon.getAttribute("data-part") === "root"),
+    ).toBe(true);
+  });
+
   it("keeps all five icon sizes decorative with stable anatomy", () => {
     const { container } = render(
       <div>
