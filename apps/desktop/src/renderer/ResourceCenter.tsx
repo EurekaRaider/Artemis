@@ -487,7 +487,7 @@ function EmptyResource({ children }: { children: string }) {
   return <EmptyState className="resource-empty-state" title={children} />;
 }
 
-function CatalogSearchNotice({
+export function CatalogSearchNotice({
   children,
   loading = false,
 }: {
@@ -496,13 +496,18 @@ function CatalogSearchNotice({
 }) {
   return loading ? (
     <LoadingState
+      aria-atomic="true"
+      aria-live="polite"
       className="resource-empty-state resource-catalog-status is-loading"
       label={children}
       lines={1}
     />
   ) : (
     <EmptyState
+      aria-atomic="true"
+      aria-live="polite"
       className="resource-empty-state resource-catalog-status"
+      role="status"
       title={children}
     />
   );

@@ -1508,16 +1508,7 @@ for (const [key, declarations] of CL3_EXPECTED_CSS_RULES) {
   expectedCssRules.set(key, declarations);
 }
 
-function verifyStructuralCss(
-  css,
-  from,
-  componentContract,
-  actionTokens,
-  formTokens,
-  navigationTokens,
-  feedbackTokens,
-  layoutTokens,
-) {
+function verifyStructuralCss(css, from, tokenFamilies) {
   const parsed = postcss.parse(css, { from });
   const rootNodes = parsed.nodes ?? [];
   if (rootNodes.length !== 2) {
@@ -1553,6 +1544,16 @@ function verifyStructuralCss(
 
   const seenRules = new Set();
   const consumedTokens = new Set();
+  const familyConsumption = tokenFamilies.map((family) => ({
+    ...family,
+    consumedTokens: new Set(),
+    markers: [
+      ...family.components.map(
+        (component) => `[data-artemis-component="${component}"]`,
+      ),
+      ...(family.extraMarkers ?? []),
+    ],
+  }));
   let loadingKeyframes = 0;
   const verifyRule = (rule, context) => {
     if (rule.type !== "rule") {
@@ -1568,6 +1569,15 @@ function verifyStructuralCss(
       throw new Error(`UI structural CSS rule is duplicated: ${selector}`);
     }
     seenRules.add(key);
+
+    const matchingFamilies = familyConsumption.filter((family) =>
+      family.markers.some((marker) => selector.includes(marker)),
+    );
+    if (matchingFamilies.length === 0) {
+      throw new Error(
+        `UI structural CSS selector must belong to a public family: ${selector}`,
+      );
+    }
 
     const declarations = new Map();
     for (const node of rule.nodes ?? []) {
@@ -1592,6 +1602,9 @@ function verifyStructuralCss(
         /var\(\s*(--artemis-[a-z0-9]+(?:-[a-z0-9]+)*)\s*\)/gu,
       )) {
         consumedTokens.add(match[1]);
+        for (const matchingFamily of matchingFamilies) {
+          matchingFamily.consumedTokens.add(match[1]);
+        }
       }
     }
 
@@ -1664,19 +1677,23 @@ function verifyStructuralCss(
 
   const actualTokens = [...consumedTokens].sort();
   const declaredTokens = [
-    ...new Set([
-      ...componentContract.theme.mutableTokens,
-      ...actionTokens,
-      ...formTokens,
-      ...navigationTokens,
-      ...feedbackTokens,
-      ...layoutTokens,
-    ]),
+    ...new Set(tokenFamilies.flatMap((family) => family.mutableTokens)),
   ].sort();
   if (canonical(actualTokens) !== canonical(declaredTokens)) {
     throw new Error(
       `UI structural CSS tokens differ from ComponentContract: CSS=${canonical(actualTokens)} contract=${canonical(declaredTokens)}`,
     );
+  }
+  for (const family of familyConsumption) {
+    const declared = new Set(family.mutableTokens);
+    const undeclared = [...family.consumedTokens]
+      .filter((token) => !declared.has(token))
+      .sort();
+    if (undeclared.length > 0) {
+      throw new Error(
+        `UI ${family.label} structural CSS consumes tokens outside its family contract: ${canonical(undeclared)}`,
+      );
+    }
   }
 }
 
@@ -1913,17 +1930,54 @@ for (const specifier of [
 }
 const cssPath = resolve(cli.css ?? join(root, "packages/ui/dist/styles.css"));
 const css = await readFile(cssPath, "utf8");
-verifyStructuralCss(
-  css,
-  cssPath,
-  candidateContract,
-  actions.ACTION_COMPONENT_MUTABLE_TOKENS,
-  forms.FORM_COMPONENT_MUTABLE_TOKENS,
-  navigation.NAVIGATION_COMPONENT_MUTABLE_TOKENS,
-  feedback.FEEDBACK_COMPONENT_MUTABLE_TOKENS,
-  layout.LAYOUT_COMPONENT_MUTABLE_TOKENS,
-);
+verifyStructuralCss(css, cssPath, [
+  {
+    label: "conformance",
+    components: [candidateContract.name],
+    mutableTokens: candidateContract.theme.mutableTokens,
+  },
+  {
+    label: "action",
+    components: Object.values(actions.ACTION_COMPONENT_CONTRACTS).map(
+      (contract) => contract.name,
+    ),
+    mutableTokens: actions.ACTION_COMPONENT_MUTABLE_TOKENS,
+  },
+  {
+    label: "form",
+    components: Object.values(forms.FORM_COMPONENT_CONTRACTS).map(
+      (contract) => contract.name,
+    ),
+    extraMarkers: ['[data-artemis-component][data-label-visibility="hidden"]'],
+    mutableTokens: forms.FORM_COMPONENT_MUTABLE_TOKENS,
+  },
+  {
+    label: "navigation",
+    components: Object.values(navigation.NAVIGATION_COMPONENT_CONTRACTS).map(
+      (contract) => contract.name,
+    ),
+    mutableTokens: navigation.NAVIGATION_COMPONENT_MUTABLE_TOKENS,
+  },
+  {
+    label: "feedback",
+    components: Object.values(feedback.FEEDBACK_COMPONENT_CONTRACTS).map(
+      (contract) => contract.name,
+    ),
+    extraMarkers: [
+      '[data-artemis-component="tooltip-anchor"]',
+      "[data-artemis-toast-viewport]",
+    ],
+    mutableTokens: feedback.FEEDBACK_COMPONENT_MUTABLE_TOKENS,
+  },
+  {
+    label: "layout",
+    components: Object.values(layout.LAYOUT_COMPONENT_CONTRACTS).map(
+      (contract) => contract.name,
+    ),
+    mutableTokens: layout.LAYOUT_COMPONENT_MUTABLE_TOKENS,
+  },
+]);
 
 console.log(
-  `Skin conformance verification passed (${REQUIRED_SKIN_CASES.length} cases × 2 skins; ${REQUIRED_SWITCH_CASES.length} switch cases; 64 runtime vertices; ${REQUIRED_FALLBACK_CASES.length} fallback cases; exact public contract/CSS tokens; fixed focus floor survives a valid zero-border/transparent-focus skin)`,
+  `Skin conformance verification passed (${REQUIRED_SKIN_CASES.length} cases × 2 skins; ${REQUIRED_SWITCH_CASES.length} switch cases; 64 runtime vertices; ${REQUIRED_FALLBACK_CASES.length} fallback cases; exact public and per-family contract/CSS tokens; fixed focus floor survives a valid zero-border/transparent-focus skin)`,
 );

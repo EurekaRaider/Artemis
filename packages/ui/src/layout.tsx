@@ -49,6 +49,7 @@ export const LAYOUT_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-space-3",
   "--artemis-space-4",
   "--artemis-space-6",
+  "--artemis-size-control-comfortable",
   "--artemis-border-width-default",
   "--artemis-radius-control",
   "--artemis-radius-card",

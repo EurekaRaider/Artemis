@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LAYOUT_ACCESSIBLE_NAME_ERROR,
   LAYOUT_COMPONENT_CONTRACTS,
+  LAYOUT_COMPONENT_MUTABLE_TOKENS,
   ListRow,
   PanelHeader,
   ScrollArea,
@@ -28,6 +29,9 @@ describe("Layout component contracts", () => {
     ]);
     expect(LAYOUT_COMPONENT_CONTRACTS.splitPane.interaction).toContain(
       "controlled-size-only",
+    );
+    expect(LAYOUT_COMPONENT_MUTABLE_TOKENS).toContain(
+      "--artemis-size-control-comfortable",
     );
     expect(
       validateLayoutComponentContracts(LAYOUT_COMPONENT_CONTRACTS),

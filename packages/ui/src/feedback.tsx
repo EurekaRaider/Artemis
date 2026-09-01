@@ -22,6 +22,49 @@ function deepFreeze<T>(value: T): T {
   return Object.freeze(value);
 }
 
+interface DismissibleOverlayRegistration {
+  readonly id: symbol;
+  readonly outsidePointer: boolean;
+}
+
+const dismissibleOverlayStack: DismissibleOverlayRegistration[] = [];
+
+function registerDismissibleOverlay(
+  registration: DismissibleOverlayRegistration,
+): () => void {
+  const existing = dismissibleOverlayStack.findIndex(
+    (candidate) => candidate.id === registration.id,
+  );
+  if (existing >= 0) dismissibleOverlayStack.splice(existing, 1);
+  dismissibleOverlayStack.push(registration);
+  return () => {
+    const index = dismissibleOverlayStack.findIndex(
+      (candidate) => candidate.id === registration.id,
+    );
+    if (index >= 0) dismissibleOverlayStack.splice(index, 1);
+  };
+}
+
+function isTopDismissibleOverlay(id: symbol): boolean {
+  return dismissibleOverlayStack[dismissibleOverlayStack.length - 1]?.id === id;
+}
+
+function isTopOutsidePointerOverlay(id: symbol): boolean {
+  for (let index = dismissibleOverlayStack.length - 1; index >= 0; index -= 1) {
+    const candidate = dismissibleOverlayStack[index];
+    if (candidate?.outsidePointer) return candidate.id === id;
+  }
+  return false;
+}
+
+function useLatestRef<T>(value: T) {
+  const ref = useRef(value);
+  useLayoutEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref;
+}
+
 export const FEEDBACK_COMPONENT_CONTRACT_SCHEMA_VERSION = 1 as const;
 
 export const FEEDBACK_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
@@ -49,6 +92,8 @@ export const FEEDBACK_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-space-3",
   "--artemis-space-4",
   "--artemis-space-6",
+  "--artemis-size-control-compact",
+  "--artemis-size-control-comfortable",
   "--artemis-border-width-default",
   "--artemis-radius-control",
   "--artemis-radius-card",
@@ -122,7 +167,11 @@ export const FEEDBACK_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     parts: ["root", "anchor", "content"],
     states: ["hidden", "visible"],
     accessibility: ["trigger-describedby-tooltip", "tooltip-role"],
-    interaction: ["hover-and-focus-open", "pointer-and-blur-close"],
+    interaction: [
+      "hover-and-focus-open",
+      "pointer-and-blur-close",
+      "escape-closes",
+    ],
     theme: FEEDBACK_THEME_CONTRACT,
   },
   popover: {
@@ -465,6 +514,7 @@ export function Tooltip({
   const contentRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
+  const overlayId = useRef(Symbol("artemis-tooltip")).current;
   const open = hovered || focused;
   const position = useAnchoredPosition(
     open,
@@ -481,6 +531,25 @@ export function Tooltip({
     .filter(Boolean)
     .join(" ");
   const target = portalTarget(portalContainer);
+  useEffect(() => {
+    if (!open) return;
+    const unregister = registerDismissibleOverlay({
+      id: overlayId,
+      outsidePointer: false,
+    });
+    const closeEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !isTopDismissibleOverlay(overlayId)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setHovered(false);
+      setFocused(false);
+    };
+    document.addEventListener("keydown", closeEscape, true);
+    return () => {
+      document.removeEventListener("keydown", closeEscape, true);
+      unregister();
+    };
+  }, [open, overlayId]);
   return (
     <span
       data-artemis-component="tooltip-anchor"
@@ -554,6 +623,9 @@ export function Popover({
   requirePerceptibleText(label);
   const contentRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const overlayId = useRef(Symbol("artemis-popover")).current;
+  const anchorRefRef = useLatestRef(anchorRef);
+  const onOpenChangeRef = useLatestRef(onOpenChange);
   const position = useAnchoredPosition(
     open,
     anchorRef,
@@ -565,39 +637,45 @@ export function Popover({
   useEffect(() => {
     if (!open) return;
     const content = contentRef.current;
+    const unregister = registerDismissibleOverlay({
+      id: overlayId,
+      outsidePointer: true,
+    });
     restoreFocusRef.current =
       document.activeElement instanceof HTMLElement &&
       document.activeElement !== document.body
         ? document.activeElement
-        : anchorRef.current;
+        : anchorRefRef.current.current;
     const closeOutside = (event: PointerEvent) => {
+      if (!isTopOutsidePointerOverlay(overlayId)) return;
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (
-        anchorRef.current?.contains(target) ||
+        anchorRefRef.current.current?.contains(target) ||
         contentRef.current?.contains(target)
       ) {
         return;
       }
-      onOpenChange(false);
+      onOpenChangeRef.current(false);
     };
     const closeEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || !isTopDismissibleOverlay(overlayId)) return;
       event.preventDefault();
-      event.stopPropagation();
-      onOpenChange(false);
-      window.requestAnimationFrame(() => anchorRef.current?.focus());
+      event.stopImmediatePropagation();
+      onOpenChangeRef.current(false);
     };
-    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("pointerdown", closeOutside, true);
     document.addEventListener("keydown", closeEscape, true);
     return () => {
-      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("pointerdown", closeOutside, true);
       document.removeEventListener("keydown", closeEscape, true);
+      unregister();
       if (
         content?.contains(document.activeElement) ||
         document.activeElement === document.body
       ) {
-        const restoreFocus = restoreFocusRef.current ?? anchorRef.current;
+        const restoreFocus =
+          restoreFocusRef.current ?? anchorRefRef.current.current;
         window.requestAnimationFrame(() => {
           if (restoreFocus?.isConnected) {
             restoreFocus.focus({ preventScroll: true });
@@ -605,7 +683,7 @@ export function Popover({
         });
       }
     };
-  }, [anchorRef, onOpenChange, open]);
+  }, [anchorRefRef, onOpenChangeRef, open, overlayId]);
 
   useEffect(() => {
     if (!open || !focusOnOpen || !position.measured) return;

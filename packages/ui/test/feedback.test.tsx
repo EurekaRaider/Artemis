@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +17,7 @@ import {
   ErrorState,
   FEEDBACK_ACCESSIBLE_NAME_ERROR,
   FEEDBACK_COMPONENT_CONTRACTS,
+  FEEDBACK_COMPONENT_MUTABLE_TOKENS,
   FEEDBACK_OVERLAY_LAYER_CONTRACT,
   InlineNotice,
   LoadingState,
@@ -37,11 +44,20 @@ describe("Feedback component contracts", () => {
       "warning",
       "danger",
     ]);
+    expect(FEEDBACK_COMPONENT_CONTRACTS.tooltip.interaction).toContain(
+      "escape-closes",
+    );
     expect(FEEDBACK_OVERLAY_LAYER_CONTRACT).toEqual({
       popover: 80,
       toast: 100,
       nativeDialog: "top-layer",
     });
+    expect(FEEDBACK_COMPONENT_MUTABLE_TOKENS).toEqual(
+      expect.arrayContaining([
+        "--artemis-size-control-compact",
+        "--artemis-size-control-comfortable",
+      ]),
+    );
     expect(
       validateFeedbackComponentContracts(FEEDBACK_COMPONENT_CONTRACTS),
     ).toEqual({ valid: true, errors: [] });
@@ -143,20 +159,131 @@ describe("Feedback overlays", () => {
     );
   });
 
-  it("connects tooltip text to its trigger", async () => {
+  it("keeps popover focus stable when an inline callback changes identity", () => {
+    let rerenderParent = () => undefined;
+    function Example() {
+      const anchorRef = useRef<HTMLButtonElement>(null);
+      const [open, setOpen] = useState(true);
+      const [, setRevision] = useState(0);
+      rerenderParent = () => setRevision((value) => value + 1);
+      return (
+        <>
+          <button ref={anchorRef} type="button">
+            Menu
+          </button>
+          <Popover
+            anchorRef={anchorRef}
+            focusOnOpen={false}
+            label="Project menu"
+            onOpenChange={(nextOpen) => setOpen(nextOpen)}
+            open={open}
+          >
+            <button type="button">Inside</button>
+          </Popover>
+        </>
+      );
+    }
+    render(<Example />);
+    const inside = screen.getByRole("button", { name: "Inside" });
+    inside.focus();
+    act(() => rerenderParent());
+    expect(screen.getByRole("dialog", { name: "Project menu" })).toBeTruthy();
+    expect(document.activeElement).toBe(inside);
+  });
+
+  it("closes only the topmost popover for each Escape press", () => {
+    function Example() {
+      const firstAnchorRef = useRef<HTMLButtonElement>(null);
+      const secondAnchorRef = useRef<HTMLButtonElement>(null);
+      const [firstOpen, setFirstOpen] = useState(true);
+      const [secondOpen, setSecondOpen] = useState(true);
+      return (
+        <>
+          <button ref={firstAnchorRef} type="button">
+            First menu
+          </button>
+          <Popover
+            anchorRef={firstAnchorRef}
+            focusOnOpen={false}
+            label="First popover"
+            onOpenChange={setFirstOpen}
+            open={firstOpen}
+          >
+            First content
+          </Popover>
+          <button ref={secondAnchorRef} type="button">
+            Second menu
+          </button>
+          <Popover
+            anchorRef={secondAnchorRef}
+            focusOnOpen={false}
+            label="Second popover"
+            onOpenChange={setSecondOpen}
+            open={secondOpen}
+          >
+            Second content
+          </Popover>
+        </>
+      );
+    }
+    render(<Example />);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog", { name: "First popover" })).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "Second popover" })).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "First popover" })).toBeNull();
+  });
+
+  it("closes the top popover from capture when an outside target stops bubbling", () => {
+    function Example() {
+      const anchorRef = useRef<HTMLButtonElement>(null);
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <button ref={anchorRef} type="button">
+            Menu
+          </button>
+          <Popover
+            anchorRef={anchorRef}
+            focusOnOpen={false}
+            label="Project menu"
+            onOpenChange={setOpen}
+            open={open}
+          >
+            Content
+          </Popover>
+          <button
+            onPointerDown={(event) => event.stopPropagation()}
+            type="button"
+          >
+            Outside stopper
+          </button>
+        </>
+      );
+    }
+    render(<Example />);
+    fireEvent.pointerDown(
+      screen.getByRole("button", { name: "Outside stopper" }),
+    );
+    expect(screen.queryByRole("dialog", { name: "Project menu" })).toBeNull();
+  });
+
+  it("connects tooltip text, dismisses it with Escape, and reopens normally", async () => {
     const user = userEvent.setup();
     render(
       <Tooltip label="Create task">
         <button type="button">New</button>
       </Tooltip>,
     );
-    await user.hover(screen.getByRole("button", { name: "New" }));
+    const trigger = screen.getByRole("button", { name: "New" });
+    await user.hover(trigger);
     const tooltip = screen.getByRole("tooltip", { name: "Create task" });
-    expect(
-      screen
-        .getByRole("button", { name: "New" })
-        .getAttribute("aria-describedby"),
-    ).toContain(tooltip.id);
+    expect(trigger.getAttribute("aria-describedby")).toContain(tooltip.id);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("tooltip", { name: "Create task" })).toBeNull();
+    await user.unhover(trigger);
+    await user.hover(trigger);
+    expect(screen.getByRole("tooltip", { name: "Create task" })).toBeTruthy();
   });
 
   it("requires perceptible overlay labels", () => {
