@@ -13376,6 +13376,190 @@ function createMainWindow(): BrowserWindow {
                   }
                   return;
                 }
+                if (view.startsWith('form-controls-')) {
+                  const waitForElement = async (selector) => {
+                    const deadline = Date.now() + 8000;
+                    while (Date.now() < deadline) {
+                      const found = document.querySelector(selector);
+                      if (found) return found;
+                      await wait(100);
+                    }
+                    return null;
+                  };
+                  const clickActivity = (label) => {
+                    const button = [
+                      ...document.querySelectorAll('.activity-button'),
+                    ].find(
+                      (candidate) =>
+                        candidate.getAttribute('aria-label') === label ||
+                        candidate.getAttribute('title') === label,
+                    );
+                    button?.click();
+                    return Boolean(button);
+                  };
+                  if (view === 'form-controls-archive') {
+                    if (!clickActivity('Archive')) {
+                      throw new Error('Archive activity button missing.');
+                    }
+                    const searchRoot = await waitForElement(
+                      '[data-artemis-component="search-field"].archive-search',
+                    );
+                    const search = searchRoot?.querySelector(
+                      '[data-part="control"]',
+                    );
+                    if (!(search instanceof HTMLInputElement)) {
+                      throw new Error('Public archive SearchField missing.');
+                    }
+                    const setter = Object.getOwnPropertyDescriptor(
+                      HTMLInputElement.prototype,
+                      'value',
+                    )?.set;
+                    setter?.call(search, 'synthetic archive query');
+                    search.dispatchEvent(new Event('input', { bubbles: true }));
+                    await wait(200);
+                    search.focus({ preventScroll: true, focusVisible: true });
+                    window.__formControlsInteraction = {
+                      view,
+                      searchValue: search.value,
+                      rootStable:
+                        searchRoot ===
+                        document.querySelector(
+                          '[data-artemis-component="search-field"].archive-search',
+                        ),
+                    };
+                    return;
+                  }
+                  if (view.startsWith('form-controls-settings')) {
+                    if (!clickActivity('Settings')) {
+                      throw new Error('Settings activity button missing.');
+                    }
+                    if (!(await waitForElement('.settings-panel'))) {
+                      throw new Error('Settings panel did not render.');
+                    }
+                    const providersTab = await waitForElement(
+                      '#settings-tab-providers-button',
+                    );
+                    if (!(providersTab instanceof HTMLButtonElement)) {
+                      throw new Error('Settings providers tab missing.');
+                    }
+                    providersTab.click();
+                    if (view === 'form-controls-settings-custom') {
+                      const customTab = await waitForElement(
+                        '#provider-config-custom-tab',
+                      );
+                      if (!(customTab instanceof HTMLButtonElement)) {
+                        throw new Error('Settings custom providers tab missing.');
+                      }
+                      customTab.click();
+                      const checkboxRoot = await waitForElement(
+                        '#provider-config-custom [data-artemis-component="checkbox"]',
+                      );
+                      const checkbox = checkboxRoot?.querySelector(
+                        '[data-part="control"]',
+                      );
+                      if (!(checkbox instanceof HTMLInputElement)) {
+                        throw new Error('Public Settings Checkbox missing.');
+                      }
+                      const beforeChecked = checkbox.checked;
+                      checkbox.click();
+                      await wait(200);
+                      window.__formControlsInteraction = {
+                        view,
+                        beforeChecked,
+                        afterChecked: checkbox.checked,
+                        checkboxRootStable:
+                          checkboxRoot ===
+                          document.querySelector(
+                            '#provider-config-custom [data-artemis-component="checkbox"]',
+                          ),
+                      };
+                      return;
+                    }
+                    const field = await waitForElement(
+                      '#provider-config-builtin [data-artemis-component="text-field"] [data-part="control"]',
+                    );
+                    const trigger = await waitForElement(
+                      '#provider-config-builtin [data-artemis-component="select"] [data-part="trigger"]:not(:disabled)',
+                    );
+                    const selectRoot = trigger?.closest(
+                      '[data-artemis-component="select"]',
+                    );
+                    if (
+                      !(field instanceof HTMLInputElement) ||
+                      !(trigger instanceof HTMLButtonElement)
+                    ) {
+                      throw new Error('Public Settings field/select missing.');
+                    }
+                    const beforeText = trigger.textContent?.trim() ?? '';
+                    trigger.click();
+                    const search = await waitForElement(
+                      '#provider-config-builtin [data-artemis-component="select"] [data-part="search"]',
+                    );
+                    if (!(search instanceof HTMLInputElement)) {
+                      throw new Error('Public searchable Select did not open.');
+                    }
+                    const optionCount = selectRoot.querySelectorAll(
+                      '[role="option"]',
+                    ).length;
+                    search.dispatchEvent(
+                      new KeyboardEvent('keydown', {
+                        bubbles: true,
+                        key: 'ArrowDown',
+                      }),
+                    );
+                    await wait(100);
+                    search.dispatchEvent(
+                      new CompositionEvent('compositionstart', {
+                        bubbles: true,
+                        data: '中',
+                      }),
+                    );
+                    search.dispatchEvent(
+                      new KeyboardEvent('keydown', {
+                        bubbles: true,
+                        isComposing: true,
+                        key: 'Enter',
+                      }),
+                    );
+                    await wait(100);
+                    const composedMenuOpen =
+                      selectRoot?.querySelector('[data-part="listbox"]') !==
+                      null;
+                    const composedText = trigger.textContent?.trim() ?? '';
+                    search.dispatchEvent(
+                      new CompositionEvent('compositionend', {
+                        bubbles: true,
+                        data: '中',
+                      }),
+                    );
+                    search.dispatchEvent(
+                      new KeyboardEvent('keydown', {
+                        bubbles: true,
+                        key: 'Enter',
+                      }),
+                    );
+                    await wait(250);
+                    field.focus({ preventScroll: true, focusVisible: true });
+                    window.__formControlsInteraction = {
+                      view,
+                      beforeText,
+                      optionCount,
+                      composedText,
+                      composedMenuOpen,
+                      committedMenuClosed:
+                        selectRoot?.querySelector('[data-part="listbox"]') ===
+                        null,
+                      committedText: trigger.textContent?.trim() ?? '',
+                      selectRootStable:
+                        selectRoot ===
+                        document.querySelector(
+                          '#provider-config-builtin [data-artemis-component="select"]',
+                        ),
+                    };
+                    return;
+                  }
+                  throw new Error('Unknown form-controls smoke view: ' + view);
+                }
                 if (view.startsWith('queued-steer')) {
                   const waitFor = async (selector) => {
                     const deadline = Date.now() + 5000;
@@ -14516,6 +14700,30 @@ function createMainWindow(): BrowserWindow {
           emitSmokeCardHeatmapUsageEvents(window);
           if (smokeMode && process.env.ARTEMIS_SMOKE_VIEW === "card-heatmap") {
             await new Promise((resolve) => setTimeout(resolve, 1_000));
+          }
+          if (smokeMode && requestedSmokeView?.startsWith("form-controls-")) {
+            window.webContents.focus();
+            window.webContents.sendInputEvent({
+              type: "keyDown",
+              keyCode: "Tab",
+            });
+            window.webContents.sendInputEvent({
+              type: "keyUp",
+              keyCode: "Tab",
+            });
+            await window.webContents.executeJavaScript(`
+              new Promise((resolve) => {
+                const selector = ${JSON.stringify(
+                  requestedSmokeView === "form-controls-archive"
+                    ? '[data-artemis-component="search-field"].archive-search [data-part="control"]'
+                    : requestedSmokeView === "form-controls-settings-custom"
+                      ? '#provider-config-custom [data-artemis-component="checkbox"] [data-part="control"]'
+                      : '#provider-config-builtin [data-artemis-component="text-field"] [data-part="control"]',
+                )};
+                document.querySelector(selector)?.focus({ preventScroll: true });
+                requestAnimationFrame(() => requestAnimationFrame(resolve));
+              })
+            `);
           }
           // PR10B review round 3 (nit 6): the user-input-transport PNG is
           // captured inside its evidence driver after the broker
@@ -15800,6 +16008,121 @@ function createMainWindow(): BrowserWindow {
                         };
                       })()
                     : null,
+                  formControls: (() => {
+                    const roots = [
+                      ...document.querySelectorAll(
+                        '[data-artemis-component="text-field"], ' +
+                          '[data-artemis-component="search-field"], ' +
+                          '[data-artemis-component="select"], ' +
+                          '[data-artemis-component="checkbox"], ' +
+                          '[data-artemis-component="switch"]',
+                      ),
+                    ];
+                    const describe = (root) => {
+                      const control = root.querySelector(
+                        '[data-part="control"], [data-part="trigger"]',
+                      );
+                      const visual =
+                        root.querySelector(
+                          '[data-part="track"], [data-part="indicator"]',
+                        ) ?? control;
+                      const style = visual ? getComputedStyle(visual) : null;
+                      const focusStyle = control
+                        ? getComputedStyle(control)
+                        : null;
+                      const bounds = root.getBoundingClientRect();
+                      return {
+                        component: root.getAttribute(
+                          'data-artemis-component',
+                        ),
+                        context: root.closest('.settings-panel')
+                          ? 'settings'
+                          : root.closest('.archive-page')
+                            ? 'archive'
+                            : root.closest('.resource-page')
+                              ? 'resource'
+                              : 'other',
+                        state: root.getAttribute('data-state'),
+                        size: root.getAttribute('data-size'),
+                        className: root.getAttribute('class'),
+                        parts: [
+                          'root',
+                          ...[
+                            ...root.querySelectorAll('[data-part]'),
+                          ].map((part) => part.getAttribute('data-part')),
+                        ],
+                        geometry: {
+                          width: bounds.width,
+                          height: bounds.height,
+                        },
+                        control: control
+                          ? {
+                              tagName: control.tagName.toLowerCase(),
+                              type: control.getAttribute('type'),
+                              role: control.getAttribute('role'),
+                              ariaInvalid:
+                                control.getAttribute('aria-invalid'),
+                              ariaExpanded:
+                                control.getAttribute('aria-expanded'),
+                              disabled:
+                                control instanceof HTMLInputElement ||
+                                control instanceof HTMLButtonElement
+                                  ? control.disabled
+                                  : null,
+                              checked:
+                                control instanceof HTMLInputElement
+                                  ? control.checked
+                                  : null,
+                              value:
+                                control instanceof HTMLInputElement
+                                  ? control.value
+                                  : null,
+                              documentActive:
+                                document.activeElement === control,
+                            }
+                          : null,
+                        computed: style
+                          ? {
+                              backgroundColor: style.backgroundColor,
+                              borderColor: style.borderColor,
+                              borderStyle: style.borderStyle,
+                              borderWidth: style.borderWidth,
+                              color: style.color,
+                              fontFamily: style.fontFamily,
+                              minBlockSize: style.minBlockSize,
+                              opacity: style.opacity,
+                            }
+                          : null,
+                        focus: focusStyle
+                          ? {
+                              outlineColor: focusStyle.outlineColor,
+                              outlineStyle: focusStyle.outlineStyle,
+                              outlineWidth: focusStyle.outlineWidth,
+                              visualOutlineStyle: style?.outlineStyle ?? null,
+                              visualOutlineWidth: style?.outlineWidth ?? null,
+                            }
+                          : null,
+                        portalCount:
+                          root.querySelectorAll('[data-artemis-portal]').length,
+                      };
+                    };
+                    return {
+                      interaction: window.__formControlsInteraction ?? null,
+                      components: roots.map(describe),
+                      rootTokens: {
+                        surfaceBase: getComputedStyle(
+                          document.documentElement,
+                        )
+                          .getPropertyValue('--artemis-color-surface-base')
+                          .trim(),
+                        textPrimary: getComputedStyle(
+                          document.documentElement,
+                        )
+                          .getPropertyValue('--artemis-color-text-primary')
+                          .trim(),
+                      },
+                    };
+                  })(),
                   interactiveCount: document.querySelectorAll(
                     "button, a[href], summary, input, select, textarea, [role='button'], [role='tab']",
                   ).length,

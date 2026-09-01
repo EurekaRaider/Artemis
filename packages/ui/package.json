@@ -18,6 +18,10 @@
       "types": "./dist/actions.d.ts",
       "import": "./dist/actions.js"
     },
+    "./forms": {
+      "types": "./dist/forms.d.ts",
+      "import": "./dist/forms.js"
+    },
     "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"
   },

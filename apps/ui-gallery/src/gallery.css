@@ -102,6 +102,19 @@
     gap: var(--artemis-space-2);
   }
 
+  .gallery-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: var(--artemis-space-4);
+  }
+
+  .gallery-check-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--artemis-space-4);
+    margin-block-start: var(--artemis-space-4);
+  }
+
   .gallery-surface-sample {
     min-block-size: calc(var(--artemis-size-control-comfortable) * 2);
     padding: var(--artemis-space-3);

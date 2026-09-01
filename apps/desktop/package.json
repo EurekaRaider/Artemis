@@ -23,6 +23,7 @@
     "verify:desktop-skin": "node scripts/verify-desktop-skin.mjs",
     "verify:card-heatmap": "npm run build && node scripts/verify-card-heatmap.mjs",
     "verify:environment-panel": "npm run build && node scripts/verify-environment-panel-responsive.mjs",
+    "verify:form-controls": "npm run build && node scripts/verify-form-controls.mjs",
     "verify:goal-parity": "npm run build && node scripts/verify-goal-parity.mjs",
     "verify:icon-sizing": "npm run build && node scripts/verify-icon-sizing.mjs",
     "verify:input-fields": "npm run build && node scripts/verify-input-fields.mjs",

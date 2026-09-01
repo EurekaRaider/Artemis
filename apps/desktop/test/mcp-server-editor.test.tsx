@@ -25,6 +25,7 @@ const labels = {
   launchCommand: "Launch command",
   serverUrl: "Server URL",
   authentication: "Authentication",
+  authNone: "None",
   authBearer: "Bearer token",
   bearerField: "Bearer token (optional, encrypted)",
   save: "Save and connect",
@@ -253,7 +254,9 @@ describe("McpServerEditor feedback wiring (D#76 PR8 §10 state matrix)", () => {
     });
     const user = userEvent.setup();
     await user.click(
-      screen.getByRole("button", { name: labels.authentication }),
+      screen.getByRole("button", {
+        name: `${labels.authentication} ${labels.authNone}`,
+      }),
     );
     await user.click(screen.getByRole("option", { name: labels.authBearer }));
     const bearerInput = screen.getByLabelText(labels.bearerField);

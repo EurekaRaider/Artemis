@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AppLocale } from "@artemis/protocol";
+import { Switch } from "@artemis/ui/forms";
 
 import type {
   CodexPluginMarketplace,
@@ -478,32 +479,6 @@ function ResourceAvatar({
         <SemanticResourceIcon icon={semanticIcon} />
       )}
     </span>
-  );
-}
-
-function ResourceSwitch({
-  checked,
-  disabled = false,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  label: string;
-  onChange?(enabled: boolean): void;
-}) {
-  return (
-    <label className="resource-switch" title={label}>
-      <input
-        aria-label={label}
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange?.(event.target.checked)}
-        role="switch"
-        type="checkbox"
-      />
-      <span aria-hidden="true" />
-    </label>
   );
 }
 
@@ -2623,13 +2598,16 @@ export function ResourceCenter({
                     >
                       <TrashIcon />
                     </button>
-                    <ResourceSwitch
+                    <Switch
                       checked={pluginIsEnabled(plugin)}
+                      className="resource-switch"
                       disabled={busyId === plugin.id || !plugin.installable}
                       label={pluginIsEnabled(plugin) ? t.enabled : t.disabled}
-                      onChange={(enabled) =>
+                      labelVisibility="hidden"
+                      onCheckedChange={(enabled) =>
                         void setPluginEnabled(plugin, enabled)
                       }
+                      title={pluginIsEnabled(plugin) ? t.enabled : t.disabled}
                     />
                   </div>
                 </article>
@@ -2690,13 +2668,16 @@ export function ResourceCenter({
                   >
                     <TrashIcon />
                   </button>
-                  <ResourceSwitch
+                  <Switch
                     checked={extension.config.enabled}
+                    className="resource-switch"
                     disabled={busyId === extension.config.id}
                     label={extension.config.enabled ? t.enabled : t.disabled}
-                    onChange={(enabled) =>
+                    labelVisibility="hidden"
+                    onCheckedChange={(enabled) =>
                       void setExtensionEnabled(extension.config.id, enabled)
                     }
+                    title={extension.config.enabled ? t.enabled : t.disabled}
                   />
                 </div>
               </article>
@@ -2862,13 +2843,16 @@ export function ResourceCenter({
                     >
                       <TrashIcon />
                     </button>
-                    <ResourceSwitch
+                    <Switch
                       checked={server.config.enabled}
+                      className="resource-switch"
                       disabled={busyId === server.config.id}
                       label={server.config.enabled ? t.enabled : t.disabled}
-                      onChange={(enabled) =>
+                      labelVisibility="hidden"
+                      onCheckedChange={(enabled) =>
                         void setMcpEnabled(server.config.id, enabled)
                       }
+                      title={server.config.enabled ? t.enabled : t.disabled}
                     />
                   </div>
                 </article>
@@ -3033,14 +3017,19 @@ export function ResourceCenter({
                     >
                       <TrashIcon />
                     </button>
-                    <ResourceSwitch
+                    <Switch
                       checked={server.state === "connected"}
+                      className="resource-switch"
                       disabled={busyId === server.config.id}
                       label={
                         server.state === "connected" ? t.enabled : t.disabled
                       }
-                      onChange={(enabled) =>
+                      labelVisibility="hidden"
+                      onCheckedChange={(enabled) =>
                         void setMcpEnabled(server.config.id, enabled)
+                      }
+                      title={
+                        server.state === "connected" ? t.enabled : t.disabled
                       }
                     />
                   </div>
@@ -3163,13 +3152,16 @@ export function ResourceCenter({
                     >
                       <TrashIcon />
                     </button>
-                    <ResourceSwitch
+                    <Switch
                       checked={skill.enabled}
+                      className="resource-switch"
                       disabled={busyId === skill.id}
                       label={skill.enabled ? t.enabled : t.disabled}
-                      onChange={(enabled) =>
+                      labelVisibility="hidden"
+                      onCheckedChange={(enabled) =>
                         void setSkillEnabled(skill.id, enabled)
                       }
+                      title={skill.enabled ? t.enabled : t.disabled}
                     />
                   </div>
                 </article>

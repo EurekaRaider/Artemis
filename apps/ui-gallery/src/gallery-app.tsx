@@ -8,6 +8,13 @@ import {
 } from "@artemis/theme-contract";
 import { Badge, Button, Icon, IconButton, Status } from "@artemis/ui/actions";
 import { ConformanceProbe } from "@artemis/ui/conformance";
+import {
+  Checkbox,
+  SearchField,
+  Select,
+  Switch,
+  TextField,
+} from "@artemis/ui/forms";
 
 import { galleryContract } from "./gallery-contract.js";
 import { STRESS_SKIN_ID, stressSkinCss } from "./stress-skin-fixture.mjs";
@@ -180,6 +187,10 @@ export function GalleryApp() {
   const [tokenSnapshot, setTokenSnapshot] =
     useState<GalleryTokenSnapshot>(blankTokenSnapshot);
   const [eventOrder, setEventOrder] = useState<readonly string[]>([]);
+  const [fieldValue, setFieldValue] = useState("Editable value");
+  const [searchValue, setSearchValue] = useState("");
+  const [selectValue, setSelectValue] = useState("alpha");
+  const [checked, setChecked] = useState(true);
   const appendEvent = (entry: string) =>
     setEventOrder((current) => [...current, entry]);
 
@@ -195,7 +206,7 @@ export function GalleryApp() {
 
   return (
     <main>
-      <p className="gallery-eyebrow">CL2A action and icon conformance</p>
+      <p className="gallery-eyebrow">CL2B field and selection conformance</p>
       <h1>Artemis UI Gallery</h1>
       <p>
         Public package consumption is active for UI contract v
@@ -250,6 +261,96 @@ export function GalleryApp() {
             </div>
           ))}
         </dl>
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="form-heading"
+      >
+        <h2 id="form-heading">Fields, selection, checkbox, and switch</h2>
+        <div className="gallery-form-grid">
+          <TextField
+            label="Controlled text"
+            onValueChange={setFieldValue}
+            value={fieldValue}
+          />
+          <TextField
+            description="Long descriptions wrap without changing anatomy."
+            label="Compact email"
+            placeholder="person@example.com"
+            size="compact"
+            type="email"
+          />
+          <TextField
+            error="A visible error is also programmatically described."
+            label="Invalid URL"
+            type="url"
+            value="not a URL"
+            onValueChange={() => undefined}
+          />
+          <TextField
+            label="Read-only password"
+            readOnly
+            type="password"
+            value="preserved"
+            onValueChange={() => undefined}
+          />
+          <TextField
+            disabled
+            label="Disabled number"
+            type="number"
+            value="42"
+            onValueChange={() => undefined}
+          />
+          <SearchField
+            label="Search components"
+            onValueChange={setSearchValue}
+            placeholder="Search a long localized component name"
+            value={searchValue}
+          />
+          <Select
+            label="Model"
+            onValueChange={setSelectValue}
+            options={[
+              { value: "alpha", label: "Alpha · general purpose" },
+              { value: "blocked", label: "Unavailable option", disabled: true },
+              { value: "beta", label: "Beta · vision and long context" },
+            ]}
+            searchPlaceholder="Search models"
+            value={selectValue}
+          />
+          <Select
+            disabled
+            label="Disabled selection"
+            onValueChange={() => undefined}
+            options={[{ value: "fixed", label: "Fixed" }]}
+            size="compact"
+            value="fixed"
+          />
+          <Select
+            error="Choose a supported value"
+            label="Invalid selection"
+            onValueChange={() => undefined}
+            options={[{ value: "unknown", label: "Unknown" }]}
+            value="unknown"
+          />
+        </div>
+        <div className="gallery-check-grid" dir="rtl">
+          <Checkbox
+            checked={checked}
+            label="Controlled checkbox"
+            onCheckedChange={setChecked}
+          />
+          <Checkbox error="Required choice" label="Error checkbox" />
+          <Checkbox disabled label="Disabled checkbox" />
+          <Switch
+            checked={checked}
+            label="Controlled switch"
+            onCheckedChange={setChecked}
+          />
+          <Switch error="Connection unavailable" label="Error switch" />
+          <Switch disabled label="Disabled switch" />
+        </div>
       </section>
 
       <section

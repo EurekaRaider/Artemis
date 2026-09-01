@@ -48,13 +48,14 @@
     "verify:screenshot-matrix": "npm run build:core && npm run verify:screenshot-matrix -w @artemis/desktop",
     "verify:goal-parity": "npm run build:core && npm run verify:goal-parity -w @artemis/desktop",
     "verify:desktop-skin": "npm run build:core && npm run verify:desktop-skin -w @artemis/desktop",
+    "verify:form-controls": "npm run build:core && npm run build -w @artemis/desktop && node apps/desktop/scripts/verify-form-controls.mjs",
     "verify:ui-boundaries": "node scripts/verify-ui-boundaries.mjs && node scripts/test-ui-boundaries.mjs",
     "verify:ui-package-consumer": "npm run build:ui-libraries && node scripts/verify-ui-package-consumer.mjs",
     "verify:ui-gallery": "npm run build:core && npm run build:ui-foundation && npm run test -w @artemis/ui-gallery && npm run typecheck -w @artemis/ui-gallery && npm run build -w @artemis/desktop && node scripts/verify-ui-gallery.mjs",
     "verify:ui-gallery-conformance": "npm run verify:skin-conformance && npm run typecheck -w @artemis/ui-gallery && npm run build -w @artemis/ui-gallery",
     "verify:skin-package": "npm run build:ui-libraries && node scripts/verify-skin-package.mjs && node scripts/test-skin-package.mjs",
     "verify:skin-conformance": "npm run build:ui-foundation && npm run test -w @artemis/ui && npm run test -w @artemis/ui-gallery && node scripts/verify-skin-conformance.mjs && node scripts/test-skin-conformance.mjs",
-    "test": "npm run build:core && npm run build:ui-foundation && npm run test -w @artemis/protocol && npm run test -w @artemis/platform && npm run test -w @artemis/agent-host && npm run test -w @artemis/theme-contract && npm run test -w @artemis/ui && npm run test -w @artemis/theme-artemis && npm run test -w @artemis/ui-gallery && npm run verify:skin-package && npm run verify:skin-conformance && npm run verify:ui-boundaries && node scripts/verify-ui-package-consumer.mjs && npm run build -w @artemis/desktop && node scripts/verify-ui-gallery.mjs && npm run test -w @artemis/desktop",
+    "test": "npm run build:core && npm run build:ui-foundation && npm run test -w @artemis/protocol && npm run test -w @artemis/platform && npm run test -w @artemis/agent-host && npm run test -w @artemis/theme-contract && npm run test -w @artemis/ui && npm run test -w @artemis/theme-artemis && npm run test -w @artemis/ui-gallery && npm run verify:skin-package && npm run verify:skin-conformance && npm run verify:ui-boundaries && node scripts/verify-ui-package-consumer.mjs && npm run build -w @artemis/desktop && node scripts/verify-ui-gallery.mjs && node apps/desktop/scripts/verify-form-controls.mjs && npm run test -w @artemis/desktop",
     "typecheck": "npm run build:core && npm run build:ui-libraries && npm run typecheck -w @artemis/theme-contract && npm run typecheck -w @artemis/ui && npm run typecheck -w @artemis/theme-artemis && npm run typecheck -w @artemis/ui-gallery && npm run typecheck -w @artemis/desktop"
   },
   "devDependencies": {
