@@ -1,4 +1,4 @@
-import { lstat, readFile, readdir, realpath } from "node:fs/promises";
+import { readFile, readdir, realpath } from "node:fs/promises";
 import {
   dirname,
   extname,
@@ -1569,18 +1569,16 @@ function builderContexts(levelPath) {
   );
 }
 
-function expandBuilderPattern(pattern, context, metadata, projectDir, appDir) {
+function expandBuilderPattern(pattern, context, metadata) {
   let unsupported = false;
   const expanded = pattern.replace(
     /\$\{([_a-zA-Z./*+]+)\}/gu,
     (macro, name) => {
       const values = {
-        appDir,
         arch: context.arch,
         os: context.os,
         platform: context.platform,
         productName: metadata.productName,
-        projectDir,
         ...metadata,
       };
       if (name in values) return values[name];
@@ -1648,18 +1646,10 @@ async function builderPatternsTargetGallery(
   patterns,
   context,
   metadata,
-  projectDir,
-  appDir,
 ) {
   const expanded = [];
   for (const pattern of patterns) {
-    const value = expandBuilderPattern(
-      pattern,
-      context,
-      metadata,
-      projectDir,
-      appDir,
-    );
+    const value = expandBuilderPattern(pattern, context, metadata);
     if (value === undefined) return undefined;
     const normalized = normalizeBuilderPattern(value);
     expanded.push(normalized);
@@ -1703,44 +1693,29 @@ async function builderPathDetails(path, galleryRoot) {
   const lexicalAncestor = pathInside(galleryRoot, path);
   let realInside = false;
   let realAncestor = false;
-  let symbolicLink = false;
-  try {
-    symbolicLink = (await lstat(path)).isSymbolicLink();
-  } catch {
-    // Missing inputs are handled by electron-builder; they cannot import Gallery.
-  }
+  let canonicalChanged = false;
   try {
     const [realTarget, realGallery] = await Promise.all([
       realpath(path),
       realpath(galleryRoot),
     ]);
+    canonicalChanged = resolve(realTarget) !== resolve(path);
     realInside = pathInside(realTarget, realGallery);
     realAncestor = pathInside(realGallery, realTarget);
   } catch {
     // Lexical checks still apply to paths not present at verification time.
   }
   return {
-    ancestor: lexicalAncestor || realAncestor,
-    inside: lexicalInside || realInside,
-    symbolicLink,
+    canonicalChanged,
+    lexicalAncestor,
+    lexicalInside,
+    realAncestor,
+    realInside,
   };
 }
 
-function resolveBuilderPath(
-  pattern,
-  base,
-  context,
-  metadata,
-  projectDir,
-  appDir,
-) {
-  const expanded = expandBuilderPattern(
-    pattern,
-    context,
-    metadata,
-    projectDir,
-    appDir,
-  );
+function resolveBuilderPath(pattern, base, context, metadata) {
+  const expanded = expandBuilderPattern(pattern, context, metadata);
   if (
     expanded === undefined ||
     expanded.startsWith("!") ||
@@ -1768,32 +1743,24 @@ async function builderResourceViolations(root, rootManifest, desktop) {
     );
   }
   const appDirs = new Map();
+  const appDir =
+    typeof configuredAppDir === "string"
+      ? resolve(projectDir, configuredAppDir)
+      : projectDir;
+  const appDirDetails = await builderPathDetails(appDir, galleryRoot);
+  if (
+    appDirDetails.lexicalInside ||
+    appDirDetails.lexicalAncestor ||
+    appDirDetails.realInside ||
+    appDirDetails.realAncestor
+  ) {
+    violations.push(
+      "apps/desktop/package.json: build.directories.app must not overlap Gallery",
+    );
+  }
   for (const context of allContexts) {
     const key = `${context.os}:${context.arch}`;
-    const appDir =
-      typeof configuredAppDir !== "string"
-        ? projectDir
-        : resolveBuilderPath(
-            configuredAppDir,
-            projectDir,
-            context,
-            metadata,
-            projectDir,
-            projectDir,
-          );
-    if (appDir === undefined) {
-      violations.push(
-        "apps/desktop/package.json: build.directories.app contains an unsupported macro, glob, or negation",
-      );
-      continue;
-    }
     appDirs.set(key, appDir);
-    const details = await builderPathDetails(appDir, galleryRoot);
-    if (details.inside || details.ancestor) {
-      violations.push(
-        "apps/desktop/package.json: build.directories.app must not overlap Gallery",
-      );
-    }
   }
   const levels = [
     ["build", desktop.build],
@@ -1853,8 +1820,6 @@ async function builderResourceViolations(root, rootManifest, desktop) {
             patternEntries.map(({ pattern }) => pattern),
             context,
             metadata,
-            projectDir,
-            appDir,
           );
           if (targetsGallery === undefined) {
             violations.push(`${fieldPath}: unsupported file macro or glob`);
@@ -1870,8 +1835,6 @@ async function builderResourceViolations(root, rootManifest, desktop) {
             base,
             context,
             metadata,
-            projectDir,
-            appDir,
           );
           if (source === undefined) {
             violations.push(
@@ -1880,7 +1843,11 @@ async function builderResourceViolations(root, rootManifest, desktop) {
             continue;
           }
           const details = await builderPathDetails(source, galleryRoot);
-          if (details.inside || (details.symbolicLink && details.ancestor)) {
+          if (
+            details.lexicalInside ||
+            details.realInside ||
+            (details.realAncestor && !details.lexicalAncestor)
+          ) {
             violations.push(
               `${entry.path}.from: Desktop builder FileSet must not resolve inside or through Gallery: ${entry.from}`,
             );
@@ -1892,8 +1859,6 @@ async function builderResourceViolations(root, rootManifest, desktop) {
             entry.filters,
             context,
             metadata,
-            projectDir,
-            appDir,
           );
           if (targetsGallery === undefined) {
             violations.push(
@@ -1921,21 +1886,14 @@ async function builderResourceViolations(root, rootManifest, desktop) {
       continue;
     }
     for (const context of allContexts) {
-      const key = `${context.os}:${context.arch}`;
-      const appDir = appDirs.get(key) ?? projectDir;
-      const target = resolveBuilderPath(
-        value,
-        projectDir,
-        context,
-        metadata,
-        projectDir,
-        appDir,
-      );
+      const target = resolveBuilderPath(value, projectDir, context, metadata);
       if (target === undefined) {
         violations.push(
           `apps/desktop/package.json: ${name} contains an unsupported file macro, glob, or negation`,
         );
-      } else if ((await builderPathDetails(target, galleryRoot)).inside) {
+      } else {
+        const details = await builderPathDetails(target, galleryRoot);
+        if (!details.lexicalInside && !details.realInside) continue;
         violations.push(
           `apps/desktop/package.json: ${name} must not reference Gallery: ${value}`,
         );

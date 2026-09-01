@@ -127,9 +127,11 @@ the actual Gallery file set, including brace and character-class globs. Official
 expand from static manifest/config metadata and bounded OS/platform/architecture
 values; environment and unknown macros fail closed. `appDir` and `FileSet.from`
 are checked for lexical and realpath overlap in both directions, including
-directory symlinks, while a parent FileSet remains valid only when its ordered
-filters exclude every Gallery entry. Its fixtures prove 20 safe cases and
-reject 75 cross-boundary cases.
+direct and intermediate directory symlinks. `directories.app` follows the
+builder's literal project-relative resolution, while resource fields reject
+the unsupported `${projectDir}` and `${appDir}` macros. A parent FileSet remains
+valid only when its ordered filters exclude every Gallery entry. Its fixtures
+prove 21 safe cases and reject 79 cross-boundary cases.
 
 The Gallery build is explicitly single-page: exactly one `index.html`, with the
 exact emitted local module and stylesheet assets. Eight HTML artifact fixtures

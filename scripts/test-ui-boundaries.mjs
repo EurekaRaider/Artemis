@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { FileMatcher } from "app-builder-lib/out/fileMatcher.js";
+import { expandMacro } from "app-builder-lib/out/util/macroExpander.js";
 import { resolveConfig } from "vite";
 
 const checker = fileURLToPath(
@@ -214,6 +215,20 @@ function assertFileMatcherOracle(base, candidate, patterns, expected) {
   if (actual !== expected) {
     throw new Error(
       `electron-builder FileMatcher oracle expected ${String(expected)}, received ${String(actual)} for ${patterns.join(", ")}`,
+    );
+  }
+}
+
+function assertUnsupportedBuilderMacroOracle(pattern) {
+  let rejected = false;
+  try {
+    expandMacro(pattern, "x64", {});
+  } catch (error) {
+    rejected = String(error).includes("macro");
+  }
+  if (!rejected) {
+    throw new Error(
+      `electron-builder expandMacro oracle unexpectedly accepted ${pattern}`,
     );
   }
 }
@@ -478,6 +493,23 @@ await runCase(
       ["**/*", "!ui-gallery/**"],
       false,
     );
+  },
+);
+await runCase(
+  "safe Desktop builder literal appDir",
+  undefined,
+  undefined,
+  true,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      dependencies: {},
+      build: { directories: { app: "app" } },
+    },
+  },
+  false,
+  async (root) => {
+    await mkdir(join(root, "apps/desktop/app"), { recursive: true });
   },
 );
 await runCase(
@@ -935,6 +967,27 @@ await runCase(
   },
 );
 await runCase(
+  "Desktop builder literal macro appDir symlink resolves to Gallery",
+  undefined,
+  undefined,
+  false,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      dependencies: {},
+      build: { directories: { app: "${projectDir}" } },
+    },
+  },
+  false,
+  async (root) => {
+    await symlink(
+      "../ui-gallery",
+      join(root, "apps/desktop/${projectDir}"),
+      "dir",
+    );
+  },
+);
+await runCase(
   "Desktop builder FileSet symlink resolves to Gallery",
   undefined,
   undefined,
@@ -953,6 +1006,66 @@ await runCase(
       join(root, "apps/desktop/gallery-link"),
       "dir",
     );
+  },
+);
+await runCase(
+  "Desktop builder FileSet intermediate symlink resolves to Gallery ancestor",
+  undefined,
+  undefined,
+  false,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      dependencies: {},
+      build: {
+        extraResources: { from: "repo-link/apps", filter: "**/*" },
+      },
+    },
+  },
+  false,
+  async (root) => {
+    await symlink(root, join(root, "apps/desktop/repo-link"), "dir");
+    const source = join(root, "apps/desktop/repo-link/apps");
+    assertFileMatcherOracle(
+      source,
+      join(source, "ui-gallery/src/index.ts"),
+      ["**/*"],
+      true,
+    );
+  },
+);
+await runCase(
+  "Desktop builder projectDir resource macro is unsupported",
+  undefined,
+  undefined,
+  false,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      dependencies: {},
+      build: { extraResources: "native/${projectDir}/probe" },
+    },
+  },
+  false,
+  () => {
+    assertUnsupportedBuilderMacroOracle("native/${projectDir}/probe");
+  },
+);
+await runCase(
+  "Desktop builder appDir resource macro is unsupported",
+  undefined,
+  undefined,
+  false,
+  {
+    "apps/desktop/package.json": {
+      name: "@artemis/desktop",
+      dependencies: {},
+      build: { extraResources: "native/${appDir}/probe" },
+    },
+  },
+  false,
+  () => {
+    assertUnsupportedBuilderMacroOracle("native/${appDir}/probe");
   },
 );
 await runCase(
@@ -1094,11 +1207,11 @@ await runThemeContractTypeCase(
   "process",
 );
 
-if (acceptedCases !== 20 || rejectedCases !== 75) {
+if (acceptedCases !== 21 || rejectedCases !== 79) {
   throw new Error(
     `Unexpected boundary test count: ${acceptedCases} accepted, ${rejectedCases} rejected`,
   );
 }
 console.log(
-  "UI boundary fixture tests passed (20 safe cases; 75/75 violations rejected)",
+  "UI boundary fixture tests passed (21 safe cases; 79/79 violations rejected)",
 );
