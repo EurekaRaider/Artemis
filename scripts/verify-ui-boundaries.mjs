@@ -44,19 +44,32 @@ import {
   isSpreadAssignment,
   isStringLiteral,
   isVariableDeclaration,
+  createScanner,
 } from "typescript/unstable/ast";
 
 const defaultRoot = fileURLToPath(new URL("../", import.meta.url));
 const SOURCE_EXTENSIONS = new Set([
   ".css",
+  ".cjs",
+  ".cts",
   ".html",
   ".js",
   ".jsx",
   ".mjs",
+  ".mts",
   ".ts",
   ".tsx",
 ]);
-const SCRIPT_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".ts", ".tsx"]);
+const SCRIPT_EXTENSIONS = new Set([
+  ".cjs",
+  ".cts",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".mts",
+  ".ts",
+  ".tsx",
+]);
 const FORBIDDEN_ARTEMIS_PACKAGES = new Set([
   "@artemis/agent-host",
   "@artemis/desktop",
@@ -460,6 +473,10 @@ export function htmlElements(source) {
         attributes: Object.fromEntries(
           node.attrs.map((entry) => [entry.name, entry.value]),
         ),
+        content: (node.childNodes ?? [])
+          .filter((child) => child.nodeName === "#text")
+          .map((child) => child.value ?? "")
+          .join(""),
         tagName: node.tagName,
       });
     }
@@ -468,6 +485,160 @@ export function htmlElements(source) {
   };
   visit(document);
   return elements;
+}
+
+function scriptTokens(source) {
+  const scanner = createScanner(true, undefined, source);
+  const tokens = [];
+  const templateBraceDepth = [];
+  for (
+    let kind = scanner.scan();
+    kind !== SyntaxKind.EndOfFile;
+    kind = scanner.scan()
+  ) {
+    if (kind === SyntaxKind.CloseBraceToken && templateBraceDepth.length > 0) {
+      const templateIndex = templateBraceDepth.length - 1;
+      if (templateBraceDepth[templateIndex] === 0) {
+        kind = scanner.reScanTemplateToken(false);
+        if (kind === SyntaxKind.TemplateTail) templateBraceDepth.pop();
+      } else {
+        templateBraceDepth[templateIndex] -= 1;
+      }
+    } else if (
+      kind === SyntaxKind.OpenBraceToken &&
+      templateBraceDepth.length > 0
+    ) {
+      templateBraceDepth[templateBraceDepth.length - 1] += 1;
+    } else if (kind === SyntaxKind.TemplateHead) {
+      templateBraceDepth.push(0);
+    }
+    tokens.push({
+      kind,
+      value: scanner.getTokenValue(),
+    });
+    if (scanner.isUnterminated()) {
+      return { invalid: true, tokens };
+    }
+  }
+  return { invalid: false, tokens };
+}
+
+function staticScriptString(token) {
+  return token?.kind === SyntaxKind.StringLiteral ||
+    token?.kind === SyntaxKind.NoSubstitutionTemplateLiteral
+    ? token.value
+    : undefined;
+}
+
+export function scriptModuleReferences(source) {
+  const result = scriptTokens(source);
+  const references = [];
+  let computed = false;
+  const { tokens } = result;
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token.kind === SyntaxKind.ImportKeyword) {
+      if (tokens[index + 1]?.kind === SyntaxKind.DotToken) continue;
+      if (tokens[index + 1]?.kind === SyntaxKind.OpenParenToken) {
+        const reference = staticScriptString(tokens[index + 2]);
+        if (
+          reference === undefined ||
+          tokens[index + 3]?.kind !== SyntaxKind.CloseParenToken
+        ) {
+          computed = true;
+        } else {
+          references.push(reference);
+        }
+        continue;
+      }
+      for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
+        if (tokens[cursor].kind === SyntaxKind.SemicolonToken) break;
+        const reference = staticScriptString(tokens[cursor]);
+        if (reference !== undefined) {
+          references.push(reference);
+          break;
+        }
+      }
+      continue;
+    }
+    if (token.kind === SyntaxKind.ExportKeyword) {
+      for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
+        if (tokens[cursor].kind === SyntaxKind.SemicolonToken) break;
+        if (tokens[cursor].kind !== SyntaxKind.FromKeyword) continue;
+        const reference = staticScriptString(tokens[cursor + 1]);
+        if (reference === undefined) computed = true;
+        else references.push(reference);
+        break;
+      }
+      continue;
+    }
+    if (
+      token.kind === SyntaxKind.RequireKeyword &&
+      tokens[index + 1]?.kind === SyntaxKind.OpenParenToken
+    ) {
+      const reference = staticScriptString(tokens[index + 2]);
+      if (
+        reference === undefined ||
+        tokens[index + 3]?.kind !== SyntaxKind.CloseParenToken
+      ) {
+        computed = true;
+      } else {
+        references.push(reference);
+      }
+    }
+  }
+  return { computed, invalid: result.invalid, references };
+}
+
+function scriptIsExecutable(attributes) {
+  const type = attributes.type?.trim().toLowerCase();
+  return (
+    type === undefined ||
+    type === "" ||
+    type === "module" ||
+    type === "text/javascript" ||
+    type === "application/javascript" ||
+    type === "text/ecmascript" ||
+    type === "application/ecmascript"
+  );
+}
+
+export function htmlInlineResources(source, from) {
+  const scripts = [];
+  const styles = [];
+  for (const element of htmlElements(source)) {
+    if (
+      element.tagName === "script" &&
+      element.attributes.src === undefined &&
+      scriptIsExecutable(element.attributes) &&
+      element.content.length > 0
+    ) {
+      scripts.push({
+        content: element.content,
+        ...scriptModuleReferences(element.content),
+      });
+    }
+    if (
+      element.tagName === "style" &&
+      (element.attributes.type === undefined ||
+        element.attributes.type.trim().toLowerCase() === "text/css") &&
+      element.content.length > 0
+    ) {
+      styles.push({
+        content: element.content,
+        references: cssResourceReferences(element.content, from),
+      });
+    }
+    const styleAttribute = element.attributes.style;
+    if (styleAttribute !== undefined) {
+      const content = `.artemis-inline-style { ${styleAttribute} }`;
+      styles.push({
+        content,
+        references: cssResourceReferences(content, from),
+      });
+    }
+  }
+  return { scripts, styles };
 }
 
 export function htmlResourceReferences(source) {
@@ -563,16 +734,41 @@ export async function referenceTargetsGallery(root, from, reference) {
 
 async function inspectDesktopResourceFile(root, file) {
   const source = await readFile(file, "utf8");
-  const references =
-    extname(file) === ".css"
-      ? cssResourceReferences(source, file).map((reference) => ({
-          attribute: "CSS reference",
-          reference,
-        }))
-      : htmlResourceReferences(source);
+  const isCss = extname(file) === ".css";
+  const inline = isCss ? undefined : htmlInlineResources(source, file);
+  const references = isCss
+    ? cssResourceReferences(source, file).map((reference) => ({
+        attribute: "CSS reference",
+        reference,
+      }))
+    : [
+        ...htmlResourceReferences(source),
+        ...(inline?.styles ?? []).flatMap((style) =>
+          style.references.map((reference) => ({
+            attribute: "inline CSS reference",
+            reference,
+          })),
+        ),
+        ...(inline?.scripts ?? []).flatMap((script) =>
+          script.references.map((reference) => ({
+            attribute: "inline script module reference",
+            reference,
+          })),
+        ),
+      ];
   const violations = [];
+  if (
+    inline?.scripts.some((script) => script.computed || script.invalid) === true
+  ) {
+    violations.push(
+      `${relative(root, file)}: Desktop inline script module references must be static`,
+    );
+  }
   for (const { attribute, reference } of references) {
-    if (await referenceTargetsGallery(root, file, reference)) {
+    if (
+      reference === "@artemis/ui/conformance" ||
+      (await referenceTargetsGallery(root, file, reference))
+    ) {
       violations.push(
         `${relative(root, file)}: Desktop ${attribute} must not reference UI Gallery: ${reference}`,
       );
@@ -1395,6 +1591,7 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
       }
     }
     if (
+      specifier === "@artemis/ui/conformance" ||
       packageName === "@artemis/ui-gallery" ||
       (relativeTarget !== undefined &&
         pathInside(relativeTarget, galleryRoot)) ||
@@ -1402,7 +1599,7 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
       resolvedIntoGallery === true
     ) {
       violations.push(
-        `${relative(root, file)}: Desktop must not import UI Gallery: ${specifier}`,
+        `${relative(root, file)}: Desktop must not import test-only UI conformance or UI Gallery: ${specifier}`,
       );
     }
   }

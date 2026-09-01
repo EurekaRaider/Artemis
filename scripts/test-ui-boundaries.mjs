@@ -334,6 +334,18 @@ await runCase(
   true,
 );
 await runCase(
+  "safe Desktop HTML Gallery-like prose",
+  "apps/desktop/index.html",
+  '<!doctype html><p>Example: import("../ui-gallery/src/main.tsx")</p><script>const example = "import(\\\"../ui-gallery/src/main.tsx\\\")";</script><style>.example::after { content: "@import ../ui-gallery/src/gallery.css"; }</style>',
+  true,
+);
+await runCase(
+  "safe Desktop HTML non-executable data script",
+  "apps/desktop/index.html",
+  '<!doctype html><script type="application/json">{"example":"import(\\"../ui-gallery/src/main.tsx\\")"}</script>',
+  true,
+);
+await runCase(
   "safe Desktop Vite config string",
   "apps/desktop/vite.config.ts",
   'const label = "ui-gallery is only text";\nexport default { label };\n',
@@ -667,6 +679,30 @@ await runCase(
   false,
 );
 await runCase(
+  "Desktop test-only UI conformance static import",
+  desktopFixtureSource,
+  'import "@artemis/ui/conformance";\n',
+  false,
+);
+await runCase(
+  "Desktop test-only UI conformance export",
+  desktopFixtureSource,
+  'export { ConformanceProbe } from "@artemis/ui/conformance";\n',
+  false,
+);
+await runCase(
+  "Desktop test-only UI conformance dynamic import",
+  desktopFixtureSource,
+  'void import("@artemis/ui/conformance");\n',
+  false,
+);
+await runCase(
+  "Desktop test-only UI conformance require",
+  desktopFixtureSource,
+  'void require("@artemis/ui/conformance");\n',
+  false,
+);
+await runCase(
   "Desktop Gallery alias static import",
   desktopFixtureSource,
   'import "@gallery/index";\n',
@@ -765,6 +801,72 @@ await runCase(
   "Desktop HTML srcset references Gallery",
   "apps/desktop/index.html",
   '<!doctype html><img alt="" srcset="../ui-gallery/index.html 1x, ./safe.png 2x">',
+  false,
+);
+await runCase(
+  "Desktop HTML inline module imports Gallery",
+  "apps/desktop/index.html",
+  '<!doctype html><script type="module">import("../ui-gallery/src/main.tsx")</script>',
+  false,
+);
+await runCase(
+  "Desktop HTML inline static module imports Gallery",
+  "apps/desktop/index.html",
+  '<!doctype html><script type="module">import "../ui-gallery/src/main.tsx"</script>',
+  false,
+);
+await runCase(
+  "Desktop HTML inline script requires Gallery",
+  "apps/desktop/index.html",
+  '<!doctype html><script>require("../ui-gallery/src/main.tsx")</script>',
+  false,
+);
+await runCase(
+  "Desktop HTML inline script imports test-only UI conformance",
+  "apps/desktop/index.html",
+  '<!doctype html><script type="module">import "@artemis/ui/conformance"</script>',
+  false,
+);
+await runCase(
+  "Desktop HTML inline style imports Gallery",
+  "apps/desktop/index.html",
+  '<!doctype html><style>@import "../ui-gallery/src/gallery.css";</style>',
+  false,
+);
+await runCase(
+  "Desktop HTML style attribute references Gallery",
+  "apps/desktop/index.html",
+  '<!doctype html><div style="background:url(../ui-gallery/src/gallery.css)"></div>',
+  false,
+);
+await runCase(
+  "Desktop mts imports Gallery",
+  "apps/desktop/src/renderer/unsafe.mts",
+  'import "../../../ui-gallery/src/index";\n',
+  false,
+);
+await runCase(
+  "Desktop cts imports test-only UI conformance",
+  "apps/desktop/src/renderer/unsafe.cts",
+  'require("@artemis/ui/conformance");\n',
+  false,
+);
+await runCase(
+  "Desktop cjs imports Gallery",
+  "apps/desktop/src/renderer/unsafe.cjs",
+  'require("../../../ui-gallery/src/index");\n',
+  false,
+);
+await runCase(
+  "Gallery d.mts imports Electron",
+  "apps/ui-gallery/src/unsafe.d.mts",
+  'import "electron";\n',
+  false,
+);
+await runCase(
+  "UI d.cts imports Node",
+  "packages/ui/src/unsafe.d.cts",
+  'import "node:fs";\n',
   false,
 );
 await runCase(
@@ -1207,11 +1309,11 @@ await runThemeContractTypeCase(
   "process",
 );
 
-if (acceptedCases !== 21 || rejectedCases !== 79) {
+if (acceptedCases !== 23 || rejectedCases !== 94) {
   throw new Error(
     `Unexpected boundary test count: ${acceptedCases} accepted, ${rejectedCases} rejected`,
   );
 }
 console.log(
-  "UI boundary fixture tests passed (21 safe cases; 79/79 violations rejected)",
+  "UI boundary fixture tests passed (23 safe cases; 94/94 violations rejected)",
 );

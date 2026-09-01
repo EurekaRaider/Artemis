@@ -231,24 +231,83 @@ export const CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR =
   "ConformanceProbe requires a non-empty accessible label";
 export const CONFORMANCE_PROBE_CONTROL_BOUNDARY_ERROR =
   "ConformanceProbe cannot receive both value and defaultValue";
+export const CONFORMANCE_PROBE_PROPS_ERROR =
+  "ConformanceProbe received invalid props";
 
 const PERCEPTIBLE_LABEL_CHARACTER =
   /[^\p{White_Space}\p{Default_Ignorable_Code_Point}\p{Cc}]/u;
 
-export function ConformanceProbe(props: ConformanceProbeProps) {
+const CONFORMANCE_PROBE_PROP_NAMES = new Set([
+  "id",
+  "label",
+  "description",
+  "error",
+  "disabled",
+  "busy",
+  "stale",
+  "value",
+  "defaultValue",
+  "onValueChange",
+  "onCommit",
+  "onEvent",
+]);
+
+function validateConformanceProbeProps(props: ConformanceProbeProps) {
+  const runtimeProps = props as unknown as Record<string, unknown>;
   if (
-    typeof props.label !== "string" ||
-    !PERCEPTIBLE_LABEL_CHARACTER.test(props.label)
+    Object.keys(runtimeProps).some(
+      (name) => !CONFORMANCE_PROBE_PROP_NAMES.has(name),
+    )
+  ) {
+    throw new Error(CONFORMANCE_PROBE_PROPS_ERROR);
+  }
+  if (
+    typeof runtimeProps.label !== "string" ||
+    !PERCEPTIBLE_LABEL_CHARACTER.test(runtimeProps.label)
   ) {
     throw new Error(CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR);
   }
+  for (const name of ["id", "description", "error", "value", "defaultValue"]) {
+    if (
+      runtimeProps[name] !== undefined &&
+      typeof runtimeProps[name] !== "string"
+    ) {
+      throw new Error(CONFORMANCE_PROBE_PROPS_ERROR);
+    }
+  }
+  for (const name of ["disabled", "busy", "stale"]) {
+    if (
+      runtimeProps[name] !== undefined &&
+      typeof runtimeProps[name] !== "boolean"
+    ) {
+      throw new Error(CONFORMANCE_PROBE_PROPS_ERROR);
+    }
+  }
+  for (const name of ["onValueChange", "onCommit", "onEvent"]) {
+    if (
+      runtimeProps[name] !== undefined &&
+      typeof runtimeProps[name] !== "function"
+    ) {
+      throw new Error(CONFORMANCE_PROBE_PROPS_ERROR);
+    }
+  }
 
-  const hasValue = Object.hasOwn(props, "value") && props.value !== undefined;
+  const hasValue =
+    Object.hasOwn(runtimeProps, "value") && props.value !== undefined;
   const hasDefaultValue =
-    Object.hasOwn(props, "defaultValue") && props.defaultValue !== undefined;
+    Object.hasOwn(runtimeProps, "defaultValue") &&
+    props.defaultValue !== undefined;
   if (hasValue && hasDefaultValue) {
     throw new Error(CONFORMANCE_PROBE_CONTROL_BOUNDARY_ERROR);
   }
+  if (hasValue && typeof props.onValueChange !== "function") {
+    throw new Error(CONFORMANCE_PROBE_PROPS_ERROR);
+  }
+  return hasValue;
+}
+
+export function ConformanceProbe(props: ConformanceProbeProps) {
+  const hasValue = validateConformanceProbeProps(props);
 
   const generatedId = useId().replaceAll(":", "");
   const baseId = props.id ?? `artemis-probe-${generatedId}`;
@@ -269,7 +328,7 @@ export function ConformanceProbe(props: ConformanceProbeProps) {
     );
   }
 
-  const currentValue = controlled ? props.value : uncontrolledValue;
+  const currentValue = controlled ? (props.value ?? "") : uncontrolledValue;
   const invalid = props.error !== undefined && props.error.length > 0;
   const state = props.disabled
     ? "disabled"

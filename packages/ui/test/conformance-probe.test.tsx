@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR,
   CONFORMANCE_PROBE_CONTROL_BOUNDARY_ERROR,
+  CONFORMANCE_PROBE_PROPS_ERROR,
   ConformanceProbe,
   type ConformanceProbeProps,
 } from "../src/conformance.js";
@@ -60,6 +61,40 @@ describe("ConformanceProbe behavior harness", () => {
     expect(() =>
       renderToString(<ConformanceProbe {...invalidProps} />),
     ).toThrowError(CONFORMANCE_PROBE_CONTROL_BOUNDARY_ERROR);
+  });
+
+  it.each([
+    ["id", { label: "Runtime", id: 42 }],
+    ["description", { label: "Runtime", description: 42 }],
+    ["error", { label: "Runtime", error: false }],
+    ["disabled", { label: "Runtime", disabled: "false" }],
+    ["busy", { label: "Runtime", busy: 0 }],
+    ["stale", { label: "Runtime", stale: null }],
+    ["value", { label: "Runtime", value: 42, onValueChange: vi.fn() }],
+    ["defaultValue", { label: "Runtime", defaultValue: 42 }],
+    ["onValueChange", { label: "Runtime", onValueChange: "callback" }],
+    ["onCommit", { label: "Runtime", onCommit: {} }],
+    ["onEvent", { label: "Runtime", onEvent: true }],
+    ["controlled callback", { label: "Runtime", value: "fixed" }],
+    ["unknown", { label: "Runtime", children: "not public" }],
+  ])("rejects invalid runtime %s props in DOM and SSR", (_name, props) => {
+    const invalidProps = props as unknown as ConformanceProbeProps;
+    expect(() => render(<ConformanceProbe {...invalidProps} />)).toThrowError(
+      CONFORMANCE_PROBE_PROPS_ERROR,
+    );
+    expect(() =>
+      renderToString(<ConformanceProbe {...invalidProps} />),
+    ).toThrowError(CONFORMANCE_PROBE_PROPS_ERROR);
+  });
+
+  it("rejects a non-string runtime label in DOM and SSR", () => {
+    const invalidProps = { label: 42 } as unknown as ConformanceProbeProps;
+    expect(() => render(<ConformanceProbe {...invalidProps} />)).toThrowError(
+      CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR,
+    );
+    expect(() =>
+      renderToString(<ConformanceProbe {...invalidProps} />),
+    ).toThrowError(CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR);
   });
 
   it("treats own optional props with undefined values as absent", () => {

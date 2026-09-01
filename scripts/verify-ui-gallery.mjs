@@ -7,6 +7,7 @@ import {
   cssResourceReferences,
   desktopGalleryImportViolations,
   htmlElements,
+  htmlInlineResources,
   htmlResourceReferences,
   referenceTargetsGallery,
 } from "./verify-ui-boundaries.mjs";
@@ -842,21 +843,40 @@ async function verifyDesktopHtmlArtifact(source, path) {
       );
     }
   }
-  for (const marker of PRIVATE_GALLERY_TEXT_MARKERS) {
-    if (source.includes(marker)) {
+  const inline = htmlInlineResources(source, path);
+  for (const script of inline.scripts) {
+    if (script.computed || script.invalid) {
       throw new Error(
-        `${relative(root, path)}: Desktop HTML contains private Gallery marker: ${marker}`,
+        `${relative(root, path)}: Desktop HTML inline script module references must be static`,
       );
     }
+    for (const reference of script.references) {
+      if (await referenceTargetsGallery(root, path, reference)) {
+        throw new Error(
+          `${relative(root, path)}: Desktop HTML inline script references private Gallery content: ${reference}`,
+        );
+      }
+    }
+    verifyDesktopScriptArtifact(script.content, path);
+  }
+  for (const style of inline.styles) {
+    await verifyDesktopCssArtifact(style.content, path);
   }
 }
 
 function verifyDesktopScriptArtifact(source, path) {
+  if (
+    source.includes("data-artemis-component") &&
+    source.includes("conformance-probe")
+  ) {
+    throw new Error(
+      `${relative(root, path)}: Desktop script contains private ConformanceProbe marker`,
+    );
+  }
   const exactMarkers = [
     ...PRIVATE_GALLERY_TEXT_MARKERS,
     ...PRIVATE_GALLERY_ATTRIBUTES,
-    'data-artemis-component="conformance-probe"',
-    "data-artemis-component:'conformance-probe'",
+    "@artemis/ui/conformance",
   ];
   for (const marker of exactMarkers) {
     if (source.includes(marker)) {
@@ -934,7 +954,7 @@ const safeDesktopFixtureContent = new Map([
   ],
   [
     safeDesktopFixtureFiles[1],
-    '<!doctype html><title>docs.gallery-example</title><a href="https://docs.gallery-example">Docs</a>',
+    '<!doctype html><title>docs.gallery-example</title><p>Example: import("../ui-gallery/src/main.tsx")</p><script type="application/json">{"example":"@artemis/ui/conformance"}</script><a href="https://docs.gallery-example">Docs</a>',
   ],
   [safeDesktopFixtureFiles[2], 'const docs = "https://docs.gallery-example";'],
 ]);
@@ -980,6 +1000,59 @@ const desktopArtifactNegativeFixtures = [
     content: 'const marker = "data-gallery-stress-skin";',
     assets: [],
     error: "private Gallery marker",
+  },
+  {
+    name: "private-probe-object-marker",
+    path: join(root, "apps/desktop/dist-renderer/private.js"),
+    content: 'const props={"data-artemis-component":"conformance-probe"};',
+    assets: [],
+    error: "private ConformanceProbe marker",
+  },
+  {
+    name: "private-probe-template-marker",
+    path: join(root, "apps/desktop/dist-renderer/private.js"),
+    content: "const name=`data-artemis-component`,value=`conformance-probe`;",
+    assets: [],
+    error: "private ConformanceProbe marker",
+  },
+  {
+    name: "private-conformance-subpath-marker",
+    path: join(root, "apps/desktop/dist-renderer/private.js"),
+    content: 'import("@artemis/ui/conformance");',
+    assets: [],
+    error: "private Gallery marker",
+  },
+  {
+    name: "private-html-inline-probe-marker",
+    path: join(root, "apps/desktop/dist-renderer/private.html"),
+    content:
+      '<!doctype html><script>const props={"data-artemis-component":"conformance-probe"}</script>',
+    assets: [],
+    error: "private ConformanceProbe marker",
+  },
+  {
+    name: "private-html-inline-gallery-import",
+    path: join(root, "apps/desktop/dist-renderer/private.html"),
+    content:
+      '<!doctype html><script type="module">import("../../ui-gallery/src/main.tsx")</script>',
+    assets: [],
+    error: "private Gallery content",
+  },
+  {
+    name: "private-html-inline-gallery-style",
+    path: join(root, "apps/desktop/dist-renderer/private.html"),
+    content:
+      '<!doctype html><style>@import "../../ui-gallery/src/gallery.css";</style>',
+    assets: [],
+    error: "private Gallery content",
+  },
+  {
+    name: "private-html-style-attribute",
+    path: join(root, "apps/desktop/dist-renderer/private.html"),
+    content:
+      '<!doctype html><div style="background:url(../../ui-gallery/src/gallery.css)"></div>',
+    assets: [],
+    error: "private Gallery content",
   },
   {
     name: "private-static-asset",
