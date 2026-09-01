@@ -22,7 +22,12 @@
       "form-events-ime",
       "form-semantics",
       "navigation-anatomy",
-      "navigation-events"
+      "navigation-events",
+      "feedback-anatomy",
+      "overlay-focus-and-close",
+      "portal-viewport-geometry",
+      "layout-anatomy",
+      "split-pane-events"
     ],
     "stress": [
       "anatomy",
@@ -44,7 +49,12 @@
       "form-events-ime",
       "form-semantics",
       "navigation-anatomy",
-      "navigation-events"
+      "navigation-events",
+      "feedback-anatomy",
+      "overlay-focus-and-close",
+      "portal-viewport-geometry",
+      "layout-anatomy",
+      "split-pane-events"
     ]
   },
   "switchCases": [

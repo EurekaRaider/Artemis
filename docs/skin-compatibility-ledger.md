@@ -1,7 +1,7 @@
 # Artemis Skin v1 compatibility ledger
 
-Status: CL2A Action/Icon candidate on merged CL1C base
-`38e40ae2fcb620129a1a0c76fd4fb590cd4a42bc`. This document records what is
+Status: CL3 Feedback/Overlay/Layout candidate on merged CL2C base
+`5593e7b161167d6d14b0c733b387a3caecd819da`. This document records what is
 enforced now and which runtime behavior remains owned by later serialized
 milestones.
 
@@ -279,8 +279,8 @@ Gallery scaffold selector/declaration/value drift are rejecting fixtures. The
 first UI block must remain structurally identical to the public
 `@artemis/ui/styles.css` block, the theme block must remain structurally
 identical to `@artemis/theme-artemis/theme.css`, and the second UI block has an
-exact 36-selector/rule Gallery-only allowlist plus one exact reduced-motion
-media block. Twenty-five formal artifact fixtures exercise these layer,
+exact 43-selector/rule Gallery-only allowlist plus exact reduced-motion and
+narrow-width media blocks. Twenty-five formal artifact fixtures exercise these layer,
 root-node, public/theme-block, Gallery-block, and motion-query rejection paths.
 
 Gallery isolation covers Desktop TypeScript/Vite configuration, CSS imports,
@@ -321,9 +321,9 @@ fixtures cover those paths while allowing ordinary text and URLs such as
 `docs.gallery-example`. This is a static configuration and renderer-build
 boundary; it is not evidence that a final installer/package was inspected.
 
-The Probe and Action structural stylesheet is parsed with PostCSS and compared
-against an exact selector/property/value allowlist. Its consumed
-`--artemis-*` token set must exactly equal the union of the two public
+The Probe, Action, Form, Navigation, Feedback, and Layout structural stylesheet
+is parsed with PostCSS and compared against an exact selector/property/value
+allowlist. Its consumed `--artemis-*` token set must exactly equal the union of the six public
 contracts' `mutableTokens`; raw named/rgb/hsl/transparent colors, undeclared
 tokens, skin selectors, imports/URLs, and an overridable focus rule all fail.
 Focus visibility has a fixed structural floor of

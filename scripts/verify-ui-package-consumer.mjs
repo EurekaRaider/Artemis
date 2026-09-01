@@ -85,6 +85,10 @@ try {
       "dist/actions.d.ts",
       "dist/forms.js",
       "dist/forms.d.ts",
+      "dist/feedback.js",
+      "dist/feedback.d.ts",
+      "dist/layout.js",
+      "dist/layout.d.ts",
       "dist/navigation.js",
       "dist/navigation.d.ts",
       "dist/styles.css",
@@ -124,7 +128,7 @@ try {
 
   await writeFile(
     join(consumer, "consumer.ts"),
-    `import { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField, type FormControlSize, type SelectOption } from "@artemis/ui/forms";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs, type NavigationControlSize, type TabOption } from "@artemis/ui/navigation";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst tone: ActionTone = "success";\nconst formSize: FormControlSize = "comfortable";\nconst navigationSize: NavigationControlSize = "compact";\nconst option: SelectOption<"one"> = { value: "one", label: "One" };\nconst tabOption: TabOption<"one"> = { id: "one-tab", panelId: "one-panel", value: "one", label: "One" };\nvoid ConformanceProbe;\nvoid Button;\nvoid IconButton;\nvoid Checkbox;\nvoid SearchField;\nvoid Select;\nvoid Switch;\nvoid TextField;\nvoid SegmentedControl;\nvoid Tabs;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone || FORM_COMPONENT_CONTRACTS.textField.sizes.at(-1) !== formSize || NAVIGATION_COMPONENT_CONTRACTS.tabs.sizes.at(0) !== navigationSize || option.value !== "one" || tabOption.value !== "one") throw new Error("invalid contract");\n`,
+    `import { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { FEEDBACK_COMPONENT_CONTRACTS, InlineNotice, Toast, type FeedbackTone } from "@artemis/ui/feedback";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField, type FormControlSize, type SelectOption } from "@artemis/ui/forms";\nimport { LAYOUT_COMPONENT_CONTRACTS, PanelHeader, SplitPane, type LayoutState } from "@artemis/ui/layout";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs, type NavigationControlSize, type TabOption } from "@artemis/ui/navigation";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst tone: ActionTone = "success";\nconst feedbackTone: FeedbackTone = "warning";\nconst layoutState: LayoutState = "ready";\nconst formSize: FormControlSize = "comfortable";\nconst navigationSize: NavigationControlSize = "compact";\nconst option: SelectOption<"one"> = { value: "one", label: "One" };\nconst tabOption: TabOption<"one"> = { id: "one-tab", panelId: "one-panel", value: "one", label: "One" };\nvoid ConformanceProbe;\nvoid Button;\nvoid IconButton;\nvoid InlineNotice;\nvoid Toast;\nvoid PanelHeader;\nvoid SplitPane;\nvoid Checkbox;\nvoid SearchField;\nvoid Select;\nvoid Switch;\nvoid TextField;\nvoid SegmentedControl;\nvoid Tabs;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone || FEEDBACK_COMPONENT_CONTRACTS.toast.tones?.at(3) !== feedbackTone || LAYOUT_COMPONENT_CONTRACTS.toolbar.states.at(0) !== layoutState || FORM_COMPONENT_CONTRACTS.textField.sizes.at(-1) !== formSize || NAVIGATION_COMPONENT_CONTRACTS.tabs.sizes.at(0) !== navigationSize || option.value !== "one" || tabOption.value !== "one") throw new Error("invalid contract");\n`,
     "utf8",
   );
   await writeFile(
@@ -160,6 +164,12 @@ try {
     "utf8",
   );
   run(process.execPath, ["navigation-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "feedback-layout-consumer.mjs"),
+    `import { createElement } from "react";\nimport { renderToStaticMarkup } from "react-dom/server";\nimport { FEEDBACK_COMPONENT_CONTRACTS, EmptyState, InlineNotice, LoadingState, Toast } from "@artemis/ui/feedback";\nimport { LAYOUT_COMPONENT_CONTRACTS, ListRow, PanelHeader, ScrollArea, SplitPane, Toolbar } from "@artemis/ui/layout";\nconst feedback = [\n  renderToStaticMarkup(createElement(InlineNotice, { tone: "success" }, "Connected")),\n  renderToStaticMarkup(createElement(Toast, { tone: "warning" }, "Review required")),\n  renderToStaticMarkup(createElement(EmptyState, { title: "No tasks", description: "Create one" })),\n  renderToStaticMarkup(createElement(LoadingState, { label: "Loading" })),\n].join("");\nconst layout = [\n  renderToStaticMarkup(createElement(Toolbar, { label: "Outside toolbar", actions: createElement("button", null, "Run") }, "Workspace")),\n  renderToStaticMarkup(createElement(ListRow, { label: "Outside row", selected: true })),\n  renderToStaticMarkup(createElement(PanelHeader, { title: "Outside panel" })),\n  renderToStaticMarkup(createElement(ScrollArea, { label: "Outside scroll" }, "Content")),\n  renderToStaticMarkup(createElement(SplitPane, { label: "Outside resize", minimumSize: 120, maximumSize: 360, size: 200, onSizeChange() {}, primary: "One", secondary: "Two" })),\n].join("");\nif (!Object.isFrozen(FEEDBACK_COMPONENT_CONTRACTS) || !Object.isFrozen(LAYOUT_COMPONENT_CONTRACTS) || !feedback.includes('data-artemis-component="inline-notice"') || !feedback.includes('data-artemis-component="toast"') || !feedback.includes('data-artemis-component="empty-state"') || !feedback.includes('data-artemis-component="loading-state"') || !layout.includes('data-artemis-component="toolbar"') || !layout.includes('data-artemis-component="list-row"') || !layout.includes('data-artemis-component="panel-header"') || !layout.includes('data-artemis-component="scroll-area"') || !layout.includes('role="separator"')) throw new Error("feedback/layout peer/component resolution failed");\n`,
+    "utf8",
+  );
+  run(process.execPath, ["feedback-layout-consumer.mjs"], consumer);
   run(npm, ["ls", "--all", "react", "react-dom"], consumer);
 
   await writeFile(
@@ -270,6 +280,72 @@ try {
     throw new Error("Tabs-only bundle retained unused segmented-control JS");
   }
 
+  await writeFile(
+    join(consumer, "feedback-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { InlineNotice } from "@artemis/ui/feedback";\nexport const TreeShakeNotice = () => createElement(InlineNotice, null, "Notice");\n`,
+    "utf8",
+  );
+  run(
+    join(root, "node_modules/.bin/esbuild"),
+    [
+      "feedback-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--external:react-dom",
+      "--external:react-dom/*",
+      "--outfile=feedback-tree-shake.js",
+    ],
+    consumer,
+  );
+  const feedbackTreeShaken = await readFile(
+    join(consumer, "feedback-tree-shake.js"),
+    "utf8",
+  );
+  if (
+    !feedbackTreeShaken.includes("inline-notice") ||
+    ["confirmation", "loading-state", "error-state"].some((marker) =>
+      feedbackTreeShaken.includes(marker),
+    )
+  ) {
+    throw new Error("InlineNotice-only bundle retained unused feedback JS");
+  }
+
+  await writeFile(
+    join(consumer, "layout-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { PanelHeader } from "@artemis/ui/layout";\nexport const TreeShakePanelHeader = () => createElement(PanelHeader, { title: "Panel" });\n`,
+    "utf8",
+  );
+  run(
+    join(root, "node_modules/.bin/esbuild"),
+    [
+      "layout-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=layout-tree-shake.js",
+    ],
+    consumer,
+  );
+  const layoutTreeShaken = await readFile(
+    join(consumer, "layout-tree-shake.js"),
+    "utf8",
+  );
+  if (
+    !layoutTreeShaken.includes("panel-header") ||
+    ["list-row", "scroll-area", "split-pane"].some((marker) =>
+      layoutTreeShaken.includes(marker),
+    )
+  ) {
+    throw new Error("PanelHeader-only bundle retained unused layout JS");
+  }
+
   const installedRoots = [
     join(consumer, "node_modules/@artemis/theme-contract"),
     join(consumer, "node_modules/@artemis/ui"),
@@ -292,7 +368,7 @@ try {
   }
 
   console.log(
-    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation JS tree-shaken)`,
+    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout JS tree-shaken)`,
   );
 } finally {
   await rm(consumer, { recursive: true, force: true });

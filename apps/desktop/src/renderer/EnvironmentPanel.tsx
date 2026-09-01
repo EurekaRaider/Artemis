@@ -26,6 +26,7 @@ import {
   type PromptAttachment,
   type TaskSourceState,
 } from "@artemis/protocol";
+import { Popover } from "@artemis/ui/feedback";
 
 import type {
   ProjectGitBranch,
@@ -365,33 +366,6 @@ export function projectPullRequestCoverageWarning(
     return "head-mismatch";
   }
   return undefined;
-}
-
-export function environmentChecksPopoverPosition(
-  anchor: Readonly<{
-    left: number;
-    right: number;
-    top: number;
-    bottom: number;
-  }>,
-  viewport: Readonly<{ width: number; height: number }>,
-): { left: number; top: number } {
-  const margin = 12;
-  const gap = 10;
-  const width = Math.min(360, Math.max(0, viewport.width - margin * 2));
-  const height = Math.min(340, Math.max(0, viewport.height - margin * 2));
-  const left =
-    anchor.left >= width + gap + margin
-      ? anchor.left - width - gap
-      : Math.min(
-          Math.max(margin, anchor.right + gap),
-          Math.max(margin, viewport.width - width - margin),
-        );
-  const top = Math.min(
-    Math.max(margin, anchor.top),
-    Math.max(margin, viewport.height - height - margin),
-  );
-  return { left, top };
 }
 
 export interface EnvironmentBranchMenuLayout extends CSSProperties {
@@ -755,6 +729,7 @@ export function PullRequestChecksSummary({
 }
 
 export function PullRequestChecksPopover({
+  anchorRef,
   checks,
   checkSummaryLabels,
   containerRef,
@@ -763,11 +738,13 @@ export function PullRequestChecksPopover({
   onOpenUrl,
   onScheduleClose,
   onCancelClose,
-  position,
+  onOpenChange,
+  open,
   prLabel,
   title,
   triggerContains,
 }: {
+  anchorRef: RefObject<HTMLElement | null>;
   checks: readonly ProjectPullRequestCheck[];
   checkSummaryLabels: Record<string, string>;
   containerRef: RefObject<HTMLDivElement | null>;
@@ -776,16 +753,23 @@ export function PullRequestChecksPopover({
   onOpenUrl: (url: string) => void;
   onScheduleClose: () => void;
   onCancelClose: () => void;
-  position: { left: number; top: number };
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
   prLabel: string;
   title: string;
   triggerContains: (node: Node | null) => boolean;
 }) {
   return (
-    <div
-      aria-label={title}
+    <Popover
+      align="start"
+      anchorRef={anchorRef}
       className="environment-checks-popover"
+      contentRef={containerRef}
+      focusOnOpen={false}
       id="environment-pr-checks"
+      label={title}
+      onOpenChange={onOpenChange}
+      open={open}
       onBlur={(event) => {
         const related = event.relatedTarget;
         if (
@@ -799,9 +783,7 @@ export function PullRequestChecksPopover({
       onFocus={onCancelClose}
       onMouseEnter={onCancelClose}
       onMouseLeave={onScheduleClose}
-      ref={containerRef}
-      role="dialog"
-      style={{ left: position.left, top: position.top }}
+      placement="inline-start"
       tabIndex={-1}
     >
       <header>
@@ -844,7 +826,7 @@ export function PullRequestChecksPopover({
           })
         )}
       </div>
-    </div>
+    </Popover>
   );
 }
 
@@ -920,7 +902,6 @@ export function EnvironmentPanel({
   const [pullRequestError, setPullRequestError] = useState<string>();
   const [pullRequestLoading, setPullRequestLoading] = useState(false);
   const [checksOpen, setChecksOpen] = useState(false);
-  const [checksPosition, setChecksPosition] = useState({ left: 12, top: 12 });
   const [gitBusy, setGitBusy] = useState<
     "commit" | "push" | "commit-push" | "branch"
   >();
@@ -986,15 +967,6 @@ export function EnvironmentPanel({
 
   const showChecks = useCallback(() => {
     cancelChecksClose();
-    const anchor = checksTrigger.current?.getBoundingClientRect();
-    if (anchor) {
-      setChecksPosition(
-        environmentChecksPopoverPosition(anchor, {
-          width: window.innerWidth,
-          height: window.innerHeight,
-        }),
-      );
-    }
     setChecksOpen(true);
   }, [cancelChecksClose]);
 
@@ -1200,23 +1172,6 @@ export function EnvironmentPanel({
     },
     [cancelChecksClose],
   );
-
-  useEffect(() => {
-    if (!checksOpen) return;
-    const closeOutside = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (
-        checksTrigger.current?.contains(target) ||
-        checksPopover.current?.contains(target)
-      ) {
-        return;
-      }
-      closeChecks();
-    };
-    window.addEventListener("mousedown", closeOutside);
-    return () => window.removeEventListener("mousedown", closeOutside);
-  }, [checksOpen, closeChecks]);
 
   useEffect(() => {
     if (!branchOpen) return;
@@ -2150,28 +2105,28 @@ export function EnvironmentPanel({
           </div>,
           document.body,
         )}
-      {open &&
-        checksOpen &&
-        pullRequest &&
-        createPortal(
-          <PullRequestChecksPopover
-            checks={pullRequest.checks}
-            checkSummaryLabels={checkSummaryLabels}
-            containerRef={checksPopover}
-            externalIcon={<EnvironmentExternalIcon />}
-            noneLabel={t.checksNone}
-            onOpenUrl={onOpenUrl}
-            onScheduleClose={scheduleChecksClose}
-            onCancelClose={cancelChecksClose}
-            position={checksPosition}
-            prLabel={`#${pullRequest.number} · ${pullRequestStateLabel}`}
-            title={t.checkDetails}
-            triggerContains={(node) =>
-              checksTrigger.current?.contains(node) ?? false
-            }
-          />,
-          document.body,
-        )}
+      {open && pullRequest && (
+        <PullRequestChecksPopover
+          anchorRef={checksTrigger}
+          checks={pullRequest.checks}
+          checkSummaryLabels={checkSummaryLabels}
+          containerRef={checksPopover}
+          externalIcon={<EnvironmentExternalIcon />}
+          noneLabel={t.checksNone}
+          onCancelClose={cancelChecksClose}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) closeChecks();
+          }}
+          onOpenUrl={onOpenUrl}
+          onScheduleClose={scheduleChecksClose}
+          open={checksOpen}
+          prLabel={`#${pullRequest.number} · ${pullRequestStateLabel}`}
+          title={t.checkDetails}
+          triggerContains={(node) =>
+            checksTrigger.current?.contains(node) ?? false
+          }
+        />
+      )}
       {commitOpen &&
         gitInfo?.managed &&
         createPortal(

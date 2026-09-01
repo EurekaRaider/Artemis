@@ -162,6 +162,61 @@ const GALLERY_SCAFFOLD_RULES = new Map([
   ],
   [".gallery-navigation-grid > *", [["min-inline-size", "0"]]],
   [
+    ".gallery-feedback-grid",
+    [
+      ["display", "grid"],
+      ["grid-template-columns", "repeat(auto-fit, minmax(16rem, 1fr))"],
+      ["gap", "var(--artemis-space-4)"],
+      ["margin-block", "var(--artemis-space-4)"],
+    ],
+  ],
+  [
+    '.gallery-feedback-grid [data-artemis-component="toast"]',
+    [["align-self", "start"]],
+  ],
+  [
+    ".gallery-split-sample",
+    [
+      ["block-size", "22rem"],
+      ["min-inline-size", "0"],
+      ["margin-block-start", "var(--artemis-space-4)"],
+      ["overflow", "hidden"],
+      ["background", "var(--artemis-color-surface-base)"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-card)"],
+    ],
+  ],
+  [
+    '.gallery-split-sample > [data-artemis-component="split-pane"]',
+    [["block-size", "100%"]],
+  ],
+  [
+    '.gallery-split-sample [data-part="primary"] [role="listbox"]',
+    [
+      ["display", "grid"],
+      ["gap", "var(--artemis-space-1)"],
+      ["padding", "var(--artemis-space-2)"],
+    ],
+  ],
+  [
+    '.gallery-split-sample [data-part="secondary"]',
+    [
+      ["display", "grid"],
+      ["grid-template-rows", "auto minmax(0, 1fr)"],
+    ],
+  ],
+  [
+    ".gallery-split-copy",
+    [
+      ["margin", "0"],
+      ["padding", "var(--artemis-space-4)"],
+      ["line-height", "1.6"],
+    ],
+  ],
+  [
     ".gallery-check-grid",
     [
       ["display", "flex"],
@@ -291,12 +346,17 @@ const GALLERY_REDUCED_MOTION_SIGNATURE = JSON.stringify([
     [["decl", "transform", "none", null]],
   ],
 ]);
+const GALLERY_NARROW_QUERY = "(max-width: 36rem)";
+const GALLERY_NARROW_SIGNATURE = JSON.stringify([
+  ["rule", ".gallery-split-sample", [["decl", "block-size", "26rem", null]]],
+]);
 const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-axis-control",
   "gallery-axis-grid",
   "gallery-eyebrow",
   "gallery-check-grid",
   "gallery-form-grid",
+  "gallery-feedback-grid",
   "gallery-motion-sample",
   "gallery-motion-swatch",
   "gallery-navigation-grid",
@@ -316,6 +376,8 @@ const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-surface-sample",
   "gallery-surface-sunken",
   "gallery-surface-user",
+  "gallery-split-copy",
+  "gallery-split-sample",
   "gallery-token-grid",
   "gallery-type-primary",
   "gallery-type-sample",
@@ -334,7 +396,7 @@ const PRIVATE_GALLERY_ATTRIBUTES = new Set([
 const PRIVATE_GALLERY_TEXT_MARKERS = [
   "@artemis/ui-gallery",
   "Artemis UI Gallery",
-  "CL2C navigation conformance",
+  "CL3 feedback and layout conformance",
   "com.artemis.synthetic-stress",
 ];
 
@@ -382,8 +444,27 @@ function layerBlockSignature(css, source, layerName) {
 function verifyGalleryScaffoldBlock(block, source) {
   const seenSelectors = new Set();
   let reducedMotionBlocks = 0;
+  let narrowBlocks = 0;
   for (const node of block.nodes ?? []) {
     if (node.type === "atrule") {
+      if (
+        node.name === "media" &&
+        normalizeWhitespace(node.params) === GALLERY_NARROW_QUERY
+      ) {
+        narrowBlocks += 1;
+        if (narrowBlocks > 1) {
+          throw new Error(`${source}: duplicate Gallery narrow media block`);
+        }
+        const signature = JSON.stringify(
+          (node.nodes ?? []).map(cssNodeSignature),
+        );
+        if (signature !== GALLERY_NARROW_SIGNATURE) {
+          throw new Error(
+            `${source}: Gallery narrow media block does not match the exact contract`,
+          );
+        }
+        continue;
+      }
       if (
         node.name !== "media" ||
         normalizeWhitespace(node.params) !== GALLERY_REDUCED_MOTION_QUERY
@@ -447,6 +528,9 @@ function verifyGalleryScaffoldBlock(block, source) {
   }
   if (reducedMotionBlocks !== 1) {
     throw new Error(`${source}: Gallery reduced-motion media block is missing`);
+  }
+  if (narrowBlocks !== 1) {
+    throw new Error(`${source}: Gallery narrow media block is missing`);
   }
 }
 
@@ -1090,7 +1174,7 @@ const galleryText = (
 ).join("\n");
 for (const marker of [
   "Artemis UI Gallery",
-  "CL2C navigation conformance",
+  "CL3 feedback and layout conformance",
   "com.artemis.synthetic-stress",
   "data-artemis-component",
   "data-gallery-active-skin",

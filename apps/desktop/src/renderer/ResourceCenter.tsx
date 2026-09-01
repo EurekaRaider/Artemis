@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AppLocale } from "@artemis/protocol";
+import { EmptyState, InlineNotice, LoadingState } from "@artemis/ui/feedback";
 import { Switch } from "@artemis/ui/forms";
 
 import type {
@@ -482,29 +483,28 @@ function ResourceAvatar({
   );
 }
 
-function EmptyResource({ children }: { children: ReactNode }) {
-  return <div className="resource-empty-state">{children}</div>;
+function EmptyResource({ children }: { children: string }) {
+  return <EmptyState className="resource-empty-state" title={children} />;
 }
 
 function CatalogSearchNotice({
   children,
   loading = false,
 }: {
-  children: ReactNode;
+  children: string;
   loading?: boolean;
 }) {
-  return (
-    <div
-      aria-busy={loading}
-      aria-live="polite"
-      className={`resource-empty-state resource-catalog-status${loading ? " is-loading" : ""}`}
-      role="status"
-    >
-      {loading ? (
-        <span aria-hidden="true" className="resource-search-spinner" />
-      ) : null}
-      <span>{children}</span>
-    </div>
+  return loading ? (
+    <LoadingState
+      className="resource-empty-state resource-catalog-status is-loading"
+      label={children}
+      lines={1}
+    />
+  ) : (
+    <EmptyState
+      className="resource-empty-state resource-catalog-status"
+      title={children}
+    />
   );
 }
 
@@ -1896,7 +1896,9 @@ export function ResourceCenter({
           </div>
         )}
         {message && (
-          <div className="catalog-message">{pluginPageText(message)}</div>
+          <InlineNotice className="catalog-message" tone="info">
+            {pluginPageText(message)}
+          </InlineNotice>
         )}
       </>
     );

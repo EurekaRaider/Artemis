@@ -108,6 +108,11 @@ jobs:
         env:
           ARTEMIS_EXPECTED_HEAD: ${{ github.sha }}
 
+      - name: Verify feedback and layout controls in production Electron
+        run: npm run verify:feedback-layout
+        env:
+          ARTEMIS_EXPECTED_HEAD: ${{ github.sha }}
+
   ui-gallery-conformance:
     name: UI Gallery conformance (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

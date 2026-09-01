@@ -22,6 +22,14 @@
       "types": "./dist/forms.d.ts",
       "import": "./dist/forms.js"
     },
+    "./feedback": {
+      "types": "./dist/feedback.d.ts",
+      "import": "./dist/feedback.js"
+    },
+    "./layout": {
+      "types": "./dist/layout.d.ts",
+      "import": "./dist/layout.js"
+    },
     "./navigation": {
       "types": "./dist/navigation.d.ts",
       "import": "./dist/navigation.js"

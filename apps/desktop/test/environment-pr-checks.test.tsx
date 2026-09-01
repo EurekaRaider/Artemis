@@ -114,21 +114,29 @@ describe("PullRequestChecksPopover", () => {
     const onOpenUrl = vi.fn();
     const Popover = () => {
       const ref = useRef<HTMLDivElement>(null);
+      const triggerRef = useRef<HTMLButtonElement>(null);
       return (
-        <PullRequestChecksPopover
-          checks={checks as never}
-          checkSummaryLabels={{ passed: "Passed", pending: "Pending" }}
-          containerRef={ref}
-          externalIcon={<svg aria-hidden="true" data-testid="external" />}
-          noneLabel="No checks"
-          onOpenUrl={onOpenUrl}
-          onScheduleClose={vi.fn()}
-          onCancelClose={vi.fn()}
-          position={{ left: 10, top: 20 }}
-          prLabel="#1 · Open"
-          title="Check details"
-          triggerContains={() => false}
-        />
+        <>
+          <button ref={triggerRef} type="button">
+            Checks
+          </button>
+          <PullRequestChecksPopover
+            anchorRef={triggerRef}
+            checks={checks as never}
+            checkSummaryLabels={{ passed: "Passed", pending: "Pending" }}
+            containerRef={ref}
+            externalIcon={<svg aria-hidden="true" data-testid="external" />}
+            noneLabel="No checks"
+            onOpenChange={vi.fn()}
+            onOpenUrl={onOpenUrl}
+            onScheduleClose={vi.fn()}
+            onCancelClose={vi.fn()}
+            open
+            prLabel="#1 · Open"
+            title="Check details"
+            triggerContains={() => false}
+          />
+        </>
       );
     };
     render(<Popover />);
@@ -194,21 +202,29 @@ describe("PullRequestChecksPopover interaction predicates (review follow-up)", (
   function renderPopoverWith(onScheduleClose: ReturnType<typeof vi.fn>) {
     const Popover = () => {
       const ref = useRef<HTMLDivElement>(null);
+      const triggerRef = useRef<HTMLButtonElement>(null);
       return (
-        <PullRequestChecksPopover
-          checks={pullRequest.checks as never}
-          checkSummaryLabels={{ passed: "Passed", pending: "Pending" }}
-          containerRef={ref}
-          externalIcon={<svg aria-hidden="true" data-testid="external" />}
-          noneLabel="No checks"
-          onOpenUrl={vi.fn()}
-          onScheduleClose={onScheduleClose}
-          onCancelClose={vi.fn()}
-          position={{ left: 0, top: 0 }}
-          prLabel="#1 · Open"
-          title="Check details"
-          triggerContains={(node) => node?.nodeName === "SPAN"}
-        />
+        <>
+          <button ref={triggerRef} type="button">
+            Checks
+          </button>
+          <PullRequestChecksPopover
+            anchorRef={triggerRef}
+            checks={pullRequest.checks as never}
+            checkSummaryLabels={{ passed: "Passed", pending: "Pending" }}
+            containerRef={ref}
+            externalIcon={<svg aria-hidden="true" data-testid="external" />}
+            noneLabel="No checks"
+            onOpenChange={vi.fn()}
+            onOpenUrl={vi.fn()}
+            onScheduleClose={onScheduleClose}
+            onCancelClose={vi.fn()}
+            open
+            prLabel="#1 · Open"
+            title="Check details"
+            triggerContains={(node) => node?.nodeName === "SPAN"}
+          />
+        </>
       );
     };
     render(<Popover />);
