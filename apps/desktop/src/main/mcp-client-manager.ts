@@ -965,7 +965,7 @@ export class McpClientManager {
     ) => {
       let client = new Client({
         name: "Artemis",
-        version: "1.4.43",
+        version: "1.4.44",
       });
       let stdioTransport: StdioClientTransport | undefined;
       let waitForWindowsSandboxTeardown = false;
@@ -1242,7 +1242,7 @@ export class McpClientManager {
           }
           client = new Client({
             name: "Artemis",
-            version: "1.4.43",
+            version: "1.4.44",
           });
           command = {
             ...command,
@@ -1299,7 +1299,7 @@ export class McpClientManager {
           }
           client = new Client({
             name: "Artemis",
-            version: "1.4.43",
+            version: "1.4.44",
           });
           transport = createTransport();
           await client.connect(transport as Parameters<Client["connect"]>[0]);
