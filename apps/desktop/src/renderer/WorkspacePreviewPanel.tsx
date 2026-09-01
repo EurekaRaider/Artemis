@@ -6,6 +6,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { SegmentedControl } from "@artemis/ui/navigation";
 
 import type { WorkspaceTextFile } from "../shared/api.js";
 import {
@@ -393,24 +394,17 @@ export function MarkdownReaderPanel(props: MarkdownReaderProps) {
           {file?.path ?? props.title}
         </strong>
         <div className="markdown-reader-actions">
-          <div
-            aria-label={props.title}
+          <SegmentedControl
             className="markdown-reader-mode-toggle"
-            role="group"
-          >
-            <button
-              aria-pressed={view === "rich"}
-              onClick={() => setView("rich")}
-            >
-              {props.richLabel}
-            </button>
-            <button
-              aria-pressed={view === "source"}
-              onClick={() => setView("source")}
-            >
-              {props.sourceLabel}
-            </button>
-          </div>
+            label={props.title}
+            onValueChange={setView}
+            options={[
+              { value: "rich", label: props.richLabel },
+              { value: "source", label: props.sourceLabel },
+            ]}
+            size="compact"
+            value={view}
+          />
           <button
             className="text-button"
             disabled={!props.path || loading}

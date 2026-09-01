@@ -1,4 +1,5 @@
 import type { KeyboardEvent, ReactNode } from "react";
+import { SegmentedControl } from "@artemis/ui/navigation";
 
 export type WorkspaceEditorSaveState = "idle" | "saving" | "saved";
 
@@ -70,28 +71,18 @@ export function WorkspaceEditorToolbar(
         <span title={path}>{path}</span>
         <span className="workspace-file-editor-actions">
           {modeToggle ? (
-            <span
-              aria-label={modeToggle.ariaLabel}
+            <SegmentedControl
               className="workspace-editor-mode-toggle"
-              role="group"
-            >
-              <button
-                aria-pressed={modeToggle.value === "rich"}
-                disabled={readOnly}
-                onClick={() => modeToggle.onChange("rich")}
-                type="button"
-              >
-                {modeToggle.richLabel}
-              </button>
-              <button
-                aria-pressed={modeToggle.value === "source"}
-                disabled={readOnly}
-                onClick={() => modeToggle.onChange("source")}
-                type="button"
-              >
-                {modeToggle.sourceLabel}
-              </button>
-            </span>
+              disabled={readOnly}
+              label={modeToggle.ariaLabel}
+              onValueChange={modeToggle.onChange}
+              options={[
+                { value: "rich", label: modeToggle.richLabel },
+                { value: "source", label: modeToggle.sourceLabel },
+              ]}
+              size="compact"
+              value={modeToggle.value}
+            />
           ) : null}
           <span
             aria-live="polite"

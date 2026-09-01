@@ -44,6 +44,24 @@ const mainSource = readFileSync(
 );
 
 describe("token usage navigation", () => {
+  it("uses public Tabs with exact tab-panel relations for the three usage views", () => {
+    expect(tokenUsagePageSource).toContain(
+      'import { Tabs } from "@artemis/ui/navigation";',
+    );
+    expect(tokenUsagePageSource).toContain("<Tabs");
+    expect(tokenUsagePageSource).toContain("label={t.activity}");
+    expect(tokenUsagePageSource).toContain(
+      "id: `token-usage-${candidate}-tab`",
+    );
+    expect(tokenUsagePageSource).toContain(
+      "panelId: `token-usage-${candidate}-panel`",
+    );
+    expect(tokenUsagePageSource).toContain('role="tabpanel"');
+    expect(tokenUsagePageSource).toContain(
+      "aria-labelledby={`token-usage-${view}-tab`}",
+    );
+  });
+
   it("places the Token Usage button immediately after MCP & Skills and opens its page", () => {
     const activityStart = appSource.indexOf('<aside className="activity-bar">');
     const activityEnd = appSource.indexOf("</aside>", activityStart);

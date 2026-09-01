@@ -721,8 +721,13 @@ describe("Codex-like workspace tab layout contract", () => {
     );
 
     expect(workspacePreviewSource).toContain("<MarkdownContent");
-    expect(workspacePreviewSource).toContain('setView("rich")');
-    expect(workspacePreviewSource).toContain('setView("source")');
+    expect(workspacePreviewSource).toContain("onValueChange={setView}");
+    expect(workspacePreviewSource).toContain(
+      '{ value: "rich", label: props.richLabel }',
+    );
+    expect(workspacePreviewSource).toContain(
+      '{ value: "source", label: props.sourceLabel }',
+    );
     expect(workspacePreviewSource).toMatch(
       /<textarea[\s\S]{0,500}?className="markdown-reader-source"/u,
     );

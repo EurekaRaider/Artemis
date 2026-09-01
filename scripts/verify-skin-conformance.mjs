@@ -24,6 +24,8 @@ const REQUIRED_SKIN_CASES = [
   "form-states",
   "form-events-ime",
   "form-semantics",
+  "navigation-anatomy",
+  "navigation-events",
 ];
 const REQUIRED_SWITCH_CASES = [
   "same-node",
@@ -787,6 +789,117 @@ const expectedCssRules = new Map([
     { "grid-column": "2" },
   ],
   [
+    'normal|[data-artemis-component="tabs"], [data-artemis-component="segmented-control"]',
+    {
+      "box-sizing": "border-box",
+      display: "inline-flex",
+      "align-items": "center",
+      "min-inline-size": "0",
+      color: "var(--artemis-color-text-primary)",
+      "font-family": "var(--artemis-typography-body-family)",
+      "font-size": "var(--artemis-typography-label-size)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="tabs"]',
+    {
+      gap: "var(--artemis-space-3)",
+      "border-block-end":
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="tabs"] [data-part="tab"], [data-artemis-component="segmented-control"] [data-part="segment"]',
+    {
+      "box-sizing": "border-box",
+      "min-inline-size": "0",
+      color: "var(--artemis-color-text-secondary)",
+      font: "inherit",
+      cursor: "pointer",
+      transition:
+        "color var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), background var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), border-color var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="tabs"] [data-part="tab"]',
+    {
+      "min-block-size": "var(--artemis-size-control-comfortable)",
+      "padding-inline": "var(--artemis-space-1)",
+      background: "transparent",
+      border: "0",
+      "border-block-end":
+        "calc(var(--artemis-border-width-default) * 2) solid transparent",
+      "border-radius": "0",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="tabs"][data-size="compact"] [data-part="tab"]',
+    { "min-block-size": "var(--artemis-size-control-compact)" },
+  ],
+  [
+    'normal|[data-artemis-component="tabs"] [data-part="tab"]:hover:not(:disabled), [data-artemis-component="tabs"] [data-part="tab"][aria-selected="true"]',
+    { color: "var(--artemis-color-text-primary)" },
+  ],
+  [
+    'normal|[data-artemis-component="tabs"] [data-part="tab"][aria-selected="true"]',
+    {
+      "border-block-end-color": "var(--artemis-color-accent-primary)",
+      "font-weight": "calc(var(--artemis-typography-body-weight) + 200)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="segmented-control"]',
+    {
+      gap: "var(--artemis-space-1)",
+      padding: "var(--artemis-space-1)",
+      background: "var(--artemis-color-surface-sunken)",
+      border:
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      "border-radius": "var(--artemis-radius-control)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="segmented-control"] [data-part="segment"]',
+    {
+      "min-block-size": "var(--artemis-size-control-comfortable)",
+      "padding-inline": "var(--artemis-space-3)",
+      background: "transparent",
+      border: "var(--artemis-border-width-default) solid transparent",
+      "border-radius": "var(--artemis-radius-control)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="segmented-control"][data-size="compact"] [data-part="segment"]',
+    {
+      "min-block-size": "var(--artemis-size-control-compact)",
+      "padding-inline": "var(--artemis-space-2)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="segmented-control"] [data-part="segment"]:hover:not(:disabled)',
+    {
+      color: "var(--artemis-color-text-primary)",
+      background: "var(--artemis-color-interaction-hover)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="segmented-control"] [data-part="segment"][aria-pressed="true"]',
+    {
+      color: "var(--artemis-color-text-primary)",
+      background: "var(--artemis-color-interaction-selected)",
+      "border-color": "var(--artemis-color-border-strong)",
+      "font-weight": "calc(var(--artemis-typography-body-weight) + 200)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="tabs"] [data-part="tab"]:focus-visible, [data-artemis-component="segmented-control"] [data-part="segment"]:focus-visible',
+    { outline: "2px solid Highlight", "outline-offset": "2px" },
+  ],
+  [
+    'normal|[data-artemis-component="tabs"] [data-part="tab"]:disabled, [data-artemis-component="segmented-control"] [data-part="segment"]:disabled',
+    { cursor: "default", opacity: "var(--artemis-opacity-disabled)" },
+  ],
+  [
     `reduced-motion|${BUTTON}, ${ICON_BUTTON}`,
     { transition: "none", transform: "none" },
   ],
@@ -795,7 +908,7 @@ const expectedCssRules = new Map([
     { transform: "none" },
   ],
   [
-    'reduced-motion|[data-artemis-component="text-field"] [data-part="control"], [data-artemis-component="search-field"] [data-part="control"], [data-artemis-component="select"] [data-part="trigger"], [data-artemis-component="select"] [data-part="search"], [data-artemis-component="select"] [data-part="indicator"], [data-artemis-component="switch"] [data-part="track"], [data-artemis-component="switch"] [data-part="thumb"]',
+    'reduced-motion|[data-artemis-component="text-field"] [data-part="control"], [data-artemis-component="search-field"] [data-part="control"], [data-artemis-component="select"] [data-part="trigger"], [data-artemis-component="select"] [data-part="search"], [data-artemis-component="select"] [data-part="indicator"], [data-artemis-component="switch"] [data-part="track"], [data-artemis-component="switch"] [data-part="thumb"], [data-artemis-component="tabs"] [data-part="tab"], [data-artemis-component="segmented-control"] [data-part="segment"]',
     { transition: "none" },
   ],
 ]);
@@ -806,6 +919,7 @@ function verifyStructuralCss(
   componentContract,
   actionTokens,
   formTokens,
+  navigationTokens,
 ) {
   const parsed = postcss.parse(css, { from });
   const rootNodes = parsed.nodes ?? [];
@@ -928,6 +1042,7 @@ function verifyStructuralCss(
       ...componentContract.theme.mutableTokens,
       ...actionTokens,
       ...formTokens,
+      ...navigationTokens,
     ]),
   ].sort();
   if (canonical(actualTokens) !== canonical(declaredTokens)) {
@@ -948,6 +1063,9 @@ const actions = await import(
 );
 const forms = await import(
   pathToFileURL(join(root, "packages/ui/dist/forms.js")).href
+);
+const navigation = await import(
+  pathToFileURL(join(root, "packages/ui/dist/navigation.js")).href
 );
 const themeContract = await import(
   pathToFileURL(join(root, "packages/theme-contract/dist/index.js")).href
@@ -1128,6 +1246,7 @@ for (const specifier of [
   "@artemis/ui/actions",
   "@artemis/ui/conformance",
   "@artemis/ui/forms",
+  "@artemis/ui/navigation",
 ]) {
   const resolved = import.meta.resolve(specifier);
   const expectedRoot = pathToFileURL(join(root, "packages/ui/dist/")).href;
@@ -1145,6 +1264,7 @@ verifyStructuralCss(
   candidateContract,
   actions.ACTION_COMPONENT_MUTABLE_TOKENS,
   forms.FORM_COMPONENT_MUTABLE_TOKENS,
+  navigation.NAVIGATION_COMPONENT_MUTABLE_TOKENS,
 );
 
 console.log(

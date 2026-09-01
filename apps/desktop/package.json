@@ -28,6 +28,7 @@
     "verify:icon-sizing": "npm run build && node scripts/verify-icon-sizing.mjs",
     "verify:input-fields": "npm run build && node scripts/verify-input-fields.mjs",
     "verify:markdown-editor": "npm run build && node scripts/verify-markdown-editor.mjs",
+    "verify:navigation-controls": "npm run build && node scripts/verify-navigation-controls.mjs",
     "verify:mcp-editor": "npm run build && node scripts/verify-mcp-editor.mjs",
     "verify:queued-steer": "npm run build && node scripts/verify-queued-steer.mjs",
     "verify:screenshot-matrix": "npm run build && node scripts/capture-screenshot-matrix.mjs",

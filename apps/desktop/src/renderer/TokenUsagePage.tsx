@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AgentEvent } from "@artemis/protocol";
+import { Tabs } from "@artemis/ui/navigation";
 
 import {
   ALL_USAGE_MODELS,
@@ -331,26 +332,32 @@ export function TokenUsagePage({
                 ))}
               </select>
             </label>
-            <div className="token-usage-tabs" role="tablist">
-              {(["daily", "weekly", "cumulative"] as const).map((candidate) => (
-                <button
-                  aria-selected={view === candidate}
-                  key={candidate}
-                  onClick={() => {
-                    setView(candidate);
-                    setHovered(undefined);
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  {t[`${candidate}Tab`]}
-                </button>
-              ))}
-            </div>
+            <Tabs
+              className="token-usage-tabs"
+              label={t.activity}
+              onValueChange={(candidate) => {
+                setView(candidate);
+                setHovered(undefined);
+              }}
+              options={(["daily", "weekly", "cumulative"] as const).map(
+                (candidate) => ({
+                  id: `token-usage-${candidate}-tab`,
+                  label: t[`${candidate}Tab`],
+                  panelId: `token-usage-${candidate}-panel`,
+                  value: candidate,
+                }),
+              )}
+              value={view}
+            />
           </div>
         </div>
 
-        <div className="token-usage-chart-scroll">
+        <div
+          aria-labelledby={`token-usage-${view}-tab`}
+          className="token-usage-chart-scroll"
+          id={`token-usage-${view}-panel`}
+          role="tabpanel"
+        >
           <TokenUsageHeatmap
             cells={cells}
             hovered={hovered}

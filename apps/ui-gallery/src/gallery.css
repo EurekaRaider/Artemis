@@ -108,6 +108,17 @@
     gap: var(--artemis-space-4);
   }
 
+  .gallery-navigation-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: var(--artemis-space-4);
+    align-items: start;
+  }
+
+  .gallery-navigation-grid > * {
+    min-inline-size: 0;
+  }
+
   .gallery-check-grid {
     display: flex;
     flex-wrap: wrap;
