@@ -16299,6 +16299,10 @@ function createMainWindow(): BrowserWindow {
                                 control instanceof HTMLInputElement
                                   ? control.value
                                   : null,
+                              tabIndex:
+                                control instanceof HTMLElement
+                                  ? control.tabIndex
+                                  : null,
                               documentActive:
                                 document.activeElement === control,
                             }
@@ -16368,6 +16372,7 @@ function createMainWindow(): BrowserWindow {
                     };
                     return {
                       interaction: window.__formControlsInteraction ?? null,
+                      documentHasFocus: document.hasFocus(),
                       components: roots.map(describe),
                       rootTokens: {
                         surfaceBase: getComputedStyle(
@@ -16395,6 +16400,7 @@ function createMainWindow(): BrowserWindow {
               `${JSON.stringify(
                 {
                   ...result,
+                  windowFocused: window.isFocused(),
                   userInputTransport: smokeUserInputTransportEvidence ?? null,
                   zoomFactor: smokeScale,
                   startupTimings,

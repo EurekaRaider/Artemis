@@ -270,14 +270,20 @@ fresh isolated user data: 14 cases and 288 assertions cover screenshots,
 positive geometry, required public parts, resolved semantic tokens,
 focus-visible evidence, controlled Search/Checkbox updates, Select IME
 preservation and one keyboard commit, native checkbox/switch semantics, zero
-portals, empty accessibility findings, and no local-path leakage. Composer, MCP
-Editor, and Review additionally keyboard-open the real menu, retain the same
-Select root, stay inside the viewport, preserve their required alignment, and
-resolve at `z-index: 80`. The verifier has no `--no-sandbox` fallback and records
-an explicit renderer-sandbox assertion. Root Linux tests do not launch Electron;
-the existing macOS Desktop-skin CI job owns this production Electron gate. The
-Resource and MCP fixtures are disabled synthetic configurations, so they perform
-zero spawn and zero dial-out.
+portals, empty accessibility findings, and no local-path leakage. Focus evidence
+records both `BrowserWindow.isFocused()` and `document.hasFocus()`: a focused
+document must retain the target `document.activeElement` plus its visible public
+outline, while an automation session whose OS refuses foreground activation must
+report both window and document focus as false and retain a keyboard-focusable
+target. This
+keeps the CI boundary explicit instead of claiming a focus ring the host cannot
+render. Composer, MCP Editor, and Review additionally keyboard-open the real
+menu, retain the same Select root, stay inside the viewport, preserve their
+required alignment, and resolve at `z-index: 80`. The verifier has no
+`--no-sandbox` fallback and records an explicit renderer-sandbox assertion. Root
+Linux tests do not launch Electron; the existing macOS Desktop-skin CI job owns
+this production Electron gate. The Resource and MCP fixtures are disabled
+synthetic configurations, so they perform zero spawn and zero dial-out.
 
 The installed-tarball consumer verifies all five runtime exports and declarations,
 SSR output, the frozen contract, and a TextField-only bundle that excludes the

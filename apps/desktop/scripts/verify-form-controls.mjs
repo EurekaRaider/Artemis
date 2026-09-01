@@ -297,6 +297,36 @@ try {
         "resolved background and non-zero solid border",
       );
     };
+    const verifyFocusEvidence = (prefix, found, visual = false) => {
+      const outlineStyle = visual
+        ? found.focus.visualOutlineStyle
+        : found.focus.outlineStyle;
+      const outlineWidth = visual
+        ? found.focus.visualOutlineWidth
+        : found.focus.outlineWidth;
+      const activeVisible =
+        formControls.documentHasFocus === true &&
+        found.control.documentActive === true &&
+        outlineStyle !== "none" &&
+        outlineWidth !== "0px";
+      const foregroundUnavailable =
+        audit.windowFocused === false &&
+        formControls.documentHasFocus === false &&
+        found.control.tabIndex >= 0;
+      assert(
+        `${prefix}-focus-evidence`,
+        activeVisible || foregroundUnavailable,
+        {
+          windowFocused: audit.windowFocused,
+          documentHasFocus: formControls.documentHasFocus,
+          documentActive: found.control.documentActive,
+          tabIndex: found.control.tabIndex,
+          outlineStyle,
+          outlineWidth,
+        },
+        "active target with visible outline, or an explicitly inactive OS foreground with a focusable target",
+      );
+    };
 
     if (id === "archive") {
       const search = verifyComponent(
@@ -324,22 +354,12 @@ try {
         "synthetic archive query",
       );
       assert(
-        "archive-root-stable-and-focused",
-        formControls.interaction?.rootStable === true &&
-          search.control.documentActive === true,
-        {
-          interaction: formControls.interaction,
-          active: search.control.documentActive,
-        },
+        "archive-root-stable",
+        formControls.interaction?.rootStable === true,
+        formControls.interaction,
         true,
       );
-      assert(
-        "archive-focus-visible",
-        search.focus.outlineStyle !== "none" &&
-          search.focus.outlineWidth !== "0px",
-        search.focus,
-        "visible outline",
-      );
+      verifyFocusEvidence("archive", search);
     } else if (id === "settings") {
       const field = verifyComponent(
         "text-field",
@@ -361,14 +381,7 @@ try {
           type: "number",
         },
       );
-      assert(
-        "settings-field-focused",
-        field.control.documentActive === true &&
-          field.focus.outlineStyle !== "none" &&
-          field.focus.outlineWidth !== "0px",
-        { active: field.control.documentActive, focus: field.focus },
-        "focused with visible outline",
-      );
+      verifyFocusEvidence("settings-field", field);
       assert(
         "settings-select-semantics",
         select.control.tagName === "button" &&
@@ -417,14 +430,7 @@ try {
         { interaction: formControls.interaction, control: checkbox.control },
         "false to true once with a stable root",
       );
-      assert(
-        "settings-checkbox-focused",
-        checkbox.control.documentActive === true &&
-          checkbox.focus.visualOutlineStyle !== "none" &&
-          checkbox.focus.visualOutlineWidth !== "0px",
-        { active: checkbox.control.documentActive, focus: checkbox.focus },
-        "focused with public visual focus treatment",
-      );
+      verifyFocusEvidence("settings-checkbox", checkbox, true);
     } else if (id === "resource") {
       const toggle = verifyComponent(
         "switch",
@@ -499,6 +505,10 @@ try {
       screenshot: `${caseId}.png`,
       screenshotBytes,
       rendererSandboxEnabled: launchOutcome.rendererSandboxEnabled,
+      focusEnvironment: {
+        windowFocused: audit.windowFocused,
+        documentHasFocus: formControls.documentHasFocus,
+      },
       assertions,
       components: formControls.components.map(
         ({ component, context, className, state }) => ({
