@@ -33,9 +33,8 @@
 
   [data-artemis-component="conformance-probe"]
     [data-part="control"]:focus-visible {
-    outline: var(--artemis-border-width-default) solid
-      var(--artemis-color-focus-ring);
-    outline-offset: var(--artemis-space-1);
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
   }
 
   [data-artemis-component="conformance-probe"] [data-part="description"],

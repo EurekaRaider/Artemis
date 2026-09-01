@@ -81,4 +81,56 @@ describe("@artemis/ui CL0A boundary", () => {
       }).valid,
     ).toBe(false);
   });
+
+  it("directly rejects invalid v1 cross-field semantics", () => {
+    const callbackTypeMismatch = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      props: CONFORMANCE_PROBE_CONTRACT.props.map((prop) =>
+        prop.name === "onCommit" ? { ...prop, type: "string" } : prop,
+      ),
+    });
+    const wrongControlReference = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      controlBoundary: {
+        ...CONFORMANCE_PROBE_CONTRACT.controlBoundary,
+        value: "label",
+      },
+    });
+    const missingAriaAnatomy = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      parts: [CONFORMANCE_PROBE_CONTRACT.parts[0]],
+    });
+    const unsafeDisabledState = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      states: CONFORMANCE_PROBE_CONTRACT.states.map((state) =>
+        state.name === "disabled" ? { ...state, focus: "allow" } : state,
+      ),
+    });
+    const unsafeComposition = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      keyboard: CONFORMANCE_PROBE_CONTRACT.keyboard.map((entry) =>
+        entry.duringComposition ? { ...entry, outcome: "commit-once" } : entry,
+      ),
+    });
+    const wrongCallbackOrder = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      callbacks: CONFORMANCE_PROBE_CONTRACT.callbacks.map((entry) =>
+        entry.trigger === "change"
+          ? { ...entry, order: [...entry.order].reverse() }
+          : entry,
+      ),
+    });
+
+    for (const report of [
+      callbackTypeMismatch,
+      wrongControlReference,
+      missingAriaAnatomy,
+      unsafeDisabledState,
+      unsafeComposition,
+      wrongCallbackOrder,
+    ]) {
+      expect(report.valid).toBe(false);
+      expect(report.issues.length).toBeGreaterThan(0);
+    }
+  });
 });

@@ -161,7 +161,7 @@ export const CONFORMANCE_PROBE_CONTRACT = {
       "--artemis-color-text-secondary",
       "--artemis-color-status-danger",
       "--artemis-color-border-default",
-      "--artemis-color-focus-ring",
+      "--artemis-border-width-default",
       "--artemis-space-1",
       "--artemis-space-2",
       "--artemis-space-3",

@@ -56,8 +56,9 @@ The package gate validates bundled Artemis data and the synthetic fixture,
 recomputes exact hashes, enforces the five-file data allowlist, and exercises
 eight rejecting fixtures. The conformance gate validates the strict public
 `ComponentContract`, public package imports, two valid skin inputs, eight
-behavior cases per skin, six identity/state-preservation switch cases, and six
-rejecting fixtures. Gallery jsdom parameterizes the same eight real behavior
+behavior cases per skin, six identity/state-preservation switch cases, and 13
+rejecting fixtures (six contract/matrix/package plus seven structural CSS).
+Gallery jsdom parameterizes the same eight real behavior
 runners across default and stress (16 executions), including actual stress root
 attributes and its installed generated stylesheet; the JSON matrix is only the
 fail-closed case inventory, never a substitute for those assertions. Full
@@ -72,7 +73,19 @@ parts, finite `data-state` values, ARIA relationships, Enter/IME behavior,
 callback order/count, blocked busy/disabled actions, focus/RTL/no-portal
 behavior, reduced motion, mutable semantic tokens, and a non-overridable safety
 floor. The validator rejects non-plain inherited objects, unknown/missing
-fields, duplicate entries, illegal data attributes, and incompatible values.
+fields, duplicate entries, illegal data attributes, incompatible values, and
+cross-field mismatches between prop types/boundaries, control references,
+required ARIA anatomy, finite-state policies, keyboard/IME outcomes, and
+callback order/count.
+
+The Probe structural stylesheet is parsed with PostCSS and compared against an
+exact selector/property/value allowlist. Its consumed `--artemis-*` token set
+must exactly equal the contract's `mutableTokens`; raw named/rgb/hsl/transparent
+colors, undeclared tokens, skin selectors, imports/URLs, and an overridable
+focus rule all fail. Focus visibility has a fixed structural floor of
+`2px solid Highlight` with a `2px` offset, so a schema-valid skin setting the
+ordinary border width to zero and the otherwise available focus color token to
+transparent cannot remove the Probe focus indicator.
 
 ## Selector and host contract
 

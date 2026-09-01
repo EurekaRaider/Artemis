@@ -179,6 +179,50 @@ const SAFETY_FLOOR = [
   "no-action-while-busy",
   "no-action-while-disabled",
 ] as const;
+const REQUIRED_PARTS = {
+  root: "div",
+  label: "label",
+  control: "input",
+  description: "p",
+  error: "p",
+} as const;
+const FROZEN_STATES = {
+  ready: {
+    dataValue: "ready",
+    priority: 0,
+    change: "allow",
+    commit: "allow",
+    focus: "allow",
+  },
+  error: {
+    dataValue: "error",
+    priority: 1,
+    change: "allow",
+    commit: "allow",
+    focus: "allow",
+  },
+  stale: {
+    dataValue: "stale",
+    priority: 2,
+    change: "allow",
+    commit: "allow",
+    focus: "allow",
+  },
+  busy: {
+    dataValue: "busy",
+    priority: 3,
+    change: "block",
+    commit: "block",
+    focus: "allow",
+  },
+  disabled: {
+    dataValue: "disabled",
+    priority: 4,
+    change: "block",
+    commit: "block",
+    focus: "block",
+  },
+} as const;
 const IDENTIFIER_PATTERN = /^[a-z][A-Za-z0-9]*$/u;
 const COMPONENT_NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u;
 const TOKEN_PATTERN = /^--artemis-[a-z0-9]+(?:-[a-z0-9]+)*$/u;
@@ -373,6 +417,7 @@ export function validateComponentContract(
   const props = namedRecords(contract.props, PROP_FIELDS, "$.props", issues);
   const propNames = new Set<string>();
   const propBoundaries = new Map<string, unknown>();
+  const propTypes = new Map<string, unknown>();
   const callbackProps = new Set<string>();
   for (const [index, prop] of props.entries()) {
     const path = `$.props[${index}]`;
@@ -386,10 +431,31 @@ export function validateComponentContract(
     } else {
       propNames.add(prop.name);
       propBoundaries.set(prop.name, prop.boundary);
+      propTypes.set(prop.name, prop.type);
       if (prop.boundary === "callback") callbackProps.add(prop.name);
     }
     enumValue(prop.type, PROP_TYPES, `${path}.type`, issues);
     enumValue(prop.boundary, PROP_BOUNDARIES, `${path}.boundary`, issues);
+    if ((prop.type === "callback") !== (prop.boundary === "callback")) {
+      addIssue(
+        issues,
+        "invalid_value",
+        path,
+        "Callback type and callback boundary must be declared together",
+      );
+    }
+    if (
+      (prop.boundary === "controlled" ||
+        prop.boundary === "uncontrolled-default") &&
+      prop.type !== "string"
+    ) {
+      addIssue(
+        issues,
+        "invalid_value",
+        path,
+        "Controlled and uncontrolled-default props must be strings",
+      );
+    }
     if (typeof prop.required !== "boolean") {
       addIssue(
         issues,
@@ -412,6 +478,11 @@ export function validateComponentContract(
       defaultValue: "uncontrolled-default",
       changeCallback: "callback",
     } as const;
+    const expectedTypes = {
+      value: "string",
+      defaultValue: "string",
+      changeCallback: "callback",
+    } as const;
     for (const key of ["value", "defaultValue", "changeCallback"] as const) {
       if (typeof control[key] !== "string" || !propNames.has(control[key])) {
         addIssue(
@@ -427,6 +498,13 @@ export function validateComponentContract(
           `$.controlBoundary.${key}`,
           `Referenced prop must use the ${expectedBoundaries[key]} boundary`,
         );
+      } else if (propTypes.get(control[key]) !== expectedTypes[key]) {
+        addIssue(
+          issues,
+          "invalid_value",
+          `$.controlBoundary.${key}`,
+          `Referenced prop must use the ${expectedTypes[key]} type`,
+        );
       }
     }
     if (control.fixedAtMount !== true || control.mutuallyExclusive !== true) {
@@ -440,7 +518,7 @@ export function validateComponentContract(
   }
 
   const parts = namedRecords(contract.parts, PART_FIELDS, "$.parts", issues);
-  const partNames = new Set<string>();
+  const partElements = new Map<string, unknown>();
   for (const [index, part] of parts.entries()) {
     const path = `$.parts[${index}]`;
     if (
@@ -453,11 +531,25 @@ export function validateComponentContract(
         `${path}.name`,
         "Expected a part identifier",
       );
-    } else partNames.add(part.name);
+    } else partElements.set(part.name, part.element);
     enumValue(part.element, PART_ELEMENTS, `${path}.element`, issues);
   }
-  if (!partNames.has("root")) {
-    addIssue(issues, "missing_field", "$.parts", "A root part is required");
+  for (const [name, element] of Object.entries(REQUIRED_PARTS)) {
+    if (!partElements.has(name)) {
+      addIssue(
+        issues,
+        "missing_field",
+        "$.parts",
+        `Required ARIA anatomy part is missing: ${name}`,
+      );
+    } else if (partElements.get(name) !== element) {
+      addIssue(
+        issues,
+        "invalid_value",
+        `$.parts.${name}`,
+        `ARIA anatomy part ${name} must use ${element}`,
+      );
+    }
   }
 
   const data = exactRecord(
@@ -491,6 +583,7 @@ export function validateComponentContract(
     issues,
   );
   const stateNames = new Set<string>();
+  const statesByName = new Map<string, Record<string, unknown>>();
   const stateValues = new Set<string>();
   const priorities = new Set<number>();
   for (const [index, state] of states.entries()) {
@@ -505,7 +598,10 @@ export function validateComponentContract(
         `${path}.name`,
         "Expected a state identifier",
       );
-    } else stateNames.add(state.name);
+    } else {
+      stateNames.add(state.name);
+      statesByName.set(state.name, state);
+    }
     if (
       typeof state.dataValue !== "string" ||
       !COMPONENT_NAME_PATTERN.test(state.dataValue)
@@ -546,6 +642,36 @@ export function validateComponentContract(
   if (!stateNames.has("ready")) {
     addIssue(issues, "missing_field", "$.states", "A ready state is required");
   }
+  if (states.length !== Object.keys(FROZEN_STATES).length) {
+    addIssue(
+      issues,
+      "invalid_value",
+      "$.states",
+      "The v1 finite state set must contain exactly five states",
+    );
+  }
+  for (const [name, expected] of Object.entries(FROZEN_STATES)) {
+    const state = statesByName.get(name);
+    if (state === undefined) {
+      addIssue(
+        issues,
+        "missing_field",
+        "$.states",
+        `Frozen state is missing: ${name}`,
+      );
+      continue;
+    }
+    for (const [field, value] of Object.entries(expected)) {
+      if (state[field] !== value) {
+        addIssue(
+          issues,
+          "invalid_value",
+          `$.states.${name}.${field}`,
+          `Frozen state ${name} requires ${field}=${String(value)}`,
+        );
+      }
+    }
+  }
 
   const aria = exactRecord(contract.aria, ARIA_FIELDS, "$.aria", issues);
   const expectedAria = {
@@ -574,6 +700,7 @@ export function validateComponentContract(
     addIssue(issues, "invalid_type", "$.keyboard", "Expected keyboard cases");
   } else {
     const cases = new Set<string>();
+    const outcomes = new Map<string, unknown>();
     for (const [index, entry] of contract.keyboard.entries()) {
       const path = `$.keyboard[${index}]`;
       const item = exactRecord(entry, KEYBOARD_FIELDS, path, issues);
@@ -611,6 +738,7 @@ export function validateComponentContract(
           `Duplicate keyboard case: ${key}`,
         );
       cases.add(key);
+      outcomes.set(key, item.outcome);
     }
     for (const requiredCase of ["Enter/false", "Enter/true"]) {
       if (!cases.has(requiredCase)) {
@@ -622,12 +750,29 @@ export function validateComponentContract(
         );
       }
     }
+    if (outcomes.get("Enter/false") !== "commit-once") {
+      addIssue(
+        issues,
+        "invalid_value",
+        "$.keyboard",
+        "Enter outside composition must commit exactly once",
+      );
+    }
+    if (outcomes.get("Enter/true") !== "no-commit") {
+      addIssue(
+        issues,
+        "invalid_value",
+        "$.keyboard",
+        "Enter during composition must not commit",
+      );
+    }
   }
 
   if (!Array.isArray(contract.callbacks) || contract.callbacks.length === 0) {
     addIssue(issues, "invalid_type", "$.callbacks", "Expected callback cases");
   } else {
     const triggers = new Set<string>();
+    const callbackOrders = new Map<string, readonly string[]>();
     for (const [index, entry] of contract.callbacks.entries()) {
       const path = `$.callbacks[${index}]`;
       const item = exactRecord(entry, CALLBACK_FIELDS, path, issues);
@@ -648,6 +793,9 @@ export function validateComponentContract(
         issues,
         IDENTIFIER_PATTERN,
       );
+      if (typeof item.trigger === "string") {
+        callbackOrders.set(item.trigger, order);
+      }
       for (const callback of order) {
         if (!callbackProps.has(callback)) {
           addIssue(
@@ -674,6 +822,29 @@ export function validateComponentContract(
           "missing_field",
           "$.callbacks",
           `Missing callback trigger: ${requiredTrigger}`,
+        );
+      }
+    }
+    const expectedChangeOrder =
+      control !== undefined && typeof control.changeCallback === "string"
+        ? [control.changeCallback, "onEvent"]
+        : [];
+    const frozenOrders = new Map<string, readonly string[]>([
+      ["change", expectedChangeOrder],
+      ["commit", ["onCommit", "onEvent"]],
+    ]);
+    for (const [trigger, expectedOrder] of frozenOrders) {
+      const actualOrder = callbackOrders.get(trigger);
+      if (
+        actualOrder === undefined ||
+        actualOrder.length !== expectedOrder.length ||
+        actualOrder.some((entry, index) => entry !== expectedOrder[index])
+      ) {
+        addIssue(
+          issues,
+          "invalid_value",
+          `$.callbacks.${trigger}.order`,
+          `Frozen ${trigger} callback order is ${expectedOrder.join(" then ")}`,
         );
       }
     }
