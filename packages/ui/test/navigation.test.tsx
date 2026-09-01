@@ -345,6 +345,46 @@ describe("Navigation validation boundaries", () => {
       renderToString(
         <Tabs
           label="Views"
+          options={[
+            {
+              id: "shared-relation",
+              label: "One",
+              panelId: "shared-relation",
+              value: "one",
+            },
+          ]}
+          value="one"
+          onValueChange={() => undefined}
+        />,
+      ),
+    ).toThrowError(NAVIGATION_TAB_RELATION_ERROR);
+    expect(() =>
+      renderToString(
+        <Tabs
+          label="Views"
+          options={[
+            {
+              id: "one-tab",
+              label: "One",
+              panelId: "shared-cross-relation",
+              value: "one",
+            },
+            {
+              id: "shared-cross-relation",
+              label: "Two",
+              panelId: "two-panel",
+              value: "two",
+            },
+          ]}
+          value="one"
+          onValueChange={() => undefined}
+        />,
+      ),
+    ).toThrowError(NAVIGATION_TAB_RELATION_ERROR);
+    expect(() =>
+      renderToString(
+        <Tabs
+          label="Views"
           options={TAB_OPTIONS}
           value="blocked"
           onValueChange={() => undefined}

@@ -22,6 +22,8 @@ import { userInitials } from "./user-profile.js";
 import { StatCard } from "./StatCard.js";
 import { TokenUsageHeatmap } from "./TokenUsageHeatmap.js";
 
+const TOKEN_USAGE_VIEWS = ["daily", "weekly", "cumulative"] as const;
+
 function dateKey(value: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -339,35 +341,39 @@ export function TokenUsagePage({
                 setView(candidate);
                 setHovered(undefined);
               }}
-              options={(["daily", "weekly", "cumulative"] as const).map(
-                (candidate) => ({
-                  id: `token-usage-${candidate}-tab`,
-                  label: t[`${candidate}Tab`],
-                  panelId: `token-usage-${candidate}-panel`,
-                  value: candidate,
-                }),
-              )}
+              options={TOKEN_USAGE_VIEWS.map((candidate) => ({
+                id: `token-usage-${candidate}-tab`,
+                label: t[`${candidate}Tab`],
+                panelId: `token-usage-${candidate}-panel`,
+                value: candidate,
+              }))}
               value={view}
             />
           </div>
         </div>
 
-        <div
-          aria-labelledby={`token-usage-${view}-tab`}
-          className="token-usage-chart-scroll"
-          id={`token-usage-${view}-panel`}
-          role="tabpanel"
-        >
-          <TokenUsageHeatmap
-            cells={cells}
-            hovered={hovered}
-            label={t.activity}
-            locale={locale}
-            maximum={maximum}
-            onHoveredChange={setHovered}
-            view={view}
-          />
-        </div>
+        {TOKEN_USAGE_VIEWS.map((candidate) => (
+          <div
+            aria-labelledby={`token-usage-${candidate}-tab`}
+            className="token-usage-chart-scroll"
+            hidden={candidate !== view}
+            id={`token-usage-${candidate}-panel`}
+            key={candidate}
+            role="tabpanel"
+          >
+            {candidate === view ? (
+              <TokenUsageHeatmap
+                cells={cells}
+                hovered={hovered}
+                label={t.activity}
+                locale={locale}
+                maximum={maximum}
+                onHoveredChange={setHovered}
+                view={view}
+              />
+            ) : null}
+          </div>
+        ))}
         {loadError ? (
           <p className="token-usage-empty error" role="alert">
             {t.error}

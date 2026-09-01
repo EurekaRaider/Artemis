@@ -82,6 +82,49 @@ const ACTION_TONES = [
   "warning",
   "danger",
 ] as const;
+const ACTIVITY_TAB_OPTIONS = [
+  {
+    id: "gallery-overview-tab",
+    label: "Overview",
+    panelId: "gallery-overview-panel",
+    value: "overview",
+  },
+  {
+    disabled: true,
+    id: "gallery-export-tab",
+    label: "Unavailable export",
+    panelId: "gallery-export-panel",
+    value: "export",
+  },
+  {
+    id: "gallery-details-tab",
+    label: "A very long localized activity comparison",
+    panelId: "gallery-details-panel",
+    value: "details",
+  },
+] as const;
+const RTL_TAB_OPTIONS = [
+  {
+    id: "gallery-rtl-first-tab",
+    label: "First",
+    panelId: "gallery-rtl-first-panel",
+    value: "first",
+  },
+  {
+    id: "gallery-rtl-second-tab",
+    label: "Second",
+    panelId: "gallery-rtl-second-panel",
+    value: "second",
+  },
+] as const;
+const DISABLED_TAB_OPTIONS = [
+  {
+    id: "gallery-disabled-tab",
+    label: "Selected but disabled",
+    panelId: "gallery-disabled-panel",
+    value: "fixed",
+  },
+] as const;
 
 function blankTokenSnapshot(): GalleryTokenSnapshot {
   return Object.fromEntries(
@@ -195,6 +238,7 @@ export function GalleryApp() {
   const [tabValue, setTabValue] = useState<"overview" | "export" | "details">(
     "overview",
   );
+  const [rtlTabValue, setRtlTabValue] = useState<"first" | "second">("second");
   const [segmentValue, setSegmentValue] = useState<"rich" | "source">("rich");
   const appendEvent = (entry: string) =>
     setEventOrder((current) => [...current, entry]);
@@ -278,74 +322,61 @@ export function GalleryApp() {
             <Tabs
               label="Activity views"
               onValueChange={setTabValue}
-              options={[
-                {
-                  id: "gallery-overview-tab",
-                  label: "Overview",
-                  panelId: "gallery-overview-panel",
-                  value: "overview",
-                },
-                {
-                  disabled: true,
-                  id: "gallery-export-tab",
-                  label: "Unavailable export",
-                  panelId: "gallery-export-panel",
-                  value: "export",
-                },
-                {
-                  id: "gallery-details-tab",
-                  label: "A very long localized activity comparison",
-                  panelId: "gallery-details-panel",
-                  value: "details",
-                },
-              ]}
+              options={ACTIVITY_TAB_OPTIONS}
               value={tabValue}
             />
-            <p
-              aria-labelledby={`gallery-${tabValue}-tab`}
-              id={`gallery-${tabValue}-panel`}
-              role="tabpanel"
-            >
-              {tabValue === "overview"
-                ? "Overview panel remains selected across Gallery axes."
-                : "Detailed comparison panel remains selected across Gallery axes."}
-            </p>
+            {ACTIVITY_TAB_OPTIONS.map((option) => (
+              <p
+                aria-labelledby={option.id}
+                hidden={option.value !== tabValue}
+                id={option.panelId}
+                key={option.value}
+                role="tabpanel"
+              >
+                {option.value === "overview"
+                  ? "Overview panel remains selected across Gallery axes."
+                  : option.value === "details"
+                    ? "Detailed comparison panel remains selected across Gallery axes."
+                    : "Export remains unavailable."}
+              </p>
+            ))}
           </div>
           <div dir="rtl">
             <Tabs
-              defaultValue="second"
               label="RTL compact tabs"
-              options={[
-                {
-                  id: "gallery-rtl-first-tab",
-                  label: "First",
-                  panelId: "gallery-rtl-first-panel",
-                  value: "first",
-                },
-                {
-                  id: "gallery-rtl-second-tab",
-                  label: "Second",
-                  panelId: "gallery-rtl-second-panel",
-                  value: "second",
-                },
-              ]}
+              onValueChange={setRtlTabValue}
+              options={RTL_TAB_OPTIONS}
               size="compact"
+              value={rtlTabValue}
             />
+            {RTL_TAB_OPTIONS.map((option) => (
+              <p
+                aria-labelledby={option.id}
+                hidden={option.value !== rtlTabValue}
+                id={option.panelId}
+                key={option.value}
+                role="tabpanel"
+              >
+                {option.label} RTL panel.
+              </p>
+            ))}
           </div>
-          <Tabs
-            disabled
-            label="Disabled tabs"
-            options={[
-              {
-                id: "gallery-disabled-tab",
-                label: "Selected but disabled",
-                panelId: "gallery-disabled-panel",
-                value: "fixed",
-              },
-            ]}
-            value="fixed"
-            onValueChange={() => undefined}
-          />
+          <div>
+            <Tabs
+              disabled
+              label="Disabled tabs"
+              options={DISABLED_TAB_OPTIONS}
+              value="fixed"
+              onValueChange={() => undefined}
+            />
+            <p
+              aria-labelledby="gallery-disabled-tab"
+              id="gallery-disabled-panel"
+              role="tabpanel"
+            >
+              Disabled selection panel.
+            </p>
+          </div>
           <SegmentedControl
             label="Markdown view"
             onValueChange={setSegmentValue}

@@ -16,6 +16,36 @@ import { fileURLToPath } from "node:url";
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appDirectory = resolve(scriptDirectory, "..");
 const repositoryRoot = resolve(appDirectory, "..", "..");
+const runGit = (arguments_) => {
+  const result = spawnSync("git", arguments_, {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  });
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      `Navigation controls verifier could not run git ${arguments_.join(" ")}: ${result.error?.message ?? result.stderr}`,
+    );
+  }
+  return result.stdout.trim();
+};
+const candidateHead = runGit(["rev-parse", "HEAD"]);
+if (!/^[0-9a-f]{40}$/u.test(candidateHead)) {
+  throw new Error(
+    `Invalid navigation controls candidate HEAD: ${candidateHead}`,
+  );
+}
+const expectedHead = process.env.ARTEMIS_EXPECTED_HEAD?.trim() || candidateHead;
+if (!/^[0-9a-f]{40}$/u.test(expectedHead) || expectedHead !== candidateHead) {
+  throw new Error(
+    `Navigation controls expected HEAD ${expectedHead} does not match candidate ${candidateHead}.`,
+  );
+}
+const initialStatus = runGit(["status", "--porcelain"]);
+if (initialStatus !== "") {
+  throw new Error(
+    `Navigation controls verification requires a clean exact-head worktree:\n${initialStatus}`,
+  );
+}
 const outputDirectory = resolve(
   process.argv.slice(2).find((argument) => !argument.startsWith("--")) ??
     join(repositoryRoot, "artifacts", "navigation-controls"),
@@ -172,7 +202,7 @@ try {
       false,
     );
     assert(
-      "renderer-sandbox-enabled",
+      "renderer-sandbox-launch-flag",
       !electronArguments.includes("--no-sandbox"),
       electronArguments,
       "no --no-sandbox",
@@ -200,6 +230,25 @@ try {
       "audit-issues-empty",
       Array.isArray(audit.issues) && audit.issues.length === 0,
       audit.issues,
+      [],
+    );
+    assert(
+      "renderer-runtime-security",
+      audit.runtimeSecurity?.sandbox === true &&
+        audit.runtimeSecurity?.contextIsolation === true &&
+        audit.runtimeSecurity?.nodeIntegration === false,
+      audit.runtimeSecurity ?? null,
+      {
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    );
+    assert(
+      "renderer-console-clean",
+      Array.isArray(audit.rendererConsoleEntries) &&
+        audit.rendererConsoleEntries.length === 0,
+      audit.rendererConsoleEntries ?? null,
       [],
     );
     const serializedAudit = JSON.stringify(audit);
@@ -345,10 +394,14 @@ try {
           (button) =>
             button.role === "tab" &&
             Boolean(button.id) &&
-            Boolean(button.ariaControls),
+            Boolean(button.ariaControls) &&
+            button.controlledPanel?.id === button.ariaControls &&
+            button.controlledPanel?.role === "tabpanel" &&
+            button.controlledPanel?.ariaLabelledBy === button.id &&
+            button.controlledPanel?.hidden === (button.ariaSelected !== "true"),
         ),
         found.buttons,
-        "tab role with unique id and aria-controls",
+        "tab role with stable bidirectional panel relation and exact visibility",
       );
       assert(
         "roving-tabindex",
@@ -418,9 +471,10 @@ try {
       view,
       theme,
       scenario,
+      candidateHead,
       screenshot: `${caseId}.png`,
       screenshotBytes,
-      rendererSandboxEnabled: true,
+      rendererSandboxEnabled: audit.runtimeSecurity.sandbox,
       assertions,
       component: {
         component: found.component,
@@ -438,10 +492,20 @@ try {
     (sum, result) => sum + result.assertions.length,
     0,
   );
+  const completedHead = runGit(["rev-parse", "HEAD"]);
+  const completedStatus = runGit(["status", "--porcelain"]);
+  if (completedHead !== candidateHead || completedStatus !== "") {
+    throw new Error(
+      `Navigation controls source changed during verification: start=${candidateHead} end=${completedHead} status=${JSON.stringify(completedStatus)}.`,
+    );
+  }
   const report = {
     format: "artemis-navigation-controls-smoke",
     version: 1,
     generatedAt: new Date().toISOString(),
+    candidateHead,
+    completedHead,
+    expectedHead,
     locale,
     windowWidth,
     fixtures: {

@@ -318,21 +318,21 @@ export interface TabOption<
 function requireValidTabRelations<Value extends string>(
   options: readonly TabOption<Value>[],
 ): void {
-  const tabIds = new Set<string>();
-  const panelIds = new Set<string>();
+  const relationIds = new Set<string>();
   for (const option of options) {
     if (
       typeof option.id !== "string" ||
       !/^\S+$/u.test(option.id) ||
       typeof option.panelId !== "string" ||
       !/^\S+$/u.test(option.panelId) ||
-      tabIds.has(option.id) ||
-      panelIds.has(option.panelId)
+      option.id === option.panelId ||
+      relationIds.has(option.id) ||
+      relationIds.has(option.panelId)
     ) {
       throw new Error(NAVIGATION_TAB_RELATION_ERROR);
     }
-    tabIds.add(option.id);
-    panelIds.add(option.panelId);
+    relationIds.add(option.id);
+    relationIds.add(option.panelId);
   }
 }
 

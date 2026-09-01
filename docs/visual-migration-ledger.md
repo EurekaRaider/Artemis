@@ -301,7 +301,8 @@ CL2C adds the public `@artemis/ui/navigation` subpath with `Tabs` and
 `SegmentedControl`. Its frozen, fail-closed contract defines exact anatomy,
 compact/comfortable sizes, required perceptible group and option labels,
 unique values, explicit Tabs `id`/`panelId` relations, disabled-option rules,
-and controlled/uncontrolled boundaries that reject dual props or mode drift.
+one disjoint ID namespace per Tabs instance, and controlled/uncontrolled
+boundaries that reject dual props or mode drift.
 Tabs use the tablist/tab pattern with one selected tab, roving tab stop,
 automatic activation, Arrow/Home/End movement, disabled-item skip and wrap,
 RTL-aware horizontal arrows, and IME protection. SegmentedControl deliberately
@@ -316,27 +317,35 @@ roots and parts, selected state, tab stop, focus, ARIA relations, direction,
 zoom, and motion. The installed-tarball consumer checks runtime exports,
 declarations, SSR output, the frozen contract, and a Tabs-only bundle that
 excludes the SegmentedControl implementation marker. Exact structural CSS and
-mutable-token allowlists remain fail-closed.
+mutable-token allowlists remain fail-closed. The 64-vertex test retains every
+assertion with a 40-second cross-platform budget; its Windows runtime crossed
+the former 20-second default after CL2C added stable relationship checks.
 
 Desktop consumes the public Tabs in Token Usage and the public compact
 SegmentedControl in both Workspace Editor and Markdown Reader rich/source
 switches. The former private anatomy and structural CSS are removed; Desktop
 retains only surrounding page layout. Token Usage adds explicit tab/panel IDs
-and labelled `tabpanel` ownership without changing its daily, weekly, or
-cumulative data behavior.
+and keeps all three labelled `tabpanel` nodes stable, with only the selected
+panel exposed, without changing its daily, weekly, or cumulative data behavior.
+Gallery does the same for controlled, RTL, and disabled examples and verifies
+both directions of every `aria-controls`/`aria-labelledby` relationship.
 
 The production Electron verifier uses six fresh, isolated light/dark cases
-across those three real consumers. Its 162 assertions cover screenshots,
+across those three real consumers. Its 174 assertions cover screenshots,
 strict renderer sandboxing, exact public parts and roles, selected-state and
 panel relations, fixed focus-visible evidence, semantic computed styles,
 one callback per activation, node stability, and zero accessibility findings.
 Keyboard interaction is sent through the DevTools protocol: Tab plus
 ArrowRight selects the next Token Usage tab, while Tab plus Space selects each
 real rich/source segment. The fixtures use only synthetic local data, perform
-no provider request or dial-out, and expose no local paths. The in-app Browser
-also exercised Gallery tab arrows, state preservation, dark/stress styling,
-and an empty warning/error console; native Space activation is established by
-the production Electron matrix rather than the Browser automation wrapper.
+no provider request or dial-out, and expose no local paths. The report records
+and rechecks its exact candidate/completed Git SHA, requires a clean worktree,
+asserts the sandboxed preload and context-isolation state plus the absence of
+main-world Node globals, and requires an empty renderer warning/error capture. The in-app
+Browser also exercised Gallery tab arrows, state preservation, dark/stress
+styling, and an empty warning/error console; native Space activation is
+established by the production Electron matrix rather than the Browser
+automation wrapper.
 
 ## Component and surface sequence
 
@@ -351,7 +360,7 @@ the production Electron matrix rather than the Browser automation wrapper.
 | Default/stress/fallback conformance                                      | governance         | Gallery + validators      | CI                                | v17 A/B/C stress input                           | CL1C      | 64-vertex Gallery + exact-head Desktop matrix               | Merged at `38e40ae`                     |
 | Action and icon controls                                                 | component          | `@artemis/ui`             | Gallery + GoalBar                 | buttons, icon buttons, badge, status, icon sizes | CL2A      | 105-case sandboxed Goal parity Electron matrix              | Merged at `f0834dd`                     |
 | Field and selection controls                                             | component          | `@artemis/ui`             | Gallery + real Desktop            | field, search, select, checkbox, switch          | CL2B      | 14-case/288-assertion strict-sandbox Electron matrix        | Merged at `6fbbe14`                     |
-| Tabs and segmented controls                                              | component          | `@artemis/ui`             | Gallery + three Desktop consumers | tabs and segmented controls                      | CL2C      | 6-case/162-assertion strict-sandbox Electron matrix         | Candidate                               |
+| Tabs and segmented controls                                              | component          | `@artemis/ui`             | Gallery + three Desktop consumers | tabs and segmented controls                      | CL2C      | 6-case/174-assertion strict-sandbox Electron matrix         | Candidate                               |
 | Feedback, overlays, layout primitives                                    | component          | `@artemis/ui`             | Desktop consumers later           | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | Gallery cases first                                         | Pending                                 |
 | Artemis-specific presentational patterns                                 | component          | `@artemis/ui`             | Desktop adapter layer             | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                         | Pending                                 |
 | Shell, activity bar, sidebar, navigation                                 | surface            | Desktop                   | users                             | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom matrix                  | Pending                                 |

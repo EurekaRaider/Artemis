@@ -10,7 +10,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Component, type ReactNode } from "react";
+import { Component, useState, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { artemisThemeCss, artemisThemeManifest } from "@artemis/theme-artemis";
@@ -769,6 +769,21 @@ const caseRunners = {
           ]}
           value="one"
         />
+        <div
+          aria-labelledby="matrix-one-tab"
+          id="matrix-one-panel"
+          role="tabpanel"
+        >
+          One panel
+        </div>
+        <div
+          aria-labelledby="matrix-two-tab"
+          hidden
+          id="matrix-two-panel"
+          role="tabpanel"
+        >
+          Two panel
+        </div>
         <SegmentedControl
           label="Matrix segmented"
           onValueChange={() => undefined}
@@ -805,38 +820,56 @@ const caseRunners = {
     const user = userEvent.setup();
     const onTab = vi.fn();
     const onSegment = vi.fn();
-    render(
-      <div dir="rtl">
-        <Tabs
-          defaultValue="one"
-          label="Matrix RTL tabs"
-          onValueChange={onTab}
-          options={[
-            {
-              id: "matrix-rtl-one-tab",
-              label: "One",
-              panelId: "matrix-rtl-one-panel",
-              value: "one",
-            },
-            {
-              id: "matrix-rtl-two-tab",
-              label: "Two",
-              panelId: "matrix-rtl-two-panel",
-              value: "two",
-            },
-          ]}
-        />
-        <SegmentedControl
-          defaultValue="rich"
-          label="Matrix mode"
-          onValueChange={onSegment}
-          options={[
-            { label: "Rich", value: "rich" },
-            { label: "Source", value: "source" },
-          ]}
-        />
-      </div>,
-    );
+    function MatrixNavigationExample() {
+      const [tab, setTab] = useState<"one" | "two">("one");
+      return (
+        <div dir="rtl">
+          <Tabs
+            label="Matrix RTL tabs"
+            onValueChange={(value) => {
+              onTab(value);
+              setTab(value);
+            }}
+            options={[
+              {
+                id: "matrix-rtl-one-tab",
+                label: "One",
+                panelId: "matrix-rtl-one-panel",
+                value: "one",
+              },
+              {
+                id: "matrix-rtl-two-tab",
+                label: "Two",
+                panelId: "matrix-rtl-two-panel",
+                value: "two",
+              },
+            ]}
+            value={tab}
+          />
+          {(["one", "two"] as const).map((value) => (
+            <div
+              aria-labelledby={`matrix-rtl-${value}-tab`}
+              hidden={tab !== value}
+              id={`matrix-rtl-${value}-panel`}
+              key={value}
+              role="tabpanel"
+            >
+              {value} panel
+            </div>
+          ))}
+          <SegmentedControl
+            defaultValue="rich"
+            label="Matrix mode"
+            onValueChange={onSegment}
+            options={[
+              { label: "Rich", value: "rich" },
+              { label: "Source", value: "source" },
+            ]}
+          />
+        </div>
+      );
+    }
+    render(<MatrixNavigationExample />);
     const one = screen.getByRole("tab", { name: "One" });
     one.focus();
     fireEvent.keyDown(one, { key: "ArrowLeft", isComposing: true });
@@ -847,6 +880,9 @@ const caseRunners = {
     expect(document.activeElement).toBe(
       screen.getByRole("tab", { name: "Two" }),
     );
+    expect(
+      screen.getByRole("tabpanel", { name: "Two" }).getAttribute("hidden"),
+    ).toBeNull();
     const source = screen.getByRole("button", { name: "Source" });
     source.focus();
     await user.keyboard(" ");
@@ -859,6 +895,33 @@ const conformanceCases = conformanceMatrix.skins.default as ConformanceCase[];
 const skinCaseMatrix = (["default", "stress"] as const).flatMap((skin) =>
   conformanceCases.map((caseName) => ({ skin, caseName })),
 );
+
+function expectCompleteTabRelations(root: ParentNode): void {
+  const tablists = [
+    ...root.querySelectorAll<HTMLElement>(
+      '[data-artemis-component="tabs"][role="tablist"]',
+    ),
+  ];
+  expect(tablists.length).toBeGreaterThan(0);
+  for (const tablist of tablists) {
+    const tabs = [
+      ...tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+    ];
+    for (const tab of tabs) {
+      const panelId = tab.getAttribute("aria-controls");
+      expect(panelId).toBeTruthy();
+      const panel = panelId ? document.getElementById(panelId) : null;
+      expect(panel?.getAttribute("role")).toBe("tabpanel");
+      expect(panel?.getAttribute("aria-labelledby")).toBe(tab.id);
+      expect(
+        document.getElementById(panel?.getAttribute("aria-labelledby") ?? ""),
+      ).toBe(tab);
+      expect((panel as HTMLElement | null)?.hidden).toBe(
+        tab.getAttribute("aria-selected") !== "true",
+      );
+    }
+  }
+}
 
 const galleryVertices = (
   conformanceMatrix.runtimeAxes.skins as GallerySkin[]
@@ -1387,6 +1450,7 @@ describe("default and synthetic stress skin conformance", () => {
     expect(navigationSnapshots).toHaveLength(6);
     expect(detailsTab.getAttribute("aria-selected")).toBe("true");
     expect(sourceSegment.getAttribute("aria-pressed")).toBe("true");
+    expectCompleteTabRelations(container);
     for (const { environment, mode } of [
       ...runtimeVertices,
       runtimeVertices[0]!,
@@ -1467,6 +1531,7 @@ describe("default and synthetic stress skin conformance", () => {
       }
       expect(detailsTab.getAttribute("aria-selected")).toBe("true");
       expect(sourceSegment.getAttribute("aria-pressed")).toBe("true");
+      expectCompleteTabRelations(container);
       expect(
         screen.getByRole("tabpanel", {
           name: "A very long localized activity comparison",
@@ -1512,7 +1577,7 @@ describe("default and synthetic stress skin conformance", () => {
     expect(
       document.head.querySelector("style[data-gallery-stress-skin]"),
     ).not.toBeNull();
-  }, 20_000);
+  }, 40_000);
 
   it("binds every declared matrix case to a real behavior runner", () => {
     expect(conformanceMatrix.skins.stress).toEqual(

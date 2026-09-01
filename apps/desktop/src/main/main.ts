@@ -13312,6 +13312,10 @@ function createMainWindow(): BrowserWindow {
   const smokeScale = [1, 1.25, 1.5].includes(requestedScale)
     ? requestedScale
     : 1;
+  let smokePreloadSecurity: {
+    contextIsolated: boolean;
+    sandboxed: boolean;
+  } | null = null;
   const window = new BrowserWindow({
     width: smokeWidth,
     height: 920,
@@ -13331,6 +13335,22 @@ function createMainWindow(): BrowserWindow {
       webviewTag: true,
     },
   });
+  const smokeRendererConsoleEntries: Array<{
+    level: "warning" | "error";
+    message: string;
+    lineNumber: number;
+  }> = [];
+  if (smokeMode) {
+    window.webContents.on("console-message", (details) => {
+      if (details.level === "warning" || details.level === "error") {
+        smokeRendererConsoleEntries.push({
+          level: details.level,
+          message: details.message,
+          lineNumber: details.lineNumber,
+        });
+      }
+    });
+  }
   if (smokeMode) {
     window.webContents.setZoomFactor(smokeScale);
   }
@@ -13441,8 +13461,23 @@ function createMainWindow(): BrowserWindow {
     void window.loadFile(productionEntry);
   }
 
-  ipcMain.once(IPC.rendererReady, (event) => {
+  ipcMain.once(IPC.rendererReady, (event, runtimeSecurity: unknown) => {
     if (event.sender.id === window.webContents.id) {
+      if (
+        smokeMode &&
+        typeof runtimeSecurity === "object" &&
+        runtimeSecurity !== null &&
+        typeof (runtimeSecurity as { contextIsolated?: unknown })
+          .contextIsolated === "boolean" &&
+        typeof (runtimeSecurity as { sandboxed?: unknown }).sandboxed ===
+          "boolean"
+      ) {
+        smokePreloadSecurity = {
+          contextIsolated: (runtimeSecurity as { contextIsolated: boolean })
+            .contextIsolated,
+          sandboxed: (runtimeSecurity as { sandboxed: boolean }).sandboxed,
+        };
+      }
       markStartupStage("renderer-ready");
       if (!smokeMode) {
         for (const thread of store?.listThreads() ?? []) {
@@ -16462,6 +16497,11 @@ function createMainWindow(): BrowserWindow {
                         (button) => {
                           const bounds = button.getBoundingClientRect();
                           const style = getComputedStyle(button);
+                          const controlledPanelId =
+                            button.getAttribute('aria-controls');
+                          const controlledPanel = controlledPanelId
+                            ? document.getElementById(controlledPanelId)
+                            : null;
                           return {
                             id: button.id,
                             label: button.textContent?.trim() ?? '',
@@ -16474,6 +16514,18 @@ function createMainWindow(): BrowserWindow {
                             disabled: button.disabled,
                             tabIndex: button.tabIndex,
                             documentActive: document.activeElement === button,
+                            controlledPanel:
+                              controlledPanel === null
+                                ? null
+                                : {
+                                    id: controlledPanel.id,
+                                    role: controlledPanel.getAttribute('role'),
+                                    ariaLabelledBy:
+                                      controlledPanel.getAttribute(
+                                        'aria-labelledby',
+                                      ),
+                                    hidden: controlledPanel.hidden,
+                                  },
                             geometry: {
                               width: bounds.width,
                               height: bounds.height,
@@ -16721,15 +16773,31 @@ function createMainWindow(): BrowserWindow {
                   interactiveCount: document.querySelectorAll(
                     "button, a[href], summary, input, select, textarea, [role='button'], [role='tab']",
                   ).length,
+                  runtimeGlobalSecurity: {
+                    processType: typeof globalThis.process,
+                    requireType: typeof globalThis.require,
+                  },
                   issues,
                 };
               })()
             `)) as Record<string, unknown>;
+            const runtimeGlobalSecurity = result.runtimeGlobalSecurity as
+              { processType?: unknown; requireType?: unknown } | undefined;
             await writeFile(
               smokeAccessibility,
               `${JSON.stringify(
                 {
                   ...result,
+                  rendererConsoleEntries: smokeRendererConsoleEntries,
+                  runtimeSecurity: {
+                    contextIsolation:
+                      smokePreloadSecurity?.contextIsolated ?? null,
+                    nodeIntegration: !(
+                      runtimeGlobalSecurity?.processType === "undefined" &&
+                      runtimeGlobalSecurity?.requireType === "undefined"
+                    ),
+                    sandbox: smokePreloadSecurity?.sandboxed ?? null,
+                  },
                   windowFocused: window.isFocused(),
                   userInputTransport: smokeUserInputTransportEvidence ?? null,
                   zoomFactor: smokeScale,
