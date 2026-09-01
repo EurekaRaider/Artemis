@@ -171,7 +171,9 @@ try {
       "--disable-gpu-compositing",
       "--disable-gpu-sandbox",
       "--use-angle=swiftshader",
-      ...(testCase.reducedMotion ? ["--force-prefers-reduced-motion"] : []),
+      ...(testCase.reducedMotion
+        ? ["--force-prefers-reduced-motion"]
+        : ["--force-prefers-no-reduced-motion"]),
     ];
     const launchResult = spawnSync(electronPath, electronArguments, {
       cwd: appDirectory,
