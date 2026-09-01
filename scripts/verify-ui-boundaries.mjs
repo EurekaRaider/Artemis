@@ -9,6 +9,9 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { parse as parseCssValue, walk as walkCssValue } from "css-tree";
+import { parse as parseHtml } from "parse5";
+import postcss from "postcss";
 import { API } from "typescript/unstable/sync";
 import {
   NodeFlags,
@@ -37,6 +40,7 @@ import {
 const defaultRoot = fileURLToPath(new URL("../", import.meta.url));
 const SOURCE_EXTENSIONS = new Set([
   ".css",
+  ".html",
   ".js",
   ".jsx",
   ".mjs",
@@ -64,6 +68,16 @@ const DOM_GLOBAL_NAMES = new Set([
 ]);
 const TRUSTED_DESKTOP_COMPUTED_IMPORT =
   "apps/desktop/src/extension/extension-worker.ts";
+const VITE_PATH_PROPERTY_NAMES = new Set([
+  "assetsDir",
+  "cacheDir",
+  "envDir",
+  "input",
+  "outDir",
+  "publicDir",
+  "replacement",
+  "root",
+]);
 
 const AREAS = [
   {
@@ -211,7 +225,9 @@ export function collectTypeScriptReferences(sourceFile) {
   const moduleReferences = [];
   const bridgeAccesses = [];
   const computedDynamicImports = [];
+  const configPathLiterals = [];
   const globalIdentifiers = [];
+  const pathResolveCalls = [];
   let usesRequire = false;
 
   const addReference = (node, kind) => {
@@ -237,6 +253,10 @@ export function collectTypeScriptReferences(sourceFile) {
       const expression = node.moduleReference.expression;
       if (expression !== undefined) addReference(expression, "import-equals");
     } else if (isCallExpression(node)) {
+      const called = unwrapExpression(node.expression);
+      if (isIdentifier(called) && called.text === "resolve") {
+        pathResolveCalls.push(node);
+      }
       if (node.expression.kind === SyntaxKind.ImportKeyword) {
         if (
           node.arguments.length !== 1 ||
@@ -261,6 +281,20 @@ export function collectTypeScriptReferences(sourceFile) {
             addReference(node.arguments[0], "require");
           }
         }
+      }
+    }
+
+    if (node.kind === SyntaxKind.PropertyAssignment) {
+      const name = isIdentifier(node.name)
+        ? node.name.text
+        : stringLiteralText(node.name);
+      const value = stringLiteralText(unwrapExpression(node.initializer));
+      if (
+        name !== undefined &&
+        value !== undefined &&
+        VITE_PATH_PROPERTY_NAMES.has(name)
+      ) {
+        configPathLiterals.push({ name, value });
       }
     }
 
@@ -314,9 +348,11 @@ export function collectTypeScriptReferences(sourceFile) {
   visit(sourceFile);
   return {
     bridgeAccesses,
+    configPathLiterals,
     computedDynamicImports,
     globalIdentifiers,
     moduleReferences,
+    pathResolveCalls,
     usesRequire,
   };
 }
@@ -422,6 +458,117 @@ function pathInside(path, directory) {
     normalizedPath === normalizedDirectory ||
     normalizedPath.startsWith(`${normalizedDirectory}${sep}`)
   );
+}
+
+export function htmlResourceReferences(source) {
+  const document = parseHtml(source);
+  const references = [];
+  const visit = (node) => {
+    if (Array.isArray(node.attrs)) {
+      for (const attribute of node.attrs) {
+        if (attribute.name === "src" || attribute.name === "href") {
+          references.push({
+            attribute: attribute.name,
+            attributes: Object.fromEntries(
+              node.attrs.map((entry) => [entry.name, entry.value]),
+            ),
+            reference: attribute.value,
+            tagName: node.tagName,
+          });
+        } else if (attribute.name === "srcset") {
+          for (const candidate of attribute.value.split(",")) {
+            const reference = candidate.trim().split(/\s+/u)[0];
+            if (reference !== undefined && reference.length > 0) {
+              references.push({
+                attribute: attribute.name,
+                attributes: Object.fromEntries(
+                  node.attrs.map((entry) => [entry.name, entry.value]),
+                ),
+                reference,
+                tagName: node.tagName,
+              });
+            }
+          }
+        }
+      }
+    }
+    for (const child of node.childNodes ?? []) visit(child);
+    if (node.content !== undefined) visit(node.content);
+  };
+  visit(document);
+  return references;
+}
+
+function cssValueReferences(value, includeStrings) {
+  const references = [];
+  const ast = parseCssValue(value, { context: "value" });
+  walkCssValue(ast, {
+    enter(node) {
+      if (node.type === "Url" || (includeStrings && node.type === "String")) {
+        references.push(node.value);
+      }
+    },
+  });
+  return references;
+}
+
+function cssResourceReferences(source, from) {
+  const parsed = postcss.parse(source, { from });
+  const references = [];
+  parsed.walkAtRules("import", (rule) => {
+    references.push(...cssValueReferences(rule.params, true));
+  });
+  parsed.walkDecls((declaration) => {
+    references.push(...cssValueReferences(declaration.value, false));
+  });
+  return references;
+}
+
+function localReferenceTarget(root, from, reference) {
+  const trimmed = reference.trim();
+  if (
+    trimmed.length === 0 ||
+    trimmed.startsWith("#") ||
+    trimmed.startsWith("//") ||
+    /^[a-z][a-z0-9+.-]*:/iu.test(trimmed)
+  ) {
+    return undefined;
+  }
+  const withoutQuery = trimmed.split(/[?#]/u)[0];
+  if (withoutQuery === undefined || withoutQuery.length === 0) return undefined;
+  return withoutQuery.startsWith("/")
+    ? resolve(root, "apps/desktop", `.${withoutQuery}`)
+    : resolve(dirname(from), withoutQuery);
+}
+
+async function referenceTargetsGallery(root, from, reference) {
+  const target = localReferenceTarget(root, from, reference);
+  if (target === undefined) return false;
+  const galleryRoot = join(root, "apps/ui-gallery");
+  return (
+    pathInside(target, galleryRoot) ||
+    (await realPathInside(target, galleryRoot))
+  );
+}
+
+async function inspectDesktopResourceFile(root, file) {
+  const source = await readFile(file, "utf8");
+  const references =
+    extname(file) === ".css"
+      ? cssResourceReferences(source, file).map((reference) => ({
+          attribute: "CSS reference",
+          reference,
+        }))
+      : htmlResourceReferences(source);
+  const violations = [];
+  for (const { attribute, reference } of references) {
+    if (await referenceTargetsGallery(root, file, reference)) {
+      violations.push(
+        `${relative(root, file)}: Desktop ${attribute} must not reference UI Gallery: ${reference}`,
+      );
+    }
+  }
+  return violations;
 }
 
 async function realPathInside(path, directory) {
@@ -561,6 +708,22 @@ function isImportMetaResolveCall(node) {
     target.name.text === "meta"
     ? call
     : undefined;
+}
+
+function isImportMetaDirname(node) {
+  const expression = unwrapExpression(node);
+  if (
+    !isPropertyAccessExpression(expression) ||
+    expression.name.text !== "dirname"
+  ) {
+    return false;
+  }
+  const target = unwrapExpression(expression.expression);
+  return (
+    isMetaProperty(target) &&
+    target.keywordToken === SyntaxKind.ImportKeyword &&
+    target.name.text === "meta"
+  );
 }
 
 function trustedDesktopComputedImport(
@@ -706,12 +869,48 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
       );
     }
   }
+  for (const candidate of facts.pathResolveCalls) {
+    const call = importedCall(candidate, project, "resolve", "node:path");
+    if (
+      call === undefined ||
+      call.arguments.length < 2 ||
+      !isImportMetaDirname(call.arguments[0])
+    ) {
+      continue;
+    }
+    const segments = call.arguments
+      .slice(1)
+      .map((argument) => stringLiteralText(unwrapExpression(argument)));
+    if (segments.some((segment) => segment === undefined)) continue;
+    const target = resolve(dirname(file), ...segments);
+    const galleryRoot = join(root, "apps/ui-gallery");
+    if (
+      pathInside(target, galleryRoot) ||
+      (await realPathInside(target, galleryRoot))
+    ) {
+      violations.push(
+        `${relative(root, file)}: Desktop config path must not resolve into UI Gallery`,
+      );
+    }
+  }
+  if (relative(root, file) === "apps/desktop/vite.config.ts") {
+    for (const { name, value } of facts.configPathLiterals) {
+      if (await referenceTargetsGallery(root, file, value)) {
+        violations.push(
+          `${relative(root, file)}: Desktop Vite ${name} path must not reference UI Gallery: ${value}`,
+        );
+      }
+    }
+  }
   return violations;
 }
 
 export async function desktopGalleryImportViolations(root = defaultRoot) {
   const desktopRoot = join(root, "apps/desktop/src");
-  const files = (await filesBelow(desktopRoot)).filter((file) =>
+  const desktopSourceFiles = await filesBelow(desktopRoot);
+  const configFile = join(root, "apps/desktop/vite.config.ts");
+  const htmlFile = join(root, "apps/desktop/index.html");
+  const files = [...desktopSourceFiles, configFile].filter((file) =>
     SCRIPT_EXTENSIONS.has(extname(file)),
   );
   const analysis = createTypeScriptAnalysis(root, files);
@@ -721,6 +920,12 @@ export async function desktopGalleryImportViolations(root = defaultRoot) {
       violations.push(
         ...(await inspectDesktopGalleryImports(root, file, analysis)),
       );
+    }
+    for (const file of [
+      ...desktopSourceFiles.filter((file) => extname(file) === ".css"),
+      htmlFile,
+    ]) {
+      violations.push(...(await inspectDesktopResourceFile(root, file)));
     }
     return violations;
   } finally {
@@ -794,6 +999,29 @@ async function manifestViolations(root) {
       "apps/desktop/package.json: Desktop must not depend on Gallery",
     );
   }
+  const desktopRoot = join(root, "apps/desktop");
+  const pathReferences = [
+    ...(desktop.build?.files ?? []),
+    ...(desktop.build?.asarUnpack ?? []),
+    ...(desktop.build?.extraResources ?? []).map((entry) => entry?.from),
+    desktop.build?.directories?.output,
+    desktop.build?.directories?.buildResources,
+  ].filter((value) => typeof value === "string");
+  for (const reference of pathReferences) {
+    const normalized = reference.replace(/^!/u, "").split(/[?*[{]/u)[0];
+    if (
+      normalized.length > 0 &&
+      (await referenceTargetsGallery(
+        root,
+        join(desktopRoot, "package.json"),
+        normalized,
+      ))
+    ) {
+      violations.push(
+        `apps/desktop/package.json: Desktop build path must not reference Gallery: ${reference}`,
+      );
+    }
+  }
   return violations;
 }
 
@@ -806,9 +1034,12 @@ export async function verifyUiBoundaries(root = defaultRoot) {
       areaFiles.push({ area, file, sourceRoot });
   }
   const desktopRoot = join(root, "apps/desktop/src");
-  const desktopFiles = (await filesBelow(desktopRoot)).filter((file) =>
-    SCRIPT_EXTENSIONS.has(extname(file)),
-  );
+  const desktopFiles = [
+    ...(await filesBelow(desktopRoot)).filter((file) =>
+      SCRIPT_EXTENSIONS.has(extname(file)),
+    ),
+    join(root, "apps/desktop/vite.config.ts"),
+  ];
   const scriptFiles = [
     ...areaFiles
       .map(({ file }) => file)
@@ -830,6 +1061,14 @@ export async function verifyUiBoundaries(root = defaultRoot) {
       violations.push(
         ...(await inspectDesktopGalleryImports(root, file, analysis)),
       );
+    }
+    for (const file of [
+      ...(await filesBelow(desktopRoot)).filter(
+        (file) => extname(file) === ".css",
+      ),
+      join(root, "apps/desktop/index.html"),
+    ]) {
+      violations.push(...(await inspectDesktopResourceFile(root, file)));
     }
   } finally {
     analysis.close();

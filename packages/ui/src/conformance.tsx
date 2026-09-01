@@ -12,7 +12,15 @@ import {
   type ComponentContract,
 } from "./component-contract.js";
 
-export const CONFORMANCE_PROBE_CONTRACT = {
+function deepFreeze<T>(value: T): T {
+  if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
+    return value;
+  }
+  for (const nested of Object.values(value)) deepFreeze(nested);
+  return Object.freeze(value);
+}
+
+export const CONFORMANCE_PROBE_CONTRACT = deepFreeze({
   schemaVersion: 1,
   uiContractVersion: 1,
   name: "conformance-probe",
@@ -181,7 +189,7 @@ export const CONFORMANCE_PROBE_CONTRACT = {
       "no-action-while-disabled",
     ],
   },
-} as const satisfies ComponentContract;
+} as const satisfies ComponentContract);
 
 const contractReport = validateComponentContract(CONFORMANCE_PROBE_CONTRACT);
 if (!contractReport.valid) {
@@ -221,10 +229,25 @@ export type ConformanceProbeProps =
 
 export const CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR =
   "ConformanceProbe requires a non-empty accessible label";
+export const CONFORMANCE_PROBE_CONTROL_BOUNDARY_ERROR =
+  "ConformanceProbe cannot receive both value and defaultValue";
+
+const PERCEPTIBLE_LABEL_CHARACTER =
+  /[^\p{White_Space}\p{Default_Ignorable_Code_Point}]/u;
 
 export function ConformanceProbe(props: ConformanceProbeProps) {
-  if (typeof props.label !== "string" || props.label.trim().length === 0) {
+  if (
+    typeof props.label !== "string" ||
+    !PERCEPTIBLE_LABEL_CHARACTER.test(props.label)
+  ) {
     throw new Error(CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR);
+  }
+
+  const hasValue = Object.hasOwn(props, "value") && props.value !== undefined;
+  const hasDefaultValue =
+    Object.hasOwn(props, "defaultValue") && props.defaultValue !== undefined;
+  if (hasValue && hasDefaultValue) {
+    throw new Error(CONFORMANCE_PROBE_CONTROL_BOUNDARY_ERROR);
   }
 
   const generatedId = useId().replaceAll(":", "");
@@ -233,7 +256,7 @@ export function ConformanceProbe(props: ConformanceProbeProps) {
   const labelId = `${baseId}-label`;
   const descriptionId = `${baseId}-description`;
   const errorId = `${baseId}-error`;
-  const controlled = props.value !== undefined;
+  const controlled = hasValue;
   const controlledAtMount = useRef(controlled);
   const composing = useRef(false);
   const [uncontrolledValue, setUncontrolledValue] = useState(

@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import {
   mkdir,
   mkdtemp,
+  readFile,
   rm,
   symlink,
   unlink,
@@ -16,6 +17,9 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const verifier = join(root, "scripts/verify-skin-package.mjs");
 const fixture = await import(
   pathToFileURL(join(root, "apps/ui-gallery/src/stress-skin-fixture.mjs")).href
+);
+const { verifyExternalSkinPackage } = await import(
+  pathToFileURL(verifier).href
 );
 let rejected = 0;
 let rejectedCli = 0;
@@ -77,6 +81,27 @@ async function expectRootSymlinkRejected() {
     rejected += 1;
   } finally {
     await rm(parent, { recursive: true, force: true });
+  }
+}
+
+async function expectVerificationRaceRejected(name, hooks, expectedError) {
+  const directory = await mkdtemp(join(tmpdir(), "artemis-skin-race-"));
+  try {
+    await writePackage(directory, fixture.stressSkinPackageFiles);
+    let failure = "";
+    try {
+      await verifyExternalSkinPackage(directory, hooks(directory));
+    } catch (error) {
+      if (error instanceof Error) failure = error.message;
+    }
+    if (!failure.includes(expectedError)) {
+      throw new Error(
+        `${name}: verification race was not rejected for ${expectedError}: ${failure}`,
+      );
+    }
+    rejected += 1;
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 }
 
@@ -164,6 +189,29 @@ await expectRejected("symlink entry", async (directory) => {
 
 await expectRootSymlinkRejected();
 
+await expectVerificationRaceRejected(
+  "file replacement during validation",
+  (directory) => ({
+    async afterSnapshot() {
+      const path = join(directory, "tokens.dark.json");
+      const content = await readFile(path);
+      await unlink(path);
+      await writeFile(path, content);
+    },
+  }),
+  "file changed during verification",
+);
+
+await expectVerificationRaceRejected(
+  "directory entry added after validation",
+  (directory) => ({
+    async afterValidation() {
+      await writeFile(join(directory, "late.json"), "{}\n", "utf8");
+    },
+  }),
+  "directory entries changed during verification",
+);
+
 expectCliRejected(
   "unknown package flag",
   ["--pakage", "fixture"],
@@ -190,12 +238,12 @@ expectCliRejected(
   "unexpected positional argument",
 );
 
-if (rejected !== 16 || rejectedCli !== 5) {
+if (rejected !== 18 || rejectedCli !== 5) {
   throw new Error(
-    `Skin package negative coverage is incomplete: ${rejected}/16 total, ${rejectedCli}/5 CLI`,
+    `Skin package negative coverage is incomplete: ${rejected}/18 total, ${rejectedCli}/5 CLI`,
   );
 }
 
 console.log(
-  `Skin package negative verification passed (${rejected}/16 rejected; ${rejectedCli}/5 CLI fixtures)`,
+  `Skin package negative verification passed (${rejected}/18 rejected; ${rejectedCli}/5 CLI fixtures; 2/2 deterministic race fixtures)`,
 );

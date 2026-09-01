@@ -54,8 +54,12 @@ and is deliberately absent from `integrity.json`.
 CL0B adds stable `verify:skin-package` and `verify:skin-conformance` skeletons.
 The package gate validates bundled Artemis data and the synthetic fixture,
 recomputes exact hashes, enforces the five-file data allowlist, rejects nested
-or symlinked entries and a symlinked package root, and exercises 16 rejecting
-fixtures (11 data/package/path plus five CLI). The conformance gate validates the strict public
+or symlinked entries and a symlinked package root, reads each file through one
+no-follow handle with pre/post identity and metadata checks, then revalidates
+the root identity and exact directory contents. It exercises 18 rejecting
+fixtures (13 data/package/path plus five CLI) and two deterministic mutation
+hooks that replace a file or add a directory entry during verification. The
+conformance gate validates the strict public
 `ComponentContract`, public package imports, two valid skin inputs, eight
 behavior cases per skin, six identity/state-preservation switch cases, and 18
 rejecting fixtures (six contract/matrix/package, seven structural CSS, and five
@@ -81,10 +85,17 @@ required ARIA anatomy, finite-state policies, keyboard/IME outcomes, and
 callback order/count.
 
 The accessible-name floor requires the v1 `label` prop to remain a required
-static string in the public contract. `ConformanceProbe` rejects empty or
-whitespace-only labels before producing DOM; the Gallery's same default/stress
-ARIA behavior runner proves both the rejection and the positive accessible
-name. The built Gallery CSS is parsed to require exactly one full layer-order
+static string in the public contract. `ConformanceProbe` rejects labels made
+only of Unicode whitespace and Default-Ignorable format/control characters
+before producing DOM, while retaining Chinese, combining marks, and emoji with
+perceptible content. The Gallery's same default/stress ARIA behavior runner
+proves both the rejection and the positive accessible name. The contract is
+deep-frozen at runtime; its validator also requires the `value` and
+`defaultValue` control props to remain non-required and preserves original
+array indexes in issue paths. The Probe rejects simultaneous defined
+`value`/`defaultValue` own properties on its first DOM or SSR render while
+treating an explicitly supplied `undefined` as absent. The built Gallery CSS is
+parsed to require exactly one full layer-order
 statement, one theme block, two UI blocks (public structure and Gallery
 scaffold), no reset block, no unlayered root nodes, and first encounters of
 `artemis.reset` → `artemis.theme` → `artemis.ui`. `!important`, the former
@@ -97,6 +108,14 @@ identical to `@artemis/theme-artemis/theme.css`, and the second UI block has an
 exact six-selector Gallery-only allowlist. Twenty-one formal artifact fixtures
 exercise these layer, root-node, public/theme-block, and Gallery-block rejection
 paths.
+
+Gallery isolation covers Desktop TypeScript/Vite configuration, CSS imports
+and URLs, HTML `src`/`href`/`srcset`, structured build-resource paths, and final
+Desktop output signatures. Its boundary fixtures currently prove nine safe
+cases and reject 46 cross-boundary cases. The final Gallery `index.html` gate
+parses every resource attribute and rejects seven remote, absolute, extra, or
+`srcset` resource fixtures while requiring the exact emitted local module and
+stylesheet assets.
 
 The Probe structural stylesheet is parsed with PostCSS and compared against an
 exact selector/property/value allowlist. Its consumed `--artemis-*` token set

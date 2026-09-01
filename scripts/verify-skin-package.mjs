@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFile, readdir, lstat } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, open, readFile, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -43,8 +44,6 @@ function parseCli(args) {
   }
   return packagePath;
 }
-
-const packagePath = parseCli(process.argv.slice(2));
 
 function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
@@ -130,8 +129,49 @@ async function verifyFileMap(label, files) {
   return expectedAllFiles.size;
 }
 
+const SNAPSHOT_FIELDS = ["dev", "ino", "mode", "size", "mtimeNs", "ctimeNs"];
+
+function sameStat(left, right) {
+  return SNAPSHOT_FIELDS.every((field) => left[field] === right[field]);
+}
+
+function sameIdentity(left, right) {
+  return (
+    left.dev === right.dev && left.ino === right.ino && left.mode === right.mode
+  );
+}
+
+async function readStableFile(path, expected) {
+  const noFollow = constants.O_NOFOLLOW ?? 0;
+  const handle = await open(path, constants.O_RDONLY | noFollow);
+  try {
+    const before = await handle.stat({ bigint: true });
+    if (!before.isFile()) {
+      throw new Error(`Skin package entry is not a regular file: ${path}`);
+    }
+    const content = await handle.readFile();
+    const after = await handle.stat({ bigint: true });
+    if (!sameStat(before, after) || BigInt(content.byteLength) !== after.size) {
+      throw new Error(`Skin package file changed while being read: ${path}`);
+    }
+    if (
+      expected !== undefined &&
+      (!sameStat(after, expected.stat) || !content.equals(expected.content))
+    ) {
+      throw new Error(`Skin package file changed during verification: ${path}`);
+    }
+    const pathStat = await lstat(path, { bigint: true });
+    if (pathStat.isSymbolicLink() || !sameIdentity(after, pathStat)) {
+      throw new Error(`Skin package file identity changed: ${path}`);
+    }
+    return { content, stat: after };
+  } finally {
+    await handle.close();
+  }
+}
+
 async function readStrictPackage(directory) {
-  const directoryStat = await lstat(directory);
+  const directoryStat = await lstat(directory, { bigint: true });
   if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
     throw new Error(
       "Skin package path must be a real directory, not a symlink",
@@ -139,17 +179,47 @@ async function readStrictPackage(directory) {
   }
   const entries = await readdir(directory, { withFileTypes: true });
   const files = new Map();
+  const snapshots = new Map();
   for (const entry of entries) {
     const path = join(directory, entry.name);
-    const stat = await lstat(path);
-    if (!entry.isFile() || stat.isSymbolicLink()) {
+    if (!entry.isFile()) {
       throw new Error(
         `Skin package entries must be regular files: ${entry.name}`,
       );
     }
-    files.set(entry.name, await readFile(path, "utf8"));
+    const snapshot = await readStableFile(path);
+    snapshots.set(entry.name, snapshot);
+    files.set(entry.name, snapshot.content.toString("utf8"));
   }
-  return files;
+  const entryNames = entries.map((entry) => entry.name).sort();
+  const assertUnchanged = async () => {
+    const finalDirectoryStat = await lstat(directory, { bigint: true });
+    if (
+      finalDirectoryStat.isSymbolicLink() ||
+      !sameIdentity(directoryStat, finalDirectoryStat)
+    ) {
+      throw new Error("Skin package root identity changed during verification");
+    }
+    const finalEntries = await readdir(directory, { withFileTypes: true });
+    const finalNames = finalEntries.map((entry) => entry.name).sort();
+    if (JSON.stringify(finalNames) !== JSON.stringify(entryNames)) {
+      throw new Error(
+        "Skin package directory entries changed during verification",
+      );
+    }
+    for (const entry of finalEntries) {
+      if (!entry.isFile()) {
+        throw new Error(
+          `Skin package entry type changed during verification: ${entry.name}`,
+        );
+      }
+      await readStableFile(
+        join(directory, entry.name),
+        snapshots.get(entry.name),
+      );
+    }
+  };
+  return { assertUnchanged, files };
 }
 
 async function bundledArtemisFiles() {
@@ -174,25 +244,43 @@ async function syntheticStressFiles() {
   );
 }
 
-if (packagePath !== undefined) {
-  const directory = resolve(packagePath);
+export async function verifyExternalSkinPackage(directory, hooks = {}) {
+  const snapshot = await readStrictPackage(directory);
+  await hooks.afterSnapshot?.({ directory });
   const count = await verifyFileMap(
     `external fixture ${directory}`,
-    await readStrictPackage(directory),
+    snapshot.files,
   );
-  console.log(
-    `Skin package verification passed (external; ${count} exact data files)`,
-  );
-} else {
-  const bundledCount = await verifyFileMap(
-    "bundled Artemis data projection",
-    await bundledArtemisFiles(),
-  );
-  const stressCount = await verifyFileMap(
-    "synthetic stress skin",
-    await syntheticStressFiles(),
-  );
+  await hooks.afterValidation?.({ directory });
+  await snapshot.assertUnchanged();
+  return count;
+}
+
+async function main() {
+  const packagePath = parseCli(process.argv.slice(2));
+  if (packagePath !== undefined) {
+    const directory = resolve(packagePath);
+    const count = await verifyExternalSkinPackage(directory);
+    console.log(
+      `Skin package verification passed (external; ${count} exact data files)`,
+    );
+    return;
+  }
+  const [bundledCount, stressCount] = await Promise.all([
+    verifyFileMap(
+      "bundled Artemis data projection",
+      await bundledArtemisFiles(),
+    ),
+    verifyFileMap("synthetic stress skin", await syntheticStressFiles()),
+  ]);
   console.log(
     `Skin package verification passed (bundled=${bundledCount}; stress=${stressCount}; CSS/JS/HTML/URL rejected)`,
   );
+}
+
+if (
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  await main();
 }

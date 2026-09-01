@@ -25,6 +25,12 @@ describe("@artemis/ui CL0A boundary", () => {
       issues: [],
       value: CONFORMANCE_PROBE_CONTRACT,
     });
+    expect(Object.isFrozen(CONFORMANCE_PROBE_CONTRACT)).toBe(true);
+    expect(Object.isFrozen(CONFORMANCE_PROBE_CONTRACT.props)).toBe(true);
+    expect(Object.isFrozen(CONFORMANCE_PROBE_CONTRACT.props[0])).toBe(true);
+    expect(Object.isFrozen(CONFORMANCE_PROBE_CONTRACT.theme.safetyFloor)).toBe(
+      true,
+    );
   });
 
   it("fails closed for unknown, missing, duplicate, and illegal data attributes", () => {
@@ -146,5 +152,69 @@ describe("@artemis/ui CL0A boundary", () => {
       expect(report.valid).toBe(false);
       expect(report.issues.length).toBeGreaterThan(0);
     }
+  });
+
+  it.each([
+    ["value", ["value"]],
+    ["defaultValue", ["defaultValue"]],
+    ["both", ["value", "defaultValue"]],
+  ] as const)(
+    "rejects globally required control props: %s",
+    (_name, requiredProps) => {
+      const report = validateComponentContract({
+        ...CONFORMANCE_PROBE_CONTRACT,
+        props: CONFORMANCE_PROBE_CONTRACT.props.map((prop) =>
+          requiredProps.includes(prop.name as "value" | "defaultValue")
+            ? { ...prop, required: true }
+            : prop,
+        ),
+      });
+      const expectedPaths = requiredProps.map((name) => {
+        const index = CONFORMANCE_PROBE_CONTRACT.props.findIndex(
+          (prop) => prop.name === name,
+        );
+        return `$.props[${index}].required`;
+      });
+      expect(report.valid).toBe(false);
+      expect(report.issues.map((issue) => issue.path)).toEqual(
+        expect.arrayContaining(expectedPaths),
+      );
+    },
+  );
+
+  it("keeps original indices when invalid entries are mixed into named arrays", () => {
+    const report = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      props: [
+        null,
+        ...CONFORMANCE_PROBE_CONTRACT.props.map((prop) =>
+          prop.name === "value" ? { ...prop, required: true } : prop,
+        ),
+      ],
+      parts: [
+        null,
+        ...CONFORMANCE_PROBE_CONTRACT.parts.map((part) =>
+          part.name === "label" ? { ...part, element: "span" } : part,
+        ),
+      ],
+      states: [
+        null,
+        ...CONFORMANCE_PROBE_CONTRACT.states.map((state) =>
+          state.name === "busy" ? { ...state, priority: 99 } : state,
+        ),
+      ],
+    });
+
+    expect(report.valid).toBe(false);
+    expect(report.issues.map((issue) => issue.path)).toEqual(
+      expect.arrayContaining([
+        "$.props[0]",
+        "$.props[8].required",
+        "$.parts[0]",
+        "$.parts[2].element",
+        "$.states[0]",
+        "$.states[4].priority",
+      ]),
+    );
   });
 });

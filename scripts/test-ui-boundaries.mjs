@@ -104,10 +104,16 @@ async function fixture(sourcePath, source, manifestOverrides = {}) {
     "apps/ui-gallery/src/index.ts",
     "apps/desktop/src/index.ts",
     "apps/desktop/src/safe.ts",
+    "apps/desktop/vite.config.ts",
   ]) {
     await mkdir(join(root, path, ".."), { recursive: true });
     await writeFile(join(root, path), "export {};\n", "utf8");
   }
+  await writeFile(
+    join(root, "apps/desktop/index.html"),
+    '<!doctype html><html><body><script type="module" src="/src/index.ts"></script></body></html>',
+    "utf8",
+  );
   if (sourcePath !== undefined) {
     await mkdir(join(root, sourcePath, ".."), { recursive: true });
     await writeFile(join(root, sourcePath), source, "utf8");
@@ -233,6 +239,24 @@ await runCase(
   'import "@safe/safe";\n',
   true,
   inheritedSafeAliasConfig,
+  true,
+);
+await runCase(
+  "safe Desktop CSS local resources",
+  "apps/desktop/src/renderer/safe.css",
+  '@import "./base.css";\n.safe { background-image: url("./icon.png"); }\n',
+  true,
+);
+await runCase(
+  "safe Desktop HTML entry",
+  "apps/desktop/index.html",
+  '<!doctype html><html><head><title>ui-gallery is only text</title></head><body><script type="module" src="/src/index.ts"></script></body></html>',
+  true,
+);
+await runCase(
+  "safe Desktop Vite config string",
+  "apps/desktop/vite.config.ts",
+  'const label = "ui-gallery is only text";\nexport default { label };\n',
   true,
 );
 await runCase(
@@ -448,6 +472,61 @@ await runCase(
   inheritedGalleryAliasConfig,
   true,
 );
+await runCase(
+  "Desktop CSS imports Gallery",
+  "apps/desktop/src/renderer/unsafe.css",
+  '@import "../../../ui-gallery/src/gallery.css";\n',
+  false,
+);
+await runCase(
+  "Desktop CSS URL references Gallery",
+  "apps/desktop/src/renderer/unsafe.css",
+  '.unsafe { background: url("../../../ui-gallery/index.html"); }\n',
+  false,
+);
+await runCase(
+  "Desktop HTML src references Gallery",
+  "apps/desktop/index.html",
+  '<!doctype html><script src="../ui-gallery/src/main.tsx"></script>',
+  false,
+);
+await runCase(
+  "Desktop HTML href references Gallery",
+  "apps/desktop/index.html",
+  '<!doctype html><link rel="stylesheet" href="../ui-gallery/src/gallery.css">',
+  false,
+);
+await runCase(
+  "Desktop HTML srcset references Gallery",
+  "apps/desktop/index.html",
+  '<!doctype html><img alt="" srcset="../ui-gallery/index.html 1x, ./safe.png 2x">',
+  false,
+);
+await runCase(
+  "Desktop Vite config imports Gallery",
+  "apps/desktop/vite.config.ts",
+  'import gallery from "../ui-gallery/vite.config";\nexport default gallery;\n',
+  false,
+);
+await runCase(
+  "Desktop Vite config resolves Gallery path",
+  "apps/desktop/vite.config.ts",
+  'import { resolve } from "node:path";\nexport default { publicDir: resolve(import.meta.dirname, "../ui-gallery") };\n',
+  false,
+);
+await runCase(
+  "Desktop Vite config direct path references Gallery",
+  "apps/desktop/vite.config.ts",
+  'export default { publicDir: "../ui-gallery" };\n',
+  false,
+);
+await runCase("Desktop build includes Gallery", undefined, undefined, false, {
+  "apps/desktop/package.json": {
+    name: "@artemis/desktop",
+    dependencies: {},
+    build: { extraResources: [{ from: "../ui-gallery/dist" }] },
+  },
+});
 
 await runThemeContractTypeCase(
   "theme-contract ES ambient",
@@ -469,11 +548,11 @@ await runThemeContractTypeCase(
   "process",
 );
 
-if (acceptedCases !== 6 || rejectedCases !== 37) {
+if (acceptedCases !== 9 || rejectedCases !== 46) {
   throw new Error(
     `Unexpected boundary test count: ${acceptedCases} accepted, ${rejectedCases} rejected`,
   );
 }
 console.log(
-  "UI boundary fixture tests passed (6 safe cases; 37/37 violations rejected)",
+  "UI boundary fixture tests passed (9 safe cases; 46/46 violations rejected)",
 );

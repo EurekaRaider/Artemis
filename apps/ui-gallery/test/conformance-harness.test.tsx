@@ -92,7 +92,7 @@ const caseRunners = {
     const blankLabelErrors: unknown[] = [];
     const blankLabelRender = render(
       <ProbeErrorBoundary onError={(error) => blankLabelErrors.push(error)}>
-        <ConformanceProbe label={"  \t\n  "} />
+        <ConformanceProbe label={"\u200B\u2060"} />
       </ProbeErrorBoundary>,
       { onCaughtError: () => undefined },
     );
@@ -219,6 +219,7 @@ const caseRunners = {
   "action-policy"() {
     const onValueChange = vi.fn();
     const onCommit = vi.fn();
+    const onEvent = vi.fn();
     const { container, rerender } = render(
       <ConformanceProbe
         label="Matrix actions"
@@ -226,6 +227,7 @@ const caseRunners = {
         disabled
         onValueChange={onValueChange}
         onCommit={onCommit}
+        onEvent={onEvent}
       />,
     );
     let control = screen.getByRole("textbox", { name: "Matrix actions" });
@@ -234,6 +236,7 @@ const caseRunners = {
     control.focus();
     expect(onValueChange).not.toHaveBeenCalled();
     expect(onCommit).not.toHaveBeenCalled();
+    expect(onEvent).not.toHaveBeenCalled();
     expect(document.activeElement).not.toBe(control);
 
     rerender(
@@ -243,6 +246,7 @@ const caseRunners = {
         busy
         onValueChange={onValueChange}
         onCommit={onCommit}
+        onEvent={onEvent}
       />,
     );
     control = screen.getByRole("textbox", { name: "Matrix actions" });
@@ -251,6 +255,7 @@ const caseRunners = {
     control.focus();
     expect(onValueChange).not.toHaveBeenCalled();
     expect(onCommit).not.toHaveBeenCalled();
+    expect(onEvent).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(control);
 
     rerender(
@@ -260,6 +265,7 @@ const caseRunners = {
         stale
         onValueChange={onValueChange}
         onCommit={onCommit}
+        onEvent={onEvent}
       />,
     );
     control = screen.getByRole("textbox", { name: "Matrix actions" });
@@ -267,8 +273,10 @@ const caseRunners = {
     fireEvent.keyDown(control, { key: "Enter" });
     expect(onValueChange).toHaveBeenCalledWith("stale-allowed");
     expect(onCommit).toHaveBeenCalledWith("stale-allowed");
+    expect(onEvent).toHaveBeenCalledTimes(2);
     onValueChange.mockClear();
     onCommit.mockClear();
+    onEvent.mockClear();
 
     rerender(
       <ConformanceProbe
@@ -277,6 +285,7 @@ const caseRunners = {
         error="Error"
         onValueChange={onValueChange}
         onCommit={onCommit}
+        onEvent={onEvent}
       />,
     );
     control = screen.getByRole("textbox", { name: "Matrix actions" });
@@ -284,6 +293,7 @@ const caseRunners = {
     fireEvent.keyDown(control, { key: "Enter" });
     expect(onValueChange).toHaveBeenCalledWith("error-allowed");
     expect(onCommit).toHaveBeenCalledWith("error-allowed");
+    expect(onEvent).toHaveBeenCalledTimes(2);
     expect(
       container
         .querySelector('[data-artemis-component="conformance-probe"]')
@@ -360,7 +370,20 @@ describe("default and synthetic stress skin conformance", () => {
     const originalParts = [...container.querySelectorAll("[data-part]")].map(
       (part) => part.getAttribute("data-part"),
     );
-    const describedBy = control.getAttribute("aria-describedby");
+    const root = control.closest(
+      '[data-artemis-component="conformance-probe"]',
+    );
+    const label = container.querySelector('[data-part="label"]');
+    const ariaSnapshot = {
+      rootLabelledBy: root?.getAttribute("aria-labelledby"),
+      rootBusy: root?.getAttribute("aria-busy"),
+      labelFor: label?.getAttribute("for"),
+      controlDescribedBy: control.getAttribute("aria-describedby"),
+      controlInvalid: control.getAttribute("aria-invalid"),
+      controlBusy: control.getAttribute("aria-busy"),
+    };
+    expect(ariaSnapshot.rootLabelledBy).toBe(label?.id);
+    expect(ariaSnapshot.labelFor).toBe(control.id);
     await user.click(screen.getByRole("button", { name: "Use stress skin" }));
 
     const afterSwitch = screen.getByRole("textbox", {
@@ -371,7 +394,18 @@ describe("default and synthetic stress skin conformance", () => {
     expect(afterSwitch).toHaveProperty("selectionStart", 2);
     expect(afterSwitch).toHaveProperty("selectionEnd", 5);
     expect(document.activeElement).toBe(afterSwitch);
-    expect(afterSwitch.getAttribute("aria-describedby")).toBe(describedBy);
+    const afterRoot = afterSwitch.closest(
+      '[data-artemis-component="conformance-probe"]',
+    );
+    const afterLabel = container.querySelector('[data-part="label"]');
+    expect({
+      rootLabelledBy: afterRoot?.getAttribute("aria-labelledby"),
+      rootBusy: afterRoot?.getAttribute("aria-busy"),
+      labelFor: afterLabel?.getAttribute("for"),
+      controlDescribedBy: afterSwitch.getAttribute("aria-describedby"),
+      controlInvalid: afterSwitch.getAttribute("aria-invalid"),
+      controlBusy: afterSwitch.getAttribute("aria-busy"),
+    }).toEqual(ariaSnapshot);
     expect(
       [...container.querySelectorAll("[data-part]")].map((part) =>
         part.getAttribute("data-part"),

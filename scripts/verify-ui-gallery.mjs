@@ -1,8 +1,11 @@
 import { readFile, readdir } from "node:fs/promises";
-import { extname, join, relative } from "node:path";
+import { extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import postcss from "postcss";
-import { desktopGalleryImportViolations } from "./verify-ui-boundaries.mjs";
+import {
+  desktopGalleryImportViolations,
+  htmlResourceReferences,
+} from "./verify-ui-boundaries.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const EXPECTED_LAYER_ORDER = ["artemis.reset", "artemis.theme", "artemis.ui"];
@@ -310,6 +313,60 @@ async function filesBelow(directory) {
   return files;
 }
 
+function verifyGalleryHtmlResources(html, source, galleryDist, galleryFiles) {
+  const assetFiles = galleryFiles.filter((path) =>
+    [".css", ".js"].includes(extname(path)),
+  );
+  const expected = new Map(
+    assetFiles.map((path) => [
+      `./${relative(galleryDist, path).split(sep).join("/")}`,
+      extname(path) === ".css"
+        ? { attribute: "href", tagName: "link" }
+        : { attribute: "src", tagName: "script" },
+    ]),
+  );
+  const seen = new Set();
+  for (const resource of htmlResourceReferences(html)) {
+    const expectedElement = expected.get(resource.reference);
+    if (
+      resource.attribute === "srcset" ||
+      expectedElement === undefined ||
+      resource.attribute !== expectedElement.attribute ||
+      resource.tagName !== expectedElement.tagName ||
+      (resource.tagName === "script" &&
+        resource.attributes.type !== "module") ||
+      (resource.tagName === "link" && resource.attributes.rel !== "stylesheet")
+    ) {
+      throw new Error(
+        `${source}: Gallery HTML resource is not an expected local build asset: ${resource.tagName}[${resource.attribute}]=${resource.reference}`,
+      );
+    }
+    if (seen.has(resource.reference)) {
+      throw new Error(
+        `${source}: Gallery HTML resource is duplicated: ${resource.reference}`,
+      );
+    }
+    const target = resolve(galleryDist, resource.reference);
+    if (
+      !target.startsWith(`${resolve(galleryDist)}${sep}`) ||
+      !galleryFiles.includes(target)
+    ) {
+      throw new Error(
+        `${source}: Gallery HTML resource does not resolve to an emitted file: ${resource.reference}`,
+      );
+    }
+    seen.add(resource.reference);
+  }
+  if (
+    seen.size !== expected.size ||
+    [...expected.keys()].some((reference) => !seen.has(reference))
+  ) {
+    throw new Error(
+      `${source}: Gallery HTML must reference every expected CSS/JS build asset exactly once`,
+    );
+  }
+}
+
 const galleryDist = join(root, "apps/ui-gallery/dist");
 const galleryFiles = await filesBelow(galleryDist);
 const galleryIndexPath = galleryFiles.find((path) =>
@@ -319,11 +376,80 @@ if (galleryIndexPath === undefined) {
   throw new Error("UI Gallery build is missing index.html");
 }
 const galleryIndex = await readFile(galleryIndexPath, "utf8");
-if (
-  !galleryIndex.includes('src="./assets/') ||
-  !galleryIndex.includes('href="./assets/')
-) {
-  throw new Error("UI Gallery build assets are not offline-relative");
+verifyGalleryHtmlResources(
+  galleryIndex,
+  relative(root, galleryIndexPath),
+  galleryDist,
+  galleryFiles,
+);
+const htmlNegativeFixtures = [
+  {
+    name: "external-script",
+    html: galleryIndex.replace(
+      /src="\.\/assets\/[^"]+\.js"/u,
+      'src="https://example.invalid/gallery.js"',
+    ),
+  },
+  {
+    name: "protocol-relative-script",
+    html: galleryIndex.replace(
+      /src="\.\/assets\/[^"]+\.js"/u,
+      'src="//example.invalid/gallery.js"',
+    ),
+  },
+  {
+    name: "root-absolute-script",
+    html: galleryIndex.replace(
+      /src="\.\/assets\/[^"]+\.js"/u,
+      'src="/assets/gallery.js"',
+    ),
+  },
+  {
+    name: "additional-local-script",
+    html: galleryIndex.replace(
+      "</head>",
+      '<script type="module" src="./assets/extra.js"></script></head>',
+    ),
+  },
+  {
+    name: "external-stylesheet",
+    html: galleryIndex.replace(
+      /href="\.\/assets\/[^"]+\.css"/u,
+      'href="https://example.invalid/gallery.css"',
+    ),
+  },
+  {
+    name: "additional-local-link",
+    html: galleryIndex.replace(
+      "</head>",
+      '<link rel="stylesheet" href="./assets/extra.css"></head>',
+    ),
+  },
+  {
+    name: "srcset-resource",
+    html: galleryIndex.replace(
+      "</body>",
+      '<img alt="" srcset="./assets/extra.png 1x, https://example.invalid/extra.png 2x"></body>',
+    ),
+  },
+];
+for (const fixture of htmlNegativeFixtures) {
+  let failure = "";
+  try {
+    verifyGalleryHtmlResources(
+      fixture.html,
+      `${fixture.name}-fixture.html`,
+      galleryDist,
+      galleryFiles,
+    );
+  } catch (error) {
+    if (error instanceof Error) failure = error.message;
+  }
+  if (!failure.includes("Gallery HTML resource")) {
+    throw new Error(
+      `${fixture.name} was not rejected by the Gallery HTML resource gate: ${failure}`,
+    );
+  }
 }
 const galleryCssFiles = galleryFiles.filter((path) => extname(path) === ".css");
 if (galleryCssFiles.length !== 1) {
@@ -625,6 +751,10 @@ for (const forbidden of [
   "Artemis UI Gallery scaffold",
   "com.artemis.synthetic-stress",
   "data-gallery-active-skin",
+  "data-gallery-stress-skin",
+  ".gallery-",
+  'data-artemis-component="conformance-probe"',
+  "CL0B component contract harness",
 ]) {
   if (desktopText.includes(forbidden)) {
     throw new Error(
@@ -634,5 +764,5 @@ for (const forbidden of [
 }
 
 console.log(
-  `UI Gallery verification passed (${galleryFiles.length} Gallery files; exact reset → theme → ui artifact order; ${layerNegativeFixtures.length}/${layerNegativeFixtures.length} layer-order negative fixtures rejected; ${desktopFiles.length} Desktop renderer files isolated)`,
+  `UI Gallery verification passed (${galleryFiles.length} Gallery files; ${htmlNegativeFixtures.length}/${htmlNegativeFixtures.length} HTML resource fixtures rejected; exact reset → theme → ui artifact order; ${layerNegativeFixtures.length}/${layerNegativeFixtures.length} layer-order negative fixtures rejected; ${desktopFiles.length} Desktop renderer files isolated)`,
 );

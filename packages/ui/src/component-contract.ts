@@ -300,12 +300,15 @@ function namedRecords(
   fields: readonly string[],
   path: string,
   issues: ComponentContractIssue[],
-): Record<string, unknown>[] {
+): { readonly index: number; readonly record: Record<string, unknown> }[] {
   if (!Array.isArray(value) || value.length === 0) {
     addIssue(issues, "invalid_type", path, "Expected a non-empty array");
     return [];
   }
-  const records: Record<string, unknown>[] = [];
+  const records: {
+    readonly index: number;
+    readonly record: Record<string, unknown>;
+  }[] = [];
   const names = new Set<string>();
   for (const [index, entry] of value.entries()) {
     const entryPath = `${path}[${index}]`;
@@ -325,7 +328,7 @@ function namedRecords(
       }
       names.add(entry.name);
     }
-    records.push(entry);
+    records.push({ index, record: entry });
   }
   return records;
 }
@@ -418,8 +421,12 @@ export function validateComponentContract(
   const propNames = new Set<string>();
   const propBoundaries = new Map<string, unknown>();
   const propTypes = new Map<string, unknown>();
+  const propsByName = new Map<
+    string,
+    { readonly index: number; readonly record: Record<string, unknown> }
+  >();
   const callbackProps = new Set<string>();
-  for (const [index, prop] of props.entries()) {
+  for (const { index, record: prop } of props) {
     const path = `$.props[${index}]`;
     if (typeof prop.name !== "string" || !IDENTIFIER_PATTERN.test(prop.name)) {
       addIssue(
@@ -432,6 +439,7 @@ export function validateComponentContract(
       propNames.add(prop.name);
       propBoundaries.set(prop.name, prop.boundary);
       propTypes.set(prop.name, prop.type);
+      propsByName.set(prop.name, { index, record: prop });
       if (prop.boundary === "callback") callbackProps.add(prop.name);
     }
     enumValue(prop.type, PROP_TYPES, `${path}.type`, issues);
@@ -465,7 +473,7 @@ export function validateComponentContract(
       );
     }
   }
-  const labelProp = props.find((prop) => prop.name === "label");
+  const labelProp = propsByName.get("label");
   if (labelProp === undefined) {
     addIssue(
       issues,
@@ -474,14 +482,14 @@ export function validateComponentContract(
       "The v1 accessible label prop is required",
     );
   } else if (
-    labelProp.type !== "string" ||
-    labelProp.required !== true ||
-    labelProp.boundary !== "static"
+    labelProp.record.type !== "string" ||
+    labelProp.record.required !== true ||
+    labelProp.record.boundary !== "static"
   ) {
     addIssue(
       issues,
       "invalid_value",
-      "$.props.label",
+      `$.props[${labelProp.index}]`,
       "The v1 label prop must be a required static string",
     );
   }
@@ -527,6 +535,23 @@ export function validateComponentContract(
         );
       }
     }
+    for (const key of ["value", "defaultValue"] as const) {
+      const referencedProp =
+        typeof control[key] === "string"
+          ? propsByName.get(control[key])
+          : undefined;
+      if (
+        referencedProp !== undefined &&
+        referencedProp.record.required !== false
+      ) {
+        addIssue(
+          issues,
+          "invalid_value",
+          `$.props[${referencedProp.index}].required`,
+          `The v1 ${key} control prop must not be globally required`,
+        );
+      }
+    }
     if (control.fixedAtMount !== true || control.mutuallyExclusive !== true) {
       addIssue(
         issues,
@@ -539,7 +564,8 @@ export function validateComponentContract(
 
   const parts = namedRecords(contract.parts, PART_FIELDS, "$.parts", issues);
   const partElements = new Map<string, unknown>();
-  for (const [index, part] of parts.entries()) {
+  const partIndexes = new Map<string, number>();
+  for (const { index, record: part } of parts) {
     const path = `$.parts[${index}]`;
     if (
       typeof part.name !== "string" ||
@@ -551,7 +577,10 @@ export function validateComponentContract(
         `${path}.name`,
         "Expected a part identifier",
       );
-    } else partElements.set(part.name, part.element);
+    } else {
+      partElements.set(part.name, part.element);
+      partIndexes.set(part.name, index);
+    }
     enumValue(part.element, PART_ELEMENTS, `${path}.element`, issues);
   }
   for (const [name, element] of Object.entries(REQUIRED_PARTS)) {
@@ -566,7 +595,7 @@ export function validateComponentContract(
       addIssue(
         issues,
         "invalid_value",
-        `$.parts.${name}`,
+        `$.parts[${String(partIndexes.get(name))}].element`,
         `ARIA anatomy part ${name} must use ${element}`,
       );
     }
@@ -603,10 +632,13 @@ export function validateComponentContract(
     issues,
   );
   const stateNames = new Set<string>();
-  const statesByName = new Map<string, Record<string, unknown>>();
+  const statesByName = new Map<
+    string,
+    { readonly index: number; readonly record: Record<string, unknown> }
+  >();
   const stateValues = new Set<string>();
   const priorities = new Set<number>();
-  for (const [index, state] of states.entries()) {
+  for (const { index, record: state } of states) {
     const path = `$.states[${index}]`;
     if (
       typeof state.name !== "string" ||
@@ -620,7 +652,7 @@ export function validateComponentContract(
       );
     } else {
       stateNames.add(state.name);
-      statesByName.set(state.name, state);
+      statesByName.set(state.name, { index, record: state });
     }
     if (
       typeof state.dataValue !== "string" ||
@@ -671,8 +703,8 @@ export function validateComponentContract(
     );
   }
   for (const [name, expected] of Object.entries(FROZEN_STATES)) {
-    const state = statesByName.get(name);
-    if (state === undefined) {
+    const stateEntry = statesByName.get(name);
+    if (stateEntry === undefined) {
       addIssue(
         issues,
         "missing_field",
@@ -681,12 +713,13 @@ export function validateComponentContract(
       );
       continue;
     }
+    const { index, record: state } = stateEntry;
     for (const [field, value] of Object.entries(expected)) {
       if (state[field] !== value) {
         addIssue(
           issues,
           "invalid_value",
-          `$.states.${name}.${field}`,
+          `$.states[${index}].${field}`,
           `Frozen state ${name} requires ${field}=${String(value)}`,
         );
       }
