@@ -13,7 +13,11 @@ const api: ArtemisApi = {
   getThreadEvents: (threadId) => ipcRenderer.invoke(IPC.threadEvents, threadId),
   getTokenUsageEvents: () => ipcRenderer.invoke(IPC.tokenUsageEvents),
   getPromptHistory: () => ipcRenderer.invoke(IPC.promptHistory),
-  rendererReady: () => ipcRenderer.send(IPC.rendererReady),
+  rendererReady: () =>
+    ipcRenderer.send(IPC.rendererReady, {
+      contextIsolated: process.contextIsolated === true,
+      sandboxed: process.sandboxed === true,
+    }),
   openProject: () => ipcRenderer.invoke(IPC.projectOpen),
   removeProject: (projectId) =>
     ipcRenderer.invoke(IPC.projectRemove, projectId),

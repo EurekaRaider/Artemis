@@ -15,6 +15,7 @@ import {
   Switch,
   TextField,
 } from "@artemis/ui/forms";
+import { SegmentedControl, Tabs } from "@artemis/ui/navigation";
 
 import { galleryContract } from "./gallery-contract.js";
 import { STRESS_SKIN_ID, stressSkinCss } from "./stress-skin-fixture.mjs";
@@ -80,6 +81,49 @@ const ACTION_TONES = [
   "success",
   "warning",
   "danger",
+] as const;
+const ACTIVITY_TAB_OPTIONS = [
+  {
+    id: "gallery-overview-tab",
+    label: "Overview",
+    panelId: "gallery-overview-panel",
+    value: "overview",
+  },
+  {
+    disabled: true,
+    id: "gallery-export-tab",
+    label: "Unavailable export",
+    panelId: "gallery-export-panel",
+    value: "export",
+  },
+  {
+    id: "gallery-details-tab",
+    label: "A very long localized activity comparison",
+    panelId: "gallery-details-panel",
+    value: "details",
+  },
+] as const;
+const RTL_TAB_OPTIONS = [
+  {
+    id: "gallery-rtl-first-tab",
+    label: "First",
+    panelId: "gallery-rtl-first-panel",
+    value: "first",
+  },
+  {
+    id: "gallery-rtl-second-tab",
+    label: "Second",
+    panelId: "gallery-rtl-second-panel",
+    value: "second",
+  },
+] as const;
+const DISABLED_TAB_OPTIONS = [
+  {
+    id: "gallery-disabled-tab",
+    label: "Selected but disabled",
+    panelId: "gallery-disabled-panel",
+    value: "fixed",
+  },
 ] as const;
 
 function blankTokenSnapshot(): GalleryTokenSnapshot {
@@ -191,6 +235,11 @@ export function GalleryApp() {
   const [searchValue, setSearchValue] = useState("");
   const [selectValue, setSelectValue] = useState("alpha");
   const [checked, setChecked] = useState(true);
+  const [tabValue, setTabValue] = useState<"overview" | "export" | "details">(
+    "overview",
+  );
+  const [rtlTabValue, setRtlTabValue] = useState<"first" | "second">("second");
+  const [segmentValue, setSegmentValue] = useState<"rich" | "source">("rich");
   const appendEvent = (entry: string) =>
     setEventOrder((current) => [...current, entry]);
 
@@ -206,7 +255,7 @@ export function GalleryApp() {
 
   return (
     <main>
-      <p className="gallery-eyebrow">CL2B field and selection conformance</p>
+      <p className="gallery-eyebrow">CL2C navigation conformance</p>
       <h1>Artemis UI Gallery</h1>
       <p>
         Public package consumption is active for UI contract v
@@ -261,6 +310,102 @@ export function GalleryApp() {
             </div>
           ))}
         </dl>
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="navigation-heading"
+      >
+        <h2 id="navigation-heading">Tabs and segmented controls</h2>
+        <div className="gallery-navigation-grid">
+          <div>
+            <Tabs
+              label="Activity views"
+              onValueChange={setTabValue}
+              options={ACTIVITY_TAB_OPTIONS}
+              value={tabValue}
+            />
+            {ACTIVITY_TAB_OPTIONS.map((option) => (
+              <p
+                aria-labelledby={option.id}
+                hidden={option.value !== tabValue}
+                id={option.panelId}
+                key={option.value}
+                role="tabpanel"
+              >
+                {option.value === "overview"
+                  ? "Overview panel remains selected across Gallery axes."
+                  : option.value === "details"
+                    ? "Detailed comparison panel remains selected across Gallery axes."
+                    : "Export remains unavailable."}
+              </p>
+            ))}
+          </div>
+          <div dir="rtl">
+            <Tabs
+              label="RTL compact tabs"
+              onValueChange={setRtlTabValue}
+              options={RTL_TAB_OPTIONS}
+              size="compact"
+              value={rtlTabValue}
+            />
+            {RTL_TAB_OPTIONS.map((option) => (
+              <p
+                aria-labelledby={option.id}
+                hidden={option.value !== rtlTabValue}
+                id={option.panelId}
+                key={option.value}
+                role="tabpanel"
+              >
+                {option.label} RTL panel.
+              </p>
+            ))}
+          </div>
+          <div>
+            <Tabs
+              disabled
+              label="Disabled tabs"
+              options={DISABLED_TAB_OPTIONS}
+              value="fixed"
+              onValueChange={() => undefined}
+            />
+            <p
+              aria-labelledby="gallery-disabled-tab"
+              id="gallery-disabled-panel"
+              role="tabpanel"
+            >
+              Disabled selection panel.
+            </p>
+          </div>
+          <SegmentedControl
+            label="Markdown view"
+            onValueChange={setSegmentValue}
+            options={[
+              { label: "Rich", value: "rich" },
+              { label: "Source", value: "source" },
+            ]}
+            value={segmentValue}
+          />
+          <div dir="rtl">
+            <SegmentedControl
+              defaultValue="preview"
+              label="RTL compact display"
+              options={[
+                { label: "Edit", value: "edit" },
+                { label: "Preview", value: "preview" },
+                { disabled: true, label: "Diff unavailable", value: "diff" },
+              ]}
+              size="compact"
+            />
+          </div>
+          <SegmentedControl
+            disabled
+            label="Disabled display"
+            options={[{ label: "Fixed", value: "fixed" }]}
+            value="fixed"
+            onValueChange={() => undefined}
+          />
+        </div>
       </section>
 
       <section

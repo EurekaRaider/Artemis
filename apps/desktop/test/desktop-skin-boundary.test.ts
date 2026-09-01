@@ -116,4 +116,20 @@ describe("Desktop skin production boundaries", () => {
       "synthetic PTY prompt after environment layout",
     );
   });
+
+  it("keeps the temporary smoke preload aligned with renderer security evidence", () => {
+    const preload = source("src/preload/preload.ts");
+    const verifier = source("scripts/verify-desktop-skin.mjs");
+    for (const marker of [
+      "contextIsolated: process.contextIsolated === true",
+      "sandboxed: process.sandboxed === true",
+    ]) {
+      expect(preload).toContain(marker);
+      expect(verifier).toContain(marker);
+    }
+    expect(verifier).toContain("desktopSkinSmokeRendererReadyCount += 1");
+    expect(verifier).toContain(
+      "ipcRenderer.send(IPC.rendererReady, {\\n      contextIsolated:",
+    );
+  });
 });

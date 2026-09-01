@@ -1,7 +1,7 @@
 # Discussion #76 visual migration ledger
 
-Status: CL2B Field/Select/Checkbox/Switch candidate on merged CL2A base
-`f0834dd48cf7fcbe556fca6530359cea52436e13`; CL2A is merged. This
+Status: CL2C Tabs/Segmented candidate on merged CL2B base
+`6fbbe14e9f34d3f8edd2a4cb6b37f92a6c695770`; CL2B is merged. This
 ledger separates static prototype evidence, package/Gallery evidence, and
 production Electron evidence. It must not be used to turn a prototype,
 Gallery pass, or attribute-only resolver pass into a migrated production
@@ -9,7 +9,7 @@ surface.
 
 ## Inputs and evidence boundary
 
-- Candidate base: `f0834dd48cf7fcbe556fca6530359cea52436e13` (CL2A merged).
+- Candidate base: `6fbbe14e9f34d3f8edd2a4cb6b37f92a6c695770` (CL2B merged).
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -25,7 +25,7 @@ surface.
   `ui-prototype/contrast/prototype-contract-result.json`, and
   `ui-prototype/contrast/summary.json`.
 - The prototype directory remains read-only in a companion checkout and is not
-  present in this candidate base. CL2B does not copy or modify it.
+  present in this candidate base. CL2C does not copy or modify it.
 - v17's 70/70 generic card contract, 22/22 targeted historical-gap checks, and
   36 contrast combinations are HTML/Chrome specification evidence only. They do
   not prove React anatomy, Desktop integration, Electron geometry, platform
@@ -37,13 +37,13 @@ surface.
 | ------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------- | ------------------------------------ | ----------------------------------------------------- | ------------------------------ | ------------------------------------------------- | -------------------------------------------- |
 | `--bg`, `--bg-sidebar`, `--bg-activity`                       | `color.canvas`, `color.background.sidebar`, `color.background.activity` | theme contract | future shell/layout components       | `:root`, `.app-shell`, `.sidebar`, `.activity-bar`    | CL1A values; MIG1 surfaces     | Required on migration SHA                         | Direction A merged; Gallery token output     |
 | `--surface`, `--raised`, `--sunken`, `--panel-2`, `--panel-3` | surface base/raised/sunken/composer/user roles                          | theme contract | controls, panels, Composer, timeline | root theme blocks and renderer `styles.css`           | CL1A values; CL2-CL4 consumers | Required on migration SHA                         | Direction A merged; Gallery samples          |
-| `--hover`, `--selected`                                       | interaction hover/selected roles                                        | theme contract | all interactive anatomy              | component hover/selected selectors                    | CL0B probe; CL2-CL4            | Gallery interaction first, Electron when consumed | CL2A merged; CL2B field/selection candidate  |
+| `--hover`, `--selected`                                       | interaction hover/selected roles                                        | theme contract | all interactive anatomy              | component hover/selected selectors                    | CL0B probe; CL2-CL4            | Gallery interaction first, Electron when consumed | CL2B merged; CL2C navigation candidate       |
 | `--text`, `--text-2`, `--text-3`                              | primary/secondary/tertiary text roles                                   | theme contract | all components and surfaces          | root theme blocks                                     | CL1A values                    | Required on migration SHA                         | v17 corrected roles; WCAG candidate          |
 | `--border`, `--border-soft`                                   | default/strong/subtle border roles                                      | theme contract | controls, cards, splitters, overlays | renderer `styles.css` local declarations              | CL1A values; CL2-CL4           | Required on migration SHA                         | Required/subtle roles separated and tested   |
 | accent fill/text/hover/soft/on-accent                         | primary/hover/subtle/text/on-primary roles                              | theme contract | controls, focus, selection           | v17 role tokens                                       | CL1A values; CL2               | Gallery contrast then Electron                    | Direction A merged; WCAG tested              |
 | success/warning/danger/info + soft/on-color                   | status role families                                                    | theme contract | feedback, approvals, diff, countdown | v17 role tokens and renderer status selectors         | CL1A values; CL2/CL4           | State matrix on exact consumer SHA                | Direction A merged; behavior unchanged       |
 | terminal/diff roles                                           | terminal foreground/background and diff add/delete pairs                | theme contract | Terminal, change set, editors        | `--terminal-*`, `--diff-*`                            | CL1A values; MIG3-MIG5         | Native Electron evidence required                 | Candidate values; no production consumer yet |
-| spacing, control sizes, radius, typography                    | bounded numeric and font-stack-ID tokens                                | theme contract | component anatomy and layout         | v17 direction density/radius/font blocks              | CL0B probe; CL1A values        | Gallery geometry then Electron                    | CL2A merged; CL2B compact/comfortable fields |
+| spacing, control sizes, radius, typography                    | bounded numeric and font-stack-ID tokens                                | theme contract | component anatomy and layout         | v17 direction density/radius/font blocks              | CL0B probe; CL1A values        | Gallery geometry then Electron                    | CL2B merged; CL2C compact/comfortable nav    |
 | 180/320/480 timing and standard/shell easing                  | duration/easing IDs with fixed CSS serializers                          | theme contract | transitions only                     | `--t-quick`, `--t-standard`, `--ease`, `--shell-ease` | CL1A/CL2                       | reduced-motion evidence later                     | Candidate serializer and motion sample       |
 | card/surface/composer/overlay shadows                         | shadow IDs with fixed CSS serializers                                   | theme contract | cards, Composer, overlays            | `--shadow-*`                                          | CL1A/CL2-CL4                   | Gallery and Electron later                        | Static none; mode-aware trusted serializers  |
 
@@ -222,7 +222,7 @@ Electron/Node APIs, private Gallery state, or skin-specific structural branches.
 CL2A merged through PR #135 at
 `f0834dd48cf7fcbe556fca6530359cea52436e13`.
 
-## CL2B Field/Select/Checkbox/Switch candidate evidence
+## CL2B Field/Select/Checkbox/Switch merged evidence
 
 CL2B adds the public `@artemis/ui/forms` subpath with `TextField`,
 `SearchField`, `Select`, `Checkbox`, and `Switch`. Its frozen, fail-closed
@@ -292,28 +292,83 @@ SearchField, Select, Checkbox, and Switch implementation markers. Neither the
 package nor Gallery imports Protocol, provider/settings types, Electron/Node
 APIs, private Gallery state, or skin-specific structural branches.
 
+CL2B merged through PR #136 at
+`6fbbe14e9f34d3f8edd2a4cb6b37f92a6c695770`.
+
+## CL2C Tabs/Segmented candidate evidence
+
+CL2C adds the public `@artemis/ui/navigation` subpath with `Tabs` and
+`SegmentedControl`. Its frozen, fail-closed contract defines exact anatomy,
+compact/comfortable sizes, required perceptible group and option labels,
+unique values, explicit Tabs `id`/`panelId` relations, disabled-option rules,
+one disjoint ID namespace per Tabs instance, and controlled/uncontrolled
+boundaries that reject dual props or mode drift.
+Tabs use the tablist/tab pattern with one selected tab, roving tab stop,
+automatic activation, Arrow/Home/End movement, disabled-item skip and wrap,
+RTL-aware horizontal arrows, and IME protection. SegmentedControl deliberately
+keeps ordinary native buttons in the Tab order with `aria-pressed`; it does not
+masquerade as a tablist or radio group.
+
+The private Gallery renders controlled and uncontrolled examples, both sizes,
+long labels, disabled items, and RTL for both components. Two navigation
+behavior runners raise the exact matrix from 18 to 20 cases per skin (40
+executions), while the 64-vertex default/stress traversal preserves navigation
+roots and parts, selected state, tab stop, focus, ARIA relations, direction,
+zoom, and motion. The installed-tarball consumer checks runtime exports,
+declarations, SSR output, the frozen contract, and a Tabs-only bundle that
+excludes the SegmentedControl implementation marker. Exact structural CSS and
+mutable-token allowlists remain fail-closed. The 64-vertex test retains every
+assertion with a 40-second cross-platform budget; its Windows runtime crossed
+the former 20-second default after CL2C added stable relationship checks.
+
+Desktop consumes the public Tabs in Token Usage and the public compact
+SegmentedControl in both Workspace Editor and Markdown Reader rich/source
+switches. The former private anatomy and structural CSS are removed; Desktop
+retains only surrounding page layout. Token Usage adds explicit tab/panel IDs
+and keeps all three labelled `tabpanel` nodes stable, with only the selected
+panel exposed, without changing its daily, weekly, or cumulative data behavior.
+Gallery does the same for controlled, RTL, and disabled examples and verifies
+both directions of every `aria-controls`/`aria-labelledby` relationship.
+
+The production Electron verifier uses six fresh, isolated light/dark cases
+across those three real consumers. Its 174 assertions cover screenshots,
+strict renderer sandboxing, exact public parts and roles, selected-state and
+panel relations, fixed focus-visible evidence, semantic computed styles,
+one callback per activation, node stability, and zero accessibility findings.
+Keyboard interaction is sent through the DevTools protocol: Tab plus
+ArrowRight selects the next Token Usage tab, while Tab plus Space selects each
+real rich/source segment. The fixtures use only synthetic local data, perform
+no provider request or dial-out, and expose no local paths. The report records
+and rechecks its exact candidate/completed Git SHA, requires a clean worktree,
+asserts the sandboxed preload and context-isolation state plus the absence of
+main-world Node globals, and requires an empty renderer warning/error capture. The in-app
+Browser also exercised Gallery tab arrows, state preservation, dark/stress
+styling, and an empty warning/error console; native Space activation is
+established by the production Electron matrix rather than the Browser
+automation wrapper.
+
 ## Component and surface sequence
 
-| Scope                                                                    | Type               | Owner                     | Consumer                   | Legacy selector/source                           | Target PR | Electron evidence                                           | Status                                  |
-| ------------------------------------------------------------------------ | ------------------ | ------------------------- | -------------------------- | ------------------------------------------------ | --------- | ----------------------------------------------------------- | --------------------------------------- |
-| Manifest/token/integrity schemas, registry, validators, public artifacts | token/package      | `@artemis/theme-contract` | theme packages and Gallery | scattered root variables                         | CL0A      | N/A: no Desktop dependency or UI change                     | Merged at `244aacf`                     |
-| Public React/CSS boundary                                                | package            | `@artemis/ui`             | Gallery, later Desktop     | no package boundary                              | CL0A      | N/A: no components or Desktop consumer                      | Merged at `244aacf`                     |
-| Neutral built-in skin data/CSS/integrity artifacts                       | token/package      | `@artemis/theme-artemis`  | Gallery                    | v17 role vocabulary only                         | CL0A      | N/A: no Desktop resolver                                    | Merged at `244aacf`; superseded by CL1A |
-| Anatomy, states, events, ARIA, focus                                     | component          | `@artemis/ui`             | Gallery harness            | v17 70 cards                                     | CL0B      | Gallery runtime required; Electron not yet production proof | Merged at `facb262`                     |
-| Direction A Artemis values                                               | skin               | `@artemis/theme-artemis`  | Gallery and Desktop host   | v17 A light/dark/high                            | CL1A      | Gallery/browser; Desktop first-frame variables in CL1B      | Merged at `3457e0d`                     |
-| Resolver/registry and host attributes                                    | integration        | Desktop renderer glue     | Desktop                    | current `data-theme` bridge                      | CL1B      | Exact-head Electron state/Portal/xterm/package proof        | Merged at `70691d9`                     |
-| Default/stress/fallback conformance                                      | governance         | Gallery + validators      | CI                         | v17 A/B/C stress input                           | CL1C      | 64-vertex Gallery + exact-head Desktop matrix               | Merged at `38e40ae`                     |
-| Action and icon controls                                                 | component          | `@artemis/ui`             | Gallery + GoalBar          | buttons, icon buttons, badge, status, icon sizes | CL2A      | 105-case sandboxed Goal parity Electron matrix              | Merged at `f0834dd`                     |
-| Field and selection controls                                             | component          | `@artemis/ui`             | Gallery + real Desktop     | field, search, select, checkbox, switch          | CL2B      | 14-case/288-assertion strict-sandbox Electron matrix        | Candidate                               |
-| Tabs and segmented controls                                              | component          | `@artemis/ui`             | Desktop consumer pending   | tabs and segmented controls                      | CL2C      | Gallery then exact real consumer                            | Pending                                 |
-| Feedback, overlays, layout primitives                                    | component          | `@artemis/ui`             | Desktop consumers later    | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | Gallery cases first                                         | Pending                                 |
-| Artemis-specific presentational patterns                                 | component          | `@artemis/ui`             | Desktop adapter layer      | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                         | Pending                                 |
-| Shell, activity bar, sidebar, navigation                                 | surface            | Desktop                   | users                      | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom matrix                  | Pending                                 |
-| Composer and approval surfaces                                           | surface            | Desktop                   | users                      | renderer Composer/approval selectors             | MIG2      | Exact-head interaction + screenshot evidence                | Pending                                 |
-| Conversation, timeline, sources, task activity                           | surface            | Desktop                   | users                      | timeline/source selectors                        | MIG3      | Exact-head state and Electron evidence                      | Pending                                 |
-| Workspace, Dock, editors, Browser, Terminal                              | surface            | Desktop                   | users                      | workspace/dock/editor selectors                  | MIG4      | Geometry, PTY, Browser boundaries, exact-head Electron      | Pending                                 |
-| Review, Environment, Settings, Resource Center, MCP                      | surface            | Desktop                   | users                      | feature-local renderer styles                    | MIG5      | Feature state matrix + exact-head Electron                  | Pending                                 |
-| Remaining pages and governance cleanup                                   | surface/governance | Desktop + CI              | users/contributors         | remaining legacy selectors                       | MIG6      | Complete exact-head screenshot/runtime matrix               | Pending                                 |
+| Scope                                                                    | Type               | Owner                     | Consumer                          | Legacy selector/source                           | Target PR | Electron evidence                                           | Status                                  |
+| ------------------------------------------------------------------------ | ------------------ | ------------------------- | --------------------------------- | ------------------------------------------------ | --------- | ----------------------------------------------------------- | --------------------------------------- |
+| Manifest/token/integrity schemas, registry, validators, public artifacts | token/package      | `@artemis/theme-contract` | theme packages and Gallery        | scattered root variables                         | CL0A      | N/A: no Desktop dependency or UI change                     | Merged at `244aacf`                     |
+| Public React/CSS boundary                                                | package            | `@artemis/ui`             | Gallery, later Desktop            | no package boundary                              | CL0A      | N/A: no components or Desktop consumer                      | Merged at `244aacf`                     |
+| Neutral built-in skin data/CSS/integrity artifacts                       | token/package      | `@artemis/theme-artemis`  | Gallery                           | v17 role vocabulary only                         | CL0A      | N/A: no Desktop resolver                                    | Merged at `244aacf`; superseded by CL1A |
+| Anatomy, states, events, ARIA, focus                                     | component          | `@artemis/ui`             | Gallery harness                   | v17 70 cards                                     | CL0B      | Gallery runtime required; Electron not yet production proof | Merged at `facb262`                     |
+| Direction A Artemis values                                               | skin               | `@artemis/theme-artemis`  | Gallery and Desktop host          | v17 A light/dark/high                            | CL1A      | Gallery/browser; Desktop first-frame variables in CL1B      | Merged at `3457e0d`                     |
+| Resolver/registry and host attributes                                    | integration        | Desktop renderer glue     | Desktop                           | current `data-theme` bridge                      | CL1B      | Exact-head Electron state/Portal/xterm/package proof        | Merged at `70691d9`                     |
+| Default/stress/fallback conformance                                      | governance         | Gallery + validators      | CI                                | v17 A/B/C stress input                           | CL1C      | 64-vertex Gallery + exact-head Desktop matrix               | Merged at `38e40ae`                     |
+| Action and icon controls                                                 | component          | `@artemis/ui`             | Gallery + GoalBar                 | buttons, icon buttons, badge, status, icon sizes | CL2A      | 105-case sandboxed Goal parity Electron matrix              | Merged at `f0834dd`                     |
+| Field and selection controls                                             | component          | `@artemis/ui`             | Gallery + real Desktop            | field, search, select, checkbox, switch          | CL2B      | 14-case/288-assertion strict-sandbox Electron matrix        | Merged at `6fbbe14`                     |
+| Tabs and segmented controls                                              | component          | `@artemis/ui`             | Gallery + three Desktop consumers | tabs and segmented controls                      | CL2C      | 6-case/174-assertion strict-sandbox Electron matrix         | Candidate                               |
+| Feedback, overlays, layout primitives                                    | component          | `@artemis/ui`             | Desktop consumers later           | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | Gallery cases first                                         | Pending                                 |
+| Artemis-specific presentational patterns                                 | component          | `@artemis/ui`             | Desktop adapter layer             | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                         | Pending                                 |
+| Shell, activity bar, sidebar, navigation                                 | surface            | Desktop                   | users                             | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom matrix                  | Pending                                 |
+| Composer and approval surfaces                                           | surface            | Desktop                   | users                             | renderer Composer/approval selectors             | MIG2      | Exact-head interaction + screenshot evidence                | Pending                                 |
+| Conversation, timeline, sources, task activity                           | surface            | Desktop                   | users                             | timeline/source selectors                        | MIG3      | Exact-head state and Electron evidence                      | Pending                                 |
+| Workspace, Dock, editors, Browser, Terminal                              | surface            | Desktop                   | users                             | workspace/dock/editor selectors                  | MIG4      | Geometry, PTY, Browser boundaries, exact-head Electron      | Pending                                 |
+| Review, Environment, Settings, Resource Center, MCP                      | surface            | Desktop                   | users                             | feature-local renderer styles                    | MIG5      | Feature state matrix + exact-head Electron                  | Pending                                 |
+| Remaining pages and governance cleanup                                   | surface/governance | Desktop + CI              | users/contributors                | remaining legacy selectors                       | MIG6      | Complete exact-head screenshot/runtime matrix               | Pending                                 |
 
 ## Production behavior regression input
 

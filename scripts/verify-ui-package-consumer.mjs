@@ -85,6 +85,8 @@ try {
       "dist/actions.d.ts",
       "dist/forms.js",
       "dist/forms.d.ts",
+      "dist/navigation.js",
+      "dist/navigation.d.ts",
       "dist/styles.css",
     ]),
     await pack("packages/theme-artemis", [
@@ -122,7 +124,7 @@ try {
 
   await writeFile(
     join(consumer, "consumer.ts"),
-    `import { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField, type FormControlSize, type SelectOption } from "@artemis/ui/forms";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst tone: ActionTone = "success";\nconst formSize: FormControlSize = "comfortable";\nconst option: SelectOption<"one"> = { value: "one", label: "One" };\nvoid ConformanceProbe;\nvoid Button;\nvoid IconButton;\nvoid Checkbox;\nvoid SearchField;\nvoid Select;\nvoid Switch;\nvoid TextField;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone || FORM_COMPONENT_CONTRACTS.textField.sizes.at(-1) !== formSize || option.value !== "one") throw new Error("invalid contract");\n`,
+    `import { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField, type FormControlSize, type SelectOption } from "@artemis/ui/forms";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs, type NavigationControlSize, type TabOption } from "@artemis/ui/navigation";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst tone: ActionTone = "success";\nconst formSize: FormControlSize = "comfortable";\nconst navigationSize: NavigationControlSize = "compact";\nconst option: SelectOption<"one"> = { value: "one", label: "One" };\nconst tabOption: TabOption<"one"> = { id: "one-tab", panelId: "one-panel", value: "one", label: "One" };\nvoid ConformanceProbe;\nvoid Button;\nvoid IconButton;\nvoid Checkbox;\nvoid SearchField;\nvoid Select;\nvoid Switch;\nvoid TextField;\nvoid SegmentedControl;\nvoid Tabs;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone || FORM_COMPONENT_CONTRACTS.textField.sizes.at(-1) !== formSize || NAVIGATION_COMPONENT_CONTRACTS.tabs.sizes.at(0) !== navigationSize || option.value !== "one" || tabOption.value !== "one") throw new Error("invalid contract");\n`,
     "utf8",
   );
   await writeFile(
@@ -152,6 +154,12 @@ try {
     "utf8",
   );
   run(process.execPath, ["consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "navigation-consumer.mjs"),
+    `import { createElement } from "react";\nimport { renderToStaticMarkup } from "react-dom/server";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs } from "@artemis/ui/navigation";\nconst tabs = renderToStaticMarkup(createElement(Tabs, { label: "Outside tabs", value: "one", onValueChange() {}, options: [{ id: "outside-tab", panelId: "outside-panel", value: "one", label: "One" }] }));\nconst segmented = renderToStaticMarkup(createElement(SegmentedControl, { label: "Outside segmented", value: "one", onValueChange() {}, options: [{ value: "one", label: "One" }] }));\nif (!Object.isFrozen(NAVIGATION_COMPONENT_CONTRACTS) || !tabs.includes('data-artemis-component="tabs"') || !tabs.includes('aria-controls="outside-panel"') || !segmented.includes('data-artemis-component="segmented-control"') || !segmented.includes('aria-pressed="true"')) throw new Error("navigation peer/component resolution failed");\n`,
+    "utf8",
+  );
+  run(process.execPath, ["navigation-consumer.mjs"], consumer);
   run(npm, ["ls", "--all", "react", "react-dom"], consumer);
 
   await writeFile(
@@ -231,6 +239,37 @@ try {
     );
   }
 
+  await writeFile(
+    join(consumer, "navigation-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { Tabs } from "@artemis/ui/navigation";\nexport const TreeShakeTabs = () => createElement(Tabs, { label: "Navigation tree-shaken", value: "one", onValueChange() {}, options: [{ id: "one-tab", panelId: "one-panel", value: "one", label: "One" }] });\n`,
+    "utf8",
+  );
+  run(
+    join(root, "node_modules/.bin/esbuild"),
+    [
+      "navigation-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=navigation-tree-shake.js",
+    ],
+    consumer,
+  );
+  const navigationTreeShaken = await readFile(
+    join(consumer, "navigation-tree-shake.js"),
+    "utf8",
+  );
+  if (
+    !navigationTreeShaken.includes("data-artemis-component") ||
+    !navigationTreeShaken.includes("tabs") ||
+    navigationTreeShaken.includes("segmented-control")
+  ) {
+    throw new Error("Tabs-only bundle retained unused segmented-control JS");
+  }
+
   const installedRoots = [
     join(consumer, "node_modules/@artemis/theme-contract"),
     join(consumer, "node_modules/@artemis/ui"),
@@ -253,7 +292,7 @@ try {
   }
 
   console.log(
-    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form JS tree-shaken)`,
+    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation JS tree-shaken)`,
   );
 } finally {
   await rm(consumer, { recursive: true, force: true });

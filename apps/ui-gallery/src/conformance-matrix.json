@@ -20,7 +20,9 @@
       "form-anatomy",
       "form-states",
       "form-events-ime",
-      "form-semantics"
+      "form-semantics",
+      "navigation-anatomy",
+      "navigation-events"
     ],
     "stress": [
       "anatomy",
@@ -40,7 +42,9 @@
       "form-anatomy",
       "form-states",
       "form-events-ime",
-      "form-semantics"
+      "form-semantics",
+      "navigation-anatomy",
+      "navigation-events"
     ]
   },
   "switchCases": [

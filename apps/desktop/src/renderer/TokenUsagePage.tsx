@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AgentEvent } from "@artemis/protocol";
+import { Tabs } from "@artemis/ui/navigation";
 
 import {
   ALL_USAGE_MODELS,
@@ -20,6 +21,8 @@ import { localizedCopy } from "../shared/i18n-resources.js";
 import { userInitials } from "./user-profile.js";
 import { StatCard } from "./StatCard.js";
 import { TokenUsageHeatmap } from "./TokenUsageHeatmap.js";
+
+const TOKEN_USAGE_VIEWS = ["daily", "weekly", "cumulative"] as const;
 
 function dateKey(value: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -331,36 +334,46 @@ export function TokenUsagePage({
                 ))}
               </select>
             </label>
-            <div className="token-usage-tabs" role="tablist">
-              {(["daily", "weekly", "cumulative"] as const).map((candidate) => (
-                <button
-                  aria-selected={view === candidate}
-                  key={candidate}
-                  onClick={() => {
-                    setView(candidate);
-                    setHovered(undefined);
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  {t[`${candidate}Tab`]}
-                </button>
-              ))}
-            </div>
+            <Tabs
+              className="token-usage-tabs"
+              label={t.activity}
+              onValueChange={(candidate) => {
+                setView(candidate);
+                setHovered(undefined);
+              }}
+              options={TOKEN_USAGE_VIEWS.map((candidate) => ({
+                id: `token-usage-${candidate}-tab`,
+                label: t[`${candidate}Tab`],
+                panelId: `token-usage-${candidate}-panel`,
+                value: candidate,
+              }))}
+              value={view}
+            />
           </div>
         </div>
 
-        <div className="token-usage-chart-scroll">
-          <TokenUsageHeatmap
-            cells={cells}
-            hovered={hovered}
-            label={t.activity}
-            locale={locale}
-            maximum={maximum}
-            onHoveredChange={setHovered}
-            view={view}
-          />
-        </div>
+        {TOKEN_USAGE_VIEWS.map((candidate) => (
+          <div
+            aria-labelledby={`token-usage-${candidate}-tab`}
+            className="token-usage-chart-scroll"
+            hidden={candidate !== view}
+            id={`token-usage-${candidate}-panel`}
+            key={candidate}
+            role="tabpanel"
+          >
+            {candidate === view ? (
+              <TokenUsageHeatmap
+                cells={cells}
+                hovered={hovered}
+                label={t.activity}
+                locale={locale}
+                maximum={maximum}
+                onHoveredChange={setHovered}
+                view={view}
+              />
+            ) : null}
+          </div>
+        ))}
         {loadError ? (
           <p className="token-usage-empty error" role="alert">
             {t.error}

@@ -10226,7 +10226,10 @@ async function seedSmokeMultiQuestionUiFixture(): Promise<void> {
 }
 
 function seedSmokeTokenUsageFixture(): void {
-  if (!store || process.env.ARTEMIS_SMOKE_VIEW !== "token-usage") return;
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (!store || (view !== "token-usage" && view !== "navigation-token-usage")) {
+    return;
+  }
   const now = new Date();
   const timestamp = now.toISOString();
   const projectId = "artemis-smoke-token-usage-project";
@@ -10636,6 +10639,38 @@ function seedSmokeMarkdownEditorFixture(): void {
     createdAt: now,
     updatedAt: now,
   });
+  if (view === "markdown-editor-navigation-preview") {
+    const turnId = "artemis-smoke-markdown-preview-turn";
+    const payloads: AgentPayload[] = [
+      {
+        type: "user.message",
+        messageId: "artemis-smoke-markdown-preview-user",
+        text: "Inspect the synthetic NOTES.md fixture.",
+      },
+      { type: "turn.started", mode: "execute" },
+      {
+        type: "tool.started",
+        toolCallId: "artemis-smoke-markdown-preview-tool",
+        toolName: "read",
+        input: { path: "NOTES.md" },
+      },
+      {
+        type: "tool.completed",
+        toolCallId: "artemis-smoke-markdown-preview-tool",
+        output: "Synthetic Markdown fixture read.",
+        isError: false,
+      },
+      { type: "turn.completed", reason: "completed" },
+    ];
+    store.appendEvents(
+      threadId,
+      payloads.map((payload, index) => ({
+        eventId: `artemis-smoke-markdown-preview-${index}`,
+        turnId,
+        payload,
+      })),
+    );
+  }
 }
 
 // One-shot failure latches for the mcp-editor smoke: the injected save and
@@ -11189,6 +11224,156 @@ async function driveSmokeFormControlsEvidence(
   await evaluate(`new Promise((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   )`);
+}
+
+async function driveSmokeNavigationControlsEvidence(
+  window: BrowserWindow,
+  view: string | undefined,
+): Promise<void> {
+  const targets = {
+    "navigation-token-usage": {
+      activation: "ArrowRight",
+      expectedLabel: "Weekly",
+      rootSelector: '.token-usage-tabs[data-artemis-component="tabs"]',
+      targetSelector:
+        '.token-usage-tabs[data-artemis-component="tabs"] [data-part="tab"][aria-selected="true"]',
+    },
+    "markdown-editor-navigation-toolbar": {
+      activation: "Space",
+      expectedLabel: "Source",
+      rootSelector:
+        '.workspace-editor-mode-toggle[data-artemis-component="segmented-control"]',
+      targetSelector:
+        '.workspace-editor-mode-toggle[data-artemis-component="segmented-control"] [data-part="segment"]:nth-of-type(2)',
+    },
+    "markdown-editor-navigation-preview": {
+      activation: "Space",
+      expectedLabel: "Source",
+      rootSelector:
+        '.markdown-reader-mode-toggle[data-artemis-component="segmented-control"]',
+      targetSelector:
+        '.markdown-reader-mode-toggle[data-artemis-component="segmented-control"] [data-part="segment"]:nth-of-type(2)',
+    },
+  } as const;
+  const target = view ? targets[view as keyof typeof targets] : undefined;
+  if (!target) return;
+
+  const contents = window.webContents;
+  const wait = (milliseconds: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+  const evaluate = async <T>(script: string): Promise<T> =>
+    (await contents.executeJavaScript(script)) as T;
+  const pressKey = async (
+    key: string,
+    code: string,
+    virtualKeyCode: number,
+  ): Promise<void> => {
+    if (!contents.debugger.isAttached()) contents.debugger.attach("1.3");
+    const parameters = {
+      key,
+      code,
+      windowsVirtualKeyCode: virtualKeyCode,
+      nativeVirtualKeyCode: virtualKeyCode,
+    };
+    await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+      ...parameters,
+      type: "rawKeyDown",
+    });
+    await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+      ...parameters,
+      type: "keyUp",
+    });
+  };
+
+  if (process.platform === "darwin") app.focus({ steal: true });
+  window.focus();
+  contents.focus();
+  let focused = false;
+  for (let presses = 0; presses < 300; presses += 1) {
+    focused = await evaluate<boolean>(
+      `document.activeElement === document.querySelector(${JSON.stringify(target.targetSelector)})`,
+    );
+    if (focused) break;
+    await pressKey("Tab", "Tab", 9);
+    await wait(15);
+  }
+  if (!focused) {
+    throw new Error(
+      `Navigation-control Tab traversal did not reach ${target.targetSelector}.`,
+    );
+  }
+
+  await evaluate(`(() => {
+    const root = document.querySelector(${JSON.stringify(target.rootSelector)});
+    const target = document.querySelector(${JSON.stringify(target.targetSelector)});
+    if (!(root instanceof HTMLElement) || !(target instanceof HTMLButtonElement)) {
+      throw new Error('Navigation smoke target disappeared before activation.');
+    }
+    window.__navigationControlsRoot = root;
+    window.__navigationControlsClickCount = 0;
+    target.addEventListener('click', () => {
+      window.__navigationControlsClickCount += 1;
+    });
+    window.__navigationControlsBefore = {
+      activeText: document.activeElement?.textContent?.trim() ?? null,
+      selected: [...root.querySelectorAll('button')].map((button) => ({
+        label: button.textContent?.trim() ?? '',
+        pressed: button.getAttribute('aria-pressed'),
+        selected: button.getAttribute('aria-selected'),
+        tabIndex: button.tabIndex,
+      })),
+    };
+  })()`);
+
+  if (target.activation === "ArrowRight") {
+    await pressKey("ArrowRight", "ArrowRight", 39);
+  } else {
+    await pressKey(" ", "Space", 32);
+  }
+  await wait(300);
+  const interaction = await evaluate<Record<string, unknown>>(`(() => {
+    const root = document.querySelector(${JSON.stringify(target.rootSelector)});
+    const buttons = [...(root?.querySelectorAll('button') ?? [])];
+    const active = document.activeElement;
+    const selected = buttons.find(
+      (button) =>
+        button.getAttribute('aria-selected') === 'true' ||
+        button.getAttribute('aria-pressed') === 'true',
+    );
+    const panelId = selected?.getAttribute('aria-controls');
+    const panel = panelId ? document.getElementById(panelId) : null;
+    window.__navigationControlsInteraction = {
+      view: ${JSON.stringify(view)},
+      activation: ${JSON.stringify(target.activation)},
+      activeText: active?.textContent?.trim() ?? null,
+      before: window.__navigationControlsBefore,
+      clickCount: window.__navigationControlsClickCount,
+      expectedLabel: ${JSON.stringify(target.expectedLabel)},
+      panelId,
+      panelLabelledBy: panel?.getAttribute('aria-labelledby') ?? null,
+      rootStable: root === window.__navigationControlsRoot,
+      selectedText: selected?.textContent?.trim() ?? null,
+      sourceSurfacePresent:
+        document.querySelector(
+          '.workspace-markdown-editor textarea, .markdown-reader-source',
+        ) !== null,
+    };
+    return window.__navigationControlsInteraction;
+  })()`);
+  if (
+    interaction.rootStable !== true ||
+    interaction.selectedText !== target.expectedLabel ||
+    interaction.activeText !== target.expectedLabel
+  ) {
+    throw new Error(
+      `Navigation control did not activate the expected selection for ${view}: ${JSON.stringify(interaction)}.`,
+    );
+  }
+  if (target.activation === "Space" && interaction.clickCount !== 1) {
+    throw new Error(
+      `Navigation control Space activation did not emit exactly one click for ${view}: ${JSON.stringify(interaction)}.`,
+    );
+  }
 }
 
 // PR9C input-fields evidence driver (checklist §6-2): after the
@@ -13127,6 +13312,10 @@ function createMainWindow(): BrowserWindow {
   const smokeScale = [1, 1.25, 1.5].includes(requestedScale)
     ? requestedScale
     : 1;
+  let smokePreloadSecurity: {
+    contextIsolated: boolean;
+    sandboxed: boolean;
+  } | null = null;
   const window = new BrowserWindow({
     width: smokeWidth,
     height: 920,
@@ -13146,6 +13335,22 @@ function createMainWindow(): BrowserWindow {
       webviewTag: true,
     },
   });
+  const smokeRendererConsoleEntries: Array<{
+    level: "warning" | "error";
+    message: string;
+    lineNumber: number;
+  }> = [];
+  if (smokeMode) {
+    window.webContents.on("console-message", (details) => {
+      if (details.level === "warning" || details.level === "error") {
+        smokeRendererConsoleEntries.push({
+          level: details.level,
+          message: details.message,
+          lineNumber: details.lineNumber,
+        });
+      }
+    });
+  }
   if (smokeMode) {
     window.webContents.setZoomFactor(smokeScale);
   }
@@ -13256,8 +13461,23 @@ function createMainWindow(): BrowserWindow {
     void window.loadFile(productionEntry);
   }
 
-  ipcMain.once(IPC.rendererReady, (event) => {
+  ipcMain.once(IPC.rendererReady, (event, runtimeSecurity: unknown) => {
     if (event.sender.id === window.webContents.id) {
+      if (
+        smokeMode &&
+        typeof runtimeSecurity === "object" &&
+        runtimeSecurity !== null &&
+        typeof (runtimeSecurity as { contextIsolated?: unknown })
+          .contextIsolated === "boolean" &&
+        typeof (runtimeSecurity as { sandboxed?: unknown }).sandboxed ===
+          "boolean"
+      ) {
+        smokePreloadSecurity = {
+          contextIsolated: (runtimeSecurity as { contextIsolated: boolean })
+            .contextIsolated,
+          sandboxed: (runtimeSecurity as { sandboxed: boolean }).sandboxed,
+        };
+      }
       markStartupStage("renderer-ready");
       if (!smokeMode) {
         for (const thread of store?.listThreads() ?? []) {
@@ -13913,6 +14133,22 @@ function createMainWindow(): BrowserWindow {
                   };
                   document.querySelector('.thread-select')?.click();
                   await wait(400);
+                  if (view === 'markdown-editor-navigation-preview') {
+                    const disclosure = await waitFor('.tool-disclosure');
+                    if (!(disclosure instanceof HTMLButtonElement)) {
+                      throw new Error('Synthetic Markdown tool activity missing.');
+                    }
+                    disclosure.click();
+                    const fileLink = await waitFor('.tool-file-link');
+                    if (!(fileLink instanceof HTMLButtonElement)) {
+                      throw new Error('Synthetic Markdown file link missing.');
+                    }
+                    fileLink.click();
+                    if (!(await waitFor('.markdown-reader-panel'))) {
+                      throw new Error('Markdown reader panel did not render.');
+                    }
+                    return;
+                  }
                   document.querySelector('.right-sidebar-toggle')?.click();
                   await waitFor('.workspace-tab-add');
                   document.querySelector('.workspace-tab-add')?.click();
@@ -13947,6 +14183,9 @@ function createMainWindow(): BrowserWindow {
                   markdownRow.click();
                   await waitFor('.workspace-markdown-editor');
                   await waitFor('[data-workspace-image-failed]');
+                  if (view === 'markdown-editor-navigation-toolbar') {
+                    return;
+                  }
                   const openSourceView = async () => {
                     const sourceButton = [
                       ...document.querySelectorAll(
@@ -14835,7 +15074,7 @@ function createMainWindow(): BrowserWindow {
                   await wait(400);
                   return;
                 }
-                if (view === 'token-usage') {
+                if (view === 'token-usage' || view === 'navigation-token-usage') {
                   document.querySelectorAll('.activity-button')[2]?.click();
                   await wait(1_000);
                   const page = document.querySelector('.token-usage-page');
@@ -14949,6 +15188,10 @@ function createMainWindow(): BrowserWindow {
           }
           if (smokeMode) {
             await driveSmokeFormControlsEvidence(window, requestedSmokeView);
+            await driveSmokeNavigationControlsEvidence(
+              window,
+              requestedSmokeView,
+            );
           }
           // PR10B review round 3 (nit 6): the user-input-transport PNG is
           // captured inside its evidence driver after the broker
@@ -15085,11 +15328,18 @@ function createMainWindow(): BrowserWindow {
                 for (const element of document.querySelectorAll(
                   "button, a[href], summary, [role='button'], [role='tab']",
                 )) {
-                  const usesRovingTabIndex =
-                    element.getAttribute("role") === "option" &&
-                    element
-                      .closest("[role='listbox']")
-                      ?.querySelector("[role='option'][tabindex='0']");
+                  const role = element.getAttribute("role");
+                  const rovingRoot =
+                    role === "option"
+                      ? element.closest("[role='listbox']")
+                      : role === "tab"
+                        ? element.closest("[role='tablist']")
+                        : null;
+                  const usesRovingTabIndex = rovingRoot?.querySelector(
+                    role === "option"
+                      ? "[role='option'][tabindex='0']"
+                      : "[role='tab'][tabindex='0']",
+                  );
                   if (visible(element) && !name(element)) {
                     issues.push({
                       rule: "interactive-name",
@@ -16233,6 +16483,126 @@ function createMainWindow(): BrowserWindow {
                         };
                       })()
                     : null,
+                  navigationControls: (() => {
+                    const roots = [
+                      ...document.querySelectorAll(
+                        '[data-artemis-component="tabs"], ' +
+                          '[data-artemis-component="segmented-control"]',
+                      ),
+                    ];
+                    const describe = (root) => {
+                      const rootBounds = root.getBoundingClientRect();
+                      const rootStyle = getComputedStyle(root);
+                      const buttons = [...root.querySelectorAll('button')].map(
+                        (button) => {
+                          const bounds = button.getBoundingClientRect();
+                          const style = getComputedStyle(button);
+                          const controlledPanelId =
+                            button.getAttribute('aria-controls');
+                          const controlledPanel = controlledPanelId
+                            ? document.getElementById(controlledPanelId)
+                            : null;
+                          return {
+                            id: button.id,
+                            label: button.textContent?.trim() ?? '',
+                            part: button.getAttribute('data-part'),
+                            state: button.getAttribute('data-state'),
+                            role: button.getAttribute('role'),
+                            ariaControls: button.getAttribute('aria-controls'),
+                            ariaPressed: button.getAttribute('aria-pressed'),
+                            ariaSelected: button.getAttribute('aria-selected'),
+                            disabled: button.disabled,
+                            tabIndex: button.tabIndex,
+                            documentActive: document.activeElement === button,
+                            controlledPanel:
+                              controlledPanel === null
+                                ? null
+                                : {
+                                    id: controlledPanel.id,
+                                    role: controlledPanel.getAttribute('role'),
+                                    ariaLabelledBy:
+                                      controlledPanel.getAttribute(
+                                        'aria-labelledby',
+                                      ),
+                                    hidden: controlledPanel.hidden,
+                                  },
+                            geometry: {
+                              width: bounds.width,
+                              height: bounds.height,
+                            },
+                            computed: {
+                              backgroundColor: style.backgroundColor,
+                              borderBlockEndColor: style.borderBlockEndColor,
+                              borderStyle: style.borderStyle,
+                              borderWidth: style.borderWidth,
+                              color: style.color,
+                              fontFamily: style.fontFamily,
+                              fontWeight: style.fontWeight,
+                              minBlockSize: style.minBlockSize,
+                              opacity: style.opacity,
+                              outlineColor: style.outlineColor,
+                              outlineStyle: style.outlineStyle,
+                              outlineWidth: style.outlineWidth,
+                            },
+                          };
+                        },
+                      );
+                      return {
+                        component: root.getAttribute(
+                          'data-artemis-component',
+                        ),
+                        context: root.closest('.token-usage-page')
+                          ? 'token-usage'
+                          : root.closest('.workspace-markdown-editor')
+                            ? 'workspace-editor'
+                            : root.closest('.markdown-reader-panel')
+                              ? 'markdown-reader'
+                              : 'other',
+                        state: root.getAttribute('data-state'),
+                        size: root.getAttribute('data-size'),
+                        className: root.getAttribute('class'),
+                        groupLabel: root.getAttribute('aria-label'),
+                        role: root.getAttribute('role'),
+                        geometry: {
+                          width: rootBounds.width,
+                          height: rootBounds.height,
+                        },
+                        computed: {
+                          backgroundColor: rootStyle.backgroundColor,
+                          borderStyle: rootStyle.borderStyle,
+                          borderWidth: rootStyle.borderWidth,
+                          color: rootStyle.color,
+                          display: rootStyle.display,
+                          fontFamily: rootStyle.fontFamily,
+                        },
+                        parts: [
+                          'root',
+                          ...buttons.map((button) => button.part),
+                        ],
+                        buttons,
+                        portalCount:
+                          root.querySelectorAll('[data-artemis-portal]').length,
+                      };
+                    };
+                    return {
+                      interaction:
+                        window.__navigationControlsInteraction ?? null,
+                      documentHasFocus: document.hasFocus(),
+                      components: roots.map(describe),
+                      rootTokens: {
+                        surfaceBase: getComputedStyle(
+                          document.documentElement,
+                        )
+                          .getPropertyValue('--artemis-color-surface-base')
+                          .trim(),
+                        textPrimary: getComputedStyle(
+                          document.documentElement,
+                        )
+                          .getPropertyValue('--artemis-color-text-primary')
+                          .trim(),
+                      },
+                    };
+                  })(),
                   formControls: (() => {
                     const roots = [
                       ...document.querySelectorAll(
@@ -16403,15 +16773,31 @@ function createMainWindow(): BrowserWindow {
                   interactiveCount: document.querySelectorAll(
                     "button, a[href], summary, input, select, textarea, [role='button'], [role='tab']",
                   ).length,
+                  runtimeGlobalSecurity: {
+                    processType: typeof globalThis.process,
+                    requireType: typeof globalThis.require,
+                  },
                   issues,
                 };
               })()
             `)) as Record<string, unknown>;
+            const runtimeGlobalSecurity = result.runtimeGlobalSecurity as
+              { processType?: unknown; requireType?: unknown } | undefined;
             await writeFile(
               smokeAccessibility,
               `${JSON.stringify(
                 {
                   ...result,
+                  rendererConsoleEntries: smokeRendererConsoleEntries,
+                  runtimeSecurity: {
+                    contextIsolation:
+                      smokePreloadSecurity?.contextIsolated ?? null,
+                    nodeIntegration: !(
+                      runtimeGlobalSecurity?.processType === "undefined" &&
+                      runtimeGlobalSecurity?.requireType === "undefined"
+                    ),
+                    sandbox: smokePreloadSecurity?.sandboxed ?? null,
+                  },
                   windowFocused: window.isFocused(),
                   userInputTransport: smokeUserInputTransportEvidence ?? null,
                   zoomFactor: smokeScale,

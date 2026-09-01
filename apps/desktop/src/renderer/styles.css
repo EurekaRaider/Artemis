@@ -7779,35 +7779,13 @@ button.sources-panel-entry.attachment:focus-visible {
   padding: 6px 10px;
 }
 
-.markdown-reader-actions,
-.markdown-reader-mode-toggle {
+.markdown-reader-actions {
   align-items: center;
   display: flex;
 }
 
 .markdown-reader-actions {
   gap: 8px;
-}
-
-.markdown-reader-mode-toggle {
-  background: var(--panel-3);
-  border-radius: 7px;
-  padding: 2px;
-}
-
-.markdown-reader-mode-toggle button {
-  background: transparent;
-  border: 0;
-  border-radius: 5px;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 11px;
-  padding: 4px 8px;
-}
-
-.markdown-reader-mode-toggle button[aria-pressed="true"] {
-  background: var(--panel-2);
-  color: var(--text);
 }
 
 .markdown-reader-content,
@@ -8212,30 +8190,6 @@ button.sources-panel-entry.attachment:focus-visible {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-}
-
-.workspace-editor-mode-toggle {
-  align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-}
-
-.workspace-editor-mode-toggle button {
-  border-radius: 6px;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 11px;
-  min-height: 25px;
-  padding: 0 9px;
-}
-
-.workspace-editor-mode-toggle button[aria-pressed="true"] {
-  background: var(--selected);
-  color: var(--text);
 }
 
 .workspace-file-markdown-preview {
@@ -11671,37 +11625,6 @@ button.sources-panel-entry.attachment:focus-visible {
   letter-spacing: -0.015em;
 }
 
-.token-usage-tabs {
-  align-items: center;
-  display: flex;
-  gap: 20px;
-}
-
-.token-usage-tabs button {
-  border-radius: 6px;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 16px;
-  padding: 4px 0;
-  transition:
-    color 180ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.token-usage-tabs button:hover,
-.token-usage-tabs button[aria-selected="true"] {
-  color: var(--text);
-}
-
-.token-usage-tabs button:active {
-  transform: scale(0.96);
-}
-
-.token-usage-tabs button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--blue) 72%, var(--text));
-  outline-offset: 4px;
-}
-
 .token-usage-chart-scroll {
   overflow-x: auto;
   overflow-y: hidden;
@@ -12066,10 +11989,6 @@ button.sources-panel-entry.attachment:focus-visible {
     grid-column: auto;
   }
 
-  .token-usage-tabs {
-    gap: 18px;
-  }
-
   .token-usage-model-filter {
     align-items: flex-start;
     flex-direction: column;
@@ -12090,8 +12009,7 @@ button.sources-panel-entry.attachment:focus-visible {
     animation: none;
   }
 
-  .token-usage-cell,
-  .token-usage-tabs button {
+  .token-usage-cell {
     transition: none;
   }
 }

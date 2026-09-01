@@ -42,8 +42,59 @@ const mainSource = readFileSync(
   fileURLToPath(new URL("../src/main/main.ts", import.meta.url)),
   "utf8",
 );
+const navigationVerifierSource = readFileSync(
+  fileURLToPath(
+    new URL("../scripts/verify-navigation-controls.mjs", import.meta.url),
+  ),
+  "utf8",
+);
 
 describe("token usage navigation", () => {
+  it("uses public Tabs with exact tab-panel relations for the three usage views", () => {
+    expect(tokenUsagePageSource).toContain(
+      'import { Tabs } from "@artemis/ui/navigation";',
+    );
+    expect(tokenUsagePageSource).toContain("<Tabs");
+    expect(tokenUsagePageSource).toContain("label={t.activity}");
+    expect(tokenUsagePageSource).toContain(
+      "id: `token-usage-${candidate}-tab`",
+    );
+    expect(tokenUsagePageSource).toContain(
+      "panelId: `token-usage-${candidate}-panel`",
+    );
+    expect(tokenUsagePageSource).toContain('role="tabpanel"');
+    expect(tokenUsagePageSource).toContain(
+      "aria-labelledby={`token-usage-${candidate}-tab`}",
+    );
+    expect(tokenUsagePageSource).toContain("TOKEN_USAGE_VIEWS.map((candidate)");
+    expect(tokenUsagePageSource).toContain("hidden={candidate !== view}");
+    expect(tokenUsagePageSource).toContain(
+      "id={`token-usage-${candidate}-panel`}",
+    );
+    expect(tokenUsagePageSource).toContain("candidate === view ? (");
+  });
+
+  it("binds production navigation evidence to its exact head and live renderer security", () => {
+    expect(navigationVerifierSource).toContain(
+      'const candidateHead = runGit(["rev-parse", "HEAD"]);',
+    );
+    expect(navigationVerifierSource).toContain(
+      'const completedHead = runGit(["rev-parse", "HEAD"]);',
+    );
+    expect(navigationVerifierSource).toContain(
+      'runGit(["status", "--porcelain"])',
+    );
+    expect(navigationVerifierSource).toContain("ARTEMIS_EXPECTED_HEAD");
+    expect(navigationVerifierSource).toContain('"renderer-runtime-security"');
+    expect(navigationVerifierSource).toContain('"renderer-console-clean"');
+    expect(navigationVerifierSource).toContain("button.controlledPanel?.id");
+    expect(preloadSource).toContain("process.contextIsolated === true");
+    expect(preloadSource).toContain("process.sandboxed === true");
+    expect(mainSource).toContain('window.webContents.on("console-message"');
+    expect(mainSource).toContain("processType: typeof globalThis.process");
+    expect(mainSource).toContain("requireType: typeof globalThis.require");
+  });
+
   it("places the Token Usage button immediately after MCP & Skills and opens its page", () => {
     const activityStart = appSource.indexOf('<aside className="activity-bar">');
     const activityEnd = appSource.indexOf("</aside>", activityStart);

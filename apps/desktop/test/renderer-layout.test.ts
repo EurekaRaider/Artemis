@@ -1893,8 +1893,13 @@ describe("renderer layout contract", () => {
   it("switches the Markdown reader between rich and source views", () => {
     expect(workspacePreviewSource).toContain("<MarkdownContent");
     expect(workspacePreviewSource).toContain('useState<"rich" | "source">');
-    expect(workspacePreviewSource).toContain('setView("rich")');
-    expect(workspacePreviewSource).toContain('setView("source")');
+    expect(workspacePreviewSource).toContain("onValueChange={setView}");
+    expect(workspacePreviewSource).toContain(
+      '{ value: "rich", label: props.richLabel }',
+    );
+    expect(workspacePreviewSource).toContain(
+      '{ value: "source", label: props.sourceLabel }',
+    );
     expect(workspacePreviewSource).toContain(
       'className="markdown-reader-mode-toggle"',
     );

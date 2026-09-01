@@ -103,6 +103,11 @@ jobs:
       - name: Verify field and selection controls in production Electron
         run: npm run verify:form-controls
 
+      - name: Verify tabs and segmented controls in production Electron
+        run: npm run verify:navigation-controls
+        env:
+          ARTEMIS_EXPECTED_HEAD: ${{ github.sha }}
+
   ui-gallery-conformance:
     name: UI Gallery conformance (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
