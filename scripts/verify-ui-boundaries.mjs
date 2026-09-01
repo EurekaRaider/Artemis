@@ -590,16 +590,32 @@ export function scriptModuleReferences(source) {
   return { computed, invalid: result.invalid, references };
 }
 
+const JAVASCRIPT_MIME_ESSENCES = new Set([
+  "application/ecmascript",
+  "application/javascript",
+  "application/x-ecmascript",
+  "application/x-javascript",
+  "text/ecmascript",
+  "text/javascript",
+  "text/javascript1.0",
+  "text/javascript1.1",
+  "text/javascript1.2",
+  "text/javascript1.3",
+  "text/javascript1.4",
+  "text/javascript1.5",
+  "text/jscript",
+  "text/livescript",
+  "text/x-ecmascript",
+  "text/x-javascript",
+]);
+
 function scriptIsExecutable(attributes) {
   const type = attributes.type?.trim().toLowerCase();
   return (
     type === undefined ||
     type === "" ||
     type === "module" ||
-    type === "text/javascript" ||
-    type === "application/javascript" ||
-    type === "text/ecmascript" ||
-    type === "application/ecmascript"
+    JAVASCRIPT_MIME_ESSENCES.has(type.split(";", 1)[0]?.trim() ?? "")
   );
 }
 

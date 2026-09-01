@@ -133,7 +133,7 @@ the unsupported `${projectDir}` and `${appDir}` macros. A parent FileSet remains
 valid only when its ordered filters exclude every Gallery entry. Its fixtures
 also reject Desktop use of the test-only UI conformance subpath, executable
 inline HTML Gallery references, and Node/Electron bypasses in CJS/MTS/CTS and
-declaration variants. They prove 23 safe cases and reject 94 cross-boundary
+declaration variants. They prove 23 safe cases and reject 113 cross-boundary
 cases.
 
 The Gallery build is explicitly single-page: exactly one `index.html`, with the
@@ -143,7 +143,7 @@ Final Desktop renderer files are all traversed; CSS selectors, at-rules and
 resources are structurally parsed, HTML attributes, executable inline
 scripts/styles, and JS markers use exact private identities, and non-script
 files are compared only against non-empty, path-identifiable Gallery static
-assets. Thirteen formal artifact
+assets. Fourteen formal artifact
 fixtures cover those paths while allowing ordinary text and URLs such as
 `docs.gallery-example`. This is a static configuration and renderer-build
 boundary; it is not evidence that a final installer/package was inspected.

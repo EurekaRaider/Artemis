@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { FileMatcher } from "app-builder-lib/out/fileMatcher.js";
 import { expandMacro } from "app-builder-lib/out/util/macroExpander.js";
 import { resolveConfig } from "vite";
+import { htmlInlineResources } from "./verify-ui-boundaries.mjs";
 
 const checker = fileURLToPath(
   new URL("./verify-ui-boundaries.mjs", import.meta.url),
@@ -26,6 +27,28 @@ const typeScriptCompiler = fileURLToPath(
 let acceptedCases = 0;
 let rejectedCases = 0;
 const desktopFixtureSource = "apps/desktop/src/renderer/index.ts";
+const executableScriptTypes = [
+  undefined,
+  "  ",
+  " MODULE ",
+  "application/ecmascript",
+  "application/javascript",
+  "application/x-ecmascript",
+  "application/x-javascript",
+  "text/ecmascript",
+  "text/javascript",
+  "text/javascript1.0",
+  "text/javascript1.1",
+  "text/javascript1.2",
+  "text/javascript1.3",
+  "text/javascript1.4",
+  "text/javascript1.5",
+  "text/jscript",
+  "text/livescript",
+  "text/x-ecmascript",
+  "text/x-javascript",
+  " Text/JavaScript ; Charset=UTF-8 ",
+];
 const galleryAliasConfig = {
   "apps/desktop/tsconfig.json": {
     compilerOptions: {
@@ -342,7 +365,7 @@ await runCase(
 await runCase(
   "safe Desktop HTML non-executable data script",
   "apps/desktop/index.html",
-  '<!doctype html><script type="application/json">{"example":"import(\\"../ui-gallery/src/main.tsx\\")"}</script>',
+  '<!doctype html><script type=" Application/JSON ; Charset=UTF-8 ">{"example":"import(\\"../ui-gallery/src/main.tsx\\")"}</script>',
   true,
 );
 await runCase(
@@ -803,12 +826,26 @@ await runCase(
   '<!doctype html><img alt="" srcset="../ui-gallery/index.html 1x, ./safe.png 2x">',
   false,
 );
-await runCase(
-  "Desktop HTML inline module imports Gallery",
-  "apps/desktop/index.html",
-  '<!doctype html><script type="module">import("../ui-gallery/src/main.tsx")</script>',
-  false,
-);
+for (const type of executableScriptTypes) {
+  const typeAttribute =
+    type === undefined ? "" : ` type=${JSON.stringify(type)}`;
+  const html = `<!doctype html><script${typeAttribute}>import("../ui-gallery/src/main.tsx")</script>`;
+  const inline = htmlInlineResources(html, "/fixture/apps/desktop/index.html");
+  if (
+    inline.scripts.length !== 1 ||
+    inline.scripts[0]?.references[0] !== "../ui-gallery/src/main.tsx"
+  ) {
+    throw new Error(
+      `Executable script MIME was not parsed: ${type ?? "<missing>"}`,
+    );
+  }
+  await runCase(
+    `Desktop HTML executable script MIME ${type ?? "<missing>"} imports Gallery`,
+    "apps/desktop/index.html",
+    html,
+    false,
+  );
+}
 await runCase(
   "Desktop HTML inline static module imports Gallery",
   "apps/desktop/index.html",
@@ -1309,11 +1346,11 @@ await runThemeContractTypeCase(
   "process",
 );
 
-if (acceptedCases !== 23 || rejectedCases !== 94) {
+if (acceptedCases !== 23 || rejectedCases !== 113) {
   throw new Error(
     `Unexpected boundary test count: ${acceptedCases} accepted, ${rejectedCases} rejected`,
   );
 }
 console.log(
-  "UI boundary fixture tests passed (23 safe cases; 94/94 violations rejected)",
+  "UI boundary fixture tests passed (23 safe cases; 113/113 violations rejected)",
 );

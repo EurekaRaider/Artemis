@@ -1039,6 +1039,14 @@ const desktopArtifactNegativeFixtures = [
     error: "private Gallery content",
   },
   {
+    name: "private-html-inline-legacy-javascript-import",
+    path: join(root, "apps/desktop/dist-renderer/private.html"),
+    content:
+      '<!doctype html><script type=" Application/X-JavaScript ; Charset=UTF-8 ">import("../../ui-gallery/src/main.tsx")</script>',
+    assets: [],
+    error: "private Gallery content",
+  },
+  {
     name: "private-html-inline-gallery-style",
     path: join(root, "apps/desktop/dist-renderer/private.html"),
     content:
