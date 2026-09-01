@@ -14916,26 +14916,53 @@ function createMainWindow(): BrowserWindow {
             if (process.platform === "darwin") app.focus({ steal: true });
             window.focus();
             window.webContents.focus();
-            window.webContents.sendInputEvent({
-              type: "keyDown",
-              keyCode: "Tab",
-            });
-            window.webContents.sendInputEvent({
-              type: "keyUp",
-              keyCode: "Tab",
-            });
-            await window.webContents.executeJavaScript(`
-              new Promise((resolve) => {
-                const selector = ${JSON.stringify(
-                  requestedSmokeView === "form-controls-archive"
-                    ? '[data-artemis-component="search-field"].archive-search [data-part="control"]'
-                    : requestedSmokeView === "form-controls-settings-custom"
-                      ? '#provider-config-custom [data-artemis-component="checkbox"] [data-part="control"]'
-                      : '#provider-config-builtin [data-artemis-component="text-field"] [data-part="control"]',
-                )};
-                document.querySelector(selector)?.focus({ preventScroll: true });
-                requestAnimationFrame(() => requestAnimationFrame(resolve));
-              })
+            const selector =
+              requestedSmokeView === "form-controls-archive"
+                ? '[data-artemis-component="search-field"].archive-search [data-part="control"]'
+                : requestedSmokeView === "form-controls-settings-custom"
+                  ? '#provider-config-custom [data-artemis-component="checkbox"] [data-part="control"]'
+                  : '#provider-config-builtin [data-artemis-component="text-field"] [data-part="control"]';
+            const contents = window.webContents;
+            if (!contents.debugger.isAttached()) {
+              contents.debugger.attach("1.3");
+            }
+            let targetFocused = false;
+            for (let presses = 0; presses < 200; presses += 1) {
+              targetFocused = (await contents.executeJavaScript(
+                `document.activeElement === document.querySelector(${JSON.stringify(selector)})`,
+              )) as boolean;
+              if (targetFocused) break;
+              const parameters = {
+                key: "Tab",
+                code: "Tab",
+                windowsVirtualKeyCode: 9,
+                nativeVirtualKeyCode: 9,
+              };
+              await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+                ...parameters,
+                type: "rawKeyDown",
+              });
+              await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+                ...parameters,
+                type: "keyUp",
+              });
+              await new Promise((resolve) => setTimeout(resolve, 15));
+            }
+            targetFocused = (await contents.executeJavaScript(
+              `document.activeElement === document.querySelector(${JSON.stringify(selector)})`,
+            )) as boolean;
+            const documentHasFocus = (await contents.executeJavaScript(
+              "document.hasFocus()",
+            )) as boolean;
+            if (documentHasFocus && !targetFocused) {
+              throw new Error(
+                `Form-control Tab traversal did not reach ${selector}.`,
+              );
+            }
+            await contents.executeJavaScript(`
+              new Promise((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(resolve)),
+              )
             `);
           }
           // PR10B review round 3 (nit 6): the user-input-transport PNG is
