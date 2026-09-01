@@ -13030,17 +13030,22 @@ function createMainWindow(): BrowserWindow {
   if (smokeArtifacts) {
     window.once("ready-to-show", () => {
       if (smokeScreenshot) {
-        window.setPosition(-10_000, -10_000);
         const view = process.env.ARTEMIS_SMOKE_VIEW ?? "";
         if (
           view.startsWith("form-controls-") ||
           view === "mcp-editor-form-controls" ||
           view === "turn-changes-form-controls"
         ) {
+          // Keep focus-evidence views on the active display. A macOS runner
+          // cannot activate a window parked outside every screen, so moving
+          // these views offscreen makes real :focus-visible evidence
+          // impossible even when the renderer interaction is correct.
+          window.center();
           window.show();
           if (process.platform === "darwin") app.focus({ steal: true });
           window.focus();
         } else {
+          window.setPosition(-10_000, -10_000);
           window.showInactive();
         }
       } else {
