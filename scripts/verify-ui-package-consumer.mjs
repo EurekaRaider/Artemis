@@ -91,6 +91,8 @@ try {
       "dist/layout.d.ts",
       "dist/navigation.js",
       "dist/navigation.d.ts",
+      "dist/patterns.js",
+      "dist/patterns.d.ts",
       "dist/styles.css",
     ]),
     await pack("packages/theme-artemis", [
@@ -128,7 +130,7 @@ try {
 
   await writeFile(
     join(consumer, "consumer.ts"),
-    `import { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { FEEDBACK_COMPONENT_CONTRACTS, InlineNotice, Toast, type FeedbackTone } from "@artemis/ui/feedback";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField, type FormControlSize, type SelectOption } from "@artemis/ui/forms";\nimport { LAYOUT_COMPONENT_CONTRACTS, PanelHeader, SplitPane, type LayoutState } from "@artemis/ui/layout";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs, type NavigationControlSize, type TabOption } from "@artemis/ui/navigation";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst tone: ActionTone = "success";\nconst feedbackTone: FeedbackTone = "warning";\nconst layoutState: LayoutState = "ready";\nconst formSize: FormControlSize = "comfortable";\nconst navigationSize: NavigationControlSize = "compact";\nconst option: SelectOption<"one"> = { value: "one", label: "One" };\nconst tabOption: TabOption<"one"> = { id: "one-tab", panelId: "one-panel", value: "one", label: "One" };\nvoid ConformanceProbe;\nvoid Button;\nvoid IconButton;\nvoid InlineNotice;\nvoid Toast;\nvoid PanelHeader;\nvoid SplitPane;\nvoid Checkbox;\nvoid SearchField;\nvoid Select;\nvoid Switch;\nvoid TextField;\nvoid SegmentedControl;\nvoid Tabs;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone || FEEDBACK_COMPONENT_CONTRACTS.toast.tones?.at(3) !== feedbackTone || LAYOUT_COMPONENT_CONTRACTS.toolbar.states.at(0) !== layoutState || FORM_COMPONENT_CONTRACTS.textField.sizes.at(-1) !== formSize || NAVIGATION_COMPONENT_CONTRACTS.tabs.sizes.at(0) !== navigationSize || option.value !== "one" || tabOption.value !== "one") throw new Error("invalid contract");\n`,
+    `import { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { FEEDBACK_COMPONENT_CONTRACTS, InlineNotice, Toast, type FeedbackTone } from "@artemis/ui/feedback";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField, type FormControlSize, type SelectOption } from "@artemis/ui/forms";\nimport { LAYOUT_COMPONENT_CONTRACTS, PanelHeader, SplitPane, type LayoutState } from "@artemis/ui/layout";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs, type NavigationControlSize, type TabOption } from "@artemis/ui/navigation";\nimport { PATTERN_COMPONENT_CONTRACTS, ApprovalCard, TaskPlan, ToolActivity, type PatternState } from "@artemis/ui/patterns";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst tone: ActionTone = "success";\nconst feedbackTone: FeedbackTone = "warning";\nconst layoutState: LayoutState = "ready";\nconst patternState: PatternState = "pending";\nconst formSize: FormControlSize = "comfortable";\nconst navigationSize: NavigationControlSize = "compact";\nconst option: SelectOption<"one"> = { value: "one", label: "One" };\nconst tabOption: TabOption<"one"> = { id: "one-tab", panelId: "one-panel", value: "one", label: "One" };\nvoid ConformanceProbe;\nvoid Button;\nvoid IconButton;\nvoid InlineNotice;\nvoid Toast;\nvoid PanelHeader;\nvoid SplitPane;\nvoid ApprovalCard;\nvoid TaskPlan;\nvoid ToolActivity;\nvoid Checkbox;\nvoid SearchField;\nvoid Select;\nvoid Switch;\nvoid TextField;\nvoid SegmentedControl;\nvoid Tabs;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone || FEEDBACK_COMPONENT_CONTRACTS.toast.tones?.at(3) !== feedbackTone || LAYOUT_COMPONENT_CONTRACTS.toolbar.states.at(0) !== layoutState || PATTERN_COMPONENT_CONTRACTS.approvalCard.states.at(0) !== patternState || FORM_COMPONENT_CONTRACTS.textField.sizes.at(-1) !== formSize || NAVIGATION_COMPONENT_CONTRACTS.tabs.sizes.at(0) !== navigationSize || option.value !== "one" || tabOption.value !== "one") throw new Error("invalid contract");\n`,
     "utf8",
   );
   await writeFile(
@@ -170,6 +172,12 @@ try {
     "utf8",
   );
   run(process.execPath, ["feedback-layout-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "patterns-consumer.mjs"),
+    `import { createElement } from "react";\nimport { renderToStaticMarkup } from "react-dom/server";\nimport { PATTERN_COMPONENT_CONTRACTS, ApprovalCard, ContextUsage, ResultDisclosure, RunModeControl, TaskPlan, ToolActivity, TurnStatus, UserInput } from "@artemis/ui/patterns";\nconst approval = renderToStaticMarkup(createElement(ApprovalCard, { actions: createElement("button", null, "Approve"), label: "Approval", state: "pending", statusLabel: "Pending", title: "Run command" }));\nconst tool = renderToStaticMarkup(createElement(ToolActivity, { collapseLabel: "Collapse", expandLabel: "Expand", label: "Tool", state: "completed", statusLabel: "Completed", summary: "Read files" }, "Details"));\nconst plan = renderToStaticMarkup(createElement(TaskPlan, { collapseLabel: "Collapse", expandLabel: "Expand", label: "Step 1", progressLabel: "Step 1", state: "active", steps: [{ id: "one", label: "Inspect", status: "pending", statusLabel: "Not started" }], stepsLabel: "Task steps" }));\nconst other = [\n  renderToStaticMarkup(createElement(RunModeControl, { label: "Mode", onValueChange() {}, options: [{ label: "Plan", value: "plan" }], value: "plan" })),\n  renderToStaticMarkup(createElement(ContextUsage, { label: "Context", percent: 25, valueLabel: "25%" })),\n  renderToStaticMarkup(createElement(UserInput, { label: "Input", onOptionSelect() {}, options: [{ id: "one", label: "One" }], question: "Choose", state: "pending" })),\n  renderToStaticMarkup(createElement(TurnStatus, { label: "Turn", state: "running", statusLabel: "Working" })),\n  renderToStaticMarkup(createElement(ResultDisclosure, { collapseLabel: "Collapse", expandLabel: "Expand", label: "Result", state: "completed", summary: "Complete" }, "Result")),\n].join("");\nif (!Object.isFrozen(PATTERN_COMPONENT_CONTRACTS) || !approval.includes('data-artemis-component="approval-card"') || !tool.includes('data-artemis-component="tool-activity"') || !plan.includes('data-artemis-component="task-plan"') || !other.includes('data-artemis-component="run-mode-control"') || !other.includes('data-artemis-component="context-usage"') || !other.includes('data-artemis-component="user-input"') || !other.includes('data-artemis-component="turn-status"') || !other.includes('data-artemis-component="result-disclosure"')) throw new Error("pattern peer/component resolution failed");\n`,
+    "utf8",
+  );
+  run(process.execPath, ["patterns-consumer.mjs"], consumer);
   run(npm, ["ls", "--all", "react", "react-dom"], consumer);
 
   await writeFile(
@@ -346,6 +354,38 @@ try {
     throw new Error("PanelHeader-only bundle retained unused layout JS");
   }
 
+  await writeFile(
+    join(consumer, "pattern-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { TurnStatus } from "@artemis/ui/patterns";\nexport const TreeShakeTurnStatus = () => createElement(TurnStatus, { label: "Turn", state: "running", statusLabel: "Working" });\n`,
+    "utf8",
+  );
+  run(
+    join(root, "node_modules/.bin/esbuild"),
+    [
+      "pattern-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=pattern-tree-shake.js",
+    ],
+    consumer,
+  );
+  const patternTreeShaken = await readFile(
+    join(consumer, "pattern-tree-shake.js"),
+    "utf8",
+  );
+  if (
+    !patternTreeShaken.includes("turn-status") ||
+    ["approval-card", "tool-activity", "task-plan", "user-input"].some(
+      (marker) => patternTreeShaken.includes(marker),
+    )
+  ) {
+    throw new Error("TurnStatus-only bundle retained unused pattern JS");
+  }
+
   const installedRoots = [
     join(consumer, "node_modules/@artemis/theme-contract"),
     join(consumer, "node_modules/@artemis/ui"),
@@ -368,7 +408,7 @@ try {
   }
 
   console.log(
-    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout JS tree-shaken)`,
+    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout/pattern JS tree-shaken)`,
   );
 } finally {
   await rm(consumer, { recursive: true, force: true });

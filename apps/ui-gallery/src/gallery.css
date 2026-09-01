@@ -133,6 +133,17 @@
     margin-block: var(--artemis-space-4);
   }
 
+  .gallery-pattern-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: var(--artemis-space-4);
+    align-items: start;
+  }
+
+  .gallery-pattern-grid > * {
+    min-inline-size: 0;
+  }
+
   .gallery-feedback-grid [data-artemis-component="toast"] {
     align-self: start;
   }

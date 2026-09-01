@@ -2991,10 +2991,11 @@ button.environment-row:disabled {
   margin: 6px 0;
 }
 
-.tool-summary-row {
+.tool-card[data-artemis-component="tool-activity"] {
   align-items: center;
-  display: flex;
+  display: grid;
   gap: 9px;
+  grid-template-columns: 20px minmax(0, 1fr) auto auto;
   list-style: none;
   min-height: 34px;
   padding: 3px 0;
@@ -3054,7 +3055,7 @@ button.environment-row:disabled {
   color: var(--muted);
 }
 
-.tool-disclosure {
+.tool-card [data-part="disclosure"] {
   align-items: center;
   background: transparent;
   border: 0;
@@ -3071,22 +3072,18 @@ button.environment-row:disabled {
   width: 24px;
 }
 
-.tool-disclosure svg {
-  fill: none;
+.tool-card [data-part="disclosure"] > span {
   height: 14px;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.6;
+  line-height: 12px;
   width: 14px;
 }
 
-.tool-disclosure:hover,
-.tool-disclosure:focus-visible {
+.tool-card [data-part="disclosure"]:hover,
+.tool-card [data-part="disclosure"]:focus-visible {
   color: var(--text);
 }
 
-.tool-card.open .tool-disclosure {
+.tool-card.open [data-part="disclosure"] {
   transform: rotate(90deg);
 }
 
@@ -3232,27 +3229,27 @@ button.environment-row:disabled {
   gap: 10px;
 }
 
-.approval-pending-header {
+.approval-card[data-artemis-component="approval-card"] > [data-part="header"] {
   align-items: flex-start;
   padding: 0;
   background: transparent;
   border: 0;
 }
 
-.approval-pending-header [data-part="content"] {
+.approval-card[data-artemis-component="approval-card"] [data-part="heading"] {
   flex: 1 1 auto;
   gap: 4px;
 }
 
-.approval-pending-header [data-part="title"] {
+.approval-card[data-artemis-component="approval-card"] [data-part="title"] {
   align-items: center;
   display: flex;
-  gap: 10px;
   font: inherit;
   font-weight: 600;
 }
 
-.approval-pending-header [data-part="description"] {
+.approval-card[data-artemis-component="approval-card"]
+  [data-part="description"] {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -3350,7 +3347,7 @@ button.environment-row:disabled {
   width: 24px;
 }
 
-.approval-actions {
+.approval-card[data-artemis-component="approval-card"] > [data-part="actions"] {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -3358,7 +3355,9 @@ button.environment-row:disabled {
   margin-top: 13px;
 }
 
-.approval-actions button {
+.approval-card[data-artemis-component="approval-card"]
+  > [data-part="actions"]
+  button {
   align-items: center;
   display: inline-flex;
   gap: 6px;
@@ -4699,7 +4698,7 @@ button.environment-row:disabled {
   z-index: 15;
 }
 
-.task-plan-trigger {
+.task-plan-progress [data-part="trigger"] {
   align-items: center;
   background: var(--panel-3);
   border: 1px solid var(--border);
@@ -4716,13 +4715,13 @@ button.environment-row:disabled {
   padding: 0 14px;
 }
 
-.task-plan-trigger:hover,
-.task-plan-trigger[aria-expanded="true"] {
+.task-plan-progress [data-part="trigger"]:hover,
+.task-plan-progress [data-part="trigger"][aria-expanded="true"] {
   background: color-mix(in srgb, var(--panel-3) 82%, var(--text));
   color: var(--text);
 }
 
-.task-plan-list {
+.task-plan-progress [data-part="steps"] {
   background: color-mix(in srgb, var(--panel-2) 96%, transparent);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -4740,7 +4739,7 @@ button.environment-row:disabled {
   z-index: 1;
 }
 
-.task-plan-step {
+.task-plan-progress [data-part="step"] {
   align-items: flex-start;
   border-radius: 8px;
   color: var(--muted);
@@ -4751,25 +4750,30 @@ button.environment-row:disabled {
   padding: 7px 9px;
 }
 
-.task-plan-step.in_progress {
+.task-plan-progress [data-part="step"][data-status="in_progress"] {
   background: var(--hover);
   color: var(--text);
 }
 
-.task-plan-step.completed {
+.task-plan-progress [data-part="step"][data-status="completed"] {
   color: color-mix(in srgb, var(--muted) 78%, var(--text));
 }
 
-.task-plan-step.failed {
+.task-plan-progress [data-part="step"][data-status="failed"] {
   color: var(--danger);
 }
 
-.task-plan-step > span:last-child {
+.task-plan-progress [data-part="step"] > span:not([data-part="marker"]) {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.task-step-marker {
+.task-plan-progress [data-part="step-status"] {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+
+.task-plan-progress [data-part="marker"] {
   align-items: center;
   border: 1.5px solid var(--muted-2);
   border-radius: 50%;
@@ -4782,28 +4786,28 @@ button.environment-row:disabled {
   width: 16px;
 }
 
-.task-step-marker.pending {
+.task-plan-progress [data-part="marker"][data-status="pending"] {
   background: transparent;
 }
 
-.task-step-marker.in_progress {
+.task-plan-progress [data-part="marker"][data-status="in_progress"] {
   animation: task-step-spin 0.78s linear infinite;
   border-color: color-mix(in srgb, var(--blue) 26%, transparent);
   border-top-color: var(--blue);
 }
 
-.task-step-marker.completed {
+.task-plan-progress [data-part="marker"][data-status="completed"] {
   background: color-mix(in srgb, var(--success) 16%, transparent);
   border-color: var(--success);
   color: var(--success);
 }
 
-.task-step-marker.completed svg {
+.task-plan-progress [data-part="marker"][data-status="completed"] svg {
   height: 11px;
   width: 11px;
 }
 
-.task-step-marker.failed {
+.task-plan-progress [data-part="marker"][data-status="failed"] {
   border-color: var(--danger);
   color: var(--danger);
   font-size: 10px;
@@ -12824,7 +12828,8 @@ body.sidebar-collapsed .sidebar {
   unicode-bidi: isolate;
 }
 
-:root[dir="rtl"] :is(.tool-disclosure, .resource-back-button) svg {
+:root[dir="rtl"]
+  :is(.tool-card [data-part="disclosure"] > span, .resource-back-button svg) {
   transform: scaleX(-1);
 }
 

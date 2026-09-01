@@ -14932,13 +14932,13 @@ function createMainWindow(): BrowserWindow {
                       trigger.click();
                       await wait(300);
                     }
-                    const header = document.querySelector(
-                      '.approval-pending-header[data-artemis-component="panel-header"]',
+                    const approvalCard = document.querySelector(
+                      '.approval-card[data-artemis-component="approval-card"]',
                     );
-                    header?.scrollIntoView({ block: 'center' });
+                    approvalCard?.scrollIntoView({ block: 'center' });
                     await wait(350);
-                    if (!header) {
-                      throw new Error('Public pending Approval PanelHeader missing.');
+                    if (!approvalCard) {
+                      throw new Error('Public pending ApprovalCard missing.');
                     }
                     return;
                   }
@@ -16894,6 +16894,7 @@ function createMainWindow(): BrowserWindow {
                       'panel-header',
                       'scroll-area',
                       'split-pane',
+                      'approval-card',
                     ]
                       .map(
                         (component) =>

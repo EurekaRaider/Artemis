@@ -19,9 +19,12 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { TargetIcon } from "@phosphor-icons/react";
+import { CaretRightIcon, TargetIcon } from "@phosphor-icons/react";
 import { Dialog, LoadingState, Toast } from "@artemis/ui/feedback";
-import { PanelHeader } from "@artemis/ui/layout";
+import {
+  ApprovalCard as ApprovalPatternCard,
+  ToolActivity,
+} from "@artemis/ui/patterns";
 import {
   MAX_PROMPT_ATTACHMENTS,
   reduceAgentEventBatch,
@@ -95,6 +98,10 @@ import {
 import { SourcesIcon, SourcesPanel } from "./SourcesPanel.js";
 import { TaskPlanProgress } from "./TaskPlanProgress.js";
 import {
+  approvalPatternView,
+  toolActivityPatternView,
+} from "./agent-pattern-adapters.js";
+import {
   prepareTimelineRestore,
   resolveTimelinePinned,
   resolveTimelineScrollTarget,
@@ -117,11 +124,9 @@ import {
 } from "./run-presentation.js";
 import { nextRunMode, parseRunModeCommand } from "./run-mode-controls.js";
 import {
-  formatBashTranscript,
   formatToolInput,
   formatToolOutput,
   summarizeToolDetail,
-  summarizeToolGroup,
   toolActivityKind,
   toolActivityPath,
   type ToolActivityKind,
@@ -9727,69 +9732,45 @@ function ToolActivityGroupCard({
   tools: readonly ToolState[];
 }) {
   const [open, setOpen] = useState(false);
-  const status = tools.some((tool) => tool.status === "running")
-    ? "running"
-    : tools.some((tool) => tool.status === "failed")
-      ? "failed"
-      : "completed";
-  const visualStatus = active && status === "completed" ? "running" : status;
-  const representative =
-    [...tools].reverse().find((tool) => tool.status === "running") ??
-    [...tools]
-      .reverse()
-      .find((tool) => toolActivityKind(tool.name, tool.input) === "search") ??
-    tools.at(-1);
-  const kind = representative
-    ? toolActivityKind(representative.name, representative.input)
-    : "generic";
-  const summary = summarizeToolGroup(tools, locale);
-  const toolLabels = localizedCopy(
+  const view = toolActivityPatternView(tools, active, locale);
+  const disclosureLabels = localizedCopy(
     locale,
     "app",
     {
       en: {
-        running: "Running",
-        completed: "Completed",
-        failed: "Failed",
         collapse: "Collapse",
         expand: "Expand",
       },
       "zh-CN": {
-        running: "正在运行",
-        completed: "已完成",
-        failed: "失败",
         collapse: "收起",
         expand: "展开",
       },
     }[legacyLocale(locale)],
   );
-  const statusLabel = toolLabels[status];
-  const bashTranscript =
-    kind === "bash" ? formatBashTranscript(tools) : undefined;
-  const fileActivity = kind === "read" || kind === "write" || kind === "search";
 
   return (
-    <section className={`tool-card ${visualStatus}${open ? " open" : ""}`}>
-      <div className="tool-summary-row">
-        <span aria-hidden="true" className="tool-activity-icon">
-          <ToolActivityIcon kind={kind} />
+    <ToolActivity
+      className={`tool-card ${view.state}${open ? " open" : ""}`}
+      collapseLabel={disclosureLabels.collapse}
+      disclosureIcon={<CaretRightIcon size={14} />}
+      expandLabel={disclosureLabels.expand}
+      expanded={open}
+      icon={
+        <span className="tool-activity-icon">
+          <ToolActivityIcon kind={view.kind} />
         </span>
-        <span className="tool-summary-label" title={summary}>
-          {summary}
+      }
+      label={`${view.summary}, ${view.statusLabel}`}
+      onExpandedChange={setOpen}
+      state={view.state}
+      statusLabel={view.statusLabel}
+      summary={
+        <span className="tool-summary-label" title={view.summary}>
+          {view.summary}
         </span>
-        <button
-          aria-expanded={open}
-          aria-label={`${open ? toolLabels.collapse : toolLabels.expand}: ${summary}, ${statusLabel}`}
-          className="tool-disclosure"
-          onClick={() => setOpen((value) => !value)}
-          type="button"
-        >
-          <svg viewBox="0 0 16 16">
-            <path d="m6 3.5 4.5 4.5L6 12.5" />
-          </svg>
-        </button>
-      </div>
-      {open && fileActivity && (
+      }
+    >
+      {view.fileActivity && (
         <ol className="tool-activity-list">
           {tools.map((tool) => {
             const itemKind = toolActivityKind(tool.name, tool.input);
@@ -9821,12 +9802,12 @@ function ToolActivityGroupCard({
           })}
         </ol>
       )}
-      {open && kind === "bash" && bashTranscript && (
+      {view.kind === "bash" && view.bashTranscript && (
         <pre aria-live="polite" className="bash-transcript" role="log">
-          {bashTranscript}
+          {view.bashTranscript}
         </pre>
       )}
-      {open && !fileActivity && kind !== "bash" && (
+      {!view.fileActivity && view.kind !== "bash" && (
         <div className="tool-details">
           {tools.map((tool) => {
             const input = formatToolInput(tool.name, tool.input);
@@ -9842,7 +9823,7 @@ function ToolActivityGroupCard({
           })}
         </div>
       )}
-    </section>
+    </ToolActivity>
   );
 }
 
@@ -10313,74 +10294,65 @@ function Timeline({
           </details>
         );
       }
+      const pendingView = approvalPatternView(
+        approval,
+        approval.actorAgentId
+          ? `${t.agentActor}: ${state.childAgents[approval.actorAgentId]?.label ?? approval.actorAgentId}`
+          : undefined,
+      );
       return (
-        <article className={`approval-card ${approval.status}`} key={entry}>
-          <PanelHeader
-            className="approval-pending-header"
-            description={
-              <>
-                <small>{approval.command ?? approval.paths.join(", ")}</small>
-                {approval.actorAgentId && (
-                  <small>
-                    {t.agentActor}:{" "}
-                    {state.childAgents[approval.actorAgentId]?.label ??
-                      approval.actorAgentId}
-                  </small>
-                )}
-              </>
-            }
-            headingLevel={3}
-            title={
-              <>
-                <span className="approval-shield">
-                  <ApprovalIcon neutral />
-                </span>
-                {approval.summary}
-              </>
-            }
-          />
-          {modelReason}
-          <div className="approval-actions">
-            <button
-              className="secondary-button"
-              onClick={() => onResolve(approval, false, "once")}
-            >
-              {t.deny}
-              {approval.modelRecommendation === "deny" && (
-                <small className="recommendation-badge">{t.recommended}</small>
-              )}
-            </button>
-            {approval.allowedScopes.includes("project") && (
+        <ApprovalPatternCard
+          actions={pendingView.actions.map((action) => {
+            const label =
+              action.id === "deny"
+                ? t.deny
+                : action.id === "approve-project"
+                  ? t.approveProject
+                  : action.id === "approve-session"
+                    ? t.approveSession
+                    : t.approveOnce;
+            return (
               <button
-                className="secondary-button"
-                onClick={() => onResolve(approval, true, "project")}
+                className={
+                  action.id === "approve-once"
+                    ? "primary-button compact"
+                    : "secondary-button"
+                }
+                key={action.id}
+                onClick={() =>
+                  onResolve(approval, action.approved, action.scope)
+                }
               >
-                {t.approveProject}
-              </button>
-            )}
-            {approval.allowedScopes.includes("session") && (
-              <button
-                className="secondary-button"
-                onClick={() => onResolve(approval, true, "session")}
-              >
-                {t.approveSession}
-              </button>
-            )}
-            {approval.allowedScopes.includes("once") && (
-              <button
-                className="primary-button compact"
-                onClick={() => onResolve(approval, true, "once")}
-              >
-                {t.approveOnce}
-                {approval.modelRecommendation === "approve" && (
+                {label}
+                {action.recommended && (
                   <small className="recommendation-badge">
                     {t.recommended}
                   </small>
                 )}
               </button>
-            )}
-          </div>
-        </article>
+            );
+          })}
+          className={`approval-card ${approval.status}`}
+          description={
+            <>
+              <small>{pendingView.detail}</small>
+              {pendingView.actorLabel && (
+                <small>{pendingView.actorLabel}</small>
+              )}
+            </>
+          }
+          icon={
+            <span className="approval-shield">
+              <ApprovalIcon neutral />
+            </span>
+          }
+          key={entry}
+          label={pendingView.title}
+          reason={modelReason}
+          state={pendingView.state}
+          statusLabel={t.waiting}
+          title={pendingView.title}
+        />
       );
     }
     if (kind === "child") {

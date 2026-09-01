@@ -27,7 +27,11 @@
       "overlay-focus-and-close",
       "portal-viewport-geometry",
       "layout-anatomy",
-      "split-pane-events"
+      "split-pane-events",
+      "pattern-anatomy",
+      "pattern-state-matrix",
+      "pattern-events",
+      "pattern-rtl-long-content"
     ],
     "stress": [
       "anatomy",
@@ -54,7 +58,11 @@
       "overlay-focus-and-close",
       "portal-viewport-geometry",
       "layout-anatomy",
-      "split-pane-events"
+      "split-pane-events",
+      "pattern-anatomy",
+      "pattern-state-matrix",
+      "pattern-events",
+      "pattern-rtl-long-content"
     ]
   },
   "switchCases": [
