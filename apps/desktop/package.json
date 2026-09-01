@@ -1,6 +1,6 @@
 {
   "name": "@artemis/desktop",
-  "version": "1.4.48",
+  "version": "1.4.49",
   "private": true,
   "type": "module",
   "description": "Artemis desktop application",
@@ -38,12 +38,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@artemis/agent-host": "1.4.48",
-    "@artemis/platform": "1.4.48",
-    "@artemis/protocol": "1.4.48",
-    "@artemis/theme-artemis": "1.4.48",
-    "@artemis/theme-contract": "1.4.48",
-    "@artemis/ui": "1.4.48",
+    "@artemis/agent-host": "1.4.49",
+    "@artemis/platform": "1.4.49",
+    "@artemis/protocol": "1.4.49",
+    "@artemis/theme-artemis": "1.4.49",
+    "@artemis/theme-contract": "1.4.49",
+    "@artemis/ui": "1.4.49",
     "@earendil-works/pi-ai": "0.84.3",
     "@earendil-works/pi-coding-agent": "0.84.3",
     "@js-temporal/polyfill": "^0.5.1",
