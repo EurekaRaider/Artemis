@@ -41,6 +41,7 @@
     "@artemis/protocol": "1.4.46",
     "@artemis/theme-artemis": "1.4.46",
     "@artemis/theme-contract": "1.4.46",
+    "@artemis/ui": "1.4.46",
     "@earendil-works/pi-ai": "0.84.3",
     "@earendil-works/pi-coding-agent": "0.84.3",
     "@js-temporal/polyfill": "^0.5.1",

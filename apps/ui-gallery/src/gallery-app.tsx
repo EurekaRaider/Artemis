@@ -6,6 +6,7 @@ import {
   type ContrastMode,
   type ThemeMode,
 } from "@artemis/theme-contract";
+import { Badge, Button, Icon, IconButton, Status } from "@artemis/ui/actions";
 import { ConformanceProbe } from "@artemis/ui/conformance";
 
 import { galleryContract } from "./gallery-contract.js";
@@ -118,6 +119,14 @@ function preserveProbeFocus(event: React.MouseEvent<HTMLButtonElement>) {
   event.preventDefault();
 }
 
+function GalleryActionIcon() {
+  return (
+    <svg viewBox="0 0 16 16">
+      <path d="M2 8h12M8 2v12" stroke="currentColor" />
+    </svg>
+  );
+}
+
 interface GalleryAxisControlProps<T extends string> {
   readonly label: string;
   readonly value: T;
@@ -169,7 +178,7 @@ export function GalleryApp() {
 
   return (
     <main>
-      <p className="gallery-eyebrow">CL1C cross-platform conformance</p>
+      <p className="gallery-eyebrow">CL2A action and icon conformance</p>
       <h1>Artemis UI Gallery</h1>
       <p>
         Public package consumption is active for UI contract v
@@ -224,6 +233,65 @@ export function GalleryApp() {
             </div>
           ))}
         </dl>
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="action-heading"
+      >
+        <h2 id="action-heading">Action, icon, badge, and status</h2>
+        <div className="gallery-surface-grid">
+          <Button
+            icon={<GalleryActionIcon />}
+            label="Primary action"
+            variant="primary"
+          >
+            Primary
+          </Button>
+          <Button label="Secondary action" variant="secondary">
+            Secondary
+          </Button>
+          <Button label="Quiet action" variant="quiet">
+            Quiet
+          </Button>
+          <Button label="Danger action" variant="danger">
+            Danger
+          </Button>
+          <Button label="Selected action" selected>
+            Selected
+          </Button>
+          <Button error label="Error action">
+            Error
+          </Button>
+          <Button label="Loading action" loading>
+            Loading
+          </Button>
+          <Button disabled label="Disabled action">
+            Disabled
+          </Button>
+          <IconButton
+            icon={<GalleryActionIcon />}
+            label="Icon-only action"
+            title="Icon-only action"
+          />
+        </div>
+        <div className="gallery-surface-grid">
+          {(["xs", "sm", "base", "lg", "xl"] as const).map((size) => (
+            <Icon key={size} size={size}>
+              <GalleryActionIcon />
+            </Icon>
+          ))}
+          {(["neutral", "info", "success", "warning", "danger"] as const).map(
+            (tone) => (
+              <Badge key={tone} tone={tone}>
+                {`${tone} badge`}
+              </Badge>
+            ),
+          )}
+          <Status live="polite" tone="info">
+            2.5K / 10K
+          </Status>
+        </div>
       </section>
 
       <section

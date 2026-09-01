@@ -14835,6 +14835,44 @@ function createMainWindow(): BrowserWindow {
                     ? [...goalBar.querySelectorAll(".goal-bar-actions button")]
                         .map((button) => button.getAttribute("aria-label"))
                     : [],
+                  goalSharedComponents: goalBar
+                    ? (() => {
+                        const main = goalBar.querySelector(".goal-bar-main");
+                        const badge = goalBar.querySelector(
+                          '.goal-bar-status[data-artemis-component="badge"]',
+                        );
+                        const status = goalBar.querySelector(
+                          '.goal-bar-progress[data-artemis-component="status"]',
+                        );
+                        const describe = (element) => {
+                          if (!(element instanceof HTMLElement)) return null;
+                          const style = getComputedStyle(element);
+                          return {
+                            component: element.getAttribute(
+                              "data-artemis-component",
+                            ),
+                            state: element.getAttribute("data-state"),
+                            size: element.getAttribute("data-size"),
+                            tone: element.getAttribute("data-tone"),
+                            variant: element.getAttribute("data-variant"),
+                            display: style.display,
+                            minBlockSize: style.minBlockSize,
+                            inlineSize: style.inlineSize,
+                            justifyContent: style.justifyContent,
+                          };
+                        };
+                        return {
+                          main: describe(main),
+                          badge: describe(badge),
+                          status: describe(status),
+                          actions: [
+                            ...goalBar.querySelectorAll(
+                              ".goal-bar-actions button",
+                            ),
+                          ].map(describe),
+                        };
+                      })()
+                    : null,
                   goalEditorVisible: goalEditor ? visible(goalEditor) : false,
                   goalEditorValue:
                     document.querySelector(".goal-editor-input")?.value ?? null,

@@ -10,7 +10,12 @@
       "ime-enter",
       "callback-order",
       "action-policy",
-      "rtl-inheritance"
+      "rtl-inheritance",
+      "action-anatomy",
+      "action-states",
+      "action-events",
+      "icon-contract",
+      "status-semantics"
     ],
     "stress": [
       "anatomy",
@@ -20,7 +25,12 @@
       "ime-enter",
       "callback-order",
       "action-policy",
-      "rtl-inheritance"
+      "rtl-inheritance",
+      "action-anatomy",
+      "action-states",
+      "action-events",
+      "icon-contract",
+      "status-semantics"
     ]
   },
   "switchCases": [

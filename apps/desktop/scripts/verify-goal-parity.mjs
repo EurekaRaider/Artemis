@@ -36,12 +36,36 @@ const actionLabels = {
   },
 };
 const stateDefinitions = [
-  { view: "goal-active", actions: ["clear", "pause", "edit"] },
-  { view: "goal-paused", actions: ["clear", "resume", "edit"] },
-  { view: "goal-blocked", actions: ["clear", "resume", "edit"] },
-  { view: "goal-usage-limited", actions: ["clear", "resume", "edit"] },
-  { view: "goal-budget-limited", actions: ["clear", "edit"] },
-  { view: "goal-complete", actions: ["clear", "edit"] },
+  {
+    view: "goal-active",
+    actions: ["clear", "pause", "edit"],
+    tone: "info",
+  },
+  {
+    view: "goal-paused",
+    actions: ["clear", "resume", "edit"],
+    tone: "neutral",
+  },
+  {
+    view: "goal-blocked",
+    actions: ["clear", "resume", "edit"],
+    tone: "danger",
+  },
+  {
+    view: "goal-usage-limited",
+    actions: ["clear", "resume", "edit"],
+    tone: "warning",
+  },
+  {
+    view: "goal-budget-limited",
+    actions: ["clear", "edit"],
+    tone: "warning",
+  },
+  {
+    view: "goal-complete",
+    actions: ["clear", "edit"],
+    tone: "success",
+  },
 ];
 const dimensions = [];
 for (const locale of ["zh-CN", "en"]) {
@@ -82,6 +106,7 @@ for (const mode of [
     width: 1_512,
     scale: 1,
     editorMode: mode,
+    tone: "neutral",
   });
 }
 const results = [];
@@ -89,7 +114,7 @@ const results = [];
 await mkdir(outputDirectory, { recursive: true });
 try {
   for (const testCase of cases) {
-    const { id, view, actions, locale, theme, width, scale, editorMode } =
+    const { id, view, actions, locale, theme, width, scale, editorMode, tone } =
       testCase;
     const expectedActions = actions.map(
       (action) => actionLabels[locale][action],
@@ -211,6 +236,39 @@ try {
         `${id} actions drifted: ${JSON.stringify(audit.goalActionLabels)}`,
       );
     }
+    const shared = audit.goalSharedComponents;
+    if (
+      shared?.main?.component !== "button" ||
+      shared.main.state !== "ready" ||
+      shared.main.size !== "compact" ||
+      shared.main.variant !== "quiet" ||
+      shared.main.display !== "flex" ||
+      shared.main.minBlockSize !== "28px" ||
+      shared.main.justifyContent !== "flex-start" ||
+      shared?.badge?.component !== "badge" ||
+      shared.badge.tone !== tone ||
+      shared.badge.display !== "flex" ||
+      shared.badge.minBlockSize !== "26px" ||
+      shared?.status?.component !== "status" ||
+      shared.status.tone !== tone ||
+      shared.status.display !== "flex" ||
+      shared.status.minBlockSize !== "26px" ||
+      shared.actions?.length !== expectedActions.length ||
+      shared.actions.some(
+        (action) =>
+          action?.component !== "icon-button" ||
+          action.state !== "ready" ||
+          action.size !== "compact" ||
+          action.variant !== "quiet" ||
+          action.display !== "flex" ||
+          action.inlineSize !== "28px" ||
+          action.minBlockSize !== "28px",
+      )
+    ) {
+      throw new Error(
+        `${id} shared action component contract drifted: ${JSON.stringify({ shared, tone })}`,
+      );
+    }
     if (Boolean(audit.goalEditorVisible) !== expectEditor) {
       throw new Error(`${id} editor visibility drifted.`);
     }
@@ -312,6 +370,7 @@ try {
       actions: audit.goalActionLabels,
       geometry: { leftInset, rightInset, overlap },
       editorVisible: audit.goalEditorVisible,
+      sharedComponents: shared,
       userDataIsolation: {
         freshStart: !launchOutcome.userDataPreexisting,
         runRootUnexpectedEntries: unexpectedRunRootEntries,

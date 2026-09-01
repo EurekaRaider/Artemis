@@ -1,9 +1,9 @@
 # Artemis Skin v1 compatibility ledger
 
-Status: CL1C conformance candidate on merged CL1B base
-`70691d9573f90dd6b8cb2f78808c8beb4481b198`. CL1B is merged at that
-revision. This document records what is enforced now and which runtime behavior
-remains owned by later serialized milestones.
+Status: CL2A Action/Icon candidate on merged CL1C base
+`38e40ae2fcb620129a1a0c76fd4fb590cd4a42bc`. This document records what is
+enforced now and which runtime behavior remains owned by later serialized
+milestones.
 
 ## v1 package contract
 
@@ -42,14 +42,14 @@ and is deliberately absent from `integrity.json`.
 | --------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------- | ---------------------------------- |
 | Artemis neutral scaffold                      | light/dark × normal/high × comfortable × universal                               | valid; optional omissions reported and filled from the registry | Gallery only                 | CL0A merged; superseded by CL1A    |
 | Artemis Direction A                           | same minimum matrix, with frozen v17-aligned values                              | valid; 74 explicit values/mode; zero built-in fallback          | Gallery and Desktop resolver | CL1A merged at `3457e0d`           |
-| Synthetic stress skin                         | light/dark × normal/high × compact × universal with extreme allowed token values | valid without changing Probe anatomy, ARIA, or event order      | Gallery + Desktop verifier   | CL0B merged; CL1C candidate        |
+| Synthetic stress skin                         | light/dark × normal/high × compact × universal with extreme allowed token values | valid without changing Probe or Action anatomy, ARIA, or events | Gallery + Desktop verifier   | CL1C merged; CL2A action candidate |
 | Missing required token                        | any                                                                              | reject the entire skin                                          | validator                    | CL0A tested                        |
 | Unknown token/field                           | any                                                                              | reject the entire skin                                          | validator                    | CL0A tested                        |
 | Invalid CSS-like value or out-of-range number | any                                                                              | reject the entire skin                                          | validator                    | CL0A tested                        |
 | Unsupported schema/UI contract                | any                                                                              | reject the entire skin                                          | validator                    | CL0A tested                        |
 | Missing declared document/mode                | any                                                                              | reject the entire skin                                          | package validator            | CL0A tested                        |
 | Optional token omitted                        | any otherwise valid mode                                                         | accept and report registered safe fallback                      | validator                    | CL0A tested                        |
-| Entire selected skin invalid/unavailable      | host chooses built-in safe skin before rendering                                 | no partial application                                          | Desktop resolver             | CL1B merged; CL1C matrix candidate |
+| Entire selected skin invalid/unavailable      | host chooses built-in safe skin before rendering                                 | no partial application                                          | Desktop resolver             | CL1C matrix merged                 |
 
 CL0B added stable `verify:skin-package` and `verify:skin-conformance` gates.
 The package gate validates bundled Artemis data and the synthetic fixture,
@@ -67,10 +67,12 @@ CLI).
 Gallery jsdom parameterizes the same eight real behavior runners across default
 and stress (16 executions), including actual stress root attributes and its
 installed generated stylesheet; the JSON matrix is only the fail-closed case
-inventory, never a substitute for those assertions. The CL1C candidate upgrades
+inventory, never a substitute for those assertions. CL1C upgrades
 that inventory to schema v2, adds six exact runtime axes and five exact fallback
 classes, raises conformance negatives from 18 to 25, and traverses the resulting
-64 vertices without replacing those behavior runners.
+64 vertices without replacing those behavior runners. CL2A adds five Action,
+Icon, Badge, and Status runners, raising the exact inventory to 13 cases per skin
+and 26 real executions while retaining the same 25 rejecting fixtures.
 
 ## CL1A built-in Direction A evidence boundary
 
@@ -158,7 +160,7 @@ consumers adopt the semantic variables. The verifier itself requires a clean
 checkout, records the current HEAD, and accepts an optional expected-HEAD
 guard; the exact-candidate result is recorded externally with the PR evidence.
 
-## CL1C conformance candidate boundary
+## CL1C conformance merged boundary
 
 CL1C extends the production host from system light/dark to system contrast:
 `prefers-contrast: more` or forced colors resolve to `high`, while explicit
@@ -190,6 +192,42 @@ separate fail-closed cases. Standard renderer, main-process, `app.asar`,
 unpacked, and resource scans also reject every added temporary fallback marker.
 The clean candidate result remains PR evidence; this ledger does not predict
 that result or claim a production visual migration.
+
+## CL2A Action/Icon candidate boundary
+
+`@artemis/ui/actions` contains only platform-neutral React anatomy and finite
+public props. `Button` and `IconButton` require a perceptible accessible label,
+default to `type="button"`, rely on native Enter/Space and disabled behavior,
+emit at most one consumer callback per activation, block loading actions with a
+native disabled control plus `aria-busy`, and expose finite selected/error/loading
+state. `Icon` is decorative and owns xs/sm/base/lg/xl sizing; the consumer owns
+the accessible name and supplies a platform-neutral visual. `Badge` and `Status`
+require visible text and a redundant dot; Status becomes a live region only by
+explicit opt-in. No Apple proprietary asset is copied or embedded.
+
+Action structural CSS uses only the frozen finite selectors and semantic tokens
+declared by its public contract. Status labels always use `text.primary`; the
+solid tone appears on the redundant dot and the background uses the matching
+subtle role, preserving the Skin v1 small-text boundary. Reduced motion removes
+action transitions and pressed transforms. The focus indicator keeps the same
+non-overridable `2px solid Highlight` safety floor. Skin data cannot branch
+component anatomy, choose variants, add selectors, or supply private classes.
+
+Gallery binds all five new behavior cases to both default and stress skins and
+retains the same Action/Status nodes and attributes through all 64 runtime
+vertices. Desktop imports only the public stylesheet and action subpath; its
+GoalBar adapter keeps `ThreadGoal` status-to-tone mapping outside the package.
+The 104-case real Electron Goal parity matrix validates the resulting component
+identities, state/variant/tone attributes, computed 28px controls, 14px icons,
+26px status pills, action order, screenshots, and accessibility across locale,
+theme, width, and zoom. It does not establish native Windows/Linux parity or
+migrate any other Desktop surface.
+
+Installed-package proof resolves the actions declarations and runtime through
+the public export. A Button-only browser bundle omits IconButton, Badge, and
+Status implementation markers. JavaScript is component-tree-shaken; the single
+public `styles.css` is an intentionally whole, audited structural aggregator and
+is not component-tree-shaken.
 
 ## CL0B component contract boundary
 
@@ -269,11 +307,12 @@ fixtures cover those paths while allowing ordinary text and URLs such as
 `docs.gallery-example`. This is a static configuration and renderer-build
 boundary; it is not evidence that a final installer/package was inspected.
 
-The Probe structural stylesheet is parsed with PostCSS and compared against an
-exact selector/property/value allowlist. Its consumed `--artemis-*` token set
-must exactly equal the contract's `mutableTokens`; raw named/rgb/hsl/transparent
-colors, undeclared tokens, skin selectors, imports/URLs, and an overridable
-focus rule all fail. Focus visibility has a fixed structural floor of
+The Probe and Action structural stylesheet is parsed with PostCSS and compared
+against an exact selector/property/value allowlist. Its consumed
+`--artemis-*` token set must exactly equal the union of the two public
+contracts' `mutableTokens`; raw named/rgb/hsl/transparent colors, undeclared
+tokens, skin selectors, imports/URLs, and an overridable focus rule all fail.
+Focus visibility has a fixed structural floor of
 `2px solid Highlight` with a `2px` offset, so a schema-valid skin setting the
 ordinary border width to zero and the otherwise available focus color token to
 transparent cannot remove the Probe focus indicator.
@@ -297,7 +336,7 @@ trusted.
 
 ## SKIN1 ownership after MIG6
 
-The following are explicitly outside CL0A-CL1C and all MIG PRs unless a new
+The following are explicitly outside CL0A-CL2A and all MIG PRs unless a new
 scope is approved:
 
 - user installation, deletion, enablement, and selection;
@@ -322,5 +361,8 @@ user-install feature.
   schema v2 runtime/fallback axes, cross-platform Gallery job, expanded Desktop
   matrix, and its temporary-marker policies; no component/surface migration or
   user-facing skin state depends on it.
+- Roll back CL2A independently by removing the public action subpath and its
+  structural rules, the five Gallery cases, the GoalBar adapter, and their
+  package/Electron assertions. Skin v1 data and the CL1C host stay unchanged.
 - Roll back a skin package independently from `@artemis/ui`; the contract package
   must remain stable for every already-merged consumer.

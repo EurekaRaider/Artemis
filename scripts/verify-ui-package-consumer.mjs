@@ -81,6 +81,8 @@ try {
       "dist/index.d.ts",
       "dist/conformance.js",
       "dist/conformance.d.ts",
+      "dist/actions.js",
+      "dist/actions.d.ts",
       "dist/styles.css",
     ]),
     await pack("packages/theme-artemis", [
@@ -118,7 +120,7 @@ try {
 
   await writeFile(
     join(consumer, "consumer.ts"),
-    `import { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nvoid ConformanceProbe;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light") throw new Error("invalid contract");\n`,
+    `import { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst tone: ActionTone = "success";\nvoid ConformanceProbe;\nvoid Button;\nvoid IconButton;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone) throw new Error("invalid contract");\n`,
     "utf8",
   );
   await writeFile(
@@ -144,11 +146,49 @@ try {
 
   await writeFile(
     join(consumer, "consumer.mjs"),
-    `import { createHash } from "node:crypto";\nimport { readFile } from "node:fs/promises";\nimport { fileURLToPath } from "node:url";\nimport { createElement } from "react";\nimport { renderToStaticMarkup } from "react-dom/server";\nimport { UI_CONTRACT_VERSION, validateComponentContract } from "@artemis/ui";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { validateSkinIntegrity, validateSkinPackage } from "@artemis/theme-contract";\nimport { artemisThemeManifest, artemisTokenDocuments } from "@artemis/theme-artemis";\nconst publicPaths = [\n  "@artemis/ui/styles.css",\n  "@artemis/theme-contract/schema/manifest.json",\n  "@artemis/theme-contract/schema/tokens.json",\n  "@artemis/theme-contract/schema/integrity.json",\n  "@artemis/theme-artemis/manifest.json",\n  "@artemis/theme-artemis/tokens.light.json",\n  "@artemis/theme-artemis/tokens.dark.json",\n  "@artemis/theme-artemis/tokens.contrast.json",\n  "@artemis/theme-artemis/integrity.json",\n  "@artemis/theme-artemis/theme.css",\n];\nfor (const path of publicPaths) {\n  const content = await readFile(fileURLToPath(import.meta.resolve(path)), "utf8");\n  if (content.length === 0) throw new Error(\`empty public export: \${path}\`);\n}\nif (!validateSkinPackage({ manifest: artemisThemeManifest, tokenDocuments: artemisTokenDocuments }).valid) throw new Error("skin validation failed");\nconst integrity = JSON.parse(await readFile(fileURLToPath(import.meta.resolve("@artemis/theme-artemis/integrity.json")), "utf8"));\nif (!validateSkinIntegrity(integrity, artemisThemeManifest).valid) throw new Error("integrity validation failed");\nfor (const [file, expectedHash] of Object.entries(integrity.files)) {\n  const content = await readFile(fileURLToPath(import.meta.resolve("@artemis/theme-artemis/" + file)));\n  const actualHash = createHash("sha256").update(content).digest("hex");\n  if (actualHash !== expectedHash) throw new Error("integrity hash mismatch: " + file);\n}\nconst probeMarkup = renderToStaticMarkup(createElement(ConformanceProbe, { label: "Outside probe", defaultValue: "peer-ok" }));\nif (UI_CONTRACT_VERSION !== 1 || !validateComponentContract(CONFORMANCE_PROBE_CONTRACT).valid || !probeMarkup.includes('data-artemis-component="conformance-probe"') || !probeMarkup.includes('data-part="control"')) throw new Error("peer/component resolution failed");\nconsole.log("outside consumer resolved JS, types, conformance subpath, CSS, schema, integrity, token data, and React peers");\n`,
+    `import { createHash } from "node:crypto";\nimport { readFile } from "node:fs/promises";\nimport { fileURLToPath } from "node:url";\nimport { createElement } from "react";\nimport { renderToStaticMarkup } from "react-dom/server";\nimport { UI_CONTRACT_VERSION, validateComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Badge, Button, IconButton, Status } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { validateSkinIntegrity, validateSkinPackage } from "@artemis/theme-contract";\nimport { artemisThemeManifest, artemisTokenDocuments } from "@artemis/theme-artemis";\nconst publicPaths = [\n  "@artemis/ui/styles.css",\n  "@artemis/theme-contract/schema/manifest.json",\n  "@artemis/theme-contract/schema/tokens.json",\n  "@artemis/theme-contract/schema/integrity.json",\n  "@artemis/theme-artemis/manifest.json",\n  "@artemis/theme-artemis/tokens.light.json",\n  "@artemis/theme-artemis/tokens.dark.json",\n  "@artemis/theme-artemis/tokens.contrast.json",\n  "@artemis/theme-artemis/integrity.json",\n  "@artemis/theme-artemis/theme.css",\n];\nfor (const path of publicPaths) {\n  const content = await readFile(fileURLToPath(import.meta.resolve(path)), "utf8");\n  if (content.length === 0) throw new Error(\`empty public export: \${path}\`);\n}\nif (!validateSkinPackage({ manifest: artemisThemeManifest, tokenDocuments: artemisTokenDocuments }).valid) throw new Error("skin validation failed");\nconst integrity = JSON.parse(await readFile(fileURLToPath(import.meta.resolve("@artemis/theme-artemis/integrity.json")), "utf8"));\nif (!validateSkinIntegrity(integrity, artemisThemeManifest).valid) throw new Error("integrity validation failed");\nfor (const [file, expectedHash] of Object.entries(integrity.files)) {\n  const content = await readFile(fileURLToPath(import.meta.resolve("@artemis/theme-artemis/" + file)));\n  const actualHash = createHash("sha256").update(content).digest("hex");\n  if (actualHash !== expectedHash) throw new Error("integrity hash mismatch: " + file);\n}\nconst probeMarkup = renderToStaticMarkup(createElement(ConformanceProbe, { label: "Outside probe", defaultValue: "peer-ok" }));\nconst actionMarkup = [\n  renderToStaticMarkup(createElement(Button, { label: "Outside button" }, "Button")),\n  renderToStaticMarkup(createElement(IconButton, { label: "Outside icon button", icon: createElement("svg") })),\n  renderToStaticMarkup(createElement(Badge, { tone: "success" }, "Complete")),\n  renderToStaticMarkup(createElement(Status, { live: "polite" }, "Running")),\n].join("");\nif (UI_CONTRACT_VERSION !== 1 || !validateComponentContract(CONFORMANCE_PROBE_CONTRACT).valid || !Object.isFrozen(ACTION_COMPONENT_CONTRACTS) || !probeMarkup.includes('data-artemis-component="conformance-probe"') || !probeMarkup.includes('data-part="control"') || !actionMarkup.includes('data-artemis-component="button"') || !actionMarkup.includes('data-artemis-component="icon-button"') || !actionMarkup.includes('data-artemis-component="badge"') || !actionMarkup.includes('data-artemis-component="status"')) throw new Error("peer/component resolution failed");\nconsole.log("outside consumer resolved JS, types, actions/conformance subpaths, CSS, schema, integrity, token data, and React peers");\n`,
     "utf8",
   );
   run(process.execPath, ["consumer.mjs"], consumer);
   run(npm, ["ls", "--all", "react", "react-dom"], consumer);
+
+  await writeFile(
+    join(consumer, "tree-shake.ts"),
+    `import { createElement } from "react";\nimport { Button } from "@artemis/ui/actions";\nexport const TreeShakeButton = () => createElement(Button, { label: "Tree-shaken action" }, "Action");\n`,
+    "utf8",
+  );
+  run(
+    join(root, "node_modules/.bin/esbuild"),
+    [
+      "tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=tree-shake.js",
+    ],
+    consumer,
+  );
+  const treeShaken = await readFile(join(consumer, "tree-shake.js"), "utf8");
+  const retainedUnusedMarkers = ["icon-button", "badge", "status"].filter(
+    (marker) => treeShaken.includes(marker),
+  );
+  if (
+    !treeShaken.includes("data-artemis-component") ||
+    !treeShaken.includes("button") ||
+    retainedUnusedMarkers.length > 0
+  ) {
+    throw new Error(
+      `Button-only bundle retained unused action markers: ${retainedUnusedMarkers
+        .map((marker) => {
+          const index = treeShaken.indexOf(marker);
+          return `${marker} (${treeShaken.slice(Math.max(0, index - 40), index + marker.length + 40)})`;
+        })
+        .join(", ")}`,
+    );
+  }
 
   const installedRoots = [
     join(consumer, "node_modules/@artemis/theme-contract"),
@@ -172,7 +212,7 @@ try {
   }
 
   console.log(
-    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs)`,
+    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action JS tree-shaken)`,
   );
 } finally {
   await rm(consumer, { recursive: true, force: true });

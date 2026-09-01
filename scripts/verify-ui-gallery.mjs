@@ -304,7 +304,7 @@ const PRIVATE_GALLERY_ATTRIBUTES = new Set([
 const PRIVATE_GALLERY_TEXT_MARKERS = [
   "@artemis/ui-gallery",
   "Artemis UI Gallery",
-  "CL1C cross-platform conformance",
+  "CL2A action and icon conformance",
   "com.artemis.synthetic-stress",
 ];
 
@@ -1060,7 +1060,7 @@ const galleryText = (
 ).join("\n");
 for (const marker of [
   "Artemis UI Gallery",
-  "CL1C cross-platform conformance",
+  "CL2A action and icon conformance",
   "com.artemis.synthetic-stress",
   "data-artemis-component",
   "data-gallery-active-skin",

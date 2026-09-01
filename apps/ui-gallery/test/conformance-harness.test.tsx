@@ -18,6 +18,7 @@ import {
   SEMANTIC_TOKEN_REGISTRY,
   validateSkinPackage,
 } from "@artemis/theme-contract";
+import { Badge, Button, Icon, IconButton, Status } from "@artemis/ui/actions";
 import {
   CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR,
   ConformanceProbe,
@@ -49,7 +50,18 @@ type ConformanceCase =
   | "ime-enter"
   | "callback-order"
   | "action-policy"
-  | "rtl-inheritance";
+  | "rtl-inheritance"
+  | "action-anatomy"
+  | "action-states"
+  | "action-events"
+  | "icon-contract"
+  | "status-semantics";
+
+const MatrixIcon = () => (
+  <svg viewBox="0 0 16 16">
+    <path d="M2 8h12" />
+  </svg>
+);
 
 class ProbeErrorBoundary extends Component<
   { readonly children: ReactNode; readonly onError: (error: Error) => void },
@@ -341,7 +353,128 @@ const caseRunners = {
     expect(probe?.closest('[dir="rtl"]')).not.toBeNull();
     expect(container.querySelector("[data-artemis-portal]")).toBeNull();
   },
-} satisfies Record<ConformanceCase, () => void>;
+
+  "action-anatomy"() {
+    const { container } = render(
+      <div>
+        <Button icon={<MatrixIcon />} label="Matrix button">
+          Button
+        </Button>
+        <IconButton icon={<MatrixIcon />} label="Matrix icon button" />
+        <Badge tone="success">Complete</Badge>
+        <Status tone="info">Running</Status>
+      </div>,
+    );
+    expect(
+      [...container.querySelectorAll("[data-artemis-component]")].map((node) =>
+        node.getAttribute("data-artemis-component"),
+      ),
+    ).toEqual(["button", "icon", "icon-button", "icon", "badge", "status"]);
+    expect(container.querySelectorAll('[data-part="indicator"]')).toHaveLength(
+      2,
+    );
+  },
+
+  "action-states"() {
+    const { rerender } = render(<Button label="Matrix state">Ready</Button>);
+    const state = () =>
+      screen
+        .getByRole("button", { name: "Matrix state" })
+        .getAttribute("data-state");
+    const indicator = screen
+      .getByRole("button", { name: "Matrix state" })
+      .querySelector('[data-part="state-indicator"]');
+    expect(indicator).not.toBeNull();
+    expect(state()).toBe("ready");
+    rerender(
+      <Button label="Matrix state" selected>
+        Selected
+      </Button>,
+    );
+    expect(state()).toBe("selected");
+    rerender(
+      <Button error label="Matrix state">
+        Error
+      </Button>,
+    );
+    expect(state()).toBe("error");
+    rerender(
+      <Button label="Matrix state" loading>
+        Loading
+      </Button>,
+    );
+    expect(state()).toBe("loading");
+    rerender(
+      <Button disabled label="Matrix state">
+        Disabled
+      </Button>,
+    );
+    expect(state()).toBe("disabled");
+    expect(
+      screen
+        .getByRole("button", { name: "Matrix state" })
+        .querySelector('[data-part="state-indicator"]'),
+    ).toBe(indicator);
+  },
+
+  async "action-events"() {
+    const onClick = vi.fn();
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    const user = userEvent.setup();
+    render(
+      <form onSubmit={onSubmit}>
+        <Button label="Matrix activation" onClick={onClick}>
+          Activate
+        </Button>
+      </form>,
+    );
+    const action = screen.getByRole("button", { name: "Matrix activation" });
+    await user.click(action);
+    action.focus();
+    await user.keyboard("{Enter}");
+    await user.keyboard(" ");
+    expect(onClick).toHaveBeenCalledTimes(3);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(action.getAttribute("type")).toBe("button");
+  },
+
+  "icon-contract"() {
+    const { container } = render(
+      <div dir="rtl">
+        {(["xs", "sm", "base", "lg", "xl"] as const).map((size) => (
+          <Icon key={size} size={size}>
+            <MatrixIcon />
+          </Icon>
+        ))}
+        <IconButton icon={<MatrixIcon />} label="图标操作" />
+      </div>,
+    );
+    expect(
+      [...container.querySelectorAll('[data-artemis-component="icon"]')].map(
+        (node) => node.getAttribute("data-size"),
+      ),
+    ).toEqual(["xs", "sm", "base", "lg", "xl", "base"]);
+    expect(screen.getByRole("button", { name: "图标操作" })).not.toBeNull();
+    expect(container.querySelector("[data-artemis-portal]")).toBeNull();
+  },
+
+  "status-semantics"() {
+    const longText = "同步完成，所有变更已安全保存到当前本地项目";
+    const { container } = render(
+      <div>
+        <Badge tone="success">{longText}</Badge>
+        <Status live="polite" tone="warning">
+          2.5K / 10K
+        </Status>
+      </div>,
+    );
+    expect(container.textContent).toContain(longText);
+    expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
+    expect(container.querySelectorAll('[data-part="indicator"]')).toHaveLength(
+      2,
+    );
+  },
+} satisfies Record<ConformanceCase, () => void | Promise<void>>;
 
 const conformanceCases = conformanceMatrix.skins.default as ConformanceCase[];
 const skinCaseMatrix = (["default", "stress"] as const).flatMap((skin) =>
@@ -685,13 +818,28 @@ describe("default and synthetic stress skin conformance", () => {
     await user.type(control, "-changed");
     control.focus();
     control.setSelectionRange(2, 5);
-    const originalParts = [...container.querySelectorAll("[data-part]")].map(
+    const probeRoot = control.closest(
+      '[data-artemis-component="conformance-probe"]',
+    )!;
+    const originalParts = [...probeRoot.querySelectorAll("[data-part]")].map(
       (part) => part.getAttribute("data-part"),
     );
-    const root = control.closest(
-      '[data-artemis-component="conformance-probe"]',
-    );
-    const label = container.querySelector('[data-part="label"]');
+    const root = probeRoot;
+    const label = probeRoot.querySelector('[data-part="label"]');
+    const primaryAction = screen.getByRole("button", {
+      name: "Primary action",
+    });
+    const actionStatus = screen
+      .getByText("2.5K / 10K")
+      .closest('[data-artemis-component="status"]')!;
+    const actionSnapshot = {
+      component: primaryAction.getAttribute("data-artemis-component"),
+      state: primaryAction.getAttribute("data-state"),
+      variant: primaryAction.getAttribute("data-variant"),
+      statusComponent: actionStatus.getAttribute("data-artemis-component"),
+      statusTone: actionStatus.getAttribute("data-tone"),
+      statusLive: actionStatus.getAttribute("aria-live"),
+    };
     const eventOrder = container.querySelector("[data-gallery-event-order]");
     const eventOrderSnapshot = eventOrder?.textContent;
     const ariaSnapshot = {
@@ -729,11 +877,29 @@ describe("default and synthetic stress skin conformance", () => {
       expect(container.querySelector("[data-gallery-event-order]")).toBe(
         eventOrder,
       );
+      const afterPrimaryAction = screen.getByRole("button", {
+        name: "Primary action",
+      });
+      const afterActionStatus = screen
+        .getByText("2.5K / 10K")
+        .closest('[data-artemis-component="status"]')!;
+      expect(afterPrimaryAction).toBe(primaryAction);
+      expect(afterActionStatus).toBe(actionStatus);
+      expect({
+        component: afterPrimaryAction.getAttribute("data-artemis-component"),
+        state: afterPrimaryAction.getAttribute("data-state"),
+        variant: afterPrimaryAction.getAttribute("data-variant"),
+        statusComponent: afterActionStatus.getAttribute(
+          "data-artemis-component",
+        ),
+        statusTone: afterActionStatus.getAttribute("data-tone"),
+        statusLive: afterActionStatus.getAttribute("aria-live"),
+      }).toEqual(actionSnapshot);
       expect(eventOrder?.textContent).toBe(eventOrderSnapshot);
       const afterRoot = afterSwitch.closest(
         '[data-artemis-component="conformance-probe"]',
       );
-      const afterLabel = container.querySelector('[data-part="label"]');
+      const afterLabel = afterRoot?.querySelector('[data-part="label"]');
       expect({
         rootLabelledBy: afterRoot?.getAttribute("aria-labelledby"),
         rootBusy: afterRoot?.getAttribute("aria-busy"),
@@ -743,7 +909,7 @@ describe("default and synthetic stress skin conformance", () => {
         controlBusy: afterSwitch.getAttribute("aria-busy"),
       }).toEqual(ariaSnapshot);
       expect(
-        [...container.querySelectorAll("[data-part]")].map((part) =>
+        [...(afterRoot?.querySelectorAll("[data-part]") ?? [])].map((part) =>
           part.getAttribute("data-part"),
         ),
       ).toEqual(originalParts);
@@ -760,14 +926,14 @@ describe("default and synthetic stress skin conformance", () => {
     expect(Object.keys(caseRunners).sort()).toEqual(
       [...conformanceMatrix.skins.default].sort(),
     );
-    expect(skinCaseMatrix).toHaveLength(16);
+    expect(skinCaseMatrix).toHaveLength(26);
   });
 
   it.each(skinCaseMatrix)(
     "$caseName behavior passes under the $skin skin",
-    ({ skin, caseName }) => {
+    async ({ skin, caseName }) => {
       prepareSkin(skin);
-      caseRunners[caseName]();
+      await caseRunners[caseName]();
     },
   );
 });
