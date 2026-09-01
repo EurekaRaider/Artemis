@@ -2,8 +2,10 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App.js";
+import { bootstrapDesktopSkin } from "./desktop-skin-bootstrap.js";
 import "./i18n.js";
 import "./styles.css";
+import "@artemis/theme-artemis/theme.css";
 
 function diagnosticDetails(value: unknown): {
   message: string;
@@ -36,6 +38,8 @@ const root = document.getElementById("root");
 if (!root) {
   throw new Error("Artemis root element was not found.");
 }
+
+await bootstrapDesktopSkin();
 
 createRoot(root).render(
   <StrictMode>

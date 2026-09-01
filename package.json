@@ -1,6 +1,6 @@
 {
   "name": "artemis",
-  "version": "1.4.44",
+  "version": "1.4.45",
   "private": true,
   "description": "A local-first cross-platform desktop coding agent powered by Pi.",
   "type": "module",
@@ -47,6 +47,7 @@
     "package:win": "npm run package:win -w @artemis/desktop",
     "verify:screenshot-matrix": "npm run build:core && npm run verify:screenshot-matrix -w @artemis/desktop",
     "verify:goal-parity": "npm run build:core && npm run verify:goal-parity -w @artemis/desktop",
+    "verify:desktop-skin": "npm run build:core && npm run verify:desktop-skin -w @artemis/desktop",
     "verify:ui-boundaries": "node scripts/verify-ui-boundaries.mjs && node scripts/test-ui-boundaries.mjs",
     "verify:ui-package-consumer": "npm run build:ui-libraries && node scripts/verify-ui-package-consumer.mjs",
     "verify:ui-gallery": "npm run build:core && npm run build:ui-foundation && npm run test -w @artemis/ui-gallery && npm run typecheck -w @artemis/ui-gallery && npm run build -w @artemis/desktop && node scripts/verify-ui-gallery.mjs",
