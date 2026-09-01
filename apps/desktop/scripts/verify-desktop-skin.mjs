@@ -366,6 +366,8 @@ const snapshot = () => {
       xtermPromptPreserved: (xtermRows?.textContent ?? "").includes(
         "Artemis>",
       ),
+      terminalPromptReceived:
+        preload?.terminalData().includes("Artemis>") ?? false,
       legacyPalettePresent:
         xtermStyle.includes("#1f2023") &&
         xtermStyle.includes("#795e00") &&
@@ -386,19 +388,6 @@ const nextPaint = () => new Promise((resolve) =>
 );
 const settle = async () => {
   await nextPaint();
-  if (!terminalReferences) return;
-  const deadline = performance.now() + 15_000;
-  let content = "";
-  while (performance.now() < deadline) {
-    content =
-      document.querySelector(".terminal-host .xterm-rows")?.textContent ?? "";
-    if (content.includes("Artemis>")) return;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error(
-    "Timed out waiting for synthetic PTY prompt after transition; content=" +
-      JSON.stringify(content),
-  );
 };
 
 export function App() {
@@ -477,7 +466,7 @@ async function buildSmokePreload() {
     )
     .replace(
       "const api: ArtemisApi = {",
-      "let desktopSkinSmokeTerminalOpenCount = 0;\nlet desktopSkinSmokeRendererReadyCount = 0;\n\nconst api: ArtemisApi = {",
+      'let desktopSkinSmokeTerminalOpenCount = 0;\nlet desktopSkinSmokeRendererReadyCount = 0;\nlet desktopSkinSmokeTerminalData = "";\n\nconst api: ArtemisApi = {',
     )
     .replace(
       "rendererReady: () => ipcRenderer.send(IPC.rendererReady),",
@@ -488,12 +477,17 @@ async function buildSmokePreload() {
       "openTerminal: (input) => {\n    desktopSkinSmokeTerminalOpenCount += 1;\n    return ipcRenderer.invoke(IPC.terminalOpen, input);\n  },",
     )
     .replace(
+      "    ipcRenderer.on(IPC.terminalData, handler);",
+      "    ipcRenderer.on(IPC.terminalData, (_event, value) => {\n      desktopSkinSmokeTerminalData = (desktopSkinSmokeTerminalData + value.data).slice(-16_384);\n    });\n    ipcRenderer.on(IPC.terminalData, handler);",
+    )
+    .replace(
       'contextBridge.exposeInMainWorld("artemis", api);',
-      'contextBridge.exposeInMainWorld("__ARTEMIS_SKIN_SMOKE_PRELOAD__", {\n  terminalOpenCount: () => desktopSkinSmokeTerminalOpenCount,\n  rendererReadyCount: () => desktopSkinSmokeRendererReadyCount,\n  setZoomFactor: (value) => webFrame.setZoomFactor(value),\n  zoomFactor: () => webFrame.getZoomFactor(),\n});\ncontextBridge.exposeInMainWorld("artemis", api);',
+      'contextBridge.exposeInMainWorld("__ARTEMIS_SKIN_SMOKE_PRELOAD__", {\n  terminalData: () => desktopSkinSmokeTerminalData,\n  terminalOpenCount: () => desktopSkinSmokeTerminalOpenCount,\n  rendererReadyCount: () => desktopSkinSmokeRendererReadyCount,\n  setZoomFactor: (value) => webFrame.setZoomFactor(value),\n  zoomFactor: () => webFrame.getZoomFactor(),\n});\ncontextBridge.exposeInMainWorld("artemis", api);',
     );
   assert(
     withCounters !== productionSource &&
       withCounters.includes("desktopSkinSmokeTerminalOpenCount += 1") &&
+      withCounters.includes("desktopSkinSmokeTerminalData =") &&
       withCounters.includes("desktopSkinSmokeRendererReadyCount += 1") &&
       withCounters.includes("webFrame.setZoomFactor(value)") &&
       withCounters.includes("__ARTEMIS_SKIN_SMOKE_PRELOAD__"),
@@ -743,12 +737,6 @@ async function rememberRuntimeState(connection, includePortal) {
       "real Composer focus",
     );
   }
-  await waitFor(
-    connection,
-    'document.querySelector(".terminal-host .xterm-rows")?.textContent?.includes("Artemis>")',
-    "synthetic PTY prompt after environment layout",
-    15_000,
-  );
   return evaluate(
     connection,
     `globalThis.__ARTEMIS_SKIN_SMOKE__.remember(${JSON.stringify(includePortal ? "environment" : "composer")})`,
@@ -962,7 +950,7 @@ async function driveElectron() {
       'document.querySelector(".xterm-helper-textarea")?.focus()',
     );
     await connection.send("Input.insertText", {
-      text: "export PS1='Artemis> '; clear",
+      text: "export PS1='Ar''temis> '; clear",
     });
     await connection.send("Input.dispatchKeyEvent", {
       type: "rawKeyDown",
@@ -980,8 +968,14 @@ async function driveElectron() {
     });
     await waitFor(
       connection,
+      'globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.terminalData().includes("Artemis>")',
+      "synthetic PTY prompt in the real terminal data stream",
+      15_000,
+    );
+    await waitFor(
+      connection,
       'document.querySelector(".terminal-host .xterm-rows")?.textContent?.includes("Artemis>")',
-      "synthetic PTY prompt",
+      "initial rendered synthetic PTY prompt",
       15_000,
     );
 
@@ -1050,7 +1044,7 @@ async function driveElectron() {
             environmentRemembered.state.xtermSame &&
             environmentRemembered.state.xtermScreenSame &&
             environmentRemembered.state.xtermRowsSame &&
-            environmentRemembered.state.xtermPromptPreserved &&
+            environmentRemembered.state.terminalPromptReceived &&
             environmentRemembered.state.terminalOpenCount === 1 &&
             (includePortal
               ? environmentRemembered.state.portalInBody
@@ -1107,7 +1101,7 @@ async function driveElectron() {
           snapshot.state.xtermSame &&
           snapshot.state.xtermScreenSame &&
           snapshot.state.xtermRowsSame &&
-          snapshot.state.xtermPromptPreserved &&
+          snapshot.state.terminalPromptReceived &&
           snapshot.state.inputValue === expectedInput &&
           snapshot.state.selectionStart === expectedSelection[0] &&
           snapshot.state.selectionEnd === expectedSelection[1] &&
@@ -1171,7 +1165,7 @@ async function driveElectron() {
         fallbackRemembered.state.composerSame &&
         fallbackRemembered.state.composerValue === "matrix-preserved" &&
         fallbackRemembered.state.xtermSame &&
-        fallbackRemembered.state.xtermPromptPreserved &&
+        fallbackRemembered.state.terminalPromptReceived &&
         fallbackRemembered.state.terminalOpenCount === 1,
       `Could not establish fallback state: ${JSON.stringify(fallbackRemembered.state)}`,
     );
@@ -1265,7 +1259,7 @@ async function driveElectron() {
         finalSnapshot.state.xtermSame &&
         finalSnapshot.state.xtermScreenSame &&
         finalSnapshot.state.xtermRowsSame &&
-        finalSnapshot.state.xtermPromptPreserved &&
+        finalSnapshot.state.terminalPromptReceived &&
         finalSnapshot.state.legacyPalettePresent &&
         finalSnapshot.state.inputValue === "main" &&
         finalSnapshot.state.selectionStart === 1 &&

@@ -295,6 +295,7 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain("view === 'environment-branch-menu'");
     expect(mainSource).toContain('view?.startsWith("environment")');
     expect(mainSource).toContain('view?.startsWith("icon-sizing-environment")');
+    expect(mainSource).toContain('return { status: "not-found" };');
     expect(mainSource).toContain('"environment-empty"');
     expect(mainSource).toContain("environment-repository");
     expect(mainSource).toContain("view === 'environment-outside-click'");

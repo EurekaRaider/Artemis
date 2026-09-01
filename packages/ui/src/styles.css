@@ -52,9 +52,312 @@
     opacity: var(--artemis-opacity-disabled);
   }
 
+  [data-artemis-component="button"],
+  [data-artemis-component="icon-button"] {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--artemis-space-2);
+    min-block-size: var(--artemis-size-control-compact);
+    color: var(--artemis-color-text-primary);
+    background: var(--artemis-color-surface-base);
+    border: var(--artemis-border-width-default) solid
+      var(--artemis-color-border-default);
+    border-radius: var(--artemis-radius-control);
+    font-family: var(--artemis-typography-body-family);
+    font-size: var(--artemis-typography-label-size);
+    font-weight: var(--artemis-typography-body-weight);
+    line-height: 1;
+    cursor: pointer;
+    transition:
+      background var(--artemis-motion-duration-fast)
+        var(--artemis-motion-easing-standard),
+      border-color var(--artemis-motion-duration-fast)
+        var(--artemis-motion-easing-standard),
+      color var(--artemis-motion-duration-fast)
+        var(--artemis-motion-easing-standard),
+      transform var(--artemis-motion-duration-fast)
+        var(--artemis-motion-easing-standard);
+  }
+
+  [data-artemis-component="button"] {
+    padding-inline: var(--artemis-space-3);
+  }
+
+  [data-artemis-component="button"] > [data-part="label"] {
+    display: contents;
+  }
+
+  [data-artemis-component="button"] > [data-part="icon"],
+  [data-artemis-component="icon-button"] > [data-part="icon"] {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+  }
+
+  [data-artemis-component="button"][data-align="start"] {
+    justify-content: flex-start;
+  }
+
+  [data-artemis-component="icon-button"] {
+    position: relative;
+    gap: 0;
+    inline-size: var(--artemis-size-control-compact);
+    overflow: hidden;
+    padding: 0;
+  }
+
+  [data-artemis-component="button"][data-size="comfortable"],
+  [data-artemis-component="icon-button"][data-size="comfortable"] {
+    min-block-size: var(--artemis-size-control-comfortable);
+  }
+
+  [data-artemis-component="icon-button"][data-size="comfortable"] {
+    inline-size: var(--artemis-size-control-comfortable);
+  }
+
+  [data-artemis-component="button"][data-variant="primary"] {
+    color: var(--artemis-color-accent-on-primary);
+    background: var(--artemis-color-accent-primary);
+    border-color: var(--artemis-color-accent-primary);
+  }
+
+  [data-artemis-component="button"][data-variant="secondary"],
+  [data-artemis-component="icon-button"][data-variant="secondary"] {
+    color: var(--artemis-color-text-primary);
+    background: var(--artemis-color-surface-base);
+  }
+
+  [data-artemis-component="button"][data-variant="quiet"],
+  [data-artemis-component="icon-button"][data-variant="quiet"] {
+    color: var(--artemis-color-text-secondary);
+    background: var(--artemis-color-surface-sunken);
+  }
+
+  [data-artemis-component="button"][data-variant="danger"],
+  [data-artemis-component="icon-button"][data-variant="danger"] {
+    color: var(--artemis-color-status-on-danger);
+    background: var(--artemis-color-status-danger);
+    border-color: var(--artemis-color-status-danger);
+  }
+
+  [data-artemis-component="button"][data-variant="primary"]:hover:not(
+      :disabled
+    ) {
+    background: var(--artemis-color-accent-hover);
+    border-color: var(--artemis-color-accent-hover);
+  }
+
+  [data-artemis-component="button"][data-variant="secondary"]:hover:not(
+      :disabled
+    ),
+  [data-artemis-component="button"][data-variant="quiet"]:hover:not(:disabled),
+  [data-artemis-component="icon-button"][data-variant="secondary"]:hover:not(
+      :disabled
+    ),
+  [data-artemis-component="icon-button"][data-variant="quiet"]:hover:not(
+      :disabled
+    ) {
+    background: var(--artemis-color-interaction-hover);
+    border-color: var(--artemis-color-border-strong);
+    color: var(--artemis-color-text-primary);
+  }
+
+  [data-artemis-component="button"][data-variant="danger"]:hover:not(:disabled),
+  [data-artemis-component="icon-button"][data-variant="danger"]:hover:not(
+      :disabled
+    ) {
+    border-color: var(--artemis-color-border-strong);
+  }
+
+  [data-artemis-component="button"]:active:not(:disabled),
+  [data-artemis-component="icon-button"]:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  [data-artemis-component="button"]:focus-visible,
+  [data-artemis-component="icon-button"]:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  [data-artemis-component="button"][data-state="selected"],
+  [data-artemis-component="icon-button"][data-state="selected"] {
+    background: var(--artemis-color-interaction-selected);
+    box-shadow: inset 0 0 0 var(--artemis-border-width-default)
+      var(--artemis-color-border-strong);
+  }
+
+  [data-artemis-component="button"][data-state="disabled"],
+  [data-artemis-component="button"][data-state="loading"],
+  [data-artemis-component="icon-button"][data-state="disabled"],
+  [data-artemis-component="icon-button"][data-state="loading"] {
+    cursor: default;
+    opacity: var(--artemis-opacity-disabled);
+  }
+
+  [data-artemis-component="button"] [data-part="state-indicator"],
+  [data-artemis-component="icon-button"] [data-part="state-indicator"] {
+    flex: 0 0 auto;
+    color: currentColor;
+    font-size: var(--artemis-typography-label-size);
+    font-weight: var(--artemis-typography-body-weight);
+  }
+
+  [data-artemis-component="button"][data-state="ready"]
+    > [data-part="state-indicator"],
+  [data-artemis-component="button"][data-state="disabled"]
+    > [data-part="state-indicator"],
+  [data-artemis-component="icon-button"][data-state="ready"]
+    > [data-part="state-indicator"],
+  [data-artemis-component="icon-button"][data-state="disabled"]
+    > [data-part="state-indicator"] {
+    display: none;
+  }
+
+  [data-artemis-component="icon-button"] > [data-part="state-indicator"] {
+    position: absolute;
+    inset-block-end: var(--artemis-space-1);
+    inset-inline-end: var(--artemis-space-1);
+    font-size: var(--artemis-space-2);
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  [data-artemis-component="icon"] {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1em;
+    block-size: 1em;
+    color: currentColor;
+    line-height: 1;
+  }
+
+  [data-artemis-component="icon"][data-size="xs"] {
+    font-size: var(--artemis-space-3);
+  }
+
+  [data-artemis-component="icon"][data-size="sm"] {
+    font-size: calc(var(--artemis-space-3) + var(--artemis-space-1) / 2);
+  }
+
+  [data-artemis-component="icon"][data-size="base"] {
+    font-size: var(--artemis-space-4);
+  }
+
+  [data-artemis-component="icon"][data-size="lg"] {
+    font-size: calc(var(--artemis-space-4) + var(--artemis-space-1));
+  }
+
+  [data-artemis-component="icon"][data-size="xl"] {
+    font-size: var(--artemis-space-6);
+  }
+
+  [data-artemis-component="icon"] > svg {
+    display: block;
+    inline-size: 1em;
+    block-size: 1em;
+  }
+
+  [data-artemis-component="badge"],
+  [data-artemis-component="status"] {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--artemis-space-2);
+    min-block-size: calc(
+      var(--artemis-space-6) + var(--artemis-border-width-default) * 2
+    );
+    min-inline-size: 0;
+    padding-inline: var(--artemis-space-3);
+    color: var(--artemis-color-text-primary);
+    background: var(--artemis-color-surface-sunken);
+    border: var(--artemis-border-width-default) solid
+      var(--artemis-color-border-default);
+    border-radius: var(--artemis-radius-pill);
+    font-family: var(--artemis-typography-body-family);
+    font-size: var(--artemis-typography-label-size);
+    line-height: 1;
+  }
+
+  [data-artemis-component="badge"] [data-part="indicator"],
+  [data-artemis-component="status"] [data-part="indicator"] {
+    flex: 0 0 auto;
+    inline-size: calc(
+      var(--artemis-space-1) + var(--artemis-border-width-default) * 2
+    );
+    block-size: calc(
+      var(--artemis-space-1) + var(--artemis-border-width-default) * 2
+    );
+    background: var(--artemis-color-border-strong);
+    border-radius: var(--artemis-radius-pill);
+  }
+
+  [data-artemis-component="badge"][data-tone="info"],
+  [data-artemis-component="status"][data-tone="info"] {
+    background: var(--artemis-color-status-info-subtle);
+  }
+
+  [data-artemis-component="badge"][data-tone="success"],
+  [data-artemis-component="status"][data-tone="success"] {
+    background: var(--artemis-color-status-success-subtle);
+  }
+
+  [data-artemis-component="badge"][data-tone="warning"],
+  [data-artemis-component="status"][data-tone="warning"] {
+    background: var(--artemis-color-status-warning-subtle);
+  }
+
+  [data-artemis-component="badge"][data-tone="danger"],
+  [data-artemis-component="status"][data-tone="danger"] {
+    background: var(--artemis-color-status-danger-subtle);
+  }
+
+  [data-artemis-component="badge"][data-tone="info"] [data-part="indicator"],
+  [data-artemis-component="status"][data-tone="info"] [data-part="indicator"] {
+    background: var(--artemis-color-status-info);
+  }
+
+  [data-artemis-component="badge"][data-tone="success"] [data-part="indicator"],
+  [data-artemis-component="status"][data-tone="success"]
+    [data-part="indicator"] {
+    background: var(--artemis-color-status-success);
+  }
+
+  [data-artemis-component="badge"][data-tone="warning"] [data-part="indicator"],
+  [data-artemis-component="status"][data-tone="warning"]
+    [data-part="indicator"] {
+    background: var(--artemis-color-status-warning);
+  }
+
+  [data-artemis-component="badge"][data-tone="danger"] [data-part="indicator"],
+  [data-artemis-component="status"][data-tone="danger"]
+    [data-part="indicator"] {
+    background: var(--artemis-color-status-danger);
+  }
+
+  [data-artemis-component="status"] {
+    font-variant-numeric: tabular-nums;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     [data-artemis-component="conformance-probe"] [data-part="control"] {
       transition: none;
+    }
+
+    [data-artemis-component="button"],
+    [data-artemis-component="icon-button"] {
+      transition: none;
+      transform: none;
+    }
+
+    [data-artemis-component="button"]:active:not(:disabled),
+    [data-artemis-component="icon-button"]:active:not(:disabled) {
+      transform: none;
     }
   }
 }

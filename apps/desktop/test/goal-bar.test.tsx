@@ -69,6 +69,10 @@ describe("Codex-style Goal rail", () => {
     );
     expect(markup).toContain("Pursuing goal");
     expect(markup).toContain("Ship the Goal UI");
+    expect(markup).toContain('data-artemis-component="button"');
+    expect(markup).toContain('data-artemis-component="icon-button"');
+    expect(markup).toContain('data-artemis-component="badge"');
+    expect(markup).toContain('data-artemis-component="status"');
     expect(markup.indexOf('aria-label="Clear goal"')).toBeLessThan(
       markup.indexOf('aria-label="Pause goal"'),
     );

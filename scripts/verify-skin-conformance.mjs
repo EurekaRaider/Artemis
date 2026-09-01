@@ -14,6 +14,12 @@ const REQUIRED_SKIN_CASES = [
   "callback-order",
   "action-policy",
   "rtl-inheritance",
+  "action-anatomy",
+  "action-states",
+  "action-variants-sizes",
+  "action-events",
+  "icon-contract",
+  "status-semantics",
 ];
 const REQUIRED_SWITCH_CASES = [
   "same-node",
@@ -78,11 +84,19 @@ const cli = parseCli(process.argv.slice(2));
 const canonical = (value) => JSON.stringify(value);
 const normalizeWhitespace = (value) => value.replace(/\s+/gu, " ").trim();
 const normalizeSelector = (value) =>
-  normalizeWhitespace(value).replace(/\s*,\s*/gu, ", ");
+  normalizeWhitespace(value)
+    .replace(/\s*,\s*/gu, ", ")
+    .replace(/\(\s+/gu, "(")
+    .replace(/\s+\)/gu, ")");
 const normalizeValue = (value) =>
   normalizeWhitespace(value).replace(/\s*,\s*/gu, ", ");
 
 const PROBE = '[data-artemis-component="conformance-probe"]';
+const BUTTON = '[data-artemis-component="button"]';
+const ICON_BUTTON = '[data-artemis-component="icon-button"]';
+const ICON = '[data-artemis-component="icon"]';
+const BADGE = '[data-artemis-component="badge"]';
+const STATUS = '[data-artemis-component="status"]';
 const expectedCssRules = new Map([
   [
     `normal|${PROBE}`,
@@ -141,9 +155,264 @@ const expectedCssRules = new Map([
     { opacity: "var(--artemis-opacity-disabled)" },
   ],
   [`reduced-motion|${PROBE} [data-part="control"]`, { transition: "none" }],
+  [
+    `normal|${BUTTON}, ${ICON_BUTTON}`,
+    {
+      "box-sizing": "border-box",
+      display: "inline-flex",
+      "align-items": "center",
+      "justify-content": "center",
+      gap: "var(--artemis-space-2)",
+      "min-block-size": "var(--artemis-size-control-compact)",
+      color: "var(--artemis-color-text-primary)",
+      background: "var(--artemis-color-surface-base)",
+      border:
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      "border-radius": "var(--artemis-radius-control)",
+      "font-family": "var(--artemis-typography-body-family)",
+      "font-size": "var(--artemis-typography-label-size)",
+      "font-weight": "var(--artemis-typography-body-weight)",
+      "line-height": "1",
+      cursor: "pointer",
+      transition:
+        "background var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), border-color var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), color var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), transform var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
+    },
+  ],
+  [`normal|${BUTTON}`, { "padding-inline": "var(--artemis-space-3)" }],
+  [`normal|${BUTTON} > [data-part="label"]`, { display: "contents" }],
+  [
+    `normal|${BUTTON} > [data-part="icon"], ${ICON_BUTTON} > [data-part="icon"]`,
+    {
+      display: "inline-flex",
+      flex: "0 0 auto",
+      "align-items": "center",
+      "justify-content": "center",
+    },
+  ],
+  [`normal|${BUTTON}[data-align="start"]`, { "justify-content": "flex-start" }],
+  [
+    `normal|${ICON_BUTTON}`,
+    {
+      position: "relative",
+      gap: "0",
+      "inline-size": "var(--artemis-size-control-compact)",
+      overflow: "hidden",
+      padding: "0",
+    },
+  ],
+  [
+    `normal|${BUTTON}[data-size="comfortable"], ${ICON_BUTTON}[data-size="comfortable"]`,
+    { "min-block-size": "var(--artemis-size-control-comfortable)" },
+  ],
+  [
+    `normal|${ICON_BUTTON}[data-size="comfortable"]`,
+    { "inline-size": "var(--artemis-size-control-comfortable)" },
+  ],
+  [
+    `normal|${BUTTON}[data-variant="primary"]`,
+    {
+      color: "var(--artemis-color-accent-on-primary)",
+      background: "var(--artemis-color-accent-primary)",
+      "border-color": "var(--artemis-color-accent-primary)",
+    },
+  ],
+  [
+    `normal|${BUTTON}[data-variant="secondary"], ${ICON_BUTTON}[data-variant="secondary"]`,
+    {
+      color: "var(--artemis-color-text-primary)",
+      background: "var(--artemis-color-surface-base)",
+    },
+  ],
+  [
+    `normal|${BUTTON}[data-variant="quiet"], ${ICON_BUTTON}[data-variant="quiet"]`,
+    {
+      color: "var(--artemis-color-text-secondary)",
+      background: "var(--artemis-color-surface-sunken)",
+    },
+  ],
+  [
+    `normal|${BUTTON}[data-variant="danger"], ${ICON_BUTTON}[data-variant="danger"]`,
+    {
+      color: "var(--artemis-color-status-on-danger)",
+      background: "var(--artemis-color-status-danger)",
+      "border-color": "var(--artemis-color-status-danger)",
+    },
+  ],
+  [
+    `normal|${BUTTON}[data-variant="primary"]:hover:not(:disabled)`,
+    {
+      background: "var(--artemis-color-accent-hover)",
+      "border-color": "var(--artemis-color-accent-hover)",
+    },
+  ],
+  [
+    `normal|${BUTTON}[data-variant="secondary"]:hover:not(:disabled), ${BUTTON}[data-variant="quiet"]:hover:not(:disabled), ${ICON_BUTTON}[data-variant="secondary"]:hover:not(:disabled), ${ICON_BUTTON}[data-variant="quiet"]:hover:not(:disabled)`,
+    {
+      background: "var(--artemis-color-interaction-hover)",
+      "border-color": "var(--artemis-color-border-strong)",
+      color: "var(--artemis-color-text-primary)",
+    },
+  ],
+  [
+    `normal|${BUTTON}[data-variant="danger"]:hover:not(:disabled), ${ICON_BUTTON}[data-variant="danger"]:hover:not(:disabled)`,
+    { "border-color": "var(--artemis-color-border-strong)" },
+  ],
+  [
+    `normal|${BUTTON}:active:not(:disabled), ${ICON_BUTTON}:active:not(:disabled)`,
+    { transform: "scale(0.97)" },
+  ],
+  [
+    `normal|${BUTTON}:focus-visible, ${ICON_BUTTON}:focus-visible`,
+    { outline: "2px solid Highlight", "outline-offset": "2px" },
+  ],
+  [
+    `normal|${BUTTON}[data-state="selected"], ${ICON_BUTTON}[data-state="selected"]`,
+    {
+      background: "var(--artemis-color-interaction-selected)",
+      "box-shadow":
+        "inset 0 0 0 var(--artemis-border-width-default) var(--artemis-color-border-strong)",
+    },
+  ],
+  [
+    `normal|${BUTTON}[data-state="disabled"], ${BUTTON}[data-state="loading"], ${ICON_BUTTON}[data-state="disabled"], ${ICON_BUTTON}[data-state="loading"]`,
+    { cursor: "default", opacity: "var(--artemis-opacity-disabled)" },
+  ],
+  [
+    `normal|${BUTTON} [data-part="state-indicator"], ${ICON_BUTTON} [data-part="state-indicator"]`,
+    {
+      flex: "0 0 auto",
+      color: "currentColor",
+      "font-size": "var(--artemis-typography-label-size)",
+      "font-weight": "var(--artemis-typography-body-weight)",
+    },
+  ],
+  [
+    `normal|${BUTTON}[data-state="ready"] > [data-part="state-indicator"], ${BUTTON}[data-state="disabled"] > [data-part="state-indicator"], ${ICON_BUTTON}[data-state="ready"] > [data-part="state-indicator"], ${ICON_BUTTON}[data-state="disabled"] > [data-part="state-indicator"]`,
+    { display: "none" },
+  ],
+  [
+    `normal|${ICON_BUTTON} > [data-part="state-indicator"]`,
+    {
+      position: "absolute",
+      "inset-block-end": "var(--artemis-space-1)",
+      "inset-inline-end": "var(--artemis-space-1)",
+      "font-size": "var(--artemis-space-2)",
+      "line-height": "1",
+      "pointer-events": "none",
+    },
+  ],
+  [
+    `normal|${ICON}`,
+    {
+      display: "inline-flex",
+      flex: "0 0 auto",
+      "align-items": "center",
+      "justify-content": "center",
+      "inline-size": "1em",
+      "block-size": "1em",
+      color: "currentColor",
+      "line-height": "1",
+    },
+  ],
+  [`normal|${ICON}[data-size="xs"]`, { "font-size": "var(--artemis-space-3)" }],
+  [
+    `normal|${ICON}[data-size="sm"]`,
+    {
+      "font-size": "calc(var(--artemis-space-3) + var(--artemis-space-1) / 2)",
+    },
+  ],
+  [
+    `normal|${ICON}[data-size="base"]`,
+    { "font-size": "var(--artemis-space-4)" },
+  ],
+  [
+    `normal|${ICON}[data-size="lg"]`,
+    {
+      "font-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
+    },
+  ],
+  [`normal|${ICON}[data-size="xl"]`, { "font-size": "var(--artemis-space-6)" }],
+  [
+    `normal|${ICON} > svg`,
+    { display: "block", "inline-size": "1em", "block-size": "1em" },
+  ],
+  [
+    `normal|${BADGE}, ${STATUS}`,
+    {
+      "box-sizing": "border-box",
+      display: "inline-flex",
+      "align-items": "center",
+      gap: "var(--artemis-space-2)",
+      "min-block-size":
+        "calc( var(--artemis-space-6) + var(--artemis-border-width-default) * 2 )",
+      "min-inline-size": "0",
+      "padding-inline": "var(--artemis-space-3)",
+      color: "var(--artemis-color-text-primary)",
+      background: "var(--artemis-color-surface-sunken)",
+      border:
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      "border-radius": "var(--artemis-radius-pill)",
+      "font-family": "var(--artemis-typography-body-family)",
+      "font-size": "var(--artemis-typography-label-size)",
+      "line-height": "1",
+    },
+  ],
+  [
+    `normal|${BADGE} [data-part="indicator"], ${STATUS} [data-part="indicator"]`,
+    {
+      flex: "0 0 auto",
+      "inline-size":
+        "calc( var(--artemis-space-1) + var(--artemis-border-width-default) * 2 )",
+      "block-size":
+        "calc( var(--artemis-space-1) + var(--artemis-border-width-default) * 2 )",
+      background: "var(--artemis-color-border-strong)",
+      "border-radius": "var(--artemis-radius-pill)",
+    },
+  ],
+  [
+    `normal|${BADGE}[data-tone="info"], ${STATUS}[data-tone="info"]`,
+    { background: "var(--artemis-color-status-info-subtle)" },
+  ],
+  [
+    `normal|${BADGE}[data-tone="success"], ${STATUS}[data-tone="success"]`,
+    { background: "var(--artemis-color-status-success-subtle)" },
+  ],
+  [
+    `normal|${BADGE}[data-tone="warning"], ${STATUS}[data-tone="warning"]`,
+    { background: "var(--artemis-color-status-warning-subtle)" },
+  ],
+  [
+    `normal|${BADGE}[data-tone="danger"], ${STATUS}[data-tone="danger"]`,
+    { background: "var(--artemis-color-status-danger-subtle)" },
+  ],
+  [
+    `normal|${BADGE}[data-tone="info"] [data-part="indicator"], ${STATUS}[data-tone="info"] [data-part="indicator"]`,
+    { background: "var(--artemis-color-status-info)" },
+  ],
+  [
+    `normal|${BADGE}[data-tone="success"] [data-part="indicator"], ${STATUS}[data-tone="success"] [data-part="indicator"]`,
+    { background: "var(--artemis-color-status-success)" },
+  ],
+  [
+    `normal|${BADGE}[data-tone="warning"] [data-part="indicator"], ${STATUS}[data-tone="warning"] [data-part="indicator"]`,
+    { background: "var(--artemis-color-status-warning)" },
+  ],
+  [
+    `normal|${BADGE}[data-tone="danger"] [data-part="indicator"], ${STATUS}[data-tone="danger"] [data-part="indicator"]`,
+    { background: "var(--artemis-color-status-danger)" },
+  ],
+  [`normal|${STATUS}`, { "font-variant-numeric": "tabular-nums" }],
+  [
+    `reduced-motion|${BUTTON}, ${ICON_BUTTON}`,
+    { transition: "none", transform: "none" },
+  ],
+  [
+    `reduced-motion|${BUTTON}:active:not(:disabled), ${ICON_BUTTON}:active:not(:disabled)`,
+    { transform: "none" },
+  ],
 ]);
 
-function verifyStructuralCss(css, from, componentContract) {
+function verifyStructuralCss(css, from, componentContract, actionTokens) {
   const parsed = postcss.parse(css, { from });
   const rootNodes = parsed.nodes ?? [];
   if (rootNodes.length !== 2) {
@@ -245,11 +514,11 @@ function verifyStructuralCss(css, from, componentContract) {
       node.name !== "media" ||
       normalizeWhitespace(node.params) !== "(prefers-reduced-motion: reduce)" ||
       node.nodes === undefined ||
-      node.nodes.length !== 1
+      node.nodes.length !== 3
     ) {
       throw new Error("UI structural CSS contains an unexpected at-rule");
     }
-    verifyRule(node.nodes[0], "reduced-motion");
+    for (const nested of node.nodes) verifyRule(nested, "reduced-motion");
   }
 
   if (
@@ -260,7 +529,9 @@ function verifyStructuralCss(css, from, componentContract) {
   }
 
   const actualTokens = [...consumedTokens].sort();
-  const declaredTokens = [...componentContract.theme.mutableTokens].sort();
+  const declaredTokens = [
+    ...new Set([...componentContract.theme.mutableTokens, ...actionTokens]),
+  ].sort();
   if (canonical(actualTokens) !== canonical(declaredTokens)) {
     throw new Error(
       `UI structural CSS tokens differ from ComponentContract: CSS=${canonical(actualTokens)} contract=${canonical(declaredTokens)}`,
@@ -273,6 +544,9 @@ const ui = await import(
 );
 const conformance = await import(
   pathToFileURL(join(root, "packages/ui/dist/conformance.js")).href
+);
+const actions = await import(
+  pathToFileURL(join(root, "packages/ui/dist/actions.js")).href
 );
 const themeContract = await import(
   pathToFileURL(join(root, "packages/theme-contract/dist/index.js")).href
@@ -448,7 +722,11 @@ if (externalSkin !== undefined) {
   }
 }
 
-for (const specifier of ["@artemis/ui", "@artemis/ui/conformance"]) {
+for (const specifier of [
+  "@artemis/ui",
+  "@artemis/ui/actions",
+  "@artemis/ui/conformance",
+]) {
   const resolved = import.meta.resolve(specifier);
   const expectedRoot = pathToFileURL(join(root, "packages/ui/dist/")).href;
   if (!resolved.startsWith(expectedRoot)) {
@@ -459,7 +737,12 @@ for (const specifier of ["@artemis/ui", "@artemis/ui/conformance"]) {
 }
 const cssPath = resolve(cli.css ?? join(root, "packages/ui/dist/styles.css"));
 const css = await readFile(cssPath, "utf8");
-verifyStructuralCss(css, cssPath, candidateContract);
+verifyStructuralCss(
+  css,
+  cssPath,
+  candidateContract,
+  actions.ACTION_COMPONENT_MUTABLE_TOKENS,
+);
 
 console.log(
   `Skin conformance verification passed (${REQUIRED_SKIN_CASES.length} cases × 2 skins; ${REQUIRED_SWITCH_CASES.length} switch cases; 64 runtime vertices; ${REQUIRED_FALLBACK_CASES.length} fallback cases; exact public contract/CSS tokens; fixed focus floor survives a valid zero-border/transparent-focus skin)`,

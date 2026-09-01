@@ -8222,6 +8222,14 @@ function registerIpc(): void {
           },
         };
       }
+      const smokeView = process.env.ARTEMIS_SMOKE_VIEW;
+      if (
+        smokeMode &&
+        (smokeView?.startsWith("environment") ||
+          smokeView?.startsWith("icon-sizing-environment"))
+      ) {
+        return { status: "not-found" };
+      }
       return inspectProjectPullRequest(context.workspacePath);
     },
   );
@@ -14541,6 +14549,71 @@ function createMainWindow(): BrowserWindow {
               screenshot: smokeScreenshot,
             });
           }
+          let goalReducedMotionActiveTransform: string | null = null;
+          if (
+            smokeMode &&
+            process.env.ARTEMIS_SMOKE_GOAL_REDUCED_MOTION === "1"
+          ) {
+            window.webContents.focus();
+            const actionPoint = (await window.webContents.executeJavaScript(`
+              (() => {
+                const action = document.querySelector(
+                  '.goal-bar-actions [data-artemis-component="icon-button"]',
+                );
+                const bounds = action?.getBoundingClientRect();
+                return bounds
+                  ? {
+                      x: Math.round(bounds.left + bounds.width / 2),
+                      y: Math.round(bounds.top + bounds.height / 2),
+                    }
+                  : null;
+              })()
+            `)) as { x: number; y: number } | null;
+            if (!actionPoint) {
+              throw new Error("Reduced-motion Goal action probe is missing.");
+            }
+            window.webContents.sendInputEvent({
+              type: "mouseMove",
+              ...actionPoint,
+            });
+            window.webContents.sendInputEvent({
+              type: "mouseDown",
+              button: "left",
+              clickCount: 1,
+              ...actionPoint,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            goalReducedMotionActiveTransform = (await window.webContents
+              .executeJavaScript(`
+              getComputedStyle(document.querySelector(
+                '.goal-bar-actions [data-artemis-component="icon-button"]',
+              )).transform
+            `)) as string;
+            window.webContents.sendInputEvent({
+              type: "mouseMove",
+              x: 0,
+              y: 0,
+            });
+            window.webContents.sendInputEvent({
+              type: "mouseUp",
+              button: "left",
+              clickCount: 1,
+              x: 0,
+              y: 0,
+            });
+          }
+          if (smokeMode && requestedSmokeView?.startsWith("goal-")) {
+            window.webContents.focus();
+            window.webContents.sendInputEvent({
+              type: "keyDown",
+              keyCode: "Tab",
+            });
+            window.webContents.sendInputEvent({
+              type: "keyUp",
+              keyCode: "Tab",
+            });
+            await new Promise((resolve) => setTimeout(resolve, 25));
+          }
           if (smokeAccessibility) {
             const result = (await window.webContents.executeJavaScript(`
               (() => {
@@ -14835,6 +14908,229 @@ function createMainWindow(): BrowserWindow {
                     ? [...goalBar.querySelectorAll(".goal-bar-actions button")]
                         .map((button) => button.getAttribute("aria-label"))
                     : [],
+                  goalSharedComponents: goalBar
+                    ? (() => {
+                        const main = goalBar.querySelector(".goal-bar-main");
+                        const badge = goalBar.querySelector(
+                          '.goal-bar-status[data-artemis-component="badge"]',
+                        );
+                        const status = goalBar.querySelector(
+                          '.goal-bar-progress[data-artemis-component="status"]',
+                        );
+                        const describe = (element) => {
+                          if (!(element instanceof HTMLElement)) return null;
+                          const style = getComputedStyle(element);
+                          return {
+                            component: element.getAttribute(
+                              "data-artemis-component",
+                            ),
+                            state: element.getAttribute("data-state"),
+                            size: element.getAttribute("data-size"),
+                            tone: element.getAttribute("data-tone"),
+                            variant: element.getAttribute("data-variant"),
+                            display: style.display,
+                            backgroundColor: style.backgroundColor,
+                            borderColor: style.borderColor,
+                            borderStyle: style.borderStyle,
+                            borderWidth: style.borderWidth,
+                            color: style.color,
+                            fontFamily: style.fontFamily,
+                            minBlockSize: style.minBlockSize,
+                            inlineSize: style.inlineSize,
+                            justifyContent: style.justifyContent,
+                          };
+                        };
+                        const resolveVariant = (
+                          backgroundToken,
+                          colorToken,
+                          borderToken,
+                        ) => {
+                          const probe = document.createElement("button");
+                          probe.style.cssText = [
+                            "position:fixed",
+                            "visibility:hidden",
+                            "background:var(" + backgroundToken + ")",
+                            "border:var(--artemis-border-width-default) solid var(" +
+                              borderToken +
+                              ")",
+                            "color:var(" + colorToken + ")",
+                            "font-family:var(--artemis-typography-body-family)",
+                            "outline:2px solid Highlight",
+                          ].join(";");
+                          document.body.append(probe);
+                          const style = getComputedStyle(probe);
+                          const resolved = {
+                            backgroundColor: style.backgroundColor,
+                            borderColor: style.borderColor,
+                            borderStyle: style.borderStyle,
+                            borderWidth: style.borderWidth,
+                            color: style.color,
+                            fontFamily: style.fontFamily,
+                            focusOutlineColor: style.outlineColor,
+                            focusOutlineStyle: style.outlineStyle,
+                            focusOutlineWidth: style.outlineWidth,
+                          };
+                          probe.remove();
+                          return resolved;
+                        };
+                        const contractStyles = {
+                          secondary: resolveVariant(
+                            "--artemis-color-surface-base",
+                            "--artemis-color-text-primary",
+                            "--artemis-color-border-default",
+                          ),
+                          quiet: resolveVariant(
+                            "--artemis-color-surface-sunken",
+                            "--artemis-color-text-secondary",
+                            "--artemis-color-border-default",
+                          ),
+                          danger: resolveVariant(
+                            "--artemis-color-status-danger",
+                            "--artemis-color-status-on-danger",
+                            "--artemis-color-status-danger",
+                          ),
+                          selectedBackground: resolveVariant(
+                            "--artemis-color-interaction-selected",
+                            "--artemis-color-text-primary",
+                            "--artemis-color-border-default",
+                          ).backgroundColor,
+                        };
+                        const actionElements = [
+                          ...goalBar.querySelectorAll(
+                            ".goal-bar-actions button",
+                          ),
+                        ];
+                        const focusTarget = actionElements[0];
+                        focusTarget?.focus({
+                          preventScroll: true,
+                          focusVisible: true,
+                        });
+                        const focusStyle = focusTarget
+                          ? getComputedStyle(focusTarget)
+                          : null;
+                        const focus = focusStyle
+                          ? {
+                              active:
+                                document.activeElement === focusTarget,
+                              outlineColor: focusStyle.outlineColor,
+                              outlineStyle: focusStyle.outlineStyle,
+                              outlineWidth: focusStyle.outlineWidth,
+                            }
+                          : null;
+                        const stateProbes = (() => {
+                          const source = actionElements[0];
+                          if (!(source instanceof HTMLButtonElement)) return [];
+                          const host = document.createElement("div");
+                          host.style.cssText = [
+                            "position:fixed",
+                            "inset-block-start:0",
+                            "inset-inline-start:0",
+                            "display:flex",
+                            "visibility:hidden",
+                          ].join(";");
+                          document.body.append(host);
+                          const probes = [];
+                          const indicatorText = {
+                            ready: "",
+                            selected: "✓",
+                            error: "!",
+                            loading: "…",
+                            disabled: "",
+                          };
+                          for (const size of ["compact", "comfortable"]) {
+                            for (const variant of [
+                              "secondary",
+                              "quiet",
+                              "danger",
+                            ]) {
+                              for (const state of [
+                                "ready",
+                                "selected",
+                                "error",
+                                "loading",
+                                "disabled",
+                              ]) {
+                                const clone = source.cloneNode(true);
+                                clone.dataset.size = size;
+                                clone.dataset.variant = variant;
+                                clone.dataset.state = state;
+                                clone.disabled =
+                                  state === "loading" || state === "disabled";
+                                const indicator = clone.querySelector(
+                                  '[data-part="state-indicator"]',
+                                );
+                                if (indicator) {
+                                  indicator.textContent = indicatorText[state];
+                                }
+                                host.append(clone);
+                                const bounds = clone.getBoundingClientRect();
+                                const iconBounds = clone
+                                  .querySelector(
+                                    '[data-artemis-component="icon"]',
+                                  )
+                                  ?.getBoundingClientRect();
+                                const indicatorBounds =
+                                  indicator?.getBoundingClientRect();
+                                const indicatorStyle = indicator
+                                  ? getComputedStyle(indicator)
+                                  : null;
+                                const style = getComputedStyle(clone);
+                                const indicatorVisible =
+                                  indicatorStyle?.display !== "none";
+                                probes.push({
+                                  size,
+                                  variant,
+                                  state,
+                                  width: bounds.width,
+                                  height: bounds.height,
+                                  iconCenterDelta: iconBounds
+                                    ? iconBounds.left + iconBounds.width / 2 -
+                                      (bounds.left + bounds.width / 2)
+                                    : null,
+                                  indicatorVisible,
+                                  indicatorOverflow:
+                                    indicatorVisible && indicatorBounds
+                                      ? indicatorBounds.left < bounds.left ||
+                                        indicatorBounds.right > bounds.right ||
+                                        indicatorBounds.top < bounds.top ||
+                                        indicatorBounds.bottom > bounds.bottom
+                                      : false,
+                                  scrollOverflow:
+                                    clone.scrollWidth > clone.clientWidth ||
+                                    clone.scrollHeight > clone.clientHeight,
+                                  backgroundColor: style.backgroundColor,
+                                  borderColor: style.borderColor,
+                                  borderStyle: style.borderStyle,
+                                  borderWidth: style.borderWidth,
+                                  color: style.color,
+                                  fontFamily: style.fontFamily,
+                                });
+                                clone.remove();
+                              }
+                            }
+                          }
+                          host.remove();
+                          return probes;
+                        })();
+                        return {
+                          main: describe(main),
+                          badge: describe(badge),
+                          status: describe(status),
+                          actions: actionElements.map(describe),
+                          contractStyles,
+                          focus,
+                          stateProbes,
+                        };
+                      })()
+                    : null,
+                  goalReducedMotion: {
+                    matches: window.matchMedia(
+                      "(prefers-reduced-motion: reduce)",
+                    ).matches,
+                    activeTransform: ${JSON.stringify(
+                      goalReducedMotionActiveTransform,
+                    )},
+                  },
                   goalEditorVisible: goalEditor ? visible(goalEditor) : false,
                   goalEditorValue:
                     document.querySelector(".goal-editor-input")?.value ?? null,

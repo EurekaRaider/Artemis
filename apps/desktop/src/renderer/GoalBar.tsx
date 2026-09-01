@@ -6,6 +6,13 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 import type { AppLocale, ThreadGoal } from "@artemis/protocol";
+import {
+  Badge,
+  Button,
+  IconButton,
+  Status,
+  type ActionTone,
+} from "@artemis/ui/actions";
 
 const LABELS = {
   en: {
@@ -35,6 +42,15 @@ const LABELS = {
 } as const;
 
 const GOAL_OBJECTIVE_PREVIEW_MARKER = "\n\nObjective preview:\n";
+
+const GOAL_TONES = {
+  active: "info",
+  paused: "neutral",
+  blocked: "danger",
+  usageLimited: "warning",
+  budgetLimited: "warning",
+  complete: "success",
+} as const satisfies Readonly<Record<ThreadGoal["status"], ActionTone>>;
 
 export function displayGoalObjective(objective: string): string {
   const previewIndex = objective.indexOf(GOAL_OBJECTIVE_PREVIEW_MARKER);
@@ -94,71 +110,73 @@ export function GoalBar({
   const copy = locale.startsWith("zh") ? LABELS["zh-CN"] : LABELS.en;
   const objective = displayGoalObjective(goal.objective);
   const resumable = ["paused", "blocked", "usageLimited"].includes(goal.status);
+  const tone = GOAL_TONES[goal.status];
+  const progress = formatGoalProgress(goal, locale, clockMs);
   return (
     <section
       aria-busy={disabled || undefined}
       aria-label={copy[goal.status]}
       className="goal-bar"
     >
-      <button
-        aria-label={copy.edit}
+      <Button
+        align="start"
         className="goal-bar-main"
         disabled={disabled}
+        icon={<TargetIcon weight="regular" />}
+        iconSize="sm"
+        label={`${copy[goal.status]} ${objective} ${progress} — ${copy.edit}`}
         onClick={onEdit}
         title={objective}
-        type="button"
+        variant="quiet"
       >
-        <TargetIcon aria-hidden="true" size={14} weight="regular" />
-        <strong>{copy[goal.status]}</strong>
+        <Badge className="goal-bar-status" tone={tone}>
+          {copy[goal.status]}
+        </Badge>
         <span className="goal-bar-objective">
           {objective}
           <span aria-hidden="true"> •</span>
         </span>
-        <span className="goal-bar-progress">
-          {formatGoalProgress(goal, locale, clockMs)}
-        </span>
-      </button>
+        <Status className="goal-bar-progress" tone={tone}>
+          {progress}
+        </Status>
+      </Button>
       <div className="goal-bar-actions">
-        <button
-          aria-label={copy.clear}
+        <IconButton
           disabled={disabled}
+          icon={<TrashIcon />}
+          iconSize="sm"
+          label={copy.clear}
           onClick={onClear}
           title={copy.clear}
-          type="button"
-        >
-          <TrashIcon aria-hidden="true" size={14} />
-        </button>
+        />
         {goal.status === "active" && (
-          <button
-            aria-label={copy.pause}
+          <IconButton
             disabled={disabled}
+            icon={<PauseCircleIcon />}
+            iconSize="sm"
+            label={copy.pause}
             onClick={onPause}
             title={copy.pause}
-            type="button"
-          >
-            <PauseCircleIcon aria-hidden="true" size={14} />
-          </button>
+          />
         )}
         {resumable && (
-          <button
-            aria-label={copy.resume}
+          <IconButton
             disabled={disabled}
+            icon={<PlayCircleIcon />}
+            iconSize="sm"
+            label={copy.resume}
             onClick={onResume}
             title={copy.resume}
-            type="button"
-          >
-            <PlayCircleIcon aria-hidden="true" size={14} />
-          </button>
+          />
         )}
-        <button
-          aria-label={copy.edit}
+        <IconButton
           disabled={disabled}
+          icon={<PencilSimpleLineIcon />}
+          iconSize="sm"
+          label={copy.edit}
           onClick={onEdit}
           title={copy.edit}
-          type="button"
-        >
-          <PencilSimpleLineIcon aria-hidden="true" size={14} />
-        </button>
+        />
       </div>
     </section>
   );

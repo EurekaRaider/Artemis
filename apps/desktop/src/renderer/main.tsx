@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App.js";
 import { bootstrapDesktopSkin } from "./desktop-skin-bootstrap.js";
 import "./i18n.js";
+import "@artemis/ui/styles.css";
 import "./styles.css";
 import "@artemis/theme-artemis/theme.css";
 

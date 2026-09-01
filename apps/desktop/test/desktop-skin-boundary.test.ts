@@ -105,4 +105,15 @@ describe("Desktop skin production boundaries", () => {
     expect(mainProcess).toContain("nativeTheme.themeSource =");
     expect(mainProcess).toContain("backgroundColor: windowBackgroundColor()");
   });
+
+  it("uses stable PTY evidence across runtime layout transitions", () => {
+    const verifier = source("scripts/verify-desktop-skin.mjs");
+    expect(verifier).toContain("desktopSkinSmokeTerminalData");
+    expect(verifier).toContain("terminalPromptReceived");
+    expect(verifier).toContain("export PS1='Ar''temis> '; clear");
+    expect(verifier).toContain("initial rendered synthetic PTY prompt");
+    expect(verifier).not.toContain(
+      "synthetic PTY prompt after environment layout",
+    );
+  });
 });

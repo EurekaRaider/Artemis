@@ -21,6 +21,19 @@ const outputDirectory = resolve(
 );
 const electronPath = createRequire(import.meta.url)("electron");
 const temporaryDirectory = await mkdtemp(join(tmpdir(), "artemis-goal-smoke-"));
+const headResult = spawnSync("git", ["rev-parse", "HEAD"], {
+  cwd: resolve(appDirectory, "../.."),
+  encoding: "utf8",
+});
+if (headResult.error || headResult.status !== 0) {
+  throw new Error(
+    `Unable to resolve the Goal parity candidate HEAD: ${headResult.stderr}`,
+  );
+}
+const candidateHead = headResult.stdout.trim();
+if (!/^[0-9a-f]{40}$/u.test(candidateHead)) {
+  throw new Error(`Invalid Goal parity candidate HEAD: ${candidateHead}`);
+}
 const actionLabels = {
   en: {
     clear: "Clear goal",
@@ -36,12 +49,36 @@ const actionLabels = {
   },
 };
 const stateDefinitions = [
-  { view: "goal-active", actions: ["clear", "pause", "edit"] },
-  { view: "goal-paused", actions: ["clear", "resume", "edit"] },
-  { view: "goal-blocked", actions: ["clear", "resume", "edit"] },
-  { view: "goal-usage-limited", actions: ["clear", "resume", "edit"] },
-  { view: "goal-budget-limited", actions: ["clear", "edit"] },
-  { view: "goal-complete", actions: ["clear", "edit"] },
+  {
+    view: "goal-active",
+    actions: ["clear", "pause", "edit"],
+    tone: "info",
+  },
+  {
+    view: "goal-paused",
+    actions: ["clear", "resume", "edit"],
+    tone: "neutral",
+  },
+  {
+    view: "goal-blocked",
+    actions: ["clear", "resume", "edit"],
+    tone: "danger",
+  },
+  {
+    view: "goal-usage-limited",
+    actions: ["clear", "resume", "edit"],
+    tone: "warning",
+  },
+  {
+    view: "goal-budget-limited",
+    actions: ["clear", "edit"],
+    tone: "warning",
+  },
+  {
+    view: "goal-complete",
+    actions: ["clear", "edit"],
+    tone: "success",
+  },
 ];
 const dimensions = [];
 for (const locale of ["zh-CN", "en"]) {
@@ -82,15 +119,37 @@ for (const mode of [
     width: 1_512,
     scale: 1,
     editorMode: mode,
+    tone: "neutral",
   });
 }
+cases.push({
+  id: "goal-active-reduced-motion",
+  view: "goal-active",
+  actions: ["clear", "pause", "edit"],
+  locale: "en",
+  theme: "dark",
+  width: 1_512,
+  scale: 1,
+  reducedMotion: true,
+  tone: "info",
+});
 const results = [];
 
 await mkdir(outputDirectory, { recursive: true });
 try {
   for (const testCase of cases) {
-    const { id, view, actions, locale, theme, width, scale, editorMode } =
-      testCase;
+    const {
+      id,
+      view,
+      actions,
+      locale,
+      theme,
+      width,
+      scale,
+      editorMode,
+      reducedMotion = false,
+      tone,
+    } = testCase;
     const expectedActions = actions.map(
       (action) => actionLabels[locale][action],
     );
@@ -109,28 +168,26 @@ try {
       ARTEMIS_SMOKE_THEME: theme,
       ARTEMIS_SMOKE_VIEW: view,
       ARTEMIS_SMOKE_WINDOW_WIDTH: String(width),
+      ...(reducedMotion ? { ARTEMIS_SMOKE_GOAL_REDUCED_MOTION: "1" } : {}),
     };
     // Never inherit a live dev server: the smoke must exercise the built
     // production renderer from this checkout, not whatever serves 127.0.0.1.
     delete environment.ELECTRON_RUN_AS_NODE;
     delete environment.ARTEMIS_DEV_SERVER_URL;
-    // Electron user data (Cache, Local Storage, artemis.sqlite, ...) lives
-    // in a dedicated user-data subtree with one fresh directory per case x
-    // attempt, never directly at the throwaway run root's case level.
-    const caseUserDataDirectory = (attempt) =>
-      join(temporaryDirectory, "user-data", `${id}-attempt-${attempt}`);
-    const launch = (disableRendererSandbox, attempt) => {
-      const userDataPreexisting = existsSync(caseUserDataDirectory(attempt));
-      const result = spawnSync(
+    const caseUserDataDirectory = join(temporaryDirectory, "user-data", id);
+    const userDataPreexisting = existsSync(caseUserDataDirectory);
+    const launchOutcome = {
+      userDataPreexisting,
+      result: spawnSync(
         electronPath,
         [
           appDirectory,
-          `--user-data-dir=${caseUserDataDirectory(attempt)}`,
+          `--user-data-dir=${caseUserDataDirectory}`,
           "--disable-gpu",
           "--disable-gpu-compositing",
           "--disable-gpu-sandbox",
           "--use-angle=swiftshader",
-          ...(disableRendererSandbox ? ["--no-sandbox"] : []),
+          ...(reducedMotion ? ["--force-prefers-reduced-motion"] : []),
         ],
         {
           cwd: appDirectory,
@@ -139,16 +196,8 @@ try {
           maxBuffer: 2 * 1024 * 1024,
           timeout: 45_000,
         },
-      );
-      return { result, userDataPreexisting };
+      ),
     };
-    let launchOutcome = launch(false, 0);
-    if (
-      (launchOutcome.result.error || launchOutcome.result.status !== 0) &&
-      !process.env.CI
-    ) {
-      launchOutcome = launch(true, 1);
-    }
     const launchResult = launchOutcome.result;
     if (launchResult.error || launchResult.status !== 0) {
       throw new Error(
@@ -209,6 +258,97 @@ try {
     ) {
       throw new Error(
         `${id} actions drifted: ${JSON.stringify(audit.goalActionLabels)}`,
+      );
+    }
+    const shared = audit.goalSharedComponents;
+    const visualFields = [
+      "backgroundColor",
+      "borderColor",
+      "borderStyle",
+      "borderWidth",
+      "color",
+      "fontFamily",
+    ];
+    const visualMatches = (actual, expected, selected = false) =>
+      visualFields.every((field) =>
+        field === "backgroundColor" && selected
+          ? actual?.[field] === shared?.contractStyles?.selectedBackground
+          : actual?.[field] === expected?.[field],
+      );
+    const quietStyle = shared?.contractStyles?.quiet;
+    if (
+      shared?.main?.component !== "button" ||
+      shared.main.state !== "ready" ||
+      shared.main.size !== "compact" ||
+      shared.main.variant !== "quiet" ||
+      shared.main.display !== "flex" ||
+      shared.main.minBlockSize !== "28px" ||
+      shared.main.justifyContent !== "flex-start" ||
+      !visualMatches(shared.main, quietStyle) ||
+      shared?.badge?.component !== "badge" ||
+      shared.badge.tone !== tone ||
+      shared.badge.display !== "flex" ||
+      shared.badge.minBlockSize !== "26px" ||
+      shared?.status?.component !== "status" ||
+      shared.status.tone !== tone ||
+      shared.status.display !== "flex" ||
+      shared.status.minBlockSize !== "26px" ||
+      shared.actions?.length !== expectedActions.length ||
+      shared.actions.some(
+        (action) =>
+          action?.component !== "icon-button" ||
+          action.state !== "ready" ||
+          action.size !== "compact" ||
+          action.variant !== "quiet" ||
+          action.display !== "flex" ||
+          action.inlineSize !== "28px" ||
+          action.minBlockSize !== "28px" ||
+          !visualMatches(action, quietStyle),
+      ) ||
+      shared.focus?.active !== true ||
+      shared.focus.outlineColor !== quietStyle?.focusOutlineColor ||
+      shared.focus.outlineStyle !== quietStyle?.focusOutlineStyle ||
+      shared.focus.outlineWidth !== quietStyle?.focusOutlineWidth ||
+      shared.focus.outlineStyle !== "solid" ||
+      shared.focus.outlineWidth !== "2px"
+    ) {
+      throw new Error(
+        `${id} shared action component contract drifted: ${JSON.stringify({ shared, tone })}`,
+      );
+    }
+    const stateProbes = shared.stateProbes ?? [];
+    if (stateProbes.length !== 30) {
+      throw new Error(
+        `${id} IconButton state matrix is incomplete: ${stateProbes.length}`,
+      );
+    }
+    for (const probe of stateProbes) {
+      const expectedSize = probe.size === "comfortable" ? 36 : 28;
+      const indicatorExpected = ["selected", "error", "loading"].includes(
+        probe.state,
+      );
+      const expectedStyle = shared.contractStyles?.[probe.variant];
+      if (
+        Math.abs(probe.width - expectedSize) > 0.1 ||
+        Math.abs(probe.height - expectedSize) > 0.1 ||
+        Math.abs(probe.iconCenterDelta ?? Number.POSITIVE_INFINITY) > 0.1 ||
+        probe.indicatorVisible !== indicatorExpected ||
+        probe.indicatorOverflow ||
+        probe.scrollOverflow ||
+        !visualMatches(probe, expectedStyle, probe.state === "selected")
+      ) {
+        throw new Error(
+          `${id} IconButton state geometry or style drifted: ${JSON.stringify({ probe, expectedStyle })}`,
+        );
+      }
+    }
+    if (
+      reducedMotion &&
+      (audit.goalReducedMotion?.matches !== true ||
+        audit.goalReducedMotion.activeTransform !== "none")
+    ) {
+      throw new Error(
+        `${id} reduced-motion active transform drifted: ${JSON.stringify(audit.goalReducedMotion)}`,
       );
     }
     if (Boolean(audit.goalEditorVisible) !== expectEditor) {
@@ -307,11 +447,16 @@ try {
       theme,
       width,
       scale,
+      reducedMotion,
       screenshot: `${id}.png`,
       screenshotBytes,
       actions: audit.goalActionLabels,
       geometry: { leftInset, rightInset, overlap },
       editorVisible: audit.goalEditorVisible,
+      sharedComponents: shared,
+      reducedMotionEvidence: audit.goalReducedMotion,
+      candidateHead,
+      launchMode: "renderer-sandbox",
       userDataIsolation: {
         freshStart: !launchOutcome.userDataPreexisting,
         runRootUnexpectedEntries: unexpectedRunRootEntries,
@@ -324,11 +469,13 @@ try {
     `${JSON.stringify(
       {
         format: "artemis-goal-parity",
-        version: 2,
+        version: 3,
+        candidateHead,
+        launchMode: "renderer-sandbox",
+        caseCount: results.length,
         userDataIsolation: {
-          directory:
-            "user-data/<id>-attempt-<attempt> under the throwaway run root",
-          note: "Electron user data never sits directly at the run-root case level; every case x attempt launch gets its own fresh directory, and each case records freshStart plus the run-root purity check. The state under test is the seeded goal state inside that isolated directory.",
+          directory: "user-data/<id> under the throwaway run root",
+          note: "Electron user data never sits directly at the run-root case level; every sandboxed case gets its own fresh directory, and each case records freshStart plus the run-root purity check. There is no --no-sandbox retry path.",
         },
         results,
       },
