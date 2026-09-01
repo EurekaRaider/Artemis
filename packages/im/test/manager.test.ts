@@ -166,3 +166,45 @@ describe("IMManager 状态流转（plan §0.7/§2.4）", () => {
     await expect(manager.startAdapter("feishu-main")).rejects.toThrow("muted");
   });
 });
+
+describe("配对回复出口（真机缺陷回归：回复必须发回渠道）", () => {
+  it("配对流程回复经 onReplyToChannel 发出", async () => {
+    const channelReplies: { channelId: string; text: string }[] = [];
+    const bindings = new MemoryBindingStore();
+    const manager = new IMManager({
+      bindings,
+      generatePairingCode: () => "1234",
+      onReplyToChannel: (envelope, text) =>
+        channelReplies.push({ channelId: envelope.channelId, text }),
+    });
+    manager.registerAdapter(new DummyAdapter("feishu-main"));
+
+    const r = await manager.handleInbound(makeMessage());
+    expect(r.handled).toBe("pairing_flow");
+    expect(channelReplies).toHaveLength(1);
+    expect(channelReplies[0]?.channelId).toBe("oc_a");
+    expect(channelReplies[0]?.text).toContain("配对码");
+  });
+
+  it("配对成功后绑定落库（经 approvePairing）", async () => {
+    const bindings = new MemoryBindingStore();
+    const manager = new IMManager({
+      bindings,
+      generatePairingCode: () => "1234",
+      onReplyToChannel: () => {},
+    });
+    manager.registerAdapter(new DummyAdapter("feishu-main"));
+    await manager.handleInbound(makeMessage());
+    await manager.handleInbound(makeMessage({ text: "1234" }));
+    const binding = manager.approvePairing({
+      workspaceKey: "",
+      threadId: "t1",
+      adapter: "feishu-main",
+      platform: "feishu",
+      channelId: "oc_a",
+      outputMode: "summary",
+    });
+    expect(binding).not.toBeNull();
+    expect(bindings.get("feishu-main", "oc_a")?.threadId).toBe("t1");
+  });
+});

@@ -118,6 +118,32 @@ export class IMService {
       onReply: (binding, event) => {
         void this.deliver(binding, event);
       },
+      onReplyToChannel: (envelope, text) => {
+        const adapter = this.adapters.get(envelope.adapter);
+        if (!adapter) return;
+        // 配对阶段无绑定：构造最小 binding 仅承载 channelId（适配器发送只用该字段）
+        void adapter
+          .send(
+            {
+              workspaceKey: "",
+              threadId: "",
+              adapter: envelope.adapter,
+              platform: adapter.platform,
+              channelId: envelope.channelId,
+              outputMode: "summary",
+              muted: false,
+              boundAt: "",
+            },
+            { kind: "text", text },
+          )
+          .catch((error: unknown) => {
+            console.warn(
+              `[im] pairing reply failed (${envelope.channelId}): ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          });
+      },
     });
   }
 

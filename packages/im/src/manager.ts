@@ -53,6 +53,8 @@ export interface IMManagerDeps {
   onApprovalResolved?: (approvalId: string, approved: boolean, respondedBy: string) => void;
   /** slash 命令结果回复等需要直接发回频道的场景 */
   onReply?: (binding: ChannelBinding, event: OutboundEvent) => void;
+  /** 配对流程回复（渠道尚无绑定，按 envelope 直接回发，对齐 [G] 适配器自回模式） */
+  onReplyToChannel?: (envelope: { adapter: string; channelId: string }, text: string) => void;
 }
 
 const SINGLE_ACTIVE_BINDING_REFUSAL =
@@ -139,6 +141,10 @@ export class IMManager {
         msg.envelope.senderName,
       );
       const replyText = this.resultReply(result);
+      // 配对回复必须真正发回渠道（ggcode 由适配器自回；本实现经 deps 出口）
+      if (replyText !== undefined) {
+        this.deps.onReplyToChannel?.({ adapter, channelId }, replyText);
+      }
       return replyText !== undefined
         ? { handled: "pairing_flow", replyText }
         : { handled: "pairing_flow" };

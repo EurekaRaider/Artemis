@@ -278,10 +278,11 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     service.onAgentEvent(binding.threadId, { type: "turn.completed", text: "完成" });
     await new Promise((r) => setTimeout(r, 10)); // deliver 是 async
 
-    // summary 模式：tool_summary + text 两个事件
-    expect(adapter.sent).toHaveLength(2);
-    expect(adapter.sent[0]?.event).toEqual({ kind: "tool_summary", total: 1, failures: 0 });
-    expect(adapter.sent[1]?.event).toEqual({ kind: "text", text: "完成" });
+    // summary 模式：tool_summary + text 两个事件（排除配对流程的 2 条渠道回复）
+    const outbound = adapter.sent.filter((s) => s.binding.threadId === binding.threadId);
+    expect(outbound).toHaveLength(2);
+    expect(outbound[0]?.event).toEqual({ kind: "tool_summary", total: 1, failures: 0 });
+    expect(outbound[1]?.event).toEqual({ kind: "text", text: "完成" });
   });
 
   it("出站事件：无绑定线程的事件被忽略", async () => {
@@ -299,9 +300,10 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     const { service, adapter } = setup(host, store);
     const binding = await pairChannel(service, store);
     store.updateImBinding("feishu-main", "oc_a", { muted: true });
+    const pairingReplies = adapter.sent.length; // 配对流程回复不算出站事件
     service.onAgentEvent(binding.threadId, { type: "turn.completed", text: "x" });
     await new Promise((r) => setTimeout(r, 10));
-    expect(adapter.sent).toHaveLength(0);
+    expect(adapter.sent).toHaveLength(pairingReplies);
   });
 });
 

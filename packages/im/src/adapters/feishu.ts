@@ -51,6 +51,8 @@ export interface FeishuChannelLike {
   on(handlers: {
     message?: (msg: LarkNormalizedMessage) => void | Promise<void>;
     cardAction?: (evt: LarkCardActionEvent) => void | Promise<void>;
+    reject?: (evt: { messageId: string; chatId: string; reason: string }) => void;
+    error?: (err: Error) => void;
   }): unknown;
   send(to: string, input: unknown, opts?: unknown): Promise<{ messageId: string }>;
   updateCard(messageId: string, card: object): Promise<void>;
@@ -126,9 +128,20 @@ export class FeishuAdapter
 
     channel.on({
       message: (msg) => {
+        console.warn(
+          `[im:${this.name}] inbound msg=${msg.messageId} type=${msg.rawContentType} chat=${msg.chatId} sender=${msg.senderId}`,
+        );
         void this.handleMessage(msg, onInbound);
       },
       cardAction: (evt) => this.handleCardAction(evt),
+      reject: (evt) => {
+        console.warn(
+          `[im:${this.name}] message rejected by SDK policy: ${evt.reason} chat=${evt.chatId}`,
+        );
+      },
+      error: (err) => {
+        console.warn(`[im:${this.name}] channel error: ${err.message}`);
+      },
     });
 
     ctx.signal.addEventListener("abort", () => {
