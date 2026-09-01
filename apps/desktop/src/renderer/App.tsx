@@ -84,6 +84,7 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
 import { GoalBar } from "./GoalBar.js";
 import { GoalEditorPanel } from "./GoalEditorPanel.js";
 import { EnvironmentPanel } from "./EnvironmentPanel.js";
+import { desktopSkinHost, desktopSkinReady } from "./desktop-skin-bootstrap.js";
 import { QueuedMessageEditor } from "./QueuedMessageEditor.js";
 import {
   clampTreeActiveRowId,
@@ -3286,11 +3287,7 @@ export function App() {
 
   useEffect(() => {
     const theme = runtimeSettings?.theme ?? "system";
-    if (theme === "system") {
-      delete document.documentElement.dataset.theme;
-    } else {
-      document.documentElement.dataset.theme = theme;
-    }
+    void desktopSkinHost.setTheme(theme);
   }, [runtimeSettings?.theme]);
 
   useEffect(() => {
@@ -3638,10 +3635,17 @@ export function App() {
   useEffect(() => {
     if (!snapshot) return;
 
+    let cancelled = false;
     const readyTimer = setTimeout(() => {
-      window.artemis.rendererReady();
+      void desktopSkinReady.then(() => {
+        if (cancelled) return;
+        window.artemis.rendererReady();
+      });
     }, 0);
-    return () => clearTimeout(readyTimer);
+    return () => {
+      cancelled = true;
+      clearTimeout(readyTimer);
+    };
   }, [snapshot]);
 
   useEffect(() => {

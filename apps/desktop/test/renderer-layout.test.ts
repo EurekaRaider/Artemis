@@ -1520,14 +1520,14 @@ describe("renderer layout contract", () => {
     expect(cssRule(".turn-error-banner")).not.toMatch(/\bposition:\s*fixed/u);
   });
 
-  it("switches between system, light, and dark themes immediately", () => {
+  it("switches between system, light, and dark themes through the skin host", () => {
     expect(settingsSource).toContain("window.artemis.setTheme(theme)");
     expect(settingsSource).toContain(
       '{ value: "system", label: t.themeSystem }',
     );
     expect(settingsSource).toContain('{ value: "light", label: t.themeLight }');
     expect(settingsSource).toContain('{ value: "dark", label: t.themeDark }');
-    expect(appSource).toContain("document.documentElement.dataset.theme");
+    expect(appSource).toContain("desktopSkinHost.setTheme(theme)");
     expect(stylesSource).toContain(':root[data-theme="light"]');
     expect(stylesSource).toContain(':root[data-theme="dark"]');
     expect(stylesSource).toContain(":root:not([data-theme])");
