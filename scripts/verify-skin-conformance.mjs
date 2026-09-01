@@ -458,7 +458,7 @@ const expectedCssRules = new Map([
     },
   ],
   [
-    'normal|[data-artemis-component="text-field"][data-size="compact"] [data-part="control"], [data-artemis-component="search-field"][data-size="compact"] [data-part="control"], [data-artemis-component="select"][data-size="compact"] [data-part="trigger"]',
+    'normal|[data-artemis-component="text-field"][data-size="compact"] [data-part="control"], [data-artemis-component="search-field"][data-size="compact"] [data-part="control"], [data-artemis-component="select"][data-size="compact"] [data-part="trigger"], [data-artemis-component="select"][data-size="compact"] [data-part="search"]',
     { "min-block-size": "var(--artemis-size-control-compact)" },
   ],
   [
@@ -504,6 +504,20 @@ const expectedCssRules = new Map([
     {
       "inset-block-start":
         "calc( var(--artemis-typography-label-size) + var(--artemis-space-1) + var(--artemis-size-control-comfortable) / 2 - var(--artemis-space-2) )",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="search-field"][data-size="compact"] [data-part="icon"]',
+    {
+      "inset-block-start":
+        "calc( var(--artemis-size-control-compact) / 2 - var(--artemis-space-2) )",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="search-field"][data-size="compact"][data-label-visibility="visible"] [data-part="icon"]',
+    {
+      "inset-block-start":
+        "calc( var(--artemis-typography-label-size) + var(--artemis-space-1) + var(--artemis-size-control-compact) / 2 - var(--artemis-space-2) )",
     },
   ],
   [
@@ -631,10 +645,15 @@ const expectedCssRules = new Map([
       "grid-template-columns": "auto 1fr",
       "align-items": "center",
       gap: "var(--artemis-space-2)",
+      "min-block-size": "var(--artemis-size-control-comfortable)",
       color: "var(--artemis-color-text-primary)",
       "font-family": "var(--artemis-typography-body-family)",
       cursor: "pointer",
     },
+  ],
+  [
+    'normal|[data-artemis-component="checkbox"][data-size="compact"], [data-artemis-component="switch"][data-size="compact"]',
+    { "min-block-size": "var(--artemis-size-control-compact)" },
   ],
   [
     'normal|[data-artemis-component="checkbox"] > label, [data-artemis-component="switch"] > label',
@@ -656,14 +675,21 @@ const expectedCssRules = new Map([
       display: "inline-flex",
       "align-items": "center",
       "justify-content": "center",
-      "inline-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
-      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
+      "inline-size": "calc(var(--artemis-space-4) + var(--artemis-space-2))",
+      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-2))",
       color: "var(--artemis-color-accent-on-primary)",
       background: "var(--artemis-color-surface-base)",
       border:
         "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
       "border-radius": "var(--artemis-radius-control)",
       "font-size": "var(--artemis-typography-label-size)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="checkbox"][data-size="compact"] [data-part="indicator"]',
+    {
+      "inline-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
+      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
     },
   ],
   [
@@ -679,10 +705,10 @@ const expectedCssRules = new Map([
       "box-sizing": "border-box",
       display: "inline-flex",
       "align-items": "center",
-      "inline-size":
-        "calc(var(--artemis-space-4) * 2 + var(--artemis-space-2))",
-      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-2))",
-      padding: "var(--artemis-space-1)",
+      "inline-size": "calc(var(--artemis-space-4) * 3)",
+      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-3))",
+      padding:
+        "calc( (var(--artemis-space-2) - var(--artemis-border-width-default) * 2) / 2 )",
       background: "var(--artemis-color-surface-sunken)",
       border:
         "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
@@ -692,15 +718,30 @@ const expectedCssRules = new Map([
     },
   ],
   [
+    'normal|[data-artemis-component="switch"][data-size="compact"] [data-part="track"]',
+    {
+      "inline-size":
+        "calc(var(--artemis-space-4) * 2 + var(--artemis-space-2))",
+      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-2))",
+    },
+  ],
+  [
     'normal|[data-artemis-component="switch"] [data-part="thumb"]',
     {
-      "inline-size": "var(--artemis-space-4)",
-      "block-size": "var(--artemis-space-4)",
+      "inline-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
+      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
       background: "var(--artemis-color-text-secondary)",
       "border-radius": "var(--artemis-radius-pill)",
       transform: "translateX(0)",
       transition:
         "background var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), transform var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="switch"][data-size="compact"] [data-part="thumb"]',
+    {
+      "inline-size": "var(--artemis-space-4)",
+      "block-size": "var(--artemis-space-4)",
     },
   ],
   [
@@ -723,11 +764,19 @@ const expectedCssRules = new Map([
     },
   ],
   [
+    'normal|[data-artemis-component="switch"][data-size="compact"][data-state="checked"] [data-part="thumb"]',
+    { transform: "translateX(var(--artemis-space-4))" },
+  ],
+  [
     'normal|[dir="rtl"] [data-artemis-component="switch"][data-state="checked"] [data-part="thumb"]',
     {
       transform:
         "translateX( calc((var(--artemis-space-4) + var(--artemis-space-1)) * -1) )",
     },
+  ],
+  [
+    'normal|[dir="rtl"] [data-artemis-component="switch"][data-size="compact"][data-state="checked"] [data-part="thumb"]',
+    { transform: "translateX(calc(var(--artemis-space-4) * -1))" },
   ],
   [
     'normal|[data-artemis-component="checkbox"] [data-part="control"]:focus-visible + [data-part="indicator"], [data-artemis-component="switch"] [data-part="control"]:focus-visible + [data-part="track"]',

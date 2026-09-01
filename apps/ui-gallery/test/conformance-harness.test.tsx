@@ -1082,11 +1082,36 @@ describe("default and synthetic stress skin conformance", () => {
   it("traverses all 64 runtime vertices and returns without remount or state, selection, focus, anatomy, or ARIA loss", async () => {
     const user = userEvent.setup();
     const { container } = render(<GalleryApp />);
-    const control = screen.getByRole("textbox", { name: "Synthetic value" });
-    await user.type(control, "-changed");
-    control.focus();
-    control.setSelectionRange(2, 5);
-    const probeRoot = control.closest(
+    const probeControl = screen.getByRole("textbox", {
+      name: "Synthetic value",
+    });
+    await user.type(probeControl, "-changed");
+    const formControl = screen.getByRole("textbox", {
+      name: "Controlled text",
+    }) as HTMLInputElement;
+    await user.type(formControl, "-changed");
+    const modelRoot = [
+      ...container.querySelectorAll<HTMLElement>(
+        '[data-artemis-component="select"]',
+      ),
+    ].find(
+      (candidate) =>
+        candidate.querySelector('[data-part="label"]')?.textContent === "Model",
+    );
+    const modelTrigger = modelRoot?.querySelector<HTMLButtonElement>(
+      '[data-part="trigger"]',
+    );
+    expect(modelTrigger).toBeDefined();
+    await user.click(modelTrigger!);
+    await user.click(
+      screen.getByRole("option", { name: "Beta · vision and long context" }),
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "Controlled checkbox" }),
+    );
+    formControl.focus();
+    formControl.setSelectionRange(2, 5);
+    const probeRoot = probeControl.closest(
       '[data-artemis-component="conformance-probe"]',
     )!;
     const originalParts = [...probeRoot.querySelectorAll("[data-part]")].map(
@@ -1114,12 +1139,95 @@ describe("default and synthetic stress skin conformance", () => {
       rootLabelledBy: root?.getAttribute("aria-labelledby"),
       rootBusy: root?.getAttribute("aria-busy"),
       labelFor: label?.getAttribute("for"),
-      controlDescribedBy: control.getAttribute("aria-describedby"),
-      controlInvalid: control.getAttribute("aria-invalid"),
-      controlBusy: control.getAttribute("aria-busy"),
+      controlDescribedBy: probeControl.getAttribute("aria-describedby"),
+      controlInvalid: probeControl.getAttribute("aria-invalid"),
+      controlBusy: probeControl.getAttribute("aria-busy"),
     };
     expect(ariaSnapshot.rootLabelledBy).toBe(label?.id);
-    expect(ariaSnapshot.labelFor).toBe(control.id);
+    expect(ariaSnapshot.labelFor).toBe(probeControl.id);
+
+    const formSelector = [
+      '[data-artemis-component="text-field"]',
+      '[data-artemis-component="search-field"]',
+      '[data-artemis-component="select"]',
+      '[data-artemis-component="checkbox"]',
+      '[data-artemis-component="switch"]',
+    ].join(", ");
+    const snapshotFormRoot = (formRoot: HTMLElement) => {
+      const publicControl = formRoot.querySelector<HTMLElement>(
+        '[data-part="control"], [data-part="trigger"]',
+      );
+      return {
+        root: formRoot,
+        partNodes: [...formRoot.querySelectorAll<HTMLElement>("[data-part]")],
+        contract: {
+          component: formRoot.dataset.artemisComponent,
+          state: formRoot.dataset.state,
+          size: formRoot.dataset.size,
+          labelVisibility: formRoot.dataset.labelVisibility,
+          parts: [...formRoot.querySelectorAll<HTMLElement>("[data-part]")].map(
+            (part) => ({
+              part: part.dataset.part,
+              id: part.id,
+              role: part.getAttribute("role"),
+              ariaChecked: part.getAttribute("aria-checked"),
+              ariaControls: part.getAttribute("aria-controls"),
+              ariaDescribedBy: part.getAttribute("aria-describedby"),
+              ariaDisabled: part.getAttribute("aria-disabled"),
+              ariaExpanded: part.getAttribute("aria-expanded"),
+              ariaInvalid: part.getAttribute("aria-invalid"),
+              ariaLabelledBy: part.getAttribute("aria-labelledby"),
+              ariaSelected: part.getAttribute("aria-selected"),
+            }),
+          ),
+          control:
+            publicControl === null
+              ? null
+              : {
+                  tagName: publicControl.tagName,
+                  type:
+                    publicControl instanceof HTMLInputElement
+                      ? publicControl.type
+                      : null,
+                  value:
+                    publicControl instanceof HTMLInputElement ||
+                    publicControl instanceof HTMLButtonElement
+                      ? publicControl.value
+                      : null,
+                  checked:
+                    publicControl instanceof HTMLInputElement
+                      ? publicControl.checked
+                      : null,
+                  disabled:
+                    publicControl instanceof HTMLInputElement ||
+                    publicControl instanceof HTMLButtonElement
+                      ? publicControl.disabled
+                      : null,
+                },
+        },
+      };
+    };
+    const formSnapshots = [
+      ...container.querySelectorAll<HTMLElement>(formSelector),
+    ].map(snapshotFormRoot);
+    expect(formSnapshots.length).toBeGreaterThanOrEqual(16);
+    for (const component of [
+      "text-field",
+      "search-field",
+      "select",
+      "checkbox",
+      "switch",
+    ]) {
+      expect(
+        [
+          ...new Set(
+            formSnapshots
+              .filter((snapshot) => snapshot.contract.component === component)
+              .map((snapshot) => snapshot.contract.size),
+          ),
+        ].sort(),
+      ).toEqual(["comfortable", "compact"]);
+    }
     for (const { environment, mode } of [
       ...runtimeVertices,
       runtimeVertices[0]!,
@@ -1137,14 +1245,53 @@ describe("default and synthetic stress skin conformance", () => {
       const afterSwitch = screen.getByRole("textbox", {
         name: "Synthetic value",
       });
-      expect(afterSwitch).toBe(control);
+      expect(afterSwitch).toBe(probeControl);
       expect(afterSwitch).toHaveProperty("value", "preserve-changed");
-      expect(afterSwitch).toHaveProperty("selectionStart", 2);
-      expect(afterSwitch).toHaveProperty("selectionEnd", 5);
-      expect(document.activeElement).toBe(afterSwitch);
+      const afterFormControl = screen.getByRole("textbox", {
+        name: "Controlled text",
+      });
+      expect(afterFormControl).toBe(formControl);
+      expect(afterFormControl).toHaveProperty(
+        "value",
+        "Editable value-changed",
+      );
+      expect(afterFormControl).toHaveProperty("selectionStart", 2);
+      expect(afterFormControl).toHaveProperty("selectionEnd", 5);
+      expect(document.activeElement).toBe(afterFormControl);
+      expect(modelTrigger?.textContent).toContain(
+        "Beta · vision and long context",
+      );
+      expect(
+        (
+          screen.getByRole("checkbox", {
+            name: "Controlled checkbox",
+          }) as HTMLInputElement
+        ).checked,
+      ).toBe(false);
+      expect(
+        (
+          screen.getByRole("switch", {
+            name: "Controlled switch",
+          }) as HTMLInputElement
+        ).checked,
+      ).toBe(false);
       expect(container.querySelector("[data-gallery-event-order]")).toBe(
         eventOrder,
       );
+      const afterFormRoots = [
+        ...container.querySelectorAll<HTMLElement>(formSelector),
+      ];
+      expect(afterFormRoots).toHaveLength(formSnapshots.length);
+      for (const [index, snapshot] of formSnapshots.entries()) {
+        const afterRoot = afterFormRoots[index]!;
+        const afterSnapshot = snapshotFormRoot(afterRoot);
+        expect(afterRoot).toBe(snapshot.root);
+        expect(afterSnapshot.partNodes).toHaveLength(snapshot.partNodes.length);
+        for (const [partIndex, partNode] of snapshot.partNodes.entries()) {
+          expect(afterSnapshot.partNodes[partIndex]).toBe(partNode);
+        }
+        expect(afterSnapshot.contract).toEqual(snapshot.contract);
+      }
       const afterPrimaryAction = screen.getByRole("button", {
         name: "compact primary",
       });
@@ -1172,9 +1319,9 @@ describe("default and synthetic stress skin conformance", () => {
         rootLabelledBy: afterRoot?.getAttribute("aria-labelledby"),
         rootBusy: afterRoot?.getAttribute("aria-busy"),
         labelFor: afterLabel?.getAttribute("for"),
-        controlDescribedBy: afterSwitch.getAttribute("aria-describedby"),
-        controlInvalid: afterSwitch.getAttribute("aria-invalid"),
-        controlBusy: afterSwitch.getAttribute("aria-busy"),
+        controlDescribedBy: probeControl.getAttribute("aria-describedby"),
+        controlInvalid: probeControl.getAttribute("aria-invalid"),
+        controlBusy: probeControl.getAttribute("aria-busy"),
       }).toEqual(ariaSnapshot);
       expect(
         [...(afterRoot?.querySelectorAll("[data-part]") ?? [])].map((part) =>

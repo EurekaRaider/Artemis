@@ -10346,7 +10346,12 @@ function seedSmokeGoalFixture(): void {
 
 function seedSmokeTurnChangesFixture(): void {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
-  if (!store || !view?.startsWith("turn-changes")) return;
+  if (
+    !store ||
+    (!view?.startsWith("turn-changes") && view !== "form-controls-composer")
+  ) {
+    return;
+  }
   const now = new Date().toISOString();
   const localized = process.env.ARTEMIS_SMOKE_LOCALE === "zh-CN";
   const projectId = "artemis-smoke-turn-changes-project";
@@ -13026,7 +13031,17 @@ function createMainWindow(): BrowserWindow {
     window.once("ready-to-show", () => {
       if (smokeScreenshot) {
         window.setPosition(-10_000, -10_000);
-        window.showInactive();
+        const view = process.env.ARTEMIS_SMOKE_VIEW ?? "";
+        if (
+          view.startsWith("form-controls-") ||
+          view === "mcp-editor-form-controls" ||
+          view === "turn-changes-form-controls"
+        ) {
+          window.show();
+          window.focus();
+        } else {
+          window.showInactive();
+        }
       } else {
         window.show();
       }
@@ -13498,6 +13513,48 @@ function createMainWindow(): BrowserWindow {
                     if (!(search instanceof HTMLInputElement)) {
                       throw new Error('Public searchable Select did not open.');
                     }
+                    const openMenu = selectRoot.querySelector(
+                      '[data-part="menu"]',
+                    );
+                    const openListbox = selectRoot.querySelector(
+                      '[data-part="listbox"]',
+                    );
+                    const rootBounds = selectRoot.getBoundingClientRect();
+                    const openMenuBounds = openMenu?.getBoundingClientRect();
+                    const openMenuStyle = openMenu
+                      ? getComputedStyle(openMenu)
+                      : null;
+                    const openListboxStyle = openListbox
+                      ? getComputedStyle(openListbox)
+                      : null;
+                    const openedMenu =
+                      openMenuBounds && openMenuStyle
+                        ? {
+                            backgroundColor: openMenuStyle.backgroundColor,
+                            borderStyle: openMenuStyle.borderStyle,
+                            borderWidth: openMenuStyle.borderWidth,
+                            geometry: {
+                              width: openMenuBounds.width,
+                              height: openMenuBounds.height,
+                            },
+                            inlineStartDelta: Math.abs(
+                              openMenuBounds.left - rootBounds.left,
+                            ),
+                            inlineEndDelta: Math.abs(
+                              openMenuBounds.right - rootBounds.right,
+                            ),
+                            listboxOverflowY:
+                              openListboxStyle?.overflowY ?? null,
+                            overflowX: openMenuStyle.overflowX,
+                            overflowY: openMenuStyle.overflowY,
+                            withinViewport:
+                              openMenuBounds.left >= 0 &&
+                              openMenuBounds.right <= window.innerWidth &&
+                              openMenuBounds.top >= 0 &&
+                              openMenuBounds.bottom <= window.innerHeight,
+                            zIndex: openMenuStyle.zIndex,
+                          }
+                        : null;
                     const optionCount = selectRoot.querySelectorAll(
                       '[role="option"]',
                     ).length;
@@ -13546,6 +13603,7 @@ function createMainWindow(): BrowserWindow {
                       optionCount,
                       composedText,
                       composedMenuOpen,
+                      openedMenu,
                       committedMenuClosed:
                         selectRoot?.querySelector('[data-part="listbox"]') ===
                         null,
@@ -13554,6 +13612,49 @@ function createMainWindow(): BrowserWindow {
                         selectRoot ===
                         document.querySelector(
                           '#provider-config-builtin [data-artemis-component="select"]',
+                        ),
+                    };
+                    return;
+                  }
+                  if (view === 'form-controls-composer') {
+                    document.querySelector('.thread-select')?.click();
+                    const trigger = await waitForElement(
+                      '.composer-context-picker [data-artemis-component="select"] [data-part="trigger"]:not(:disabled)',
+                    );
+                    const selectRoot = trigger?.closest(
+                      '[data-artemis-component="select"]',
+                    );
+                    if (
+                      !(trigger instanceof HTMLButtonElement) ||
+                      !selectRoot
+                    ) {
+                      throw new Error('Public Composer Select missing.');
+                    }
+                    trigger.focus({ preventScroll: true, focusVisible: true });
+                    trigger.dispatchEvent(
+                      new KeyboardEvent('keydown', {
+                        bubbles: true,
+                        key: 'ArrowDown',
+                      }),
+                    );
+                    const listbox = await waitForElement(
+                      '.composer-context-picker [data-part="listbox"]',
+                    );
+                    if (!(listbox instanceof HTMLElement)) {
+                      throw new Error(
+                        'Public Composer Select did not keyboard-open.',
+                      );
+                    }
+                    listbox.focus({ preventScroll: true, focusVisible: true });
+                    window.__formControlsInteraction = {
+                      view,
+                      keyboardOpened: true,
+                      menuOpen:
+                        selectRoot.querySelector('[data-part="menu"]') !== null,
+                      rootStable:
+                        selectRoot ===
+                        document.querySelector(
+                          '.composer-context-picker [data-artemis-component="select"]',
                         ),
                     };
                     return;
@@ -14023,6 +14124,49 @@ function createMainWindow(): BrowserWindow {
                   };
                   const openSeededServerEditor = () =>
                     openSeededServerEditorByName('Artemis Smoke Remote');
+                  if (view === 'mcp-editor-form-controls') {
+                    await openSeededServerEditor();
+                    const trigger = document.querySelector(
+                      '.mcp-editor [data-artemis-component="select"] [data-part="trigger"]',
+                    );
+                    const selectRoot = trigger?.closest(
+                      '[data-artemis-component="select"]',
+                    );
+                    if (
+                      !(trigger instanceof HTMLButtonElement) ||
+                      !selectRoot
+                    ) {
+                      throw new Error('Public MCP editor Select missing.');
+                    }
+                    trigger.focus({ preventScroll: true, focusVisible: true });
+                    trigger.dispatchEvent(
+                      new KeyboardEvent('keydown', {
+                        bubbles: true,
+                        key: 'ArrowDown',
+                      }),
+                    );
+                    const listbox = await waitFor(
+                      '.mcp-editor [data-part="listbox"]',
+                    );
+                    if (!(listbox instanceof HTMLElement)) {
+                      throw new Error(
+                        'Public MCP editor Select did not keyboard-open.',
+                      );
+                    }
+                    listbox.focus({ preventScroll: true, focusVisible: true });
+                    window.__formControlsInteraction = {
+                      view,
+                      keyboardOpened: true,
+                      menuOpen:
+                        selectRoot.querySelector('[data-part="menu"]') !== null,
+                      rootStable:
+                        selectRoot ===
+                        document.querySelector(
+                          '.mcp-editor [data-artemis-component="select"]',
+                        ),
+                    };
+                    return;
+                  }
                   if (view === 'mcp-editor-new') {
                     await openNewServerEditor();
                     return;
@@ -14309,6 +14453,63 @@ function createMainWindow(): BrowserWindow {
                 if (view.startsWith('turn-changes')) {
                   document.querySelector('.thread-select')?.click();
                   await wait(600);
+                  if (view === 'turn-changes-form-controls') {
+                    window.dispatchEvent(
+                      new KeyboardEvent('keydown', {
+                        altKey: true,
+                        bubbles: true,
+                        ctrlKey: true,
+                        key: 'b',
+                      }),
+                    );
+                    const deadline = Date.now() + 8_000;
+                    let trigger = null;
+                    while (Date.now() < deadline && trigger === null) {
+                      trigger = document.querySelector(
+                        '.review-scope-select [data-artemis-component="select"] [data-part="trigger"]',
+                      );
+                      if (trigger === null) await wait(100);
+                    }
+                    const selectRoot = trigger?.closest(
+                      '[data-artemis-component="select"]',
+                    );
+                    if (
+                      !(trigger instanceof HTMLButtonElement) ||
+                      !selectRoot
+                    ) {
+                      throw new Error('Public Review Select missing.');
+                    }
+                    trigger.focus({ preventScroll: true, focusVisible: true });
+                    trigger.dispatchEvent(
+                      new KeyboardEvent('keydown', {
+                        bubbles: true,
+                        key: 'ArrowDown',
+                      }),
+                    );
+                    let listbox = null;
+                    while (Date.now() < deadline && listbox === null) {
+                      listbox = selectRoot.querySelector('[data-part="listbox"]');
+                      if (listbox === null) await wait(100);
+                    }
+                    if (!(listbox instanceof HTMLElement)) {
+                      throw new Error(
+                        'Public Review Select did not keyboard-open.',
+                      );
+                    }
+                    listbox.focus({ preventScroll: true, focusVisible: true });
+                    window.__formControlsInteraction = {
+                      view,
+                      keyboardOpened: true,
+                      menuOpen:
+                        selectRoot.querySelector('[data-part="menu"]') !== null,
+                      rootStable:
+                        selectRoot ===
+                        document.querySelector(
+                          '.review-scope-select [data-artemis-component="select"]',
+                        ),
+                    };
+                    return;
+                  }
                   if (view === 'turn-changes-open') {
                     document.querySelector('.turn-execution-details > summary')?.click();
                     document.querySelector('.turn-change-more > summary')?.click();
@@ -14701,7 +14902,11 @@ function createMainWindow(): BrowserWindow {
           if (smokeMode && process.env.ARTEMIS_SMOKE_VIEW === "card-heatmap") {
             await new Promise((resolve) => setTimeout(resolve, 1_000));
           }
-          if (smokeMode && requestedSmokeView?.startsWith("form-controls-")) {
+          if (
+            smokeMode &&
+            requestedSmokeView?.startsWith("form-controls-") &&
+            requestedSmokeView !== "form-controls-composer"
+          ) {
             window.webContents.focus();
             window.webContents.sendInputEvent({
               type: "keyDown",
@@ -16031,17 +16236,26 @@ function createMainWindow(): BrowserWindow {
                         ? getComputedStyle(control)
                         : null;
                       const bounds = root.getBoundingClientRect();
+                      const menu = root.querySelector('[data-part="menu"]');
+                      const menuStyle = menu ? getComputedStyle(menu) : null;
+                      const menuBounds = menu?.getBoundingClientRect() ?? null;
                       return {
                         component: root.getAttribute(
                           'data-artemis-component',
                         ),
-                        context: root.closest('.settings-panel')
-                          ? 'settings'
-                          : root.closest('.archive-page')
-                            ? 'archive'
-                            : root.closest('.resource-page')
-                              ? 'resource'
-                              : 'other',
+                        context: root.closest('.composer-context-picker')
+                          ? 'composer'
+                          : root.closest('.review-scope-select')
+                            ? 'review'
+                            : root.closest('.mcp-editor')
+                              ? 'mcp-editor'
+                              : root.closest('.settings-panel')
+                                ? 'settings'
+                                : root.closest('.archive-page')
+                                  ? 'archive'
+                                  : root.closest('.resource-page')
+                                    ? 'resource'
+                                    : 'other',
                         state: root.getAttribute('data-state'),
                         size: root.getAttribute('data-size'),
                         className: root.getAttribute('class'),
@@ -16100,8 +16314,46 @@ function createMainWindow(): BrowserWindow {
                               outlineWidth: focusStyle.outlineWidth,
                               visualOutlineStyle: style?.outlineStyle ?? null,
                               visualOutlineWidth: style?.outlineWidth ?? null,
-                            }
+                          }
                           : null,
+                        menu:
+                          menuBounds && menuStyle
+                            ? {
+                                geometry: {
+                                  left: menuBounds.left,
+                                  right: menuBounds.right,
+                                  top: menuBounds.top,
+                                  bottom: menuBounds.bottom,
+                                  width: menuBounds.width,
+                                  height: menuBounds.height,
+                                },
+                                inlineStartDelta: Math.abs(
+                                  menuBounds.left - bounds.left,
+                                ),
+                                inlineEndDelta: Math.abs(
+                                  menuBounds.right - bounds.right,
+                                ),
+                                overflowX: menuStyle.overflowX,
+                                overflowY: menuStyle.overflowY,
+                                listboxOverflowY:
+                                  menu.querySelector('[data-part="listbox"]')
+                                    ? getComputedStyle(
+                                        menu.querySelector(
+                                          '[data-part="listbox"]',
+                                        ),
+                                      ).overflowY
+                                    : null,
+                                backgroundColor: menuStyle.backgroundColor,
+                                borderStyle: menuStyle.borderStyle,
+                                borderWidth: menuStyle.borderWidth,
+                                withinViewport:
+                                  menuBounds.left >= 0 &&
+                                  menuBounds.right <= window.innerWidth &&
+                                  menuBounds.top >= 0 &&
+                                  menuBounds.bottom <= window.innerHeight,
+                                zIndex: menuStyle.zIndex,
+                              }
+                            : null,
                         portalCount:
                           root.querySelectorAll('[data-artemis-portal]').length,
                       };

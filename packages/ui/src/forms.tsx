@@ -298,10 +298,12 @@ const PERCEPTIBLE_LABEL_CHARACTER =
   /[^\p{White_Space}\p{Default_Ignorable_Code_Point}\p{Cc}]/u;
 export const FORM_ACCESSIBLE_NAME_ERROR =
   "Artemis form controls require a non-empty accessible label";
+export const FORM_PERCEPTIBLE_ERROR_MESSAGE_ERROR =
+  "Artemis form control errors require perceptible text";
 export const FORM_CONTROL_BOUNDARY_ERROR =
   "Artemis form controls cannot receive both controlled and default values";
 export const FORM_SELECT_OPTION_ERROR =
-  "Artemis Select options require unique values and non-empty labels";
+  "Artemis Select options require unique values and perceptibly distinct labels";
 
 function requirePerceptibleLabel(label: string): void {
   if (typeof label !== "string" || !PERCEPTIBLE_LABEL_CHARACTER.test(label)) {
@@ -309,20 +311,41 @@ function requirePerceptibleLabel(label: string): void {
   }
 }
 
+function requirePerceptibleErrorMessage(error: string | undefined): void {
+  if (
+    error !== undefined &&
+    (typeof error !== "string" || !PERCEPTIBLE_LABEL_CHARACTER.test(error))
+  ) {
+    throw new Error(FORM_PERCEPTIBLE_ERROR_MESSAGE_ERROR);
+  }
+}
+
 function requireValidSelectOptions<Value extends string>(
   options: readonly SelectOption<Value>[],
 ): void {
   const values = new Set<string>();
+  const labels = new Set<string>();
   for (const option of options) {
+    const normalizedLabel =
+      typeof option.label === "string"
+        ? option.label
+            .normalize("NFKC")
+            .replace(/[\p{Default_Ignorable_Code_Point}\p{Cc}]+/gu, "")
+            .replace(/\p{White_Space}+/gu, " ")
+            .trim()
+            .toLowerCase()
+        : "";
     if (
       typeof option.value !== "string" ||
       typeof option.label !== "string" ||
       !PERCEPTIBLE_LABEL_CHARACTER.test(option.label) ||
-      values.has(option.value)
+      values.has(option.value) ||
+      labels.has(normalizedLabel)
     ) {
       throw new Error(FORM_SELECT_OPTION_ERROR);
     }
     values.add(option.value);
+    labels.add(normalizedLabel);
   }
 }
 
@@ -348,7 +371,7 @@ function fieldState(
   readOnly: boolean | undefined,
 ): FieldState {
   if (disabled) return "disabled";
-  if (error) return "error";
+  if (error !== undefined) return "error";
   if (readOnly) return "read-only";
   return "ready";
 }
@@ -482,6 +505,7 @@ export function TextField({
   value,
 }: TextFieldProps) {
   requirePerceptibleLabel(label);
+  requirePerceptibleErrorMessage(error);
   requireExclusiveBoundary(value, defaultValue);
   useStableControlBoundary(value !== undefined);
   const generatedId = useId();
@@ -570,6 +594,7 @@ export function SearchField({
   value,
 }: SearchFieldProps) {
   requirePerceptibleLabel(label);
+  requirePerceptibleErrorMessage(error);
   requireExclusiveBoundary(value, defaultValue);
   useStableControlBoundary(value !== undefined);
   const generatedId = useId();
@@ -707,6 +732,7 @@ export function Select<Value extends string>({
   value,
 }: SelectProps<Value>) {
   requirePerceptibleLabel(label);
+  requirePerceptibleErrorMessage(error);
   requirePerceptibleLabel(noResultsLabel);
   if (searchPlaceholder !== undefined) {
     requirePerceptibleLabel(searchPlaceholder);
@@ -730,7 +756,8 @@ export function Select<Value extends string>({
   );
   const allEnabledOptions = options.filter((option) => !option.disabled);
   const enabledOptions = visibleOptions.filter((option) => !option.disabled);
-  const menuAvailable = !disabled && allEnabledOptions.length > 0;
+  const effectiveDisabled = Boolean(disabled) || allEnabledOptions.length === 0;
+  const menuAvailable = !effectiveDisabled;
   const selected = options.find((option) => option.value === value);
   const selectedMenuIndex = Math.max(
     0,
@@ -745,9 +772,9 @@ export function Select<Value extends string>({
     enabledOptions[activeIndex] === undefined
       ? -1
       : visibleOptions.indexOf(enabledOptions[activeIndex]);
-  const state: SelectState = disabled
+  const state: SelectState = effectiveDisabled
     ? "disabled"
-    : error
+    : error !== undefined
       ? "error"
       : open
         ? "open"
@@ -1050,6 +1077,7 @@ function CheckControl({
   title,
 }: CheckControlProps & { readonly component: "checkbox" | "switch" }) {
   requirePerceptibleLabel(label);
+  requirePerceptibleErrorMessage(error);
   requireExclusiveBoundary(checked, defaultChecked);
   useStableControlBoundary(checked !== undefined);
   const generatedId = useId();
@@ -1068,7 +1096,7 @@ function CheckControl({
   const resolvedChecked = checked ?? uncontrolledChecked;
   const state: CheckControlState = disabled
     ? "disabled"
-    : error
+    : error !== undefined
       ? "error"
       : resolvedChecked
         ? "checked"

@@ -954,6 +954,16 @@ describe("renderer layout contract", () => {
     expect(settingsSelectors).toHaveLength(8);
     expect(mcpEditorSelectors).toHaveLength(1);
     expect(stylesSource).toContain(".settings-codex-select .codex-select");
+    expect(codexSelectSource).toContain('size = "comfortable"');
+    expect(composerContextSource).toContain('size="compact"');
+    expect(appSource).toContain('className="review-scope-select"');
+    expect(appSource).toContain('size="compact"');
+    expect(stylesSource).toContain(
+      '.composer-context-picker [data-artemis-component="select"] [data-part="menu"]',
+    );
+    expect(stylesSource).toContain(
+      '.review-scope-select [data-artemis-component="select"] [data-part="trigger"]',
+    );
     expect(uiStylesSource).toContain("inline-size: 100%");
   });
 
@@ -971,6 +981,9 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain("noResultsLabel={t.modelSearchEmpty}");
     expect(settingsSource).toContain(
       "searchText: `${model.providerId} ${model.name} ${model.modelId}`",
+    );
+    expect(settingsSource).toContain(
+      "label: `${model.providerId} · ${model.name} · ${model.modelId}`",
     );
     expect(uiFormsSource).toContain('role="combobox"');
     expect(uiFormsSource).toContain('type="search"');

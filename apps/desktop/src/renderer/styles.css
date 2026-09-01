@@ -5366,6 +5366,42 @@ button.environment-row:disabled {
   min-width: 0;
 }
 
+.composer-context-picker [data-artemis-component="select"] [data-part="menu"] {
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+  z-index: 80;
+}
+
+.review-scope-select [data-artemis-component="select"] [data-part="trigger"] {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font: 600 12px/1.3 var(--font);
+  max-inline-size: 170px;
+  min-block-size: 28px;
+  padding: 4px 2px;
+}
+
+.review-scope-select:hover
+  [data-artemis-component="select"]
+  [data-part="trigger"],
+.review-scope-select:focus-within
+  [data-artemis-component="select"]
+  [data-part="trigger"] {
+  color: var(--text);
+}
+
+.review-scope-select [data-artemis-component="select"] [data-part="menu"] {
+  inset-inline-end: auto;
+  inset-inline-start: 0;
+  min-inline-size: 150px;
+  z-index: 80;
+}
+
+.settings-codex-select [data-artemis-component="select"] [data-part="menu"] {
+  z-index: 80;
+}
+
 .sandbox-notice {
   align-items: flex-start;
   background: color-mix(in srgb, var(--warning) 8%, var(--panel-2));

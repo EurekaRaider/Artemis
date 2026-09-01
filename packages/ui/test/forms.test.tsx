@@ -11,6 +11,7 @@ import {
   FORM_ACCESSIBLE_NAME_ERROR,
   FORM_COMPONENT_CONTRACTS,
   FORM_CONTROL_BOUNDARY_ERROR,
+  FORM_PERCEPTIBLE_ERROR_MESSAGE_ERROR,
   FORM_SELECT_OPTION_ERROR,
   SELECT_STATE_PRIORITY,
   Checkbox,
@@ -111,6 +112,96 @@ describe("Form component contracts", () => {
     extra.dateField = {};
     expect(validateFormComponentContracts(extra).errors).toContain(
       "contracts fields are not exact",
+    );
+  });
+
+  it("renders both frozen sizes for every public form component", () => {
+    const { container } = render(
+      <div>
+        {(["compact", "comfortable"] as const).flatMap((size) => [
+          <TextField key={`text-${size}`} label={`Text ${size}`} size={size} />,
+          <SearchField
+            key={`search-${size}`}
+            label={`Search ${size}`}
+            size={size}
+          />,
+          <Select
+            key={`select-${size}`}
+            label={`Select ${size}`}
+            onValueChange={() => undefined}
+            options={[{ value: "one", label: "One" }]}
+            size={size}
+            value="one"
+          />,
+          <Checkbox
+            key={`checkbox-${size}`}
+            label={`Checkbox ${size}`}
+            size={size}
+          />,
+          <Switch
+            key={`switch-${size}`}
+            label={`Switch ${size}`}
+            size={size}
+          />,
+        ])}
+      </div>,
+    );
+    for (const component of [
+      "text-field",
+      "search-field",
+      "select",
+      "checkbox",
+      "switch",
+    ]) {
+      expect(
+        [
+          ...container.querySelectorAll(
+            `[data-artemis-component="${component}"]`,
+          ),
+        ].map((root) => root.getAttribute("data-size")),
+      ).toEqual(["compact", "comfortable"]);
+    }
+  });
+});
+
+describe("Perceptible error messages", () => {
+  it("rejects empty or ignorable errors before DOM and SSR output", () => {
+    expect(() =>
+      render(
+        <TextField
+          error=""
+          label="Text"
+          value="bad"
+          onValueChange={() => undefined}
+        />,
+      ),
+    ).toThrowError(FORM_PERCEPTIBLE_ERROR_MESSAGE_ERROR);
+    expect(() =>
+      renderToString(
+        <SearchField
+          error={"\u200B"}
+          label="Search"
+          value="bad"
+          onValueChange={() => undefined}
+        />,
+      ),
+    ).toThrowError(FORM_PERCEPTIBLE_ERROR_MESSAGE_ERROR);
+    expect(() =>
+      render(
+        <Select
+          error=" "
+          label="Select"
+          onValueChange={() => undefined}
+          options={[{ value: "one", label: "One" }]}
+          value="one"
+        />,
+      ),
+    ).toThrowError(FORM_PERCEPTIBLE_ERROR_MESSAGE_ERROR);
+    expect(() =>
+      renderToString(<Checkbox error={"\u2060"} label="Checkbox" />),
+    ).toThrowError(FORM_PERCEPTIBLE_ERROR_MESSAGE_ERROR);
+    expect(() => render(<Switch error="" label="Switch" />)).toThrowError(
+      FORM_PERCEPTIBLE_ERROR_MESSAGE_ERROR,
     );
   });
 });
@@ -327,6 +418,11 @@ describe("Select", () => {
       target: { value: "not present" },
     });
     expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(
+      trigger
+        .closest('[data-artemis-component="select"]')
+        ?.getAttribute("data-state"),
+    ).toBe("open");
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("listbox")).toBeNull();
     expect((trigger as HTMLButtonElement).disabled).toBe(false);
@@ -374,6 +470,44 @@ describe("Select", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
     await user.click(trigger);
     expect(onValueChange).not.toHaveBeenCalled();
+  });
+
+  it("uses effective disabled state for empty and all-disabled option sets", () => {
+    const { container, rerender } = render(
+      <Select<string>
+        label="Empty model list"
+        onValueChange={() => undefined}
+        options={[]}
+        value="missing"
+      />,
+    );
+    const root = container.querySelector('[data-artemis-component="select"]');
+    const trigger = screen.getByRole("button", {
+      name: "Empty model list missing",
+    }) as HTMLButtonElement;
+    expect(root?.getAttribute("data-state")).toBe("disabled");
+    expect(trigger.disabled).toBe(true);
+
+    rerender(
+      <Select
+        label="Empty model list"
+        onValueChange={() => undefined}
+        options={[{ value: "blocked", label: "Blocked", disabled: true }]}
+        value="blocked"
+      />,
+    );
+    expect(root?.getAttribute("data-state")).toBe("disabled");
+    expect(trigger.disabled).toBe(true);
+    expect(
+      renderToString(
+        <Select<string>
+          label="SSR empty"
+          onValueChange={() => undefined}
+          options={[]}
+          value="missing"
+        />,
+      ),
+    ).toContain('data-state="disabled"');
   });
 
   it("keeps keyboard navigation inside the listbox scroll viewport", async () => {
@@ -437,13 +571,39 @@ describe("Select", () => {
     ).toThrowError(FORM_ACCESSIBLE_NAME_ERROR);
   });
 
-  it("rejects empty option labels and duplicate option values", () => {
+  it("rejects empty or perceptually duplicate labels and duplicate values", () => {
     expect(() =>
       render(
         <Select
           label="Model"
           onValueChange={() => undefined}
           options={[{ value: "one", label: "\u200B" }]}
+          value="one"
+        />,
+      ),
+    ).toThrowError(FORM_SELECT_OPTION_ERROR);
+    expect(() =>
+      render(
+        <Select
+          label="Model"
+          onValueChange={() => undefined}
+          options={[
+            { value: "one", label: "Same model" },
+            { value: "two", label: "  SAME\u2060 model  " },
+          ]}
+          value="one"
+        />,
+      ),
+    ).toThrowError(FORM_SELECT_OPTION_ERROR);
+    expect(() =>
+      renderToString(
+        <Select
+          label="Model"
+          onValueChange={() => undefined}
+          options={[
+            { value: "one", label: "Invisible\u200Bjoin" },
+            { value: "two", label: "invisiblejoin" },
+          ]}
           value="one"
         />,
       ),

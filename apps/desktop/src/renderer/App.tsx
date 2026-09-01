@@ -8007,6 +8007,7 @@ export function App() {
                                         },
                                         { value: "branch", label: t.branch },
                                       ]}
+                                      size="compact"
                                       value={reviewScope}
                                     />
                                   </div>

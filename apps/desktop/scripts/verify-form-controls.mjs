@@ -52,6 +52,24 @@ const steps = [
     scenario:
       "Resource Center renders the public Switch against a synthetic disabled MCP fixture without spawning or dialing out.",
   },
+  {
+    id: "composer",
+    view: "form-controls-composer",
+    scenario:
+      "Composer renders its compact public Select and keyboard-opens an in-viewport, right-aligned menu without remounting.",
+  },
+  {
+    id: "mcp-editor",
+    view: "mcp-editor-form-controls",
+    scenario:
+      "MCP editor renders its comfortable public Select and keyboard-opens an in-viewport menu without remounting.",
+  },
+  {
+    id: "review",
+    view: "turn-changes-form-controls",
+    scenario:
+      "Review renders its compact public Select and keyboard-opens an in-viewport, left-aligned menu without remounting.",
+  },
 ];
 const cases = steps.flatMap((step) =>
   themes.map((theme) => ({ ...step, theme, caseId: `${step.id}-${theme}` })),
@@ -85,42 +103,30 @@ try {
         "form-controls",
         `${caseId}-attempt-${attempt}`,
       );
-    const launch = (disableRendererSandbox, attempt) => {
+    const launch = (attempt) => {
       const userDataPreexisting = existsSync(userDataDirectory(attempt));
-      const result = spawnSync(
-        electronPath,
-        [
-          appDirectory,
-          `--user-data-dir=${userDataDirectory(attempt)}`,
-          "--disable-gpu",
-          "--disable-gpu-compositing",
-          "--disable-gpu-sandbox",
-          "--use-angle=swiftshader",
-          ...(disableRendererSandbox ? ["--no-sandbox"] : []),
-        ],
-        {
-          cwd: appDirectory,
-          encoding: "utf8",
-          env: environment,
-          maxBuffer: 2 * 1024 * 1024,
-          timeout: 90_000,
-        },
-      );
-      return { result, userDataPreexisting };
+      const electronArguments = [
+        appDirectory,
+        `--user-data-dir=${userDataDirectory(attempt)}`,
+        "--disable-gpu",
+        "--disable-gpu-compositing",
+        "--disable-gpu-sandbox",
+        "--use-angle=swiftshader",
+      ];
+      const result = spawnSync(electronPath, electronArguments, {
+        cwd: appDirectory,
+        encoding: "utf8",
+        env: environment,
+        maxBuffer: 2 * 1024 * 1024,
+        timeout: 90_000,
+      });
+      return {
+        result,
+        rendererSandboxEnabled: !electronArguments.includes("--no-sandbox"),
+        userDataPreexisting,
+      };
     };
-    let launchOutcome = launch(false, 0);
-    if (
-      (launchOutcome.result.error || launchOutcome.result.status !== 0) &&
-      !process.env.CI
-    ) {
-      launchOutcome = launch(true, 1);
-    }
-    if (
-      (launchOutcome.result.error || launchOutcome.result.status !== 0) &&
-      !process.env.CI
-    ) {
-      launchOutcome = launch(false, 2);
-    }
+    const launchOutcome = launch(0);
     const launchResult = launchOutcome.result;
     if (launchResult.error || launchResult.status !== 0) {
       throw new Error(
@@ -154,6 +160,12 @@ try {
       launchOutcome.userDataPreexisting === false,
       launchOutcome.userDataPreexisting,
       false,
+    );
+    assert(
+      "renderer-sandbox-enabled",
+      launchOutcome.rendererSandboxEnabled === true,
+      launchOutcome.rendererSandboxEnabled,
+      true,
     );
     assert(
       "screenshot-not-empty",
@@ -248,6 +260,42 @@ try {
         "resolved computed colors",
       );
       return found;
+    };
+    const verifyOpenMenu = (prefix, menu) => {
+      assert(
+        `${prefix}-menu-positive-geometry`,
+        menu?.geometry.width > 0 && menu?.geometry.height > 0,
+        menu?.geometry ?? null,
+        "positive width and height",
+      );
+      assert(
+        `${prefix}-menu-within-viewport`,
+        menu?.withinViewport === true,
+        menu ?? null,
+        true,
+      );
+      assert(
+        `${prefix}-menu-layering`,
+        Number(menu?.zIndex) >= 80,
+        menu?.zIndex ?? null,
+        ">= 80",
+      );
+      assert(
+        `${prefix}-menu-overflow-contract`,
+        menu?.overflowX === "hidden" &&
+          menu?.overflowY === "hidden" &&
+          menu?.listboxOverflowY === "auto",
+        menu ?? null,
+        { overflowX: "hidden", overflowY: "hidden", listboxOverflowY: "auto" },
+      );
+      assert(
+        `${prefix}-menu-styles-resolve`,
+        Boolean(menu?.backgroundColor) &&
+          menu?.borderStyle === "solid" &&
+          menu?.borderWidth !== "0px",
+        menu ?? null,
+        "resolved background and non-zero solid border",
+      );
     };
 
     if (id === "archive") {
@@ -345,6 +393,7 @@ try {
         interaction,
         "menu closed, next option committed, root stable",
       );
+      verifyOpenMenu("settings", interaction?.openedMenu);
     } else if (id === "settings-custom") {
       const checkbox = verifyComponent(
         "checkbox",
@@ -376,7 +425,7 @@ try {
         { active: checkbox.control.documentActive, focus: checkbox.focus },
         "focused with public visual focus treatment",
       );
-    } else {
+    } else if (id === "resource") {
       const toggle = verifyComponent(
         "switch",
         ["root", "control", "track", "thumb", "label"],
@@ -391,6 +440,55 @@ try {
         toggle.control,
         { tagName: "input", type: "checkbox", role: "switch" },
       );
+    } else {
+      const context =
+        id === "composer"
+          ? "composer"
+          : id === "mcp-editor"
+            ? "mcp-editor"
+            : "review";
+      const select = verifyComponent(
+        "select",
+        ["root", "label", "trigger", "value", "indicator", "menu", "listbox"],
+        "codex-select",
+        context,
+      );
+      const expectedSize = id === "mcp-editor" ? "comfortable" : "compact";
+      assert(
+        `${id}-size-contract`,
+        select.size === expectedSize,
+        select.size,
+        expectedSize,
+      );
+      assert(
+        `${id}-keyboard-open-stable`,
+        formControls.interaction?.keyboardOpened === true &&
+          formControls.interaction?.menuOpen === true &&
+          formControls.interaction?.rootStable === true &&
+          select.control.ariaExpanded === "true",
+        {
+          interaction: formControls.interaction,
+          ariaExpanded: select.control.ariaExpanded,
+        },
+        "keyboard opened, menu open, root stable, aria-expanded true",
+      );
+      verifyOpenMenu(id, select.menu);
+      if (id === "composer") {
+        assert(
+          "composer-menu-right-aligned",
+          select.menu?.inlineEndDelta <= 1,
+          select.menu?.inlineEndDelta ?? null,
+          "<= 1px",
+        );
+      }
+      if (id === "review") {
+        assert(
+          "review-menu-left-aligned",
+          select.menu?.inlineStartDelta <= 1,
+          select.menu?.inlineStartDelta ?? null,
+          "<= 1px",
+        );
+      }
     }
 
     results.push({
@@ -400,6 +498,7 @@ try {
       scenario,
       screenshot: `${caseId}.png`,
       screenshotBytes,
+      rendererSandboxEnabled: launchOutcome.rendererSandboxEnabled,
       assertions,
       components: formControls.components.map(
         ({ component, context, className, state }) => ({
@@ -431,6 +530,12 @@ try {
         "Fresh bundled model catalog; selecting a model performs no provider request.",
       resource:
         "Synthetic disabled MCP server with an impossible stdio command; zero spawn and zero dial-out.",
+      composer:
+        "Synthetic local Artemis project and completed thread; no agent or provider request.",
+      mcpEditor:
+        "Synthetic disabled MCP fixtures; zero spawn and zero dial-out.",
+      review:
+        "Synthetic local Artemis project and completed turn-change fixture; no agent or provider request.",
     },
     summary: {
       cases: results.length,

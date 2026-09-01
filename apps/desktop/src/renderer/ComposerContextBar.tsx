@@ -755,6 +755,7 @@ export function ComposerContextBar({
             { value: "execute", label: t.execute },
             { value: "review", label: t.review },
           ]}
+          size="compact"
           value={mode}
         />
       </div>

@@ -253,19 +253,31 @@ checked state, selection, focus, event order, direction, zoom, and motion.
 Exact CSS and mutable-token allowlists, 25 contract/CSS negative cases, 23 safe
 boundary cases, and 113 rejected boundary violations stay fail-closed.
 
-Desktop consumes the public controls through four real surfaces: Archive uses
+Desktop consumes the public controls through seven real surfaces: Archive uses
 `SearchField`; Settings Built-in uses `TextField` plus the public Select through
 a thin `CodexSelect` compatibility adapter; Settings Custom uses `Checkbox`;
-Resource Center uses `Switch`. The adapter retains Desktop value mapping only;
-the former private Select implementation and private Search/Switch/Checkbox
-structural CSS are removed. The production Electron verifier runs Archive,
-Settings Built-in, Settings Custom, and Resource Center in light and dark with
-fresh isolated user data: 8 cases and 140 assertions cover screenshots,
-positive geometry, required public parts, resolved semantic tokens, focus-visible
-evidence, controlled Search/Checkbox updates, Select IME preservation and one
-keyboard commit, native checkbox/switch semantics, zero portals, empty
-accessibility findings, and no local-path leakage. The Resource fixture is a
-disabled impossible stdio command, so it performs zero spawn and zero dial-out.
+Resource Center uses `Switch`; Composer, MCP Editor, and Review use that public
+Select adapter. Settings and MCP keep the comfortable size, while Composer and
+Review explicitly keep compact geometry. Desktop-owned external layout restores
+Composer right alignment, Review left alignment and compact toolbar treatment,
+and menu layering without adding private component anatomy. Model labels include
+the stable provider/model ID so perceptibly duplicate display names remain
+unambiguous. The former private Select implementation and private
+Search/Switch/Checkbox structural CSS are removed.
+
+The production Electron verifier runs all seven surfaces in light and dark with
+fresh isolated user data: 14 cases and 288 assertions cover screenshots,
+positive geometry, required public parts, resolved semantic tokens,
+focus-visible evidence, controlled Search/Checkbox updates, Select IME
+preservation and one keyboard commit, native checkbox/switch semantics, zero
+portals, empty accessibility findings, and no local-path leakage. Composer, MCP
+Editor, and Review additionally keyboard-open the real menu, retain the same
+Select root, stay inside the viewport, preserve their required alignment, and
+resolve at `z-index: 80`. The verifier has no `--no-sandbox` fallback and records
+an explicit renderer-sandbox assertion. Root Linux tests do not launch Electron;
+the existing macOS Desktop-skin CI job owns this production Electron gate. The
+Resource and MCP fixtures are disabled synthetic configurations, so they perform
+zero spawn and zero dial-out.
 
 The installed-tarball consumer verifies all five runtime exports and declarations,
 SSR output, the frozen contract, and a TextField-only bundle that excludes the
@@ -285,7 +297,7 @@ APIs, private Gallery state, or skin-specific structural branches.
 | Resolver/registry and host attributes                                    | integration        | Desktop renderer glue     | Desktop                    | current `data-theme` bridge                      | CL1B      | Exact-head Electron state/Portal/xterm/package proof        | Merged at `70691d9`                     |
 | Default/stress/fallback conformance                                      | governance         | Gallery + validators      | CI                         | v17 A/B/C stress input                           | CL1C      | 64-vertex Gallery + exact-head Desktop matrix               | Merged at `38e40ae`                     |
 | Action and icon controls                                                 | component          | `@artemis/ui`             | Gallery + GoalBar          | buttons, icon buttons, badge, status, icon sizes | CL2A      | 105-case sandboxed Goal parity Electron matrix              | Merged at `f0834dd`                     |
-| Field and selection controls                                             | component          | `@artemis/ui`             | Gallery + real Desktop     | field, search, select, checkbox, switch          | CL2B      | 8-case/140-assertion real Electron matrix                   | Candidate                               |
+| Field and selection controls                                             | component          | `@artemis/ui`             | Gallery + real Desktop     | field, search, select, checkbox, switch          | CL2B      | 14-case/288-assertion strict-sandbox Electron matrix        | Candidate                               |
 | Tabs and segmented controls                                              | component          | `@artemis/ui`             | Desktop consumer pending   | tabs and segmented controls                      | CL2C      | Gallery then exact real consumer                            | Pending                                 |
 | Feedback, overlays, layout primitives                                    | component          | `@artemis/ui`             | Desktop consumers later    | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | Gallery cases first                                         | Pending                                 |
 | Artemis-specific presentational patterns                                 | component          | `@artemis/ui`             | Desktop adapter layer      | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                         | Pending                                 |

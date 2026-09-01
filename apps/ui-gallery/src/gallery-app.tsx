@@ -306,7 +306,13 @@ export function GalleryApp() {
             label="Search components"
             onValueChange={setSearchValue}
             placeholder="Search a long localized component name"
+            size="comfortable"
             value={searchValue}
+          />
+          <SearchField
+            label="Compact search"
+            placeholder="Compact component search"
+            size="compact"
           />
           <Select
             label="Model"
@@ -340,6 +346,7 @@ export function GalleryApp() {
             checked={checked}
             label="Controlled checkbox"
             onCheckedChange={setChecked}
+            size="comfortable"
           />
           <Checkbox error="Required choice" label="Error checkbox" />
           <Checkbox disabled label="Disabled checkbox" />
@@ -347,6 +354,7 @@ export function GalleryApp() {
             checked={checked}
             label="Controlled switch"
             onCheckedChange={setChecked}
+            size="comfortable"
           />
           <Switch error="Connection unavailable" label="Error switch" />
           <Switch disabled label="Disabled switch" />

@@ -1,6 +1,7 @@
 import {
   Select,
   filterSelectOptions,
+  type FormControlSize,
   type SelectOption,
 } from "@artemis/ui/forms";
 
@@ -15,6 +16,7 @@ interface CodexSelectProps<Value extends string> {
   readonly onChange: (value: Value) => void;
   readonly options: readonly CodexSelectOption<Value>[];
   readonly searchPlaceholder?: string;
+  readonly size?: FormControlSize;
   readonly value: Value;
 }
 
@@ -32,6 +34,7 @@ export function CodexSelect<Value extends string>({
   onChange,
   options,
   searchPlaceholder,
+  size = "comfortable",
   value,
 }: CodexSelectProps<Value>) {
   return (
@@ -44,7 +47,7 @@ export function CodexSelect<Value extends string>({
       onValueChange={onChange}
       options={options}
       searchPlaceholder={searchPlaceholder}
-      size="compact"
+      size={size}
       value={value}
     />
   );

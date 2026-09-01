@@ -1088,7 +1088,7 @@ export function SettingsPanel({
                             noResultsLabel={t.modelSearchEmpty}
                             options={models.map((model) => ({
                               value: modelKey(model.providerId, model.modelId),
-                              label: `${model.providerId} · ${model.name}`,
+                              label: `${model.providerId} · ${model.name} · ${model.modelId}`,
                               searchText: `${model.providerId} ${model.name} ${model.modelId}`,
                             }))}
                             searchPlaceholder={t.modelSearch}
