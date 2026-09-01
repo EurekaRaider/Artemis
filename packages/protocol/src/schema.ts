@@ -326,7 +326,7 @@ export const approvalRequestedPayloadSchema = z.object({
   network: z.array(z.string()).default([]),
   risk: riskLevelSchema,
   allowedScopes: z.array(approvalScopeSchema).min(1),
-  source: z.enum(["user", "model", "policy", "automation"]).optional(),
+  source: z.enum(["user", "model", "policy", "automation", "im"]).optional(),
   modelRecommendation: z.enum(["approve", "deny"]).optional(),
   modelReason: z.string().trim().min(1).max(500).optional(),
   actorAgentId: z.string().min(1).optional(),
@@ -341,7 +341,7 @@ export const approvalResolvedPayloadSchema = z.object({
   nonce: z.string().min(16),
   approved: z.boolean(),
   scope: approvalScopeSchema,
-  source: z.enum(["user", "model", "policy", "automation"]).optional(),
+  source: z.enum(["user", "model", "policy", "automation", "im"]).optional(),
 });
 
 export const MAX_USER_INPUT_QUESTIONS = 3;
@@ -1126,7 +1126,7 @@ export const approvalResolutionSchema = z.object({
   nonce: z.string().min(16),
   approved: z.boolean(),
   scope: approvalScopeSchema,
-  source: z.enum(["user", "model", "policy", "automation"]).optional(),
+  source: z.enum(["user", "model", "policy", "automation", "im"]).optional(),
 });
 export type ApprovalResolution = z.infer<typeof approvalResolutionSchema>;
 

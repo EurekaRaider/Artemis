@@ -241,20 +241,23 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     expect(store.getImBinding("feishu-main", "oc_a")?.threadId).toBe("thread-im-1");
   });
 
-  it("审批决议经 onApprovalResolved 回 broker 接缝", async () => {
+  it("审批决议经 onApprovalResolved 回 broker 接缝（Phase 2 起需先经拦截注册 tracker）", async () => {
     const store = await createStore();
     const { host, calls } = makeHost();
     const { service } = setup(host, store);
-    await pairChannel(service, store);
+    const binding = await pairChannel(service, store);
 
-    service.manager.registerPendingApproval({
+    // 走真实拦截路径注册（tracker 含 nonce）
+    service.onAgentEvent(binding.threadId, {
+      type: "approval.requested",
       approvalId: "ap-1",
-      adapter: "feishu-main",
-      channelId: "oc_a",
-      toolName: "shell",
-      summary: "rm -rf /tmp/x",
+      nonce: "nonce-0123456789abcdef",
+      summary: "Run shell command",
+      command: "rm -rf /tmp/x",
       risk: "high",
+      source: "policy",
     });
+    await new Promise((r) => setTimeout(r, 10));
     await service.manager.handleInbound(makeInbound("y"));
     const resolved = calls.find((c) => c.kind === "resolveApproval");
     expect(resolved).toBeDefined();
@@ -299,5 +302,123 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     service.onAgentEvent(binding.threadId, { type: "turn.completed", text: "x" });
     await new Promise((r) => setTimeout(r, 10));
     expect(adapter.sent).toHaveLength(0);
+  });
+});
+
+describe("Phase 2 审批闭环（plan §2.1-2.3 出口）", () => {
+  const APPROVAL_PAYLOAD = {
+    type: "approval.requested",
+    approvalId: "ap-1",
+    nonce: "nonce-0123456789abcdef",
+    summary: "Run shell command",
+    command: "rm -rf /tmp/x",
+    risk: "high",
+    source: "policy",
+  };
+
+  it("approval.requested → IM 收到 approval_request 且 tracker 记录 nonce", async () => {
+    const store = await createStore();
+    const { host } = makeHost();
+    const { service, adapter } = setup(host, store);
+    const binding = await pairChannel(service, store);
+
+    service.onAgentEvent(binding.threadId, APPROVAL_PAYLOAD);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(adapter.sent.some((s) => s.event.kind === "approval_request")).toBe(true);
+    const req = adapter.sent.find((s) => s.event.kind === "approval_request");
+    expect(req?.event).toMatchObject({ approvalId: "ap-1" });
+    expect(service.manager.pendingApprovalCount()).toBe(1);
+  });
+
+  it("automation 来源的审批不拦截（风险表：automation 优先）", async () => {
+    const store = await createStore();
+    const { host } = makeHost();
+    const { service, adapter } = setup(host, store);
+    const binding = await pairChannel(service, store);
+
+    service.onAgentEvent(binding.threadId, { ...APPROVAL_PAYLOAD, source: "automation" });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(adapter.sent.every((s) => s.event.kind !== "approval_request")).toBe(true);
+    expect(service.manager.pendingApprovalCount()).toBe(0);
+  });
+
+  it("完整闭环：IM 回 y → resolveBrokerApproval 带 nonce + source 决议", async () => {
+    const store = await createStore();
+    const { host, calls } = makeHost();
+    const { service } = setup(host, store);
+    const binding = await pairChannel(service, store);
+
+    service.onAgentEvent(binding.threadId, APPROVAL_PAYLOAD);
+    await new Promise((r) => setTimeout(r, 10));
+    await service.manager.handleInbound(makeInbound("y"));
+
+    const resolved = calls.find((c) => c.kind === "resolveApproval");
+    expect(resolved?.input).toMatchObject({
+      approvalId: "ap-1",
+      nonce: "nonce-0123456789abcdef",
+      approved: true,
+    });
+    expect(service.manager.pendingApprovalCount()).toBe(0);
+  });
+
+  it("IM 回 n → 拒绝决议", async () => {
+    const store = await createStore();
+    const { host, calls } = makeHost();
+    const { service } = setup(host, store);
+    const binding = await pairChannel(service, store);
+
+    service.onAgentEvent(binding.threadId, APPROVAL_PAYLOAD);
+    await new Promise((r) => setTimeout(r, 10));
+    await service.manager.handleInbound(makeInbound("拒绝"));
+
+    const resolved = calls.find((c) => c.kind === "resolveApproval");
+    expect(resolved?.input).toMatchObject({ approvalId: "ap-1", approved: false });
+  });
+
+  it("桌面先批准（approval.resolved source 非 im）→ IM 收到终态且 pending 清理", async () => {
+    const store = await createStore();
+    const { host, calls } = makeHost();
+    const { service, adapter } = setup(host, store);
+    const binding = await pairChannel(service, store);
+
+    service.onAgentEvent(binding.threadId, APPROVAL_PAYLOAD);
+    await new Promise((r) => setTimeout(r, 10));
+    service.onAgentEvent(binding.threadId, {
+      type: "approval.resolved",
+      approvalId: "ap-1",
+      approved: true,
+      source: "user",
+    });
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(service.manager.pendingApprovalCount()).toBe(0);
+    expect(
+      adapter.sent.some(
+        (s) => s.event.kind === "approval_resolved" && s.event.approved === true,
+      ),
+    ).toBe(true);
+    // IM 再回 y 不应产生 broker 决议（pending 已清理）
+    await service.manager.handleInbound(makeInbound("y"));
+    expect(calls.filter((c) => c.kind === "resolveApproval")).toHaveLength(0);
+  });
+
+  it("approval.resolved source=im 跳过（IM 自己决议的路径已由 manager 投递）", async () => {
+    const store = await createStore();
+    const { host } = makeHost();
+    const { service, adapter } = setup(host, store);
+    const binding = await pairChannel(service, store);
+
+    service.onAgentEvent(binding.threadId, APPROVAL_PAYLOAD);
+    await new Promise((r) => setTimeout(r, 10));
+    const before = adapter.sent.length;
+    service.onAgentEvent(binding.threadId, {
+      type: "approval.resolved",
+      approvalId: "ap-1",
+      approved: true,
+      source: "im",
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(adapter.sent.length).toBe(before);
   });
 });

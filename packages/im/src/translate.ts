@@ -15,6 +15,9 @@ export interface AgentPayloadLike {
   toolName?: string | undefined;
   detail?: string | undefined;
   isError?: boolean | undefined;
+  // approval.resolved（审批终态回写，§3.2）
+  approvalId?: string | undefined;
+  approved?: boolean | undefined;
 }
 
 export interface TurnToolStats {
@@ -56,6 +59,16 @@ export function translateAgentPayload(payload: AgentPayloadLike, mode: OutputMod
     // approval.requested 已由 broker 拦截路径直接发，跳过避免双发（§3.2）
     case "approval.requested":
       return [];
+    case "approval.resolved":
+      // 审批终态全模式发（桌面端点批准时 IM 也要更新，§3.1 双端互通）
+      if (!payload.approvalId || payload.approved === undefined) return [];
+      return [
+        {
+          kind: "approval_resolved",
+          approvalId: payload.approvalId,
+          approved: payload.approved,
+        },
+      ];
     default:
       // goal、memory、queue 等忽略
       return [];

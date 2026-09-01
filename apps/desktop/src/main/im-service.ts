@@ -7,6 +7,8 @@
 import {
   FeishuAdapter,
   IMManager,
+  isInteractiveSender,
+  isTypingIndicator,
   type ChannelBinding,
   type InboundMessage,
   type IMAdapter,
@@ -35,9 +37,11 @@ export interface IMServiceHost {
   getThreadStatus(threadId: string): "running" | "waiting-approval" | "idle" | "not-found";
   /** 配对挑战通知桌面（弹配对卡） */
   notifyPairing(challenge: { code: string; adapter: string; channelId: string }): void;
-  /** 审批决议回 broker（Phase 2 接线） */
+    /** 审批决议回 broker（Phase 2）。nonce 来自 approval.requested 事件，
+   *  经 pendingApprovals.consume 防重放校验（E3 形状自带）。 */
   resolveBrokerApproval(input: {
     approvalId: string;
+    nonce: string;
     approved: boolean;
     respondedBy: string;
   }): void;
@@ -63,6 +67,14 @@ export interface IMAgentEventPayload {
   toolName?: string | undefined;
   detail?: string | undefined;
   isError?: boolean | undefined;
+  // approval.requested / approval.resolved（protocol schema.ts 对齐）
+  approvalId?: string | undefined;
+  nonce?: string | undefined;
+  summary?: string | undefined;
+  command?: string | undefined;
+  risk?: string | undefined;
+  source?: string | undefined;
+  approved?: boolean | undefined;
 }
 
 export class IMService {
@@ -72,6 +84,11 @@ export class IMService {
   private readonly adapters = new Map<string, IMAdapter>();
   /** 每线程的 turn 翻译器（summary 模式工具计数聚合，turn 边界重建） */
   private readonly turnTranslators = new Map<string, ReturnType<typeof createTurnTranslator>>();
+  /** 审批追踪：approvalId → nonce（broker resolve 用）+ platformMsgId（卡片回写用） */
+  private readonly approvalTrackers = new Map<
+    string,
+    { nonce: string; binding: ChannelBinding; platformMsgId?: string }
+  >();
 
   constructor(deps: { store: AppStore; host: IMServiceHost }) {
     this.host = deps.host;
@@ -89,7 +106,14 @@ export class IMService {
         void this.handleAcceptedInbound(msg, binding);
       },
       onApprovalResolved: (approvalId, approved, respondedBy) => {
-        this.host.resolveBrokerApproval({ approvalId, approved, respondedBy });
+        const tracker = this.approvalTrackers.get(approvalId);
+        if (!tracker) return; // 非本服务拦截的审批（理论不可达，防御）
+        this.host.resolveBrokerApproval({
+          approvalId,
+          nonce: tracker.nonce,
+          approved,
+          respondedBy,
+        });
       },
       onReply: (binding, event) => {
         void this.deliver(binding, event);
@@ -118,15 +142,33 @@ export class IMService {
     this.adapters.clear();
   }
 
-  /** 出站订阅入口：main 的 emitPayload 尾部调用（E5，与 UI 同一事件源）。 */
+  /** 出站订阅入口：main 的 emitPayload 尾部调用（E5，与 UI 同一事件源）。
+   *  审批事件在此拦截（plan §3.1：emitPayload 是所有 ask 分支的唯一出口，
+   *  等价于在 handleBrokerRequest 各 handler 插入，但侵入面最小）。 */
   onAgentEvent(threadId: string, payload: IMAgentEventPayload): void {
     const binding = this.bindingStore.list().find((b) => b.threadId === threadId);
     if (!binding || binding.muted) return;
+
+    if (payload.type === "approval.requested") {
+      this.interceptApproval(binding, payload);
+      return;
+    }
+    if (payload.type === "approval.resolved") {
+      // 审批终态完全由本分支处理（卡片回写/文本），不进翻译管线，避免双发
+      this.handleApprovalResolvedEvent(binding, payload);
+      return;
+    }
 
     let translator = this.turnTranslators.get(threadId);
     if (!translator || payload.type === "turn.started") {
       translator = createTurnTranslator(binding.outputMode);
       this.turnTranslators.set(threadId, translator);
+      // Typing 表情（E24）：turn 开始给用户最新消息加 Typing reaction，
+      // 一次即可（表情不过期，无需续命）
+      const adapter = this.adapters.get(binding.adapter);
+      if (adapter && isTypingIndicator(adapter)) {
+        void adapter.triggerTyping(binding).catch(() => undefined);
+      }
     }
     for (const event of translator.feed(payload)) {
       void this.deliver(binding, event);
@@ -188,9 +230,92 @@ export class IMService {
     });
   }
 
+  /** 审批 → IM（§3.1）：注册 manager pending + 发卡片/文本，挂起等 IM 回复。
+   *  automation 来源跳过（风险表：automation 优先，现有行为不变）。 */
+  private interceptApproval(binding: ChannelBinding, payload: IMAgentEventPayload): void {
+    if (payload.source === "automation") return;
+    if (!payload.approvalId || !payload.nonce) return;
+    const summary = payload.command
+      ? `${payload.summary ?? "审批请求"}：${payload.command}`
+      : (payload.summary ?? "审批请求");
+    this.approvalTrackers.set(payload.approvalId, { nonce: payload.nonce, binding });
+    this.manager.registerPendingApproval({
+      approvalId: payload.approvalId,
+      adapter: binding.adapter,
+      channelId: binding.channelId,
+      toolName: summary,
+      summary,
+      risk: payload.risk ?? "medium",
+    });
+    void this.deliver(binding, {
+      kind: "approval_request",
+      approvalId: payload.approvalId,
+      toolName: summary,
+      summary,
+      risk: payload.risk ?? "medium",
+    });
+  }
+
+  /** 桌面端点批准/拒绝（approval.resolved 事件）→ IM 收到终态并回写卡片。 */
+  private handleApprovalResolvedEvent(
+    binding: ChannelBinding,
+    payload: IMAgentEventPayload,
+  ): void {
+    if (!payload.approvalId || payload.approved === undefined) return;
+    // IM 自己决议的路径已由 manager.onReply 投递（deliver 处理卡片回写），跳过避免双发
+    if (payload.source === "im") return;
+    const tracker = this.approvalTrackers.get(payload.approvalId);
+    if (!tracker) return;
+    // UI 先决议：清理 manager pending（不再接受 IM 回复）。
+    // tracker 留给 deliver 读取 platformMsgId 回写卡片，由 deliver 负责删除。
+    this.manager.dropPendingApproval(payload.approvalId);
+    void this.deliver(tracker.binding, {
+      kind: "approval_resolved",
+      approvalId: payload.approvalId,
+      approved: payload.approved,
+    });
+  }
+
   private async deliver(binding: ChannelBinding, event: OutboundEvent): Promise<void> {
     const adapter = this.adapters.get(binding.adapter);
     if (!adapter) return;
+    // 审批请求：优先卡片按钮（InteractiveSender），记录 platformMsgId 供终态回写
+    if (event.kind === "approval_request" && isInteractiveSender(adapter)) {
+      try {
+        const platformMsgId = await adapter.sendApprovalButtons(binding, event);
+        const tracker = this.approvalTrackers.get(event.approvalId);
+        if (tracker) tracker.platformMsgId = platformMsgId;
+        return;
+      } catch {
+        // 卡片发送失败降级文本（渐进增强策略，E19）
+      }
+    }
+    // 审批终态：有卡片上下文则回写原卡片（移除按钮），否则文本通知
+    if (event.kind === "approval_resolved") {
+      const tracker = this.approvalTrackers.get(event.approvalId);
+      this.approvalTrackers.delete(event.approvalId);
+      if (
+        tracker?.platformMsgId &&
+        adapter instanceof Object &&
+        "updateCardForResolution" in adapter &&
+        typeof (adapter as { updateCardForResolution?: unknown }).updateCardForResolution ===
+          "function"
+      ) {
+        try {
+          await (
+            adapter as {
+              updateCardForResolution: (
+                msgId: string,
+                ev: Extract<OutboundEvent, { kind: "approval_resolved" }>,
+              ) => Promise<void>;
+            }
+          ).updateCardForResolution(tracker.platformMsgId, event);
+          return;
+        } catch {
+          // 回写失败降级文本
+        }
+      }
+    }
     try {
       await adapter.send(binding, event);
     } catch (error) {

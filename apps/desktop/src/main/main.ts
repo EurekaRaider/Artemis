@@ -15476,8 +15476,27 @@ app
             notification.show();
           }
         },
-        resolveBrokerApproval: () => {
-          // Phase 2 接线（broker 审批拦截）；Phase 1 预留空操作
+        resolveBrokerApproval: (input: {
+          approvalId: string;
+          nonce: string;
+          approved: boolean;
+          respondedBy: string;
+        }) => {
+          // 与桌面审批同一 resolveApproval 通道（E3/E4）；scope 恒 once（决策 7）。
+          // consume 带 nonce 防重放；UI 先决议时 consume 抛错——忽略（已决议）。
+          void resolveApproval({
+            approvalId: input.approvalId,
+            nonce: input.nonce,
+            approved: input.approved,
+            scope: "once",
+            source: "im",
+          }).catch((error: unknown) => {
+            console.warn(
+              `IM approval resolution skipped (${input.approvalId}): ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          });
         },
       };
       imService = new IMService({ store: store!, host: imHost });

@@ -261,6 +261,15 @@ export class IMManager {
     this.pendingApprovals.set(req.approvalId, req);
   }
 
+  /** 桌面端已决议（非 IM 路径）时清理 manager 侧 pending，不发决议回调。 */
+  dropPendingApproval(approvalId: string): boolean {
+    return this.pendingApprovals.delete(approvalId);
+  }
+
+  hasPendingApproval(approvalId: string): boolean {
+    return this.pendingApprovals.has(approvalId);
+  }
+
   /** IM 侧审批决议（文本回复或卡片回调两个入口都会走到这里）。 */
   resolveApproval(approvalId: string, approved: boolean, respondedBy: string): boolean {
     const pending = this.pendingApprovals.get(approvalId);
