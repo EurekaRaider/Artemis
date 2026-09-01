@@ -13038,6 +13038,7 @@ function createMainWindow(): BrowserWindow {
           view === "turn-changes-form-controls"
         ) {
           window.show();
+          if (process.platform === "darwin") app.focus({ steal: true });
           window.focus();
         } else {
           window.showInactive();
@@ -14907,6 +14908,8 @@ function createMainWindow(): BrowserWindow {
             requestedSmokeView?.startsWith("form-controls-") &&
             requestedSmokeView !== "form-controls-composer"
           ) {
+            if (process.platform === "darwin") app.focus({ steal: true });
+            window.focus();
             window.webContents.focus();
             window.webContents.sendInputEvent({
               type: "keyDown",
