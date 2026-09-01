@@ -49,3 +49,10 @@ export {
   type PendingApproval,
 } from "./manager.js";
 export { DummyAdapter } from "./adapters/dummy.js";
+export {
+  FEISHU_MAX_TEXT_BYTES,
+  FeishuAdapter,
+  buildApprovalCard,
+  sniffImageMime,
+  type FeishuAdapterOptions,
+} from "./adapters/feishu.js";
