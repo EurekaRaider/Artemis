@@ -381,9 +381,25 @@ const snapshot = () => {
     consoleEntries: [...consoleEntries],
   };
 };
-const settle = () => new Promise((resolve) =>
+const nextPaint = () => new Promise((resolve) =>
   requestAnimationFrame(() => requestAnimationFrame(resolve)),
 );
+const settle = async () => {
+  await nextPaint();
+  if (!terminalReferences) return;
+  const deadline = performance.now() + 15_000;
+  let content = "";
+  while (performance.now() < deadline) {
+    content =
+      document.querySelector(".terminal-host .xterm-rows")?.textContent ?? "";
+    if (content.includes("Artemis>")) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(
+    "Timed out waiting for synthetic PTY prompt after transition; content=" +
+      JSON.stringify(content),
+  );
+};
 
 export function App() {
   renderEntrySnapshot ??= snapshot();
