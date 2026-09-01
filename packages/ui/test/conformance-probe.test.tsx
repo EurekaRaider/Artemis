@@ -18,6 +18,8 @@ describe("ConformanceProbe behavior harness", () => {
     "\u200B\u200C\u200D",
     "\u2060\u2066\u2069",
     "\uFE0F\u00AD",
+    "\0\u0007\u001B",
+    "\u007F\u0085\u009F",
   ])(
     "fails closed before rendering a non-perceptible accessible label (%j)",
     (label) => {

@@ -1,10 +1,14 @@
 import { readFile, readdir } from "node:fs/promises";
 import { extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parse as parseCssSyntax, walk as walkCssSyntax } from "css-tree";
 import postcss from "postcss";
 import {
+  cssResourceReferences,
   desktopGalleryImportViolations,
+  htmlElements,
   htmlResourceReferences,
+  referenceTargetsGallery,
 } from "./verify-ui-boundaries.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -60,6 +64,22 @@ const GALLERY_SCAFFOLD_RULES = new Map([
     ],
   ],
 ]);
+const PRIVATE_GALLERY_CLASSES = new Set([
+  "gallery-eyebrow",
+  "gallery-probe-section",
+  "gallery-skin-toggle",
+]);
+const PRIVATE_GALLERY_ATTRIBUTES = new Set([
+  "data-gallery-active-skin",
+  "data-gallery-event-order",
+  "data-gallery-stress-skin",
+]);
+const PRIVATE_GALLERY_TEXT_MARKERS = [
+  "@artemis/ui-gallery",
+  "Artemis UI Gallery scaffold",
+  "CL0B component contract harness",
+  "com.artemis.synthetic-stress",
+];
 
 const normalizeWhitespace = (value) => value.replace(/\s+/gu, " ").trim();
 
@@ -367,21 +387,54 @@ function verifyGalleryHtmlResources(html, source, galleryDist, galleryFiles) {
   }
 }
 
+async function verifyGalleryHtmlArtifacts(
+  galleryFiles,
+  galleryDist,
+  readText = (path) => readFile(path, "utf8"),
+) {
+  const htmlFiles = galleryFiles.filter((path) => extname(path) === ".html");
+  if (
+    htmlFiles.length !== 1 ||
+    relative(galleryDist, htmlFiles[0]).split(sep).join("/") !== "index.html"
+  ) {
+    throw new Error(
+      `UI Gallery must emit exactly one index.html page; found ${htmlFiles.length} HTML files`,
+    );
+  }
+  const html = await readText(htmlFiles[0]);
+  verifyGalleryHtmlResources(
+    html,
+    relative(root, htmlFiles[0]),
+    galleryDist,
+    galleryFiles,
+  );
+  return { html, path: htmlFiles[0] };
+}
+
 const galleryDist = join(root, "apps/ui-gallery/dist");
 const galleryFiles = await filesBelow(galleryDist);
-const galleryIndexPath = galleryFiles.find((path) =>
-  path.endsWith("index.html"),
-);
-if (galleryIndexPath === undefined) {
-  throw new Error("UI Gallery build is missing index.html");
-}
-const galleryIndex = await readFile(galleryIndexPath, "utf8");
-verifyGalleryHtmlResources(
-  galleryIndex,
-  relative(root, galleryIndexPath),
-  galleryDist,
+const { html: galleryIndex } = await verifyGalleryHtmlArtifacts(
   galleryFiles,
+  galleryDist,
 );
+let extraHtmlFailure = "";
+try {
+  await verifyGalleryHtmlArtifacts(
+    [...galleryFiles, join(galleryDist, "help.html")],
+    galleryDist,
+    async (path) =>
+      path === join(galleryDist, "help.html")
+        ? "<!doctype html><title>Help</title>"
+        : readFile(path, "utf8"),
+  );
+} catch (error) {
+  if (error instanceof Error) extraHtmlFailure = error.message;
+}
+if (!extraHtmlFailure.includes("exactly one index.html page")) {
+  throw new Error(
+    `additional HTML page was not rejected by the Gallery single-page gate: ${extraHtmlFailure}`,
+  );
+}
 const htmlNegativeFixtures = [
   {
     name: "external-script",
@@ -713,6 +766,256 @@ for (const marker of [
   }
 }
 
+function exactPrivateAttribute(name, value) {
+  return (
+    PRIVATE_GALLERY_ATTRIBUTES.has(name) ||
+    (name === "data-artemis-component" && value === "conformance-probe")
+  );
+}
+
+async function verifyDesktopCssArtifact(source, path) {
+  const parsed = postcss.parse(source, { from: path });
+  parsed.walkRules((rule) => {
+    const selectorAst = parseCssSyntax(rule.selector, {
+      context: "selectorList",
+    });
+    walkCssSyntax(selectorAst, (node) => {
+      if (
+        node.type === "ClassSelector" &&
+        PRIVATE_GALLERY_CLASSES.has(node.name)
+      ) {
+        throw new Error(
+          `${relative(root, path)}: Desktop CSS contains private Gallery selector .${node.name}`,
+        );
+      }
+      if (node.type === "AttributeSelector") {
+        const name = node.name?.name;
+        const value = node.value?.value;
+        if (exactPrivateAttribute(name, value)) {
+          throw new Error(
+            `${relative(root, path)}: Desktop CSS contains private Gallery attribute selector ${name}`,
+          );
+        }
+      }
+    });
+  });
+  parsed.walkAtRules((rule) => {
+    if (rule.name === "layer" && rule.params.trim() === "artemis.gallery") {
+      throw new Error(
+        `${relative(root, path)}: Desktop CSS contains private Gallery at-rule`,
+      );
+    }
+  });
+  for (const reference of cssResourceReferences(source, path)) {
+    if (await referenceTargetsGallery(root, path, reference)) {
+      throw new Error(
+        `${relative(root, path)}: Desktop CSS resource references private Gallery content: ${reference}`,
+      );
+    }
+  }
+}
+
+async function verifyDesktopHtmlArtifact(source, path) {
+  for (const element of htmlElements(source)) {
+    for (const [name, value] of Object.entries(element.attributes)) {
+      if (exactPrivateAttribute(name, value)) {
+        throw new Error(
+          `${relative(root, path)}: Desktop HTML contains private Gallery attribute ${name}`,
+        );
+      }
+      if (
+        name === "class" &&
+        value
+          .split(/\s+/u)
+          .some((className) => PRIVATE_GALLERY_CLASSES.has(className))
+      ) {
+        throw new Error(
+          `${relative(root, path)}: Desktop HTML contains a private Gallery class`,
+        );
+      }
+    }
+  }
+  for (const resource of htmlResourceReferences(source)) {
+    if (await referenceTargetsGallery(root, path, resource.reference)) {
+      throw new Error(
+        `${relative(root, path)}: Desktop HTML resource references private Gallery content: ${resource.reference}`,
+      );
+    }
+  }
+  for (const marker of PRIVATE_GALLERY_TEXT_MARKERS) {
+    if (source.includes(marker)) {
+      throw new Error(
+        `${relative(root, path)}: Desktop HTML contains private Gallery marker: ${marker}`,
+      );
+    }
+  }
+}
+
+function verifyDesktopScriptArtifact(source, path) {
+  const exactMarkers = [
+    ...PRIVATE_GALLERY_TEXT_MARKERS,
+    ...PRIVATE_GALLERY_ATTRIBUTES,
+    'data-artemis-component="conformance-probe"',
+    "data-artemis-component:'conformance-probe'",
+  ];
+  for (const marker of exactMarkers) {
+    if (source.includes(marker)) {
+      throw new Error(
+        `${relative(root, path)}: Desktop script contains private Gallery marker: ${marker}`,
+      );
+    }
+  }
+}
+
+async function verifyDesktopArtifacts(
+  files,
+  desktopBase,
+  galleryStaticAssets,
+  readArtifact = readFile,
+) {
+  for (const path of files) {
+    const extension = extname(path);
+    if (extension === ".css") {
+      await verifyDesktopCssArtifact(await readArtifact(path, "utf8"), path);
+      continue;
+    }
+    if (extension === ".html") {
+      await verifyDesktopHtmlArtifact(await readArtifact(path, "utf8"), path);
+      continue;
+    }
+    if ([".js", ".cjs", ".mjs"].includes(extension)) {
+      verifyDesktopScriptArtifact(await readArtifact(path, "utf8"), path);
+      continue;
+    }
+    const content = await readArtifact(path);
+    const emittedPath = relative(desktopBase, path).split(sep).join("/");
+    for (const asset of galleryStaticAssets) {
+      if (
+        emittedPath === asset.relativePath &&
+        content.length > 0 &&
+        content.equals(asset.content)
+      ) {
+        throw new Error(
+          `${relative(root, path)}: Desktop emitted a private Gallery static asset`,
+        );
+      }
+    }
+  }
+}
+
+async function galleryExclusiveStaticAssets() {
+  const publicRoot = join(root, "apps/ui-gallery/public");
+  let files;
+  try {
+    files = await filesBelow(publicRoot);
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+  const assets = [];
+  for (const path of files) {
+    const relativePath = relative(publicRoot, path).split(sep).join("/");
+    if (!/(^|[/_.-])(?:ui-)?gallery([/_.-]|$)/iu.test(relativePath)) continue;
+    const content = await readFile(path);
+    if (content.length > 0) assets.push({ content, relativePath });
+  }
+  return assets;
+}
+
+const safeDesktopFixtureFiles = [
+  join(root, "apps/desktop/dist-renderer/safe.css"),
+  join(root, "apps/desktop/dist-renderer/safe.html"),
+  join(root, "apps/desktop/dist-renderer/safe.js"),
+];
+const safeDesktopFixtureContent = new Map([
+  [
+    safeDesktopFixtureFiles[0],
+    '.docs-gallery-example { background: url("https://docs.gallery-example/image.png"); }',
+  ],
+  [
+    safeDesktopFixtureFiles[1],
+    '<!doctype html><title>docs.gallery-example</title><a href="https://docs.gallery-example">Docs</a>',
+  ],
+  [safeDesktopFixtureFiles[2], 'const docs = "https://docs.gallery-example";'],
+]);
+await verifyDesktopArtifacts(
+  safeDesktopFixtureFiles,
+  join(root, "apps/desktop/dist-renderer"),
+  [],
+  async (path) => safeDesktopFixtureContent.get(path),
+);
+
+const desktopArtifactNegativeFixtures = [
+  {
+    name: "private-css-selector",
+    path: join(root, "apps/desktop/dist-renderer/assets/private.css"),
+    content: ".gallery-eyebrow { display: block; }",
+    assets: [],
+    error: "private Gallery selector",
+  },
+  {
+    name: "private-css-at-rule",
+    path: join(root, "apps/desktop/dist-renderer/assets/private.css"),
+    content: "@layer artemis.gallery { .safe { display: block; } }",
+    assets: [],
+    error: "private Gallery at-rule",
+  },
+  {
+    name: "private-css-resource",
+    path: join(root, "apps/desktop/dist-renderer/assets/private.css"),
+    content: '@import "../../../ui-gallery/src/gallery.css";',
+    assets: [],
+    error: "private Gallery content",
+  },
+  {
+    name: "private-html-attribute",
+    path: join(root, "apps/desktop/dist-renderer/private.html"),
+    content: "<!doctype html><output data-gallery-active-skin></output>",
+    assets: [],
+    error: "private Gallery attribute",
+  },
+  {
+    name: "private-script-marker",
+    path: join(root, "apps/desktop/dist-renderer/private.js"),
+    content: 'const marker = "data-gallery-stress-skin";',
+    assets: [],
+    error: "private Gallery marker",
+  },
+  {
+    name: "private-static-asset",
+    path: join(root, "apps/desktop/dist-renderer/gallery-logo.bin"),
+    content: Buffer.from("gallery-only-binary"),
+    assets: [
+      {
+        relativePath: "gallery-logo.bin",
+        content: Buffer.from("gallery-only-binary"),
+      },
+    ],
+    error: "private Gallery static asset",
+  },
+];
+for (const fixture of desktopArtifactNegativeFixtures) {
+  let failure = "";
+  try {
+    await verifyDesktopArtifacts(
+      [fixture.path],
+      join(root, "apps/desktop/dist-renderer"),
+      fixture.assets,
+      async (_path, encoding) =>
+        encoding === "utf8" && Buffer.isBuffer(fixture.content)
+          ? fixture.content.toString("utf8")
+          : fixture.content,
+    );
+  } catch (error) {
+    if (error instanceof Error) failure = error.message;
+  }
+  if (!failure.includes(fixture.error)) {
+    throw new Error(
+      `${fixture.name} was not rejected by the Desktop artifact gate: ${failure}`,
+    );
+  }
+}
+
 const desktopManifest = JSON.parse(
   await readFile(join(root, "apps/desktop/package.json"), "utf8"),
 );
@@ -729,9 +1032,6 @@ if (
 ) {
   throw new Error("Desktop manifest depends on the private UI Gallery");
 }
-if (JSON.stringify(desktopManifest.build ?? {}).includes("ui-gallery")) {
-  throw new Error("Desktop packaging manifest includes the UI Gallery");
-}
 const desktopGalleryImports = await desktopGalleryImportViolations(root);
 if (desktopGalleryImports.length > 0) {
   throw new Error(desktopGalleryImports.join("\n"));
@@ -739,30 +1039,12 @@ if (desktopGalleryImports.length > 0) {
 
 const desktopDist = join(root, "apps/desktop/dist-renderer");
 const desktopFiles = await filesBelow(desktopDist);
-const desktopText = (
-  await Promise.all(
-    desktopFiles
-      .filter((path) => [".css", ".html", ".js"].includes(extname(path)))
-      .map((path) => readFile(path, "utf8")),
-  )
-).join("\n");
-for (const forbidden of [
-  "@artemis/ui-gallery",
-  "Artemis UI Gallery scaffold",
-  "com.artemis.synthetic-stress",
-  "data-gallery-active-skin",
-  "data-gallery-stress-skin",
-  ".gallery-",
-  'data-artemis-component="conformance-probe"',
-  "CL0B component contract harness",
-]) {
-  if (desktopText.includes(forbidden)) {
-    throw new Error(
-      `Desktop renderer bundle contains Gallery marker: ${forbidden}`,
-    );
-  }
-}
+await verifyDesktopArtifacts(
+  desktopFiles,
+  desktopDist,
+  await galleryExclusiveStaticAssets(),
+);
 
 console.log(
-  `UI Gallery verification passed (${galleryFiles.length} Gallery files; ${htmlNegativeFixtures.length}/${htmlNegativeFixtures.length} HTML resource fixtures rejected; exact reset → theme → ui artifact order; ${layerNegativeFixtures.length}/${layerNegativeFixtures.length} layer-order negative fixtures rejected; ${desktopFiles.length} Desktop renderer files isolated)`,
+  `UI Gallery verification passed (${galleryFiles.length} Gallery files; ${htmlNegativeFixtures.length + 1}/${htmlNegativeFixtures.length + 1} HTML artifact fixtures rejected; exact reset → theme → ui artifact order; ${layerNegativeFixtures.length}/${layerNegativeFixtures.length} layer-order negative fixtures rejected; ${desktopArtifactNegativeFixtures.length}/${desktopArtifactNegativeFixtures.length} Desktop artifact fixtures rejected; ${desktopFiles.length} Desktop renderer files isolated)`,
 );

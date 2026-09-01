@@ -233,7 +233,7 @@ export const CONFORMANCE_PROBE_CONTROL_BOUNDARY_ERROR =
   "ConformanceProbe cannot receive both value and defaultValue";
 
 const PERCEPTIBLE_LABEL_CHARACTER =
-  /[^\p{White_Space}\p{Default_Ignorable_Code_Point}]/u;
+  /[^\p{White_Space}\p{Default_Ignorable_Code_Point}\p{Cc}]/u;
 
 export function ConformanceProbe(props: ConformanceProbeProps) {
   if (

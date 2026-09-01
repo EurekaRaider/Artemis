@@ -225,9 +225,9 @@ export function collectTypeScriptReferences(sourceFile) {
   const moduleReferences = [];
   const bridgeAccesses = [];
   const computedDynamicImports = [];
-  const configPathLiterals = [];
+  const configPathProperties = [];
+  const constInitializers = new Map();
   const globalIdentifiers = [];
-  const pathResolveCalls = [];
   let usesRequire = false;
 
   const addReference = (node, kind) => {
@@ -238,6 +238,17 @@ export function collectTypeScriptReferences(sourceFile) {
   };
 
   const visit = (node) => {
+    if (
+      isVariableDeclaration(node) &&
+      isIdentifier(node.name) &&
+      node.initializer !== undefined &&
+      (node.parent.flags & NodeFlags.Const) !== 0
+    ) {
+      constInitializers.set(
+        node.name.text,
+        constInitializers.has(node.name.text) ? undefined : node.initializer,
+      );
+    }
     if (isImportDeclaration(node) && node.moduleSpecifier !== undefined) {
       addReference(node.moduleSpecifier, "import");
     } else if (
@@ -253,10 +264,6 @@ export function collectTypeScriptReferences(sourceFile) {
       const expression = node.moduleReference.expression;
       if (expression !== undefined) addReference(expression, "import-equals");
     } else if (isCallExpression(node)) {
-      const called = unwrapExpression(node.expression);
-      if (isIdentifier(called) && called.text === "resolve") {
-        pathResolveCalls.push(node);
-      }
       if (node.expression.kind === SyntaxKind.ImportKeyword) {
         if (
           node.arguments.length !== 1 ||
@@ -288,14 +295,18 @@ export function collectTypeScriptReferences(sourceFile) {
       const name = isIdentifier(node.name)
         ? node.name.text
         : stringLiteralText(node.name);
-      const value = stringLiteralText(unwrapExpression(node.initializer));
-      if (
-        name !== undefined &&
-        value !== undefined &&
-        VITE_PATH_PROPERTY_NAMES.has(name)
-      ) {
-        configPathLiterals.push({ name, value });
+      if (name !== undefined && VITE_PATH_PROPERTY_NAMES.has(name)) {
+        configPathProperties.push({ initializer: node.initializer, name });
       }
+    } else if (
+      node.kind === SyntaxKind.ShorthandPropertyAssignment &&
+      isIdentifier(node.name) &&
+      VITE_PATH_PROPERTY_NAMES.has(node.name.text)
+    ) {
+      configPathProperties.push({
+        initializer: node.name,
+        name: node.name.text,
+      });
     }
 
     if (isPropertyAccessExpression(node)) {
@@ -348,11 +359,11 @@ export function collectTypeScriptReferences(sourceFile) {
   visit(sourceFile);
   return {
     bridgeAccesses,
-    configPathLiterals,
+    configPathProperties,
+    constInitializers,
     computedDynamicImports,
     globalIdentifiers,
     moduleReferences,
-    pathResolveCalls,
     usesRequire,
   };
 }
@@ -460,42 +471,52 @@ function pathInside(path, directory) {
   );
 }
 
-export function htmlResourceReferences(source) {
+export function htmlElements(source) {
   const document = parseHtml(source);
-  const references = [];
+  const elements = [];
   const visit = (node) => {
     if (Array.isArray(node.attrs)) {
-      for (const attribute of node.attrs) {
-        if (attribute.name === "src" || attribute.name === "href") {
-          references.push({
-            attribute: attribute.name,
-            attributes: Object.fromEntries(
-              node.attrs.map((entry) => [entry.name, entry.value]),
-            ),
-            reference: attribute.value,
-            tagName: node.tagName,
-          });
-        } else if (attribute.name === "srcset") {
-          for (const candidate of attribute.value.split(",")) {
-            const reference = candidate.trim().split(/\s+/u)[0];
-            if (reference !== undefined && reference.length > 0) {
-              references.push({
-                attribute: attribute.name,
-                attributes: Object.fromEntries(
-                  node.attrs.map((entry) => [entry.name, entry.value]),
-                ),
-                reference,
-                tagName: node.tagName,
-              });
-            }
-          }
-        }
-      }
+      elements.push({
+        attributes: Object.fromEntries(
+          node.attrs.map((entry) => [entry.name, entry.value]),
+        ),
+        tagName: node.tagName,
+      });
     }
     for (const child of node.childNodes ?? []) visit(child);
     if (node.content !== undefined) visit(node.content);
   };
   visit(document);
+  return elements;
+}
+
+export function htmlResourceReferences(source) {
+  const references = [];
+  for (const element of htmlElements(source)) {
+    for (const [name, value] of Object.entries(element.attributes)) {
+      const attribute = { name, value };
+      if (attribute.name === "src" || attribute.name === "href") {
+        references.push({
+          attribute: attribute.name,
+          attributes: element.attributes,
+          reference: attribute.value,
+          tagName: element.tagName,
+        });
+      } else if (attribute.name === "srcset") {
+        for (const candidate of attribute.value.split(",")) {
+          const reference = candidate.trim().split(/\s+/u)[0];
+          if (reference !== undefined && reference.length > 0) {
+            references.push({
+              attribute: attribute.name,
+              attributes: element.attributes,
+              reference,
+              tagName: element.tagName,
+            });
+          }
+        }
+      }
+    }
+  }
   return references;
 }
 
@@ -504,7 +525,16 @@ function cssValueReferences(value, includeStrings) {
   const ast = parseCssValue(value, { context: "value" });
   walkCssValue(ast, {
     enter(node) {
-      if (node.type === "Url" || (includeStrings && node.type === "String")) {
+      const containingFunction = this.function?.name?.toLowerCase();
+      const imageSetString =
+        node.type === "String" &&
+        (containingFunction === "image-set" ||
+          containingFunction === "-webkit-image-set");
+      if (
+        node.type === "Url" ||
+        (node.type === "String" && includeStrings) ||
+        imageSetString
+      ) {
         references.push(node.value);
       }
     },
@@ -512,7 +542,7 @@ function cssValueReferences(value, includeStrings) {
   return references;
 }
 
-function cssResourceReferences(source, from) {
+export function cssResourceReferences(source, from) {
   const parsed = postcss.parse(source, { from });
   const references = [];
   parsed.walkAtRules("import", (rule) => {
@@ -541,7 +571,7 @@ function localReferenceTarget(root, from, reference) {
     : resolve(dirname(from), withoutQuery);
 }
 
-async function referenceTargetsGallery(root, from, reference) {
+export async function referenceTargetsGallery(root, from, reference) {
   const target = localReferenceTarget(root, from, reference);
   if (target === undefined) return false;
   const galleryRoot = join(root, "apps/ui-gallery");
@@ -726,6 +756,57 @@ function isImportMetaDirname(node) {
   );
 }
 
+function evaluateStaticConfigPath(
+  node,
+  project,
+  file,
+  constInitializers,
+  seen = new Set(),
+) {
+  const expression = unwrapExpression(node);
+  const literal = stringLiteralText(expression);
+  if (literal !== undefined) return literal;
+  if (expression.kind === SyntaxKind.FalseKeyword) return false;
+  if (isIdentifier(expression)) {
+    const initializer = constInitializers.get(expression.text);
+    if (initializer === undefined || seen.has(expression.text)) {
+      return undefined;
+    }
+    const nextSeen = new Set(seen);
+    nextSeen.add(expression.text);
+    return evaluateStaticConfigPath(
+      initializer,
+      project,
+      file,
+      constInitializers,
+      nextSeen,
+    );
+  }
+  const call = importedCall(expression, project, "resolve", "node:path");
+  if (
+    call === undefined ||
+    call.arguments.length < 2 ||
+    !isImportMetaDirname(call.arguments[0])
+  ) {
+    return undefined;
+  }
+  const segments = call.arguments
+    .slice(1)
+    .map((argument) =>
+      evaluateStaticConfigPath(
+        argument,
+        project,
+        file,
+        constInitializers,
+        new Set(seen),
+      ),
+    );
+  if (segments.some((segment) => typeof segment !== "string")) {
+    return undefined;
+  }
+  return resolve(dirname(file), ...segments);
+}
+
 function trustedDesktopComputedImport(
   root,
   file,
@@ -869,33 +950,26 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
       );
     }
   }
-  for (const candidate of facts.pathResolveCalls) {
-    const call = importedCall(candidate, project, "resolve", "node:path");
-    if (
-      call === undefined ||
-      call.arguments.length < 2 ||
-      !isImportMetaDirname(call.arguments[0])
-    ) {
-      continue;
-    }
-    const segments = call.arguments
-      .slice(1)
-      .map((argument) => stringLiteralText(unwrapExpression(argument)));
-    if (segments.some((segment) => segment === undefined)) continue;
-    const target = resolve(dirname(file), ...segments);
-    const galleryRoot = join(root, "apps/ui-gallery");
-    if (
-      pathInside(target, galleryRoot) ||
-      (await realPathInside(target, galleryRoot))
-    ) {
-      violations.push(
-        `${relative(root, file)}: Desktop config path must not resolve into UI Gallery`,
-      );
-    }
-  }
   if (relative(root, file) === "apps/desktop/vite.config.ts") {
-    for (const { name, value } of facts.configPathLiterals) {
-      if (await referenceTargetsGallery(root, file, value)) {
+    for (const { initializer, name } of facts.configPathProperties) {
+      const value = evaluateStaticConfigPath(
+        initializer,
+        project,
+        file,
+        facts.constInitializers,
+      );
+      if (value === false && name === "publicDir") continue;
+      if (typeof value !== "string") {
+        violations.push(
+          `${relative(root, file)}: Desktop Vite ${name} path must be statically evaluable`,
+        );
+        continue;
+      }
+      const targetsGallery = isAbsolute(value)
+        ? pathInside(value, galleryRoot) ||
+          (await realPathInside(value, galleryRoot))
+        : await referenceTargetsGallery(root, file, value);
+      if (targetsGallery) {
         violations.push(
           `${relative(root, file)}: Desktop Vite ${name} path must not reference UI Gallery: ${value}`,
         );
@@ -931,6 +1005,296 @@ export async function desktopGalleryImportViolations(root = defaultRoot) {
   } finally {
     analysis.close();
   }
+}
+
+const BUILDER_RESOURCE_FIELDS = [
+  "files",
+  "asarUnpack",
+  "extraResources",
+  "extraFiles",
+];
+const BUILDER_PLATFORM_LEVELS = ["mac", "mas", "masDev", "win", "linux"];
+const FILE_SET_FIELDS = new Set(["filter", "from", "to"]);
+const SAFE_BUILDER_FILE_MACROS = new Set([
+  "arch",
+  "buildNumber",
+  "buildVersion",
+  "channel",
+  "name",
+  "os",
+  "platform",
+  "productName",
+  "version",
+]);
+
+function isOwnRecord(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function normalizeBuilderResource(value, field, path, violations) {
+  if (value === undefined || value === null) return [];
+  const entries = Array.isArray(value) ? value : [value];
+  const normalized = [];
+  for (const [index, entry] of entries.entries()) {
+    const entryPath = Array.isArray(value) ? `${path}[${index}]` : path;
+    if (typeof entry === "string") {
+      normalized.push({ path: entryPath, pattern: entry });
+      continue;
+    }
+    if (field === "asarUnpack" || !isOwnRecord(entry)) {
+      violations.push(
+        `${entryPath}: Desktop builder ${field} entry must be a string${field === "asarUnpack" ? "" : " or FileSet"}`,
+      );
+      continue;
+    }
+    const unknownFields = Object.keys(entry).filter(
+      (key) => !FILE_SET_FIELDS.has(key),
+    );
+    if (unknownFields.length > 0) {
+      violations.push(
+        `${entryPath}: Desktop builder FileSet has unknown fields: ${unknownFields.join(", ")}`,
+      );
+      continue;
+    }
+    if (entry.from !== undefined && typeof entry.from !== "string") {
+      violations.push(`${entryPath}.from: expected a string`);
+      continue;
+    }
+    if (entry.to !== undefined && typeof entry.to !== "string") {
+      violations.push(`${entryPath}.to: expected a string`);
+      continue;
+    }
+    const filters =
+      entry.filter === undefined
+        ? []
+        : Array.isArray(entry.filter)
+          ? entry.filter
+          : [entry.filter];
+    if (filters.some((filter) => typeof filter !== "string")) {
+      violations.push(`${entryPath}.filter: expected a string or string array`);
+      continue;
+    }
+    normalized.push({
+      filters,
+      from: entry.from ?? ".",
+      path: entryPath,
+    });
+  }
+  return normalized;
+}
+
+function builderPatternPrefix(
+  pattern,
+  projectDir,
+  appDir,
+  allowNegation = false,
+) {
+  let expanded = pattern.trim();
+  const negationLength = expanded.match(/^!+/u)?.[0].length ?? 0;
+  if (negationLength > 0) {
+    if (!allowNegation || negationLength !== 1) {
+      return { invalidNegation: true };
+    }
+    return { excluded: true };
+  }
+  let unknownMacro = false;
+  expanded = expanded.replace(/\$\{([_a-zA-Z./*+]+)\}/gu, (macro, name) => {
+    if (name === "projectDir") return projectDir;
+    if (name === "appDir") return appDir;
+    if (SAFE_BUILDER_FILE_MACROS.has(name)) {
+      return `__artemis_${name}_macro__`;
+    }
+    unknownMacro = true;
+    return macro;
+  });
+  if (unknownMacro || expanded.includes("${")) return { unknownMacro: true };
+  const wildcard = expanded.search(/[*?[\]{}]/u);
+  const prefix = wildcard === -1 ? expanded : expanded.slice(0, wildcard);
+  return { prefix: prefix.replace(/[\\/]+$/u, "") };
+}
+
+async function builderPatternTargetsGallery(
+  root,
+  base,
+  pattern,
+  projectDir,
+  appDir,
+  allowNegation = false,
+) {
+  const { excluded, invalidNegation, prefix, unknownMacro } =
+    builderPatternPrefix(pattern, projectDir, appDir, allowNegation);
+  if (excluded) return false;
+  if (unknownMacro || invalidNegation) return undefined;
+  if (prefix === undefined || prefix.length === 0 || prefix === ".")
+    return false;
+  const target = isAbsolute(prefix) ? resolve(prefix) : resolve(base, prefix);
+  const galleryRoot = join(root, "apps/ui-gallery");
+  return (
+    pathInside(target, galleryRoot) ||
+    (await realPathInside(target, galleryRoot))
+  );
+}
+
+async function builderResourceViolations(root, desktop) {
+  const violations = [];
+  const projectDir = join(root, "apps/desktop");
+  const configuredAppDir = desktop.build?.directories?.app;
+  if (
+    configuredAppDir !== undefined &&
+    configuredAppDir !== null &&
+    typeof configuredAppDir !== "string"
+  ) {
+    violations.push(
+      "apps/desktop/package.json: build.directories.app must be a string",
+    );
+  }
+  const configuredAppPrefix =
+    typeof configuredAppDir === "string"
+      ? builderPatternPrefix(configuredAppDir, projectDir, projectDir)
+      : undefined;
+  if (
+    configuredAppPrefix?.unknownMacro ||
+    configuredAppPrefix?.invalidNegation
+  ) {
+    violations.push(
+      "apps/desktop/package.json: build.directories.app contains an unsupported macro or negation",
+    );
+  }
+  const appDir =
+    configuredAppPrefix?.prefix !== undefined &&
+    configuredAppPrefix.prefix.length > 0
+      ? resolve(projectDir, configuredAppPrefix.prefix)
+      : projectDir;
+  if (pathInside(appDir, join(root, "apps/ui-gallery"))) {
+    violations.push(
+      "apps/desktop/package.json: build.directories.app must not reference Gallery",
+    );
+  }
+  const levels = [
+    ["build", desktop.build],
+    ...BUILDER_PLATFORM_LEVELS.map((name) => [
+      `build.${name}`,
+      desktop.build?.[name],
+    ]),
+  ];
+  for (const [levelPath, level] of levels) {
+    if (level === undefined || level === null) continue;
+    if (!isOwnRecord(level)) {
+      violations.push(
+        `apps/desktop/package.json: ${levelPath} must be an object`,
+      );
+      continue;
+    }
+    for (const field of BUILDER_RESOURCE_FIELDS) {
+      const fieldPath = `apps/desktop/package.json: ${levelPath}.${field}`;
+      const entries = normalizeBuilderResource(
+        level[field],
+        field,
+        fieldPath,
+        violations,
+      );
+      const base =
+        field === "files" || field === "asarUnpack" ? appDir : projectDir;
+      for (const entry of entries) {
+        if (entry.pattern !== undefined) {
+          const targetsGallery = await builderPatternTargetsGallery(
+            root,
+            base,
+            entry.pattern,
+            projectDir,
+            appDir,
+            true,
+          );
+          if (targetsGallery === undefined) {
+            violations.push(`${entry.path}: unsupported file macro`);
+          } else if (targetsGallery) {
+            violations.push(
+              `${entry.path}: Desktop builder ${field} pattern must not reference Gallery: ${entry.pattern}`,
+            );
+          }
+          continue;
+        }
+        const fromTargetsGallery = await builderPatternTargetsGallery(
+          root,
+          base,
+          entry.from,
+          projectDir,
+          appDir,
+        );
+        if (fromTargetsGallery === undefined) {
+          violations.push(`${entry.path}.from: unsupported file macro`);
+          continue;
+        }
+        if (fromTargetsGallery) {
+          violations.push(
+            `${entry.path}.from: Desktop builder FileSet must not reference Gallery: ${entry.from}`,
+          );
+        }
+        const fromPrefix = builderPatternPrefix(
+          entry.from,
+          projectDir,
+          appDir,
+        ).prefix;
+        const filterBase =
+          fromPrefix === undefined || fromPrefix.length === 0
+            ? base
+            : isAbsolute(fromPrefix)
+              ? resolve(fromPrefix)
+              : resolve(base, fromPrefix);
+        for (const filter of entry.filters) {
+          const filterTargetsGallery = await builderPatternTargetsGallery(
+            root,
+            filterBase,
+            filter,
+            projectDir,
+            appDir,
+            true,
+          );
+          if (filterTargetsGallery === undefined) {
+            violations.push(`${entry.path}.filter: unsupported file macro`);
+          } else if (filterTargetsGallery) {
+            violations.push(
+              `${entry.path}.filter: Desktop builder FileSet must not reference Gallery: ${filter}`,
+            );
+          }
+        }
+      }
+    }
+  }
+  for (const [name, value] of [
+    ["build.directories.output", desktop.build?.directories?.output],
+    [
+      "build.directories.buildResources",
+      desktop.build?.directories?.buildResources,
+    ],
+  ]) {
+    if (value === undefined || value === null) continue;
+    if (typeof value !== "string") {
+      violations.push(`apps/desktop/package.json: ${name} must be a string`);
+      continue;
+    }
+    const targetsGallery = await builderPatternTargetsGallery(
+      root,
+      projectDir,
+      value,
+      projectDir,
+      appDir,
+    );
+    if (targetsGallery === undefined) {
+      violations.push(
+        `apps/desktop/package.json: ${name} contains an unsupported file macro`,
+      );
+    } else if (targetsGallery) {
+      violations.push(
+        `apps/desktop/package.json: ${name} must not reference Gallery: ${value}`,
+      );
+    }
+  }
+  return violations;
 }
 
 async function manifestViolations(root) {
@@ -999,29 +1363,7 @@ async function manifestViolations(root) {
       "apps/desktop/package.json: Desktop must not depend on Gallery",
     );
   }
-  const desktopRoot = join(root, "apps/desktop");
-  const pathReferences = [
-    ...(desktop.build?.files ?? []),
-    ...(desktop.build?.asarUnpack ?? []),
-    ...(desktop.build?.extraResources ?? []).map((entry) => entry?.from),
-    desktop.build?.directories?.output,
-    desktop.build?.directories?.buildResources,
-  ].filter((value) => typeof value === "string");
-  for (const reference of pathReferences) {
-    const normalized = reference.replace(/^!/u, "").split(/[?*[{]/u)[0];
-    if (
-      normalized.length > 0 &&
-      (await referenceTargetsGallery(
-        root,
-        join(desktopRoot, "package.json"),
-        normalized,
-      ))
-    ) {
-      violations.push(
-        `apps/desktop/package.json: Desktop build path must not reference Gallery: ${reference}`,
-      );
-    }
-  }
+  violations.push(...(await builderResourceViolations(root, desktop)));
   return violations;
 }
 

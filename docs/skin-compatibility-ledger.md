@@ -86,10 +86,11 @@ callback order/count.
 
 The accessible-name floor requires the v1 `label` prop to remain a required
 static string in the public contract. `ConformanceProbe` rejects labels made
-only of Unicode whitespace and Default-Ignorable format/control characters
-before producing DOM, while retaining Chinese, combining marks, and emoji with
-perceptible content. The Gallery's same default/stress ARIA behavior runner
-proves both the rejection and the positive accessible name. The contract is
+only of Unicode whitespace, Default-Ignorable characters, and Unicode Control
+(`Cc`) code points before producing DOM, while retaining Chinese, combining
+marks, and emoji with perceptible content. The Gallery's same default/stress
+ARIA behavior runner proves both the rejection and the positive accessible
+name. The contract is
 deep-frozen at runtime; its validator also requires the `value` and
 `defaultValue` control props to remain non-required and preserves original
 array indexes in issue paths. The Probe rejects simultaneous defined
@@ -109,13 +110,30 @@ exact six-selector Gallery-only allowlist. Twenty-one formal artifact fixtures
 exercise these layer, root-node, public/theme-block, and Gallery-block rejection
 paths.
 
-Gallery isolation covers Desktop TypeScript/Vite configuration, CSS imports
-and URLs, HTML `src`/`href`/`srcset`, structured build-resource paths, and final
-Desktop output signatures. Its boundary fixtures currently prove nine safe
-cases and reject 46 cross-boundary cases. The final Gallery `index.html` gate
-parses every resource attribute and rejects seven remote, absolute, extra, or
-`srcset` resource fixtures while requiring the exact emitted local module and
-stylesheet assets.
+Gallery isolation covers Desktop TypeScript/Vite configuration, CSS imports,
+URLs and `image-set()` string candidates, HTML `src`/`href`/`srcset`, and
+structured electron-builder resources. Vite path properties accept only
+statically resolved literals, const chains, and imported `node:path.resolve`
+calls rooted at `import.meta.dirname`; unknown dynamic values fail closed. The
+builder normalizer covers string and `FileSet` forms for `files`, `asarUnpack`,
+`extraResources`, and `extraFiles` across build, macOS/MAS, Windows, and Linux
+levels with their documented app/project directory bases. Official
+path-safe file macros such as `${os}`, `${platform}`, `${arch}`, product/version
+identifiers, and channel are treated as bounded path segments; environment and
+unknown macros fail closed. Leading `!` exclusion patterns do not import their
+target, while negation remains forbidden for `appDir` and `FileSet.from`. Its
+fixtures prove 17 safe cases and reject 62 cross-boundary cases.
+
+The Gallery build is explicitly single-page: exactly one `index.html`, with the
+exact emitted local module and stylesheet assets. Eight HTML artifact fixtures
+reject remote, absolute, extra-resource, `srcset`, and additional-page cases.
+Final Desktop renderer files are all traversed; CSS selectors, at-rules and
+resources are structurally parsed, HTML attributes/resources and JS markers
+use exact private identities, and non-script files are compared only against
+non-empty, path-identifiable Gallery static assets. Six formal artifact
+fixtures cover those paths while allowing ordinary text and URLs such as
+`docs.gallery-example`. This is a static configuration and renderer-build
+boundary; it is not evidence that a final installer/package was inspected.
 
 The Probe structural stylesheet is parsed with PostCSS and compared against an
 exact selector/property/value allowlist. Its consumed `--artemis-*` token set
