@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "component": "conformance-probe",
+  "skins": {
+    "default": [
+      "anatomy",
+      "aria-relations",
+      "finite-states",
+      "controlled-boundary",
+      "ime-enter",
+      "callback-order",
+      "action-policy",
+      "rtl-inheritance"
+    ],
+    "stress": [
+      "anatomy",
+      "aria-relations",
+      "finite-states",
+      "controlled-boundary",
+      "ime-enter",
+      "callback-order",
+      "action-policy",
+      "rtl-inheritance"
+    ]
+  },
+  "switchCases": [
+    "same-node",
+    "same-anatomy",
+    "same-aria",
+    "value-preserved",
+    "selection-preserved",
+    "focus-preserved"
+  ]
+}

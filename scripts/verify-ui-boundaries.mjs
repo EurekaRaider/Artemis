@@ -4,19 +4,27 @@ import {
   extname,
   isAbsolute,
   join,
+  posix,
   relative,
   resolve,
   sep,
 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { parse as parseCssValue, walk as walkCssValue } from "css-tree";
+import { parse as parseHtml } from "parse5";
+import postcss from "postcss";
+import { Minimatch } from "minimatch";
+import { sanitizeFileName } from "builder-util/out/filename.js";
 import { API } from "typescript/unstable/sync";
 import {
   NodeFlags,
   SyntaxKind,
+  isArrayLiteralExpression,
   isAssertionExpression,
   isCallExpression,
   isComputedPropertyName,
   isElementAccessExpression,
+  isExportAssignment,
   isExportDeclaration,
   isExternalModuleReference,
   isIdentifier,
@@ -26,24 +34,42 @@ import {
   isMetaProperty,
   isNoSubstitutionTemplateLiteral,
   isNonNullExpression,
+  isObjectLiteralExpression,
   isObjectBindingPattern,
   isParenthesizedExpression,
   isPropertyAccessExpression,
+  isPropertyAssignment,
   isSatisfiesExpression,
+  isShorthandPropertyAssignment,
+  isSpreadAssignment,
   isStringLiteral,
   isVariableDeclaration,
+  createScanner,
 } from "typescript/unstable/ast";
 
 const defaultRoot = fileURLToPath(new URL("../", import.meta.url));
 const SOURCE_EXTENSIONS = new Set([
   ".css",
+  ".cjs",
+  ".cts",
+  ".html",
   ".js",
   ".jsx",
   ".mjs",
+  ".mts",
   ".ts",
   ".tsx",
 ]);
-const SCRIPT_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".ts", ".tsx"]);
+const SCRIPT_EXTENSIONS = new Set([
+  ".cjs",
+  ".cts",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".mts",
+  ".ts",
+  ".tsx",
+]);
 const FORBIDDEN_ARTEMIS_PACKAGES = new Set([
   "@artemis/agent-host",
   "@artemis/desktop",
@@ -211,6 +237,7 @@ export function collectTypeScriptReferences(sourceFile) {
   const moduleReferences = [];
   const bridgeAccesses = [];
   const computedDynamicImports = [];
+  const constInitializers = new Map();
   const globalIdentifiers = [];
   let usesRequire = false;
 
@@ -222,6 +249,17 @@ export function collectTypeScriptReferences(sourceFile) {
   };
 
   const visit = (node) => {
+    if (
+      isVariableDeclaration(node) &&
+      isIdentifier(node.name) &&
+      node.initializer !== undefined &&
+      (node.parent.flags & NodeFlags.Const) !== 0
+    ) {
+      constInitializers.set(
+        node.name.text,
+        constInitializers.has(node.name.text) ? undefined : node.initializer,
+      );
+    }
     if (isImportDeclaration(node) && node.moduleSpecifier !== undefined) {
       addReference(node.moduleSpecifier, "import");
     } else if (
@@ -314,6 +352,7 @@ export function collectTypeScriptReferences(sourceFile) {
   visit(sourceFile);
   return {
     bridgeAccesses,
+    constInitializers,
     computedDynamicImports,
     globalIdentifiers,
     moduleReferences,
@@ -338,6 +377,7 @@ function createTypeScriptAnalysis(root, files) {
       return {
         facts: collectTypeScriptReferences(sourceFile),
         project,
+        sourceFile,
       };
     },
   };
@@ -422,6 +462,335 @@ function pathInside(path, directory) {
     normalizedPath === normalizedDirectory ||
     normalizedPath.startsWith(`${normalizedDirectory}${sep}`)
   );
+}
+
+export function htmlElements(source) {
+  const document = parseHtml(source);
+  const elements = [];
+  const visit = (node) => {
+    if (Array.isArray(node.attrs)) {
+      elements.push({
+        attributes: Object.fromEntries(
+          node.attrs.map((entry) => [entry.name, entry.value]),
+        ),
+        content: (node.childNodes ?? [])
+          .filter((child) => child.nodeName === "#text")
+          .map((child) => child.value ?? "")
+          .join(""),
+        tagName: node.tagName,
+      });
+    }
+    for (const child of node.childNodes ?? []) visit(child);
+    if (node.content !== undefined) visit(node.content);
+  };
+  visit(document);
+  return elements;
+}
+
+function scriptTokens(source) {
+  const scanner = createScanner(true, undefined, source);
+  const tokens = [];
+  const templateBraceDepth = [];
+  for (
+    let kind = scanner.scan();
+    kind !== SyntaxKind.EndOfFile;
+    kind = scanner.scan()
+  ) {
+    if (kind === SyntaxKind.CloseBraceToken && templateBraceDepth.length > 0) {
+      const templateIndex = templateBraceDepth.length - 1;
+      if (templateBraceDepth[templateIndex] === 0) {
+        kind = scanner.reScanTemplateToken(false);
+        if (kind === SyntaxKind.TemplateTail) templateBraceDepth.pop();
+      } else {
+        templateBraceDepth[templateIndex] -= 1;
+      }
+    } else if (
+      kind === SyntaxKind.OpenBraceToken &&
+      templateBraceDepth.length > 0
+    ) {
+      templateBraceDepth[templateBraceDepth.length - 1] += 1;
+    } else if (kind === SyntaxKind.TemplateHead) {
+      templateBraceDepth.push(0);
+    }
+    tokens.push({
+      kind,
+      value: scanner.getTokenValue(),
+    });
+    if (scanner.isUnterminated()) {
+      return { invalid: true, tokens };
+    }
+  }
+  return { invalid: false, tokens };
+}
+
+function staticScriptString(token) {
+  return token?.kind === SyntaxKind.StringLiteral ||
+    token?.kind === SyntaxKind.NoSubstitutionTemplateLiteral
+    ? token.value
+    : undefined;
+}
+
+export function scriptModuleReferences(source) {
+  const result = scriptTokens(source);
+  const references = [];
+  let computed = false;
+  const { tokens } = result;
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token.kind === SyntaxKind.ImportKeyword) {
+      if (tokens[index + 1]?.kind === SyntaxKind.DotToken) continue;
+      if (tokens[index + 1]?.kind === SyntaxKind.OpenParenToken) {
+        const reference = staticScriptString(tokens[index + 2]);
+        if (
+          reference === undefined ||
+          tokens[index + 3]?.kind !== SyntaxKind.CloseParenToken
+        ) {
+          computed = true;
+        } else {
+          references.push(reference);
+        }
+        continue;
+      }
+      for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
+        if (tokens[cursor].kind === SyntaxKind.SemicolonToken) break;
+        const reference = staticScriptString(tokens[cursor]);
+        if (reference !== undefined) {
+          references.push(reference);
+          break;
+        }
+      }
+      continue;
+    }
+    if (token.kind === SyntaxKind.ExportKeyword) {
+      for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
+        if (tokens[cursor].kind === SyntaxKind.SemicolonToken) break;
+        if (tokens[cursor].kind !== SyntaxKind.FromKeyword) continue;
+        const reference = staticScriptString(tokens[cursor + 1]);
+        if (reference === undefined) computed = true;
+        else references.push(reference);
+        break;
+      }
+      continue;
+    }
+    if (
+      token.kind === SyntaxKind.RequireKeyword &&
+      tokens[index + 1]?.kind === SyntaxKind.OpenParenToken
+    ) {
+      const reference = staticScriptString(tokens[index + 2]);
+      if (
+        reference === undefined ||
+        tokens[index + 3]?.kind !== SyntaxKind.CloseParenToken
+      ) {
+        computed = true;
+      } else {
+        references.push(reference);
+      }
+    }
+  }
+  return { computed, invalid: result.invalid, references };
+}
+
+const JAVASCRIPT_MIME_ESSENCES = new Set([
+  "application/ecmascript",
+  "application/javascript",
+  "application/x-ecmascript",
+  "application/x-javascript",
+  "text/ecmascript",
+  "text/javascript",
+  "text/javascript1.0",
+  "text/javascript1.1",
+  "text/javascript1.2",
+  "text/javascript1.3",
+  "text/javascript1.4",
+  "text/javascript1.5",
+  "text/jscript",
+  "text/livescript",
+  "text/x-ecmascript",
+  "text/x-javascript",
+]);
+
+function scriptIsExecutable(attributes) {
+  const type = attributes.type?.trim().toLowerCase();
+  return (
+    type === undefined ||
+    type === "" ||
+    type === "module" ||
+    JAVASCRIPT_MIME_ESSENCES.has(type.split(";", 1)[0]?.trim() ?? "")
+  );
+}
+
+export function htmlInlineResources(source, from) {
+  const scripts = [];
+  const styles = [];
+  for (const element of htmlElements(source)) {
+    if (
+      element.tagName === "script" &&
+      element.attributes.src === undefined &&
+      scriptIsExecutable(element.attributes) &&
+      element.content.length > 0
+    ) {
+      scripts.push({
+        content: element.content,
+        ...scriptModuleReferences(element.content),
+      });
+    }
+    if (
+      element.tagName === "style" &&
+      (element.attributes.type === undefined ||
+        element.attributes.type.trim().toLowerCase() === "text/css") &&
+      element.content.length > 0
+    ) {
+      styles.push({
+        content: element.content,
+        references: cssResourceReferences(element.content, from),
+      });
+    }
+    const styleAttribute = element.attributes.style;
+    if (styleAttribute !== undefined) {
+      const content = `.artemis-inline-style { ${styleAttribute} }`;
+      styles.push({
+        content,
+        references: cssResourceReferences(content, from),
+      });
+    }
+  }
+  return { scripts, styles };
+}
+
+export function htmlResourceReferences(source) {
+  const references = [];
+  for (const element of htmlElements(source)) {
+    for (const [name, value] of Object.entries(element.attributes)) {
+      const attribute = { name, value };
+      if (attribute.name === "src" || attribute.name === "href") {
+        references.push({
+          attribute: attribute.name,
+          attributes: element.attributes,
+          reference: attribute.value,
+          tagName: element.tagName,
+        });
+      } else if (attribute.name === "srcset") {
+        for (const candidate of attribute.value.split(",")) {
+          const reference = candidate.trim().split(/\s+/u)[0];
+          if (reference !== undefined && reference.length > 0) {
+            references.push({
+              attribute: attribute.name,
+              attributes: element.attributes,
+              reference,
+              tagName: element.tagName,
+            });
+          }
+        }
+      }
+    }
+  }
+  return references;
+}
+
+function cssValueReferences(value, includeStrings) {
+  const references = [];
+  const ast = parseCssValue(value, { context: "value" });
+  walkCssValue(ast, {
+    enter(node) {
+      const containingFunction = this.function?.name?.toLowerCase();
+      const imageSetString =
+        node.type === "String" &&
+        (containingFunction === "image-set" ||
+          containingFunction === "-webkit-image-set");
+      if (
+        node.type === "Url" ||
+        (node.type === "String" && includeStrings) ||
+        imageSetString
+      ) {
+        references.push(node.value);
+      }
+    },
+  });
+  return references;
+}
+
+export function cssResourceReferences(source, from) {
+  const parsed = postcss.parse(source, { from });
+  const references = [];
+  parsed.walkAtRules("import", (rule) => {
+    references.push(...cssValueReferences(rule.params, true));
+  });
+  parsed.walkDecls((declaration) => {
+    references.push(...cssValueReferences(declaration.value, false));
+  });
+  return references;
+}
+
+function localReferenceTarget(root, from, reference) {
+  const trimmed = reference.trim();
+  if (
+    trimmed.length === 0 ||
+    trimmed.startsWith("#") ||
+    trimmed.startsWith("//") ||
+    /^[a-z][a-z0-9+.-]*:/iu.test(trimmed)
+  ) {
+    return undefined;
+  }
+  const withoutQuery = trimmed.split(/[?#]/u)[0];
+  if (withoutQuery === undefined || withoutQuery.length === 0) return undefined;
+  return withoutQuery.startsWith("/")
+    ? resolve(root, "apps/desktop", `.${withoutQuery}`)
+    : resolve(dirname(from), withoutQuery);
+}
+
+export async function referenceTargetsGallery(root, from, reference) {
+  const target = localReferenceTarget(root, from, reference);
+  if (target === undefined) return false;
+  const galleryRoot = join(root, "apps/ui-gallery");
+  return (
+    pathInside(target, galleryRoot) ||
+    (await realPathInside(target, galleryRoot))
+  );
+}
+
+async function inspectDesktopResourceFile(root, file) {
+  const source = await readFile(file, "utf8");
+  const isCss = extname(file) === ".css";
+  const inline = isCss ? undefined : htmlInlineResources(source, file);
+  const references = isCss
+    ? cssResourceReferences(source, file).map((reference) => ({
+        attribute: "CSS reference",
+        reference,
+      }))
+    : [
+        ...htmlResourceReferences(source),
+        ...(inline?.styles ?? []).flatMap((style) =>
+          style.references.map((reference) => ({
+            attribute: "inline CSS reference",
+            reference,
+          })),
+        ),
+        ...(inline?.scripts ?? []).flatMap((script) =>
+          script.references.map((reference) => ({
+            attribute: "inline script module reference",
+            reference,
+          })),
+        ),
+      ];
+  const violations = [];
+  if (
+    inline?.scripts.some((script) => script.computed || script.invalid) === true
+  ) {
+    violations.push(
+      `${relative(root, file)}: Desktop inline script module references must be static`,
+    );
+  }
+  for (const { attribute, reference } of references) {
+    if (
+      reference === "@artemis/ui/conformance" ||
+      (await referenceTargetsGallery(root, file, reference))
+    ) {
+      violations.push(
+        `${relative(root, file)}: Desktop ${attribute} must not reference UI Gallery: ${reference}`,
+      );
+    }
+  }
+  return violations;
 }
 
 async function realPathInside(path, directory) {
@@ -563,6 +932,557 @@ function isImportMetaResolveCall(node) {
     : undefined;
 }
 
+function isImportMetaDirname(node) {
+  const expression = unwrapExpression(node);
+  if (
+    !isPropertyAccessExpression(expression) ||
+    expression.name.text !== "dirname"
+  ) {
+    return false;
+  }
+  const target = unwrapExpression(expression.expression);
+  return (
+    isMetaProperty(target) &&
+    target.keywordToken === SyntaxKind.ImportKeyword &&
+    target.name.text === "meta"
+  );
+}
+
+function evaluateStaticConfigPath(
+  node,
+  project,
+  file,
+  constInitializers,
+  seen = new Set(),
+) {
+  const expression = unwrapExpression(node);
+  const literal = stringLiteralText(expression);
+  if (literal !== undefined) return literal;
+  if (expression.kind === SyntaxKind.FalseKeyword) return false;
+  if (isIdentifier(expression)) {
+    const initializer = constInitializers.get(expression.text);
+    if (initializer === undefined || seen.has(expression.text)) {
+      return undefined;
+    }
+    const nextSeen = new Set(seen);
+    nextSeen.add(expression.text);
+    return evaluateStaticConfigPath(
+      initializer,
+      project,
+      file,
+      constInitializers,
+      nextSeen,
+    );
+  }
+  const call = importedCall(expression, project, "resolve", "node:path");
+  if (
+    call === undefined ||
+    call.arguments.length < 2 ||
+    !isImportMetaDirname(call.arguments[0])
+  ) {
+    return undefined;
+  }
+  const segments = call.arguments
+    .slice(1)
+    .map((argument) =>
+      evaluateStaticConfigPath(
+        argument,
+        project,
+        file,
+        constInitializers,
+        new Set(seen),
+      ),
+    );
+  if (segments.some((segment) => typeof segment !== "string")) {
+    return undefined;
+  }
+  return resolve(dirname(file), ...segments);
+}
+
+function staticConfigObject(
+  node,
+  project,
+  file,
+  constInitializers,
+  seen = new Set(),
+) {
+  const expression = unwrapExpression(node);
+  if (isObjectLiteralExpression(expression)) return expression;
+  if (isIdentifier(expression)) {
+    const initializer = constInitializers.get(expression.text);
+    if (initializer === undefined || seen.has(expression.text))
+      return undefined;
+    const nextSeen = new Set(seen);
+    nextSeen.add(expression.text);
+    return staticConfigObject(
+      initializer,
+      project,
+      file,
+      constInitializers,
+      nextSeen,
+    );
+  }
+  const defineConfig = importedCall(
+    expression,
+    project,
+    "defineConfig",
+    "vite",
+  );
+  return defineConfig?.arguments.length === 1
+    ? staticConfigObject(
+        defineConfig.arguments[0],
+        project,
+        file,
+        constInitializers,
+        seen,
+      )
+    : undefined;
+}
+
+function staticConfigArray(node, constInitializers, seen = new Set()) {
+  const expression = unwrapExpression(node);
+  if (isArrayLiteralExpression(expression)) return expression;
+  if (!isIdentifier(expression)) return undefined;
+  const initializer = constInitializers.get(expression.text);
+  if (initializer === undefined || seen.has(expression.text)) return undefined;
+  const nextSeen = new Set(seen);
+  nextSeen.add(expression.text);
+  return staticConfigArray(initializer, constInitializers, nextSeen);
+}
+
+function staticObjectProperty(object, name) {
+  let initializer;
+  let count = 0;
+  let hasSpread = false;
+  for (const property of object.properties) {
+    if (isSpreadAssignment(property)) {
+      hasSpread = true;
+      continue;
+    }
+    if (
+      !isPropertyAssignment(property) &&
+      !isShorthandPropertyAssignment(property)
+    ) {
+      continue;
+    }
+    const propertyName = isIdentifier(property.name)
+      ? property.name.text
+      : stringLiteralText(property.name);
+    if (propertyName !== name) continue;
+    count += 1;
+    initializer = isPropertyAssignment(property)
+      ? property.initializer
+      : property.name;
+  }
+  return { count, hasSpread, initializer };
+}
+
+function nestedStaticConfigObject(
+  parent,
+  name,
+  project,
+  file,
+  constInitializers,
+) {
+  const property = staticObjectProperty(parent, name);
+  if (property.hasSpread || property.count > 1) return { invalid: true };
+  if (property.count === 0) return { object: undefined };
+  const object = staticConfigObject(
+    property.initializer,
+    project,
+    file,
+    constInitializers,
+  );
+  return object === undefined ? { invalid: true } : { object };
+}
+
+function staticPathList(
+  node,
+  project,
+  file,
+  constInitializers,
+  seen = new Set(),
+) {
+  const expression = unwrapExpression(node);
+  const direct = evaluateStaticConfigPath(
+    expression,
+    project,
+    file,
+    constInitializers,
+    seen,
+  );
+  if (typeof direct === "string") return [direct];
+  if (isIdentifier(expression)) {
+    const initializer = constInitializers.get(expression.text);
+    if (initializer === undefined || seen.has(expression.text))
+      return undefined;
+    const nextSeen = new Set(seen);
+    nextSeen.add(expression.text);
+    return staticPathList(
+      initializer,
+      project,
+      file,
+      constInitializers,
+      nextSeen,
+    );
+  }
+  if (isArrayLiteralExpression(expression)) {
+    const values = [];
+    for (const element of expression.elements) {
+      const nested = staticPathList(
+        element,
+        project,
+        file,
+        constInitializers,
+        new Set(seen),
+      );
+      if (nested === undefined) return undefined;
+      values.push(...nested);
+    }
+    return values;
+  }
+  const object = staticConfigObject(
+    expression,
+    project,
+    file,
+    constInitializers,
+    seen,
+  );
+  if (object === undefined) return undefined;
+  const values = [];
+  for (const property of object.properties) {
+    if (
+      !isPropertyAssignment(property) ||
+      isComputedPropertyName(property.name)
+    ) {
+      return undefined;
+    }
+    const nested = staticPathList(
+      property.initializer,
+      project,
+      file,
+      constInitializers,
+      new Set(seen),
+    );
+    if (nested === undefined) return undefined;
+    values.push(...nested);
+  }
+  return values;
+}
+
+async function pathsOverlapGallery(path, galleryRoot) {
+  if (pathInside(path, galleryRoot) || pathInside(galleryRoot, path))
+    return true;
+  try {
+    const [realTarget, realGallery] = await Promise.all([
+      realpath(path),
+      realpath(galleryRoot),
+    ]);
+    return (
+      pathInside(realTarget, realGallery) || pathInside(realGallery, realTarget)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function configIssue(violations, root, file, message) {
+  violations.push(`${relative(root, file)}: Desktop Vite ${message}`);
+}
+
+async function inspectDesktopViteConfig(root, file, analysisResult) {
+  const violations = [];
+  const galleryRoot = join(root, "apps/ui-gallery");
+  const workspaceRoot = dirname(file);
+  const { facts, project, sourceFile } = analysisResult;
+  const exports = sourceFile.statements.filter(isExportAssignment);
+  if (exports.length !== 1) {
+    configIssue(
+      violations,
+      root,
+      file,
+      "configuration must have exactly one static default export",
+    );
+    return violations;
+  }
+  const config = staticConfigObject(
+    exports[0].expression,
+    project,
+    file,
+    facts.constInitializers,
+  );
+  if (config === undefined) {
+    configIssue(
+      violations,
+      root,
+      file,
+      "configuration must resolve to one static object",
+    );
+    return violations;
+  }
+
+  const rootProperty = staticObjectProperty(config, "root");
+  if (rootProperty.hasSpread || rootProperty.count > 1) {
+    configIssue(violations, root, file, "root must be unique and static");
+    return violations;
+  }
+  const configuredRoot =
+    rootProperty.count === 0
+      ? undefined
+      : evaluateStaticConfigPath(
+          rootProperty.initializer,
+          project,
+          file,
+          facts.constInitializers,
+        );
+  if (rootProperty.count === 1 && typeof configuredRoot !== "string") {
+    configIssue(
+      violations,
+      root,
+      file,
+      "root path must be statically evaluable",
+    );
+    return violations;
+  }
+  const effectiveRoot =
+    configuredRoot === undefined || configuredRoot.length === 0
+      ? workspaceRoot
+      : resolve(workspaceRoot, configuredRoot);
+  if (await pathsOverlapGallery(effectiveRoot, galleryRoot)) {
+    configIssue(
+      violations,
+      root,
+      file,
+      `root must not overlap UI Gallery: ${configuredRoot ?? "."}`,
+    );
+    return violations;
+  }
+
+  const checkProperty = async (
+    object,
+    name,
+    base,
+    { allowFalse = false, fallback } = {},
+  ) => {
+    const property = staticObjectProperty(object, name);
+    if (property.hasSpread || property.count > 1) {
+      configIssue(violations, root, file, `${name} must be unique and static`);
+      return undefined;
+    }
+    let value =
+      property.count === 0
+        ? fallback
+        : evaluateStaticConfigPath(
+            property.initializer,
+            project,
+            file,
+            facts.constInitializers,
+          );
+    if (allowFalse && value === false) return false;
+    if (typeof value !== "string") {
+      configIssue(
+        violations,
+        root,
+        file,
+        `${name} path must be statically evaluable`,
+      );
+      return undefined;
+    }
+    const target = isAbsolute(value) ? resolve(value) : resolve(base, value);
+    if (await pathsOverlapGallery(target, galleryRoot)) {
+      configIssue(
+        violations,
+        root,
+        file,
+        `${name} path must not overlap UI Gallery: ${value}`,
+      );
+    }
+    return target;
+  };
+
+  await checkProperty(config, "publicDir", effectiveRoot, {
+    allowFalse: true,
+    fallback: "public",
+  });
+  await checkProperty(config, "envDir", effectiveRoot, { fallback: "." });
+  await checkProperty(config, "cacheDir", effectiveRoot, {
+    fallback: "node_modules/.vite",
+  });
+
+  const buildResult = nestedStaticConfigObject(
+    config,
+    "build",
+    project,
+    file,
+    facts.constInitializers,
+  );
+  if (buildResult.invalid) {
+    configIssue(violations, root, file, "build configuration must be static");
+  } else {
+    const build = buildResult.object;
+    const outDir =
+      build === undefined
+        ? resolve(effectiveRoot, "dist")
+        : await checkProperty(build, "outDir", effectiveRoot, {
+            fallback: "dist",
+          });
+    if (build !== undefined && typeof outDir === "string") {
+      await checkProperty(build, "assetsDir", outDir, { fallback: "assets" });
+      const rollupResult = nestedStaticConfigObject(
+        build,
+        "rollupOptions",
+        project,
+        file,
+        facts.constInitializers,
+      );
+      if (rollupResult.invalid) {
+        configIssue(
+          violations,
+          root,
+          file,
+          "build.rollupOptions must be static",
+        );
+      } else if (rollupResult.object !== undefined) {
+        const input = staticObjectProperty(rollupResult.object, "input");
+        if (input.hasSpread || input.count > 1) {
+          configIssue(
+            violations,
+            root,
+            file,
+            "build.rollupOptions.input must be unique and static",
+          );
+        } else if (input.count === 1) {
+          const values = staticPathList(
+            input.initializer,
+            project,
+            file,
+            facts.constInitializers,
+          );
+          if (values === undefined) {
+            configIssue(
+              violations,
+              root,
+              file,
+              "build.rollupOptions.input must be statically evaluable",
+            );
+          } else {
+            for (const value of values) {
+              const target = isAbsolute(value)
+                ? resolve(value)
+                : resolve(effectiveRoot, value);
+              if (await pathsOverlapGallery(target, galleryRoot)) {
+                configIssue(
+                  violations,
+                  root,
+                  file,
+                  `build.rollupOptions.input must not overlap UI Gallery: ${value}`,
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const resolveResult = nestedStaticConfigObject(
+    config,
+    "resolve",
+    project,
+    file,
+    facts.constInitializers,
+  );
+  if (resolveResult.invalid) {
+    configIssue(violations, root, file, "resolve configuration must be static");
+  } else if (resolveResult.object !== undefined) {
+    const alias = staticObjectProperty(resolveResult.object, "alias");
+    if (alias.hasSpread || alias.count > 1) {
+      configIssue(
+        violations,
+        root,
+        file,
+        "resolve.alias must be unique and static",
+      );
+    } else if (alias.count === 1) {
+      const aliasObject = staticConfigObject(
+        alias.initializer,
+        project,
+        file,
+        facts.constInitializers,
+      );
+      const aliasArray = staticConfigArray(
+        alias.initializer,
+        facts.constInitializers,
+      );
+      const replacements = [];
+      if (aliasObject !== undefined) {
+        for (const property of aliasObject.properties) {
+          if (!isPropertyAssignment(property)) {
+            replacements.push(undefined);
+            continue;
+          }
+          replacements.push(
+            evaluateStaticConfigPath(
+              property.initializer,
+              project,
+              file,
+              facts.constInitializers,
+            ),
+          );
+        }
+      } else if (aliasArray !== undefined) {
+        for (const element of aliasArray.elements) {
+          const aliasEntry = staticConfigObject(
+            element,
+            project,
+            file,
+            facts.constInitializers,
+          );
+          const replacement =
+            aliasEntry === undefined
+              ? { count: 0 }
+              : staticObjectProperty(aliasEntry, "replacement");
+          replacements.push(
+            replacement.count === 1 && !replacement.hasSpread
+              ? evaluateStaticConfigPath(
+                  replacement.initializer,
+                  project,
+                  file,
+                  facts.constInitializers,
+                )
+              : undefined,
+          );
+        }
+      } else {
+        replacements.push(undefined);
+      }
+      for (const replacement of replacements) {
+        if (typeof replacement !== "string") {
+          configIssue(
+            violations,
+            root,
+            file,
+            "resolve.alias replacement must be statically evaluable",
+          );
+          continue;
+        }
+        const target = isAbsolute(replacement)
+          ? resolve(replacement)
+          : resolve(effectiveRoot, replacement);
+        if (await pathsOverlapGallery(target, galleryRoot)) {
+          configIssue(
+            violations,
+            root,
+            file,
+            `resolve.alias replacement must not overlap UI Gallery: ${replacement}`,
+          );
+        }
+      }
+    }
+  }
+  return violations;
+}
+
 function trustedDesktopComputedImport(
   root,
   file,
@@ -660,7 +1580,8 @@ function trustedDesktopComputedImport(
 async function inspectDesktopGalleryImports(root, file, analysis) {
   const violations = [];
   const galleryRoot = join(root, "apps/ui-gallery");
-  const { facts, project } = analysis.file(file);
+  const analysisResult = analysis.file(file);
+  const { facts, project } = analysisResult;
   for (const reference of facts.moduleReferences) {
     const { specifier } = reference;
     const packageName = specifier.startsWith("@")
@@ -686,6 +1607,7 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
       }
     }
     if (
+      specifier === "@artemis/ui/conformance" ||
       packageName === "@artemis/ui-gallery" ||
       (relativeTarget !== undefined &&
         pathInside(relativeTarget, galleryRoot)) ||
@@ -693,7 +1615,7 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
       resolvedIntoGallery === true
     ) {
       violations.push(
-        `${relative(root, file)}: Desktop must not import UI Gallery: ${specifier}`,
+        `${relative(root, file)}: Desktop must not import test-only UI conformance or UI Gallery: ${specifier}`,
       );
     }
   }
@@ -706,12 +1628,20 @@ async function inspectDesktopGalleryImports(root, file, analysis) {
       );
     }
   }
+  if (relative(root, file) === "apps/desktop/vite.config.ts") {
+    violations.push(
+      ...(await inspectDesktopViteConfig(root, file, analysisResult)),
+    );
+  }
   return violations;
 }
 
 export async function desktopGalleryImportViolations(root = defaultRoot) {
   const desktopRoot = join(root, "apps/desktop/src");
-  const files = (await filesBelow(desktopRoot)).filter((file) =>
+  const desktopSourceFiles = await filesBelow(desktopRoot);
+  const configFile = join(root, "apps/desktop/vite.config.ts");
+  const htmlFile = join(root, "apps/desktop/index.html");
+  const files = [...desktopSourceFiles, configFile].filter((file) =>
     SCRIPT_EXTENSIONS.has(extname(file)),
   );
   const analysis = createTypeScriptAnalysis(root, files);
@@ -722,10 +1652,468 @@ export async function desktopGalleryImportViolations(root = defaultRoot) {
         ...(await inspectDesktopGalleryImports(root, file, analysis)),
       );
     }
+    for (const file of [
+      ...desktopSourceFiles.filter((file) => extname(file) === ".css"),
+      htmlFile,
+    ]) {
+      violations.push(...(await inspectDesktopResourceFile(root, file)));
+    }
     return violations;
   } finally {
     analysis.close();
   }
+}
+
+const BUILDER_RESOURCE_FIELDS = [
+  "files",
+  "asarUnpack",
+  "extraResources",
+  "extraFiles",
+];
+const BUILDER_PLATFORM_LEVELS = ["mac", "mas", "masDev", "win", "linux"];
+const FILE_SET_FIELDS = new Set(["filter", "from", "to"]);
+const BUILDER_ARCHES = ["ia32", "x64", "armv7l", "arm64", "universal"];
+const BUILDER_PLATFORMS = [
+  { os: "mac", platform: "darwin" },
+  { os: "win", platform: "win32" },
+  { os: "linux", platform: "linux" },
+];
+
+function isOwnRecord(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function normalizeBuilderResource(value, field, path, violations) {
+  if (value === undefined || value === null) return [];
+  const entries = Array.isArray(value) ? value : [value];
+  const normalized = [];
+  for (const [index, entry] of entries.entries()) {
+    const entryPath = Array.isArray(value) ? `${path}[${index}]` : path;
+    if (typeof entry === "string") {
+      normalized.push({ path: entryPath, pattern: entry });
+      continue;
+    }
+    if (field === "asarUnpack" || !isOwnRecord(entry)) {
+      violations.push(
+        `${entryPath}: Desktop builder ${field} entry must be a string${field === "asarUnpack" ? "" : " or FileSet"}`,
+      );
+      continue;
+    }
+    const unknownFields = Object.keys(entry).filter(
+      (key) => !FILE_SET_FIELDS.has(key),
+    );
+    if (unknownFields.length > 0) {
+      violations.push(
+        `${entryPath}: Desktop builder FileSet has unknown fields: ${unknownFields.join(", ")}`,
+      );
+      continue;
+    }
+    if (entry.from !== undefined && typeof entry.from !== "string") {
+      violations.push(`${entryPath}.from: expected a string`);
+      continue;
+    }
+    if (entry.to !== undefined && typeof entry.to !== "string") {
+      violations.push(`${entryPath}.to: expected a string`);
+      continue;
+    }
+    const filters =
+      entry.filter === undefined
+        ? []
+        : Array.isArray(entry.filter)
+          ? entry.filter
+          : [entry.filter];
+    if (filters.some((filter) => typeof filter !== "string")) {
+      violations.push(`${entryPath}.filter: expected a string or string array`);
+      continue;
+    }
+    normalized.push({
+      filters,
+      from: entry.from ?? ".",
+      path: entryPath,
+    });
+  }
+  return normalized;
+}
+
+function builderMacroMetadata(rootManifest, desktop) {
+  const config = desktop.build ?? {};
+  const version = desktop.version ?? rootManifest.version;
+  const buildNumber =
+    config.buildNumber ||
+    process.env.BUILD_NUMBER ||
+    process.env.TRAVIS_BUILD_NUMBER ||
+    process.env.APPVEYOR_BUILD_NUMBER ||
+    process.env.CIRCLE_BUILD_NUM ||
+    process.env.BUILD_BUILDNUMBER ||
+    process.env.CI_PIPELINE_IID;
+  const buildVersion =
+    config.buildVersion ??
+    `${version}${buildNumber === undefined || String(buildNumber).trim().length === 0 ? "" : `.${buildNumber}`}`;
+  const productName = config.productName ?? desktop.productName ?? desktop.name;
+  const prerelease = String(version).match(/-([0-9A-Za-z-]+)/u)?.[1];
+  return {
+    buildNumber: String(buildNumber),
+    buildVersion: String(buildVersion),
+    channel: prerelease ?? "latest",
+    name: String(desktop.name),
+    productName: sanitizeFileName(String(productName)),
+    version: String(version),
+  };
+}
+
+function builderContexts(levelPath) {
+  const platformName = levelPath.split(".")[1];
+  const platforms =
+    platformName === "mac" ||
+    platformName === "mas" ||
+    platformName === "masDev"
+      ? BUILDER_PLATFORMS.filter(({ os }) => os === "mac")
+      : platformName === "win"
+        ? BUILDER_PLATFORMS.filter(({ os }) => os === "win")
+        : platformName === "linux"
+          ? BUILDER_PLATFORMS.filter(({ os }) => os === "linux")
+          : BUILDER_PLATFORMS;
+  return platforms.flatMap((platform) =>
+    BUILDER_ARCHES.map((arch) => ({ ...platform, arch })),
+  );
+}
+
+function expandBuilderPattern(pattern, context, metadata) {
+  let unsupported = false;
+  const expanded = pattern.replace(
+    /\$\{([_a-zA-Z./*+]+)\}/gu,
+    (macro, name) => {
+      const values = {
+        arch: context.arch,
+        os: context.os,
+        platform: context.platform,
+        productName: metadata.productName,
+        ...metadata,
+      };
+      if (name in values) return values[name];
+      unsupported = true;
+      return macro;
+    },
+  );
+  return unsupported || expanded.includes("${") ? undefined : expanded;
+}
+
+function normalizeBuilderPattern(pattern) {
+  let normalized = pattern.replace(/\\/gu, "/");
+  if (normalized.startsWith("./")) normalized = normalized.slice(2);
+  return posix.normalize(normalized);
+}
+
+function minimatchHasMagic(pattern) {
+  if (pattern.set.length > 1) return true;
+  return pattern.set[0].some((part) => typeof part !== "string");
+}
+
+function parsedBuilderPatterns(patterns) {
+  const effective =
+    patterns.length === 0 ||
+    patterns.every((pattern) => pattern.startsWith("!"))
+      ? ["**/*", ...patterns]
+      : patterns;
+  const parsed = [];
+  for (const pattern of effective) {
+    const matcher = new Minimatch(pattern, { dot: true });
+    parsed.push(matcher);
+    if (!pattern.includes(".") && !minimatchHasMagic(matcher)) {
+      parsed.push(new Minimatch(`${pattern}/**/*`, { dot: true }));
+    }
+  }
+  return parsed;
+}
+
+function builderPatternsInclude(path, patterns, isDirectory = false) {
+  let match = false;
+  for (const pattern of patterns) {
+    if (match !== pattern.negate) continue;
+    match = pattern.match(path, isDirectory && !pattern.negate);
+  }
+  return match;
+}
+
+async function galleryEntries(root) {
+  const galleryRoot = join(root, "apps/ui-gallery");
+  const entries = [{ isDirectory: true, path: galleryRoot }];
+  const visit = async (directory) => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      entries.push({ isDirectory: entry.isDirectory(), path });
+      if (entry.isDirectory()) await visit(path);
+    }
+  };
+  await visit(galleryRoot);
+  return entries;
+}
+
+async function builderPatternsTargetGallery(
+  root,
+  base,
+  patterns,
+  context,
+  metadata,
+) {
+  const expanded = [];
+  for (const pattern of patterns) {
+    const value = expandBuilderPattern(pattern, context, metadata);
+    if (value === undefined) return undefined;
+    const normalized = normalizeBuilderPattern(value);
+    expanded.push(normalized);
+    if (!normalized.startsWith("!") && !builderPathHasMagic(normalized)) {
+      const target = isAbsolute(normalized)
+        ? resolve(normalized)
+        : resolve(base, normalized);
+      if (
+        pathInside(target, join(root, "apps/ui-gallery")) ||
+        (await realPathInside(target, join(root, "apps/ui-gallery")))
+      ) {
+        return true;
+      }
+    }
+  }
+  let parsed;
+  try {
+    parsed = parsedBuilderPatterns(expanded);
+  } catch {
+    return undefined;
+  }
+  for (const entry of await galleryEntries(root)) {
+    if (entry.isDirectory) continue;
+    const candidate = relative(base, entry.path).split(sep).join("/");
+    if (builderPatternsInclude(candidate, parsed, entry.isDirectory))
+      return true;
+  }
+  return false;
+}
+
+function builderPathHasMagic(path) {
+  try {
+    return minimatchHasMagic(new Minimatch(path, { dot: true }));
+  } catch {
+    return true;
+  }
+}
+
+async function builderPathDetails(path, galleryRoot) {
+  const lexicalInside = pathInside(path, galleryRoot);
+  const lexicalAncestor = pathInside(galleryRoot, path);
+  let realInside = false;
+  let realAncestor = false;
+  let canonicalChanged = false;
+  try {
+    const [realTarget, realGallery] = await Promise.all([
+      realpath(path),
+      realpath(galleryRoot),
+    ]);
+    canonicalChanged = resolve(realTarget) !== resolve(path);
+    realInside = pathInside(realTarget, realGallery);
+    realAncestor = pathInside(realGallery, realTarget);
+  } catch {
+    // Lexical checks still apply to paths not present at verification time.
+  }
+  return {
+    canonicalChanged,
+    lexicalAncestor,
+    lexicalInside,
+    realAncestor,
+    realInside,
+  };
+}
+
+function resolveBuilderPath(pattern, base, context, metadata) {
+  const expanded = expandBuilderPattern(pattern, context, metadata);
+  if (
+    expanded === undefined ||
+    expanded.startsWith("!") ||
+    builderPathHasMagic(expanded)
+  ) {
+    return undefined;
+  }
+  return isAbsolute(expanded) ? resolve(expanded) : resolve(base, expanded);
+}
+
+async function builderResourceViolations(root, rootManifest, desktop) {
+  const violations = [];
+  const projectDir = join(root, "apps/desktop");
+  const galleryRoot = join(root, "apps/ui-gallery");
+  const metadata = builderMacroMetadata(rootManifest, desktop);
+  const allContexts = builderContexts("build");
+  const configuredAppDir = desktop.build?.directories?.app;
+  if (
+    configuredAppDir !== undefined &&
+    configuredAppDir !== null &&
+    typeof configuredAppDir !== "string"
+  ) {
+    violations.push(
+      "apps/desktop/package.json: build.directories.app must be a string",
+    );
+  }
+  const appDirs = new Map();
+  const appDir =
+    typeof configuredAppDir === "string"
+      ? resolve(projectDir, configuredAppDir)
+      : projectDir;
+  const appDirDetails = await builderPathDetails(appDir, galleryRoot);
+  if (
+    appDirDetails.lexicalInside ||
+    appDirDetails.lexicalAncestor ||
+    appDirDetails.realInside ||
+    appDirDetails.realAncestor
+  ) {
+    violations.push(
+      "apps/desktop/package.json: build.directories.app must not overlap Gallery",
+    );
+  }
+  for (const context of allContexts) {
+    const key = `${context.os}:${context.arch}`;
+    appDirs.set(key, appDir);
+  }
+  const levels = [
+    ["build", desktop.build],
+    ...BUILDER_PLATFORM_LEVELS.map((name) => [
+      `build.${name}`,
+      desktop.build?.[name],
+    ]),
+  ];
+  const validLevels = new Map();
+  for (const [levelPath, level] of levels) {
+    if (level === undefined || level === null) continue;
+    if (!isOwnRecord(level)) {
+      violations.push(
+        `apps/desktop/package.json: ${levelPath} must be an object`,
+      );
+      continue;
+    }
+    validLevels.set(levelPath, level);
+  }
+  const buildLevel = validLevels.get("build") ?? {};
+  for (const platformName of BUILDER_PLATFORM_LEVELS) {
+    const levelPath = `build.${platformName}`;
+    const contexts = builderContexts(levelPath);
+    const platformLevel = validLevels.get(levelPath);
+    for (const field of BUILDER_RESOURCE_FIELDS) {
+      const sources = [
+        ["build", buildLevel[field]],
+        ...(platformLevel === undefined
+          ? []
+          : [[levelPath, platformLevel[field]]]),
+      ];
+      const entries = sources.flatMap(([sourcePath, value]) =>
+        normalizeBuilderResource(
+          value,
+          field,
+          `apps/desktop/package.json: ${sourcePath}.${field}`,
+          violations,
+        ),
+      );
+      const fieldPath = `apps/desktop/package.json: build + ${levelPath}.${field}`;
+      const patternEntries = entries.filter(
+        (entry) => entry.pattern !== undefined,
+      );
+      const fileSetEntries = entries.filter(
+        (entry) => entry.pattern === undefined,
+      );
+      for (const context of contexts) {
+        const key = `${context.os}:${context.arch}`;
+        const appDir = appDirs.get(key);
+        if (appDir === undefined) continue;
+        const base =
+          field === "files" || field === "asarUnpack" ? appDir : projectDir;
+        if (patternEntries.length > 0) {
+          const targetsGallery = await builderPatternsTargetGallery(
+            root,
+            base,
+            patternEntries.map(({ pattern }) => pattern),
+            context,
+            metadata,
+          );
+          if (targetsGallery === undefined) {
+            violations.push(`${fieldPath}: unsupported file macro or glob`);
+          } else if (targetsGallery) {
+            violations.push(
+              `${fieldPath}: Desktop builder ${field} patterns include Gallery`,
+            );
+          }
+        }
+        for (const entry of fileSetEntries) {
+          const source = resolveBuilderPath(
+            entry.from,
+            base,
+            context,
+            metadata,
+          );
+          if (source === undefined) {
+            violations.push(
+              `${entry.path}.from: unsupported file macro, glob, or negation`,
+            );
+            continue;
+          }
+          const details = await builderPathDetails(source, galleryRoot);
+          if (
+            details.lexicalInside ||
+            details.realInside ||
+            (details.realAncestor && !details.lexicalAncestor)
+          ) {
+            violations.push(
+              `${entry.path}.from: Desktop builder FileSet must not resolve inside or through Gallery: ${entry.from}`,
+            );
+            continue;
+          }
+          const targetsGallery = await builderPatternsTargetGallery(
+            root,
+            source,
+            entry.filters,
+            context,
+            metadata,
+          );
+          if (targetsGallery === undefined) {
+            violations.push(
+              `${entry.path}.filter: unsupported file macro or glob`,
+            );
+          } else if (targetsGallery) {
+            violations.push(
+              `${entry.path}: Desktop builder FileSet filters include Gallery`,
+            );
+          }
+        }
+      }
+    }
+  }
+  for (const [name, value] of [
+    ["build.directories.output", desktop.build?.directories?.output],
+    [
+      "build.directories.buildResources",
+      desktop.build?.directories?.buildResources,
+    ],
+  ]) {
+    if (value === undefined || value === null) continue;
+    if (typeof value !== "string") {
+      violations.push(`apps/desktop/package.json: ${name} must be a string`);
+      continue;
+    }
+    for (const context of allContexts) {
+      const target = resolveBuilderPath(value, projectDir, context, metadata);
+      if (target === undefined) {
+        violations.push(
+          `apps/desktop/package.json: ${name} contains an unsupported file macro, glob, or negation`,
+        );
+      } else {
+        const details = await builderPathDetails(target, galleryRoot);
+        if (!details.lexicalInside && !details.realInside) continue;
+        violations.push(
+          `apps/desktop/package.json: ${name} must not reference Gallery: ${value}`,
+        );
+      }
+    }
+  }
+  return violations;
 }
 
 async function manifestViolations(root) {
@@ -794,6 +2182,9 @@ async function manifestViolations(root) {
       "apps/desktop/package.json: Desktop must not depend on Gallery",
     );
   }
+  violations.push(
+    ...(await builderResourceViolations(root, rootManifest, desktop)),
+  );
   return violations;
 }
 
@@ -806,9 +2197,12 @@ export async function verifyUiBoundaries(root = defaultRoot) {
       areaFiles.push({ area, file, sourceRoot });
   }
   const desktopRoot = join(root, "apps/desktop/src");
-  const desktopFiles = (await filesBelow(desktopRoot)).filter((file) =>
-    SCRIPT_EXTENSIONS.has(extname(file)),
-  );
+  const desktopFiles = [
+    ...(await filesBelow(desktopRoot)).filter((file) =>
+      SCRIPT_EXTENSIONS.has(extname(file)),
+    ),
+    join(root, "apps/desktop/vite.config.ts"),
+  ];
   const scriptFiles = [
     ...areaFiles
       .map(({ file }) => file)
@@ -830,6 +2224,14 @@ export async function verifyUiBoundaries(root = defaultRoot) {
       violations.push(
         ...(await inspectDesktopGalleryImports(root, file, analysis)),
       );
+    }
+    for (const file of [
+      ...(await filesBelow(desktopRoot)).filter(
+        (file) => extname(file) === ".css",
+      ),
+      join(root, "apps/desktop/index.html"),
+    ]) {
+      violations.push(...(await inspectDesktopResourceFile(root, file)));
     }
   } finally {
     analysis.close();
