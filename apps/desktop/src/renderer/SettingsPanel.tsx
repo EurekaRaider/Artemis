@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type RefObject,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type {
   AppLocale,
@@ -8,7 +14,9 @@ import type {
   ShellProfileMode,
   WindowsShellPreference,
 } from "@artemis/protocol";
+import { Dialog } from "@artemis/ui/feedback";
 import { Checkbox, TextField } from "@artemis/ui/forms";
+import { PanelHeader } from "@artemis/ui/layout";
 
 import type {
   AddedModelConfiguration,
@@ -31,6 +39,7 @@ interface SettingsPanelProps {
   initialTab?: SettingsTab;
   locale: AppLocale;
   onClose(): void;
+  returnFocusRef?: RefObject<HTMLElement | null> | undefined;
   onSettingsChange(
     settings: SettingsSnapshot,
     options?: { refreshThreads?: boolean },
@@ -471,6 +480,7 @@ export function SettingsPanel({
   locale,
   onClose,
   onSettingsChange,
+  returnFocusRef,
 }: SettingsPanelProps) {
   const { i18n } = useTranslation("settings");
   const translate = i18n.getFixedT(locale, "settings");
@@ -579,14 +589,6 @@ export function SettingsPanel({
       }),
     [],
   );
-
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
 
   const models = useMemo(
     () =>
@@ -995,20 +997,26 @@ export function SettingsPanel({
   }
 
   return (
-    <div className="settings-backdrop" onMouseDown={onClose}>
-      <section
-        aria-label={t.title}
-        aria-modal="true"
+    <>
+      <Dialog
         className="settings-panel"
-        onMouseDown={(event) => event.stopPropagation()}
-        role="dialog"
+        label={t.title}
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+        open
+        returnFocusRef={returnFocusRef}
       >
-        <header className="settings-header">
-          <strong>{t.title}</strong>
-          <button className="text-button" onClick={onClose}>
-            {t.close}
-          </button>
-        </header>
+        <PanelHeader
+          actions={
+            <button className="text-button" onClick={onClose}>
+              {t.close}
+            </button>
+          }
+          className="settings-header"
+          headingLevel={2}
+          title={t.title}
+        />
         {!settings ? (
           <div className="settings-loading">{message || t.loading}</div>
         ) : (
@@ -1975,109 +1983,98 @@ export function SettingsPanel({
             </div>
           </div>
         )}
-      </section>
+      </Dialog>
+
       {modelApplyResult && (
-        <div
-          className="model-apply-dialog-backdrop"
-          onMouseDown={(event) => {
-            event.stopPropagation();
-            if (event.target === event.currentTarget) {
-              setModelApplyResult(undefined);
-            }
+        <Dialog
+          className="model-apply-dialog"
+          data-kind={modelApplyResult.kind}
+          label={
+            modelApplyResult.kind === "success"
+              ? t.modelSaved
+              : t.modelSaveFailed
+          }
+          onOpenChange={(open) => {
+            if (!open) setModelApplyResult(undefined);
           }}
+          open
         >
-          <section
-            aria-label={
-              modelApplyResult.kind === "success"
-                ? t.modelSaved
-                : t.modelSaveFailed
-            }
-            aria-modal="true"
-            className="model-apply-dialog"
-            data-kind={modelApplyResult.kind}
-            role="dialog"
-          >
-            <span aria-hidden="true" className="model-apply-result-icon">
-              {modelApplyResult.kind === "success" ? "✓" : "!"}
-            </span>
-            <strong>
-              {modelApplyResult.kind === "success"
-                ? t.modelSaved
-                : t.modelSaveFailed}
-            </strong>
-            <p>{modelApplyResult.detail}</p>
-            <button onClick={() => setModelApplyResult(undefined)}>
-              {t.confirm}
-            </button>
-          </section>
-        </div>
+          <span aria-hidden="true" className="model-apply-result-icon">
+            {modelApplyResult.kind === "success" ? "✓" : "!"}
+          </span>
+          <strong>
+            {modelApplyResult.kind === "success"
+              ? t.modelSaved
+              : t.modelSaveFailed}
+          </strong>
+          <p>{modelApplyResult.detail}</p>
+          <button onClick={() => setModelApplyResult(undefined)}>
+            {t.confirm}
+          </button>
+        </Dialog>
       )}
       {modelDeleteTarget && settings && (
-        <div
-          className="model-delete-dialog-backdrop"
-          onMouseDown={(event) => {
-            event.stopPropagation();
-            if (!busy && event.target === event.currentTarget) {
-              setModelDeleteTarget(undefined);
-            }
+        <Dialog
+          aria-labelledby="model-delete-title"
+          className="model-delete-dialog"
+          closeOnBackdrop={!busy}
+          closeOnEscape={!busy}
+          label={t.removeModel}
+          onOpenChange={(open) => {
+            if (!open && !busy) setModelDeleteTarget(undefined);
           }}
+          open
+          role="alertdialog"
         >
-          <section
-            aria-labelledby="model-delete-title"
-            aria-modal="true"
-            className="model-delete-dialog"
-            role="alertdialog"
-          >
-            <strong id="model-delete-title">{t.removeModel}</strong>
-            <p>
-              {t.removeModelConfirm.replace(
-                "{model}",
-                models.find(
-                  (model) =>
-                    model.providerId === modelDeleteTarget.providerId &&
-                    model.modelId === modelDeleteTarget.modelId,
-                )?.name ?? modelDeleteTarget.modelId,
-              )}
-            </p>
-            {!settings.providers.some(
-              (provider) => provider.id === modelDeleteTarget.providerId,
-            ) &&
-              settings.addedModels.filter(
-                (model) => model.providerId === modelDeleteTarget.providerId,
-              ).length === 1 &&
-              settings.credentials.some(
-                (credential) =>
-                  credential.providerId === modelDeleteTarget.providerId,
-              ) && (
-                <p className="warning">
-                  {t.removeModelCredentialConfirm.replace(
-                    "{provider}",
-                    modelDeleteTarget.providerId,
-                  )}
-                </p>
-              )}
-            {message && <span className="error">{message}</span>}
-            <div className="model-delete-dialog-actions">
-              <button
-                className="secondary-button"
-                disabled={busy}
-                onClick={() => setModelDeleteTarget(undefined)}
-                type="button"
-              >
-                {t.cancelEdit}
-              </button>
-              <button
-                className="primary-button danger"
-                disabled={busy}
-                onClick={() => void removeModel()}
-                type="button"
-              >
-                {t.delete}
-              </button>
-            </div>
-          </section>
-        </div>
+          <strong id="model-delete-title">{t.removeModel}</strong>
+          <p>
+            {t.removeModelConfirm.replace(
+              "{model}",
+              models.find(
+                (model) =>
+                  model.providerId === modelDeleteTarget.providerId &&
+                  model.modelId === modelDeleteTarget.modelId,
+              )?.name ?? modelDeleteTarget.modelId,
+            )}
+          </p>
+          {!settings.providers.some(
+            (provider) => provider.id === modelDeleteTarget.providerId,
+          ) &&
+            settings.addedModels.filter(
+              (model) => model.providerId === modelDeleteTarget.providerId,
+            ).length === 1 &&
+            settings.credentials.some(
+              (credential) =>
+                credential.providerId === modelDeleteTarget.providerId,
+            ) && (
+              <p className="warning">
+                {t.removeModelCredentialConfirm.replace(
+                  "{provider}",
+                  modelDeleteTarget.providerId,
+                )}
+              </p>
+            )}
+          {message && <span className="error">{message}</span>}
+          <div className="model-delete-dialog-actions">
+            <button
+              className="secondary-button"
+              disabled={busy}
+              onClick={() => setModelDeleteTarget(undefined)}
+              type="button"
+            >
+              {t.cancelEdit}
+            </button>
+            <button
+              className="primary-button danger"
+              disabled={busy}
+              onClick={() => void removeModel()}
+              type="button"
+            >
+              {t.delete}
+            </button>
+          </div>
+        </Dialog>
       )}
-    </div>
+    </>
   );
 }

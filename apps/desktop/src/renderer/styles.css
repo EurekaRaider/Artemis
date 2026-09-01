@@ -1457,23 +1457,21 @@ button.environment-activity-row:focus-visible {
   max-height: min(340px, calc(100vh - 24px));
   overflow: auto;
   padding: 10px;
-  position: fixed;
   width: min(360px, calc(100vw - 24px));
-  z-index: 130;
 }
 
-.environment-checks-popover > header {
+.environment-checks-popover > [data-part="content"] > header {
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 2px 4px 8px;
 }
 
-.environment-checks-popover > header > strong {
+.environment-checks-popover > [data-part="content"] > header > strong {
   font-size: 13px;
 }
 
-.environment-checks-popover > header > small {
+.environment-checks-popover > [data-part="content"] > header > small {
   color: var(--muted);
   font-size: 10px;
 }
@@ -3232,6 +3230,32 @@ button.environment-row:disabled {
   align-items: center;
   display: flex;
   gap: 10px;
+}
+
+.approval-pending-header {
+  align-items: flex-start;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.approval-pending-header [data-part="content"] {
+  flex: 1 1 auto;
+  gap: 4px;
+}
+
+.approval-pending-header [data-part="title"] {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  font: inherit;
+  font-weight: 600;
+}
+
+.approval-pending-header [data-part="description"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .approval-card > summary {
@@ -8312,18 +8336,6 @@ button.sources-panel-entry.attachment:focus-visible {
   color: var(--file-text);
 }
 
-.settings-backdrop {
-  align-items: center;
-  backdrop-filter: blur(5px);
-  background: rgb(0 0 0 / 52%);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 24px;
-  position: fixed;
-  z-index: 100;
-}
-
 .confirmation-backdrop {
   align-items: center;
   backdrop-filter: blur(7px);
@@ -8410,6 +8422,7 @@ button.sources-panel-entry.attachment:focus-visible {
   height: min(760px, calc(100% - 48px));
   max-width: 920px;
   overflow: hidden;
+  padding: 0;
   width: calc(100% - 48px);
 }
 
@@ -8602,7 +8615,7 @@ button.sources-panel-entry.attachment:focus-visible {
   gap: 8px;
 }
 
-.settings-section .profile-avatar-input {
+.settings-section input.profile-avatar-input {
   clip-path: inset(50%);
   height: 1px;
   overflow: hidden;
@@ -9016,16 +9029,6 @@ button.sources-panel-entry.attachment:focus-visible {
   padding: 9px;
 }
 
-.model-apply-dialog-backdrop {
-  align-items: center;
-  background: rgb(0 0 0 / 46%);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  position: fixed;
-  z-index: 50;
-}
-
 .model-apply-dialog {
   align-items: center;
   background: var(--panel-2);
@@ -9073,16 +9076,6 @@ button.sources-panel-entry.attachment:focus-visible {
   margin-top: 3px;
   min-height: 32px;
   padding: 0 18px;
-}
-
-.model-delete-dialog-backdrop {
-  align-items: center;
-  background: rgb(0 0 0 / 52%);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  position: fixed;
-  z-index: 51;
 }
 
 .model-delete-dialog {
@@ -11161,27 +11154,6 @@ button.sources-panel-entry.attachment:focus-visible {
   color: var(--text);
 }
 
-.resource-search-spinner {
-  animation: resource-search-spin 720ms linear infinite;
-  border: 2px solid color-mix(in srgb, var(--muted-2) 28%, transparent);
-  border-radius: 50%;
-  border-top-color: var(--text);
-  height: 18px;
-  width: 18px;
-}
-
-@keyframes resource-search-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .resource-search-spinner {
-    animation: none;
-  }
-}
-
 .resource-discovery-row {
   align-items: center;
   border-radius: 10px;
@@ -12025,6 +11997,11 @@ kbd {
 }
 
 .transient-notice {
+  background: var(--panel-3);
+  border-color: var(--border);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 24%);
+  color: var(--text);
+  line-height: 1.45;
   opacity: 1;
   transition: opacity 600ms ease;
   width: 100%;
@@ -12046,22 +12023,11 @@ kbd {
   z-index: 30;
 }
 
-.transient-notice > button {
-  background: var(--panel-3);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 8px 28px rgb(0 0 0 / 24%);
-  color: var(--text);
+.transient-notice > [data-part="action"] {
   cursor: pointer;
-  display: block;
-  font: inherit;
-  line-height: 1.45;
-  padding: 10px 14px;
-  text-align: left;
-  width: 100%;
 }
 
-.transient-notice.error > button {
+.transient-notice.error {
   background: color-mix(in srgb, var(--danger) 12%, var(--panel-3));
   border-color: color-mix(in srgb, var(--danger) 52%, var(--border));
   color: var(--danger);

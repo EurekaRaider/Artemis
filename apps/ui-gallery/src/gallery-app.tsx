@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { artemisThemeManifest } from "@artemis/theme-artemis";
 import {
@@ -15,6 +15,24 @@ import {
   Switch,
   TextField,
 } from "@artemis/ui/forms";
+import {
+  ConfirmationDialog,
+  EmptyState,
+  ErrorState,
+  InlineNotice,
+  LoadingState,
+  Popover,
+  Toast,
+  ToastViewport,
+  Tooltip,
+} from "@artemis/ui/feedback";
+import {
+  ListRow,
+  PanelHeader,
+  ScrollArea,
+  SplitPane,
+  Toolbar,
+} from "@artemis/ui/layout";
 import { SegmentedControl, Tabs } from "@artemis/ui/navigation";
 
 import { galleryContract } from "./gallery-contract.js";
@@ -240,6 +258,11 @@ export function GalleryApp() {
   );
   const [rtlTabValue, setRtlTabValue] = useState<"first" | "second">("second");
   const [segmentValue, setSegmentValue] = useState<"rich" | "source">("rich");
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [splitSize, setSplitSize] = useState(240);
+  const popoverAnchorRef = useRef<HTMLButtonElement>(null);
   const appendEvent = (entry: string) =>
     setEventOrder((current) => [...current, entry]);
 
@@ -255,7 +278,7 @@ export function GalleryApp() {
 
   return (
     <main>
-      <p className="gallery-eyebrow">CL2C navigation conformance</p>
+      <p className="gallery-eyebrow">CL3 feedback and layout conformance</p>
       <h1>Artemis UI Gallery</h1>
       <p>
         Public package consumption is active for UI contract v
@@ -310,6 +333,133 @@ export function GalleryApp() {
             </div>
           ))}
         </dl>
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="feedback-layout-heading"
+      >
+        <h2 id="feedback-layout-heading">Feedback, overlays, and layout</h2>
+        <Toolbar
+          actions={
+            <>
+              <Tooltip label="Open the project action menu">
+                <button
+                  aria-expanded={popoverOpen}
+                  onClick={() => setPopoverOpen((value) => !value)}
+                  ref={popoverAnchorRef}
+                  type="button"
+                >
+                  Actions
+                </button>
+              </Tooltip>
+              <button onClick={() => setConfirmationOpen(true)} type="button">
+                Confirm
+              </button>
+            </>
+          }
+          label="Feedback examples"
+          title="Project activity"
+        >
+          Controlled overlays and caller-owned state
+        </Toolbar>
+        <Popover
+          anchorRef={popoverAnchorRef}
+          label="Project actions"
+          onOpenChange={setPopoverOpen}
+          open={popoverOpen}
+          role="menu"
+        >
+          <button
+            onClick={() => setPopoverOpen(false)}
+            role="menuitem"
+            type="button"
+          >
+            Archive project
+          </button>
+        </Popover>
+        <ConfirmationDialog
+          actions={
+            <>
+              <button onClick={() => setConfirmationOpen(false)} type="button">
+                Cancel
+              </button>
+              <button onClick={() => setConfirmationOpen(false)} type="button">
+                Continue
+              </button>
+            </>
+          }
+          description="This sample verifies native modal focus, Escape, and focus return."
+          label="Continue migration"
+          onOpenChange={setConfirmationOpen}
+          open={confirmationOpen}
+          title="Continue migration?"
+          tone="warning"
+        />
+        <div className="gallery-feedback-grid">
+          <InlineNotice title="Connected" tone="success">
+            The local provider is ready.
+          </InlineNotice>
+          <InlineNotice title="Review required" tone="warning">
+            One approval is still pending.
+          </InlineNotice>
+          <Toast tone="info">Background validation completed.</Toast>
+          <ErrorState title="Could not load activity">
+            Try again later.
+          </ErrorState>
+          <EmptyState
+            description="Create a task to populate this panel."
+            title="No recent tasks"
+          />
+          <LoadingState label="Loading resources" />
+        </div>
+        <button onClick={() => setToastVisible(true)} type="button">
+          Show portal toast
+        </button>
+        {toastVisible ? (
+          <ToastViewport label="Gallery notifications">
+            <Toast
+              dismissLabel="Dismiss"
+              onDismiss={() => setToastVisible(false)}
+              tone="success"
+            >
+              Gallery state preserved.
+            </Toast>
+          </ToastViewport>
+        ) : null}
+        <div className="gallery-split-sample">
+          <SplitPane
+            label="Resize activity navigation"
+            maximumSize={360}
+            minimumSize={160}
+            onSizeChange={setSplitSize}
+            primary={
+              <ScrollArea label="Activity navigation">
+                <div role="listbox" aria-label="Activity views">
+                  <ListRow label="Overview" selected />
+                  <ListRow description="Three unread events" label="Timeline" />
+                  <ListRow disabled label="Audit export" />
+                </div>
+              </ScrollArea>
+            }
+            secondary={
+              <>
+                <PanelHeader
+                  description="Resize with pointer, arrows, Home, or End"
+                  headingLevel={3}
+                  title="Activity detail"
+                />
+                <ScrollArea label="Activity detail">
+                  <p className="gallery-split-copy">
+                    The separator remains caller-controlled and mirrors logical
+                    direction in RTL.
+                  </p>
+                </ScrollArea>
+              </>
+            }
+            size={splitSize}
+          />
+        </div>
       </section>
 
       <section

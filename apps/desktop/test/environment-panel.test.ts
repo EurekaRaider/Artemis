@@ -17,7 +17,6 @@ import {
   environmentBranchMenuBranches,
   environmentBranchMenuLayout,
   environmentPanelConversationWidth,
-  environmentChecksPopoverPosition,
   environmentPanelVisibilityAfterResize,
   environmentAgentCounts,
   environmentDisplayAgents,
@@ -262,7 +261,9 @@ describe("task environment panel state", () => {
     expect(stylesSource).not.toMatch(
       /\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+\.conversation/su,
     );
-    expect(panelSource).not.toContain("onOpenChange");
+    expect(panelSource).toContain(
+      'import { Popover } from "@artemis/ui/feedback"',
+    );
     expect(appSource).not.toContain("environmentPanelOpen");
     expect(appSource).toContain('className="workspace-tool-dock"');
   });
@@ -574,21 +575,6 @@ describe("task environment panel state", () => {
         pr,
       ),
     ).toBeUndefined();
-  });
-
-  it("keeps the checks popover on screen", () => {
-    expect(
-      environmentChecksPopoverPosition(
-        { left: 800, right: 1100, top: 100, bottom: 140 },
-        { width: 1200, height: 800 },
-      ),
-    ).toEqual({ left: 430, top: 100 });
-    expect(
-      environmentChecksPopoverPosition(
-        { left: 250, right: 280, top: 700, bottom: 740 },
-        { width: 320, height: 760 },
-      ),
-    ).toEqual({ left: 12, top: 408 });
   });
 
   it("positions the branch menu beside the branch row instead of clipping it inside the panel", () => {

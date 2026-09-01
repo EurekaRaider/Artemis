@@ -1263,9 +1263,7 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain("value={providerContextWindow}");
     expect(settingsSource).toContain("value={providerMaxTokens}");
     const providerFormSource = settingsSource.slice(
-      settingsSource.indexOf(
-        '<form\n                    className="credential-form provider-form"',
-      ),
+      settingsSource.indexOf('className="credential-form provider-form"'),
       settingsSource.indexOf("{t.configuredProviders}"),
     );
     expect(providerFormSource.match(/step=\{1\}/gu)).toHaveLength(2);
@@ -1461,8 +1459,8 @@ describe("renderer layout contract", () => {
   });
 
   it("uses a centered settings dialog with left tabs and one active content panel", () => {
-    expect(settingsSource).toContain('role="dialog"');
-    expect(settingsSource).toContain('aria-modal="true"');
+    expect(settingsSource).toContain("<Dialog");
+    expect(settingsSource).toContain('className="settings-panel"');
     expect(settingsSource).toContain('className="settings-tabs"');
     expect(settingsSource).toContain('role="tablist"');
     expect(settingsSource).toContain('role="tabpanel"');
@@ -1476,22 +1474,19 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain('className="provider-config-tabs"');
     expect(settingsSource).toContain('["builtin", t.providerConfigBuiltin]');
     expect(settingsSource).toContain('["custom", t.providerConfigCustom]');
-    expect(cssRule(".settings-backdrop")).toMatch(
-      /\bjustify-content:\s*center/u,
-    );
+    expect(stylesSource).not.toContain(".settings-backdrop");
     expect(cssRule(".settings-panel")).toMatch(/\bborder-radius:/u);
     expect(cssRule(".settings-body")).toMatch(/\bdisplay:\s*flex/u);
     expect(cssRule(".settings-tabs")).toMatch(/\bflex:\s*0\s+0\s+190px/u);
+    expect(cssRule(".settings-section input.profile-avatar-input")).toMatch(
+      /\bposition:\s*absolute[\s\S]*\bwidth:\s*1px/u,
+    );
   });
 
-  it("keeps the settings modal above workspace overlays", () => {
-    const settingsBackdrop = cssRule(".settings-backdrop");
+  it("uses the native Settings top layer and keeps legacy workspace overlays ordered", () => {
     const confirmationBackdrop = cssRule(".confirmation-backdrop");
     const environmentPopover = cssRule(".environment-popover");
     const projectSidebarResizer = cssRule(".project-sidebar-resizer");
-    const settingsZIndex = Number(
-      settingsBackdrop.match(/\bz-index:\s*(\d+)/u)?.[1],
-    );
     const confirmationZIndex = Number(
       confirmationBackdrop.match(/\bz-index:\s*(\d+)/u)?.[1],
     );
@@ -1502,9 +1497,10 @@ describe("renderer layout contract", () => {
       projectSidebarResizer.match(/\bz-index:\s*(\d+)/u)?.[1],
     );
 
-    expect(settingsZIndex).toBeGreaterThan(resizerZIndex);
-    expect(settingsZIndex).toBeGreaterThan(environmentZIndex);
-    expect(confirmationZIndex).toBeGreaterThan(settingsZIndex);
+    expect(settingsSource).toContain("<Dialog");
+    expect(cssRule(".settings-panel")).not.toMatch(/\bz-index:/u);
+    expect(confirmationZIndex).toBeGreaterThan(environmentZIndex);
+    expect(confirmationZIndex).toBeGreaterThan(resizerZIndex);
   });
 
   it("loads task history lazily and batches live renderer updates", () => {
@@ -2297,8 +2293,8 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain("t.searchingSkills");
     expect(resourceCenterSource).toContain("t.noMcpCatalogResults");
     expect(resourceCenterSource).toContain("t.noSkillCatalogResults");
-    expect(resourceCenterSource).toContain('role="status"');
-    expect(stylesSource).toContain(".resource-search-spinner");
+    expect(resourceCenterSource).toContain("<LoadingState");
+    expect(resourceCenterSource).toContain("<EmptyState");
     const mcpSearch = resourceCenterSource.indexOf("aria-label={t.searchMcp}");
     const mcpList = resourceCenterSource.indexOf(
       'className="resource-management-list grouped"',

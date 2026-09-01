@@ -372,7 +372,7 @@ describe("avatar keyboard reachability (§5 file-键盘红测, fix ① sr-only)"
   it("does not hide the avatar input with display:none", () => {
     const block = cssRuleBlock(
       stylesSource,
-      ".settings-section .profile-avatar-input",
+      ".settings-section input.profile-avatar-input",
     );
     expect(block).not.toContain("display: none");
   });
@@ -380,7 +380,7 @@ describe("avatar keyboard reachability (§5 file-键盘红测, fix ① sr-only)"
   it("hides the avatar input visually with the focusable sr-only clip pattern", () => {
     const block = cssRuleBlock(
       stylesSource,
-      ".settings-section .profile-avatar-input",
+      ".settings-section input.profile-avatar-input",
     );
     expect(block).toContain("position: absolute");
     expect(block).toContain("width: 1px");
@@ -432,7 +432,7 @@ describe("composer attachment chain guard (§5 链路防回归)", () => {
     expect((stylesSource.match(/--icon-size-/g) ?? []).length).toBe(31);
     const inputBlock = cssRuleBlock(
       stylesSource,
-      ".settings-section .profile-avatar-input",
+      ".settings-section input.profile-avatar-input",
     );
     expect(inputBlock).not.toContain("--icon-size-");
   });

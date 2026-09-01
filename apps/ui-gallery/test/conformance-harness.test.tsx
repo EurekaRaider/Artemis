@@ -10,7 +10,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Component, useState, type ReactNode } from "react";
+import { Component, createRef, useState, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { artemisThemeCss, artemisThemeManifest } from "@artemis/theme-artemis";
@@ -30,6 +30,23 @@ import {
   Switch,
   TextField,
 } from "@artemis/ui/forms";
+import {
+  ConfirmationDialog,
+  EmptyState,
+  ErrorState,
+  InlineNotice,
+  LoadingState,
+  Popover,
+  Toast,
+  ToastViewport,
+} from "@artemis/ui/feedback";
+import {
+  ListRow,
+  PanelHeader,
+  ScrollArea,
+  SplitPane,
+  Toolbar,
+} from "@artemis/ui/layout";
 import { SegmentedControl, Tabs } from "@artemis/ui/navigation";
 
 import conformanceMatrix from "../src/conformance-matrix.json" with { type: "json" };
@@ -70,7 +87,12 @@ type ConformanceCase =
   | "form-events-ime"
   | "form-semantics"
   | "navigation-anatomy"
-  | "navigation-events";
+  | "navigation-events"
+  | "feedback-anatomy"
+  | "overlay-focus-and-close"
+  | "portal-viewport-geometry"
+  | "layout-anatomy"
+  | "split-pane-events";
 
 const MatrixIcon = () => (
   <svg viewBox="0 0 16 16">
@@ -889,6 +911,172 @@ const caseRunners = {
     expect(onSegment).toHaveBeenCalledOnce();
     expect(source.getAttribute("aria-pressed")).toBe("true");
   },
+
+  "feedback-anatomy"() {
+    const { container } = render(
+      <>
+        <InlineNotice title="Ready" tone="success">
+          Connected
+        </InlineNotice>
+        <Toast tone="warning">Review required</Toast>
+        <EmptyState description="Create one" title="No tasks" />
+        <LoadingState label="Loading tasks" lines={2} />
+        <ErrorState title="Load failed">Try again</ErrorState>
+      </>,
+    );
+    expect(
+      [...container.querySelectorAll("[data-artemis-component]")].map((node) =>
+        node.getAttribute("data-artemis-component"),
+      ),
+    ).toEqual([
+      "inline-notice",
+      "toast",
+      "empty-state",
+      "loading-state",
+      "error-state",
+    ]);
+    expect(screen.getByRole("alert").textContent).toContain("Try again");
+    expect(
+      container.querySelectorAll('[data-part="skeleton"] > i'),
+    ).toHaveLength(2);
+  },
+
+  async "overlay-focus-and-close"() {
+    const user = userEvent.setup();
+    function MatrixDialogExample() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button onClick={() => setOpen(true)} type="button">
+            Open confirmation
+          </button>
+          <ConfirmationDialog
+            actions={<button type="button">Continue</button>}
+            description="Focus remains contained."
+            label="Continue migration"
+            onOpenChange={setOpen}
+            open={open}
+            title="Continue migration?"
+          />
+        </>
+      );
+    }
+    render(<MatrixDialogExample />);
+    const trigger = screen.getByRole("button", { name: "Open confirmation" });
+    await user.click(trigger);
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Continue" }),
+    );
+    fireEvent(
+      screen.getByRole("alertdialog", { name: "Continue migration?" }),
+      new Event("cancel", { cancelable: true }),
+    );
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  },
+
+  "portal-viewport-geometry"() {
+    const anchorRef = createRef<HTMLButtonElement>();
+    const portal = document.createElement("div");
+    document.body.append(portal);
+    const { container, unmount } = render(
+      <>
+        <button ref={anchorRef} type="button">
+          Anchor
+        </button>
+        <Popover
+          anchorRef={anchorRef}
+          focusOnOpen={false}
+          label="Viewport popover"
+          onOpenChange={() => undefined}
+          open
+          portalContainer={portal}
+        >
+          Popover content
+        </Popover>
+        <ToastViewport label="Matrix notifications" portalContainer={portal}>
+          <Toast>Saved</Toast>
+        </ToastViewport>
+      </>,
+    );
+    expect(
+      container.querySelector('[data-artemis-component="popover"]'),
+    ).toBeNull();
+    const popover = within(portal).getByRole("dialog", {
+      name: "Viewport popover",
+    });
+    expect(popover.style.left).toBe("8px");
+    expect(popover.style.top).toBe("8px");
+    expect(within(portal).getByRole("status").textContent).toBe("Saved");
+    unmount();
+    portal.remove();
+  },
+
+  "layout-anatomy"() {
+    const { container } = render(
+      <>
+        <Toolbar
+          actions={<button type="button">Run</button>}
+          label="Matrix tools"
+        >
+          Project
+        </Toolbar>
+        <div role="listbox">
+          <ListRow label="Overview" selected />
+        </div>
+        <PanelHeader title="Activity" />
+        <ScrollArea label="Matrix content">Content</ScrollArea>
+        <SplitPane
+          label="Resize matrix"
+          maximumSize={360}
+          minimumSize={160}
+          onSizeChange={() => undefined}
+          primary="One"
+          secondary="Two"
+          size={240}
+        />
+      </>,
+    );
+    expect(screen.getByRole("toolbar", { name: "Matrix tools" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Overview" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Matrix content" })).toBeTruthy();
+    expect(
+      screen.getByRole("separator", { name: "Resize matrix" }),
+    ).toBeTruthy();
+    expect(
+      container.querySelectorAll('[data-artemis-component="panel-header"]'),
+    ).toHaveLength(1);
+  },
+
+  "split-pane-events"() {
+    function MatrixSplitExample() {
+      const [size, setSize] = useState(240);
+      return (
+        <div dir="rtl">
+          <SplitPane
+            label="Resize RTL matrix"
+            maximumSize={360}
+            minimumSize={160}
+            onSizeChange={setSize}
+            primary="One"
+            secondary="Two"
+            size={size}
+            step={20}
+          />
+        </div>
+      );
+    }
+    render(<MatrixSplitExample />);
+    const separator = screen.getByRole("separator", {
+      name: "Resize RTL matrix",
+    });
+    fireEvent.keyDown(separator, { key: "ArrowLeft" });
+    expect(separator.getAttribute("aria-valuenow")).toBe("260");
+    fireEvent.keyDown(separator, { key: "Home" });
+    expect(separator.getAttribute("aria-valuenow")).toBe("160");
+    fireEvent.keyDown(separator, { key: "End" });
+    expect(separator.getAttribute("aria-valuenow")).toBe("360");
+  },
 } satisfies Record<ConformanceCase, () => void | Promise<void>>;
 
 const conformanceCases = conformanceMatrix.skins.default as ConformanceCase[];
@@ -1451,6 +1639,41 @@ describe("default and synthetic stress skin conformance", () => {
     expect(detailsTab.getAttribute("aria-selected")).toBe("true");
     expect(sourceSegment.getAttribute("aria-pressed")).toBe("true");
     expectCompleteTabRelations(container);
+    const feedbackLayoutSelector = [
+      '[data-artemis-component="inline-notice"]',
+      '[data-artemis-component="toast"]',
+      '[data-artemis-component="empty-state"]',
+      '[data-artemis-component="loading-state"]',
+      '[data-artemis-component="error-state"]',
+      '[data-artemis-component="toolbar"]',
+      '[data-artemis-component="list-row"]',
+      '[data-artemis-component="panel-header"]',
+      '[data-artemis-component="scroll-area"]',
+      '[data-artemis-component="split-pane"]',
+    ].join(", ");
+    const feedbackLayoutRoots = [
+      ...container.querySelectorAll<HTMLElement>(feedbackLayoutSelector),
+    ];
+    const splitSeparator = screen.getByRole("separator", {
+      name: "Resize activity navigation",
+    });
+    fireEvent.keyDown(splitSeparator, { key: "ArrowRight" });
+    expect(splitSeparator.getAttribute("aria-valuenow")).toBe("256");
+    const feedbackLayoutContracts = feedbackLayoutRoots.map((root) => ({
+      component: root.dataset.artemisComponent,
+      state: root.dataset.state,
+      tone: root.dataset.tone,
+      parts: [...root.querySelectorAll<HTMLElement>("[data-part]")].map(
+        (part) => ({
+          part: part.dataset.part,
+          role: part.getAttribute("role"),
+          ariaLabel: part.getAttribute("aria-label"),
+          ariaSelected: part.getAttribute("aria-selected"),
+          ariaValueNow: part.getAttribute("aria-valuenow"),
+        }),
+      ),
+    }));
+    detailsTab.focus();
     for (const { environment, mode } of [
       ...runtimeVertices,
       runtimeVertices[0]!,
@@ -1532,6 +1755,29 @@ describe("default and synthetic stress skin conformance", () => {
       expect(detailsTab.getAttribute("aria-selected")).toBe("true");
       expect(sourceSegment.getAttribute("aria-pressed")).toBe("true");
       expectCompleteTabRelations(container);
+      const afterFeedbackLayoutRoots = [
+        ...container.querySelectorAll<HTMLElement>(feedbackLayoutSelector),
+      ];
+      expect(afterFeedbackLayoutRoots).toHaveLength(feedbackLayoutRoots.length);
+      for (const [index, feedbackLayoutRoot] of feedbackLayoutRoots.entries()) {
+        const after = afterFeedbackLayoutRoots[index]!;
+        expect(after).toBe(feedbackLayoutRoot);
+        expect({
+          component: after.dataset.artemisComponent,
+          state: after.dataset.state,
+          tone: after.dataset.tone,
+          parts: [...after.querySelectorAll<HTMLElement>("[data-part]")].map(
+            (part) => ({
+              part: part.dataset.part,
+              role: part.getAttribute("role"),
+              ariaLabel: part.getAttribute("aria-label"),
+              ariaSelected: part.getAttribute("aria-selected"),
+              ariaValueNow: part.getAttribute("aria-valuenow"),
+            }),
+          ),
+        }).toEqual(feedbackLayoutContracts[index]);
+      }
+      expect(splitSeparator.getAttribute("aria-valuenow")).toBe("256");
       expect(
         screen.getByRole("tabpanel", {
           name: "A very long localized activity comparison",
@@ -1586,7 +1832,7 @@ describe("default and synthetic stress skin conformance", () => {
     expect(Object.keys(caseRunners).sort()).toEqual(
       [...conformanceMatrix.skins.default].sort(),
     );
-    expect(skinCaseMatrix).toHaveLength(40);
+    expect(skinCaseMatrix).toHaveLength(50);
   });
 
   it.each(skinCaseMatrix)(

@@ -13138,7 +13138,8 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
     title: "实现右上角任务环境面板",
     mode: "execute",
     target: "local",
-    status: "idle",
+    status:
+      view === "environment-feedback-approval" ? "waiting-approval" : "idle",
     pinned: false,
     archived: false,
     createdAt: now,
@@ -13264,6 +13265,24 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
         delta: "环境面板、Git 状态和任务来源已经验证。",
       },
     },
+    ...(view === "environment-feedback-approval"
+      ? ([
+          {
+            id: "environment-approval-requested",
+            payload: {
+              type: "approval.requested",
+              approvalId: "environment-smoke-approval",
+              nonce: "environment-smoke-approval-nonce",
+              summary: "Apply the reviewed workspace changes",
+              command: "git apply reviewed.patch",
+              paths: ["README.md"],
+              network: [],
+              risk: "medium",
+              allowedScopes: ["once", "session"],
+            },
+          },
+        ] satisfies SmokeEnvironmentEvent[])
+      : []),
     {
       id: "environment-turn-completed",
       payload: {
@@ -13309,7 +13328,7 @@ function createMainWindow(): BrowserWindow {
       ? Math.max(980, Math.min(2_000, Math.round(requestedSmokeWidth)))
       : 1_420;
   const requestedScale = Number(process.env.ARTEMIS_SMOKE_SCALE ?? "1");
-  const smokeScale = [1, 1.25, 1.5].includes(requestedScale)
+  const smokeScale = [1, 1.25, 1.5, 2].includes(requestedScale)
     ? requestedScale
     : 1;
   let smokePreloadSecurity: {
@@ -13543,6 +13562,51 @@ function createMainWindow(): BrowserWindow {
                   button?.click();
                 };
                 const view = ${JSON.stringify(requestedSmokeView)};
+                const requestedDirection = ${JSON.stringify(
+                  process.env.ARTEMIS_SMOKE_DIRECTION ?? "ltr",
+                )};
+                if (requestedDirection === 'rtl') {
+                  document.documentElement.dir = 'rtl';
+                }
+                if (view === 'feedback-layout-settings') {
+                  const activity = [...document.querySelectorAll('.activity-button')].find(
+                    (candidate) =>
+                      candidate.getAttribute('aria-label') === 'Settings' ||
+                      candidate.getAttribute('title') === 'Settings',
+                  );
+                  if (!(activity instanceof HTMLButtonElement)) {
+                    throw new Error('Settings activity button missing.');
+                  }
+                  activity.click();
+                  await wait(700);
+                  let dialog = document.querySelector(
+                    '.settings-panel[data-artemis-component="dialog"]',
+                  );
+                  if (!(dialog instanceof HTMLDialogElement)) {
+                    throw new Error('Public Settings Dialog missing.');
+                  }
+                  const firstOpenFocusInside = dialog.contains(
+                    document.activeElement,
+                  );
+                  dialog.dispatchEvent(
+                    new Event('cancel', { bubbles: false, cancelable: true }),
+                  );
+                  await wait(250);
+                  const focusReturned = document.activeElement === activity;
+                  activity.click();
+                  await wait(700);
+                  dialog = document.querySelector(
+                    '.settings-panel[data-artemis-component="dialog"]',
+                  );
+                  window.__feedbackLayoutInteraction = {
+                    view,
+                    firstOpenFocusInside,
+                    focusReturned,
+                    reopened: dialog instanceof HTMLDialogElement,
+                    nativeModal: dialog instanceof HTMLDialogElement && dialog.open,
+                  };
+                  return;
+                }
                 if (view === 'user-input-transport') {
                   document.querySelector('.thread-select')?.click();
                   await wait(800);
@@ -14835,8 +14899,47 @@ function createMainWindow(): BrowserWindow {
                     return;
                   }
                   if (view === 'environment-pr-checks') {
-                    document.querySelector('.environment-pr-check-summary')?.click();
+                    const trigger = document.querySelector('.environment-trigger');
+                    if (trigger?.getAttribute('aria-expanded') !== 'true') {
+                      trigger?.click();
+                      await wait(500);
+                    }
+                    const deadline = Date.now() + 8_000;
+                    let summary = null;
+                    while (Date.now() < deadline && summary === null) {
+                      summary = document.querySelector(
+                        '.environment-pr-check-summary',
+                      );
+                      if (summary === null) await wait(100);
+                    }
+                    if (!(summary instanceof HTMLButtonElement)) {
+                      throw new Error('Environment PR checks summary missing.');
+                    }
+                    summary.click();
                     await wait(500);
+                    if (
+                      !document.querySelector(
+                        '.environment-checks-popover[data-artemis-component="popover"]',
+                      )
+                    ) {
+                      throw new Error('Public Environment checks Popover missing.');
+                    }
+                    return;
+                  }
+                  if (view === 'environment-feedback-approval') {
+                    const trigger = document.querySelector('.environment-trigger');
+                    if (trigger?.getAttribute('aria-expanded') === 'true') {
+                      trigger.click();
+                      await wait(300);
+                    }
+                    const header = document.querySelector(
+                      '.approval-pending-header[data-artemis-component="panel-header"]',
+                    );
+                    header?.scrollIntoView({ block: 'center' });
+                    await wait(350);
+                    if (!header) {
+                      throw new Error('Public pending Approval PanelHeader missing.');
+                    }
                     return;
                   }
                   if (view === 'environment-sources' || view === 'environment-sources-image') {
@@ -15163,6 +15266,11 @@ function createMainWindow(): BrowserWindow {
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                     input.form?.requestSubmit();
                     await wait(500);
+                    const status = document.querySelector(
+                      '[data-artemis-component="loading-state"], [data-artemis-component="empty-state"]',
+                    );
+                    status?.scrollIntoView({ block: 'center' });
+                    await wait(300);
                   }
                 }
               })()
@@ -16766,6 +16874,161 @@ function createMainWindow(): BrowserWindow {
                           document.documentElement,
                         )
                           .getPropertyValue('--artemis-color-text-primary')
+                          .trim(),
+                      },
+                    };
+                  })(),
+                  feedbackLayout: (() => {
+                    const selector = [
+                      'tooltip',
+                      'popover',
+                      'dialog',
+                      'confirmation',
+                      'toast',
+                      'inline-notice',
+                      'empty-state',
+                      'loading-state',
+                      'error-state',
+                      'toolbar',
+                      'list-row',
+                      'panel-header',
+                      'scroll-area',
+                      'split-pane',
+                    ]
+                      .map(
+                        (component) =>
+                          '[data-artemis-component="' + component + '"]',
+                      )
+                      .join(', ');
+                    const roots = [...document.querySelectorAll(selector)];
+                    const describe = (root) => {
+                      const bounds = root.getBoundingClientRect();
+                      const style = getComputedStyle(root);
+                      const overlay = [
+                        'tooltip',
+                        'popover',
+                        'dialog',
+                        'toast',
+                      ].includes(root.getAttribute('data-artemis-component'));
+                      const inlineOverflow = [...root.querySelectorAll('*')]
+                        .map((candidate) => {
+                          const candidateBounds = candidate.getBoundingClientRect();
+                          return {
+                            tag: candidate.tagName.toLowerCase(),
+                            className: candidate.getAttribute('class'),
+                            component: candidate.getAttribute(
+                              'data-artemis-component',
+                            ),
+                            part: candidate.getAttribute('data-part'),
+                            clientWidth: candidate.clientWidth,
+                            scrollWidth: candidate.scrollWidth,
+                            left: candidateBounds.left,
+                            right: candidateBounds.right,
+                          };
+                        })
+                        .filter(
+                          (candidate) =>
+                            candidate.scrollWidth > candidate.clientWidth + 1 ||
+                            candidate.left < bounds.left - 1 ||
+                            candidate.right > bounds.right + 1,
+                        )
+                        .slice(0, 20);
+                      return {
+                        component: root.getAttribute(
+                          'data-artemis-component',
+                        ),
+                        context: root.classList.contains('settings-panel')
+                          ? 'settings'
+                          : root.classList.contains(
+                                'environment-checks-popover',
+                              )
+                            ? 'environment'
+                            : root.classList.contains(
+                                  'approval-pending-header',
+                                )
+                              ? 'approval'
+                              : root.closest('.resource-page')
+                                ? 'resource'
+                                : root.classList.contains('transient-notice')
+                                  ? 'app-notice'
+                                  : 'other',
+                        state: root.getAttribute('data-state'),
+                        tone: root.getAttribute('data-tone'),
+                        role: root.getAttribute('role'),
+                        ariaLabel: root.getAttribute('aria-label'),
+                        ariaLabelledBy: root.getAttribute('aria-labelledby'),
+                        ariaDescribedBy: root.getAttribute('aria-describedby'),
+                        ariaModal: root.getAttribute('aria-modal'),
+                        geometry: {
+                          left: bounds.left,
+                          right: bounds.right,
+                          top: bounds.top,
+                          bottom: bounds.bottom,
+                          width: bounds.width,
+                          height: bounds.height,
+                        },
+                        withinViewport:
+                          bounds.left >= -1 &&
+                          bounds.right <= window.innerWidth + 1 &&
+                          bounds.top >= -1 &&
+                          bounds.bottom <= window.innerHeight + 1,
+                        contentFitsInline:
+                          root.scrollWidth <= root.clientWidth + 1,
+                        inlineMetrics: {
+                          clientWidth: root.clientWidth,
+                          descendants: inlineOverflow,
+                          scrollWidth: root.scrollWidth,
+                        },
+                        focusInside: root.contains(document.activeElement),
+                        nativeDialogOpen:
+                          root instanceof HTMLDialogElement ? root.open : null,
+                        portalRoot: overlay
+                          ? root.parentElement === document.body
+                          : null,
+                        parts: [
+                          'root',
+                          ...root.querySelectorAll('[data-part]'),
+                        ].map((part) =>
+                          typeof part === 'string'
+                            ? part
+                            : part.getAttribute('data-part'),
+                        ),
+                        computed: {
+                          backgroundColor: style.backgroundColor,
+                          borderStyle: style.borderStyle,
+                          color: style.color,
+                          direction: style.direction,
+                          display: style.display,
+                          overflowX: style.overflowX,
+                          overflowY: style.overflowY,
+                          position: style.position,
+                          zIndex: style.zIndex,
+                        },
+                      };
+                    };
+                    return {
+                      components: roots.map(describe),
+                      direction: document.documentElement.dir,
+                      interaction:
+                        window.__feedbackLayoutInteraction ?? null,
+                      reducedMotion: window.matchMedia(
+                        '(prefers-reduced-motion: reduce)',
+                      ).matches,
+                      rootTokens: {
+                        overlayScrim: getComputedStyle(
+                          document.documentElement,
+                        )
+                          .getPropertyValue('--artemis-color-overlay-scrim')
+                          .trim(),
+                        shadowOverlay: getComputedStyle(
+                          document.documentElement,
+                        )
+                          .getPropertyValue('--artemis-shadow-overlay')
+                          .trim(),
+                        surfaceRaised: getComputedStyle(
+                          document.documentElement,
+                        )
+                          .getPropertyValue('--artemis-color-surface-raised')
                           .trim(),
                       },
                     };

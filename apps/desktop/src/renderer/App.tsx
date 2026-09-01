@@ -20,6 +20,8 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { TargetIcon } from "@phosphor-icons/react";
+import { Dialog, LoadingState, Toast } from "@artemis/ui/feedback";
+import { PanelHeader } from "@artemis/ui/layout";
 import {
   MAX_PROMPT_ATTACHMENTS,
   reduceAgentEventBatch,
@@ -283,27 +285,29 @@ const CHILD_UNRESPONSIVE_SILENCE_MILLISECONDS = 5 * 60_000;
 const PROJECT_THREAD_PREVIEW_LIMIT = 5;
 
 function TransientNotice({
+  dismissLabel,
   notice,
   onDismiss,
   placement,
 }: {
+  dismissLabel: string;
   notice: ToastState;
   onDismiss(): void;
   placement: "composer" | "view";
 }) {
   const error = typeof notice.content !== "string";
   return (
-    <div
-      aria-live={error ? "assertive" : "polite"}
+    <Toast
       className={`transient-notice ${placement}-notice${error ? " error" : ""}${notice.fading ? " fading" : ""}`}
-      role={error ? "alert" : "status"}
+      dismissLabel={dismissLabel}
+      exiting={notice.fading}
+      onDismiss={onDismiss}
+      tone={error ? "danger" : "info"}
     >
-      <button onClick={onDismiss} type="button">
-        {typeof notice.content === "string"
-          ? notice.content
-          : notice.content.message}
-      </button>
-    </div>
+      {typeof notice.content === "string"
+        ? notice.content
+        : notice.content.message}
+    </Toast>
   );
 }
 
@@ -404,6 +408,7 @@ const copy = {
     scrollTabsRight: "Scroll tabs right",
     resizeRightSidebar: "Resize right sidebar",
     dismissTurnError: "Dismiss task error",
+    dismissNotice: "Dismiss notification",
     editFile: "Edit file",
     saveFile: "Save",
     saved: "Saved",
@@ -564,6 +569,7 @@ const copy = {
     agentHostInterrupted:
       "The Agent Host restarted. Session state was restored, but the active prompt was not replayed because completed writes could not be proven safe to repeat.",
     settings: "Settings",
+    loadingSettings: "Loading settings…",
     currentVersion: "Current version",
     archiveLibrary: "Archive",
     resourceCenter: "MCP & Skills",
@@ -682,6 +688,7 @@ const copy = {
     scrollTabsRight: "向右滚动选项卡",
     resizeRightSidebar: "调整右侧边栏宽度",
     dismissTurnError: "关闭任务错误",
+    dismissNotice: "关闭通知",
     editFile: "编辑文件",
     saveFile: "保存",
     saved: "已保存",
@@ -836,6 +843,7 @@ const copy = {
     agentHostInterrupted:
       "Agent Host 已重启并恢复会话状态；由于无法证明已完成的写操作可安全重复，当前提示没有自动重放。",
     settings: "设置",
+    loadingSettings: "正在加载设置…",
     currentVersion: "当前版本",
     archiveLibrary: "归档",
     resourceCenter: "MCP 与 Skills",
@@ -1806,6 +1814,7 @@ export function App() {
   const projectSidebarDrag = useRef<ProjectSidebarDrag | undefined>(undefined);
   const projectSidebarWidthRef = useRef<number | undefined>(undefined);
   const projectSidebarPersistence = useRef<Promise<void>>(Promise.resolve());
+  const settingsTrigger = useRef<HTMLButtonElement>(null);
   const knownAgentTeamTabs = useRef(new Set<string>());
   const workspaceThreadCreation =
     useRef<Promise<string | undefined>>(undefined);
@@ -5555,6 +5564,7 @@ export function App() {
           aria-label={t.settings}
           className="activity-button"
           onClick={() => openSettings()}
+          ref={settingsTrigger}
           title={t.settings}
         >
           <SettingsIcon />
@@ -6649,6 +6659,7 @@ export function App() {
                     )}
                     {toast && (
                       <TransientNotice
+                        dismissLabel={t.dismissNotice}
                         notice={toast}
                         onDismiss={() => setToast(undefined)}
                         placement="composer"
@@ -8634,9 +8645,17 @@ export function App() {
       {settingsOpen && (
         <Suspense
           fallback={
-            <div className="settings-backdrop">
-              <div className="settings-panel settings-loading">…</div>
-            </div>
+            <Dialog
+              className="settings-panel settings-loading"
+              label={t.settings}
+              onOpenChange={(open) => {
+                if (!open) setSettingsOpen(false);
+              }}
+              open
+              returnFocusRef={settingsTrigger}
+            >
+              <LoadingState label={t.loadingSettings} />
+            </Dialog>
           }
         >
           <SettingsPanel
@@ -8644,6 +8663,7 @@ export function App() {
             initialTab={settingsTab}
             locale={locale}
             onClose={() => setSettingsOpen(false)}
+            returnFocusRef={settingsTrigger}
             onSettingsChange={(value, options) => {
               setRuntimeSettings(value);
               setApprovalPolicy(value.approvalPolicy);
@@ -8776,6 +8796,7 @@ export function App() {
 
       {toast && (activeView !== "workspace" || activeThread?.archived) && (
         <TransientNotice
+          dismissLabel={t.dismissNotice}
           notice={toast}
           onDismiss={() => setToast(undefined)}
           placement="view"
@@ -10294,12 +10315,30 @@ function Timeline({
       }
       return (
         <article className={`approval-card ${approval.status}`} key={entry}>
-          <header>
-            <span className="approval-shield">
-              <ApprovalIcon neutral />
-            </span>
-            {approvalCopy}
-          </header>
+          <PanelHeader
+            className="approval-pending-header"
+            description={
+              <>
+                <small>{approval.command ?? approval.paths.join(", ")}</small>
+                {approval.actorAgentId && (
+                  <small>
+                    {t.agentActor}:{" "}
+                    {state.childAgents[approval.actorAgentId]?.label ??
+                      approval.actorAgentId}
+                  </small>
+                )}
+              </>
+            }
+            headingLevel={3}
+            title={
+              <>
+                <span className="approval-shield">
+                  <ApprovalIcon neutral />
+                </span>
+                {approval.summary}
+              </>
+            }
+          />
           {modelReason}
           <div className="approval-actions">
             <button
