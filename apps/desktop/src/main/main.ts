@@ -184,6 +184,8 @@ import {
   type TurnLatencySample,
 } from "./diagnostic-bundle.js";
 import { EncryptedSettingsStore } from "./encrypted-settings-store.js";
+import { IMService } from "./im-service.js";
+import { loadIMAdapterConfigs } from "./im-settings-store.js";
 import { ConfigurationImportService } from "./configuration-import.js";
 import { GlobalInstructionsStore } from "./global-instructions-store.js";
 import {
@@ -400,6 +402,7 @@ let agentCapacityRuntime: AgentConcurrencyRuntimeStatus | undefined;
 let agentCapacityApplyTail: Promise<void> = Promise.resolve();
 let agentCapacityMetricsWarningRecorded = false;
 let automationScheduler: AutomationScheduler | undefined;
+let imService: IMService | undefined;
 let agentRuntimeReady: Promise<void> = Promise.resolve();
 let optionalCapabilitiesReady: Promise<void> = Promise.resolve();
 let activeRuntimeSelection: ModelSelection | undefined;
@@ -2789,6 +2792,8 @@ function emitPayload(
   applyPayloadSideEffects(threadId, preparedPayload);
   accountGoalPayload(turnId, preparedPayload);
   scheduleTurnChangeSetCompletion(threadId, turnId, preparedPayload);
+  // IM 出站订阅（E5）：与 UI 消费同一事件源，翻译后发给绑定的 IM 频道
+  imService?.onAgentEvent(threadId, preparedPayload);
   return event;
 }
 
@@ -15426,6 +15431,75 @@ app
         });
       },
     });
+    // IM 远程接入：启动恢复（plan §4，[G] adapters.go:31 同款逐个 startAdapter）
+    if (settingsStore) {
+      const imHost = {
+        submitTurn: async (input: {
+          threadId: string;
+          text: string;
+          attachments?: { name: string; mimeType: "image/png" | "image/jpeg" | "image/webp" | "image/gif"; data: string }[];
+        }) => {
+          // 决策 7：IM 侧硬编码 mode:"execute"
+          await startTaskTurn({ threadId: input.threadId, text: input.text, mode: "execute",
+            ...(input.attachments ? { attachments: input.attachments } : {}) });
+        },
+        followUp: async (input: { threadId: string; text: string }) => {
+          await queueTurn("turn.follow-up", input);
+        },
+        createThread: async (input: { title: string; workspaceKey: string }) => {
+          const thread = await createTaskThread(
+            { projectId: input.workspaceKey, mode: "execute", target: "local" },
+            input.title,
+          );
+          if (!thread) throw new Error("IM thread creation was cancelled.");
+          return { threadId: thread.id };
+        },
+        getThreadStatus: (threadId: string) => {
+          const thread = store?.getThread(threadId);
+          if (!thread) return "not-found" as const;
+          if (thread.status === "running" || thread.status === "waiting-approval")
+            return thread.status;
+          return "idle" as const;
+        },
+        notifyPairing: (challenge: { code: string; adapter: string; channelId: string }) => {
+          if (Notification.isSupported()) {
+            const notification = new Notification({
+              title: "IM 配对请求",
+              body: `频道 ${challenge.channelId} 请求配对，配对码：${challenge.code}`,
+            });
+            notification.on("click", () => {
+              if (!mainWindow) return;
+              if (mainWindow.isMinimized()) mainWindow.restore();
+              mainWindow.show();
+              mainWindow.focus();
+            });
+            notification.show();
+          }
+        },
+        resolveBrokerApproval: () => {
+          // Phase 2 接线（broker 审批拦截）；Phase 1 预留空操作
+        },
+      };
+      imService = new IMService({ store: store!, host: imHost });
+      try {
+        const imConfigs = await loadIMAdapterConfigs(settingsStore);
+        for (const config of imConfigs) {
+          await imService.startAdapter(config).catch((error: unknown) => {
+            console.warn(
+              `IM adapter ${config.name} failed to start: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          });
+        }
+      } catch (error) {
+        console.warn(
+          `IM adapters recovery skipped: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
     registerIpc();
     mainWindow = createMainWindow();
     markStartupStage("window-created");

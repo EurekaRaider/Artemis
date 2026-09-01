@@ -24,7 +24,8 @@ export interface IMServiceHost {
   submitTurn(input: {
     threadId: string;
     text: string;
-    attachments?: { kind: "image"; mime: string; dataBase64: string }[];
+    /** 对齐 packages/protocol 的 promptImageSchema（E7）：name/mimeType/data(base64) */
+    attachments?: { name: string; mimeType: "image/png" | "image/jpeg" | "image/webp" | "image/gif"; data: string }[];
   }): Promise<void>;
   /** 线程运行中追加消息（queueTurn 的 turn.follow-up 路径） */
   followUp(input: { threadId: string; text: string }): Promise<void>;
@@ -50,14 +51,18 @@ export interface IMAdapterConfig {
   credentials?: { appId: string; appSecret: string; domain?: "feishu" | "lark" };
 }
 
-/** 协议事件的最小形状（translate.ts 的 AgentPayloadLike 对齐） */
+/**
+ * 协议事件的最小形状（translate.ts 的 AgentPayloadLike 对齐）。
+ * 用宽松可选字段接收任意 AgentPayload：translate 只读这些字段，
+ * 其他字段原样忽略（§3.2 "其他（goal、memory、queue 等）忽略"）。
+ */
 export interface IMAgentEventPayload {
   type: string;
-  text?: string;
-  error?: string;
-  toolName?: string;
-  detail?: string;
-  isError?: boolean;
+  text?: string | undefined;
+  error?: string | undefined;
+  toolName?: string | undefined;
+  detail?: string | undefined;
+  isError?: boolean | undefined;
 }
 
 export class IMService {
@@ -169,10 +174,17 @@ export class IMService {
       });
       threadId = created.threadId;
     }
+    const attachments = msg.attachments
+      .filter((a) => a.kind === "image")
+      .map((a, i) => ({
+        name: `image-${i + 1}`,
+        mimeType: a.mime as "image/png" | "image/jpeg" | "image/webp" | "image/gif",
+        data: a.dataBase64,
+      }));
     await this.host.submitTurn({
       threadId,
       text: msg.text,
-      ...(msg.attachments.length > 0 ? { attachments: msg.attachments } : {}),
+      ...(attachments.length > 0 ? { attachments } : {}),
     });
   }
 

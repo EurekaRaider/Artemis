@@ -9,7 +9,7 @@ import { ensureNodePtySpawnHelpersExecutable } from "./node-pty-permissions.mjs"
 const require = createRequire(import.meta.url);
 const packageBuild = process.env.ARTEMIS_PACKAGE_BUILD === "1";
 const esmRequireBridge = {
-  js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);',
+  js: 'const require = process.getBuiltinModule("module").createRequire(import.meta.url);',
 };
 
 if (process.platform === "darwin") {
@@ -27,6 +27,8 @@ const shared = {
     "@modelcontextprotocol/sdk",
     "@modelcontextprotocol/sdk/*",
     "electron-updater",
+    // The Lark SDK is CommonJS and resolves package metadata from __dirname.
+    "@larksuiteoapi/node-sdk",
     // officeparser dynamically imports puppeteer only for optional PDF generation
     // (a code path Artemis never exercises). Keep it external so esbuild doesn't
     // try to bundle it and drag in its transitive typescript/cosmiconfig loaders.
@@ -43,6 +45,7 @@ await Promise.all([
   build({
     ...shared,
     entryPoints: ["src/main/main.ts"],
+    banner: esmRequireBridge,
     format: "esm",
     outfile: "dist-electron/main.js",
   }),

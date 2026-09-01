@@ -9,12 +9,12 @@ import type { OutboundEvent, OutputMode } from "./types.js";
 export interface AgentPayloadLike {
   type: string;
   // turn.completed / turn.failed
-  text?: string;
-  error?: string;
+  text?: string | undefined;
+  error?: string | undefined;
   // 工具调用/结果（verbose 模式）
-  toolName?: string;
-  detail?: string;
-  isError?: boolean;
+  toolName?: string | undefined;
+  detail?: string | undefined;
+  isError?: boolean | undefined;
 }
 
 export interface TurnToolStats {
