@@ -132,6 +132,46 @@ interface AutomationRunRow {
   updated_at: string;
 }
 
+export interface ImBindingRow {
+  workspace_key: string;
+  thread_id: string;
+  adapter: string;
+  platform: string;
+  channel_id: string;
+  output_mode: "summary" | "verbose" | "quiet";
+  muted: number;
+  bound_at: string;
+  last_inbound_message_id: string | null;
+}
+
+export interface ImBindingRecord {
+  workspaceKey: string;
+  threadId: string;
+  adapter: string;
+  platform: string;
+  channelId: string;
+  outputMode: "summary" | "verbose" | "quiet";
+  muted: boolean;
+  boundAt: string;
+  lastInboundMessageId?: string;
+}
+
+function imBindingFromRow(row: ImBindingRow): ImBindingRecord {
+  return {
+    workspaceKey: row.workspace_key,
+    threadId: row.thread_id,
+    adapter: row.adapter,
+    platform: row.platform,
+    channelId: row.channel_id,
+    outputMode: row.output_mode,
+    muted: row.muted !== 0,
+    boundAt: row.bound_at,
+    ...(row.last_inbound_message_id !== null
+      ? { lastInboundMessageId: row.last_inbound_message_id }
+      : {}),
+  };
+}
+
 interface TurnChangeSetRow {
   thread_id: string;
   turn_id: string;
@@ -560,6 +600,20 @@ export class AppStore {
         ON automation_runs(automation_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS ix_automation_runs_thread
         ON automation_runs(thread_id);
+
+      CREATE TABLE IF NOT EXISTS im_bindings (
+        workspace_key TEXT NOT NULL,
+        thread_id TEXT NOT NULL,
+        adapter TEXT NOT NULL,
+        platform TEXT NOT NULL,
+        channel_id TEXT NOT NULL,
+        output_mode TEXT NOT NULL
+          CHECK(output_mode IN ('summary', 'verbose', 'quiet')),
+        muted INTEGER NOT NULL DEFAULT 0,
+        bound_at TEXT NOT NULL,
+        last_inbound_message_id TEXT,
+        PRIMARY KEY (adapter, channel_id)
+      );
 
     `);
     const projectColumns = this.database
@@ -1754,6 +1808,93 @@ export class AppStore {
         value.updatedAt,
       );
     return this.getAutomation(value.id)!;
+  }
+
+  // ---- IM 绑定（plan §4，表 im_bindings）----
+
+  upsertImBinding(record: ImBindingRecord): void {
+    this.database
+      .prepare(
+        `INSERT INTO im_bindings (
+           workspace_key, thread_id, adapter, platform, channel_id,
+           output_mode, muted, bound_at, last_inbound_message_id
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(adapter, channel_id) DO UPDATE SET
+           workspace_key = excluded.workspace_key,
+           thread_id = excluded.thread_id,
+           platform = excluded.platform,
+           output_mode = excluded.output_mode,
+           muted = excluded.muted,
+           bound_at = excluded.bound_at,
+           last_inbound_message_id = excluded.last_inbound_message_id`,
+      )
+      .run(
+        record.workspaceKey,
+        record.threadId,
+        record.adapter,
+        record.platform,
+        record.channelId,
+        record.outputMode,
+        record.muted ? 1 : 0,
+        record.boundAt,
+        record.lastInboundMessageId ?? null,
+      );
+  }
+
+  getImBinding(adapter: string, channelId: string): ImBindingRecord | undefined {
+    const row = this.database
+      .prepare("SELECT * FROM im_bindings WHERE adapter = ? AND channel_id = ?")
+      .get(adapter, channelId) as ImBindingRow | undefined;
+    return row ? imBindingFromRow(row) : undefined;
+  }
+
+  listImBindings(): ImBindingRecord[] {
+    const rows = this.database
+      .prepare("SELECT * FROM im_bindings ORDER BY bound_at DESC")
+      .all() as unknown as ImBindingRow[];
+    return rows.map(imBindingFromRow);
+  }
+
+  deleteImBinding(adapter: string, channelId: string): boolean {
+    const result = this.database
+      .prepare("DELETE FROM im_bindings WHERE adapter = ? AND channel_id = ?")
+      .run(adapter, channelId);
+    return result.changes > 0;
+  }
+
+  updateImBinding(
+    adapter: string,
+    channelId: string,
+    patch: Partial<
+      Pick<ImBindingRecord, "threadId" | "outputMode" | "muted" | "lastInboundMessageId">
+    >,
+  ): boolean {
+    const sets: string[] = [];
+    const values: (string | number | null)[] = [];
+    if (patch.threadId !== undefined) {
+      sets.push("thread_id = ?");
+      values.push(patch.threadId);
+    }
+    if (patch.outputMode !== undefined) {
+      sets.push("output_mode = ?");
+      values.push(patch.outputMode);
+    }
+    if (patch.muted !== undefined) {
+      sets.push("muted = ?");
+      values.push(patch.muted ? 1 : 0);
+    }
+    if (patch.lastInboundMessageId !== undefined) {
+      sets.push("last_inbound_message_id = ?");
+      values.push(patch.lastInboundMessageId);
+    }
+    if (sets.length === 0) return false;
+    values.push(adapter, channelId);
+    const result = this.database
+      .prepare(
+        `UPDATE im_bindings SET ${sets.join(", ")} WHERE adapter = ? AND channel_id = ?`,
+      )
+      .run(...values);
+    return result.changes > 0;
   }
 
   getAutomation(id: string): Automation | undefined {

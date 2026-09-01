@@ -61,7 +61,8 @@
     "seti-file-icons": "0.0.8",
     "smol-toml": "^1.7.1",
     "tar": "7.5.22",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "@artemis/im": "0.1.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",

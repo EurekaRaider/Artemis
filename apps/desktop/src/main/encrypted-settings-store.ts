@@ -43,8 +43,15 @@ export interface AddedModelConfiguration {
   contextWindow: number;
 }
 
+export interface PersistedIMAdapterSetting {
+  platform: "feishu";
+  domain?: "feishu" | "lark";
+  enabled: boolean;
+}
+
 interface PersistedSettings {
-  version: 1;
+  version: 1 | 2;
+  imAdapters?: Record<string, PersistedIMAdapterSetting>;
   model?: ModelSelection;
   addedModels?: AddedModelConfiguration[];
   language?: AppLanguage;
@@ -71,7 +78,7 @@ export interface CredentialSummary {
 }
 
 const EMPTY_SETTINGS: PersistedSettings = {
-  version: 1,
+  version: 2,
   addedModels: [],
   credentials: {},
   providers: {},
@@ -324,6 +331,50 @@ export class EncryptedSettingsStore {
     const settings = await this.load();
     settings.theme = appThemeSchema.parse(theme);
     await this.save(settings);
+  }
+
+  // ---- IM 适配器配置与凭据（plan §4，E8）----
+
+  /** 读取全部 IM 适配器启用配置（不含凭据）。 */
+  async imAdapterConfigs(): Promise<[string, PersistedIMAdapterSetting][]> {
+    const settings = await this.load();
+    return Object.entries(settings.imAdapters ?? {}).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
+  }
+
+  async setIMAdapterConfig(
+    name: string,
+    config: PersistedIMAdapterSetting,
+  ): Promise<void> {
+    const settings = await this.load();
+    settings.imAdapters = { ...(settings.imAdapters ?? {}), [name]: config };
+    await this.save(settings);
+  }
+
+  /**
+   * 写入 IM 凭据（app_id/app_secret 存 env 字段，复用 api_key 形状）。
+   * 加密可用性不可用时抛错——凭据绝不落明文（决策：E8 模式）。
+   */
+  async setIMCredential(key: string, env: Record<string, string>): Promise<void> {
+    if (!this.encryptionAvailable) {
+      throw new Error("Encryption is not available on this system");
+    }
+    const settings = await this.load();
+    const plainText = JSON.stringify({ type: "api_key", env });
+    settings.credentials[key] = {
+      type: "api_key",
+      encrypted: this.safeStorage.encryptString(plainText).toString("base64"),
+    };
+    await this.save(settings);
+  }
+
+  async removeIMCredential(key: string): Promise<void> {
+    const settings = await this.load();
+    if (key in settings.credentials) {
+      delete settings.credentials[key];
+      await this.save(settings);
+    }
   }
 
   async credentialSummaries(): Promise<CredentialSummary[]> {
@@ -749,7 +800,7 @@ export class EncryptedSettingsStore {
         await readFile(this.filePath, "utf8"),
       ) as PersistedSettings;
       if (
-        parsed.version !== 1 ||
+        (parsed.version !== 1 && parsed.version !== 2) ||
         !parsed.credentials ||
         typeof parsed.credentials !== "object" ||
         (parsed.language !== undefined &&
