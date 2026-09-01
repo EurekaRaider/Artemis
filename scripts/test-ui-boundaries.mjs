@@ -680,7 +680,7 @@ await runCase(
   undefined,
   false,
   {
-    "package.json": { name: "artemis", version: "1.4.43" },
+    "package.json": { name: "artemis", version: "1.4.42" },
   },
 );
 await runCase(
