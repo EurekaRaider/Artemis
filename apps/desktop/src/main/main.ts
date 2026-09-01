@@ -11069,6 +11069,128 @@ const analyzeSmokeFocusPixels = ({
   };
 };
 
+async function driveSmokeFormControlsEvidence(
+  window: BrowserWindow,
+  view: string | undefined,
+): Promise<void> {
+  const targets = {
+    "form-controls-archive": {
+      selector:
+        '[data-artemis-component="search-field"].archive-search [data-part="control"]',
+    },
+    "form-controls-settings": {
+      selector:
+        '#provider-config-builtin [data-artemis-component="text-field"] [data-part="control"]',
+    },
+    "form-controls-settings-custom": {
+      selector:
+        '#provider-config-custom [data-artemis-component="checkbox"] [data-part="control"]',
+    },
+    "form-controls-composer": {
+      selector:
+        '.composer-context-picker [data-artemis-component="select"] [data-part="trigger"]',
+      rootSelector:
+        '.composer-context-picker [data-artemis-component="select"]',
+    },
+    "mcp-editor-form-controls": {
+      selector:
+        '.mcp-editor [data-artemis-component="select"] [data-part="trigger"]',
+      rootSelector: '.mcp-editor [data-artemis-component="select"]',
+    },
+    "turn-changes-form-controls": {
+      selector:
+        '.review-scope-select [data-artemis-component="select"] [data-part="trigger"]',
+      rootSelector: '.review-scope-select [data-artemis-component="select"]',
+    },
+  } as const;
+  const target = view ? targets[view as keyof typeof targets] : undefined;
+  if (!target) return;
+
+  const contents = window.webContents;
+  const wait = (milliseconds: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+  const evaluate = async <T>(script: string): Promise<T> =>
+    (await contents.executeJavaScript(script)) as T;
+  const pressKey = async (key: string, virtualKeyCode: number) => {
+    if (!contents.debugger.isAttached()) {
+      contents.debugger.attach("1.3");
+    }
+    const parameters = {
+      key,
+      code: key,
+      windowsVirtualKeyCode: virtualKeyCode,
+      nativeVirtualKeyCode: virtualKeyCode,
+    };
+    await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+      ...parameters,
+      type: "rawKeyDown",
+    });
+    await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+      ...parameters,
+      type: "keyUp",
+    });
+  };
+
+  if (process.platform === "darwin") app.focus({ steal: true });
+  window.focus();
+  contents.focus();
+  let targetFocused = false;
+  for (let presses = 0; presses < 200; presses += 1) {
+    targetFocused = await evaluate<boolean>(
+      `document.activeElement === document.querySelector(${JSON.stringify(target.selector)})`,
+    );
+    if (targetFocused) break;
+    await pressKey("Tab", 9);
+    await wait(15);
+  }
+  targetFocused = await evaluate<boolean>(
+    `document.activeElement === document.querySelector(${JSON.stringify(target.selector)})`,
+  );
+  const documentHasFocus = await evaluate<boolean>("document.hasFocus()");
+  if (documentHasFocus && !targetFocused) {
+    throw new Error(
+      `Form-control Tab traversal did not reach ${target.selector}.`,
+    );
+  }
+
+  if ("rootSelector" in target) {
+    if (!targetFocused) {
+      throw new Error(
+        `Form-control keyboard evidence cannot target ${target.selector}.`,
+      );
+    }
+    await pressKey("ArrowDown", 40);
+    const interaction = await evaluate<{
+      keyboardOpened: boolean;
+      menuOpen: boolean;
+      rootStable: boolean;
+    }>(`(async () => {
+      const wait = (milliseconds) =>
+        new Promise((resolve) => setTimeout(resolve, milliseconds));
+      const trigger = document.querySelector(${JSON.stringify(target.selector)});
+      const root = trigger?.closest('[data-artemis-component="select"]');
+      const deadline = Date.now() + 8_000;
+      while (Date.now() < deadline && !root?.querySelector('[data-part="listbox"]')) {
+        await wait(50);
+      }
+      return {
+        keyboardOpened: Boolean(root?.querySelector('[data-part="listbox"]')),
+        menuOpen: Boolean(root?.querySelector('[data-part="menu"]')),
+        rootStable: root === document.querySelector(${JSON.stringify(target.rootSelector)}),
+      };
+    })()`);
+    if (!interaction.keyboardOpened) {
+      throw new Error(`Public Select did not keyboard-open for ${view}.`);
+    }
+    await evaluate(`window.__formControlsInteraction = ${JSON.stringify({ view })};
+      Object.assign(window.__formControlsInteraction, ${JSON.stringify(interaction)});`);
+  }
+
+  await evaluate(`new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve)),
+  )`);
+}
+
 // PR9C input-fields evidence driver (checklist §6-2): after the
 // default-state screenshot, the driver focuses the web contents (PR9B
 // offscreen precedent: showInactive never gives the document OS focus, so
@@ -13636,33 +13758,6 @@ function createMainWindow(): BrowserWindow {
                     ) {
                       throw new Error('Public Composer Select missing.');
                     }
-                    trigger.focus({ preventScroll: true, focusVisible: true });
-                    trigger.dispatchEvent(
-                      new KeyboardEvent('keydown', {
-                        bubbles: true,
-                        key: 'ArrowDown',
-                      }),
-                    );
-                    const listbox = await waitForElement(
-                      '.composer-context-picker [data-part="listbox"]',
-                    );
-                    if (!(listbox instanceof HTMLElement)) {
-                      throw new Error(
-                        'Public Composer Select did not keyboard-open.',
-                      );
-                    }
-                    listbox.focus({ preventScroll: true, focusVisible: true });
-                    window.__formControlsInteraction = {
-                      view,
-                      keyboardOpened: true,
-                      menuOpen:
-                        selectRoot.querySelector('[data-part="menu"]') !== null,
-                      rootStable:
-                        selectRoot ===
-                        document.querySelector(
-                          '.composer-context-picker [data-artemis-component="select"]',
-                        ),
-                    };
                     return;
                   }
                   throw new Error('Unknown form-controls smoke view: ' + view);
@@ -14144,33 +14239,6 @@ function createMainWindow(): BrowserWindow {
                     ) {
                       throw new Error('Public MCP editor Select missing.');
                     }
-                    trigger.focus({ preventScroll: true, focusVisible: true });
-                    trigger.dispatchEvent(
-                      new KeyboardEvent('keydown', {
-                        bubbles: true,
-                        key: 'ArrowDown',
-                      }),
-                    );
-                    const listbox = await waitFor(
-                      '.mcp-editor [data-part="listbox"]',
-                    );
-                    if (!(listbox instanceof HTMLElement)) {
-                      throw new Error(
-                        'Public MCP editor Select did not keyboard-open.',
-                      );
-                    }
-                    listbox.focus({ preventScroll: true, focusVisible: true });
-                    window.__formControlsInteraction = {
-                      view,
-                      keyboardOpened: true,
-                      menuOpen:
-                        selectRoot.querySelector('[data-part="menu"]') !== null,
-                      rootStable:
-                        selectRoot ===
-                        document.querySelector(
-                          '.mcp-editor [data-artemis-component="select"]',
-                        ),
-                    };
                     return;
                   }
                   if (view === 'mcp-editor-new') {
@@ -14485,35 +14553,6 @@ function createMainWindow(): BrowserWindow {
                     ) {
                       throw new Error('Public Review Select missing.');
                     }
-                    trigger.focus({ preventScroll: true, focusVisible: true });
-                    trigger.dispatchEvent(
-                      new KeyboardEvent('keydown', {
-                        bubbles: true,
-                        key: 'ArrowDown',
-                      }),
-                    );
-                    let listbox = null;
-                    while (Date.now() < deadline && listbox === null) {
-                      listbox = selectRoot.querySelector('[data-part="listbox"]');
-                      if (listbox === null) await wait(100);
-                    }
-                    if (!(listbox instanceof HTMLElement)) {
-                      throw new Error(
-                        'Public Review Select did not keyboard-open.',
-                      );
-                    }
-                    listbox.focus({ preventScroll: true, focusVisible: true });
-                    window.__formControlsInteraction = {
-                      view,
-                      keyboardOpened: true,
-                      menuOpen:
-                        selectRoot.querySelector('[data-part="menu"]') !== null,
-                      rootStable:
-                        selectRoot ===
-                        document.querySelector(
-                          '.review-scope-select [data-artemis-component="select"]',
-                        ),
-                    };
                     return;
                   }
                   if (view === 'turn-changes-open') {
@@ -14908,62 +14947,8 @@ function createMainWindow(): BrowserWindow {
           if (smokeMode && process.env.ARTEMIS_SMOKE_VIEW === "card-heatmap") {
             await new Promise((resolve) => setTimeout(resolve, 1_000));
           }
-          if (
-            smokeMode &&
-            requestedSmokeView?.startsWith("form-controls-") &&
-            requestedSmokeView !== "form-controls-composer"
-          ) {
-            if (process.platform === "darwin") app.focus({ steal: true });
-            window.focus();
-            window.webContents.focus();
-            const selector =
-              requestedSmokeView === "form-controls-archive"
-                ? '[data-artemis-component="search-field"].archive-search [data-part="control"]'
-                : requestedSmokeView === "form-controls-settings-custom"
-                  ? '#provider-config-custom [data-artemis-component="checkbox"] [data-part="control"]'
-                  : '#provider-config-builtin [data-artemis-component="text-field"] [data-part="control"]';
-            const contents = window.webContents;
-            if (!contents.debugger.isAttached()) {
-              contents.debugger.attach("1.3");
-            }
-            let targetFocused = false;
-            for (let presses = 0; presses < 200; presses += 1) {
-              targetFocused = (await contents.executeJavaScript(
-                `document.activeElement === document.querySelector(${JSON.stringify(selector)})`,
-              )) as boolean;
-              if (targetFocused) break;
-              const parameters = {
-                key: "Tab",
-                code: "Tab",
-                windowsVirtualKeyCode: 9,
-                nativeVirtualKeyCode: 9,
-              };
-              await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
-                ...parameters,
-                type: "rawKeyDown",
-              });
-              await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
-                ...parameters,
-                type: "keyUp",
-              });
-              await new Promise((resolve) => setTimeout(resolve, 15));
-            }
-            targetFocused = (await contents.executeJavaScript(
-              `document.activeElement === document.querySelector(${JSON.stringify(selector)})`,
-            )) as boolean;
-            const documentHasFocus = (await contents.executeJavaScript(
-              "document.hasFocus()",
-            )) as boolean;
-            if (documentHasFocus && !targetFocused) {
-              throw new Error(
-                `Form-control Tab traversal did not reach ${selector}.`,
-              );
-            }
-            await contents.executeJavaScript(`
-              new Promise((resolve) =>
-                requestAnimationFrame(() => requestAnimationFrame(resolve)),
-              )
-            `);
+          if (smokeMode) {
+            await driveSmokeFormControlsEvidence(window, requestedSmokeView);
           }
           // PR10B review round 3 (nit 6): the user-input-transport PNG is
           // captured inside its evidence driver after the broker

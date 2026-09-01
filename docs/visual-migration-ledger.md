@@ -277,9 +277,10 @@ outline, while an automation session whose OS refuses foreground activation must
 report both window and document focus as false and retain a keyboard-focusable
 target. This
 keeps the CI boundary explicit instead of claiming a focus ring the host cannot
-render. Composer, MCP Editor, and Review additionally keyboard-open the real
-menu, retain the same Select root, stay inside the viewport, preserve their
-required alignment, and resolve at `z-index: 80`. The verifier has no
+render. Composer, MCP Editor, and Review additionally use DevTools-protocol Tab
+and ArrowDown events to keyboard-open the real menu, retain the same Select root,
+stay inside the viewport, preserve their required alignment, and resolve at
+`z-index: 80`. The verifier has no
 `--no-sandbox` fallback and records an explicit renderer-sandbox assertion. Root
 Linux tests do not launch Electron; the existing macOS Desktop-skin CI job owns
 this production Electron gate. The Resource and MCP fixtures are disabled
