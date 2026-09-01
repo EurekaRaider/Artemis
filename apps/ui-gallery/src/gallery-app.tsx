@@ -169,7 +169,7 @@ export function GalleryApp() {
 
   return (
     <main>
-      <p className="gallery-eyebrow">CL1A Direction A candidate</p>
+      <p className="gallery-eyebrow">CL1C cross-platform conformance</p>
       <h1>Artemis UI Gallery</h1>
       <p>
         Public package consumption is active for UI contract v

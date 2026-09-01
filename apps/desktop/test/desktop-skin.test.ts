@@ -44,7 +44,7 @@ function registration(
   };
 }
 
-function media(initial = false) {
+function media(query: string, initial = false) {
   let matches = initial;
   const listeners = new Set<(event: MediaQueryListEvent) => void>();
   return {
@@ -52,7 +52,7 @@ function media(initial = false) {
       get matches() {
         return matches;
       },
-      media: "(prefers-color-scheme: dark)",
+      media: query,
       onchange: null,
       addListener: vi.fn(),
       removeListener: vi.fn(),
@@ -79,16 +79,35 @@ function media(initial = false) {
 
 function host(
   registrations: readonly DesktopSkinRegistration[],
-  initialDark = false,
+  initial: {
+    readonly dark?: boolean;
+    readonly highContrast?: boolean;
+    readonly forcedColors?: boolean;
+  } = {},
 ) {
   const root = { dataset: {} as DOMStringMap };
-  const preference = media(initialDark);
+  const preferences = {
+    dark: media("(prefers-color-scheme: dark)", initial.dark),
+    highContrast: media("(prefers-contrast: more)", initial.highContrast),
+    forcedColors: media("(forced-colors: active)", initial.forcedColors),
+  };
+  const queries = new Map(
+    Object.values(preferences).map((preference) => [
+      preference.query.media,
+      preference.query,
+    ]),
+  );
   const instance = new DesktopSkinHost({
     root,
     registry: createDesktopSkinRegistry(registrations),
-    matchMedia: () => preference.query,
+    matchMedia: (query) => {
+      const preference = queries.get(query);
+      if (preference === undefined)
+        throw new Error(`Unexpected query: ${query}`);
+      return preference;
+    },
   });
-  return { host: instance, root, media: preference };
+  return { host: instance, root, media: preferences };
 }
 
 describe("Desktop skin production registry", () => {
@@ -138,9 +157,11 @@ describe("Desktop skin resolver and host", () => {
       artemisTheme: "light",
       artemisContrast: "normal",
     });
-    expect(fixture.media.listenerCount()).toBe(1);
+    expect(fixture.media.dark.listenerCount()).toBe(1);
+    expect(fixture.media.highContrast.listenerCount()).toBe(1);
+    expect(fixture.media.forcedColors.listenerCount()).toBe(1);
 
-    fixture.media.change(true);
+    fixture.media.dark.change(true);
     await vi.waitFor(() =>
       expect(fixture.root.dataset.artemisTheme).toBe("dark"),
     );
@@ -148,15 +169,46 @@ describe("Desktop skin resolver and host", () => {
 
     await fixture.host.setTheme("light");
     expect(fixture.root.dataset.theme).toBe("light");
-    fixture.media.change(false);
-    fixture.media.change(true);
+    fixture.media.dark.change(false);
+    fixture.media.dark.change(true);
     await Promise.resolve();
     expect(fixture.root.dataset.artemisTheme).toBe("light");
 
     fixture.host.destroy();
     fixture.host.destroy();
-    expect(fixture.media.listenerCount()).toBe(0);
-    expect(fixture.media.query.removeEventListener).toHaveBeenCalledOnce();
+    for (const preference of Object.values(fixture.media)) {
+      expect(preference.listenerCount()).toBe(0);
+      expect(preference.query.removeEventListener).toHaveBeenCalledOnce();
+    }
+  });
+
+  it("resolves system high contrast from prefers-contrast or forced-colors and permits an explicit override", async () => {
+    const fixture = host([registration(DEFAULT_DESKTOP_SKIN_ID)], {
+      highContrast: true,
+    });
+    await fixture.host.bootstrap();
+    expect(fixture.host.contrastPreference).toBe("system");
+    expect(fixture.root.dataset.artemisContrast).toBe("high");
+
+    fixture.media.highContrast.change(false);
+    await vi.waitFor(() =>
+      expect(fixture.root.dataset.artemisContrast).toBe("normal"),
+    );
+    fixture.media.forcedColors.change(true);
+    await vi.waitFor(() =>
+      expect(fixture.root.dataset.artemisContrast).toBe("high"),
+    );
+
+    await fixture.host.setContrast("normal");
+    expect(fixture.host.contrastPreference).toBe("normal");
+    fixture.media.forcedColors.change(false);
+    fixture.media.highContrast.change(true);
+    await Promise.resolve();
+    expect(fixture.root.dataset.artemisContrast).toBe("normal");
+
+    await fixture.host.setContrast("system");
+    expect(fixture.root.dataset.artemisContrast).toBe("high");
+    fixture.host.destroy();
   });
 
   it.each([

@@ -10,6 +10,7 @@ import {
 export const DEFAULT_DESKTOP_SKIN_ID = "com.artemis.default" as const;
 
 export type DesktopThemePreference = "system" | ThemeMode;
+export type DesktopContrastPreference = "system" | ContrastMode;
 
 export interface DesktopSkinRegistration {
   readonly manifest: unknown;
@@ -71,6 +72,8 @@ export interface DesktopSkinHostOptions {
 }
 
 const DARK_MODE_QUERY = "(prefers-color-scheme: dark)";
+const HIGH_CONTRAST_QUERY = "(prefers-contrast: more)";
+const FORCED_COLORS_QUERY = "(forced-colors: active)";
 const SKIN_ID_PATTERN =
   /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)+$/u;
 
@@ -159,6 +162,17 @@ function resolvedTheme(
   return theme === "system" ? (systemDark ? "dark" : "light") : theme;
 }
 
+function resolvedContrast(
+  contrast: DesktopContrastPreference,
+  systemHighContrast: boolean,
+): ContrastMode {
+  return contrast === "system"
+    ? systemHighContrast
+      ? "high"
+      : "normal"
+    : contrast;
+}
+
 function supportsMode(
   registration: ValidatedDesktopSkinRegistration,
   mode: DesktopSkinMode,
@@ -235,25 +249,46 @@ function validRequestedSkinId(value: unknown): value is string {
 export class DesktopSkinHost {
   readonly #root: DesktopSkinRoot;
   readonly #registry: DesktopSkinRegistry;
-  readonly #media: MediaQueryList;
+  readonly #darkMedia: MediaQueryList;
+  readonly #highContrastMedia: MediaQueryList;
+  readonly #forcedColorsMedia: MediaQueryList;
   readonly #platform: PlatformCapability;
   #generation = 0;
   #themePreference: DesktopThemePreference = "system";
+  #contrastPreference: DesktopContrastPreference = "system";
   #activeSkinId: string | undefined;
   #destroyed = false;
 
   readonly #handleSystemThemeChange = () => {
-    if (this.#themePreference === "system" && !this.#destroyed) {
-      void this.setTheme("system");
+    if (
+      this.#activeSkinId !== undefined &&
+      !this.#destroyed &&
+      this.#themePreference === "system"
+    ) {
+      void this.#transition(this.#activeSkinId);
+    }
+  };
+  readonly #handleSystemContrastChange = () => {
+    if (
+      this.#activeSkinId !== undefined &&
+      !this.#destroyed &&
+      this.#contrastPreference === "system"
+    ) {
+      void this.#transition(this.#activeSkinId);
     }
   };
 
   constructor(options: DesktopSkinHostOptions) {
     this.#root = options.root;
     this.#registry = options.registry;
-    this.#media = options.matchMedia(DARK_MODE_QUERY);
+    this.#darkMedia = options.matchMedia(DARK_MODE_QUERY);
+    this.#highContrastMedia = options.matchMedia(HIGH_CONTRAST_QUERY);
+    this.#forcedColorsMedia = options.matchMedia(FORCED_COLORS_QUERY);
     this.#platform = options.platform ?? "universal";
-    this.#media.addEventListener("change", this.#handleSystemThemeChange);
+    this.#darkMedia.addEventListener("change", this.#handleSystemThemeChange);
+    for (const media of this.#systemContrastMedia()) {
+      media.addEventListener("change", this.#handleSystemContrastChange);
+    }
   }
 
   get activeSkinId(): string | undefined {
@@ -264,8 +299,16 @@ export class DesktopSkinHost {
     return this.#themePreference;
   }
 
-  async bootstrap(theme: DesktopThemePreference = "system"): Promise<void> {
+  get contrastPreference(): DesktopContrastPreference {
+    return this.#contrastPreference;
+  }
+
+  async bootstrap(
+    theme: DesktopThemePreference = "system",
+    contrast: DesktopContrastPreference = "system",
+  ): Promise<void> {
     this.#themePreference = theme;
+    this.#contrastPreference = contrast;
     const generation = ++this.#generation;
     const mode = this.#mode();
     await prepareRegistration(this.#registry.defaultSkin, mode);
@@ -282,6 +325,13 @@ export class DesktopSkinHost {
     return this.#transition(this.#activeSkinId ?? DEFAULT_DESKTOP_SKIN_ID);
   }
 
+  async setContrast(
+    contrast: DesktopContrastPreference,
+  ): Promise<DesktopSkinTransitionResult> {
+    this.#contrastPreference = contrast;
+    return this.#transition(this.#activeSkinId ?? DEFAULT_DESKTOP_SKIN_ID);
+  }
+
   async selectSkin(
     requestedSkinId: unknown,
   ): Promise<DesktopSkinTransitionResult> {
@@ -292,13 +342,26 @@ export class DesktopSkinHost {
     if (this.#destroyed) return;
     this.#destroyed = true;
     this.#generation += 1;
-    this.#media.removeEventListener("change", this.#handleSystemThemeChange);
+    this.#darkMedia.removeEventListener(
+      "change",
+      this.#handleSystemThemeChange,
+    );
+    for (const media of this.#systemContrastMedia()) {
+      media.removeEventListener("change", this.#handleSystemContrastChange);
+    }
+  }
+
+  #systemContrastMedia(): readonly MediaQueryList[] {
+    return [this.#highContrastMedia, this.#forcedColorsMedia];
   }
 
   #mode(): DesktopSkinMode {
     return {
-      theme: resolvedTheme(this.#themePreference, this.#media.matches),
-      contrast: "normal",
+      theme: resolvedTheme(this.#themePreference, this.#darkMedia.matches),
+      contrast: resolvedContrast(
+        this.#contrastPreference,
+        this.#highContrastMedia.matches || this.#forcedColorsMedia.matches,
+      ),
       platform: this.#platform,
     };
   }

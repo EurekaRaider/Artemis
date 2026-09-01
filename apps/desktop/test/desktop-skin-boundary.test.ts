@@ -55,6 +55,10 @@ describe("Desktop skin production boundaries", () => {
       expect(productionSource).not.toMatch(/@artemis\/ui-gallery/u);
     }
     expect(resolver).not.toMatch(/@artemis\/protocol/u);
+    expect(resolver).toContain("(prefers-color-scheme: dark)");
+    expect(resolver).toContain("(prefers-contrast: more)");
+    expect(resolver).toContain("(forced-colors: active)");
+    expect(resolver).toContain("setContrast(");
   });
 
   it("does not branch JSX or Desktop CSS on a skin selector", () => {

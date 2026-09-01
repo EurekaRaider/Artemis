@@ -1,7 +1,7 @@
 # Discussion #76 visual migration ledger
 
-Status: CL1B Desktop resolver candidate on merged CL1A base
-`3457e0daf574fdc70b9afc3c44baeb9afd3df1c2`; Direction A is merged. This
+Status: CL1C conformance candidate on merged CL1B base
+`70691d9573f90dd6b8cb2f78808c8beb4481b198`; CL1B is merged. This
 ledger separates static prototype evidence, package/Gallery evidence, and
 production Electron evidence. It must not be used to turn a prototype,
 Gallery pass, or attribute-only resolver pass into a migrated production
@@ -9,7 +9,7 @@ surface.
 
 ## Inputs and evidence boundary
 
-- Candidate base: `3457e0daf574fdc70b9afc3c44baeb9afd3df1c2` (CL1A merged).
+- Candidate base: `70691d9573f90dd6b8cb2f78808c8beb4481b198` (CL1B merged).
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -119,13 +119,12 @@ panel/composer = `8/10/12/16/18px`; the comparison page's local
   evidence remains required. Electron is N/A because CL1A adds no Desktop
   consumer.
 
-## CL1B Desktop resolver candidate evidence
+## CL1B Desktop resolver merged evidence
 
 CL1B installs Direction A as a production renderer dependency without
 migrating a component or surface. The production registry is exactly
 `com.artemis.default`; the first React render waits for its complete 74-token
-light/dark normal snapshot. CL1B fixes contrast at `normal`; CL1C owns the
-high-contrast runtime matrix. Skin selection changes only `<html>`
+light/dark normal snapshot. Skin selection changes only `<html>`
 skin/theme/contrast
 attributes. Existing `data-theme` behavior remains system-delete and
 explicit-light/dark, with a live system media bridge and idempotent listener
@@ -145,9 +144,31 @@ real macOS app's `app.asar`, `app.asar.unpacked`, and extra resources for zero
 stress/Gallery/hook markers. Its screenshots can remain pixel-identical here:
 legacy Desktop selectors do not consume these tokens until CL2/MIG work.
 
-This is host/resolver proof, not a production visual-migration claim. CL1C
-still owns full default/stress/fallback governance; CL2 owns foundation
-components, and MIG1-MIG6 own Desktop selector adoption and visual evidence.
+This is host/resolver proof, not a production visual-migration claim. CL2 owns
+foundation components, and MIG1-MIG6 own Desktop selector adoption and visual
+evidence.
+
+## CL1C conformance candidate evidence
+
+CL1C adds system high-contrast resolution using `prefers-contrast: more` and
+forced colors, plus explicit normal/high host transitions, without adding a
+user-facing skin or contrast preference. The Gallery's default/stress,
+light/dark, normal/high cube is crossed with LTR/RTL, 100%/200%, and
+full/reduced motion for 64 exact runtime vertices. The same Probe node, state,
+focus, selection, anatomy, ARIA, and event order must survive the round trip.
+Linux, macOS, and Windows CI run that Gallery contract.
+
+The clean exact-head Electron verifier traverses those 64 vertices using a real
+Desktop Environment portal at 100% and the real Composer textarea when 200%
+responsive layout hides the branch control. The chosen focus/value/selection
+anchor is preserved through each environment's eight skin/theme/contrast modes;
+the original Composer, xterm nodes, normalized visible terminal content, and
+native PTY state remain fixed across the full traversal. It then separately
+exercises unknown, unavailable, unsupported,
+load-failed, and default-fatal paths and expands production artifact rejection
+to every temporary fallback marker. This remains governance and host proof: no
+production component or surface selector has migrated, and cross-platform
+Gallery CI is not native Windows/Linux Electron evidence.
 
 ## Component and surface sequence
 
@@ -158,8 +179,8 @@ components, and MIG1-MIG6 own Desktop selector adoption and visual evidence.
 | Neutral built-in skin data/CSS/integrity artifacts                       | token/package      | `@artemis/theme-artemis`  | Gallery                    | v17 role vocabulary only                         | CL0A      | N/A: no Desktop resolver                                    | Merged at `244aacf`; superseded by CL1A |
 | Anatomy, states, events, ARIA, focus                                     | component          | `@artemis/ui`             | Gallery harness            | v17 70 cards                                     | CL0B      | Gallery runtime required; Electron not yet production proof | Merged at `facb262`                     |
 | Direction A Artemis values                                               | skin               | `@artemis/theme-artemis`  | Gallery and Desktop host   | v17 A light/dark/high                            | CL1A      | Gallery/browser; Desktop first-frame variables in CL1B      | Merged at `3457e0d`                     |
-| Resolver/registry and host attributes                                    | integration        | Desktop renderer glue     | Desktop                    | current `data-theme` bridge                      | CL1B      | Exact-head Electron state/Portal/xterm/package proof        | Candidate                               |
-| Default/stress/fallback conformance                                      | governance         | Gallery + validators      | CI                         | v17 A/B/C stress input                           | CL1C      | Gallery proof; Desktop fallback proof when resolver exists  | Pending                                 |
+| Resolver/registry and host attributes                                    | integration        | Desktop renderer glue     | Desktop                    | current `data-theme` bridge                      | CL1B      | Exact-head Electron state/Portal/xterm/package proof        | Merged at `70691d9`                     |
+| Default/stress/fallback conformance                                      | governance         | Gallery + validators      | CI                         | v17 A/B/C stress input                           | CL1C      | 64-vertex Gallery + exact-head Desktop matrix               | Candidate                               |
 | Foundation controls                                                      | component          | `@artemis/ui`             | Desktop consumers later    | buttons, badge, inputs, select, switch           | CL2       | Gallery cases first                                         | Pending                                 |
 | Feedback, overlays, layout primitives                                    | component          | `@artemis/ui`             | Desktop consumers later    | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | Gallery cases first                                         | Pending                                 |
 | Artemis-specific presentational patterns                                 | component          | `@artemis/ui`             | Desktop adapter layer      | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                         | Pending                                 |
@@ -220,6 +241,11 @@ idempotent reducer contract; visual migration must not synthesize that protocol.
   clean-build entry wiring, and these ledger entries. It adds no persisted
   skin selection, install/discovery/trust flow, Protocol/preload/shared API, or
   component/surface migration.
+- CL1C rollback is limited to system contrast resolution, the schema v2
+  conformance axes/fallback inventory, Gallery reduced-motion and runtime
+  traversal, cross-platform Gallery CI, expanded temporary-marker rejection,
+  and exact-head Electron matrix assertions. It adds no component/surface
+  migration or user-facing skin/contrast state.
 - A later PR may depend only on a CL milestone already merged into the latest
   `main`; a Draft PR or stale candidate SHA is not a dependency.
 - Stop if a component requires Protocol/Desktop/Electron/Node or

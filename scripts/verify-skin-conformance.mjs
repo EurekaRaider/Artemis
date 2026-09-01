@@ -23,6 +23,21 @@ const REQUIRED_SWITCH_CASES = [
   "selection-preserved",
   "focus-preserved",
 ];
+const REQUIRED_RUNTIME_AXES = Object.freeze({
+  skins: ["default", "stress"],
+  themes: ["light", "dark"],
+  contrasts: ["normal", "high"],
+  directions: ["ltr", "rtl"],
+  zoomFactors: [1, 2],
+  reducedMotion: [false, true],
+});
+const REQUIRED_FALLBACK_CASES = [
+  "unknown",
+  "unavailable",
+  "unsupported",
+  "load-failed",
+  "default-fatal",
+];
 
 const CLI_FLAGS = new Map([
   ["--contract", "contract"],
@@ -297,11 +312,20 @@ if (
   Array.isArray(matrix) ||
   typeof matrix !== "object" ||
   canonical(Object.keys(matrix).sort()) !==
-    canonical(["component", "schemaVersion", "skins", "switchCases"])
+    canonical(
+      [
+        "component",
+        "fallbackCases",
+        "runtimeAxes",
+        "schemaVersion",
+        "skins",
+        "switchCases",
+      ].sort(),
+    )
 ) {
   throw new Error("Conformance matrix top-level fields are not exact");
 }
-if (matrix.schemaVersion !== 1 || matrix.component !== "conformance-probe") {
+if (matrix.schemaVersion !== 2 || matrix.component !== "conformance-probe") {
   throw new Error("Conformance matrix version or component is invalid");
 }
 if (
@@ -314,6 +338,34 @@ if (
   throw new Error(
     "Conformance matrix must contain exactly default and stress skins",
   );
+}
+if (
+  matrix.runtimeAxes === null ||
+  Array.isArray(matrix.runtimeAxes) ||
+  typeof matrix.runtimeAxes !== "object" ||
+  canonical(Object.keys(matrix.runtimeAxes).sort()) !==
+    canonical(Object.keys(REQUIRED_RUNTIME_AXES).sort())
+) {
+  throw new Error("Runtime conformance axes are not exact");
+}
+for (const [axis, expectedValues] of Object.entries(REQUIRED_RUNTIME_AXES)) {
+  const values = matrix.runtimeAxes[axis];
+  if (
+    !Array.isArray(values) ||
+    values.length !== expectedValues.length ||
+    new Set(values).size !== values.length ||
+    canonical(values) !== canonical(expectedValues)
+  ) {
+    throw new Error(`Runtime conformance axis ${axis} is incomplete`);
+  }
+}
+if (
+  !Array.isArray(matrix.fallbackCases) ||
+  matrix.fallbackCases.length !== REQUIRED_FALLBACK_CASES.length ||
+  new Set(matrix.fallbackCases).size !== matrix.fallbackCases.length ||
+  canonical(matrix.fallbackCases) !== canonical(REQUIRED_FALLBACK_CASES)
+) {
+  throw new Error("Runtime fallback cases are incomplete");
 }
 for (const skin of ["default", "stress"]) {
   const cases = matrix.skins[skin];
@@ -410,5 +462,5 @@ const css = await readFile(cssPath, "utf8");
 verifyStructuralCss(css, cssPath, candidateContract);
 
 console.log(
-  `Skin conformance verification passed (${REQUIRED_SKIN_CASES.length} cases × 2 skins; ${REQUIRED_SWITCH_CASES.length} switch cases; exact public contract/CSS tokens; fixed focus floor survives a valid zero-border/transparent-focus skin)`,
+  `Skin conformance verification passed (${REQUIRED_SKIN_CASES.length} cases × 2 skins; ${REQUIRED_SWITCH_CASES.length} switch cases; 64 runtime vertices; ${REQUIRED_FALLBACK_CASES.length} fallback cases; exact public contract/CSS tokens; fixed focus floor survives a valid zero-border/transparent-focus skin)`,
 );

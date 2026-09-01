@@ -99,23 +99,44 @@ await rejectContract("invalid event order", (contract) => {
   contract.callbacks[0].order.reverse();
 });
 
-const matrixDirectory = await mkdtemp(
-  join(tmpdir(), "artemis-conformance-matrix-"),
-);
-try {
-  const matrix = structuredClone(baseMatrix);
-  matrix.skins.stress.pop();
-  const path = join(matrixDirectory, "matrix.json");
-  await writeFile(path, JSON.stringify(matrix), "utf8");
-  const result = spawnSync(process.execPath, [verifier, "--matrix", path], {
-    cwd: root,
-    encoding: "utf8",
-  });
-  if (result.status === 0) throw new Error("missing behavior case passed");
-  rejected += 1;
-} finally {
-  await rm(matrixDirectory, { recursive: true, force: true });
+async function rejectMatrix(name, mutate) {
+  const directory = await mkdtemp(
+    join(tmpdir(), "artemis-conformance-matrix-"),
+  );
+  try {
+    const matrix = structuredClone(baseMatrix);
+    mutate(matrix);
+    const path = join(directory, "matrix.json");
+    await writeFile(path, JSON.stringify(matrix), "utf8");
+    const result = spawnSync(process.execPath, [verifier, "--matrix", path], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    if (result.status === 0) throw new Error(`${name} passed`);
+    rejected += 1;
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 }
+
+await rejectMatrix("missing behavior case", (matrix) =>
+  matrix.skins.stress.pop(),
+);
+for (const axis of [
+  "skins",
+  "themes",
+  "contrasts",
+  "directions",
+  "zoomFactors",
+  "reducedMotion",
+]) {
+  await rejectMatrix(`missing ${axis} runtime vertex`, (matrix) =>
+    matrix.runtimeAxes[axis].pop(),
+  );
+}
+await rejectMatrix("missing fallback case", (matrix) =>
+  matrix.fallbackCases.pop(),
+);
 
 const skinDirectory = await mkdtemp(
   join(tmpdir(), "artemis-conformance-skin-"),
@@ -186,12 +207,12 @@ rejectCli(
   "unexpected positional argument",
 );
 
-if (rejected !== 18 || rejectedCss !== 7 || rejectedCli !== 5) {
+if (rejected !== 25 || rejectedCss !== 7 || rejectedCli !== 5) {
   throw new Error(
-    `Conformance negative coverage is incomplete: ${rejected}/18 total, ${rejectedCss}/7 CSS, ${rejectedCli}/5 CLI`,
+    `Conformance negative coverage is incomplete: ${rejected}/25 total, ${rejectedCss}/7 CSS, ${rejectedCli}/5 CLI`,
   );
 }
 
 console.log(
-  `Skin conformance negative verification passed (${rejected}/18 rejected; ${rejectedCss}/7 CSS fixtures; ${rejectedCli}/5 CLI fixtures)`,
+  `Skin conformance negative verification passed (${rejected}/25 rejected; ${rejectedCss}/7 CSS fixtures; ${rejectedCli}/5 CLI fixtures)`,
 );
