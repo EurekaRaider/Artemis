@@ -9467,6 +9467,66 @@ function registerIpc(): void {
   );
 
   ipcMain.handle(
+    IPC.imStatus,
+    () => {
+      return (
+        imService?.status() ?? {
+          adapters: [],
+          bindings: [],
+          pairingChallenge: null,
+          pairingAwaiting: null,
+        }
+      );
+    },
+  );
+  ipcMain.handle(
+    IPC.imSetMuted,
+    async (_event, adapter: string, muted: boolean) => {
+      if (!imService) throw new Error("IM service is not ready.");
+      await imService.manager.setMuted(adapter, muted);
+    },
+  );
+  ipcMain.handle(IPC.imUnbind, (_event, adapter: string, channelId: string) => {
+    if (!imService) throw new Error("IM service is not ready.");
+    imService.unbind(adapter, channelId);
+  });
+  ipcMain.handle(IPC.imApprovePairing, async () => {
+    if (!imService) throw new Error("IM service is not ready.");
+    // MVP：绑定到临时会话工作区（workspaceKey 空 = 无项目绑定的临时线程）
+    await imService.approvePairing("");
+  });
+  ipcMain.handle(IPC.imRejectPairing, () => {
+    if (!imService) throw new Error("IM service is not ready.");
+    imService.rejectPairing();
+  });
+  ipcMain.handle(
+    IPC.imSaveFeishuCredential,
+    async (
+      _event,
+      input: { adapter: string; appId: string; appSecret: string; domain?: "feishu" | "lark" },
+    ) => {
+      if (!settingsStore) throw new Error("Agent settings are not ready.");
+      const { saveFeishuCredential, setIMAdapterEnabled } =
+        await import("./im-settings-store.js");
+      await saveFeishuCredential(settingsStore, input.adapter, {
+        appId: input.appId,
+        appSecret: input.appSecret,
+      });
+      await setIMAdapterEnabled(settingsStore, input.adapter, {
+        platform: "feishu",
+        enabled: true,
+        ...(input.domain ? { domain: input.domain } : {}),
+      });
+      // 凭据更新后立即（重）启动适配器
+      if (imService) {
+        await imService.manager.stopAdapter(input.adapter).catch(() => undefined);
+        const configs = await loadIMAdapterConfigs(settingsStore);
+        const config = configs.find((c) => c.name === input.adapter);
+        if (config) await imService.startAdapter(config);
+      }
+    },
+  );
+  ipcMain.handle(
     IPC.automationList,
     (_event, projectId?: string): Automation[] => {
       if (!store) throw new Error("Application store is not ready.");
@@ -15448,7 +15508,11 @@ app
         },
         createThread: async (input: { title: string; workspaceKey: string }) => {
           const thread = await createTaskThread(
-            { projectId: input.workspaceKey, mode: "execute", target: "local" },
+            {
+              ...(input.workspaceKey ? { projectId: input.workspaceKey } : {}),
+              mode: "execute",
+              target: "local",
+            },
             input.title,
           );
           if (!thread) throw new Error("IM thread creation was cancelled.");
@@ -15462,6 +15526,7 @@ app
           return "idle" as const;
         },
         notifyPairing: (challenge: { code: string; adapter: string; channelId: string }) => {
+          mainWindow?.webContents.send(IPC.imPairingRequested, challenge);
           if (Notification.isSupported()) {
             const notification = new Notification({
               title: "IM 配对请求",

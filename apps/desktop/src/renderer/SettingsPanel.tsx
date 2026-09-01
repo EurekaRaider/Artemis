@@ -22,6 +22,7 @@ import {
   legacyLocale,
 } from "../shared/locales.js";
 import { I18N_RESOURCES } from "../shared/i18n-resources.js";
+import type { IMSettingsSnapshot } from "../shared/api.js";
 import { CodexSelect } from "./CodexSelect.js";
 import { prepareProfileAvatar } from "./profile-avatar.js";
 
@@ -83,6 +84,29 @@ const labels = {
     profileAvatarRemove: "Remove",
     profileAvatarHint:
       "PNG, JPEG, or WebP up to 8 MiB. Artemis crops and stores a 256 px local copy.",
+    imSection: "IM remote access",
+    imSectionHint:
+      "Bind a Feishu chat to drive Artemis remotely. The bot token stays encrypted on this device.",
+    imAdapters: "Adapters",
+    imAdapterHealthy: "connected",
+    imAdapterOffline: "offline",
+    imNoAdapters: "No IM adapter configured yet.",
+    imFeishuAppId: "Feishu App ID",
+    imFeishuAppSecret: "Feishu App Secret",
+    imFeishuSave: "Save and connect",
+    imFeishuSaved: "Feishu credential saved",
+    imFeishuWizard:
+      "Setup: 1) create a custom app in the Feishu developer console; 2) enable im:message, im:message:send_as_bot, im:resource scopes; 3) set event transport to long connection; 4) subscribe im.message.receive_v1; 5) add card.action.trigger under Callback Configuration (not Event Subscriptions); 6) publish a version.",
+    imBindings: "Bindings",
+    imNoBindings: "No channel bound.",
+    imMute: "Mute",
+    imUnmute: "Unmute",
+    imUnbind: "Unbind",
+    imPairingTitle: "Pairing request",
+    imPairingHint:
+      "Enter this 4-digit code in the Feishu chat to finish pairing.",
+    imPairingApprove: "Approve",
+    imPairingReject: "Reject",
     customProviders: "Custom providers",
     provider: "Provider ID",
     providerName: "Provider display name",
@@ -274,6 +298,27 @@ const labels = {
     profileAvatarRemove: "移除",
     profileAvatarHint:
       "支持不超过 8 MiB 的 PNG、JPEG 或 WebP；Artemis 会裁剪并在本地保存 256 px 副本。",
+    imSection: "IM 远程接入",
+    imSectionHint: "绑定飞书会话后可远程驱动 Artemis。凭据加密保存在本机，不会回显。",
+    imAdapters: "适配器",
+    imAdapterHealthy: "已连接",
+    imAdapterOffline: "未连接",
+    imNoAdapters: "尚未配置 IM 适配器。",
+    imFeishuAppId: "飞书 App ID",
+    imFeishuAppSecret: "飞书 App Secret",
+    imFeishuSave: "保存并连接",
+    imFeishuSaved: "飞书凭据已保存",
+    imFeishuWizard:
+      "配置步骤：1) 在飞书开发者后台创建企业自建应用；2) 开通 im:message、im:message:send_as_bot、im:resource 权限；3) 事件连接模式选「长连接」；4) 事件订阅添加 im.message.receive_v1；5) 在「回调配置」（不是事件订阅）添加 card.action.trigger；6) 创建版本并发布。",
+    imBindings: "绑定",
+    imNoBindings: "暂无绑定频道。",
+    imMute: "静音",
+    imUnmute: "恢复",
+    imUnbind: "解绑",
+    imPairingTitle: "配对请求",
+    imPairingHint: "在飞书会话中回复这个 4 位配对码完成配对。",
+    imPairingApprove: "批准",
+    imPairingReject: "拒绝",
     customProviders: "自定义 Provider",
     provider: "Provider ID",
     providerName: "Provider 显示名称",
@@ -579,6 +624,26 @@ export function SettingsPanel({
     [],
   );
 
+  const [imSnapshot, setImSnapshot] = useState<IMSettingsSnapshot | null>(null);
+  const [imAppId, setImAppId] = useState("");
+  const [imAppSecret, setImAppSecret] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    const refresh = () => {
+      void window.artemis
+        .getIMStatus()
+        .then((snapshot) => mounted && setImSnapshot(snapshot))
+        .catch(() => undefined);
+    };
+    refresh();
+    const unsubscribe = window.artemis.onIMPairingRequested(() => refresh());
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
+
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -752,6 +817,47 @@ export function SettingsPanel({
       const updated = await window.artemis.setProfileAvatar(avatar);
       setSettings(updated);
       onSettingsChange(updated);
+    });
+  }
+
+  async function imSaveFeishu() {
+    await run(async () => {
+      await window.artemis.saveIMFeishuCredential({
+        adapter: "feishu-main",
+        appId: imAppId.trim(),
+        appSecret: imAppSecret.trim(),
+      });
+      setImAppSecret("");
+      setImSnapshot(await window.artemis.getIMStatus());
+      setMessage(t.imFeishuSaved);
+    });
+  }
+
+  async function imToggleMute(adapter: string, muted: boolean) {
+    await run(async () => {
+      await window.artemis.setIMAdapterMuted(adapter, muted);
+      setImSnapshot(await window.artemis.getIMStatus());
+    });
+  }
+
+  async function imUnbind(adapter: string, channelId: string) {
+    await run(async () => {
+      await window.artemis.unbindIMChannel(adapter, channelId);
+      setImSnapshot(await window.artemis.getIMStatus());
+    });
+  }
+
+  async function imApprovePairing() {
+    await run(async () => {
+      await window.artemis.approveIMPairing();
+      setImSnapshot(await window.artemis.getIMStatus());
+    });
+  }
+
+  async function imRejectPairing() {
+    await run(async () => {
+      await window.artemis.rejectIMPairing();
+      setImSnapshot(await window.artemis.getIMStatus());
     });
   }
 
@@ -1281,6 +1387,130 @@ export function SettingsPanel({
                       </div>
                     </div>
                     <p className="settings-security">{t.profileAvatarHint}</p>
+                  </section>
+
+                  <section className="settings-section">
+                    <h3>{t.imSection}</h3>
+                    <p className="settings-security">{t.imSectionHint}</p>
+
+                    {imSnapshot?.pairingChallenge && (
+                      <div className="settings-field">
+                        <span>{t.imPairingTitle}</span>
+                        <strong aria-label="pairing-code">
+                          {imSnapshot.pairingChallenge.code}
+                        </strong>
+                        <p className="settings-security">{t.imPairingHint}</p>
+                      </div>
+                    )}
+                    {imSnapshot?.pairingAwaiting && (
+                      <div className="settings-field">
+                        <span>
+                          {t.imPairingTitle}: {imSnapshot.pairingAwaiting.senderName} (
+                          {imSnapshot.pairingAwaiting.channelId})
+                        </span>
+                        <div>
+                          <button
+                            className="settings-secondary-action"
+                            disabled={busy}
+                            onClick={() => void imApprovePairing()}
+                            type="button"
+                          >
+                            {t.imPairingApprove}
+                          </button>
+                          <button
+                            className="settings-secondary-action"
+                            disabled={busy}
+                            onClick={() => void imRejectPairing()}
+                            type="button"
+                          >
+                            {t.imPairingReject}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="settings-field">
+                      <span>{t.imFeishuAppId}</span>
+                      <input
+                        disabled={busy}
+                        onChange={(event) => setImAppId(event.currentTarget.value)}
+                        type="text"
+                        value={imAppId}
+                      />
+                    </div>
+                    <div className="settings-field">
+                      <span>{t.imFeishuAppSecret}</span>
+                      <input
+                        autoComplete="off"
+                        disabled={busy}
+                        onChange={(event) => setImAppSecret(event.currentTarget.value)}
+                        type="password"
+                        value={imAppSecret}
+                      />
+                    </div>
+                    <button
+                      className="settings-secondary-action"
+                      disabled={busy || !imAppId.trim() || !imAppSecret.trim()}
+                      onClick={() => void imSaveFeishu()}
+                      type="button"
+                    >
+                      {t.imFeishuSave}
+                    </button>
+                    <p className="settings-security">{t.imFeishuWizard}</p>
+
+                    <div className="settings-field">
+                      <span>{t.imAdapters}</span>
+                      {imSnapshot && imSnapshot.adapters.length > 0 ? (
+                        <ul>
+                          {imSnapshot.adapters.map((adapter) => (
+                            <li key={adapter.name}>
+                              {adapter.name} · {adapter.platform} ·{" "}
+                              {adapter.healthy
+                                ? t.imAdapterHealthy
+                                : t.imAdapterOffline}
+                              {adapter.lastError ? ` · ${adapter.lastError}` : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="settings-security">{t.imNoAdapters}</p>
+                      )}
+                    </div>
+
+                    <div className="settings-field">
+                      <span>{t.imBindings}</span>
+                      {imSnapshot && imSnapshot.bindings.length > 0 ? (
+                        <ul>
+                          {imSnapshot.bindings.map((binding) => (
+                            <li key={`${binding.adapter}:${binding.channelId}`}>
+                              {binding.channelId} · {binding.outputMode}
+                              <button
+                                className="settings-secondary-action"
+                                disabled={busy}
+                                onClick={() =>
+                                  void imToggleMute(binding.adapter, !binding.muted)
+                                }
+                                type="button"
+                              >
+                                {binding.muted ? t.imUnmute : t.imMute}
+                              </button>
+                              <button
+                                className="settings-secondary-action"
+                                disabled={busy}
+                                onClick={() =>
+                                  void imUnbind(binding.adapter, binding.channelId)
+                                }
+                                type="button"
+                              >
+                                {t.imUnbind}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="settings-security">{t.imNoBindings}</p>
+                      )}
+                    </div>
                   </section>
 
                   <section className="settings-section">

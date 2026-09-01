@@ -122,6 +122,23 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.userInputResolve, resolution),
   listAutomations: (projectId) =>
     ipcRenderer.invoke(IPC.automationList, projectId),
+  getIMStatus: () => ipcRenderer.invoke(IPC.imStatus),
+  setIMAdapterMuted: (adapter, muted) =>
+    ipcRenderer.invoke(IPC.imSetMuted, adapter, muted),
+  unbindIMChannel: (adapter, channelId) =>
+    ipcRenderer.invoke(IPC.imUnbind, adapter, channelId),
+  approveIMPairing: () => ipcRenderer.invoke(IPC.imApprovePairing),
+  rejectIMPairing: () => ipcRenderer.invoke(IPC.imRejectPairing),
+  saveIMFeishuCredential: (input) =>
+    ipcRenderer.invoke(IPC.imSaveFeishuCredential, input),
+  onIMPairingRequested(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      value: Parameters<typeof listener>[0],
+    ) => listener(value);
+    ipcRenderer.on(IPC.imPairingRequested, handler);
+    return () => ipcRenderer.removeListener(IPC.imPairingRequested, handler);
+  },
   listAutomationRuns: (automationId, limit) =>
     ipcRenderer.invoke(IPC.automationRunList, automationId, limit),
   saveAutomation: (input) => ipcRenderer.invoke(IPC.automationSave, input),

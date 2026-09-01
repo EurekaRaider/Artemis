@@ -182,6 +182,34 @@ export class IMService {
     return this.manager.status();
   }
 
+  /** 解绑频道（设置页入口）。 */
+  unbind(adapter: string, channelId: string): boolean {
+    return this.bindingStore.remove(adapter, channelId);
+  }
+
+  /** 桌面批准配对：建 [FS] 可见线程 + 写绑定（决策 2/3）。 */
+  async approvePairing(workspaceKey: string): Promise<ChannelBinding | null> {
+    const awaiting = this.manager.status().pairingAwaiting;
+    if (!awaiting) return null;
+    const created = await this.host.createThread({
+      title: `[FS] ${awaiting.senderName}`,
+      workspaceKey,
+    });
+    return this.manager.approvePairing({
+      workspaceKey,
+      threadId: created.threadId,
+      adapter: awaiting.adapter,
+      platform: "feishu",
+      channelId: awaiting.channelId,
+      outputMode: "summary",
+    });
+  }
+
+  /** 桌面拒绝配对（满 3 次拉黑渠道，E15）。 */
+  rejectPairing(): { blacklisted: boolean } {
+    return this.manager.rejectPairing();
+  }
+
   private createAdapter(config: IMAdapterConfig): IMAdapter {
     if (config.platform === "feishu") {
       const creds = config.credentials;

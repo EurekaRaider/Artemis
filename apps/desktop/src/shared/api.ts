@@ -842,6 +842,18 @@ export interface ArtemisApi {
   resolveApproval(resolution: ApprovalResolution): Promise<void>;
   resolveUserInput(resolution: UserInputResolution): Promise<void>;
   listAutomations(projectId?: string): Promise<Automation[]>;
+  getIMStatus(): Promise<IMSettingsSnapshot>;
+  setIMAdapterMuted(adapter: string, muted: boolean): Promise<void>;
+  unbindIMChannel(adapter: string, channelId: string): Promise<void>;
+  approveIMPairing(): Promise<void>;
+  rejectIMPairing(): Promise<void>;
+  saveIMFeishuCredential(input: {
+    adapter: string;
+    appId: string;
+    appSecret: string;
+    domain?: "feishu" | "lark";
+  }): Promise<void>;
+  onIMPairingRequested(listener: (challenge: IMPairingSnapshot) => void): () => void;
   listAutomationRuns(
     automationId: string,
     limit?: number,
@@ -1045,6 +1057,40 @@ export interface ArtemisApi {
   ): () => void;
 }
 
+// ---- IM 远程接入（Phase 3 设置页，状态快照 only，无凭据）----
+
+export interface IMAdapterStateSnapshot {
+  name: string;
+  platform: string;
+  healthy: boolean;
+  status: string;
+  lastError?: string;
+}
+
+export interface IMBindingSnapshot {
+  workspaceKey: string;
+  threadId: string;
+  adapter: string;
+  platform: string;
+  channelId: string;
+  outputMode: "summary" | "verbose" | "quiet";
+  muted: boolean;
+  boundAt: string;
+}
+
+export interface IMPairingSnapshot {
+  code: string;
+  adapter: string;
+  channelId: string;
+}
+
+export interface IMSettingsSnapshot {
+  adapters: IMAdapterStateSnapshot[];
+  bindings: IMBindingSnapshot[];
+  pairingChallenge: IMPairingSnapshot | null;
+  pairingAwaiting: { adapter: string; channelId: string; senderName: string } | null;
+}
+
 export const IPC = {
   snapshot: "artemis:snapshot",
   threadEvents: "artemis:thread-events",
@@ -1102,6 +1148,13 @@ export const IPC = {
   automationAuthorize: "artemis:automation-authorize",
   automationDelete: "artemis:automation-delete",
   automationRunNow: "artemis:automation-run-now",
+  imStatus: "artemis:im-status",
+  imSetMuted: "artemis:im-set-muted",
+  imUnbind: "artemis:im-unbind",
+  imApprovePairing: "artemis:im-approve-pairing",
+  imRejectPairing: "artemis:im-reject-pairing",
+  imSaveFeishuCredential: "artemis:im-save-feishu-credential",
+  imPairingRequested: "artemis:im-pairing-requested",
   automationEvent: "artemis:automation-event",
   automationThreadOpen: "artemis:automation-thread-open",
   reviewDiff: "artemis:review-diff",
