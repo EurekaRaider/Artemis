@@ -1,20 +1,34 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Component, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { artemisThemeCss, artemisThemeManifest } from "@artemis/theme-artemis";
+import {
+  SEMANTIC_TOKEN_REGISTRY,
+  validateSkinPackage,
+} from "@artemis/theme-contract";
 import {
   CONFORMANCE_PROBE_ACCESSIBLE_NAME_ERROR,
   ConformanceProbe,
 } from "@artemis/ui/conformance";
-import { validateSkinPackage } from "@artemis/theme-contract";
 
 import conformanceMatrix from "../src/conformance-matrix.json" with { type: "json" };
 import {
+  applyGalleryMode,
   applyGallerySkin,
+  GALLERY_TOKEN_PROVENANCE,
   GalleryApp,
   installGalleryStressSkinStyles,
+  type GalleryMode,
   type GallerySkin,
 } from "../src/gallery-app.js";
 import {
@@ -56,19 +70,26 @@ beforeEach(() => {
   applyGallerySkin("default");
   document.head.querySelector("style[data-gallery-stress-skin]")?.remove();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
-function prepareSkin(skin: GallerySkin): void {
-  applyGallerySkin(skin);
-  if (skin === "stress") installGalleryStressSkinStyles();
+function prepareMode(mode: GalleryMode): void {
+  applyGalleryMode(mode);
+  if (mode.skin === "stress") installGalleryStressSkinStyles();
   expect(document.documentElement.dataset.artemisSkin).toBe(
-    skin === "stress" ? STRESS_SKIN_ID : "com.artemis.default",
+    mode.skin === "stress" ? STRESS_SKIN_ID : artemisThemeManifest.id,
   );
-  expect(document.documentElement.dataset.artemisTheme).toBe("light");
-  expect(document.documentElement.dataset.artemisContrast).toBe("normal");
+  expect(document.documentElement.dataset.artemisTheme).toBe(mode.theme);
+  expect(document.documentElement.dataset.artemisContrast).toBe(mode.contrast);
   expect(
     document.head.querySelector("style[data-gallery-stress-skin]") !== null,
-  ).toBe(skin === "stress");
+  ).toBe(mode.skin === "stress");
+}
+
+function prepareSkin(skin: GallerySkin): void {
+  prepareMode({ skin, theme: "light", contrast: "normal" });
 }
 
 const caseRunners = {
@@ -320,9 +341,170 @@ const skinCaseMatrix = (["default", "stress"] as const).flatMap((skin) =>
   conformanceCases.map((caseName) => ({ skin, caseName })),
 );
 
+const galleryVertices = (["default", "stress"] as const).flatMap((skin) =>
+  (["light", "dark"] as const).flatMap((theme) =>
+    (["normal", "high"] as const).map((contrast) => ({
+      skin,
+      theme,
+      contrast,
+    })),
+  ),
+) satisfies readonly GalleryMode[];
+
+const galleryAxes = ["skin", "theme", "contrast"] as const;
+
+const galleryEdges = galleryVertices.flatMap((from) => {
+  const edges: Array<{
+    readonly axis: (typeof galleryAxes)[number];
+    readonly from: GalleryMode;
+    readonly label: "Skin" | "Theme" | "Contrast";
+    readonly option: string;
+    readonly to: GalleryMode;
+  }> = [];
+  if (from.skin === "default") {
+    edges.push({
+      axis: "skin",
+      from,
+      label: "Skin",
+      option: "Stress",
+      to: { ...from, skin: "stress" },
+    });
+  }
+  if (from.theme === "light") {
+    edges.push({
+      axis: "theme",
+      from,
+      label: "Theme",
+      option: "Dark",
+      to: { ...from, theme: "dark" },
+    });
+  }
+  if (from.contrast === "normal") {
+    edges.push({
+      axis: "contrast",
+      from,
+      label: "Contrast",
+      option: "High",
+      to: { ...from, contrast: "high" },
+    });
+  }
+  return edges;
+});
+
+function parseGeneratedCss(css: string) {
+  const modes = new Map<string, ReadonlyMap<string, string>>();
+  const blockPattern =
+    /:root\[data-artemis-skin="([^"]+)"\]\[data-artemis-theme="(light|dark)"\]\[data-artemis-contrast="(normal|high)"\] \{\n([\s\S]*?)\n\}/gu;
+  for (const match of css.matchAll(blockPattern)) {
+    const declarations = new Map<string, string>();
+    for (const line of match[4]!.split("\n")) {
+      const declaration = /^\s*(--artemis-[a-z0-9-]+):\s*(.+);$/u.exec(line);
+      if (declaration === null) {
+        throw new Error(`Unexpected generated declaration: ${line}`);
+      }
+      declarations.set(declaration[1]!, declaration[2]!);
+    }
+    modes.set(`${match[1]}|${match[2]}|${match[3]}`, declarations);
+  }
+  return modes;
+}
+
+const formalCssModes = new Map([
+  ...parseGeneratedCss(artemisThemeCss),
+  ...parseGeneratedCss(stressSkinCss),
+]);
+
+function rootModeKey(): string {
+  return [
+    document.documentElement.dataset.artemisSkin,
+    document.documentElement.dataset.artemisTheme,
+    document.documentElement.dataset.artemisContrast,
+  ].join("|");
+}
+
+function installFormalComputedStyle(): void {
+  const nativeGetComputedStyle = window.getComputedStyle.bind(window);
+  vi.spyOn(window, "getComputedStyle").mockImplementation(
+    (element, pseudoElement) => {
+      if (element !== document.documentElement) {
+        return nativeGetComputedStyle(element, pseudoElement);
+      }
+      const declarations = formalCssModes.get(rootModeKey());
+      if (declarations === undefined) {
+        throw new Error(`Missing formal CSS mode: ${rootModeKey()}`);
+      }
+      return {
+        getPropertyValue(property: string) {
+          return declarations.get(property) ?? "";
+        },
+      } as CSSStyleDeclaration;
+    },
+  );
+}
+
+async function selectAxis(
+  user: ReturnType<typeof userEvent.setup>,
+  label: "Skin" | "Theme" | "Contrast",
+  option: string,
+): Promise<void> {
+  const group = screen.getByRole("group", { name: label });
+  const button = within(group).getByRole("button", { name: option });
+  if (button.getAttribute("aria-pressed") !== "true") await user.click(button);
+}
+
+async function selectMode(
+  user: ReturnType<typeof userEvent.setup>,
+  mode: GalleryMode,
+): Promise<void> {
+  await selectAxis(
+    user,
+    "Skin",
+    mode.skin === "default" ? "Direction A" : "Stress",
+  );
+  await selectAxis(user, "Theme", mode.theme === "light" ? "Light" : "Dark");
+  await selectAxis(
+    user,
+    "Contrast",
+    mode.contrast === "normal" ? "Normal" : "High",
+  );
+}
+
+function expectRootMode(mode: GalleryMode): void {
+  expect(document.documentElement.dataset.artemisSkin).toBe(
+    mode.skin === "default" ? artemisThemeManifest.id : STRESS_SKIN_ID,
+  );
+  expect(document.documentElement.dataset.artemisTheme).toBe(mode.theme);
+  expect(document.documentElement.dataset.artemisContrast).toBe(mode.contrast);
+}
+
+function expectPressedAxis(
+  label: "Skin" | "Theme" | "Contrast",
+  selectedOption: string,
+): void {
+  const buttons = within(
+    screen.getByRole("group", { name: label }),
+  ).getAllByRole("button");
+  for (const button of buttons) {
+    expect(button.getAttribute("aria-pressed")).toBe(
+      String(button.textContent === selectedOption),
+    );
+  }
+}
+
+function rootModeAttributes(): Readonly<
+  Record<(typeof galleryAxes)[number], string | undefined>
+> {
+  return {
+    skin: document.documentElement.dataset.artemisSkin,
+    theme: document.documentElement.dataset.artemisTheme,
+    contrast: document.documentElement.dataset.artemisContrast,
+  };
+}
+
 describe("default and synthetic stress skin conformance", () => {
   it("uses schema-valid data and a fixed root-only token serializer", () => {
     expect(validateSkinPackage(stressSkinPackage).valid).toBe(true);
+    expect(galleryEdges).toHaveLength(12);
     expect(stressSkinCss).toContain(
       `:root[data-artemis-skin="${STRESS_SKIN_ID}"][data-artemis-theme="light"][data-artemis-contrast="normal"]`,
     );
@@ -342,25 +524,89 @@ describe("default and synthetic stress skin conformance", () => {
     ).toHaveLength(1);
   });
 
-  it.each(["default", "stress"] as const)(
-    "initializes GalleryApp coherently from the %s root skin",
-    (skin) => {
-      prepareSkin(skin);
+  it.each(galleryVertices)(
+    "initializes the $skin/$theme/$contrast vertex from root attributes",
+    (mode) => {
+      prepareMode(mode);
       render(<GalleryApp />);
-      expect(
-        screen
-          .getByText(`Active harness skin: ${skin}`)
-          .getAttribute("data-gallery-active-skin"),
-      ).toBe(skin);
-      expect(
-        screen.getByRole("button", {
-          name: `Use ${skin === "default" ? "stress" : "default"} skin`,
-        }),
-      ).not.toBeNull();
+      expectRootMode(mode);
+      const status = screen.getByText(
+        `Active mode: ${mode.skin} / ${mode.theme} / ${mode.contrast}`,
+      );
+      expect(status.getAttribute("data-gallery-active-skin")).toBe(mode.skin);
+      expect(status.getAttribute("data-gallery-active-theme")).toBe(mode.theme);
+      expect(status.getAttribute("data-gallery-active-contrast")).toBe(
+        mode.contrast,
+      );
+      expectPressedAxis(
+        "Skin",
+        mode.skin === "default" ? "Direction A" : "Stress",
+      );
+      expectPressedAxis("Theme", mode.theme === "light" ? "Light" : "Dark");
+      expectPressedAxis(
+        "Contrast",
+        mode.contrast === "normal" ? "Normal" : "High",
+      );
     },
   );
 
-  it("switches skin without remounting or losing value, selection, focus, anatomy, or ARIA", async () => {
+  it.each(galleryEdges)(
+    "changes only $axis on the $from.skin/$from.theme/$from.contrast cube edge",
+    async ({ axis, from, label, option, to }) => {
+      prepareMode(from);
+      const user = userEvent.setup();
+      render(<GalleryApp />);
+      const before = rootModeAttributes();
+      await selectAxis(user, label, option);
+      const after = rootModeAttributes();
+
+      expectRootMode(to);
+      expect(after[axis]).not.toBe(before[axis]);
+      for (const unchangedAxis of galleryAxes.filter(
+        (candidate) => candidate !== axis,
+      )) {
+        expect(after[unchangedAxis]).toBe(before[unchangedAxis]);
+      }
+    },
+  );
+
+  it("renders all 74 computed formal CSS tokens at every Gallery vertex", async () => {
+    installFormalComputedStyle();
+    const user = userEvent.setup();
+    const { container } = render(<GalleryApp />);
+    const provenance = container.querySelector(
+      "[data-gallery-token-provenance]",
+    );
+    expect(provenance?.getAttribute("data-gallery-token-provenance")).toBe(
+      GALLERY_TOKEN_PROVENANCE,
+    );
+    expect(Object.keys(SEMANTIC_TOKEN_REGISTRY)).toHaveLength(74);
+    expect(formalCssModes.size).toBe(8);
+
+    for (const mode of galleryVertices) {
+      await selectMode(user, mode);
+      const expected = formalCssModes.get(rootModeKey())!;
+      expect(expected.size).toBe(74);
+      await waitFor(() => {
+        const outputs = container.querySelectorAll<HTMLOutputElement>(
+          "output[data-gallery-token]",
+        );
+        expect(outputs).toHaveLength(74);
+        for (const output of outputs) {
+          const name = output.dataset.galleryToken!;
+          const variable =
+            SEMANTIC_TOKEN_REGISTRY[
+              name as keyof typeof SEMANTIC_TOKEN_REGISTRY
+            ].cssVariable;
+          expect(output.value, `${rootModeKey()} ${name}`).toBe(
+            expected.get(variable),
+          );
+        }
+      });
+    }
+  });
+
+  it("traverses all eight vertices and returns without remount or state, selection, focus, anatomy, or ARIA loss", async () => {
     const user = userEvent.setup();
     const { container } = render(<GalleryApp />);
     const control = screen.getByRole("textbox", { name: "Synthetic value" });
@@ -374,6 +620,8 @@ describe("default and synthetic stress skin conformance", () => {
       '[data-artemis-component="conformance-probe"]',
     );
     const label = container.querySelector('[data-part="label"]');
+    const eventOrder = container.querySelector("[data-gallery-event-order]");
+    const eventOrderSnapshot = eventOrder?.textContent;
     const ariaSnapshot = {
       rootLabelledBy: root?.getAttribute("aria-labelledby"),
       rootBusy: root?.getAttribute("aria-busy"),
@@ -384,34 +632,39 @@ describe("default and synthetic stress skin conformance", () => {
     };
     expect(ariaSnapshot.rootLabelledBy).toBe(label?.id);
     expect(ariaSnapshot.labelFor).toBe(control.id);
-    await user.click(screen.getByRole("button", { name: "Use stress skin" }));
-
-    const afterSwitch = screen.getByRole("textbox", {
-      name: "Synthetic value",
-    });
-    expect(afterSwitch).toBe(control);
-    expect(afterSwitch).toHaveProperty("value", "preserve-changed");
-    expect(afterSwitch).toHaveProperty("selectionStart", 2);
-    expect(afterSwitch).toHaveProperty("selectionEnd", 5);
-    expect(document.activeElement).toBe(afterSwitch);
-    const afterRoot = afterSwitch.closest(
-      '[data-artemis-component="conformance-probe"]',
-    );
-    const afterLabel = container.querySelector('[data-part="label"]');
-    expect({
-      rootLabelledBy: afterRoot?.getAttribute("aria-labelledby"),
-      rootBusy: afterRoot?.getAttribute("aria-busy"),
-      labelFor: afterLabel?.getAttribute("for"),
-      controlDescribedBy: afterSwitch.getAttribute("aria-describedby"),
-      controlInvalid: afterSwitch.getAttribute("aria-invalid"),
-      controlBusy: afterSwitch.getAttribute("aria-busy"),
-    }).toEqual(ariaSnapshot);
-    expect(
-      [...container.querySelectorAll("[data-part]")].map((part) =>
-        part.getAttribute("data-part"),
-      ),
-    ).toEqual(originalParts);
-    expect(document.documentElement.dataset.artemisSkin).toBe(STRESS_SKIN_ID);
+    for (const mode of [...galleryVertices, galleryVertices[0]!]) {
+      await selectMode(user, mode);
+      expectRootMode(mode);
+      const afterSwitch = screen.getByRole("textbox", {
+        name: "Synthetic value",
+      });
+      expect(afterSwitch).toBe(control);
+      expect(afterSwitch).toHaveProperty("value", "preserve-changed");
+      expect(afterSwitch).toHaveProperty("selectionStart", 2);
+      expect(afterSwitch).toHaveProperty("selectionEnd", 5);
+      expect(document.activeElement).toBe(afterSwitch);
+      expect(container.querySelector("[data-gallery-event-order]")).toBe(
+        eventOrder,
+      );
+      expect(eventOrder?.textContent).toBe(eventOrderSnapshot);
+      const afterRoot = afterSwitch.closest(
+        '[data-artemis-component="conformance-probe"]',
+      );
+      const afterLabel = container.querySelector('[data-part="label"]');
+      expect({
+        rootLabelledBy: afterRoot?.getAttribute("aria-labelledby"),
+        rootBusy: afterRoot?.getAttribute("aria-busy"),
+        labelFor: afterLabel?.getAttribute("for"),
+        controlDescribedBy: afterSwitch.getAttribute("aria-describedby"),
+        controlInvalid: afterSwitch.getAttribute("aria-invalid"),
+        controlBusy: afterSwitch.getAttribute("aria-busy"),
+      }).toEqual(ariaSnapshot);
+      expect(
+        [...container.querySelectorAll("[data-part]")].map((part) =>
+          part.getAttribute("data-part"),
+        ),
+      ).toEqual(originalParts);
+    }
     expect(
       document.head.querySelector("style[data-gallery-stress-skin]"),
     ).not.toBeNull();

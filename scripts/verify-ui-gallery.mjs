@@ -30,7 +30,7 @@ const GALLERY_SCAFFOLD_RULES = new Map([
     "main",
     [
       ["box-sizing", "border-box"],
-      ["max-width", "48rem"],
+      ["max-width", "72rem"],
       ["margin", "0 auto"],
       ["padding", "var(--artemis-space-6)"],
     ],
@@ -43,18 +43,208 @@ const GALLERY_SCAFFOLD_RULES = new Map([
     ],
   ],
   [
-    ".gallery-skin-toggle",
+    ".gallery-axis-grid",
     [
-      ["padding", "var(--artemis-space-2) var(--artemis-space-3)"],
-      ["color", "var(--artemis-color-accent-on-primary)"],
-      ["background", "var(--artemis-color-accent-primary)"],
+      ["display", "flex"],
+      ["flex-wrap", "wrap"],
+      ["gap", "var(--artemis-space-3)"],
+    ],
+  ],
+  [
+    ".gallery-axis-control",
+    [
+      ["display", "inline-flex"],
+      ["gap", "var(--artemis-space-1)"],
+      ["margin", "0"],
+      ["padding", "var(--artemis-space-1)"],
       [
         "border",
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-strong)",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-card)"],
+    ],
+  ],
+  [
+    ".gallery-axis-control legend",
+    [
+      ["padding-inline", "var(--artemis-space-1)"],
+      ["color", "var(--artemis-color-text-secondary)"],
+    ],
+  ],
+  [
+    ".gallery-axis-control button",
+    [
+      ["min-block-size", "var(--artemis-size-control-comfortable)"],
+      ["padding-inline", "var(--artemis-space-3)"],
+      ["color", "var(--artemis-color-text-secondary)"],
+      ["background", "var(--artemis-color-surface-sunken)"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
       ],
       ["border-radius", "var(--artemis-radius-control)"],
       ["font", "inherit"],
     ],
+  ],
+  [
+    '.gallery-axis-control button[aria-pressed="true"]',
+    [
+      ["color", "var(--artemis-color-accent-on-primary)"],
+      ["background", "var(--artemis-color-accent-primary)"],
+      ["border-color", "var(--artemis-color-accent-primary)"],
+    ],
+  ],
+  [
+    ".gallery-sample-section",
+    [
+      ["margin-block-start", "var(--artemis-space-6)"],
+      ["padding", "var(--artemis-space-4)"],
+      ["background", "var(--artemis-color-surface-base)"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-panel)"],
+      ["box-shadow", "var(--artemis-shadow-surface)"],
+    ],
+  ],
+  [
+    ".gallery-token-grid",
+    [
+      ["display", "grid"],
+      ["grid-template-columns", "repeat(auto-fit, minmax(14rem, 1fr))"],
+      ["gap", "var(--artemis-space-2)"],
+      ["margin", "0"],
+    ],
+  ],
+  [
+    ".gallery-token-grid div",
+    [
+      ["min-inline-size", "0"],
+      ["padding", "var(--artemis-space-2)"],
+      ["background", "var(--artemis-color-surface-sunken)"],
+      ["border-radius", "var(--artemis-radius-control)"],
+    ],
+  ],
+  [".gallery-token-grid dt, .gallery-token-grid dd", [["margin", "0"]]],
+  [
+    ".gallery-token-grid dd",
+    [
+      ["overflow-wrap", "anywhere"],
+      ["color", "var(--artemis-color-accent-text)"],
+      ["font-family", "var(--artemis-typography-mono-family)"],
+    ],
+  ],
+  [
+    ".gallery-surface-grid, .gallery-radius-grid",
+    [
+      ["display", "grid"],
+      ["grid-template-columns", "repeat(auto-fit, minmax(8rem, 1fr))"],
+      ["gap", "var(--artemis-space-2)"],
+    ],
+  ],
+  [
+    ".gallery-surface-sample",
+    [
+      ["min-block-size", "calc(var(--artemis-size-control-comfortable) * 2)"],
+      ["padding", "var(--artemis-space-3)"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-card)"],
+    ],
+  ],
+  [
+    ".gallery-surface-base",
+    [["background", "var(--artemis-color-surface-base)"]],
+  ],
+  [
+    ".gallery-surface-raised",
+    [
+      ["background", "var(--artemis-color-surface-raised)"],
+      ["box-shadow", "var(--artemis-shadow-surface)"],
+    ],
+  ],
+  [
+    ".gallery-surface-sunken",
+    [["background", "var(--artemis-color-surface-sunken)"]],
+  ],
+  [
+    ".gallery-surface-composer",
+    [
+      ["background", "var(--artemis-color-surface-composer)"],
+      ["box-shadow", "var(--artemis-shadow-composer)"],
+    ],
+  ],
+  [
+    ".gallery-surface-user",
+    [["background", "var(--artemis-color-surface-user)"]],
+  ],
+  [
+    ".gallery-type-sample",
+    [
+      ["margin-block-start", "var(--artemis-space-4)"],
+      ["padding", "var(--artemis-space-3)"],
+      ["background", "var(--artemis-color-surface-sunken)"],
+      ["border-radius", "var(--artemis-radius-card)"],
+    ],
+  ],
+  [".gallery-type-sample p", [["margin", "0"]]],
+  [".gallery-type-primary", [["color", "var(--artemis-color-text-primary)"]]],
+  [
+    ".gallery-type-secondary",
+    [["color", "var(--artemis-color-text-secondary)"]],
+  ],
+  [".gallery-type-tertiary", [["color", "var(--artemis-color-text-tertiary)"]]],
+  [
+    ".gallery-radius-sample",
+    [
+      ["padding", "var(--artemis-space-3)"],
+      ["background", "var(--artemis-color-accent-subtle)"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-accent-primary)",
+      ],
+    ],
+  ],
+  [
+    ".gallery-radius-control",
+    [["border-radius", "var(--artemis-radius-control)"]],
+  ],
+  [".gallery-radius-input", [["border-radius", "var(--artemis-radius-input)"]]],
+  [".gallery-radius-card", [["border-radius", "var(--artemis-radius-card)"]]],
+  [".gallery-radius-panel", [["border-radius", "var(--artemis-radius-panel)"]]],
+  [
+    ".gallery-radius-composer",
+    [["border-radius", "var(--artemis-radius-composer)"]],
+  ],
+  [
+    ".gallery-motion-sample",
+    [
+      ["display", "flex"],
+      ["align-items", "center"],
+      ["gap", "var(--artemis-space-2)"],
+      ["margin-block-start", "var(--artemis-space-4)"],
+      ["color", "var(--artemis-color-text-secondary)"],
+    ],
+  ],
+  [
+    ".gallery-motion-swatch",
+    [
+      ["inline-size", "var(--artemis-size-control-comfortable)"],
+      ["block-size", "var(--artemis-space-2)"],
+      ["background", "var(--artemis-color-accent-primary)"],
+      ["border-radius", "var(--artemis-radius-pill)"],
+      [
+        "transition",
+        "transform var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
+      ],
+    ],
+  ],
+  [
+    ".gallery-motion-sample:hover .gallery-motion-swatch",
+    [["transform", "translateX(var(--artemis-space-4))"]],
   ],
   [
     ".gallery-probe-section",
@@ -66,19 +256,46 @@ const GALLERY_SCAFFOLD_RULES = new Map([
   ],
 ]);
 const PRIVATE_GALLERY_CLASSES = new Set([
+  "gallery-axis-control",
+  "gallery-axis-grid",
   "gallery-eyebrow",
+  "gallery-motion-sample",
+  "gallery-motion-swatch",
   "gallery-probe-section",
-  "gallery-skin-toggle",
+  "gallery-radius-card",
+  "gallery-radius-composer",
+  "gallery-radius-control",
+  "gallery-radius-grid",
+  "gallery-radius-input",
+  "gallery-radius-panel",
+  "gallery-radius-sample",
+  "gallery-sample-section",
+  "gallery-surface-base",
+  "gallery-surface-composer",
+  "gallery-surface-grid",
+  "gallery-surface-raised",
+  "gallery-surface-sample",
+  "gallery-surface-sunken",
+  "gallery-surface-user",
+  "gallery-token-grid",
+  "gallery-type-primary",
+  "gallery-type-sample",
+  "gallery-type-secondary",
+  "gallery-type-tertiary",
 ]);
 const PRIVATE_GALLERY_ATTRIBUTES = new Set([
+  "data-gallery-active-contrast",
   "data-gallery-active-skin",
+  "data-gallery-active-theme",
   "data-gallery-event-order",
   "data-gallery-stress-skin",
+  "data-gallery-token",
+  "data-gallery-token-provenance",
 ]);
 const PRIVATE_GALLERY_TEXT_MARKERS = [
   "@artemis/ui-gallery",
-  "Artemis UI Gallery scaffold",
-  "CL0B component contract harness",
+  "Artemis UI Gallery",
+  "CL1A Direction A candidate",
   "com.artemis.synthetic-stress",
 ];
 
@@ -751,11 +968,14 @@ const galleryText = (
   )
 ).join("\n");
 for (const marker of [
-  "Artemis UI Gallery scaffold",
-  "CL0B component contract harness",
+  "Artemis UI Gallery",
+  "CL1A Direction A candidate",
   "com.artemis.synthetic-stress",
   "data-artemis-component",
   "data-gallery-active-skin",
+  "data-gallery-active-theme",
+  "data-gallery-active-contrast",
+  "data-gallery-token-provenance",
   "--artemis-color-canvas",
   "data-artemis-skin",
   "data-artemis-theme",
