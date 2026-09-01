@@ -162,8 +162,9 @@ The clean exact-head Electron verifier traverses those 64 vertices using a real
 Desktop Environment portal at 100% and the real Composer textarea when 200%
 responsive layout hides the branch control. The chosen focus/value/selection
 anchor is preserved through each environment's eight skin/theme/contrast modes;
-the original Composer, xterm nodes, normalized visible terminal content, and
-native PTY state remain fixed across the full traversal. It then separately
+the original Composer and xterm nodes remain fixed across the full traversal;
+the synthetic `Artemis>` prompt stays present and the native PTY count remains
+one. It then separately
 exercises unknown, unavailable, unsupported,
 load-failed, and default-fatal paths and expands production artifact rejection
 to every temporary fallback marker. This remains governance and host proof: no

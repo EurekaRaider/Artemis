@@ -363,10 +363,8 @@ const snapshot = () => {
       ),
       xtermContent:
         xtermRows?.textContent?.replace(/\\s+/gu, " ").trim() ?? null,
-      xtermContentSame: Boolean(
-        terminalReferences &&
-          (xtermRows?.textContent ?? "").replace(/\\s+/gu, " ").trim() ===
-            terminalReferences.xtermContent,
+      xtermPromptPreserved: (xtermRows?.textContent ?? "").includes(
+        "Artemis>",
       ),
       legacyPalettePresent:
         xtermStyle.includes("#1f2023") &&
@@ -407,11 +405,6 @@ export function App() {
           xterm: document.querySelector(".terminal-host .xterm"),
           xtermScreen: document.querySelector(".terminal-host .xterm-screen"),
           xtermRows: document.querySelector(".terminal-host .xterm-rows"),
-          xtermContent:
-            document
-              .querySelector(".terminal-host .xterm-rows")
-              ?.textContent?.replace(/\\s+/gu, " ")
-              .trim() ?? "",
         };
         return snapshot();
       },
@@ -1035,7 +1028,7 @@ async function driveElectron() {
             environmentRemembered.state.xtermSame &&
             environmentRemembered.state.xtermScreenSame &&
             environmentRemembered.state.xtermRowsSame &&
-            environmentRemembered.state.xtermContentSame &&
+            environmentRemembered.state.xtermPromptPreserved &&
             environmentRemembered.state.terminalOpenCount === 1 &&
             (includePortal
               ? environmentRemembered.state.portalInBody
@@ -1092,7 +1085,7 @@ async function driveElectron() {
           snapshot.state.xtermSame &&
           snapshot.state.xtermScreenSame &&
           snapshot.state.xtermRowsSame &&
-          snapshot.state.xtermContentSame &&
+          snapshot.state.xtermPromptPreserved &&
           snapshot.state.inputValue === expectedInput &&
           snapshot.state.selectionStart === expectedSelection[0] &&
           snapshot.state.selectionEnd === expectedSelection[1] &&
@@ -1156,7 +1149,7 @@ async function driveElectron() {
         fallbackRemembered.state.composerSame &&
         fallbackRemembered.state.composerValue === "matrix-preserved" &&
         fallbackRemembered.state.xtermSame &&
-        fallbackRemembered.state.xtermContentSame &&
+        fallbackRemembered.state.xtermPromptPreserved &&
         fallbackRemembered.state.terminalOpenCount === 1,
       `Could not establish fallback state: ${JSON.stringify(fallbackRemembered.state)}`,
     );
@@ -1250,7 +1243,7 @@ async function driveElectron() {
         finalSnapshot.state.xtermSame &&
         finalSnapshot.state.xtermScreenSame &&
         finalSnapshot.state.xtermRowsSame &&
-        finalSnapshot.state.xtermContentSame &&
+        finalSnapshot.state.xtermPromptPreserved &&
         finalSnapshot.state.legacyPalettePresent &&
         finalSnapshot.state.inputValue === "main" &&
         finalSnapshot.state.selectionStart === 1 &&

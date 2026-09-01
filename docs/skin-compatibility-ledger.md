@@ -180,9 +180,9 @@ in one real Electron window. Each 100% direction/motion environment establishes
 a real focused Environment portal input; at 200%, where responsive layout hides
 that branch control, the matrix uses the real focused Composer textarea. The
 chosen node, value, selection, focus, inherited direction, and token values are
-retained through all eight skin/theme/contrast vertices. The original Composer,
-xterm nodes, normalized visible terminal content, and single native PTY remain
-fixed across all 64 vertices.
+retained through all eight skin/theme/contrast vertices. The original Composer
+and xterm nodes remain fixed across all 64 vertices; the synthetic `Artemis>`
+prompt stays present and the native PTY count remains one.
 It asserts real `webFrame` zoom, emulated reduced motion, all 74 computed tokens,
 and empty Renderer warnings/errors.
 Unknown, unavailable, unsupported, load-failed, and default-fatal paths are

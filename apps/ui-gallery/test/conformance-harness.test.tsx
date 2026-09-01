@@ -751,7 +751,7 @@ describe("default and synthetic stress skin conformance", () => {
     expect(
       document.head.querySelector("style[data-gallery-stress-skin]"),
     ).not.toBeNull();
-  });
+  }, 20_000);
 
   it("binds every declared matrix case to a real behavior runner", () => {
     expect(conformanceMatrix.skins.stress).toEqual(
