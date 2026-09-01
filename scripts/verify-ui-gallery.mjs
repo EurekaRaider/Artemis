@@ -39,6 +39,10 @@ const galleryText = (
 ).join("\n");
 for (const marker of [
   "Artemis UI Gallery scaffold",
+  "CL0B component contract harness",
+  "com.artemis.synthetic-stress",
+  "data-artemis-component",
+  "data-gallery-active-skin",
   "--artemis-color-canvas",
   "data-artemis-skin",
   "data-artemis-theme",
@@ -86,6 +90,8 @@ const desktopText = (
 for (const forbidden of [
   "@artemis/ui-gallery",
   "Artemis UI Gallery scaffold",
+  "com.artemis.synthetic-stress",
+  "data-gallery-active-skin",
 ]) {
   if (desktopText.includes(forbidden)) {
     throw new Error(

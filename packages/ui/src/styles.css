@@ -1,1 +1,61 @@
 @layer artemis.reset, artemis.theme, artemis.ui;
+
+@layer artemis.ui {
+  [data-artemis-component="conformance-probe"] {
+    display: grid;
+    gap: var(--artemis-space-1);
+    color: var(--artemis-color-text-primary);
+    font-family: var(--artemis-typography-body-family);
+    font-size: var(--artemis-typography-body-size);
+  }
+
+  [data-artemis-component="conformance-probe"] [data-part="label"] {
+    color: var(--artemis-color-text-primary);
+    font-size: var(--artemis-typography-label-size);
+  }
+
+  [data-artemis-component="conformance-probe"] [data-part="control"] {
+    box-sizing: border-box;
+    min-inline-size: 0;
+    padding: var(--artemis-space-2) var(--artemis-space-3);
+    color: var(--artemis-color-text-primary);
+    background: var(--artemis-color-surface-base);
+    border: var(--artemis-border-width-default) solid
+      var(--artemis-color-border-default);
+    border-radius: var(--artemis-radius-input);
+    font: inherit;
+    transition:
+      border-color var(--artemis-motion-duration-fast)
+        var(--artemis-motion-easing-standard),
+      background var(--artemis-motion-duration-fast)
+        var(--artemis-motion-easing-standard);
+  }
+
+  [data-artemis-component="conformance-probe"]
+    [data-part="control"]:focus-visible {
+    outline: var(--artemis-border-width-default) solid
+      var(--artemis-color-focus-ring);
+    outline-offset: var(--artemis-space-1);
+  }
+
+  [data-artemis-component="conformance-probe"] [data-part="description"],
+  [data-artemis-component="conformance-probe"] [data-part="error"] {
+    min-block-size: var(--artemis-space-3);
+    margin: 0;
+    color: var(--artemis-color-text-secondary);
+  }
+
+  [data-artemis-component="conformance-probe"] [data-part="error"] {
+    color: var(--artemis-color-status-danger);
+  }
+
+  [data-artemis-component="conformance-probe"][data-state="disabled"] {
+    opacity: var(--artemis-opacity-disabled);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-artemis-component="conformance-probe"] [data-part="control"] {
+      transition: none;
+    }
+  }
+}

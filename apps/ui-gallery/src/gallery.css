@@ -20,3 +20,19 @@ main {
   color: var(--artemis-color-text-secondary);
   font-size: var(--artemis-typography-label-size);
 }
+
+.gallery-skin-toggle {
+  padding: var(--artemis-space-2) var(--artemis-space-3);
+  color: var(--artemis-color-accent-on-primary);
+  background: var(--artemis-color-accent-primary);
+  border: var(--artemis-border-width-default) solid
+    var(--artemis-color-border-strong);
+  border-radius: var(--artemis-radius-control);
+  font: inherit;
+}
+
+.gallery-probe-section {
+  display: grid;
+  gap: var(--artemis-space-3);
+  margin-block-start: var(--artemis-space-6);
+}

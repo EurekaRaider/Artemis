@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   ARTEMIS_UI_ROOT_ATTRIBUTE_NAMES,
+  COMPONENT_CONTRACT_SCHEMA_VERSION,
   UI_CONTRACT_VERSION,
+  validateComponentContract,
 } from "../src/index.js";
+import { CONFORMANCE_PROBE_CONTRACT } from "../src/conformance.js";
 
 describe("@artemis/ui CL0A boundary", () => {
   it("exports only the versioned root attribute contract", () => {
@@ -13,5 +16,69 @@ describe("@artemis/ui CL0A boundary", () => {
       "data-artemis-theme",
       "data-artemis-contrast",
     ]);
+  });
+
+  it("validates the frozen component contract schema", () => {
+    expect(COMPONENT_CONTRACT_SCHEMA_VERSION).toBe(1);
+    expect(validateComponentContract(CONFORMANCE_PROBE_CONTRACT)).toEqual({
+      valid: true,
+      issues: [],
+      value: CONFORMANCE_PROBE_CONTRACT,
+    });
+  });
+
+  it("fails closed for unknown, missing, duplicate, and illegal data attributes", () => {
+    const unknown = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      executable: true,
+    });
+    expect(unknown.valid).toBe(false);
+    expect(unknown.issues.map((issue) => issue.code)).toContain(
+      "unknown_field",
+    );
+
+    const { aria: _aria, ...missingAria } = CONFORMANCE_PROBE_CONTRACT;
+    const missing = validateComponentContract(missingAria);
+    expect(missing.valid).toBe(false);
+    expect(missing.issues.map((issue) => issue.code)).toContain(
+      "missing_field",
+    );
+
+    const duplicate = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      parts: [
+        ...CONFORMANCE_PROBE_CONTRACT.parts,
+        CONFORMANCE_PROBE_CONTRACT.parts[0],
+      ],
+    });
+    expect(duplicate.valid).toBe(false);
+    expect(duplicate.issues.map((issue) => issue.code)).toContain(
+      "duplicate_entry",
+    );
+
+    const illegalDataAttribute = validateComponentContract({
+      ...CONFORMANCE_PROBE_CONTRACT,
+      dataAttributes: {
+        ...CONFORMANCE_PROBE_CONTRACT.dataAttributes,
+        state: "data-skin-state",
+      },
+    });
+    expect(illegalDataAttribute.valid).toBe(false);
+    expect(illegalDataAttribute.issues.map((issue) => issue.code)).toContain(
+      "illegal_data_attribute",
+    );
+  });
+
+  it("rejects inherited top-level and nested objects", () => {
+    expect(
+      validateComponentContract(Object.create(CONFORMANCE_PROBE_CONTRACT))
+        .valid,
+    ).toBe(false);
+    expect(
+      validateComponentContract({
+        ...CONFORMANCE_PROBE_CONTRACT,
+        aria: Object.create(CONFORMANCE_PROBE_CONTRACT.aria),
+      }).valid,
+    ).toBe(false);
   });
 });

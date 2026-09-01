@@ -11,3 +11,13 @@ export const ARTEMIS_UI_ROOT_ATTRIBUTE_NAMES = [
   "data-artemis-theme",
   "data-artemis-contrast",
 ] as const satisfies readonly (keyof ArtemisUiRootAttributes)[];
+
+export {
+  COMPONENT_CONTRACT_SCHEMA_VERSION,
+  validateComponentContract,
+} from "./component-contract.js";
+export type {
+  ComponentContract,
+  ComponentContractIssue,
+  ComponentContractReport,
+} from "./component-contract.js";
