@@ -14904,9 +14904,14 @@ function createMainWindow(): BrowserWindow {
                       trigger?.click();
                       await wait(500);
                     }
-                    const summary = document.querySelector(
-                      '.environment-pr-check-summary',
-                    );
+                    const deadline = Date.now() + 8_000;
+                    let summary = null;
+                    while (Date.now() < deadline && summary === null) {
+                      summary = document.querySelector(
+                        '.environment-pr-check-summary',
+                      );
+                      if (summary === null) await wait(100);
+                    }
                     if (!(summary instanceof HTMLButtonElement)) {
                       throw new Error('Environment PR checks summary missing.');
                     }
