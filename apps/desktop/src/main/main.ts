@@ -16944,9 +16944,9 @@ function createMainWindow(): BrowserWindow {
                                 'environment-checks-popover',
                               )
                             ? 'environment'
-                            : root.classList.contains(
-                                  'approval-pending-header',
-                                )
+                            : root.getAttribute(
+                                  'data-artemis-component',
+                                ) === 'approval-card'
                               ? 'approval'
                               : root.closest('.resource-page')
                                 ? 'resource'
