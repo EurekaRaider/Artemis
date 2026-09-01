@@ -16,7 +16,11 @@
       "action-variants-sizes",
       "action-events",
       "icon-contract",
-      "status-semantics"
+      "status-semantics",
+      "form-anatomy",
+      "form-states",
+      "form-events-ime",
+      "form-semantics"
     ],
     "stress": [
       "anatomy",
@@ -32,7 +36,11 @@
       "action-variants-sizes",
       "action-events",
       "icon-contract",
-      "status-semantics"
+      "status-semantics",
+      "form-anatomy",
+      "form-states",
+      "form-events-ime",
+      "form-semantics"
     ]
   },
   "switchCases": [

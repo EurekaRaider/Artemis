@@ -20,6 +20,10 @@ const REQUIRED_SKIN_CASES = [
   "action-events",
   "icon-contract",
   "status-semantics",
+  "form-anatomy",
+  "form-states",
+  "form-events-ime",
+  "form-semantics",
 ];
 const REQUIRED_SWITCH_CASES = [
   "same-node",
@@ -403,6 +407,386 @@ const expectedCssRules = new Map([
   ],
   [`normal|${STATUS}`, { "font-variant-numeric": "tabular-nums" }],
   [
+    'normal|[data-artemis-component="text-field"], [data-artemis-component="search-field"], [data-artemis-component="select"]',
+    {
+      position: "relative",
+      "box-sizing": "border-box",
+      display: "grid",
+      gap: "var(--artemis-space-1)",
+      "min-inline-size": "0",
+      color: "var(--artemis-color-text-primary)",
+      "font-family": "var(--artemis-typography-body-family)",
+      "font-size": "var(--artemis-typography-body-size)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="text-field"] [data-part="label"], [data-artemis-component="search-field"] [data-part="label"], [data-artemis-component="select"] [data-part="label"], [data-artemis-component="checkbox"] [data-part="label"], [data-artemis-component="switch"] [data-part="label"]',
+    {
+      color: "var(--artemis-color-text-primary)",
+      "font-size": "var(--artemis-typography-label-size)",
+      "font-weight": "var(--artemis-typography-body-weight)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component][data-label-visibility="hidden"] [data-part="label"]',
+    {
+      position: "absolute",
+      "inline-size": "1px",
+      "block-size": "1px",
+      overflow: "hidden",
+      clip: "rect(0 0 0 0)",
+      "clip-path": "inset(50%)",
+      "white-space": "nowrap",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="text-field"] [data-part="control"], [data-artemis-component="search-field"] [data-part="control"], [data-artemis-component="select"] [data-part="trigger"], [data-artemis-component="select"] [data-part="search"]',
+    {
+      "box-sizing": "border-box",
+      "min-block-size": "var(--artemis-size-control-comfortable)",
+      "min-inline-size": "0",
+      "inline-size": "100%",
+      padding: "var(--artemis-space-2) var(--artemis-space-3)",
+      color: "var(--artemis-color-text-primary)",
+      background: "var(--artemis-color-surface-base)",
+      border:
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      "border-radius": "var(--artemis-radius-input)",
+      font: "inherit",
+      transition:
+        "background var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), border-color var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="text-field"][data-size="compact"] [data-part="control"], [data-artemis-component="search-field"][data-size="compact"] [data-part="control"], [data-artemis-component="select"][data-size="compact"] [data-part="trigger"], [data-artemis-component="select"][data-size="compact"] [data-part="search"]',
+    { "min-block-size": "var(--artemis-size-control-compact)" },
+  ],
+  [
+    'normal|[data-artemis-component="text-field"] [data-part="control"]:focus-visible, [data-artemis-component="search-field"] [data-part="control"]:focus-visible, [data-artemis-component="select"] [data-part="trigger"]:focus-visible, [data-artemis-component="select"] [data-part="search"]:focus-visible, [data-artemis-component="select"] [data-part="listbox"]:focus-visible',
+    { outline: "2px solid Highlight", "outline-offset": "2px" },
+  ],
+  [
+    'normal|[data-artemis-component="text-field"][data-state="error"] [data-part="control"], [data-artemis-component="search-field"][data-state="error"] [data-part="control"], [data-artemis-component="select"][data-state="error"] [data-part="trigger"]',
+    { "border-color": "var(--artemis-color-status-danger)" },
+  ],
+  [
+    'normal|[data-artemis-component="text-field"][data-state="disabled"], [data-artemis-component="search-field"][data-state="disabled"], [data-artemis-component="select"][data-state="disabled"], [data-artemis-component="checkbox"][data-state="disabled"], [data-artemis-component="switch"][data-state="disabled"]',
+    { cursor: "default", opacity: "var(--artemis-opacity-disabled)" },
+  ],
+  [
+    'normal|[data-artemis-component="text-field"] [data-part="description"], [data-artemis-component="search-field"] [data-part="description"], [data-artemis-component="select"] [data-part="description"], [data-artemis-component="checkbox"] [data-part="description"], [data-artemis-component="switch"] [data-part="description"], [data-artemis-component="text-field"] [data-part="error"], [data-artemis-component="search-field"] [data-part="error"], [data-artemis-component="select"] [data-part="error"], [data-artemis-component="checkbox"] [data-part="error"], [data-artemis-component="switch"] [data-part="error"]',
+    {
+      margin: "0",
+      color: "var(--artemis-color-text-secondary)",
+      "font-size": "var(--artemis-typography-label-size)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="text-field"] [data-part="error"], [data-artemis-component="search-field"] [data-part="error"], [data-artemis-component="select"] [data-part="error"], [data-artemis-component="checkbox"] [data-part="error"], [data-artemis-component="switch"] [data-part="error"]',
+    { color: "var(--artemis-color-text-primary)" },
+  ],
+  [
+    'normal|[data-artemis-component="search-field"] [data-part="icon"]',
+    {
+      position: "absolute",
+      "inset-block-start":
+        "calc( var(--artemis-size-control-comfortable) / 2 - var(--artemis-space-2) )",
+      "inset-inline-start": "var(--artemis-space-3)",
+      display: "inline-flex",
+      "inline-size": "var(--artemis-space-4)",
+      "block-size": "var(--artemis-space-4)",
+      color: "var(--artemis-color-text-secondary)",
+      "pointer-events": "none",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="search-field"][data-label-visibility="visible"] [data-part="icon"]',
+    {
+      "inset-block-start":
+        "calc( var(--artemis-typography-label-size) + var(--artemis-space-1) + var(--artemis-size-control-comfortable) / 2 - var(--artemis-space-2) )",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="search-field"][data-size="compact"] [data-part="icon"]',
+    {
+      "inset-block-start":
+        "calc( var(--artemis-size-control-compact) / 2 - var(--artemis-space-2) )",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="search-field"][data-size="compact"][data-label-visibility="visible"] [data-part="icon"]',
+    {
+      "inset-block-start":
+        "calc( var(--artemis-typography-label-size) + var(--artemis-space-1) + var(--artemis-size-control-compact) / 2 - var(--artemis-space-2) )",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="search-field"] [data-part="icon"] > svg',
+    { "inline-size": "100%", "block-size": "100%" },
+  ],
+  [
+    'normal|[data-artemis-component="search-field"] [data-part="control"]',
+    {
+      "padding-inline-start":
+        "calc( var(--artemis-space-3) + var(--artemis-space-4) + var(--artemis-space-2) )",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="trigger"]',
+    {
+      display: "flex",
+      "align-items": "center",
+      "justify-content": "space-between",
+      gap: "var(--artemis-space-3)",
+      "text-align": "start",
+      cursor: "pointer",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="value"]',
+    {
+      "min-inline-size": "0",
+      overflow: "hidden",
+      "text-overflow": "ellipsis",
+      "white-space": "nowrap",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="indicator"]',
+    {
+      display: "inline-flex",
+      flex: "0 0 auto",
+      "inline-size": "var(--artemis-space-4)",
+      "block-size": "var(--artemis-space-4)",
+      transition:
+        "transform var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="indicator"] > svg',
+    { "inline-size": "100%", "block-size": "100%" },
+  ],
+  [
+    'normal|[data-artemis-component="select"][data-state="open"] [data-part="indicator"]',
+    { transform: "rotate(180deg)" },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="menu"]',
+    {
+      position: "absolute",
+      "z-index": "20",
+      "inset-block-start": "calc(100% + var(--artemis-space-1))",
+      "inset-inline": "0",
+      "min-inline-size": "100%",
+      overflow: "hidden",
+      padding: "var(--artemis-space-1)",
+      background: "var(--artemis-color-surface-raised)",
+      border:
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      "border-radius": "var(--artemis-radius-control)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="search"]',
+    { "margin-block-end": "var(--artemis-space-1)" },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="listbox"]',
+    {
+      "max-block-size": "calc(var(--artemis-size-control-comfortable) * 6)",
+      overflow: "auto",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="option"]',
+    {
+      display: "flex",
+      "align-items": "center",
+      gap: "var(--artemis-space-2)",
+      "min-block-size": "var(--artemis-size-control-compact)",
+      "padding-inline": "var(--artemis-space-2)",
+      "border-radius": "var(--artemis-radius-control)",
+      cursor: "pointer",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="option"]:hover, [data-artemis-component="select"] [data-part="option"][data-active="true"]',
+    { background: "var(--artemis-color-interaction-hover)" },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="option"][aria-selected="true"]',
+    { background: "var(--artemis-color-interaction-selected)" },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="option"][data-disabled="true"]',
+    { cursor: "default", opacity: "var(--artemis-opacity-disabled)" },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="check"]',
+    {
+      "inline-size": "var(--artemis-space-4)",
+      color: "var(--artemis-color-accent-primary)",
+      "text-align": "center",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="empty"]',
+    {
+      padding: "var(--artemis-space-2) var(--artemis-space-3)",
+      color: "var(--artemis-color-text-secondary)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="checkbox"], [data-artemis-component="switch"]',
+    {
+      position: "relative",
+      "box-sizing": "border-box",
+      display: "inline-grid",
+      "grid-template-columns": "auto 1fr",
+      "align-items": "center",
+      gap: "var(--artemis-space-2)",
+      "min-block-size": "var(--artemis-size-control-comfortable)",
+      color: "var(--artemis-color-text-primary)",
+      "font-family": "var(--artemis-typography-body-family)",
+      cursor: "pointer",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="checkbox"][data-size="compact"], [data-artemis-component="switch"][data-size="compact"]',
+    { "min-block-size": "var(--artemis-size-control-compact)" },
+  ],
+  [
+    'normal|[data-artemis-component="checkbox"] > label, [data-artemis-component="switch"] > label',
+    { display: "contents" },
+  ],
+  [
+    'normal|[data-artemis-component="checkbox"] [data-part="control"], [data-artemis-component="switch"] [data-part="control"]',
+    {
+      position: "absolute",
+      "inline-size": "1px",
+      "block-size": "1px",
+      opacity: "0",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="checkbox"] [data-part="indicator"]',
+    {
+      "box-sizing": "border-box",
+      display: "inline-flex",
+      "align-items": "center",
+      "justify-content": "center",
+      "inline-size": "calc(var(--artemis-space-4) + var(--artemis-space-2))",
+      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-2))",
+      color: "var(--artemis-color-accent-on-primary)",
+      background: "var(--artemis-color-surface-base)",
+      border:
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      "border-radius": "var(--artemis-radius-control)",
+      "font-size": "var(--artemis-typography-label-size)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="checkbox"][data-size="compact"] [data-part="indicator"]',
+    {
+      "inline-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
+      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="checkbox"][data-state="checked"] [data-part="indicator"]',
+    {
+      background: "var(--artemis-color-accent-primary)",
+      "border-color": "var(--artemis-color-accent-primary)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="switch"] [data-part="track"]',
+    {
+      "box-sizing": "border-box",
+      display: "inline-flex",
+      "align-items": "center",
+      "inline-size": "calc(var(--artemis-space-4) * 3)",
+      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-3))",
+      padding:
+        "calc( (var(--artemis-space-2) - var(--artemis-border-width-default) * 2) / 2 )",
+      background: "var(--artemis-color-surface-sunken)",
+      border:
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      "border-radius": "var(--artemis-radius-pill)",
+      transition:
+        "background var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="switch"][data-size="compact"] [data-part="track"]',
+    {
+      "inline-size":
+        "calc(var(--artemis-space-4) * 2 + var(--artemis-space-2))",
+      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-2))",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="switch"] [data-part="thumb"]',
+    {
+      "inline-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
+      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
+      background: "var(--artemis-color-text-secondary)",
+      "border-radius": "var(--artemis-radius-pill)",
+      transform: "translateX(0)",
+      transition:
+        "background var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), transform var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="switch"][data-size="compact"] [data-part="thumb"]',
+    {
+      "inline-size": "var(--artemis-space-4)",
+      "block-size": "var(--artemis-space-4)",
+    },
+  ],
+  [
+    'normal|[dir="rtl"] [data-artemis-component="switch"] [data-part="thumb"]',
+    { transform: "translateX(0)" },
+  ],
+  [
+    'normal|[data-artemis-component="switch"][data-state="checked"] [data-part="track"]',
+    {
+      background: "var(--artemis-color-accent-primary)",
+      "border-color": "var(--artemis-color-accent-primary)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="switch"][data-state="checked"] [data-part="thumb"]',
+    {
+      background: "var(--artemis-color-surface-base)",
+      transform:
+        "translateX( calc(var(--artemis-space-4) + var(--artemis-space-1)) )",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="switch"][data-size="compact"][data-state="checked"] [data-part="thumb"]',
+    { transform: "translateX(var(--artemis-space-4))" },
+  ],
+  [
+    'normal|[dir="rtl"] [data-artemis-component="switch"][data-state="checked"] [data-part="thumb"]',
+    {
+      transform:
+        "translateX( calc((var(--artemis-space-4) + var(--artemis-space-1)) * -1) )",
+    },
+  ],
+  [
+    'normal|[dir="rtl"] [data-artemis-component="switch"][data-size="compact"][data-state="checked"] [data-part="thumb"]',
+    { transform: "translateX(calc(var(--artemis-space-4) * -1))" },
+  ],
+  [
+    'normal|[data-artemis-component="checkbox"] [data-part="control"]:focus-visible + [data-part="indicator"], [data-artemis-component="switch"] [data-part="control"]:focus-visible + [data-part="track"]',
+    { outline: "2px solid Highlight", "outline-offset": "2px" },
+  ],
+  [
+    'normal|[data-artemis-component="checkbox"] [data-part="description"], [data-artemis-component="checkbox"] [data-part="error"], [data-artemis-component="switch"] [data-part="description"], [data-artemis-component="switch"] [data-part="error"]',
+    { "grid-column": "2" },
+  ],
+  [
     `reduced-motion|${BUTTON}, ${ICON_BUTTON}`,
     { transition: "none", transform: "none" },
   ],
@@ -410,9 +794,19 @@ const expectedCssRules = new Map([
     `reduced-motion|${BUTTON}:active:not(:disabled), ${ICON_BUTTON}:active:not(:disabled)`,
     { transform: "none" },
   ],
+  [
+    'reduced-motion|[data-artemis-component="text-field"] [data-part="control"], [data-artemis-component="search-field"] [data-part="control"], [data-artemis-component="select"] [data-part="trigger"], [data-artemis-component="select"] [data-part="search"], [data-artemis-component="select"] [data-part="indicator"], [data-artemis-component="switch"] [data-part="track"], [data-artemis-component="switch"] [data-part="thumb"]',
+    { transition: "none" },
+  ],
 ]);
 
-function verifyStructuralCss(css, from, componentContract, actionTokens) {
+function verifyStructuralCss(
+  css,
+  from,
+  componentContract,
+  actionTokens,
+  formTokens,
+) {
   const parsed = postcss.parse(css, { from });
   const rootNodes = parsed.nodes ?? [];
   if (rootNodes.length !== 2) {
@@ -514,7 +908,7 @@ function verifyStructuralCss(css, from, componentContract, actionTokens) {
       node.name !== "media" ||
       normalizeWhitespace(node.params) !== "(prefers-reduced-motion: reduce)" ||
       node.nodes === undefined ||
-      node.nodes.length !== 3
+      node.nodes.length !== 4
     ) {
       throw new Error("UI structural CSS contains an unexpected at-rule");
     }
@@ -530,7 +924,11 @@ function verifyStructuralCss(css, from, componentContract, actionTokens) {
 
   const actualTokens = [...consumedTokens].sort();
   const declaredTokens = [
-    ...new Set([...componentContract.theme.mutableTokens, ...actionTokens]),
+    ...new Set([
+      ...componentContract.theme.mutableTokens,
+      ...actionTokens,
+      ...formTokens,
+    ]),
   ].sort();
   if (canonical(actualTokens) !== canonical(declaredTokens)) {
     throw new Error(
@@ -547,6 +945,9 @@ const conformance = await import(
 );
 const actions = await import(
   pathToFileURL(join(root, "packages/ui/dist/actions.js")).href
+);
+const forms = await import(
+  pathToFileURL(join(root, "packages/ui/dist/forms.js")).href
 );
 const themeContract = await import(
   pathToFileURL(join(root, "packages/theme-contract/dist/index.js")).href
@@ -726,6 +1127,7 @@ for (const specifier of [
   "@artemis/ui",
   "@artemis/ui/actions",
   "@artemis/ui/conformance",
+  "@artemis/ui/forms",
 ]) {
   const resolved = import.meta.resolve(specifier);
   const expectedRoot = pathToFileURL(join(root, "packages/ui/dist/")).href;
@@ -742,6 +1144,7 @@ verifyStructuralCss(
   cssPath,
   candidateContract,
   actions.ACTION_COMPONENT_MUTABLE_TOKENS,
+  forms.FORM_COMPONENT_MUTABLE_TOKENS,
 );
 
 console.log(

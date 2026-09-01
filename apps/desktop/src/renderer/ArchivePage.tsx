@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { AppLocale, Project, Thread } from "@artemis/protocol";
+import { SearchField } from "@artemis/ui/forms";
 
 import {
   promptWithoutSelectedSkills,
@@ -136,18 +137,13 @@ export function ArchivePage({
               <h2>{t.archiveSectionTitle}</h2>
               <p aria-live="polite">{resultCount}</p>
             </div>
-            <label className="archive-search">
-              <svg aria-hidden="true" viewBox="0 0 24 24">
-                <circle cx="10.8" cy="10.8" r="6.3" />
-                <path d="m15.5 15.5 4.2 4.2" />
-              </svg>
-              <input
-                aria-label={t.archiveSearch}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t.archiveSearch}
-                value={query}
-              />
-            </label>
+            <SearchField
+              className="archive-search"
+              label={t.archiveSearch}
+              onValueChange={setQuery}
+              placeholder={t.archiveSearch}
+              value={query}
+            />
           </div>
 
           <div className="archive-results">

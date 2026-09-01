@@ -8,6 +8,7 @@ import type {
   ShellProfileMode,
   WindowsShellPreference,
 } from "@artemis/protocol";
+import { Checkbox, TextField } from "@artemis/ui/forms";
 
 import type {
   AddedModelConfiguration,
@@ -1087,7 +1088,7 @@ export function SettingsPanel({
                             noResultsLabel={t.modelSearchEmpty}
                             options={models.map((model) => ({
                               value: modelKey(model.providerId, model.modelId),
-                              label: `${model.providerId} · ${model.name}`,
+                              label: `${model.providerId} · ${model.name} · ${model.modelId}`,
                               searchText: `${model.providerId} ${model.name} ${model.modelId}`,
                             }))}
                             searchPlaceholder={t.modelSearch}
@@ -1098,21 +1099,17 @@ export function SettingsPanel({
                       {models.length === 0 && (
                         <p className="settings-empty">{t.modelUnavailable}</p>
                       )}
-                      <div className="settings-field">
-                        <span>{t.contextWindow}</span>
-                        <input
-                          aria-label={t.contextWindow}
-                          disabled={busy || !selectedModelInfo}
-                          max={selectedModelInfo?.contextWindow}
-                          min={1_024}
-                          onChange={(event) =>
-                            setContextWindow(event.target.value)
-                          }
-                          step={1_024}
-                          type="number"
-                          value={contextWindow}
-                        />
-                      </div>
+                      <TextField
+                        className="settings-field"
+                        disabled={busy || !selectedModelInfo}
+                        label={t.contextWindow}
+                        max={selectedModelInfo?.contextWindow}
+                        min={1_024}
+                        onValueChange={setContextWindow}
+                        step={1_024}
+                        type="number"
+                        value={contextWindow}
+                      />
                       {selectedModelInfo && (
                         <p className="settings-security">
                           {t.contextWindowHint.replace(
@@ -1449,28 +1446,18 @@ export function SettingsPanel({
                       value={apiKey}
                     />
                     <span className="provider-capabilities">
-                      <label className="settings-checkbox">
-                        <input
-                          checked={providerReasoning}
-                          disabled={busy}
-                          onChange={(event) =>
-                            setProviderReasoning(event.target.checked)
-                          }
-                          type="checkbox"
-                        />
-                        <span>{t.reasoningModel}</span>
-                      </label>
-                      <label className="settings-checkbox">
-                        <input
-                          checked={providerImages}
-                          disabled={busy}
-                          onChange={(event) =>
-                            setProviderImages(event.target.checked)
-                          }
-                          type="checkbox"
-                        />
-                        <span>{t.imageInput}</span>
-                      </label>
+                      <Checkbox
+                        checked={providerReasoning}
+                        disabled={busy}
+                        label={t.reasoningModel}
+                        onCheckedChange={setProviderReasoning}
+                      />
+                      <Checkbox
+                        checked={providerImages}
+                        disabled={busy}
+                        label={t.imageInput}
+                        onCheckedChange={setProviderImages}
+                      />
                     </span>
                     {providerReasoning && (
                       <div className="settings-field">

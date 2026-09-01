@@ -142,6 +142,16 @@ const codexSelectSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/CodexSelect.tsx", import.meta.url)),
   "utf8",
 );
+const uiFormsSource = readFileSync(
+  fileURLToPath(new URL("../../../packages/ui/src/forms.tsx", import.meta.url)),
+  "utf8",
+);
+const uiStylesSource = readFileSync(
+  fileURLToPath(
+    new URL("../../../packages/ui/src/styles.css", import.meta.url),
+  ),
+  "utf8",
+);
 const skillCommandsSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/skill-commands.ts", import.meta.url)),
   "utf8",
@@ -470,6 +480,8 @@ describe("renderer layout contract", () => {
     expect(archivePageSource).toContain('className="archive-header"');
     expect(archivePageSource).toContain('className="archive-toolbar"');
     expect(archivePageSource).toContain('className="archive-search"');
+    expect(archivePageSource).toContain("<SearchField");
+    expect(archivePageSource).toContain('from "@artemis/ui/forms"');
     expect(archivePageSource).toContain('className="archive-empty"');
     expect(archivePageSource).toContain("t.archiveNoResultsTitle");
     expect(archivePageSource).toContain("t.archiveSearch");
@@ -541,9 +553,10 @@ describe("renderer layout contract", () => {
     expect(cssRule(".composer-context-picker")).toMatch(
       /\bflex:\s*0\s+0\s+auto/u,
     );
-    expect(cssRule(".composer-context-picker .codex-select-menu")).toMatch(
-      /\bleft:\s*auto[\s\S]*\bright:\s*0/u,
+    expect(uiStylesSource).toContain(
+      '[data-artemis-component="select"] [data-part="menu"]',
     );
+    expect(uiStylesSource).toContain("inset-inline: 0");
     expect(cssRule(".composer-context-menu")).toMatch(
       /\bdisplay:\s*flex[\s\S]*\bwidth:\s*min\(350px,\s*calc\(100cqi\s*-\s*64px\)\)/u,
     );
@@ -577,11 +590,13 @@ describe("renderer layout contract", () => {
   });
 
   it("keeps the task mode select from scrolling the conversation", () => {
-    expect(codexSelectSource).toContain("focus({ preventScroll: true })");
-    expect(codexSelectSource).toContain("scrollOptionIntoListbox(");
-    expect(codexSelectSource).not.toContain(".scrollIntoView(");
-    expect(codexSelectSource).toContain("conversation.scrollLeft = 0");
-    expect(codexSelectSource).toContain("conversation.scrollTop = 0");
+    expect(codexSelectSource).toContain('from "@artemis/ui/forms"');
+    expect(uiFormsSource).toContain("focus({ preventScroll: true })");
+    expect(uiFormsSource).toContain("listboxElement.scrollTop");
+    expect(uiFormsSource).not.toContain(".scrollIntoView(");
+    expect(uiFormsSource).not.toContain("scrollLeft");
+    expect(uiFormsSource).not.toContain("document.scrollingElement");
+    expect(uiFormsSource).not.toContain("window.scrollTo");
   });
 
   it("keeps fixed composer controls and the trailing send action visible in a narrow workspace", () => {
@@ -919,9 +934,12 @@ describe("renderer layout contract", () => {
     expect(cssRule(":root").replace(/\s+/gu, " ")).toContain(
       '--ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;',
     );
-    expect(cssRule(".codex-select-menu")).toMatch(/\bposition:\s*absolute/u);
-    expect(cssRule(".codex-select-menu")).toMatch(/\bborder-radius:\s*10px/u);
-    expect(cssRule(".codex-select-option.selected")).toMatch(/\bbackground:/u);
+    expect(uiStylesSource).toContain(
+      '[data-artemis-component="select"] [data-part="menu"]',
+    );
+    expect(uiStylesSource).toContain(
+      '[data-part="option"][aria-selected="true"]',
+    );
   });
 
   it("uses the same custom selector for every product dropdown", () => {
@@ -935,23 +953,27 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain('from "./CodexSelect.js"');
     expect(settingsSelectors).toHaveLength(8);
     expect(mcpEditorSelectors).toHaveLength(1);
-    expect(cssRule(".settings-codex-select .codex-select-trigger")).toMatch(
-      /\bwidth:\s*100%/u,
+    expect(stylesSource).toContain(".settings-codex-select .codex-select");
+    expect(codexSelectSource).toContain('size = "comfortable"');
+    expect(composerContextSource).toContain('size="compact"');
+    expect(appSource).toContain('className="review-scope-select"');
+    expect(appSource).toContain('size="compact"');
+    expect(stylesSource).toContain(
+      '.composer-context-picker [data-artemis-component="select"] [data-part="menu"]',
     );
-    expect(cssRule(".settings-codex-select .codex-select-menu")).toMatch(
-      /\bwidth:\s*100%/u,
+    expect(stylesSource).toContain(
+      '.review-scope-select [data-artemis-component="select"] [data-part="trigger"]',
     );
+    expect(uiStylesSource).toContain("inline-size: 100%");
   });
 
   it("keeps large custom menus on one keyboard tab stop", () => {
-    expect(codexSelectSource).toContain("aria-activedescendant=");
-    expect(codexSelectSource).toContain(
-      "tabIndex={searchPlaceholder ? -1 : 0}",
+    expect(uiFormsSource).toContain("aria-activedescendant={");
+    expect(uiFormsSource).toContain(
+      "tabIndex={searchPlaceholder === undefined ? 0 : -1}",
     );
-    expect(codexSelectSource).toContain('role="option"');
-    expect(codexSelectSource).not.toMatch(
-      /<button[\s\S]{0,500}?role="option"/u,
-    );
+    expect(uiFormsSource).toContain('role="option"');
+    expect(uiFormsSource).not.toMatch(/<button[\s\S]{0,500}?role="option"/u);
   });
 
   it("adds fuzzy model search inside the Settings model selector", () => {
@@ -960,12 +982,17 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain(
       "searchText: `${model.providerId} ${model.name} ${model.modelId}`",
     );
-    expect(codexSelectSource).toContain('role="combobox"');
-    expect(codexSelectSource).toContain('type="search"');
-    expect(codexSelectSource).toContain("filterCodexSelectOptions(");
-    expect(cssRule(".codex-select-search")).toMatch(/\bheight:\s*34px/u);
-    expect(cssRule(".codex-select-empty")).toMatch(
-      /\bcolor:\s*var\(--muted\)/u,
+    expect(settingsSource).toContain(
+      "label: `${model.providerId} · ${model.name} · ${model.modelId}`",
+    );
+    expect(uiFormsSource).toContain('role="combobox"');
+    expect(uiFormsSource).toContain('type="search"');
+    expect(codexSelectSource).toContain(
+      "export function filterCodexSelectOptions",
+    );
+    expect(uiFormsSource).toContain("filterSelectOptions(options, query)");
+    expect(uiStylesSource).toContain(
+      '[data-artemis-component="select"] [data-part="empty"]',
     );
   });
 
@@ -1209,7 +1236,8 @@ describe("renderer layout contract", () => {
     expect(usageIndex).toBeGreaterThan(-1);
     expect(modelIndex).toBeGreaterThan(usageIndex);
     expect(appSource).toContain("threadState?.contextUsage");
-    expect(settingsSource).toContain("aria-label={t.contextWindow}");
+    expect(settingsSource).toContain("<TextField");
+    expect(settingsSource).toContain("label={t.contextWindow}");
     expect(settingsSource).toContain("contextWindowHint");
     expect(stylesSource).toContain(
       ".context-usage-indicator:hover .context-usage-popover",
@@ -2090,7 +2118,10 @@ describe("renderer layout contract", () => {
       "window.artemis.setMcpServerEnabled",
     );
     expect(resourceCenterSource).toContain("window.artemis.setSkillEnabled");
-    expect(resourceCenterSource).toContain('role="switch"');
+    expect(resourceCenterSource).toContain("<Switch");
+    expect(uiFormsSource).toContain(
+      'role={component === "switch" ? "switch" : undefined}',
+    );
     expect(stylesSource).toContain(".resource-switch");
   });
 

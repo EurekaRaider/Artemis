@@ -245,7 +245,6 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     [".catalog-card-icon svg", 19, true],
     [".archive-header-icon svg", 23, true],
     [".archive-empty-icon svg", 23, true],
-    [".archive-search svg", 16, true],
   ];
 
   it.each(UNMIGRATED_RULES)(
@@ -281,10 +280,9 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(variationSelectorCount).toBe(0);
   });
 
-  it("freezes the ✓/✦ text dingbat inventory at the §2.5 audited 13 spots", () => {
+  it("freezes the ✓/✦ text dingbat inventory at the §2.5 audited 12 spots", () => {
     expect(dingbats).toEqual({
       "App.tsx": { check: 7, star: 3 },
-      "CodexSelect.tsx": { check: 1, star: 0 },
       "EnvironmentPanel.tsx": { check: 1, star: 0 },
       "SettingsPanel.tsx": { check: 1, star: 0 },
     });
@@ -292,7 +290,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       (sum, counts) => sum + counts.check + counts.star,
       0,
     );
-    expect(total).toBe(13);
+    expect(total).toBe(12);
   });
 
   it("keeps the renderer-layout resource icon source assertions intact", () => {

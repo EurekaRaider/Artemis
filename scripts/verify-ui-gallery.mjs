@@ -144,6 +144,23 @@ const GALLERY_SCAFFOLD_RULES = new Map([
     ],
   ],
   [
+    ".gallery-form-grid",
+    [
+      ["display", "grid"],
+      ["grid-template-columns", "repeat(auto-fit, minmax(15rem, 1fr))"],
+      ["gap", "var(--artemis-space-4)"],
+    ],
+  ],
+  [
+    ".gallery-check-grid",
+    [
+      ["display", "flex"],
+      ["flex-wrap", "wrap"],
+      ["gap", "var(--artemis-space-4)"],
+      ["margin-block-start", "var(--artemis-space-4)"],
+    ],
+  ],
+  [
     ".gallery-surface-sample",
     [
       ["min-block-size", "calc(var(--artemis-size-control-comfortable) * 2)"],
@@ -268,6 +285,8 @@ const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-axis-control",
   "gallery-axis-grid",
   "gallery-eyebrow",
+  "gallery-check-grid",
+  "gallery-form-grid",
   "gallery-motion-sample",
   "gallery-motion-swatch",
   "gallery-probe-section",
@@ -304,7 +323,7 @@ const PRIVATE_GALLERY_ATTRIBUTES = new Set([
 const PRIVATE_GALLERY_TEXT_MARKERS = [
   "@artemis/ui-gallery",
   "Artemis UI Gallery",
-  "CL2A action and icon conformance",
+  "CL2B field and selection conformance",
   "com.artemis.synthetic-stress",
 ];
 
@@ -1060,7 +1079,7 @@ const galleryText = (
 ).join("\n");
 for (const marker of [
   "Artemis UI Gallery",
-  "CL2A action and icon conformance",
+  "CL2B field and selection conformance",
   "com.artemis.synthetic-stress",
   "data-artemis-component",
   "data-gallery-active-skin",

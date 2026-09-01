@@ -1,6 +1,6 @@
 {
   "name": "@artemis/ui",
-  "version": "1.4.47",
+  "version": "1.4.48",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -17,6 +17,10 @@
     "./actions": {
       "types": "./dist/actions.d.ts",
       "import": "./dist/actions.js"
+    },
+    "./forms": {
+      "types": "./dist/forms.d.ts",
+      "import": "./dist/forms.js"
     },
     "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"

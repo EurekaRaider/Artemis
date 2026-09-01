@@ -1,7 +1,7 @@
 # Discussion #76 visual migration ledger
 
-Status: CL2A Action/Icon candidate on merged CL1C base
-`38e40ae2fcb620129a1a0c76fd4fb590cd4a42bc`; CL1C is merged. This
+Status: CL2B Field/Select/Checkbox/Switch candidate on merged CL2A base
+`f0834dd48cf7fcbe556fca6530359cea52436e13`; CL2A is merged. This
 ledger separates static prototype evidence, package/Gallery evidence, and
 production Electron evidence. It must not be used to turn a prototype,
 Gallery pass, or attribute-only resolver pass into a migrated production
@@ -9,7 +9,7 @@ surface.
 
 ## Inputs and evidence boundary
 
-- Candidate base: `38e40ae2fcb620129a1a0c76fd4fb590cd4a42bc` (CL1C merged).
+- Candidate base: `f0834dd48cf7fcbe556fca6530359cea52436e13` (CL2A merged).
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -25,7 +25,7 @@ surface.
   `ui-prototype/contrast/prototype-contract-result.json`, and
   `ui-prototype/contrast/summary.json`.
 - The prototype directory remains read-only in a companion checkout and is not
-  present in this candidate base. CL2A does not copy or modify it.
+  present in this candidate base. CL2B does not copy or modify it.
 - v17's 70/70 generic card contract, 22/22 targeted historical-gap checks, and
   36 contrast combinations are HTML/Chrome specification evidence only. They do
   not prove React anatomy, Desktop integration, Electron geometry, platform
@@ -37,13 +37,13 @@ surface.
 | ------------------------------------------------------------- | ----------------------------------------------------------------------- | -------------- | ------------------------------------ | ----------------------------------------------------- | ------------------------------ | ------------------------------------------------- | -------------------------------------------- |
 | `--bg`, `--bg-sidebar`, `--bg-activity`                       | `color.canvas`, `color.background.sidebar`, `color.background.activity` | theme contract | future shell/layout components       | `:root`, `.app-shell`, `.sidebar`, `.activity-bar`    | CL1A values; MIG1 surfaces     | Required on migration SHA                         | Direction A merged; Gallery token output     |
 | `--surface`, `--raised`, `--sunken`, `--panel-2`, `--panel-3` | surface base/raised/sunken/composer/user roles                          | theme contract | controls, panels, Composer, timeline | root theme blocks and renderer `styles.css`           | CL1A values; CL2-CL4 consumers | Required on migration SHA                         | Direction A merged; Gallery samples          |
-| `--hover`, `--selected`                                       | interaction hover/selected roles                                        | theme contract | all interactive anatomy              | component hover/selected selectors                    | CL0B probe; CL2-CL4            | Gallery interaction first, Electron when consumed | CL2A Action/Icon candidate                   |
+| `--hover`, `--selected`                                       | interaction hover/selected roles                                        | theme contract | all interactive anatomy              | component hover/selected selectors                    | CL0B probe; CL2-CL4            | Gallery interaction first, Electron when consumed | CL2A merged; CL2B field/selection candidate  |
 | `--text`, `--text-2`, `--text-3`                              | primary/secondary/tertiary text roles                                   | theme contract | all components and surfaces          | root theme blocks                                     | CL1A values                    | Required on migration SHA                         | v17 corrected roles; WCAG candidate          |
 | `--border`, `--border-soft`                                   | default/strong/subtle border roles                                      | theme contract | controls, cards, splitters, overlays | renderer `styles.css` local declarations              | CL1A values; CL2-CL4           | Required on migration SHA                         | Required/subtle roles separated and tested   |
 | accent fill/text/hover/soft/on-accent                         | primary/hover/subtle/text/on-primary roles                              | theme contract | controls, focus, selection           | v17 role tokens                                       | CL1A values; CL2               | Gallery contrast then Electron                    | Direction A merged; WCAG tested              |
 | success/warning/danger/info + soft/on-color                   | status role families                                                    | theme contract | feedback, approvals, diff, countdown | v17 role tokens and renderer status selectors         | CL1A values; CL2/CL4           | State matrix on exact consumer SHA                | Direction A merged; behavior unchanged       |
 | terminal/diff roles                                           | terminal foreground/background and diff add/delete pairs                | theme contract | Terminal, change set, editors        | `--terminal-*`, `--diff-*`                            | CL1A values; MIG3-MIG5         | Native Electron evidence required                 | Candidate values; no production consumer yet |
-| spacing, control sizes, radius, typography                    | bounded numeric and font-stack-ID tokens                                | theme contract | component anatomy and layout         | v17 direction density/radius/font blocks              | CL0B probe; CL1A values        | Gallery geometry then Electron                    | CL2A 28px controls and five icon sizes       |
+| spacing, control sizes, radius, typography                    | bounded numeric and font-stack-ID tokens                                | theme contract | component anatomy and layout         | v17 direction density/radius/font blocks              | CL0B probe; CL1A values        | Gallery geometry then Electron                    | CL2A merged; CL2B compact/comfortable fields |
 | 180/320/480 timing and standard/shell easing                  | duration/easing IDs with fixed CSS serializers                          | theme contract | transitions only                     | `--t-quick`, `--t-standard`, `--ease`, `--shell-ease` | CL1A/CL2                       | reduced-motion evidence later                     | Candidate serializer and motion sample       |
 | card/surface/composer/overlay shadows                         | shadow IDs with fixed CSS serializers                                   | theme contract | cards, Composer, overlays            | `--shadow-*`                                          | CL1A/CL2-CL4                   | Gallery and Electron later                        | Static none; mode-aware trusted serializers  |
 
@@ -171,7 +171,7 @@ to every temporary fallback marker. This remains governance and host proof: no
 production component or surface selector has migrated, and cross-platform
 Gallery CI is not native Windows/Linux Electron evidence.
 
-## CL2A Action/Icon candidate evidence
+## CL2A Action/Icon merged evidence
 
 CL2A adds the public `@artemis/ui/actions` subpath with `Button`, `IconButton`,
 `Icon`, `Badge`, and `Status`. Its frozen contract covers stable anatomy,
@@ -219,6 +219,79 @@ not component-tree-shaken; consumers import that whole audited stylesheet.
 Neither the package nor Gallery imports Protocol, provider/settings types,
 Electron/Node APIs, private Gallery state, or skin-specific structural branches.
 
+CL2A merged through PR #135 at
+`f0834dd48cf7fcbe556fca6530359cea52436e13`.
+
+## CL2B Field/Select/Checkbox/Switch candidate evidence
+
+CL2B adds the public `@artemis/ui/forms` subpath with `TextField`,
+`SearchField`, `Select`, `Checkbox`, and `Switch`. Its frozen, fail-closed
+contract defines exact anatomy, compact/comfortable sizes, visible/hidden
+labels, disabled/error/read-only/open/checked priorities, required perceptible
+names, native input semantics, and controlled/uncontrolled boundaries that
+reject dual props or mode drift. Text fields intentionally expose only the
+finite `text`/`email`/`password`/`url`/`number` set. Existing native date and
+file consumers remain native until a later stage has a real abstraction
+consumer; CL2B does not create speculative date/file wrappers.
+
+The controlled generic Select owns one non-portal listbox, disabled options,
+normalized substring/ordered-fuzzy search, Arrow/Home/End navigation,
+Enter/Space selection, Escape focus restoration, outside dismissal, and IME
+composition protection. Closing clears the search so reopening always restores
+the complete option set. Checkbox and Switch keep native checkbox inputs;
+Switch adds `role="switch"`. Error text is described by, but not nested in, the
+label so it cannot contaminate the accessible name. Fixed focus-visible styles,
+RTL switch movement, long text, disabled/error redundancy, and reduced motion
+remain structural CSS outside skin control.
+
+The private Gallery renders field/search types, all states and sizes, searchable
+Select with disabled/error/no-result paths, native Checkbox/Switch combinations,
+long text, RTL, IME, and controlled event evidence. Four new behavior runners
+raise the exact matrix from 14 to 18 cases per skin (36 executions), while the
+64-vertex default/stress traversal preserves form anatomy, ARIA, state, values,
+checked state, selection, focus, event order, direction, zoom, and motion.
+Exact CSS and mutable-token allowlists, 25 contract/CSS negative cases, 23 safe
+boundary cases, and 113 rejected boundary violations stay fail-closed.
+
+Desktop consumes the public controls through seven real surfaces: Archive uses
+`SearchField`; Settings Built-in uses `TextField` plus the public Select through
+a thin `CodexSelect` compatibility adapter; Settings Custom uses `Checkbox`;
+Resource Center uses `Switch`; Composer, MCP Editor, and Review use that public
+Select adapter. Settings and MCP keep the comfortable size, while Composer and
+Review explicitly keep compact geometry. Desktop-owned external layout restores
+Composer right alignment, Review left alignment and compact toolbar treatment,
+and menu layering without adding private component anatomy. Model labels include
+the stable provider/model ID so perceptibly duplicate display names remain
+unambiguous. The former private Select implementation and private
+Search/Switch/Checkbox structural CSS are removed.
+
+The production Electron verifier runs all seven surfaces in light and dark with
+fresh isolated user data: 14 cases and 288 assertions cover screenshots,
+positive geometry, required public parts, resolved semantic tokens,
+focus-visible evidence, controlled Search/Checkbox updates, Select IME
+preservation and one keyboard commit, native checkbox/switch semantics, zero
+portals, empty accessibility findings, and no local-path leakage. Focus evidence
+records both `BrowserWindow.isFocused()` and `document.hasFocus()`: a focused
+document must retain the target `document.activeElement` plus its visible public
+outline, while an automation session whose OS refuses foreground activation must
+report both window and document focus as false and retain a keyboard-focusable
+target. This
+keeps the CI boundary explicit instead of claiming a focus ring the host cannot
+render. Composer, MCP Editor, and Review additionally use DevTools-protocol Tab
+and ArrowDown events to keyboard-open the real menu, retain the same Select root,
+stay inside the viewport, preserve their required alignment, and resolve at
+`z-index: 80`. The verifier has no
+`--no-sandbox` fallback and records an explicit renderer-sandbox assertion. Root
+Linux tests do not launch Electron; the existing macOS Desktop-skin CI job owns
+this production Electron gate. The Resource and MCP fixtures are disabled
+synthetic configurations, so they perform zero spawn and zero dial-out.
+
+The installed-tarball consumer verifies all five runtime exports and declarations,
+SSR output, the frozen contract, and a TextField-only bundle that excludes the
+SearchField, Select, Checkbox, and Switch implementation markers. Neither the
+package nor Gallery imports Protocol, provider/settings types, Electron/Node
+APIs, private Gallery state, or skin-specific structural branches.
+
 ## Component and surface sequence
 
 | Scope                                                                    | Type               | Owner                     | Consumer                   | Legacy selector/source                           | Target PR | Electron evidence                                           | Status                                  |
@@ -230,8 +303,8 @@ Electron/Node APIs, private Gallery state, or skin-specific structural branches.
 | Direction A Artemis values                                               | skin               | `@artemis/theme-artemis`  | Gallery and Desktop host   | v17 A light/dark/high                            | CL1A      | Gallery/browser; Desktop first-frame variables in CL1B      | Merged at `3457e0d`                     |
 | Resolver/registry and host attributes                                    | integration        | Desktop renderer glue     | Desktop                    | current `data-theme` bridge                      | CL1B      | Exact-head Electron state/Portal/xterm/package proof        | Merged at `70691d9`                     |
 | Default/stress/fallback conformance                                      | governance         | Gallery + validators      | CI                         | v17 A/B/C stress input                           | CL1C      | 64-vertex Gallery + exact-head Desktop matrix               | Merged at `38e40ae`                     |
-| Action and icon controls                                                 | component          | `@artemis/ui`             | Gallery + GoalBar          | buttons, icon buttons, badge, status, icon sizes | CL2A      | 105-case sandboxed Goal parity Electron matrix              | Candidate                               |
-| Field and selection controls                                             | component          | `@artemis/ui`             | Desktop consumer pending   | field, search, select, checkbox, switch          | CL2B      | Gallery then exact real consumer                            | Pending                                 |
+| Action and icon controls                                                 | component          | `@artemis/ui`             | Gallery + GoalBar          | buttons, icon buttons, badge, status, icon sizes | CL2A      | 105-case sandboxed Goal parity Electron matrix              | Merged at `f0834dd`                     |
+| Field and selection controls                                             | component          | `@artemis/ui`             | Gallery + real Desktop     | field, search, select, checkbox, switch          | CL2B      | 14-case/288-assertion strict-sandbox Electron matrix        | Candidate                               |
 | Tabs and segmented controls                                              | component          | `@artemis/ui`             | Desktop consumer pending   | tabs and segmented controls                      | CL2C      | Gallery then exact real consumer                            | Pending                                 |
 | Feedback, overlays, layout primitives                                    | component          | `@artemis/ui`             | Desktop consumers later    | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | Gallery cases first                                         | Pending                                 |
 | Artemis-specific presentational patterns                                 | component          | `@artemis/ui`             | Desktop adapter layer      | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                         | Pending                                 |
