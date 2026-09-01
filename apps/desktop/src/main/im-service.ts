@@ -221,7 +221,7 @@ export class IMService {
       title: `[FS] ${awaiting.senderName}`,
       workspaceKey,
     });
-    return this.manager.approvePairing({
+    const binding = this.manager.approvePairing({
       workspaceKey,
       threadId: created.threadId,
       adapter: awaiting.adapter,
@@ -229,6 +229,14 @@ export class IMService {
       channelId: awaiting.channelId,
       outputMode: "summary",
     });
+    if (binding) {
+      // 对齐 ggcode 行为：配对成功回发渠道确认，IM 侧有明确终态反馈
+      const adapter = this.adapters.get(binding.adapter);
+      void adapter
+        ?.send(binding, { kind: "text", text: "配对成功，已绑定。直接发消息即可开始。" })
+        .catch(() => undefined);
+    }
+    return binding;
   }
 
   /** 桌面拒绝配对（满 3 次拉黑渠道，E15）。 */

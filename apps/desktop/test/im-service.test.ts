@@ -180,6 +180,24 @@ describe("im-bindings-store（plan §1.3，内存 SQLite）", () => {
 });
 
 describe("IMService 入站链路（plan §1.4/§3.1）", () => {
+  it("配对批准后回发渠道确认（ggcode 绑定成功 对齐）", async () => {
+    const store = await createStore();
+    const { host } = makeHost();
+    const { service, adapter } = setup(host, store);
+    await service.manager.handleInbound(makeInbound("hi"));
+    const challenge = service.manager.status().pairingChallenge!;
+    await service.manager.handleInbound(makeInbound(challenge.code));
+
+    const binding = await service.approvePairing("");
+    expect(binding).not.toBeNull();
+    await new Promise((r) => setTimeout(r, 10));
+    const confirm = adapter.sent.find(
+      (s) => s.event.kind === "text" && s.event.text.includes("配对成功"),
+    );
+    expect(confirm).toBeDefined();
+    expect(confirm?.binding.channelId).toBe("oc_a");
+  });
+
   it("配对流程：首消息触发 notifyPairing（含 4 位码）", async () => {
     const store = await createStore();
     const { host, calls } = makeHost();

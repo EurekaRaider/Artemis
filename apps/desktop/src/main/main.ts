@@ -15533,6 +15533,10 @@ app
           return "idle" as const;
         },
         notifyPairing: (challenge: { code: string; adapter: string; channelId: string }) => {
+          console.warn(
+            `[im] pairing challenge ${challenge.code} for ${challenge.channelId}; ` +
+            `notification supported: ${Notification.isSupported()}`,
+          );
           mainWindow?.webContents.send(IPC.imPairingRequested, challenge);
           if (Notification.isSupported()) {
             const notification = new Notification({
