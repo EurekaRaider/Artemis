@@ -313,8 +313,11 @@ describe("renderer layout contract", () => {
     expect(cssRule(".workspace")).toMatch(/\bheight:\s*100%/u);
     expect(cssRule(".workspace")).toMatch(/\boverflow:\s*hidden/u);
     expect(cssRule(".workspace-content")).toMatch(/\boverflow:\s*hidden/u);
-    expect(cssRule(".conversation")).toMatch(/\bmin-height:\s*0/u);
-    expect(cssRule(".conversation")).toMatch(/\boverflow:\s*hidden/u);
+    const conversation = publicUiCssRule(
+      '[data-artemis-component="conversation-surface"]',
+    );
+    expect(conversation).toMatch(/\bmin-block-size:\s*0/u);
+    expect(conversation).toMatch(/\boverflow:\s*hidden/u);
   });
 
   it("reserves a draggable macOS title-bar area above the app content", () => {
@@ -364,9 +367,11 @@ describe("renderer layout contract", () => {
   });
 
   it("makes the timeline container independently scrollable", () => {
-    const rule = cssRule(".timeline-scroll");
+    const rule = publicUiCssRule(
+      '[data-artemis-component="timeline-viewport"]',
+    );
 
-    expect(rule).toMatch(/\bmin-height:\s*0/u);
+    expect(rule).toMatch(/\bmin-block-size:\s*0/u);
     expect(rule).toMatch(/\boverflow-y:\s*auto/u);
   });
 
@@ -402,7 +407,9 @@ describe("renderer layout contract", () => {
 
   it("keeps the composer in a fixed layout row instead of a sticky overlay", () => {
     const composer = cssRule(".composer-wrap");
-    const conversation = cssRule(".conversation");
+    const conversation = publicUiCssRule(
+      '[data-artemis-component="conversation-surface"]',
+    );
 
     expect(composer).not.toMatch(/\bposition:\s*sticky/u);
     expect(`${composer}\n${conversation}`).toMatch(
@@ -695,9 +702,9 @@ describe("renderer layout contract", () => {
       composerSource.indexOf('className="send-button'),
     );
 
-    expect(cssRule(".conversation")).toMatch(
-      /\bcontainer-type:\s*inline-size/u,
-    );
+    expect(
+      publicUiCssRule('[data-artemis-component="conversation-surface"]'),
+    ).toMatch(/\bcontainer-type:\s*inline-size/u);
     expect(cssRule(".composer-trailing")).toMatch(/\bflex:\s*0\s+0\s+auto/u);
     expect(cssRule(".composer-trailing")).toMatch(/\bmargin-left:\s*auto/u);
     expect(stylesSource).toMatch(
@@ -1123,9 +1130,9 @@ describe("renderer layout contract", () => {
   it("keeps expanded task steps inside the conversation when the right sidebar opens", () => {
     const taskPlanList = cssRule('.task-plan-progress [data-part="steps"]');
 
-    expect(cssRule(".conversation")).toMatch(
-      /\bcontainer-type:\s*inline-size/u,
-    );
+    expect(
+      publicUiCssRule('[data-artemis-component="conversation-surface"]'),
+    ).toMatch(/\bcontainer-type:\s*inline-size/u);
     expect(taskPlanList).toMatch(
       /\bwidth:\s*min\(560px,\s*calc\(100cqw\s*-\s*40px\)\)/u,
     );
@@ -1133,12 +1140,13 @@ describe("renderer layout contract", () => {
     expect(taskPlanList).toMatch(/\bz-index:\s*1/u);
   });
 
-  it("shows each sub-agent once as a compact task-labelled pill", () => {
+  it("shows each sub-agent once as a compact task-labelled activity", () => {
     expect(toolActivityGroupsSource).toContain('"spawn_agent"');
     expect(appSource).not.toContain("<SubagentList");
-    expect(appSource).toContain('className="child-agent-pill"');
-    expect(appSource).toContain("<strong>{child.label}</strong>");
-    expect(appSource).toContain("onOpenChildAgent(child)");
+    expect(appSource).toContain("<AgentActivity");
+    expect(appSource).toContain("className={`child-agent-card");
+    expect(appSource).toContain("title={child.label}");
+    expect(appSource).toContain("onActivate={() => onOpenChildAgent(child)}");
     expect(appSource).toContain("function ChildAgentPanel(");
     expect(appSource).toContain(
       "child?.error ?? child?.output ?? child?.activity",
@@ -1163,7 +1171,7 @@ describe("renderer layout contract", () => {
     expect(runtimeSource).toMatch(
       /configuredMcpTools\s*\.filter\(\(tool\) => tool\.readOnly\)/u,
     );
-    expect(cssRule(".child-agent-pill")).toMatch(/\bborder-radius:\s*999px/u);
+    expect(cssRule(".child-agent-card")).toMatch(/\bborder-radius:\s*9px/u);
   });
 
   it("renders context compaction progress and completion in the timeline", () => {
@@ -1187,9 +1195,18 @@ describe("renderer layout contract", () => {
   });
 
   it("uses Codex-scale conversation typography without a timeline Thinking row", () => {
-    const assistant = cssRule(".assistant-message");
-    expect(assistant).toContain("font-family: var(--ui-font)");
-    expect(assistant).toContain("font-size: 15px");
+    const conversation = publicUiCssRule(
+      '[data-artemis-component="conversation-surface"]',
+    );
+    const assistant = publicUiCssRule(
+      '[data-artemis-component="conversation-message"][data-message-kind="assistant"]',
+    );
+    expect(conversation).toContain(
+      "font-family: var(--artemis-typography-body-family)",
+    );
+    expect(assistant).toContain(
+      "font-size: calc(var(--artemis-typography-body-size) + 1px)",
+    );
     expect(cssRule(".tool-summary-label")).toContain("font-size: 14px");
     expect(appSource).not.toContain('thinkingStatus: "Thinking"');
     expect(appSource).not.toContain('className="thinking-status"');
@@ -2200,11 +2217,13 @@ describe("renderer layout contract", () => {
   });
 
   it("aligns conversation content with the wider composer reference line", () => {
-    const timeline = cssRule(".timeline");
+    const timeline = publicUiCssRule('[data-artemis-component="timeline"]');
     const composerWrap = cssRule(".composer-wrap");
 
-    expect(timeline).toMatch(/\bmax-width:\s*960px/u);
-    expect(timeline).toMatch(/\bpadding:\s*34px\s+20px\s+24px/u);
+    expect(timeline).toMatch(/\bmax-inline-size:\s*60rem/u);
+    expect(timeline).toMatch(
+      /\bpadding:\s*calc\(var\(--artemis-space-6\) \+ var\(--artemis-space-2\)\)\s+var\(--artemis-space-5\) var\(--artemis-space-6\)/u,
+    );
     expect(composerWrap).toMatch(/\bmax-width:\s*960px/u);
     expect(composerWrap).toMatch(/\bpadding:\s*0\s+20px\s+18px/u);
   });

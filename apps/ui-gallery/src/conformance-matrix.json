@@ -34,7 +34,11 @@
       "pattern-rtl-long-content",
       "surface-anatomy",
       "surface-controlled-events",
-      "surface-rtl-long-content"
+      "surface-rtl-long-content",
+      "conversation-anatomy",
+      "conversation-state-matrix",
+      "conversation-controlled-events",
+      "conversation-rtl-long-content"
     ],
     "stress": [
       "anatomy",
@@ -68,7 +72,11 @@
       "pattern-rtl-long-content",
       "surface-anatomy",
       "surface-controlled-events",
-      "surface-rtl-long-content"
+      "surface-rtl-long-content",
+      "conversation-anatomy",
+      "conversation-state-matrix",
+      "conversation-controlled-events",
+      "conversation-rtl-long-content"
     ]
   },
   "switchCases": [

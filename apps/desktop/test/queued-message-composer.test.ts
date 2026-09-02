@@ -11,6 +11,12 @@ const stylesSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/styles.css", import.meta.url)),
   "utf8",
 );
+const publicUiStylesSource = readFileSync(
+  fileURLToPath(
+    new URL("../../../packages/ui/src/styles.css", import.meta.url),
+  ),
+  "utf8",
+);
 
 function sourceForConstant(name: string): string {
   const start = appSource.indexOf(`const ${name} =`);
@@ -31,18 +37,17 @@ function sourceForQueuedButton(className: string): string {
 
 describe("Codex-style queued message composer", () => {
   it("renders each queued message as a numbered card above the composer", () => {
-    const barIndex = appSource.indexOf('className="queued-message-bar"');
-    const listEnd = appSource.indexOf("</ol>", barIndex);
+    const barIndex = appSource.indexOf("<QueuedMessageGroup");
+    const listEnd = appSource.indexOf("</QueuedMessageGroup>", barIndex);
     const barSource = appSource.slice(barIndex, listEnd);
 
     expect(barIndex).toBeGreaterThan(-1);
     expect(listEnd).toBeGreaterThan(barIndex);
     expect(barSource).toContain("{queuedFollowUps.map");
-    expect(barSource).toContain('className="queued-message-heading"');
-    expect(barSource).toContain('className="queued-message-list"');
-    expect(barSource).toContain('className="queued-message-item"');
-    expect(barSource).toContain('className="queued-message-index"');
-    expect(barSource).toContain('className="queued-message-actions"');
+    expect(barSource).toContain("heading={");
+    expect(barSource).toContain("<QueuedMessageItem");
+    expect(barSource).toContain("index={index + 1}");
+    expect(barSource).toContain("actions={");
 
     const steerButton = sourceForQueuedButton("queued-message-steer");
     const prioritizeButton = sourceForQueuedButton("queued-message-prioritize");
@@ -62,23 +67,26 @@ describe("Codex-style queued message composer", () => {
   });
 
   it("keeps individual cards visually distinct while the composer stays stacked", () => {
-    expect(stylesSource).toMatch(
-      /\.queued-message-bar\s*\{[^}]*\bborder-radius:\s*12px 12px 0 0\s*;/gu,
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="queued-message-group"\]\s*\{[^}]*\bborder-radius:\s*var\(--artemis-radius-card\) var\(--artemis-radius-card\) 0 0\s*;/gu,
+    );
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="queued-message-group"\]\s*\{[^}]*\bmargin:\s*0 var\(--artemis-space-5\) calc\(var\(--artemis-space-5\) \* -1\)\s*;/gu,
+    );
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="queued-message-group"\]\s*>\s*\[data-part="items"\]\s*\{[^}]*\bgap:\s*var\(--artemis-space-2\)\s*;/gu,
+    );
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="queued-message-item"\]\s*\{[^}]*\bborder-radius:\s*var\(--artemis-radius-control\)\s*;/gu,
+    );
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="queued-message-item"\]\s*>\s*\[data-part="actions"\]\s*\{[^}]*\bmargin-inline-start:\s*auto/gu,
+    );
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="queued-message-item"\][\s\S]*?>\s*\[data-part="actions"\][\s\S]*?button\s*\{[^}]*\bcursor:\s*pointer/gu,
     );
     expect(stylesSource).toMatch(
-      /\.queued-message-bar\s*\{[^}]*\bmargin:\s*0 20px -18px\s*;/gu,
-    );
-    expect(stylesSource).toMatch(
-      /\.queued-message-list\s*\{[^}]*\bgap:\s*8px\s*;/gu,
-    );
-    expect(stylesSource).toMatch(
-      /\.queued-message-item\s*\{[^}]*\bborder-radius:\s*9px\s*;/gu,
-    );
-    expect(stylesSource).toMatch(
-      /\.queued-message-actions\s*\{[^}]*\bmargin-left:\s*auto/gu,
-    );
-    expect(stylesSource).toMatch(
-      /\.queued-message-actions button\s*\{[^}]*\bcursor:\s*pointer/gu,
+      /\.queued-message-content\s*\{[^}]*\bdisplay:\s*block[^}]*\binline-size:\s*100%[^}]*\boverflow:\s*hidden/gu,
     );
     expect(stylesSource).toMatch(
       /\.queued-message-bar \+ \.composer\s*\{[^}]*\bz-index:\s*1/gu,

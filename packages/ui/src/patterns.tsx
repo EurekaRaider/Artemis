@@ -31,6 +31,8 @@ export const PATTERN_DISCLOSURE_CONTROL_ERROR =
   "Artemis disclosures require one stable controlled or uncontrolled ownership mode";
 export const PATTERN_HIDDEN_LABEL_ICON_ERROR =
   "Artemis hidden pattern labels require a renderable icon element";
+export const PATTERN_NESTED_AGENT_ACTIVITY_ERROR =
+  "Artemis agent activity cannot combine root activation with nested actions";
 
 function requirePerceptibleText(value: string): void {
   if (typeof value !== "string" || !PERCEPTIBLE_LABEL_CHARACTER.test(value)) {
@@ -118,6 +120,8 @@ export type PatternState =
   | "busy"
   | "running"
   | "waiting"
+  | "blocked"
+  | "cancelling"
   | "streaming"
   | "resolved"
   | "answered"
@@ -302,6 +306,7 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
       "controlled-selection",
       "unique-option-ids",
       "caller-owned-submit-actions",
+      "advanced-adapters-may-preserve-consumer-owned-input-controls",
     ],
     theme: PATTERN_THEME_CONTRACT,
   },
@@ -310,19 +315,29 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     uiContractVersion: 1,
     name: "agent-activity",
     parts: ["root", "title", "status"],
-    optionalParts: ["icon", "description", "actions"],
+    optionalParts: ["icon", "description", "indicator", "actions"],
     states: [
       "queued",
       "running",
       "waiting",
+      "blocked",
+      "cancelling",
       "completed",
       "failed",
+      "cancelled",
       "stale",
       "disabled",
       "timeout",
     ],
-    accessibility: ["named-status", "visible-state-label"],
-    interaction: ["caller-owned-actions"],
+    accessibility: [
+      "named-status",
+      "visible-state-label",
+      "native-disabled-state-when-activatable",
+    ],
+    interaction: [
+      "caller-owned-activation-or-actions",
+      "root-activation-and-nested-actions-are-mutually-exclusive",
+    ],
     theme: PATTERN_THEME_CONTRACT,
   },
   agentTeamSummary: {
@@ -1032,6 +1047,47 @@ export type UserInputOption = PatternOwnedLabel & {
   readonly id: string;
 };
 
+export interface UserInputFrameProps extends Omit<
+  HTMLAttributes<HTMLElement>,
+  "children" | "role"
+> {
+  readonly children: ReactNode;
+  readonly label: string;
+  readonly state: Extract<
+    PatternState,
+    | "pending"
+    | "busy"
+    | "answered"
+    | "cancelled"
+    | "error"
+    | "stale"
+    | "disabled"
+    | "timeout"
+  >;
+}
+
+export function UserInputFrame({
+  children,
+  label,
+  state,
+  ...attributes
+}: UserInputFrameProps) {
+  requirePerceptibleText(label);
+  return (
+    <section
+      {...attributes}
+      aria-busy={state === "busy" || undefined}
+      aria-label={label}
+      data-artemis-component="user-input"
+      data-part="root"
+      data-state={state}
+      role="group"
+    >
+      {children}
+    </section>
+  );
+}
+
 export interface UserInputProps extends Omit<
   HTMLAttributes<HTMLElement>,
   "children"
@@ -1085,15 +1141,7 @@ export function UserInput({
   const optionLabelId = useId();
   const blocked = state !== "pending" && state !== "error" && state !== "stale";
   return (
-    <section
-      {...attributes}
-      aria-busy={state === "busy" || undefined}
-      aria-label={label}
-      data-artemis-component="user-input"
-      data-part="root"
-      data-state={state}
-      role="group"
-    >
+    <UserInputFrame {...attributes} label={label} state={state}>
       <strong data-part="question">{question}</strong>
       {description ? <div data-part="description">{description}</div> : null}
       <div data-part="options">
@@ -1139,25 +1187,28 @@ export function UserInput({
         {statusLabel}
       </span>
       {actions ? <div data-part="actions">{actions}</div> : null}
-    </section>
+    </UserInputFrame>
   );
 }
 
-export interface AgentActivityProps extends Omit<
+interface AgentActivitySharedProps extends Omit<
   HTMLAttributes<HTMLElement>,
-  "children" | "title"
+  "children" | "onClick" | "title"
 > {
-  readonly actions?: ReactNode | undefined;
   readonly description?: ReactNode | undefined;
   readonly icon?: ReactNode | undefined;
+  readonly indicator?: ReactNode | undefined;
   readonly label: string;
   readonly state: Extract<
     PatternState,
     | "queued"
     | "running"
     | "waiting"
+    | "blocked"
+    | "cancelling"
     | "completed"
     | "failed"
+    | "cancelled"
     | "stale"
     | "disabled"
     | "timeout"
@@ -1166,11 +1217,25 @@ export interface AgentActivityProps extends Omit<
   readonly title: ReactNode;
 }
 
+export type AgentActivityProps = AgentActivitySharedProps &
+  (
+    | {
+        readonly actions?: never;
+        readonly onActivate: () => void;
+      }
+    | {
+        readonly actions?: ReactNode | undefined;
+        readonly onActivate?: undefined;
+      }
+  );
+
 export function AgentActivity({
   actions,
   description,
   icon,
+  indicator,
   label,
+  onActivate,
   state,
   statusLabel,
   title,
@@ -1178,14 +1243,11 @@ export function AgentActivity({
 }: AgentActivityProps) {
   requirePerceptibleText(label);
   requirePerceptibleText(statusLabel);
-  return (
-    <article
-      {...attributes}
-      aria-label={label}
-      data-artemis-component="agent-activity"
-      data-part="root"
-      data-state={state}
-    >
+  if (onActivate && actions !== undefined && actions !== null) {
+    throw new Error(PATTERN_NESTED_AGENT_ACTIVITY_ERROR);
+  }
+  const content = (
+    <>
       {icon ? (
         <span aria-hidden="true" data-part="icon">
           {icon}
@@ -1196,9 +1258,34 @@ export function AgentActivity({
         {statusLabel}
       </span>
       {description ? <div data-part="description">{description}</div> : null}
+      {indicator ? (
+        <span aria-hidden="true" data-part="indicator">
+          {indicator}
+        </span>
+      ) : null}
       {actions ? <div data-part="actions">{actions}</div> : null}
-    </article>
+    </>
   );
+  const sharedAttributes = {
+    ...attributes,
+    "aria-label": label,
+    "data-artemis-component": "agent-activity",
+    "data-part": "root",
+    "data-state": state,
+  } as const;
+  if (onActivate) {
+    return (
+      <button
+        {...sharedAttributes}
+        disabled={state === "disabled"}
+        onClick={onActivate}
+        type="button"
+      >
+        {content}
+      </button>
+    );
+  }
+  return <article {...sharedAttributes}>{content}</article>;
 }
 
 export type AgentTeamMember = PatternOwnedLabel & {

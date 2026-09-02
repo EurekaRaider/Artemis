@@ -10486,6 +10486,298 @@ function seedSmokeTurnChangesFixture(): void {
   );
 }
 
+async function seedSmokeConversationTimelineFixture(): Promise<void> {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (!store || !smokeMode || !view?.startsWith("conversation-timeline-")) {
+    return;
+  }
+  const now = new Date().toISOString();
+  const projectId = "artemis-smoke-conversation-project";
+  const threadId = "artemis-smoke-conversation-thread";
+  const fixturePath = join(
+    app.getPath("userData"),
+    "fixtures",
+    "conversation-timeline",
+  );
+  await mkdir(fixturePath, { recursive: true });
+  store.upsertProject({
+    id: projectId,
+    name: "Artemis",
+    path: fixturePath,
+    createdAt: now,
+    updatedAt: now,
+  });
+  store.createThread({
+    id: threadId,
+    projectId,
+    title:
+      view === "conversation-timeline-empty"
+        ? "Empty conversation"
+        : view === "conversation-timeline-failed"
+          ? "Interrupted conversation"
+          : "Conversation timeline migration",
+    mode: "execute",
+    target: "local",
+    status:
+      view === "conversation-timeline-failed"
+        ? "failed"
+        : view === "conversation-timeline-empty"
+          ? "idle"
+          : "running",
+    pinned: false,
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+  if (view === "conversation-timeline-empty") return;
+
+  if (view === "conversation-timeline-failed") {
+    const failedTurnId = "artemis-smoke-conversation-failed-turn";
+    const failedPayloads: AgentPayload[] = [
+      {
+        type: "user.message",
+        messageId: "artemis-smoke-conversation-failed-user",
+        text: "Resume safely after the interrupted provider stream.",
+      },
+      { type: "turn.started", mode: "execute" },
+      {
+        type: "turn.activity",
+        phase: "interrupted",
+        kind: "connection",
+      },
+      {
+        type: "message.part.delta",
+        partId: "artemis-smoke-conversation-failed-thinking",
+        partType: "thinking",
+        delta: "ARTEMIS_PRIVATE_THINKING_MUST_STAY_HIDDEN",
+      },
+      {
+        type: "message.part.delta",
+        partId: "artemis-smoke-conversation-failed-visible",
+        partType: "text",
+        delta: "The visible response stopped before completion.",
+      },
+      {
+        type: "turn.failed",
+        code: "AGENT_HOST_INTERRUPTED",
+        message: "The Agent Host restarted without replaying completed writes.",
+        durationMs: 41_000,
+      },
+    ];
+    store.appendEvents(
+      threadId,
+      failedPayloads.map((payload, index) => ({
+        eventId: `artemis-smoke-conversation-failed-${index}`,
+        turnId: failedTurnId,
+        payload,
+      })),
+    );
+    return;
+  }
+
+  const completedTurnId = "artemis-smoke-conversation-completed-turn";
+  const cancelledTurnId = "artemis-smoke-conversation-cancelled-turn";
+  const activeTurnId = "artemis-smoke-conversation-active-turn";
+  const longToken = "migration_contract_".repeat(42);
+  const completedPayloads: AgentPayload[] = [
+    {
+      type: "user.message",
+      messageId: "artemis-smoke-conversation-completed-user",
+      text: "Inspect the timeline contract and verify the public components.",
+    },
+    { type: "turn.started", mode: "execute" },
+    {
+      type: "message.part.delta",
+      partId: "artemis-smoke-conversation-completed-thinking",
+      partType: "thinking",
+      delta: "ARTEMIS_PRIVATE_THINKING_MUST_STAY_HIDDEN",
+    },
+    {
+      type: "message.part.delta",
+      partId: "artemis-smoke-conversation-progress",
+      partType: "text",
+      delta: "Reviewing the renderer and shared component boundaries.",
+    },
+    {
+      type: "tool.started",
+      toolCallId: "artemis-smoke-conversation-read",
+      toolName: "read",
+      input: { path: "packages/ui/src/conversation.tsx" },
+    },
+    {
+      type: "tool.completed",
+      toolCallId: "artemis-smoke-conversation-read",
+      output: "Conversation contract inspected.",
+      isError: false,
+    },
+    {
+      type: "tool.started",
+      toolCallId: "artemis-smoke-conversation-failed-tool",
+      toolName: "bash",
+      input: { command: "npm test --workspace @artemis/ui" },
+    },
+    {
+      type: "tool.completed",
+      toolCallId: "artemis-smoke-conversation-failed-tool",
+      output: "Synthetic failure detail retained for disclosure testing.",
+      isError: true,
+    },
+    {
+      type: "child-agent.status",
+      agentId: "artemis-smoke-completed-agent",
+      label: "Completed timeline audit",
+      status: "completed",
+      updatedAt: now,
+    },
+    {
+      type: "message.part.delta",
+      partId: "artemis-smoke-conversation-final",
+      partType: "text",
+      delta: [
+        "## Timeline migration verified",
+        "",
+        "- Public user and assistant message anatomy is active.",
+        "- [Conversation source](packages/ui/src/conversation.tsx) remains keyboard reachable.",
+        "",
+        `\`${longToken}\``,
+      ].join("\n"),
+    },
+    {
+      type: "turn.completed",
+      reason: "completed",
+      finalPartId: "artemis-smoke-conversation-final",
+      durationMs: 808_000,
+    },
+    {
+      type: "turn.change-set.updated",
+      status: "ready",
+      files: [
+        {
+          path: "packages/ui/src/conversation.tsx",
+          status: "added",
+          additions: 312,
+          deletions: 0,
+          binary: false,
+        },
+        {
+          path: "apps/desktop/src/renderer/App.tsx",
+          status: "modified",
+          additions: 84,
+          deletions: 61,
+          binary: false,
+        },
+      ],
+      additions: 396,
+      deletions: 61,
+      undoAvailable: true,
+    },
+  ];
+  const cancelledPayloads: AgentPayload[] = [
+    { type: "turn.started", mode: "execute" },
+    {
+      type: "user.message",
+      messageId: "artemis-smoke-conversation-cancelled-user",
+      text: "Cancel this draft and let me edit the original request.",
+    },
+    {
+      type: "message.part.delta",
+      partId: "artemis-smoke-conversation-cancelled-visible",
+      partType: "text",
+      delta: "Stopping before any additional changes are made.",
+    },
+    {
+      type: "turn.completed",
+      reason: "cancelled",
+      durationMs: 12_000,
+    },
+  ];
+  const activePayloads: AgentPayload[] = [
+    { type: "turn.started", mode: "execute" },
+    {
+      type: "user.message",
+      messageId: "artemis-smoke-conversation-active-user",
+      text: `Finish the remaining migration checks. ${longToken}`,
+    },
+    {
+      type: "tool.started",
+      toolCallId: "artemis-smoke-conversation-plan",
+      toolName: "update_plan",
+      input: {
+        steps: [
+          { step: "Inspect shared anatomy", status: "completed" },
+          { step: "Verify native interactions", status: "in_progress" },
+          { step: "Record Electron evidence", status: "pending" },
+        ],
+      },
+    },
+    {
+      type: "tool.completed",
+      toolCallId: "artemis-smoke-conversation-plan",
+      output: "Plan updated.",
+      isError: false,
+    },
+    {
+      type: "tool.started",
+      toolCallId: "artemis-smoke-conversation-running-tool",
+      toolName: "bash",
+      input: { command: "npm run verify:conversation-timeline" },
+    },
+    {
+      type: "child-agent.status",
+      agentId: "artemis-smoke-blocked-agent",
+      label: "Independent review",
+      status: "blocked",
+      health: "healthy",
+      updatedAt: now,
+    },
+    {
+      type: "user-input.requested",
+      requestId: "artemis-smoke-conversation-input",
+      nonce: "artemis-smoke-conversation-input-nonce",
+      header: "Evidence",
+      question: "Which acceptance evidence should be recorded?",
+      options: [
+        {
+          label: "Electron geometry",
+          description: "Record native renderer dimensions.",
+          recommended: true,
+        },
+        {
+          label: "Keyboard interaction",
+          description: "Record focus and disclosure behavior.",
+          recommended: false,
+        },
+      ],
+      expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+    },
+    {
+      type: "queue.updated",
+      steering: ["Keep the validation scoped to MIG2."],
+      followUp: [
+        "Run the RTL and 200 percent geometry checks.",
+        "Record the long-content overflow result.",
+      ],
+    },
+  ];
+  store.appendEvents(threadId, [
+    ...completedPayloads.map((payload, index) => ({
+      eventId: `artemis-smoke-conversation-completed-${index}`,
+      turnId: completedTurnId,
+      payload,
+    })),
+    ...cancelledPayloads.map((payload, index) => ({
+      eventId: `artemis-smoke-conversation-cancelled-${index}`,
+      turnId: cancelledTurnId,
+      payload,
+    })),
+    ...activePayloads.map((payload, index) => ({
+      eventId: `artemis-smoke-conversation-active-${index}`,
+      turnId: activeTurnId,
+      payload,
+    })),
+  ]);
+}
+
 function seedSmokeMessageActionsFixture(): void {
   if (!store || process.env.ARTEMIS_SMOKE_VIEW !== "message-actions-edit") {
     return;
@@ -13635,6 +13927,89 @@ function createMainWindow(): BrowserWindow {
                   await wait(800);
                   return;
                 }
+                if (view.startsWith('conversation-timeline-')) {
+                  document.querySelector('.thread-select')?.click();
+                  await wait(900);
+                  const viewport = document.querySelector(
+                    '[data-artemis-component="timeline-viewport"]',
+                  );
+                  const disclosure = document.querySelector(
+                    '[data-artemis-component="turn-execution-disclosure"]',
+                  );
+                  let bottomDistanceBefore = null;
+                  let bottomDistanceAfter = null;
+                  if (
+                    view === 'conversation-timeline-rich' &&
+                    viewport instanceof HTMLElement &&
+                    disclosure instanceof HTMLDetailsElement
+                  ) {
+                    viewport.scrollTop = viewport.scrollHeight;
+                    bottomDistanceBefore =
+                      viewport.scrollHeight -
+                      viewport.clientHeight -
+                      viewport.scrollTop;
+                    disclosure.querySelector('summary')?.click();
+                    await wait(180);
+                    bottomDistanceAfter =
+                      viewport.scrollHeight -
+                      viewport.clientHeight -
+                      viewport.scrollTop;
+                  }
+                  const assistantAction = document.querySelector(
+                    '[data-artemis-component="conversation-message"]' +
+                      '[data-message-kind="assistant"] [data-part="actions"] button',
+                  );
+                  if (assistantAction instanceof HTMLButtonElement) {
+                    assistantAction.focus({ preventScroll: true });
+                  }
+                  await wait(200);
+                  const actionOpacity = assistantAction
+                    ? getComputedStyle(
+                        assistantAction.closest('[data-part="actions"]'),
+                      ).opacity
+                    : null;
+                  const agentButtons = [
+                    ...document.querySelectorAll(
+                      'button[data-artemis-component="agent-activity"]',
+                    ),
+                  ];
+                  const activeAgent = agentButtons.find((candidate) =>
+                    candidate.textContent?.includes('Independent review'),
+                  );
+                  let childPanelOpened = false;
+                  if (activeAgent instanceof HTMLButtonElement) {
+                    activeAgent.click();
+                    await wait(180);
+                    childPanelOpened =
+                      document.querySelector('.child-agent-panel') !== null;
+                    document.querySelector('.workspace-tab-close')?.click();
+                    await wait(120);
+                  }
+                  const inputChoice = document.querySelector(
+                    '[data-artemis-component="user-input"] ' +
+                      '[role="option"], ' +
+                      '[data-artemis-component="user-input"] button',
+                  );
+                  if (inputChoice instanceof HTMLElement) {
+                    inputChoice.focus({ preventScroll: true });
+                  }
+                  if (viewport instanceof HTMLElement) {
+                    viewport.scrollTop = viewport.scrollHeight;
+                  }
+                  window.__conversationTimelineInteraction = {
+                    view,
+                    disclosureOpened:
+                      disclosure instanceof HTMLDetailsElement && disclosure.open,
+                    bottomDistanceBefore,
+                    bottomDistanceAfter,
+                    actionOpacity,
+                    childPanelOpened,
+                    inputFocused:
+                      inputChoice instanceof HTMLElement &&
+                      document.activeElement === inputChoice,
+                  };
+                  return;
+                }
                 if (view.startsWith('icon-sizing-')) {
                   if (view.startsWith('icon-sizing-environment')) {
                     document.querySelector('.thread-select')?.click();
@@ -15618,6 +15993,9 @@ function createMainWindow(): BrowserWindow {
                 const inputFieldsView = ${JSON.stringify(
                   requestedSmokeView ?? "",
                 )};
+                const conversationTimelineView = ${JSON.stringify(
+                  requestedSmokeView ?? "",
+                )};
                 const visible = (element) => {
                   const style = getComputedStyle(element);
                   return style.display !== "none" &&
@@ -17085,6 +17463,230 @@ function createMainWindow(): BrowserWindow {
                       },
                     };
                   })(),
+                  conversationTimeline:
+                    conversationTimelineView.startsWith(
+                      'conversation-timeline-',
+                    )
+                      ? (() => {
+                          const componentNames = [
+                            'conversation-surface',
+                            'timeline-viewport',
+                            'timeline',
+                            'timeline-turn',
+                            'conversation-message',
+                            'conversation-empty-state',
+                            'turn-execution-disclosure',
+                            'turn-change-summary',
+                            'queued-message-group',
+                            'queued-message-item',
+                            'tool-activity',
+                            'task-plan',
+                            'user-input',
+                            'agent-activity',
+                            'turn-status',
+                          ];
+                          const roots = [
+                            ...document.querySelectorAll(
+                              componentNames
+                                .map(
+                                  (component) =>
+                                    '[data-artemis-component="' +
+                                    component +
+                                    '"]',
+                                )
+                                .join(', '),
+                            ),
+                          ];
+                          const describe = (root) => {
+                            const bounds = root.getBoundingClientRect();
+                            const style = getComputedStyle(root);
+                            return {
+                              component: root.getAttribute(
+                                'data-artemis-component',
+                              ),
+                              tagName: root.tagName.toLowerCase(),
+                              state: root.getAttribute('data-state'),
+                              messageKind:
+                                root.getAttribute('data-message-kind'),
+                              role: root.getAttribute('role'),
+                              ariaLabel: root.getAttribute('aria-label'),
+                              open:
+                                root instanceof HTMLDetailsElement
+                                  ? root.open
+                                  : null,
+                              parts: [
+                                'root',
+                                ...root.querySelectorAll('[data-part]'),
+                              ].map((part) =>
+                                typeof part === 'string'
+                                  ? part
+                                  : part.getAttribute('data-part'),
+                              ),
+                              geometry: {
+                                left: bounds.left,
+                                right: bounds.right,
+                                top: bounds.top,
+                                bottom: bounds.bottom,
+                                width: bounds.width,
+                                height: bounds.height,
+                              },
+                              contentFitsInline:
+                                root.scrollWidth <= root.clientWidth + 1,
+                              computed: {
+                                contentVisibility: style.contentVisibility,
+                                direction: style.direction,
+                                display: style.display,
+                                overflowX: style.overflowX,
+                                overflowY: style.overflowY,
+                              },
+                            };
+                          };
+                          const viewport = document.querySelector(
+                            '[data-artemis-component="timeline-viewport"]',
+                          );
+                          const timeline = document.querySelector(
+                            '[data-artemis-component="timeline"]',
+                          );
+                          const userMessage = document.querySelector(
+                            '[data-artemis-component="conversation-message"]' +
+                              '[data-message-kind="user"]',
+                          );
+                          const timelineBounds =
+                            timeline?.getBoundingClientRect();
+                          const viewportBounds =
+                            viewport?.getBoundingClientRect();
+                          const userBounds = userMessage?.getBoundingClientRect();
+                          const direction = getComputedStyle(
+                            document.documentElement,
+                          ).direction;
+                          const inlineEndGap =
+                            timelineBounds && userBounds
+                              ? direction === 'rtl'
+                                ? userBounds.left - timelineBounds.left
+                                : timelineBounds.right - userBounds.right
+                              : null;
+                          const horizontalOverflow = timeline
+                            ? [...timeline.querySelectorAll('*')]
+                                .filter((candidate) => {
+                                  const style = getComputedStyle(candidate);
+                                  return (
+                                    candidate.scrollWidth >
+                                      candidate.clientWidth + 1 &&
+                                    style.overflowX !== 'auto' &&
+                                    style.overflowX !== 'scroll' &&
+                                    style.overflowX !== 'hidden' &&
+                                    style.overflowX !== 'clip' &&
+                                    style.textOverflow !== 'ellipsis'
+                                  );
+                                })
+                                .map((candidate) => ({
+                                  tagName: candidate.tagName.toLowerCase(),
+                                  className: candidate.getAttribute('class'),
+                                  component: candidate.getAttribute(
+                                    'data-artemis-component',
+                                  ),
+                                  part: candidate.getAttribute('data-part'),
+                                  clientWidth: candidate.clientWidth,
+                                  scrollWidth: candidate.scrollWidth,
+                                }))
+                                .slice(0, 20)
+                            : [];
+                          return {
+                            view: conversationTimelineView,
+                            direction,
+                            devicePixelRatio: window.devicePixelRatio,
+                            interaction:
+                              window.__conversationTimelineInteraction ?? null,
+                            components: roots.map(describe),
+                            componentCounts: Object.fromEntries(
+                              componentNames.map((component) => [
+                                component,
+                                roots.filter(
+                                  (root) =>
+                                    root.getAttribute(
+                                      'data-artemis-component',
+                                    ) === component,
+                                ).length,
+                              ]),
+                            ),
+                            thinkingLeak: document.body.innerText.includes(
+                              'ARTEMIS_PRIVATE_THINKING_MUST_STAY_HIDDEN',
+                            ),
+                            horizontalOverflow,
+                            timelineFitsViewport:
+                              !timeline ||
+                              timeline.scrollWidth <= timeline.clientWidth + 1,
+                            inlineEndGap,
+                            visibleMessageCount: viewportBounds
+                              ? roots.filter((root) => {
+                                  if (
+                                    root.getAttribute(
+                                      'data-artemis-component',
+                                    ) !== 'conversation-message'
+                                  ) {
+                                    return false;
+                                  }
+                                  const bounds = root.getBoundingClientRect();
+                                  return (
+                                    bounds.bottom > viewportBounds.top + 1 &&
+                                    bounds.top < viewportBounds.bottom - 1
+                                  );
+                                }).length
+                              : 0,
+                            visibleMessagePixels: viewportBounds
+                              ? Math.max(
+                                  0,
+                                  ...roots
+                                    .filter(
+                                      (root) =>
+                                        root.getAttribute(
+                                          'data-artemis-component',
+                                        ) === 'conversation-message',
+                                    )
+                                    .map((root) => {
+                                      const bounds =
+                                        root.getBoundingClientRect();
+                                      return (
+                                        Math.min(
+                                          bounds.bottom,
+                                          viewportBounds.bottom,
+                                        ) -
+                                        Math.max(
+                                          bounds.top,
+                                          viewportBounds.top,
+                                        )
+                                      );
+                                    }),
+                                )
+                              : 0,
+                            viewport:
+                              viewport instanceof HTMLElement
+                                ? {
+                                    clientHeight: viewport.clientHeight,
+                                    clientWidth: viewport.clientWidth,
+                                    scrollHeight: viewport.scrollHeight,
+                                    scrollLeft: viewport.scrollLeft,
+                                    scrollTop: viewport.scrollTop,
+                                    scrollWidth: viewport.scrollWidth,
+                                    overflowY:
+                                      getComputedStyle(viewport).overflowY,
+                                  }
+                                : null,
+                            taskPlanPresent:
+                              document.querySelector(
+                                '[data-artemis-component="task-plan"]',
+                              ) !== null,
+                            queueEditorPresent:
+                              document.querySelector(
+                                '.queued-message-editor textarea',
+                              ) !== null,
+                            messageActionCount: document.querySelectorAll(
+                              '[data-artemis-component="conversation-message"] ' +
+                                '[data-part="actions"] button',
+                            ).length,
+                          };
+                        })()
+                      : null,
                   feedbackLayout: (() => {
                     const selector = [
                       'tooltip',
@@ -17495,6 +18097,7 @@ app
     seedSmokeTokenUsageFixture();
     seedSmokeGoalFixture();
     seedSmokeTurnChangesFixture();
+    await seedSmokeConversationTimelineFixture();
     seedSmokeMessageActionsFixture();
     seedSmokeQueuedSteerFixture();
     seedSmokeMarkdownEditorFixture();

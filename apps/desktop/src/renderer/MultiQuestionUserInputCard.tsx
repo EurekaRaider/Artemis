@@ -15,6 +15,7 @@ import type {
   UserInputQuestionState,
   UserInputState,
 } from "@artemis/protocol";
+import { UserInputFrame } from "@artemis/ui/patterns";
 
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
@@ -260,6 +261,7 @@ function QuestionSlide({
           <div
             aria-label={question.question}
             className="user-input-options"
+            data-part="options"
             role="listbox"
           >
             {question.options.map((option, index) => (
@@ -607,7 +609,17 @@ export function MultiQuestionUserInputCard({
   };
 
   return (
-    <article className={`user-input-card multi-question ${input.status}`}>
+    <UserInputFrame
+      className={`user-input-card multi-question ${input.status}`}
+      label={input.header}
+      state={
+        Object.keys(resolvingQuestions).length > 0
+          ? "busy"
+          : input.status === "timed-out"
+            ? "timeout"
+            : input.status
+      }
+    >
       <header>
         <span aria-hidden="true" className="user-input-mark">
           <Icon size={18}>
@@ -628,7 +640,7 @@ export function MultiQuestionUserInputCard({
         </span>
         <div className="user-input-heading">
           <small className="user-input-eyebrow">{input.header}</small>
-          <strong className="user-input-question">
+          <strong className="user-input-question" data-part="question">
             {fill(t.questionProgress, {
               index: activeQuestionIndex + 1,
               count: questionCount,
@@ -665,7 +677,7 @@ export function MultiQuestionUserInputCard({
             }}
           />
         </div>
-        <span className="user-question-progress-text">
+        <span className="user-question-progress-text" data-part="status">
           {fill(t.answeredProgress, {
             count: answeredCount,
             total: questionCount,
@@ -727,6 +739,6 @@ export function MultiQuestionUserInputCard({
           })}
         </div>
       </div>
-    </article>
+    </UserInputFrame>
   );
 }

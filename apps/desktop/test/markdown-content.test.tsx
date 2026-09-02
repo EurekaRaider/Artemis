@@ -269,7 +269,7 @@ describe("MarkdownContent", () => {
       "utf8",
     );
     const assistantMessage = appSource.match(
-      /<article className="assistant-message"[\s\S]*?<\/article>/u,
+      /<ConversationMessage[\s\S]*?className="assistant-message"[\s\S]*?kind="assistant"[\s\S]*?<MarkdownContent[\s\S]*?<\/ConversationMessage>/u,
     )?.[0];
 
     expect(assistantMessage).toContain("fileLinkIcons");
@@ -302,7 +302,7 @@ describe("MarkdownContent", () => {
       "utf8",
     );
     const assistantMessage = appSource.match(
-      /<article className="assistant-message"[\s\S]*?<\/article>/u,
+      /<ConversationMessage[\s\S]*?className="assistant-message"[\s\S]*?kind="assistant"[\s\S]*?<MarkdownContent[\s\S]*?<\/ConversationMessage>/u,
     )?.[0];
 
     expect(assistantMessage).toBeDefined();

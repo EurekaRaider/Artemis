@@ -278,9 +278,9 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(variationSelectorCount).toBe(0);
   });
 
-  it("freezes the ✓/✦ text dingbat inventory at the §2.5 audited 12 spots", () => {
+  it("freezes the remaining ✓/✦ text dingbat inventory after icon migration", () => {
     expect(dingbats).toEqual({
-      "App.tsx": { check: 7, star: 3 },
+      "App.tsx": { check: 7, star: 2 },
       "EnvironmentPanel.tsx": { check: 1, star: 0 },
       "SettingsPanel.tsx": { check: 1, star: 0 },
     });
@@ -288,7 +288,10 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       (sum, counts) => sum + counts.check + counts.star,
       0,
     );
-    expect(total).toBe(12);
+    expect(total).toBe(11);
+    expect(
+      readFileSync(resolve(process.cwd(), "src/renderer/App.tsx"), "utf8"),
+    ).toContain('<MagicWandIcon aria-hidden="true" size={16} />');
   });
 
   it("keeps the renderer-layout resource icon source assertions intact", () => {
