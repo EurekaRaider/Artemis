@@ -2150,7 +2150,7 @@ const MIG2_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="timeline-viewport"]',
     {
-      flex: "1 1 auto",
+      flex: "1 1 0",
       "min-block-size": "0",
       "overflow-y": "auto",
       "overscroll-behavior": "contain",
@@ -2160,6 +2160,7 @@ const MIG2_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="timeline"]',
     {
+      "box-sizing": "border-box",
       "inline-size": "100%",
       "max-inline-size": "60rem",
       "margin-inline": "auto",
@@ -2339,6 +2340,7 @@ const MIG2_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="conversation-empty-state"]',
     {
+      "box-sizing": "border-box",
       display: "flex",
       "flex-direction": "column",
       "align-items": "center",
@@ -2408,7 +2410,7 @@ const MIG2_EXPECTED_CSS_RULES = [
       "flex-direction": "column",
       "align-items": "stretch",
       gap: "var(--artemis-space-2)",
-      "max-block-size": "min(17.5rem, 42vh)",
+      "max-block-size": "min(17.5rem, 20vh)",
       margin: "0 var(--artemis-space-5) calc(var(--artemis-space-5) * -1)",
       overflow: "auto",
       padding:

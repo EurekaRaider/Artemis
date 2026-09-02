@@ -31,6 +31,8 @@ export const PATTERN_DISCLOSURE_CONTROL_ERROR =
   "Artemis disclosures require one stable controlled or uncontrolled ownership mode";
 export const PATTERN_HIDDEN_LABEL_ICON_ERROR =
   "Artemis hidden pattern labels require a renderable icon element";
+export const PATTERN_NESTED_AGENT_ACTIVITY_ERROR =
+  "Artemis agent activity cannot combine root activation with nested actions";
 
 function requirePerceptibleText(value: string): void {
   if (typeof value !== "string" || !PERCEPTIBLE_LABEL_CHARACTER.test(value)) {
@@ -313,7 +315,7 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     uiContractVersion: 1,
     name: "agent-activity",
     parts: ["root", "title", "status"],
-    optionalParts: ["icon", "description", "actions"],
+    optionalParts: ["icon", "description", "indicator", "actions"],
     states: [
       "queued",
       "running",
@@ -327,8 +329,15 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
       "disabled",
       "timeout",
     ],
-    accessibility: ["named-status", "visible-state-label"],
-    interaction: ["caller-owned-activation-and-actions"],
+    accessibility: [
+      "named-status",
+      "visible-state-label",
+      "native-disabled-state-when-activatable",
+    ],
+    interaction: [
+      "caller-owned-activation-or-actions",
+      "root-activation-and-nested-actions-are-mutually-exclusive",
+    ],
     theme: PATTERN_THEME_CONTRACT,
   },
   agentTeamSummary: {
@@ -1182,15 +1191,14 @@ export function UserInput({
   );
 }
 
-export interface AgentActivityProps extends Omit<
+interface AgentActivitySharedProps extends Omit<
   HTMLAttributes<HTMLElement>,
   "children" | "onClick" | "title"
 > {
-  readonly actions?: ReactNode | undefined;
   readonly description?: ReactNode | undefined;
   readonly icon?: ReactNode | undefined;
+  readonly indicator?: ReactNode | undefined;
   readonly label: string;
-  readonly onActivate?: (() => void) | undefined;
   readonly state: Extract<
     PatternState,
     | "queued"
@@ -1209,10 +1217,23 @@ export interface AgentActivityProps extends Omit<
   readonly title: ReactNode;
 }
 
+export type AgentActivityProps = AgentActivitySharedProps &
+  (
+    | {
+        readonly actions?: never;
+        readonly onActivate: () => void;
+      }
+    | {
+        readonly actions?: ReactNode | undefined;
+        readonly onActivate?: undefined;
+      }
+  );
+
 export function AgentActivity({
   actions,
   description,
   icon,
+  indicator,
   label,
   onActivate,
   state,
@@ -1222,6 +1243,9 @@ export function AgentActivity({
 }: AgentActivityProps) {
   requirePerceptibleText(label);
   requirePerceptibleText(statusLabel);
+  if (onActivate && actions !== undefined && actions !== null) {
+    throw new Error(PATTERN_NESTED_AGENT_ACTIVITY_ERROR);
+  }
   const content = (
     <>
       {icon ? (
@@ -1234,6 +1258,11 @@ export function AgentActivity({
         {statusLabel}
       </span>
       {description ? <div data-part="description">{description}</div> : null}
+      {indicator ? (
+        <span aria-hidden="true" data-part="indicator">
+          {indicator}
+        </span>
+      ) : null}
       {actions ? <div data-part="actions">{actions}</div> : null}
     </>
   );
@@ -1246,7 +1275,12 @@ export function AgentActivity({
   } as const;
   if (onActivate) {
     return (
-      <button {...sharedAttributes} onClick={onActivate} type="button">
+      <button
+        {...sharedAttributes}
+        disabled={state === "disabled"}
+        onClick={onActivate}
+        type="button"
+      >
         {content}
       </button>
     );

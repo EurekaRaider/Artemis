@@ -3757,7 +3757,7 @@ button.environment-row:disabled {
   color: var(--muted);
 }
 
-.child-agent-card > [data-part="actions"] {
+.child-agent-card > [data-part="indicator"] {
   display: inline-flex;
   margin-inline-start: auto;
 }

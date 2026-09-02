@@ -10484,7 +10484,7 @@ function Timeline({
       }
       return child ? (
         <AgentActivity
-          actions={
+          indicator={
             <span aria-hidden="true" className="child-agent-open-icon">
               <Icon size={14}>
                 <path

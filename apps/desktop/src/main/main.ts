@@ -17553,6 +17553,8 @@ function createMainWindow(): BrowserWindow {
                           );
                           const timelineBounds =
                             timeline?.getBoundingClientRect();
+                          const viewportBounds =
+                            viewport?.getBoundingClientRect();
                           const userBounds = userMessage?.getBoundingClientRect();
                           const direction = getComputedStyle(
                             document.documentElement,
@@ -17615,6 +17617,22 @@ function createMainWindow(): BrowserWindow {
                               !timeline ||
                               timeline.scrollWidth <= timeline.clientWidth + 1,
                             inlineEndGap,
+                            visibleMessageCount: viewportBounds
+                              ? roots.filter((root) => {
+                                  if (
+                                    root.getAttribute(
+                                      'data-artemis-component',
+                                    ) !== 'conversation-message'
+                                  ) {
+                                    return false;
+                                  }
+                                  const bounds = root.getBoundingClientRect();
+                                  return (
+                                    bounds.bottom > viewportBounds.top + 1 &&
+                                    bounds.top < viewportBounds.bottom - 1
+                                  );
+                                }).length
+                              : 0,
                             viewport:
                               viewport instanceof HTMLElement
                                 ? {

@@ -142,12 +142,16 @@ try {
   await writeFile(
     join(consumer, "pattern-label-types.ts"),
     `import { createElement } from "react";
-import type { AgentTeamMember, RunModeOption, UserInputOption } from "@artemis/ui/patterns";
+import type { AgentActivityProps, AgentTeamMember, RunModeOption, UserInputOption } from "@artemis/ui/patterns";
 
 const icon = createElement("span", null, "icon");
 const validRunMode: RunModeOption<"plan"> = { icon, label: "Plan", labelVisibility: "hidden", value: "plan" };
 const validInput: UserInputOption = { icon, id: "plan", label: "Plan", labelVisibility: "hidden" };
 const validMember: AgentTeamMember = { icon, id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+const validInteractiveActivity: AgentActivityProps = { label: "Open validator", onActivate() {}, state: "running", statusLabel: "Running", title: "Validator" };
+
+// @ts-expect-error root activation and nested actions are mutually exclusive
+const invalidInteractiveActivity: AgentActivityProps = { actions: createElement("button"), label: "Open validator", onActivate() {}, state: "running", statusLabel: "Running", title: "Validator" };
 
 // @ts-expect-error hidden run-mode labels reject empty-string icons
 const invalidRunModeEmpty: RunModeOption<"plan"> = { icon: "", label: "Plan", labelVisibility: "hidden", value: "plan" };
@@ -173,6 +177,8 @@ const invalidMemberMissing: AgentTeamMember = { id: "validator", label: "Validat
 void validRunMode;
 void validInput;
 void validMember;
+void validInteractiveActivity;
+void invalidInteractiveActivity;
 void invalidRunModeEmpty;
 void invalidRunModeZero;
 void invalidRunModeMissing;

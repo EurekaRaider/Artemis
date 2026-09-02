@@ -353,9 +353,16 @@ try {
       );
       assert(
         "long-content-scrollable",
-        timeline.viewport.scrollHeight > timeline.viewport.clientHeight,
+        timeline.viewport.clientHeight >= 48 &&
+          timeline.viewport.scrollHeight > timeline.viewport.clientHeight,
         timeline.viewport,
-        "scrollHeight > clientHeight",
+        "clientHeight >= 48 and scrollHeight > clientHeight",
+      );
+      assert(
+        "conversation-message-visible",
+        timeline.visibleMessageCount > 0,
+        timeline.visibleMessageCount,
+        "> 0",
       );
       assert(
         "user-message-inline-end-alignment",

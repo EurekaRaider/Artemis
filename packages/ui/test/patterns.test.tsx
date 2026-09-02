@@ -22,6 +22,7 @@ import {
   PATTERN_COMPONENT_MUTABLE_TOKENS,
   PATTERN_DISCLOSURE_CONTROL_ERROR,
   PATTERN_HIDDEN_LABEL_ICON_ERROR,
+  PATTERN_NESTED_AGENT_ACTIVITY_ERROR,
   ResultDisclosure,
   RunModeControl,
   TaskPlan,
@@ -831,6 +832,41 @@ describe("Agent patterns", () => {
     );
     expect(activity.getAttribute("data-state")).toBe("cancelled");
     expect(activity.textContent).toContain("Cancelled");
+  });
+
+  it("disables agent activation and rejects nested actions", async () => {
+    const user = userEvent.setup();
+    const onActivate = vi.fn();
+    render(
+      <AgentActivity
+        label="Open disabled agent"
+        onActivate={onActivate}
+        state="disabled"
+        statusLabel="Disabled"
+        title="Disabled agent"
+      />,
+    );
+
+    const activity = screen.getByRole("button", {
+      name: "Open disabled agent",
+    }) as HTMLButtonElement;
+    expect(activity.disabled).toBe(true);
+    await user.click(activity);
+    expect(onActivate).not.toHaveBeenCalled();
+
+    expect(() =>
+      render(
+        // @ts-expect-error root activation cannot combine with nested actions
+        <AgentActivity
+          actions={<button type="button">Retry</button>}
+          label="Invalid agent"
+          onActivate={onActivate}
+          state="failed"
+          statusLabel="Failed"
+          title="Invalid agent"
+        />,
+      ),
+    ).toThrow(PATTERN_NESTED_AGENT_ACTIVITY_ERROR);
   });
 
   it("renders agent, team, turn, and result states without runtime data", async () => {
