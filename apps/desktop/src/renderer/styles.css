@@ -951,6 +951,13 @@ body {
   white-space: nowrap;
 }
 
+.workspace-heading > strong {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .workspace-thread-title {
   color: var(--muted);
   overflow: hidden;
@@ -2197,11 +2204,27 @@ button.environment-row:disabled {
 
 @media (max-width: 680px) {
   .workspace-header {
-    padding-inline: 8px;
+    gap: 2px;
+    padding-inline: 6px;
+  }
+
+  .workspace-header-leading {
+    gap: 2px;
+  }
+
+  .header-actions {
+    gap: 0;
+  }
+
+  .status-pill {
+    gap: 3px;
+    margin-inline: 0;
+    padding-inline: 4px;
   }
 
   .workspace-heading .workspace-thread-title,
   .workspace-heading .header-separator,
+  .workspace-heading .goal-pill,
   .status-pill time {
     display: none;
   }

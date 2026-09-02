@@ -17283,6 +17283,24 @@ function createMainWindow(): BrowserWindow {
                         },
                       };
                     };
+                    const workspaceHeading = document.querySelector(
+                      '.workspace-heading',
+                    );
+                    const workspaceLabel = workspaceHeading?.querySelector(
+                      ':scope > strong',
+                    );
+                    const workspaceHeadingBounds =
+                      workspaceHeading?.getBoundingClientRect();
+                    const workspaceLabelBounds =
+                      workspaceLabel?.getBoundingClientRect();
+                    const workspaceLabelTextBounds = (() => {
+                      if (!(workspaceLabel instanceof HTMLElement)) {
+                        return null;
+                      }
+                      const range = document.createRange();
+                      range.selectNodeContents(workspaceLabel);
+                      return range.getBoundingClientRect();
+                    })();
                     return {
                       components: roots.map(describe),
                       direction: document.documentElement.dir,
@@ -17292,6 +17310,29 @@ function createMainWindow(): BrowserWindow {
                         window.__approvalScrollVerification ?? null,
                       approvalDisclosureVerification:
                         window.__approvalDisclosureVerification ?? null,
+                      workspaceLabel:
+                        workspaceHeading instanceof HTMLElement &&
+                        workspaceLabel instanceof HTMLElement &&
+                        workspaceHeadingBounds &&
+                        workspaceLabelBounds
+                          ? {
+                              contentFitsInline:
+                                workspaceLabel.scrollWidth <=
+                                workspaceLabel.clientWidth + 1,
+                              fullyVisible:
+                                workspaceLabelBounds.left >=
+                                  workspaceHeadingBounds.left - 1 &&
+                                workspaceLabelBounds.right <=
+                                  workspaceHeadingBounds.right + 1,
+                              text: workspaceLabel.textContent?.trim() ?? '',
+                              textFullyVisible:
+                                workspaceLabelTextBounds !== null &&
+                                workspaceLabelTextBounds.left >=
+                                  workspaceLabelBounds.left - 1 &&
+                                workspaceLabelTextBounds.right <=
+                                  workspaceLabelBounds.right + 1,
+                            }
+                          : null,
                       reducedMotion: window.matchMedia(
                         '(prefers-reduced-motion: reduce)',
                       ).matches,

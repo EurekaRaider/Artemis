@@ -6466,7 +6466,7 @@ export function App() {
                   <LeftSidebarIcon />
                 </button>
                 <div className="workspace-heading">
-                  <strong>{activeWorkspaceLabel}</strong>
+                  <strong dir="auto">{activeWorkspaceLabel}</strong>
                   {activeThread && (
                     <>
                       <span className="header-separator">/</span>

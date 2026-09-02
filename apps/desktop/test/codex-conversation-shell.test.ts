@@ -360,6 +360,13 @@ describe("Codex conversation shell contract", () => {
     const status = cssDeclarations(".status-pill");
     expect(status).toMatch(/\bflex:\s*0 0 auto/u);
     expect(status).toMatch(/\bwhite-space:\s*nowrap/u);
+    const workspaceLabel = cssDeclarations(".workspace-heading > strong");
+    expect(workspaceLabel).toMatch(/\bmin-inline-size:\s*0/u);
+    expect(workspaceLabel).toMatch(/\boverflow:\s*hidden/u);
+    expect(workspaceLabel).toMatch(/\btext-overflow:\s*ellipsis/u);
+    expect(appSource).toContain(
+      '<strong dir="auto">{activeWorkspaceLabel}</strong>',
+    );
   });
 
   it("deletes a conversation through confirmation, preload IPC, and the store with an active-turn guard", () => {

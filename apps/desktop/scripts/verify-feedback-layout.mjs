@@ -453,6 +453,20 @@ try {
         );
       }
     }
+    if (
+      testCase.component === "approval-card" ||
+      testCase.component === "result-disclosure"
+    ) {
+      assert(
+        "workspace-label-fully-visible",
+        feedbackLayout.workspaceLabel?.text === "Artemis" &&
+          feedbackLayout.workspaceLabel?.contentFitsInline === true &&
+          feedbackLayout.workspaceLabel?.fullyVisible === true &&
+          feedbackLayout.workspaceLabel?.textFullyVisible === true,
+        feedbackLayout.workspaceLabel ?? null,
+        "complete Artemis label inside the workspace heading",
+      );
+    }
     assert(
       "inline-content-not-cropped",
       found.contentFitsInline === true,
