@@ -845,7 +845,8 @@ async function verifyReferenceSliceGeometry(connection) {
   const contentWidths = [935, 943, 949];
   const contentWidthCases = [];
   for (const contentWidth of contentWidths) {
-    const viewportWidth = 46 + 252 + contentWidth;
+    const workspaceFrameInlineChrome = 4;
+    const viewportWidth = 46 + 252 + workspaceFrameInlineChrome + contentWidth;
     await setReferenceSliceViewport(connection, viewportWidth, 900);
     const geometry = await referenceSliceGeometry(connection);
     assert(
@@ -853,7 +854,10 @@ async function verifyReferenceSliceGeometry(connection) {
         geometry.viewport.height === 900 &&
         Math.abs(geometry.activity.width - 46) <= 1 &&
         Math.abs(geometry.sidebar.width - 252) <= 1 &&
-        Math.abs(geometry.workspace.width - contentWidth) <= 1 &&
+        Math.abs(
+          geometry.workspace.width -
+            (contentWidth + workspaceFrameInlineChrome),
+        ) <= 1 &&
         Math.abs(geometry.workspaceContent.width - contentWidth) <= 1 &&
         Math.abs(geometry.conversation.width - contentWidth) <= 1 &&
         geometry.composer.width > 0 &&
