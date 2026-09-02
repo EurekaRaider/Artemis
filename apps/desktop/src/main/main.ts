@@ -14979,12 +14979,13 @@ function createMainWindow(): BrowserWindow {
                           'Resolved approval timeline scroll container missing.',
                         );
                       }
-                      disclosureButton.scrollIntoView({
-                        block: 'nearest',
+                      disclosure.scrollIntoView({
+                        block: 'start',
                         inline: 'nearest',
                       });
                       await wait(350);
-                      const collapsedBounds = disclosure.getBoundingClientRect();
+                      const collapsedBounds =
+                        disclosureButton.getBoundingClientRect();
                       const collapsedScrollBounds =
                         timelineScroll.getBoundingClientRect();
                       const collapsedVisible =
@@ -14996,14 +14997,19 @@ function createMainWindow(): BrowserWindow {
                       const content = disclosure.querySelector(
                         '[data-part="content"]',
                       );
-                      content?.scrollIntoView({
+                      const expandedEndTarget =
+                        disclosure.querySelector(
+                          '.approval-group-list > li:last-child',
+                        ) ?? content;
+                      expandedEndTarget?.scrollIntoView({
                         block: 'end',
                         inline: 'nearest',
                       });
                       await wait(350);
                       const expandedScrollBounds =
                         timelineScroll.getBoundingClientRect();
-                      const contentBounds = content?.getBoundingClientRect();
+                      const contentBounds =
+                        expandedEndTarget?.getBoundingClientRect();
                       const groupItems = disclosure.querySelectorAll(
                         '.approval-group-list > li',
                       ).length;
