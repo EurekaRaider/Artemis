@@ -21,12 +21,16 @@ import {
   PATTERN_COMPONENT_CONTRACTS,
   PATTERN_COMPONENT_MUTABLE_TOKENS,
   PATTERN_DISCLOSURE_CONTROL_ERROR,
+  PATTERN_HIDDEN_LABEL_ICON_ERROR,
   ResultDisclosure,
   RunModeControl,
   TaskPlan,
   ToolActivity,
   TurnStatus,
   UserInput,
+  type AgentTeamMember,
+  type RunModeOption,
+  type UserInputOption,
   validatePatternComponentContracts,
 } from "../src/patterns.js";
 
@@ -216,6 +220,68 @@ describe("Agent patterns", () => {
           !button.hasAttribute("aria-label"),
       ),
     ).toBe(true);
+  });
+
+  it("rejects hidden labels without a renderable icon element", () => {
+    const invalidIcons = ["", 0, undefined] as const;
+    for (const icon of invalidIcons) {
+      const runModeOption = {
+        ...(icon === undefined ? {} : { icon }),
+        label: "Plan mode",
+        labelVisibility: "hidden",
+        value: "plan",
+      } as unknown as RunModeOption<"plan">;
+      expect(() =>
+        render(
+          <RunModeControl
+            label="Modes"
+            onValueChange={() => undefined}
+            options={[runModeOption]}
+            statusLabel="Ready"
+            value="plan"
+          />,
+        ),
+      ).toThrow(PATTERN_HIDDEN_LABEL_ICON_ERROR);
+
+      const inputOption = {
+        ...(icon === undefined ? {} : { icon }),
+        id: "plan",
+        label: "Choose plan",
+        labelVisibility: "hidden",
+      } as unknown as UserInputOption;
+      expect(() =>
+        render(
+          <UserInput
+            label="Input"
+            onOptionSelect={() => undefined}
+            options={[inputOption]}
+            question="Choose"
+            state="pending"
+            statusLabel="Pending"
+          />,
+        ),
+      ).toThrow(PATTERN_HIDDEN_LABEL_ICON_ERROR);
+
+      const member = {
+        ...(icon === undefined ? {} : { icon }),
+        id: "validator",
+        label: "Open validator",
+        labelVisibility: "hidden",
+        state: "running",
+        statusLabel: "Running",
+      } as unknown as AgentTeamMember;
+      expect(() =>
+        render(
+          <AgentTeamSummary
+            label="Team"
+            members={[member]}
+            state="active"
+            statusLabel="Active"
+            title="Team"
+          />,
+        ),
+      ).toThrow(PATTERN_HIDDEN_LABEL_ICON_ERROR);
+    }
   });
 
   it("renders approval actions in the exact order supplied by the caller", () => {

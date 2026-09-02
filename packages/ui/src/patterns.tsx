@@ -1,4 +1,5 @@
 import {
+  isValidElement,
   useCallback,
   useEffect,
   useId,
@@ -7,6 +8,7 @@ import {
   type CSSProperties,
   type HTMLAttributes,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactElement,
   type ReactNode,
 } from "react";
 
@@ -27,6 +29,8 @@ export const PATTERN_COLLECTION_ERROR =
   "Artemis agent pattern collections require unique non-empty keys and valid active references";
 export const PATTERN_DISCLOSURE_CONTROL_ERROR =
   "Artemis disclosures require one stable controlled or uncontrolled ownership mode";
+export const PATTERN_HIDDEN_LABEL_ICON_ERROR =
+  "Artemis hidden pattern labels require a renderable icon element";
 
 function requirePerceptibleText(value: string): void {
   if (typeof value !== "string" || !PERCEPTIBLE_LABEL_CHARACTER.test(value)) {
@@ -62,10 +66,16 @@ type PatternOwnedLabel =
       readonly labelVisibility?: "visible" | undefined;
     }
   | {
-      readonly icon: Exclude<ReactNode, boolean | null | undefined>;
+      readonly icon: ReactElement;
       readonly label: string;
       readonly labelVisibility: "hidden";
     };
+
+function requireRenderableHiddenLabel(value: PatternOwnedLabel): void {
+  if (value.labelVisibility === "hidden" && !isValidElement(value.icon)) {
+    throw new Error(PATTERN_HIDDEN_LABEL_ICON_ERROR);
+  }
+}
 
 export const PATTERN_COMPONENT_CONTRACT_SCHEMA_VERSION = 1 as const;
 
@@ -519,6 +529,7 @@ export function RunModeControl<T extends string>({
   }
   for (const option of options) {
     requirePerceptibleText(option.label);
+    requireRenderableHiddenLabel(option);
   }
   const optionLabelId = useId();
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -1069,6 +1080,7 @@ export function UserInput({
   }
   for (const option of options) {
     requirePerceptibleText(option.label);
+    requireRenderableHiddenLabel(option);
   }
   const optionLabelId = useId();
   const blocked = state !== "pending" && state !== "error" && state !== "stale";
@@ -1234,6 +1246,7 @@ export function AgentTeamSummary({
   requireUniqueKeys(members.map((member) => member.id));
   for (const member of members) {
     requirePerceptibleText(member.label);
+    requireRenderableHiddenLabel(member);
     requirePerceptibleText(member.statusLabel);
   }
   const memberLabelId = useId();

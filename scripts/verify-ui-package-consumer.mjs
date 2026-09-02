@@ -136,6 +136,52 @@ try {
     "utf8",
   );
   await writeFile(
+    join(consumer, "pattern-label-types.ts"),
+    `import { createElement } from "react";
+import type { AgentTeamMember, RunModeOption, UserInputOption } from "@artemis/ui/patterns";
+
+const icon = createElement("span", null, "icon");
+const validRunMode: RunModeOption<"plan"> = { icon, label: "Plan", labelVisibility: "hidden", value: "plan" };
+const validInput: UserInputOption = { icon, id: "plan", label: "Plan", labelVisibility: "hidden" };
+const validMember: AgentTeamMember = { icon, id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+
+// @ts-expect-error hidden run-mode labels reject empty-string icons
+const invalidRunModeEmpty: RunModeOption<"plan"> = { icon: "", label: "Plan", labelVisibility: "hidden", value: "plan" };
+// @ts-expect-error hidden run-mode labels reject numeric icons
+const invalidRunModeZero: RunModeOption<"plan"> = { icon: 0, label: "Plan", labelVisibility: "hidden", value: "plan" };
+// @ts-expect-error hidden run-mode labels require an icon
+const invalidRunModeMissing: RunModeOption<"plan"> = { label: "Plan", labelVisibility: "hidden", value: "plan" };
+
+// @ts-expect-error hidden user-input labels reject empty-string icons
+const invalidInputEmpty: UserInputOption = { icon: "", id: "plan", label: "Plan", labelVisibility: "hidden" };
+// @ts-expect-error hidden user-input labels reject numeric icons
+const invalidInputZero: UserInputOption = { icon: 0, id: "plan", label: "Plan", labelVisibility: "hidden" };
+// @ts-expect-error hidden user-input labels require an icon
+const invalidInputMissing: UserInputOption = { id: "plan", label: "Plan", labelVisibility: "hidden" };
+
+// @ts-expect-error hidden agent-team labels reject empty-string icons
+const invalidMemberEmpty: AgentTeamMember = { icon: "", id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+// @ts-expect-error hidden agent-team labels reject numeric icons
+const invalidMemberZero: AgentTeamMember = { icon: 0, id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+// @ts-expect-error hidden agent-team labels require an icon
+const invalidMemberMissing: AgentTeamMember = { id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+
+void validRunMode;
+void validInput;
+void validMember;
+void invalidRunModeEmpty;
+void invalidRunModeZero;
+void invalidRunModeMissing;
+void invalidInputEmpty;
+void invalidInputZero;
+void invalidInputMissing;
+void invalidMemberEmpty;
+void invalidMemberZero;
+void invalidMemberMissing;
+`,
+    "utf8",
+  );
+  await writeFile(
     join(consumer, "tsconfig.json"),
     `${JSON.stringify(
       {
@@ -147,7 +193,7 @@ try {
           skipLibCheck: true,
           noEmit: true,
         },
-        include: ["consumer.ts"],
+        include: ["consumer.ts", "pattern-label-types.ts"],
       },
       null,
       2,
