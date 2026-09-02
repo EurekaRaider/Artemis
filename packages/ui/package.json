@@ -38,6 +38,10 @@
       "types": "./dist/patterns.d.ts",
       "import": "./dist/patterns.js"
     },
+    "./surfaces": {
+      "types": "./dist/surfaces.d.ts",
+      "import": "./dist/surfaces.js"
+    },
     "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"
   },

@@ -28,6 +28,18 @@ const stylesSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/styles.css", import.meta.url)),
   "utf8",
 );
+const publicUiStylesSource = readFileSync(
+  fileURLToPath(
+    new URL("../../../packages/ui/src/styles.css", import.meta.url),
+  ),
+  "utf8",
+);
+const publicUiSurfacesSource = readFileSync(
+  fileURLToPath(
+    new URL("../../../packages/ui/src/surfaces.tsx", import.meta.url),
+  ),
+  "utf8",
+);
 const settingsSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/SettingsPanel.tsx", import.meta.url)),
   "utf8",
@@ -206,6 +218,15 @@ function cssRule(selector: string): string {
   return match?.[1] ?? "";
 }
 
+function publicUiCssRule(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const match = publicUiStylesSource.match(
+    new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, "u"),
+  );
+  expect(match, `Missing public UI CSS rule for ${selector}`).not.toBeNull();
+  return match?.[1] ?? "";
+}
+
 function cssAtRule(pattern: RegExp): string | undefined {
   const match = pattern.exec(stylesSource);
   if (!match) return undefined;
@@ -302,13 +323,20 @@ describe("renderer layout contract", () => {
       'titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default"',
     );
 
-    const macShell = cssRule('.app-shell[data-platform="darwin"]');
-    expect(macShell).toMatch(/\bpadding-top:\s*28px/u);
-    expect(macShell).toMatch(/\bposition:\s*relative/u);
+    const macShell = publicUiCssRule(
+      '[data-artemis-component="application-shell"][data-platform="darwin"]',
+    );
+    const shell = publicUiCssRule(
+      '[data-artemis-component="application-shell"]',
+    );
+    expect(macShell).toMatch(/\bpadding-block-start:\s*28px/u);
+    expect(shell).toMatch(/\bposition:\s*relative/u);
 
-    const dragRegion = cssRule('.app-shell[data-platform="darwin"]::before');
+    const dragRegion = publicUiCssRule(
+      '[data-artemis-component="application-shell"][data-platform="darwin"]::before',
+    );
     expect(dragRegion).toMatch(/-webkit-app-region:\s*drag/u);
-    expect(dragRegion).toMatch(/\bheight:\s*28px/u);
+    expect(dragRegion).toMatch(/\bblock-size:\s*28px/u);
     expect(dragRegion).toMatch(/\bposition:\s*absolute/u);
   });
 
@@ -413,21 +441,19 @@ describe("renderer layout contract", () => {
   });
 
   it("keeps settings as the final activity action without the obsolete command menu", () => {
-    const activityBarStart = appSource.indexOf(
-      '<aside className="activity-bar">',
+    const activityBarStart = appSource.indexOf("<ActivityBar");
+    const activityBarEnd = appSource.indexOf(
+      "</ActivityBar>",
+      activityBarStart,
     );
-    const activityBarEnd = appSource.indexOf("</aside>", activityBarStart);
     const activityBarSource = appSource.slice(activityBarStart, activityBarEnd);
-    const settingsLabelIndex = activityBarSource.indexOf(
-      "aria-label={t.settings}",
-    );
+    const settingsLabelIndex = activityBarSource.indexOf("label={t.settings}");
     const settingsButtonStart = activityBarSource.lastIndexOf(
-      "<button",
+      "<ActivityBarItem",
       settingsLabelIndex,
     );
     const settingsButtonEnd =
-      activityBarSource.indexOf("</button>", settingsLabelIndex) +
-      "</button>".length;
+      activityBarSource.indexOf("/>", settingsLabelIndex) + "/>".length;
     const settingsButtonSource = activityBarSource.slice(
       settingsButtonStart,
       settingsButtonEnd,
@@ -442,7 +468,10 @@ describe("renderer layout contract", () => {
       settingsIconEnd,
     );
     const sidebarFooterStart = appSource.indexOf('className="sidebar-footer"');
-    const sidebarFooterEnd = appSource.indexOf("</aside>", sidebarFooterStart);
+    const sidebarFooterEnd = appSource.indexOf(
+      "</NavigationSidebar>",
+      sidebarFooterStart,
+    );
     const sidebarFooterSource = appSource.slice(
       sidebarFooterStart,
       sidebarFooterEnd,
@@ -452,7 +481,12 @@ describe("renderer layout contract", () => {
     expect(activityBarEnd).toBeGreaterThan(activityBarStart);
     expect(settingsLabelIndex).toBeGreaterThan(-1);
     expect(settingsButtonSource).toContain("<SettingsIcon />");
-    expect(activityBarSource.slice(settingsButtonEnd).trim()).toBe("");
+    expect(activityBarSource.slice(settingsButtonEnd)).toContain(
+      "label={t.activityBar}",
+    );
+    expect(publicUiSurfacesSource).toMatch(
+      /<div data-part="items">\{children\}<\/div>[\s\S]*<div data-part="footer">\{footer\}<\/div>/u,
+    );
     expect(activityBarSource).not.toContain("t.commandMenu");
     expect(appSource).not.toContain("commandMenuOpen");
     expect(appSource).not.toContain('className="command-backdrop"');
@@ -602,8 +636,15 @@ describe("renderer layout contract", () => {
     );
     expect(composerContextSource).toContain("focus({ preventScroll: true })");
     expect(composerContextSource).toContain("conversation.scrollLeft = 0");
-    expect(cssRule(".composer")).toMatch(/\bborder-radius:\s*18px/u);
-    expect(cssRule(".composer")).toContain("border: 1px solid var(--border)");
+    const composerSurface = publicUiCssRule(
+      '[data-artemis-component="composer-surface"]',
+    );
+    expect(composerSurface).toMatch(
+      /\bborder-radius:\s*var\(--artemis-radius-composer\)/u,
+    );
+    expect(composerSurface).toMatch(
+      /border:\s*var\(--artemis-border-width-default\) solid[\s\S]*var\(--artemis-color-border-default\)/u,
+    );
     expect(cssRule(".composer-context")).toContain("margin: 0 20px 1px");
   });
 
@@ -801,12 +842,14 @@ describe("renderer layout contract", () => {
 
   it("collapses resolved approval details and keeps pending cards aligned", () => {
     expect(appSource).toContain('if (approval.status !== "pending")');
-    expect(appSource).toContain("<details");
-    expect(appSource).toContain("<summary>");
+    expect(appSource).toContain("<ResultDisclosure");
+    expect(appSource).toContain(
+      'state={approval.status === "approved" ? "completed" : "failed"}',
+    );
     expect(appSource).toContain('className="approval-resolved-details"');
-    expect(appSource).not.toContain("<details open");
+    expect(appSource).not.toContain("<details className={`approval-card");
     expect(stylesSource).toMatch(
-      /\.approval-card > header,\s*\.approval-card > summary\s*\{[^}]*\balign-items:\s*center/u,
+      /\.approval-card > header,\s*\.approval-card\[data-artemis-component="result-disclosure"\][\s\S]*?> \[data-part="disclosure"\]\s*\{[^}]*\balign-items:\s*center/u,
     );
     expect(appSource).toContain("<ApprovalIcon neutral />");
     expect(appSource).not.toContain(
@@ -1529,7 +1572,9 @@ describe("renderer layout contract", () => {
   it("uses the native Settings top layer and keeps legacy workspace overlays ordered", () => {
     const confirmationBackdrop = cssRule(".confirmation-backdrop");
     const environmentPopover = cssRule(".environment-popover");
-    const projectSidebarResizer = cssRule(".project-sidebar-resizer");
+    const projectSidebarResizer = publicUiCssRule(
+      '[data-artemis-component="application-shell-resizer"]',
+    );
     const confirmationZIndex = Number(
       confirmationBackdrop.match(/\bz-index:\s*(\d+)/u)?.[1],
     );
@@ -2001,12 +2046,20 @@ describe("renderer layout contract", () => {
   });
 
   it("keeps both sidebars compact, directly toggleable, and smoothly animated", () => {
-    const shell = cssRule(".app-shell");
-    const sidebar = cssRule(".sidebar");
-    const collapsedSidebar = cssRule("body.sidebar-collapsed .sidebar");
+    const shell = publicUiCssRule(
+      '[data-artemis-component="application-shell"]',
+    );
+    const sidebar = publicUiCssRule(
+      '[data-artemis-component="navigation-sidebar"]',
+    );
+    const collapsedSidebar = publicUiCssRule(
+      '[data-artemis-component="navigation-sidebar"][data-state="collapsed"]',
+    );
     const dock = cssRule(".workspace-tool-dock");
     const resizer = cssRule(".workspace-dock-resizer");
-    const projectSidebarResizer = cssRule(".project-sidebar-resizer");
+    const projectSidebarResizer = publicUiCssRule(
+      '[data-artemis-component="application-shell-resizer"]',
+    );
     const closedDock = cssRule('.workspace-tool-dock[data-open="false"]');
     const reducedMotion = cssAtRule(
       /@media\s*\(prefers-reduced-motion:\s*reduce\)/u,
@@ -2030,18 +2083,27 @@ describe("renderer layout contract", () => {
     expect(preloadSource).toContain("setWorkspaceDockWidth: (width)");
     expect(appSource).toContain("onPointerDown={beginProjectSidebarResize}");
     expect(appSource).toContain("onKeyDown={resizeProjectSidebarFromKeyboard}");
+    expect(appSource).toContain("<ApplicationShellResizer");
+    expect(appSource).toContain("<NavigationSidebar");
     expect(apiSource).toContain("setProjectSidebarWidth(width: number)");
     expect(preloadSource).toContain("setProjectSidebarWidth: (width)");
     expect(appSource).toMatch(
-      /"--project-sidebar-width":\s*sidebarOpen\s*\?\s*`\$\{projectSidebarWidth \?\? PROJECT_SIDEBAR_WIDTH_DEFAULT\}px`\s*:\s*"0px"/u,
+      /sidebarSize=\{projectSidebarWidth \?\? PROJECT_SIDEBAR_WIDTH_DEFAULT\}/u,
     );
+    expect(appSource).not.toContain("sidebar-collapsed");
+    expect(stylesSource).not.toContain("--project-sidebar-width");
+    expect(mainProcessSource).toContain("Math.max(980");
+    expect(mainProcessSource).toContain("minWidth: 980");
 
-    expect(shell).toMatch(/--project-sidebar-width:\s*252px/u);
-    expect(shell).toMatch(/transition:\s*grid-template-columns\s+240ms/u);
+    expect(shell).toMatch(/--_artemis-application-shell-rail-size:\s*46px/u);
+    expect(shell).toMatch(/grid-template-columns:/u);
+    expect(shell).toMatch(/transition:\s*grid-template-columns/u);
     expect(sidebar).toMatch(/transition:/u);
     expect(sidebar).toMatch(/\btransform:/u);
     expect(collapsedSidebar).toMatch(/\bopacity:\s*0/u);
-    expect(collapsedSidebar).toMatch(/\btransform:\s*translateX\(-/u);
+    expect(collapsedSidebar).toMatch(
+      /\btransform:\s*translateX\(calc\(var\(--artemis-space-4\)\s*\*\s*-1\)\)/u,
+    );
     expect(projectSidebarResizer).toMatch(/\bcursor:\s*col-resize/u);
     expect(projectSidebarResizer).toMatch(/\btouch-action:\s*none/u);
 
@@ -2056,11 +2118,32 @@ describe("renderer layout contract", () => {
     expect(closedDock).toMatch(/\bopacity:\s*0/u);
     expect(closedDock).toMatch(/\btransform:\s*translateX\(/u);
 
-    expect(reducedMotion).toContain(".app-shell");
-    expect(reducedMotion).toContain(".sidebar");
+    expect(publicUiStylesSource).toMatch(
+      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*application-shell[\s\S]*navigation-sidebar/u,
+    );
     expect(reducedMotion).toContain(".workspace-dock-resizer");
     expect(reducedMotion).toContain(".workspace-tool-dock");
     expect(reducedMotion).toMatch(/transition:\s*none/u);
+  });
+
+  it("keeps the public reference-slice surface boundary presentation-only", () => {
+    expect(appSource).toContain('from "@artemis/ui/surfaces"');
+    expect(publicUiSurfacesSource).not.toMatch(
+      /@artemis\/protocol|electron|node:/u,
+    );
+    expect(publicUiSurfacesSource).not.toMatch(/skinId|skin-id/u);
+    expect(publicUiSurfacesSource).not.toMatch(
+      /setActiveView|resolveApproval|setSidebarOpen|setWorkspaceDock/u,
+    );
+    expect(publicUiStylesSource).toContain(
+      '[data-artemis-component="application-shell"]',
+    );
+    expect(publicUiStylesSource).toContain(
+      '[data-artemis-component="composer-surface"]',
+    );
+    expect(stylesSource).not.toMatch(
+      /(?:^|\})\s*\.app-shell\s*\{|(?:^|\})\s*\.composer\s*\{/u,
+    );
   });
 
   it("keeps temporary chats as a natural root after projects", () => {

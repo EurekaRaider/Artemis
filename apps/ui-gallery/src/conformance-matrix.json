@@ -31,7 +31,10 @@
       "pattern-anatomy",
       "pattern-state-matrix",
       "pattern-events",
-      "pattern-rtl-long-content"
+      "pattern-rtl-long-content",
+      "surface-anatomy",
+      "surface-controlled-events",
+      "surface-rtl-long-content"
     ],
     "stress": [
       "anatomy",
@@ -62,7 +65,10 @@
       "pattern-anatomy",
       "pattern-state-matrix",
       "pattern-events",
-      "pattern-rtl-long-content"
+      "pattern-rtl-long-content",
+      "surface-anatomy",
+      "surface-controlled-events",
+      "surface-rtl-long-content"
     ]
   },
   "switchCases": [

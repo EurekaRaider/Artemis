@@ -275,6 +275,26 @@ let terminalReferences;
 let composerReference;
 const semanticSnapshot = () =>
   completeDesktopSkinTokenSnapshot(getComputedStyle(document.documentElement));
+const resolvedColor = (value) => {
+  const probe = document.createElement("span");
+  probe.style.color = value;
+  document.body.append(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return color;
+};
+const elementRect = (element) => {
+  if (!(element instanceof HTMLElement)) return null;
+  const bounds = element.getBoundingClientRect();
+  return {
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
+    right: bounds.right,
+    bottom: bounds.bottom,
+  };
+};
 const snapshot = () => {
   const root = document.documentElement;
   const tokens = semanticSnapshot();
@@ -288,6 +308,26 @@ const snapshot = () => {
   const xtermScreen = document.querySelector(".terminal-host .xterm-screen");
   const xtermRows = document.querySelector(".terminal-host .xterm-rows");
   const appShell = document.querySelector(".app-shell");
+  const activityBar = document.querySelector(
+    '[data-artemis-component="activity-bar"]',
+  );
+  const navigationSidebar = document.querySelector(
+    '[data-artemis-component="navigation-sidebar"]',
+  );
+  const composerSurface = document.querySelector(
+    '[data-artemis-component="composer-surface"]',
+  );
+  const surfaceStyle = (element, tokenName) => {
+    if (!(element instanceof HTMLElement)) return null;
+    const computed = getComputedStyle(element);
+    const tokenValue = computed.getPropertyValue(tokenName).trim();
+    return {
+      tokenValue,
+      resolvedTokenColor: resolvedColor(tokenValue),
+      backgroundColor: computed.backgroundColor,
+      color: computed.color,
+    };
+  };
   const xtermStyle = [...(xterm?.querySelectorAll("style") ?? [])]
     .map((style) => style.textContent ?? "")
     .join("\\n");
@@ -316,6 +356,69 @@ const snapshot = () => {
       skin: document.body.dataset.artemisSkin ?? null,
       theme: document.body.dataset.artemisTheme ?? null,
       contrast: document.body.dataset.artemisContrast ?? null,
+    },
+    surfaces: {
+      counts: Object.fromEntries(
+        [
+          "application-shell",
+          "application-shell-resizer",
+          "activity-bar",
+          "activity-bar-item",
+          "navigation-sidebar",
+          "composer-surface",
+          "panel-header",
+          "toolbar",
+        ].map((name) => [
+          name,
+          document.querySelectorAll(
+            '[data-artemis-component="' + name + '"]',
+          ).length,
+        ]),
+      ),
+      shell: surfaceStyle(appShell, "--artemis-color-canvas"),
+      activity: surfaceStyle(
+        activityBar,
+        "--artemis-color-background-activity",
+      ),
+      sidebar: surfaceStyle(
+        navigationSidebar,
+        "--artemis-color-background-sidebar",
+      ),
+      composer: surfaceStyle(
+        composerSurface,
+        "--artemis-color-surface-composer",
+      ),
+      geometry: {
+        viewport: {
+          width: document.documentElement.clientWidth,
+          height: document.documentElement.clientHeight,
+          scrollWidth: document.documentElement.scrollWidth,
+          scrollHeight: document.documentElement.scrollHeight,
+        },
+        shell: elementRect(appShell),
+        activity: elementRect(activityBar),
+        sidebar: elementRect(navigationSidebar),
+        workspace: elementRect(document.querySelector(".workspace")),
+        composer: elementRect(composerSurface),
+        horizontalOverflow:
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+        composerHorizontalOverflow:
+          composerSurface instanceof HTMLElement
+            ? composerSurface.scrollWidth - composerSurface.clientWidth
+            : null,
+      },
+      structuralSkinMarkers: [
+        ...document.body.querySelectorAll(
+          "[data-skin-id], [data-artemis-skin], [class*='skin-']",
+        ),
+      ].map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        className:
+          typeof element.className === "string" ? element.className : null,
+        skinId: element.getAttribute("data-skin-id"),
+        artemisSkin: element.getAttribute("data-artemis-skin"),
+      })),
     },
     state: {
       remembered: Boolean(references),
@@ -641,6 +744,265 @@ async function screenshot(connection, name) {
   const record = { name, bytes: bytes.length, sha256: sha256(bytes) };
   screenshots.push(record);
   return record;
+}
+
+async function setReferenceSliceViewport(connection, width, height) {
+  await connection.send("Emulation.setDeviceMetricsOverride", {
+    deviceScaleFactor: 1,
+    height,
+    mobile: false,
+    screenHeight: height,
+    screenWidth: width,
+    width,
+  });
+  await evaluate(
+    connection,
+    `(async () => {
+      const wait = (milliseconds) => new Promise((resolve) =>
+        setTimeout(resolve, milliseconds),
+      );
+      const environment = document.querySelector(".environment-trigger");
+      if (environment?.getAttribute("aria-expanded") === "true") {
+        environment.click();
+        await wait(350);
+      }
+      const sidebar = document.querySelector(
+        '[data-artemis-component="activity-bar-item"][aria-expanded]',
+      );
+      if (sidebar?.getAttribute("aria-expanded") !== "true") {
+        sidebar?.click();
+        await wait(500);
+      }
+      const dock = document.querySelector(".right-sidebar-toggle");
+      if (dock?.getAttribute("aria-expanded") === "true") {
+        dock.click();
+        await wait(600);
+      }
+      return true;
+    })()`,
+  );
+}
+
+async function referenceSliceGeometry(connection) {
+  return evaluate(
+    connection,
+    `(() => {
+      const rect = (selector) => {
+        const element = document.querySelector(selector);
+        if (!(element instanceof HTMLElement)) return null;
+        const bounds = element.getBoundingClientRect();
+        return {
+          left: bounds.left,
+          right: bounds.right,
+          top: bounds.top,
+          bottom: bounds.bottom,
+          width: bounds.width,
+          height: bounds.height,
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+          clientHeight: element.clientHeight,
+          scrollHeight: element.scrollHeight,
+        };
+      };
+      const controls = [
+        ".composer-leading",
+        ".composer-trailing",
+        ".approval-policy-trigger",
+        ".model-button",
+        ".send-button",
+      ].map((selector) => ({ selector, geometry: rect(selector) }));
+      const headerControls = [
+        ".status-pill",
+        ".environment-trigger",
+        ".left-sidebar-toggle",
+        ".right-sidebar-toggle",
+      ].map((selector) => ({ selector, geometry: rect(selector) }));
+      return {
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          documentClientWidth: document.documentElement.clientWidth,
+          documentScrollWidth: document.documentElement.scrollWidth,
+        },
+        shell: rect('[data-artemis-component="application-shell"]'),
+        activity: rect('[data-artemis-component="activity-bar"]'),
+        sidebar: rect('[data-artemis-component="navigation-sidebar"]'),
+        workspace: rect(".workspace"),
+        workspaceContent: rect(".workspace-content"),
+        conversation: rect(".conversation"),
+        timeline: rect(".timeline-scroll"),
+        composerWrap: rect(".composer-wrap"),
+        composer: rect('[data-artemis-component="composer-surface"]'),
+        toolbar: rect('[data-artemis-component="toolbar"].workspace-header'),
+        controls,
+        headerControls,
+        surfaceNodes: {
+          shell: document.querySelector('[data-artemis-component="application-shell"]'),
+          activity: document.querySelector('[data-artemis-component="activity-bar"]'),
+          sidebar: document.querySelector('[data-artemis-component="navigation-sidebar"]'),
+          composer: document.querySelector('[data-artemis-component="composer-surface"]'),
+        },
+      };
+    })()`,
+  );
+}
+
+async function verifyReferenceSliceGeometry(connection) {
+  const contentWidths = [935, 943, 949];
+  const contentWidthCases = [];
+  for (const contentWidth of contentWidths) {
+    const viewportWidth = 46 + 252 + contentWidth;
+    await setReferenceSliceViewport(connection, viewportWidth, 900);
+    const geometry = await referenceSliceGeometry(connection);
+    assert(
+      geometry.viewport.width === viewportWidth &&
+        geometry.viewport.height === 900 &&
+        Math.abs(geometry.activity.width - 46) <= 1 &&
+        Math.abs(geometry.sidebar.width - 252) <= 1 &&
+        Math.abs(geometry.workspace.width - contentWidth) <= 1 &&
+        Math.abs(geometry.workspaceContent.width - contentWidth) <= 1 &&
+        Math.abs(geometry.conversation.width - contentWidth) <= 1 &&
+        geometry.composer.width > 0 &&
+        geometry.composer.width <= 960 &&
+        geometry.viewport.documentScrollWidth <=
+          geometry.viewport.documentClientWidth + 1 &&
+        geometry.composer.scrollWidth <= geometry.composer.clientWidth + 1 &&
+        geometry.controls.every(
+          ({ geometry: control }) =>
+            control &&
+            control.width >= 24 &&
+            control.height <= 48 &&
+            control.scrollWidth <= control.clientWidth + 1,
+        ),
+      `Reference slice content-width geometry failed: ${JSON.stringify({ contentWidth, geometry })}`,
+    );
+    contentWidthCases.push({ contentWidth, viewportWidth, geometry });
+  }
+
+  await setReferenceSliceViewport(connection, 1440, 900);
+  const before = await referenceSliceGeometry(connection);
+  const transitions = await evaluate(
+    connection,
+    `(async () => {
+      const wait = (milliseconds) => new Promise((resolve) =>
+        setTimeout(resolve, milliseconds),
+      );
+      const rect = (selector) => {
+        const element = document.querySelector(selector);
+        if (!(element instanceof HTMLElement)) return null;
+        const bounds = element.getBoundingClientRect();
+        return {
+          left: bounds.left,
+          right: bounds.right,
+          top: bounds.top,
+          bottom: bounds.bottom,
+          width: bounds.width,
+          height: bounds.height,
+        };
+      };
+      const nodes = {
+        shell: document.querySelector('[data-artemis-component="application-shell"]'),
+        activity: document.querySelector('[data-artemis-component="activity-bar"]'),
+        sidebar: document.querySelector('[data-artemis-component="navigation-sidebar"]'),
+        composer: document.querySelector('[data-artemis-component="composer-surface"]'),
+      };
+      const sidebarToggle = document.querySelector(
+        '[data-artemis-component="activity-bar-item"][aria-expanded]',
+      );
+      sidebarToggle?.click();
+      await wait(550);
+      const sidebarClosed = {
+        workspace: rect(".workspace"),
+        sidebar: rect('[data-artemis-component="navigation-sidebar"]'),
+        state: document
+          .querySelector('[data-artemis-component="navigation-sidebar"]')
+          ?.getAttribute("data-state"),
+      };
+      sidebarToggle?.click();
+      await wait(550);
+      const sidebarRestored = {
+        workspace: rect(".workspace"),
+        sidebar: rect('[data-artemis-component="navigation-sidebar"]'),
+      };
+      const dockToggle = document.querySelector(".right-sidebar-toggle");
+      dockToggle?.click();
+      await wait(650);
+      const dockOpen = {
+        timeline: rect(".timeline-scroll"),
+        conversation: rect(".conversation"),
+        resizer: rect(".workspace-dock-resizer"),
+        dock: rect(".workspace-tool-dock"),
+      };
+      const environment = document.querySelector(".environment-trigger");
+      environment?.click();
+      await wait(450);
+      const environmentOpen = {
+        timeline: rect(".timeline-scroll"),
+        popover: rect(".environment-popover"),
+      };
+      environment?.click();
+      await wait(350);
+      dockToggle?.click();
+      await wait(650);
+      return {
+        sameNodes: Object.entries(nodes).every(([name, node]) =>
+          node === document.querySelector(
+            name === "shell"
+              ? '[data-artemis-component="application-shell"]'
+              : name === "activity"
+                ? '[data-artemis-component="activity-bar"]'
+                : name === "sidebar"
+                  ? '[data-artemis-component="navigation-sidebar"]'
+                  : '[data-artemis-component="composer-surface"]',
+          ),
+        ),
+        sidebarClosed,
+        sidebarRestored,
+        dockOpen,
+        environmentOpen,
+      };
+    })()`,
+  );
+  const after = await referenceSliceGeometry(connection);
+  assert(
+    before.viewport.width === 1440 &&
+      before.viewport.height === 900 &&
+      Math.abs(before.activity.width - 46) <= 1 &&
+      Math.abs(before.sidebar.width - 252) <= 1 &&
+      Math.abs(before.workspace.width - 1142) <= 1 &&
+      before.headerControls.every(
+        ({ geometry: control }) =>
+          control &&
+          control.top >= before.toolbar.top - 1 &&
+          control.bottom <= before.toolbar.bottom + 1,
+      ) &&
+      transitions.sameNodes &&
+      transitions.sidebarClosed.state === "collapsed" &&
+      transitions.sidebarClosed.workspace.width > before.workspace.width &&
+      Math.abs(
+        transitions.sidebarRestored.workspace.width - before.workspace.width,
+      ) <= 1 &&
+      Math.abs(
+        transitions.dockOpen.timeline.right - transitions.dockOpen.resizer.left,
+      ) <= 1 &&
+      transitions.dockOpen.dock.width > 0 &&
+      Math.abs(
+        transitions.environmentOpen.timeline.left -
+          transitions.dockOpen.timeline.left,
+      ) <= 1 &&
+      Math.abs(
+        transitions.environmentOpen.timeline.right -
+          transitions.dockOpen.timeline.right,
+      ) <= 1 &&
+      transitions.environmentOpen.popover.width > 0 &&
+      Math.abs(after.workspace.width - before.workspace.width) <= 1 &&
+      after.viewport.documentScrollWidth <=
+        after.viewport.documentClientWidth + 1,
+    `Reference slice 1440x900 transitions failed: ${JSON.stringify({ before, transitions, after })}`,
+  );
+  await screenshot(connection, "05-reference-slice-1440x900.png");
+  await connection.send("Emulation.clearDeviceMetricsOverride");
+  return { before, transitions, after, contentWidthCases };
 }
 
 async function rememberRuntimeState(connection, includePortal) {
@@ -1094,6 +1456,55 @@ async function driveElectron() {
             : snapshot.environment.appShellTransitionDuration !== "0s"),
         `Runtime environment failed: ${JSON.stringify({ configuration, environment: snapshot.environment })}`,
       );
+      const expectedSurfaceCounts = {
+        "application-shell": 1,
+        "application-shell-resizer": 1,
+        "activity-bar": 1,
+        "activity-bar-item": 6,
+        "navigation-sidebar": 1,
+        "composer-surface": 1,
+        "panel-header": 1,
+        toolbar: 1,
+      };
+      assert(
+        JSON.stringify(snapshot.surfaces?.counts) ===
+          JSON.stringify(expectedSurfaceCounts),
+        `Public surface identity failed: ${JSON.stringify({ configuration, surfaces: snapshot.surfaces })}`,
+      );
+      const surfaceTokenBindings = [
+        [snapshot.surfaces?.shell, snapshot.tokens?.["color.canvas"]],
+        [
+          snapshot.surfaces?.activity,
+          snapshot.tokens?.["color.background.activity"],
+        ],
+        [
+          snapshot.surfaces?.sidebar,
+          snapshot.tokens?.["color.background.sidebar"],
+        ],
+        [
+          snapshot.surfaces?.composer,
+          snapshot.tokens?.["color.surface.composer"],
+        ],
+      ];
+      assert(
+        surfaceTokenBindings.every(
+          ([surface, token]) =>
+            surface?.tokenValue === token &&
+            surface?.backgroundColor === surface?.resolvedTokenColor,
+        ),
+        `Public surface token binding failed: ${JSON.stringify({ configuration, bindings: surfaceTokenBindings })}`,
+      );
+      assert(
+        snapshot.surfaces?.geometry?.horizontalOverflow <= 1 &&
+          snapshot.surfaces?.geometry?.composerHorizontalOverflow <= 1 &&
+          snapshot.surfaces?.geometry?.shell?.width > 0 &&
+          snapshot.surfaces?.geometry?.activity?.width > 0 &&
+          snapshot.surfaces?.geometry?.sidebar?.width > 0 &&
+          snapshot.surfaces?.geometry?.workspace?.width > 0 &&
+          snapshot.surfaces?.geometry?.composer?.width > 0 &&
+          snapshot.surfaces?.structuralSkinMarkers?.length === 0,
+        `Public surface geometry or structural skin isolation failed: ${JSON.stringify({ configuration, surfaces: snapshot.surfaces })}`,
+      );
       assert(
         snapshot.state.inputSame &&
           snapshot.state.composerSame &&
@@ -1126,6 +1537,7 @@ async function driveElectron() {
         skinId: snapshot.attrs.skin,
         canvas,
         transitionDuration: snapshot.environment.appShellTransitionDuration,
+        surfaces: snapshot.surfaces,
       });
       if (
         configuration.skin === "stress" &&
@@ -1158,6 +1570,7 @@ async function driveElectron() {
       connection,
       "globalThis.__ARTEMIS_SKIN_SMOKE__.setZoomFactor(1)",
     );
+    const referenceSlice = await verifyReferenceSliceGeometry(connection);
     const fallbackRemembered = await rememberRuntimeState(connection, true);
     assert(
       fallbackRemembered.state.portalInBody &&
@@ -1295,6 +1708,7 @@ async function driveElectron() {
       },
       remembered,
       runtimeMatrix,
+      referenceSlice,
       returnedDefault,
       fallbackCases,
       finalSnapshot,

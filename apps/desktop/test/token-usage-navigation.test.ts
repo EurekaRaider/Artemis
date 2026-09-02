@@ -96,26 +96,27 @@ describe("token usage navigation", () => {
   });
 
   it("places the Token Usage button immediately after MCP & Skills and opens its page", () => {
-    const activityStart = appSource.indexOf('<aside className="activity-bar">');
-    const activityEnd = appSource.indexOf("</aside>", activityStart);
+    const activityStart = appSource.indexOf("<ActivityBar");
+    const activityEnd = appSource.indexOf("</ActivityBar>", activityStart);
     const activity = appSource.slice(activityStart, activityEnd);
-    const resourceLabel = activity.indexOf("aria-label={t.resourceCenter}");
+    const resourceLabel = activity.indexOf("label={t.resourceCenter}");
     const resourceButtonEnd =
-      activity.indexOf("</button>", resourceLabel) + "</button>".length;
-    const tokenLabel = activity.indexOf("aria-label={t.tokenUsage}");
-    const tokenButtonStart = activity.lastIndexOf("<button", tokenLabel);
+      activity.indexOf("/>", resourceLabel) + "/>".length;
+    const tokenLabel = activity.indexOf("label={t.tokenUsage}");
+    const tokenButtonStart = activity.lastIndexOf(
+      "<ActivityBarItem",
+      tokenLabel,
+    );
+    const tokenButtonEnd = activity.indexOf("/>", tokenLabel) + "/>".length;
+    const tokenButton = activity.slice(tokenButtonStart, tokenButtonEnd);
 
     expect(activityStart).toBeGreaterThan(-1);
     expect(activityEnd).toBeGreaterThan(activityStart);
     expect(resourceLabel).toBeGreaterThan(-1);
     expect(tokenLabel).toBeGreaterThan(resourceLabel);
     expect(activity.slice(resourceButtonEnd, tokenButtonStart).trim()).toBe("");
-    expect(activity.slice(tokenButtonStart, tokenLabel)).toContain(
-      'activeView === "token-usage"',
-    );
-    expect(activity.slice(tokenButtonStart, tokenLabel)).toContain(
-      'setActiveView("token-usage")',
-    );
+    expect(tokenButton).toContain('activeView === "token-usage"');
+    expect(tokenButton).toContain('setActiveView("token-usage")');
     expect(appSource).toContain("<TokenUsagePage");
     expect(appSource).toContain('activeView === "token-usage"');
   });
@@ -124,7 +125,7 @@ describe("token usage navigation", () => {
     expect(appSource).toContain('tokenUsage: "Token usage"');
     expect(appSource).toContain('tokenUsage: "Token 用量"');
     expect(appSource).toContain("title={t.tokenUsage}");
-    expect(appSource).toContain("aria-label={t.tokenUsage}");
+    expect(appSource).toContain("label={t.tokenUsage}");
   });
 
   it("wires persisted token usage history through the isolated IPC API", () => {

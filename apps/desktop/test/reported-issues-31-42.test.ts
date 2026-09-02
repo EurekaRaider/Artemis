@@ -12,6 +12,7 @@ const preloadSource = source("../src/preload/preload.ts");
 const mainSource = source("../src/main/main.ts");
 const settingsSource = source("../src/renderer/SettingsPanel.tsx");
 const stylesSource = source("../src/renderer/styles.css");
+const publicUiStylesSource = source("../../../packages/ui/src/styles.css");
 const tokenUsageSource = source("../src/renderer/TokenUsagePage.tsx");
 
 function cssDeclarations(selector: string): string {
@@ -48,8 +49,8 @@ describe("reported issue regressions #31-#42", () => {
     expect(cssDeclarations(".environment-popover")).toContain(
       "top: calc(100% + 20px)",
     );
-    expect(cssDeclarations(".sidebar")).toContain(
-      "border-inline-start: 1px solid var(--border)",
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="activity-bar"\]\s*\{[^}]*border-inline-end:\s*var\(--artemis-border-width-default\) solid\s*var\(--artemis-color-border-subtle\)/u,
     );
   });
 
