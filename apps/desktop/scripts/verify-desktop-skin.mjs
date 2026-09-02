@@ -916,21 +916,33 @@ async function verifyReferenceSliceGeometry(connection) {
   };
 
   await setReferenceSliceViewport(connection, 1_050, 900);
+  const compactInitial = await referenceSliceGeometry(connection);
+  const initialSidebarWidth = Math.round(compactInitial.sidebar.width);
+  assert(
+    initialSidebarWidth === 252,
+    `Compact resize fixture started at ${String(initialSidebarWidth)}px instead of 252px: ${JSON.stringify(compactInitial)}`,
+  );
   await evaluate(
     connection,
     "document.querySelector('[data-artemis-component=\"application-shell-resizer\"]')?.focus()",
   );
+  await waitFor(
+    connection,
+    "document.activeElement === document.querySelector('[data-artemis-component=\"application-shell-resizer\"]')",
+    "compact viewport sidebar resizer focus",
+  );
   for (let index = 0; index < 3; index += 1) {
     await dispatchSidebarResizeKey("ArrowRight");
   }
+  const keyboardSidebarWidth = Math.min(420, initialSidebarWidth + 72);
   await waitFor(
     connection,
-    'document.querySelector(\'[data-artemis-component="application-shell-resizer"]\')?.getAttribute("aria-valuenow") === "324"',
+    `document.querySelector('[data-artemis-component="application-shell-resizer"]')?.getAttribute("aria-valuenow") === ${JSON.stringify(String(keyboardSidebarWidth))}`,
     "compact viewport keyboard sidebar resize",
   );
   const afterKeyboardResize = await referenceSliceGeometry(connection);
   assert(
-    Math.abs(afterKeyboardResize.sidebar.width - 324) <= 1 &&
+    Math.abs(afterKeyboardResize.sidebar.width - keyboardSidebarWidth) <= 1 &&
       afterKeyboardResize.sidebarResizer &&
       afterKeyboardResize.viewport.width === 1_050,
     `Compact keyboard resize desynchronized: ${JSON.stringify(afterKeyboardResize)}`,
@@ -962,26 +974,52 @@ async function verifyReferenceSliceGeometry(connection) {
     x: pointerX + 48,
     y: pointerY,
   });
+  const pointerSidebarWidth = Math.min(420, keyboardSidebarWidth + 48);
   await waitFor(
     connection,
-    'document.querySelector(\'[data-artemis-component="application-shell-resizer"]\')?.getAttribute("aria-valuenow") === "372"',
+    `document.querySelector('[data-artemis-component="application-shell-resizer"]')?.getAttribute("aria-valuenow") === ${JSON.stringify(String(pointerSidebarWidth))}`,
     "compact viewport pointer sidebar resize",
   );
   const afterPointerResize = await referenceSliceGeometry(connection);
   assert(
-    Math.abs(afterPointerResize.sidebar.width - 372) <= 1,
+    Math.abs(afterPointerResize.sidebar.width - pointerSidebarWidth) <= 1,
     `Compact pointer resize desynchronized: ${JSON.stringify(afterPointerResize)}`,
   );
-  for (let index = 0; index < 5; index += 1) {
-    await dispatchSidebarResizeKey("ArrowLeft");
-  }
+  const resetPointer = afterPointerResize.sidebarResizer;
+  const resetX = resetPointer.left + resetPointer.width / 2;
+  const resetY = resetPointer.top + resetPointer.height / 2;
+  const resetDelta = initialSidebarWidth - pointerSidebarWidth;
+  await connection.send("Input.dispatchMouseEvent", {
+    button: "left",
+    buttons: 1,
+    clickCount: 1,
+    type: "mousePressed",
+    x: resetX,
+    y: resetY,
+  });
+  await connection.send("Input.dispatchMouseEvent", {
+    button: "left",
+    buttons: 1,
+    type: "mouseMoved",
+    x: resetX + resetDelta,
+    y: resetY,
+  });
+  await connection.send("Input.dispatchMouseEvent", {
+    button: "left",
+    buttons: 0,
+    clickCount: 1,
+    type: "mouseReleased",
+    x: resetX + resetDelta,
+    y: resetY,
+  });
   await waitFor(
     connection,
-    'document.querySelector(\'[data-artemis-component="application-shell-resizer"]\')?.getAttribute("aria-valuenow") === "252"',
+    `document.querySelector('[data-artemis-component="application-shell-resizer"]')?.getAttribute("aria-valuenow") === ${JSON.stringify(String(initialSidebarWidth))}`,
     "reference sidebar width reset",
   );
   const compactResize = {
     viewportWidth: 1_050,
+    initial: compactInitial,
     keyboard: afterKeyboardResize,
     pointer: afterPointerResize,
   };
