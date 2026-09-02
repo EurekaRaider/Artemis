@@ -1,7 +1,7 @@
 # Discussion #76 visual migration ledger
 
-Status: MIG2 Conversation/Timeline candidate implemented on merged MIG1 base
-`db17c67544df5c04e5f667a810ca1d89fb172dcb`; MIG1 is merged. This
+Status: MIG3A Workspace/Dock/file/Markdown candidate implemented on merged MIG2
+base `a9dd2d4b4e0bda75ab4721399a244e29e5e36980`; MIG2 is merged. This
 ledger separates static prototype evidence, package/Gallery evidence, and
 production Electron evidence. It must not be used to turn a prototype,
 Gallery pass, or attribute-only resolver pass into a migrated production
@@ -9,7 +9,7 @@ surface.
 
 ## Inputs and evidence boundary
 
-- Candidate base: `db17c67544df5c04e5f667a810ca1d89fb172dcb` (MIG1 merged).
+- Candidate base: `a9dd2d4b4e0bda75ab4721399a244e29e5e36980` (MIG2 merged).
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -25,7 +25,7 @@ surface.
   `ui-prototype/contrast/prototype-contract-result.json`, and
   `ui-prototype/contrast/summary.json`.
 - The prototype directory remains read-only in a companion checkout and is not
-  present in this candidate base. MIG2 does not copy or modify it.
+  present in this candidate base. MIG3A does not copy or modify it.
 - v17's 70/70 generic card contract, 22/22 targeted historical-gap checks, and
   36 contrast combinations are HTML/Chrome specification evidence only. They do
   not prove React anatomy, Desktop integration, Electron geometry, platform
@@ -513,6 +513,53 @@ accessible landmarks, renderer security, console output, and private-path
 leaks. Exact candidate-head results are recorded in PR evidence because adding
 that resulting HEAD to this tracked ledger would create a self-reference.
 
+MIG2 merged through PR #141 at
+`a9dd2d4b4e0bda75ab4721399a244e29e5e36980`.
+
+## MIG3A Workspace and Dock candidate evidence
+
+MIG3A adds the public `@artemis/ui/workspace` subpath for WorkspaceDock,
+WorkspaceDockResizer, WorkspaceTabBar, WorkspaceTab, WorkspaceTabPane,
+WorkspaceLauncher, WorkspaceLauncherAction, WorkspaceEditorToolbar,
+WorkspaceFileHeader, WorkspaceFileLayout, WorkspaceFileTree,
+WorkspaceFileTreeRow, WorkspaceSourceEditor, WorkspacePreview, and
+WorkspaceContentState. The package owns presentational anatomy, finite visual
+states, accessible roles, focus floors, tokenized layout, and bounded geometry
+validation. Desktop continues to own tab identity and reduction, focus transfer,
+resize callbacks and persistence, project/file IPC, syntax tokenization, draft
+state, save effects and errors, image resolution, localization, and permission
+decisions.
+
+The real Desktop Dock, tabs, launcher, file tree, source editor, Markdown
+source/preview toggle, standalone Markdown reader, binary read-only state, and
+save toolbar now consume the public components. The migration preserves the
+62% default Dock presentation, compact and narrow responsive geometry, animated
+open/close visibility, transition-free live resizing, exact pixel separator
+ARIA, mouse and Arrow/Home/End resize behavior, tab roving focus and close focus
+transfer, Meta/Ctrl+S with IME guard, dirty/saving/saved/error states, the
+250,000-character syntax-highlight limit, and accessible missing-image
+fallbacks. Browser and Terminal remain outside this phase.
+
+Gallery raises the default/stress conformance matrix from 36 to 40 cases per
+skin while preserving the same 64 runtime vertices. Its four Workspace cases
+cover anatomy, finite states, controlled events, long content, RTL, disabled
+and read-only surfaces, loading/error states, tabs, files, Markdown, and Dock
+geometry. The exact public contract, package tarball/declaration/SSR consumer,
+Workspace tree-shaking, selector/property/value allowlist, per-family CSS token
+set, reduced motion, boundary tests, and negative fixtures remain fail-closed.
+
+The dedicated production Electron gates use only the built renderer and a
+single strict-sandbox launch per case. The Markdown matrix covers light/dark
+opening, dirty state, Meta+S saving, save failure, production binary read-only,
+missing-image fallback, Rich text/Source switching, and a source file above the
+highlight threshold. The Dock matrix covers the four-action empty launcher,
+two closable tabs, roving selection, focus transfer after close, real mouse
+drag, Arrow/Home/End resizing, exact pixel separator ARIA, open/closed/reopened
+states, conversation minimum width, scrollbar boundary ownership, and dark
+200% zoom. Both verifiers reject a dirty worktree or an unexpected candidate
+SHA. Exact candidate-head results belong in PR evidence because writing the
+resulting SHA into this tracked ledger would create a self-reference.
+
 ## Component and surface sequence
 
 | Scope                                                                     | Type               | Owner                     | Consumer                          | Legacy selector/source                           | Target PR | Electron evidence                                            | Status                                  |
@@ -530,8 +577,8 @@ that resulting HEAD to this tracked ledger would create a self-reference.
 | Feedback, overlays, layout primitives                                     | component          | `@artemis/ui`             | Gallery + four Desktop surfaces   | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | 6-case strict-sandbox Electron matrix                        | Merged at `f6c1a36`                     |
 | Artemis-specific presentational patterns                                  | component          | `@artemis/ui`             | Desktop adapter layer             | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                          | Merged at `44634b9`                     |
 | Reference slice: shell, activity bar, sidebar, header, Composer, Approval | surface            | `@artemis/ui` + Desktop   | users                             | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom and state matrix         | Merged at `db17c67`                     |
-| Conversation, Timeline, trusted-AI states                                 | surface            | `@artemis/ui` + Desktop   | users                             | message/timeline/status selectors                | MIG2      | State, scroll, interaction, performance, exact-head Electron | Candidate; exact-head Electron pending  |
-| Workspace, Dock, file/Markdown edit and preview                           | surface            | `@artemis/ui` + Desktop   | users                             | workspace/dock/editor selectors                  | MIG3A     | Tabs, resize, save/error, geometry, exact-head Electron      | Pending                                 |
+| Conversation, Timeline, trusted-AI states                                 | surface            | `@artemis/ui` + Desktop   | users                             | message/timeline/status selectors                | MIG2      | State, scroll, interaction, performance, exact-head Electron | Merged at `a9dd2d4`                     |
+| Workspace, Dock, file/Markdown edit and preview                           | surface            | `@artemis/ui` + Desktop   | users                             | workspace/dock/editor selectors                  | MIG3A     | Tabs, resize, save/error, geometry, exact-head Electron      | Candidate; exact-head Electron pending  |
 | Review, Diff, Environment, Goal, Sources                                  | surface            | `@artemis/ui` + Desktop   | users                             | review/environment/source selectors              | MIG3B     | State, permission and overlay geometry matrix                | Pending                                 |
 | Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | Pending                                 |
 | Settings, Resource Center, MCP Editor                                     | surface            | `@artemis/ui` + Desktop   | users                             | feature-local renderer styles                    | MIG5A     | Form, permission, privacy and exact-head Electron matrix     | Pending                                 |

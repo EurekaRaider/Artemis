@@ -1163,8 +1163,10 @@ async function verifyReferenceSliceGeometry(connection) {
       const dockOpen = {
         timeline: rect(".timeline-scroll"),
         conversation: rect(".conversation"),
-        resizer: rect(".workspace-dock-resizer"),
-        dock: rect(".workspace-tool-dock"),
+        resizer: rect(
+          '[data-artemis-component="workspace-dock-resizer"]',
+        ),
+        dock: rect('[data-artemis-component="workspace-dock"]'),
       };
       let environment = document.querySelector(".environment-trigger");
       if (environment?.getAttribute("aria-expanded") !== "true") {

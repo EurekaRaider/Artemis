@@ -11533,17 +11533,17 @@ async function driveSmokeNavigationControlsEvidence(
       activation: "Space",
       expectedLabel: "Source",
       rootSelector:
-        '.workspace-editor-mode-toggle[data-artemis-component="segmented-control"]',
+        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"]',
       targetSelector:
-        '.workspace-editor-mode-toggle[data-artemis-component="segmented-control"] [data-part="segment"]:nth-of-type(2)',
+        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] [data-part="segment"]:nth-of-type(2)',
     },
     "markdown-editor-navigation-preview": {
       activation: "Space",
       expectedLabel: "Source",
       rootSelector:
-        '.markdown-reader-mode-toggle[data-artemis-component="segmented-control"]',
+        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"]',
       targetSelector:
-        '.markdown-reader-mode-toggle[data-artemis-component="segmented-control"] [data-part="segment"]:nth-of-type(2)',
+        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] [data-part="segment"]:nth-of-type(2)',
     },
   } as const;
   const target = view ? targets[view as keyof typeof targets] : undefined;
@@ -11646,7 +11646,7 @@ async function driveSmokeNavigationControlsEvidence(
       selectedText: selected?.textContent?.trim() ?? null,
       sourceSurfacePresent:
         document.querySelector(
-          '.workspace-markdown-editor textarea, .markdown-reader-source',
+          '[data-artemis-component="workspace-source-editor"] [data-part="source"]',
         ) !== null,
     };
     return window.__navigationControlsInteraction;
@@ -11665,6 +11665,276 @@ async function driveSmokeNavigationControlsEvidence(
       `Navigation control Space activation did not emit exactly one click for ${view}: ${JSON.stringify(interaction)}.`,
     );
   }
+}
+
+async function driveSmokeWorkspaceDockEvidence(
+  window: BrowserWindow,
+  view: string | undefined,
+): Promise<void> {
+  if (view !== "environment-dock-workspace") return;
+
+  const contents = window.webContents;
+  const wait = (milliseconds: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+  const evaluate = async <T>(script: string): Promise<T> =>
+    (await contents.executeJavaScript(script)) as T;
+  const pressKey = async (keyCode: string): Promise<void> => {
+    const keyDetails = {
+      ArrowRight: { code: "ArrowRight", virtualKeyCode: 39 },
+      Home: { code: "Home", virtualKeyCode: 36 },
+      End: { code: "End", virtualKeyCode: 35 },
+    }[keyCode];
+    if (!keyDetails) throw new Error(`Unsupported Workspace key ${keyCode}.`);
+    if (!contents.debugger.isAttached()) contents.debugger.attach("1.3");
+    const parameters = {
+      key: keyCode,
+      code: keyDetails.code,
+      windowsVirtualKeyCode: keyDetails.virtualKeyCode,
+      nativeVirtualKeyCode: keyDetails.virtualKeyCode,
+    };
+    await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+      ...parameters,
+      type: "rawKeyDown",
+    });
+    await contents.debugger.sendCommand("Input.dispatchKeyEvent", {
+      ...parameters,
+      type: "keyUp",
+    });
+    await wait(420);
+  };
+
+  if (process.platform === "darwin") app.focus({ steal: true });
+  window.focus();
+  contents.focus();
+  const resizePoint = await evaluate<{ x: number; y: number }>(`(async () => {
+    const wait = (milliseconds) =>
+      new Promise((resolve) => setTimeout(resolve, milliseconds));
+    const dockSelector = '[data-artemis-component="workspace-dock"]';
+    const resizerSelector =
+      '[data-artemis-component="workspace-dock-resizer"]';
+    const tabSelector = '[data-artemis-component="workspace-tab"]';
+    const capture = () => {
+      const dock = document.querySelector(dockSelector);
+      const resizer = document.querySelector(resizerSelector);
+      const conversation = document.querySelector(
+        '[data-artemis-component="conversation-surface"]',
+      );
+      const workspaceContent = document.querySelector('.workspace-content');
+      const timeline = document.querySelector('.timeline-scroll');
+      const dockBounds = dock?.getBoundingClientRect();
+      const resizerBounds = resizer?.getBoundingClientRect();
+      const conversationBounds = conversation?.getBoundingClientRect();
+      const workspaceContentBounds = workspaceContent?.getBoundingClientRect();
+      const timelineBounds = timeline?.getBoundingClientRect();
+      const tabs = [...document.querySelectorAll(tabSelector)].map((tab) => {
+        const select = tab.querySelector(':scope > [data-part="select"]');
+        const close = tab.querySelector(':scope > [data-part="close"]');
+        return {
+          label: select?.textContent?.trim() ?? '',
+          active: tab.getAttribute('data-state') === 'active',
+          selected: select?.getAttribute('aria-selected') ?? null,
+          tabIndex: select instanceof HTMLElement ? select.tabIndex : null,
+          closeLabel: close?.getAttribute('aria-label') ?? null,
+          selectFocused: document.activeElement === select,
+        };
+      });
+      return {
+        dock: dockBounds
+          ? {
+              state: dock?.getAttribute('data-state') ?? null,
+              ariaHidden: dock?.getAttribute('aria-hidden') ?? null,
+              inert: dock?.hasAttribute('inert') ?? null,
+              visible:
+                getComputedStyle(dock).visibility !== 'hidden' &&
+                dockBounds.width > 0,
+              left: dockBounds.left,
+              right: dockBounds.right,
+              width: dockBounds.width,
+            }
+          : null,
+        resizer: resizerBounds
+          ? {
+              state: resizer?.getAttribute('data-state') ?? null,
+              role: resizer?.getAttribute('role') ?? null,
+              controls: resizer?.getAttribute('aria-controls') ?? null,
+              minimum: Number(resizer?.getAttribute('aria-valuemin')),
+              maximum: Number(resizer?.getAttribute('aria-valuemax')),
+              value: Number(resizer?.getAttribute('aria-valuenow')),
+              valueText: resizer?.getAttribute('aria-valuetext') ?? null,
+              tabIndex:
+                resizer instanceof HTMLElement ? resizer.tabIndex : null,
+              left: resizerBounds.left,
+              right: resizerBounds.right,
+              width: resizerBounds.width,
+            }
+          : null,
+        conversation: conversationBounds
+          ? {
+              left: conversationBounds.left,
+              right: conversationBounds.right,
+              width: conversationBounds.width,
+            }
+          : null,
+        workspaceContent: workspaceContentBounds
+          ? {
+              left: workspaceContentBounds.left,
+              right: workspaceContentBounds.right,
+              width: workspaceContentBounds.width,
+            }
+          : null,
+        timeline: timelineBounds
+          ? {
+              left: timelineBounds.left,
+              right: timelineBounds.right,
+              width: timelineBounds.width,
+            }
+          : null,
+        launcherActions: document.querySelectorAll(
+          '[data-artemis-component="workspace-launcher"] [data-part="action"]',
+        ).length,
+        selectionText: window.getSelection()?.toString() ?? '',
+        tabs,
+      };
+    };
+    const addTab = async (label) => {
+      const add = document.querySelector('.workspace-tab-add');
+      if (!(add instanceof HTMLButtonElement)) {
+        throw new Error('Workspace add-tab button missing.');
+      }
+      add.click();
+      await wait(120);
+      const entry = [...document.querySelectorAll('.workspace-tab-menu button')]
+        .find((button) => button.textContent?.trim().startsWith(label));
+      if (!(entry instanceof HTMLButtonElement)) {
+        throw new Error(
+          'Workspace add-tab entry missing for ' + label + '.',
+        );
+      }
+      entry.click();
+      await wait(420);
+    };
+
+    for (let index = 0; index < 8; index += 1) {
+      const existingClose = document.querySelector(
+        tabSelector + ' > [data-part="close"]',
+      );
+      if (!(existingClose instanceof HTMLButtonElement)) break;
+      existingClose.click();
+      await wait(240);
+    }
+    if (document.querySelector(tabSelector)) {
+      throw new Error('Workspace tabs did not reach the empty state.');
+    }
+    const dockToggle = document.querySelector('.right-sidebar-toggle');
+    if (dockToggle?.getAttribute('aria-expanded') !== 'true') {
+      dockToggle?.click();
+      await wait(520);
+    }
+    const initial = capture();
+    await addTab('Review');
+    await addTab('Files');
+    const multiTab = capture();
+    const firstTab = document.querySelector(tabSelector);
+    const firstSelect = firstTab?.querySelector(':scope > [data-part="select"]');
+    if (!(firstSelect instanceof HTMLButtonElement)) {
+      throw new Error('First workspace tab select button missing.');
+    }
+    firstSelect.click();
+    await wait(160);
+    const firstClose = firstTab?.querySelector(':scope > [data-part="close"]');
+    if (!(firstClose instanceof HTMLButtonElement)) {
+      throw new Error('First workspace tab close button missing.');
+    }
+    firstClose.click();
+    await wait(360);
+    const afterClose = capture();
+    const resizer = document.querySelector(resizerSelector);
+    const bounds = resizer?.getBoundingClientRect();
+    if (!(resizer instanceof HTMLElement) || !bounds || bounds.width <= 0) {
+      throw new Error('Workspace Dock resizer missing before interaction.');
+    }
+    window.__workspaceDockPointerProbe = { down: 0, move: 0, up: 0 };
+    resizer.addEventListener('pointerdown', () => {
+      window.__workspaceDockPointerProbe.down += 1;
+    });
+    resizer.addEventListener('pointermove', () => {
+      window.__workspaceDockPointerProbe.move += 1;
+    });
+    resizer.addEventListener('pointerup', () => {
+      window.__workspaceDockPointerProbe.up += 1;
+    });
+    window.__workspaceDockCapture = capture;
+    window.__workspaceDockInteraction = { initial, multiTab, afterClose };
+    return {
+      x: Math.round(bounds.left + bounds.width / 2),
+      y: Math.round(bounds.top + bounds.height / 2),
+    };
+  })()`);
+
+  const inputScale = contents.getZoomFactor();
+  const inputPoint = {
+    x: Math.round(resizePoint.x * inputScale),
+    y: Math.round(resizePoint.y * inputScale),
+  };
+  contents.sendInputEvent({ type: "mouseMove", ...inputPoint });
+  contents.sendInputEvent({
+    type: "mouseDown",
+    button: "left",
+    clickCount: 1,
+    ...inputPoint,
+  });
+  await wait(80);
+  contents.sendInputEvent({
+    type: "mouseMove",
+    x: inputPoint.x - Math.round(96 * inputScale),
+    y: inputPoint.y,
+  });
+  await wait(160);
+  const releasePoint = await evaluate<{ x: number; y: number }>(`(() => {
+    const resizer = document.querySelector(
+      '[data-artemis-component="workspace-dock-resizer"]',
+    );
+    const bounds = resizer?.getBoundingClientRect();
+    if (!bounds) throw new Error('Workspace Dock resizer disappeared.');
+    return {
+      x: Math.round(bounds.left + bounds.width / 2),
+      y: Math.round(bounds.top + bounds.height / 2),
+    };
+  })()`);
+  contents.sendInputEvent({
+    type: "mouseUp",
+    button: "left",
+    clickCount: 1,
+    x: Math.round(releasePoint.x * inputScale),
+    y: Math.round(releasePoint.y * inputScale),
+  });
+  await wait(320);
+  await evaluate(`window.__workspaceDockInteraction.mouse =
+    window.__workspaceDockCapture();
+    window.__workspaceDockInteraction.pointerProbe =
+      window.__workspaceDockPointerProbe`);
+
+  await evaluate(`document
+    .querySelector('[data-artemis-component="workspace-dock-resizer"]')
+    ?.focus()`);
+  await pressKey("ArrowRight");
+  await evaluate(`window.__workspaceDockInteraction.arrow =
+    window.__workspaceDockCapture()`);
+  await pressKey("Home");
+  await evaluate(`window.__workspaceDockInteraction.home =
+    window.__workspaceDockCapture()`);
+  await pressKey("End");
+  await evaluate(`window.__workspaceDockInteraction.end =
+    window.__workspaceDockCapture()`);
+
+  await evaluate(`document.querySelector('.right-sidebar-toggle')?.click()`);
+  await wait(520);
+  await evaluate(`window.__workspaceDockInteraction.closed =
+    window.__workspaceDockCapture()`);
+  await evaluate(`document.querySelector('.right-sidebar-toggle')?.click()`);
+  await wait(520);
+  await evaluate(`window.__workspaceDockInteraction.reopened =
+    window.__workspaceDockCapture()`);
 }
 
 // PR9C input-fields evidence driver (checklist §6-2): after the
@@ -13982,7 +14252,11 @@ function createMainWindow(): BrowserWindow {
                     await wait(180);
                     childPanelOpened =
                       document.querySelector('.child-agent-panel') !== null;
-                    document.querySelector('.workspace-tab-close')?.click();
+                    document
+                      .querySelector(
+                        '[data-artemis-component="workspace-tab"] > [data-part="close"]',
+                      )
+                      ?.click();
                     await wait(120);
                   }
                   const inputChoice = document.querySelector(
@@ -14608,7 +14882,11 @@ function createMainWindow(): BrowserWindow {
                       throw new Error('Synthetic Markdown file link missing.');
                     }
                     fileLink.click();
-                    if (!(await waitFor('.markdown-reader-panel'))) {
+                    if (
+                      !(await waitFor(
+                        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"]',
+                      ))
+                    ) {
                       throw new Error('Markdown reader panel did not render.');
                     }
                     return;
@@ -14626,9 +14904,15 @@ function createMainWindow(): BrowserWindow {
                     throw new Error('Files tab entry did not render.');
                   }
                   filesTabButton.click();
-                  await waitFor('.workspace-file-tree');
+                  await waitFor(
+                    '[data-artemis-component="workspace-file-tree"]',
+                  );
                   const treeRowFor = (fileName) =>
-                    [...document.querySelectorAll('.workspace-file-tree-row')].find(
+                    [
+                      ...document.querySelectorAll(
+                        '[data-artemis-component="workspace-file-tree-row"]',
+                      ),
+                    ].find(
                       (button) => button.getAttribute('title') === fileName,
                     );
                   if (view === 'markdown-editor-binary') {
@@ -14637,7 +14921,23 @@ function createMainWindow(): BrowserWindow {
                       throw new Error('Seeded binary file did not render.');
                     }
                     binaryRow.click();
-                    await waitFor('.workspace-files-panel .preview-empty');
+                    await waitFor(
+                      '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-content-state"]',
+                    );
+                    return;
+                  }
+                  if (view === 'markdown-editor-large-file') {
+                    const largeRow = treeRowFor('LARGE.ts');
+                    if (!largeRow) {
+                      throw new Error('Seeded large source file did not render.');
+                    }
+                    largeRow.click();
+                    await waitFor(
+                      '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"]',
+                    );
+                    await waitFor(
+                      '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-source-editor"] [data-part="source"]',
+                    );
                     return;
                   }
                   const markdownRow = treeRowFor('NOTES.md');
@@ -14645,7 +14945,9 @@ function createMainWindow(): BrowserWindow {
                     throw new Error('Seeded markdown file did not render.');
                   }
                   markdownRow.click();
-                  await waitFor('.workspace-markdown-editor');
+                  await waitFor(
+                    '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"]',
+                  );
                   await waitFor('[data-workspace-image-failed]');
                   if (view === 'markdown-editor-navigation-toolbar') {
                     return;
@@ -14653,7 +14955,7 @@ function createMainWindow(): BrowserWindow {
                   const openSourceView = async () => {
                     const sourceButton = [
                       ...document.querySelectorAll(
-                        '.workspace-editor-mode-toggle button',
+                        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] button',
                       ),
                     ].find(
                       (button) =>
@@ -14662,7 +14964,7 @@ function createMainWindow(): BrowserWindow {
                     sourceButton?.click();
                     await wait(300);
                     return document.querySelector(
-                      '.workspace-markdown-editor textarea',
+                      '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-source-editor"] [data-part="source"]',
                     );
                   };
                   const setSourceValue = async (textarea, value) => {
@@ -14690,7 +14992,7 @@ function createMainWindow(): BrowserWindow {
                     const toggleStates = () => {
                       const buttons = [
                         ...document.querySelectorAll(
-                          '.workspace-editor-mode-toggle button',
+                          '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] button',
                         ),
                       ];
                       return {
@@ -14700,17 +15002,17 @@ function createMainWindow(): BrowserWindow {
                           buttons[1]?.getAttribute('aria-pressed') ?? null,
                         textareaPresent:
                           document.querySelector(
-                            '.workspace-markdown-editor textarea',
+                            '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-source-editor"] [data-part="source"]',
                           ) !== null,
                         previewPresent:
                           document.querySelector(
-                            '.workspace-file-markdown-preview',
+                            '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-preview"]',
                           ) !== null,
                       };
                     };
                     const sourceButton = [
                       ...document.querySelectorAll(
-                        '.workspace-editor-mode-toggle button',
+                        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] button',
                       ),
                     ].find(
                       (button) =>
@@ -14721,14 +15023,16 @@ function createMainWindow(): BrowserWindow {
                     const afterSource = toggleStates();
                     const richButton = [
                       ...document.querySelectorAll(
-                        '.workspace-editor-mode-toggle button',
+                        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] button',
                       ),
                     ].find(
                       (button) =>
                         (button.textContent ?? '').trim() === 'Rich text',
                     );
                     richButton?.click();
-                    await waitFor('.workspace-file-markdown-preview');
+                    await waitFor(
+                      '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-preview"]',
+                    );
                     await waitFor('[data-workspace-image-failed]');
                     const afterRich = toggleStates();
                     sourceButton?.click();
@@ -14753,7 +15057,7 @@ function createMainWindow(): BrowserWindow {
                   }
                   textarea.focus();
                   const statusRegion = document.querySelector(
-                    '.workspace-markdown-editor .workspace-file-save-state',
+                    '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="status"]',
                   );
                   window.__markdownEditorStatusTrace = [];
                   if (statusRegion) {
@@ -15618,7 +15922,11 @@ function createMainWindow(): BrowserWindow {
                     await wait(500);
                     return;
                   }
-                  if (view === 'environment-dock' || view === 'environment-dock-open') {
+                  if (
+                    view === 'environment-dock' ||
+                    view === 'environment-dock-open' ||
+                    view === 'environment-dock-workspace'
+                  ) {
                     const bounds = (selector) => {
                       const rect = document
                         .querySelector(selector)
@@ -15630,20 +15938,26 @@ function createMainWindow(): BrowserWindow {
                     const before = {
                       status: bounds('.status-pill'),
                       environment: bounds('.environment-trigger'),
-                      dock: bounds('.workspace-tool-dock'),
+                      dock: bounds(
+                        '[data-artemis-component="workspace-dock"]',
+                      ),
                     };
                     document.querySelector('.right-sidebar-toggle')?.click();
                     await wait(80);
                     const middle = {
                       status: bounds('.status-pill'),
                       environment: bounds('.environment-trigger'),
-                      dock: bounds('.workspace-tool-dock'),
+                      dock: bounds(
+                        '[data-artemis-component="workspace-dock"]',
+                      ),
                     };
                     await wait(520);
                     const after = {
                       status: bounds('.status-pill'),
                       environment: bounds('.environment-trigger'),
-                      dock: bounds('.workspace-tool-dock'),
+                      dock: bounds(
+                        '[data-artemis-component="workspace-dock"]',
+                      ),
                     };
                     window.__artemisSmokeDockTransition = {
                       before,
@@ -15882,6 +16196,7 @@ function createMainWindow(): BrowserWindow {
               window,
               requestedSmokeView,
             );
+            await driveSmokeWorkspaceDockEvidence(window, requestedSmokeView);
           }
           // PR10B review round 3 (nit 6): the user-input-transport PNG is
           // captured inside its evidence driver after the broker
@@ -16112,12 +16427,12 @@ function createMainWindow(): BrowserWindow {
                   ".environment-trigger",
                 );
                 const workspaceDockResizer = document.querySelector(
-                  ".workspace-dock-resizer",
+                  '[data-artemis-component="workspace-dock-resizer"]',
                 );
                 const workspaceDockResizerBounds = workspaceDockResizer
                   ?.getBoundingClientRect();
                 const workspaceDock = document.querySelector(
-                  ".workspace-tool-dock",
+                  '[data-artemis-component="workspace-dock"]',
                 );
                 const workspaceDockBounds = workspaceDock
                   ?.getBoundingClientRect();
@@ -16229,6 +16544,8 @@ function createMainWindow(): BrowserWindow {
                     : null,
                   dockTransition:
                     window.__artemisSmokeDockTransition ?? null,
+                  workspaceDockInteraction:
+                    window.__workspaceDockInteraction ?? null,
                   workspaceDockResizer: workspaceDockResizerBounds
                     ? {
                         left: workspaceDockResizerBounds.left,
@@ -16606,43 +16923,42 @@ function createMainWindow(): BrowserWindow {
                   },
                   markdownEditor: (() => {
                     const panel = document.querySelector(
-                      '.workspace-files-panel',
+                      '[data-artemis-component="workspace-file-layout"]',
                     );
-                    const editor = document.querySelector(
-                      '.workspace-markdown-editor',
+                    const editor = panel?.querySelector(
+                      '[data-artemis-component="workspace-editor-toolbar"]',
                     );
-                    const toolbar = document.querySelector(
-                      '.workspace-markdown-editor .workspace-editor-toolbar',
+                    const toolbar = editor;
+                    const status = editor?.querySelector(
+                      '[data-part="status"]',
                     );
-                    const status = document.querySelector(
-                      '.workspace-markdown-editor .workspace-file-save-state',
+                    const save = editor?.querySelector('[data-part="save"]');
+                    const alert = editor?.querySelector(
+                      ':scope > [data-part="error"][role="alert"]',
                     );
-                    const save = document.querySelector(
-                      '.workspace-markdown-editor .workspace-file-save',
+                    const textarea = editor?.querySelector(
+                      '[data-artemis-component="workspace-source-editor"] [data-part="source"]',
                     );
-                    const alert = document.querySelector(
-                      '.workspace-markdown-editor .workspace-file-editor-error[role="alert"]',
+                    const sourceEditor = textarea?.closest(
+                      '[data-artemis-component="workspace-source-editor"]',
                     );
-                    const textarea = document.querySelector(
-                      '.workspace-markdown-editor textarea',
+                    const preview = editor?.querySelector(
+                      '[data-artemis-component="workspace-preview"]',
                     );
-                    const preview = document.querySelector(
-                      '.workspace-markdown-editor .workspace-file-markdown-preview',
-                    );
-                    const modeToggle = document.querySelector(
-                      '.workspace-markdown-editor .workspace-editor-mode-toggle',
+                    const modeToggle = editor?.querySelector(
+                      '[data-part="mode"] [data-artemis-component="segmented-control"]',
                     );
                     const toggleButtons = [
-                      ...document.querySelectorAll(
-                        '.workspace-markdown-editor .workspace-editor-mode-toggle button',
-                      ),
+                      ...(modeToggle?.querySelectorAll('button') ?? []),
                     ];
                     const placeholders = [
-                      ...document.querySelectorAll(
-                        '.workspace-markdown-editor [data-workspace-image-failed]',
-                      ),
+                      ...(editor?.querySelectorAll(
+                        '[data-workspace-image-failed]',
+                      ) ?? []),
                     ];
-                    const binaryEmpty = panel?.querySelector('.preview-empty');
+                    const binaryEmpty = panel?.querySelector(
+                      '[data-artemis-component="workspace-content-state"]',
+                    );
                     return {
                       panelOpen: panel ? visible(panel) : false,
                       editorVisible: editor ? visible(editor) : false,
@@ -16650,14 +16966,14 @@ function createMainWindow(): BrowserWindow {
                       path:
                         panel
                           ?.querySelector(
-                            '.workspace-file-viewer-path > span[title]',
+                            '[data-artemis-component="workspace-editor-toolbar"] > [data-part="path"] > span[title], [data-artemis-component="workspace-file-header"] [data-part="path"][title]',
                           )
                           ?.getAttribute('title') ?? null,
                       statusRole: status?.getAttribute('role') ?? null,
                       statusLive: status?.getAttribute('aria-live') ?? null,
                       statusText: status?.textContent?.trim() ?? null,
                       statusDirty:
-                        status?.classList.contains('dirty') ?? false,
+                        editor?.getAttribute('data-state') === 'dirty',
                       savePresent: save !== null,
                       saveDisabled:
                         save instanceof HTMLButtonElement
@@ -16674,10 +16990,21 @@ function createMainWindow(): BrowserWindow {
                         textarea instanceof HTMLTextAreaElement
                           ? textarea.value
                           : null,
+                      sourceValueLength:
+                        textarea instanceof HTMLTextAreaElement
+                          ? textarea.value.length
+                          : null,
                       sourceDisabled:
                         textarea instanceof HTMLTextAreaElement
                           ? textarea.disabled
                           : null,
+                      sourceLanguage:
+                        sourceEditor?.getAttribute('data-language') ?? null,
+                      sourceState:
+                        sourceEditor?.getAttribute('data-state') ?? null,
+                      sourceHighlightPresent:
+                        sourceEditor?.querySelector('[data-part="highlight"]') !=
+                        null,
                       previewVisible: preview ? visible(preview) : false,
                       previewHeading:
                         preview?.querySelector('h1')?.textContent?.trim() ??
@@ -16710,14 +17037,17 @@ function createMainWindow(): BrowserWindow {
                         previewEmptyText:
                           binaryEmpty?.textContent?.trim() ?? null,
                         saveAbsent:
-                          panel?.querySelector('.workspace-file-save') == null,
+                          panel?.querySelector(
+                            '[data-artemis-component="workspace-editor-toolbar"] [data-part="save"]',
+                          ) == null,
                         statusAbsent:
-                          panel?.querySelector('.workspace-file-save-state') ==
-                          null,
+                          panel?.querySelector(
+                            '[data-artemis-component="workspace-editor-toolbar"] [data-part="status"]',
+                          ) == null,
                         editorAbsent:
-                          panel?.querySelector('.workspace-markdown-editor') ==
-                            null &&
-                          panel?.querySelector('textarea') == null,
+                          panel?.querySelector(
+                            '[data-artemis-component="workspace-editor-toolbar"]',
+                          ) == null && textarea == null,
                       },
                       focusTag: document.activeElement?.tagName ?? null,
                       statusTrace: window.__markdownEditorStatusTrace ?? null,
@@ -17246,9 +17576,13 @@ function createMainWindow(): BrowserWindow {
                         ),
                         context: root.closest('.token-usage-page')
                           ? 'token-usage'
-                          : root.closest('.workspace-markdown-editor')
+                          : root.closest(
+                                '[data-artemis-component="workspace-file-layout"]',
+                              )
                             ? 'workspace-editor'
-                            : root.closest('.markdown-reader-panel')
+                            : root.closest(
+                                  '[data-artemis-component="workspace-tab-pane"]',
+                                )
                               ? 'markdown-reader'
                               : 'other',
                         state: root.getAttribute('data-state'),

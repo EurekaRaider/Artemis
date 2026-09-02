@@ -20,6 +20,15 @@ function cssDeclarations(selector: string): string {
   return match?.groups?.body ?? "";
 }
 
+function publicUiCssDeclarations(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const match = publicUiStylesSource.match(
+    new RegExp(`${escaped}\\s*\\{(?<body>[^}]*)\\}`, "u"),
+  );
+  expect(match, `Missing public UI CSS selector ${selector}`).not.toBeNull();
+  return match?.groups?.body ?? "";
+}
+
 describe("reported issue regressions #94-#97", () => {
   it("offers copy actions for user and assistant messages and edit for interrupted turns", () => {
     const timeline = appSource.slice(
@@ -66,8 +75,10 @@ describe("reported issue regressions #94-#97", () => {
         '.environment-control[data-dock-open="true"] .environment-popover',
       ),
     ).toContain("inset-inline-end: var(--environment-panel-dock-offset, 0px)");
-    expect(cssDeclarations(".workspace-tool-dock")).toContain(
-      "240ms cubic-bezier(0.16, 1, 0.3, 1)",
+    expect(
+      publicUiCssDeclarations('[data-artemis-component="workspace-dock"]'),
+    ).toContain(
+      "var(--artemis-motion-duration-normal)\n        var(--artemis-motion-easing-shell)",
     );
   });
 });

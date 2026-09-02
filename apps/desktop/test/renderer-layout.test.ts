@@ -510,8 +510,8 @@ describe("renderer layout contract", () => {
   it("preserves the former command menu actions through their existing entry points", () => {
     expect(appSource).toContain("onClick={() => void openProject()}");
     expect(appSource).toContain('selectComposerCommand("/goal ")');
-    expect(appSource).toContain("onClick={openReviewPanel}");
-    expect(appSource).toContain("onClick={openTerminalPanel}");
+    expect(appSource).toContain("onActivate={openReviewPanel}");
+    expect(appSource).toContain("onActivate={openTerminalPanel}");
     expect(appSource).toContain("toggleReviewPanel();");
     expect(appSource).toContain("toggleTerminalPanel();");
   });
@@ -685,7 +685,7 @@ describe("renderer layout contract", () => {
   it("keeps fixed composer controls and the trailing send action visible in a narrow workspace", () => {
     const composerStart = appSource.indexOf('className="composer-toolbar"');
     const composerEnd = appSource.indexOf(
-      'className="workspace-tool-dock"',
+      "<WorkspaceDockResizer",
       composerStart,
     );
     const composerSource = appSource.slice(composerStart, composerEnd);
@@ -1822,12 +1822,16 @@ describe("renderer layout contract", () => {
   });
 
   it("opens a tabbed workspace launcher before mounting Review or Terminal", () => {
-    const launcher = cssRule(".right-sidebar-launcher");
-    const launcherItem = cssRule(".right-sidebar-launcher-item");
-    const resizer = cssRule(".workspace-dock-resizer");
-    const launcherStart = appSource.indexOf(
-      '<div className="right-sidebar-launcher">',
+    const launcher = publicUiCssRule(
+      '[data-artemis-component="workspace-launcher"]',
     );
+    const launcherItem = publicUiCssRule(
+      '[data-artemis-component="workspace-launcher"] [data-part="action"]',
+    );
+    const resizer = publicUiCssRule(
+      '[data-artemis-component="workspace-dock-resizer"]',
+    );
+    const launcherStart = appSource.indexOf("<WorkspaceLauncher");
     const launcherEnd = appSource.indexOf(
       "{workspaceTabs.tabs.map((tab) => (",
       launcherStart,
@@ -1837,17 +1841,17 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('from "./workspace-tabs.js"');
     expect(appSource).toContain("const [workspaceTabsByThread");
     expect(appSource).toContain('className="right-sidebar-toggle"');
-    expect(appSource).toContain('className="workspace-tab-bar"');
+    expect(appSource).toContain("<WorkspaceTabBar");
     expect(appSource).toContain("workspaceTabs.tabs.length === 0");
     expect(appSource).toContain('tab.kind === "review"');
     expect(appSource).toContain('tab.kind === "terminal"');
     expect(appSource).toContain('tab.kind === "browser"');
     expect(appSource).toContain('tab.kind === "markdown"');
     expect(appSource).toContain('tab.kind === "file"');
-    expect(appSource).toContain("onClick={openReviewPanel}");
-    expect(appSource).toContain("onClick={openTerminalPanel}");
-    expect(appSource).toContain("onClick={openBrowserPanel}");
-    expect(appSource).toContain("onClick={openFilesPanel}");
+    expect(appSource).toContain("onActivate={openReviewPanel}");
+    expect(appSource).toContain("onActivate={openTerminalPanel}");
+    expect(appSource).toContain("onActivate={openBrowserPanel}");
+    expect(appSource).toContain("onActivate={openFilesPanel}");
     expect(launcherStart).toBeGreaterThan(-1);
     expect(launcherEnd).toBeGreaterThan(launcherStart);
     expect(launcherSource).not.toContain("openMarkdownPanel");
@@ -1855,7 +1859,7 @@ describe("renderer layout contract", () => {
     expect(appSource).not.toContain("const [reviewOpen");
     expect(appSource).not.toContain("const [terminalOpen");
     expect(resizer).toMatch(/\bcursor:\s*col-resize/u);
-    expect(launcher).toMatch(/\bmin-width:/u);
+    expect(launcher).toMatch(/\bmin-inline-size:/u);
     expect(launcherItem).toMatch(/\bgrid-template-columns:/u);
   });
 
@@ -1993,16 +1997,11 @@ describe("renderer layout contract", () => {
   it("switches the Markdown reader between rich and source views", () => {
     expect(workspacePreviewSource).toContain("<MarkdownContent");
     expect(workspacePreviewSource).toContain('useState<"rich" | "source">');
-    expect(workspacePreviewSource).toContain("onValueChange={setView}");
-    expect(workspacePreviewSource).toContain(
-      '{ value: "rich", label: props.richLabel }',
-    );
-    expect(workspacePreviewSource).toContain(
-      '{ value: "source", label: props.sourceLabel }',
-    );
-    expect(workspacePreviewSource).toContain(
-      'className="markdown-reader-mode-toggle"',
-    );
+    expect(workspacePreviewSource).toContain("onChange: setView");
+    expect(workspacePreviewSource).toContain("richLabel: props.richLabel");
+    expect(workspacePreviewSource).toContain("sourceLabel: props.sourceLabel");
+    expect(workspacePreviewSource).toContain("<WorkspacePreview");
+    expect(workspacePreviewSource).toContain("<WorkspaceSourceEditor");
     expect(workspacePreviewSource).toContain("readWorkspaceImage(");
     expect(workspacePreviewSource).toContain("resolveImage={resolveImage}");
     expect(apiSource).toContain("readWorkspaceImage(");
@@ -2033,7 +2032,7 @@ describe("renderer layout contract", () => {
     expect(workspaceFilesSource).not.toContain(
       "onOpenMarkdown(path: string): void",
     );
-    expect(workspaceFilesSource).toContain('className="workspace-file-filter"');
+    expect(workspaceFilesSource).toContain("<WorkspaceFileTree");
     expect(appSource).toContain('tab.kind === "file"');
     expect(appSource).toContain('openWorkspaceTab("browser"');
     expect(apiSource).toContain("listWorkspaceDirectory(");
@@ -2047,8 +2046,9 @@ describe("renderer layout contract", () => {
     const reviewIndex = appSource.indexOf('className="review-panel"');
     const terminalIndex = appSource.indexOf("<TerminalPanel");
     const terminalPanel = cssRule(".terminal-panel");
-    const dock = cssRule(".workspace-tool-dock");
-    const resizer = cssRule(".workspace-dock-resizer");
+    const resizer = publicUiCssRule(
+      '[data-artemis-component="workspace-dock-resizer"]',
+    );
 
     expect(workspaceContentIndex).toBeGreaterThan(-1);
     expect(reviewIndex).toBeGreaterThan(workspaceContentIndex);
@@ -2071,14 +2071,15 @@ describe("renderer layout contract", () => {
     const collapsedSidebar = publicUiCssRule(
       '[data-artemis-component="navigation-sidebar"][data-state="collapsed"]',
     );
-    const dock = cssRule(".workspace-tool-dock");
-    const resizer = cssRule(".workspace-dock-resizer");
+    const dock = publicUiCssRule('[data-artemis-component="workspace-dock"]');
+    const resizer = publicUiCssRule(
+      '[data-artemis-component="workspace-dock-resizer"]',
+    );
     const projectSidebarResizer = publicUiCssRule(
       '[data-artemis-component="application-shell-resizer"]',
     );
-    const closedDock = cssRule('.workspace-tool-dock[data-open="false"]');
-    const reducedMotion = cssAtRule(
-      /@media\s*\(prefers-reduced-motion:\s*reduce\)/u,
+    const closedDock = publicUiCssRule(
+      '[data-artemis-component="workspace-dock"][data-state="closed"]',
     );
 
     expect(appSource).toContain("function LeftSidebarIcon()");
@@ -2090,12 +2091,14 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain(
       "onClick={() => setSidebarOpen((open) => !open)}",
     );
-    expect(appSource).toContain("data-open={workspaceDockOpen}");
-    expect(appSource).toContain("aria-hidden={!workspaceDockOpen}");
-    expect(appSource).toContain('role="separator"');
-    expect(appSource).toContain('aria-orientation="vertical"');
+    expect(appSource).toContain("open={workspaceDockOpen}");
+    expect(appSource).toContain('controls="conversation workspace-tool-dock"');
     expect(appSource).toContain("onPointerDown={beginWorkspaceDockResize}");
     expect(appSource).toContain("onKeyDown={resizeWorkspaceDockFromKeyboard}");
+    expect(appSource).toMatch(
+      /event\.key === "Home"[\s\S]{0,160}?clientWidth[\s\S]{0,80}?0\.62/u,
+    );
+    expect(appSource).toMatch(/event\.key === "End"[\s\S]{0,80}?bounds\.max/u);
     expect(apiSource).toContain("setWorkspaceDockWidth(width: number)");
     expect(preloadSource).toContain("setWorkspaceDockWidth: (width)");
     expect(appSource).toContain("onPointerDown={beginProjectSidebarResize}");
@@ -2134,10 +2137,10 @@ describe("renderer layout contract", () => {
     expect(dock).toMatch(
       /\bflex:\s*0\s+1\s+var\(--workspace-dock-width,\s*62%\)/u,
     );
-    expect(dock).toMatch(/\bwidth:\s*var\(--workspace-dock-width/u);
-    expect(dock).toMatch(/calc\(100%\s*-\s*327px\)/u);
+    expect(dock).toMatch(/\binline-size:\s*var\(--workspace-dock-width/u);
+    expect(dock).toMatch(/calc\(100%\s*-\s*20\.4375rem\)/u);
     expect(dock).toMatch(/transition:/u);
-    expect(resizer).toMatch(/\bflex:\s*0\s+0\s+7px/u);
+    expect(resizer).toMatch(/\bflex:\s*0\s+0\s+0\.4375rem/u);
     expect(closedDock).toMatch(/\bflex-basis:\s*0/u);
     expect(closedDock).toMatch(/\bopacity:\s*0/u);
     expect(closedDock).toMatch(/\btransform:\s*translateX\(/u);
@@ -2145,9 +2148,9 @@ describe("renderer layout contract", () => {
     expect(publicUiStylesSource).toMatch(
       /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*application-shell[\s\S]*navigation-sidebar/u,
     );
-    expect(reducedMotion).toContain(".workspace-dock-resizer");
-    expect(reducedMotion).toContain(".workspace-tool-dock");
-    expect(reducedMotion).toMatch(/transition:\s*none/u);
+    expect(publicUiStylesSource).toMatch(
+      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*workspace-dock[\s\S]*transition:\s*none/u,
+    );
   });
 
   it("keeps the public reference-slice surface boundary presentation-only", () => {

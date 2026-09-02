@@ -53,7 +53,7 @@ describe("Codex-style child-agent workspace tabs", () => {
   it("renders each open child agent from the live protocol reducer state", () => {
     const dockSource = between(
       appSource,
-      'className="workspace-tool-dock"',
+      "<WorkspaceDock",
       "{settingsOpen && (",
     );
 
@@ -92,8 +92,8 @@ describe("Codex-style child-agent workspace tabs", () => {
   it("closes only the selected output tab and never sends an agent lifecycle command", () => {
     const closeButtonSource = between(
       appSource,
-      'className="workspace-tab-close"',
-      "</button>",
+      "closeLabel={`${t.closeTab}",
+      "panelId={`${workspaceTabDomId",
     );
     const closeHandlerSource = between(
       appSource,

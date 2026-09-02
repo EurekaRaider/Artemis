@@ -1,6 +1,9 @@
-import { useMemo, useRef, type UIEvent } from "react";
+import { useMemo } from "react";
 
-import { WorkspaceEditorToolbar } from "./WorkspaceEditorToolbar.js";
+import {
+  WorkspaceEditorToolbar,
+  WorkspaceSourceEditor,
+} from "@artemis/ui/workspace";
 import {
   filePresentation,
   tokenizeSourceLine,
@@ -68,19 +71,12 @@ export function WorkspaceFileEditor({
   onChange,
   onSave,
 }: WorkspaceFileEditorProps) {
-  const highlight = useRef<HTMLPreElement>(null);
   const presentation = filePresentation(path);
   const highlightedLines = useMemo(
     () => tokensByLine(content, presentation.language),
     [content, presentation.language],
   );
   const highlightsEnabled = content.length <= 250_000;
-
-  const syncScroll = (event: UIEvent<HTMLTextAreaElement>) => {
-    if (!highlight.current) return;
-    highlight.current.scrollLeft = event.currentTarget.scrollLeft;
-    highlight.current.scrollTop = event.currentTarget.scrollTop;
-  };
 
   // exactOptionalPropertyTypes: forward saveError only when defined so the
   // shared toolbar's optional prop stays absent rather than explicitly
@@ -103,23 +99,11 @@ export function WorkspaceFileEditor({
       unsavedLabel={unsavedLabel}
       onSave={onSave}
     >
-      <div
-        className={
+      <WorkspaceSourceEditor
+        disabled={readOnly}
+        highlight={
           highlightsEnabled
-            ? "workspace-code-editor"
-            : "workspace-code-editor plain"
-        }
-        data-file-type={presentation.type}
-        data-language={presentation.language}
-      >
-        {highlightsEnabled && (
-          <pre
-            aria-hidden="true"
-            className="workspace-code-highlight"
-            ref={highlight}
-          >
-            <code>
-              {highlightedLines.map((tokens, lineIndex) => (
+            ? highlightedLines.map((tokens, lineIndex) => (
                 <span className="workspace-code-line" key={lineIndex}>
                   <span className="workspace-code-line-number">
                     {lineIndex + 1}
@@ -138,22 +122,17 @@ export function WorkspaceFileEditor({
                   </span>
                   {"\n"}
                 </span>
-              ))}
-            </code>
-          </pre>
-        )}
-        <textarea
-          aria-label={ariaLabel}
-          className="workspace-file-editor"
-          data-language={presentation.language}
-          disabled={readOnly}
-          onChange={(event) => onChange(event.target.value)}
-          onScroll={syncScroll}
-          spellCheck={false}
-          value={content}
-          wrap="off"
-        />
-      </div>
+              ))
+            : undefined
+        }
+        label={ariaLabel}
+        language={presentation.language}
+        onChange={(event) => onChange(event.target.value)}
+        readOnly={readOnly}
+        spellCheck={false}
+        value={content}
+        wrap="off"
+      />
     </WorkspaceEditorToolbar>
   );
 }

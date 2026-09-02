@@ -266,7 +266,8 @@ describe("task environment panel state", () => {
       'import { Popover } from "@artemis/ui/feedback"',
     );
     expect(appSource).not.toContain("environmentPanelOpen");
-    expect(appSource).toContain('className="workspace-tool-dock"');
+    expect(appSource).toContain("<WorkspaceDock");
+    expect(appSource).toContain('id="workspace-tool-dock"');
   });
 
   it("restores the panel after an auto-hidden narrow layout becomes wide", () => {

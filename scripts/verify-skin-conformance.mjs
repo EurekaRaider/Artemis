@@ -42,6 +42,10 @@ const REQUIRED_SKIN_CASES = [
   "conversation-state-matrix",
   "conversation-controlled-events",
   "conversation-rtl-long-content",
+  "workspace-anatomy",
+  "workspace-state-matrix",
+  "workspace-controlled-events",
+  "workspace-rtl-long-content",
 ];
 const REQUIRED_SWITCH_CASES = [
   "same-node",
@@ -2573,6 +2577,18 @@ expectedCssRules.set(
     "max-block-size": "min(17.5rem, 18vh)",
   },
 );
+const MIG3A_EXPECTED_CSS_RULES = JSON.parse(
+  await readFile(
+    join(root, "scripts/mig3a-workspace-css-contract.json"),
+    "utf8",
+  ),
+);
+for (const [key, declarations] of MIG3A_EXPECTED_CSS_RULES) {
+  if (expectedCssRules.has(key)) {
+    throw new Error(`MIG3A UI structural CSS rule duplicates ${key}`);
+  }
+  expectedCssRules.set(key, declarations);
+}
 
 function verifyStructuralCss(css, from, tokenFamilies) {
   const parsed = postcss.parse(css, { from });
@@ -2722,13 +2738,17 @@ function verifyStructuralCss(css, from, tokenFamilies) {
       throw new Error("UI structural CSS contains an unexpected at-rule");
     }
     const media = normalizeWhitespace(node.params);
-    if (media === "(max-width: 1100px)" && node.nodes.length === 3) {
+    if (media === "(max-width: 1100px)" && node.nodes.length === 5) {
       for (const nested of node.nodes) verifyRule(nested, "compact-width");
+      continue;
+    }
+    if (media === "(max-width: 820px)" && node.nodes.length === 2) {
+      for (const nested of node.nodes) verifyRule(nested, "narrow-width");
       continue;
     }
     if (
       media === "(prefers-reduced-motion: reduce)" &&
-      node.nodes.length === 10
+      node.nodes.length === 11
     ) {
       for (const nested of node.nodes) verifyRule(nested, "reduced-motion");
       continue;
@@ -2799,6 +2819,9 @@ const patterns = await import(
 const surfaces = await import(
   pathToFileURL(join(root, "packages/ui/dist/surfaces.js")).href
 );
+const workspace = await import(
+  pathToFileURL(join(root, "packages/ui/dist/workspace.js")).href
+);
 const themeContract = await import(
   pathToFileURL(join(root, "packages/theme-contract/dist/index.js")).href
 );
@@ -2853,6 +2876,11 @@ for (const [label, candidate, validate] of [
     "surfaces",
     surfaces.SURFACE_COMPONENT_CONTRACTS,
     surfaces.validateSurfaceComponentContracts,
+  ],
+  [
+    "workspace",
+    workspace.WORKSPACE_COMPONENT_CONTRACTS,
+    workspace.validateWorkspaceComponentContracts,
   ],
 ]) {
   const candidateReport = validate(candidate);
@@ -3018,6 +3046,7 @@ for (const specifier of [
   "@artemis/ui/layout",
   "@artemis/ui/patterns",
   "@artemis/ui/surfaces",
+  "@artemis/ui/workspace",
 ]) {
   const resolved = import.meta.resolve(specifier);
   const expectedRoot = pathToFileURL(join(root, "packages/ui/dist/")).href;
@@ -3095,6 +3124,13 @@ verifyStructuralCss(css, cssPath, [
       (contract) => contract.name,
     ),
     mutableTokens: surfaces.SURFACE_COMPONENT_MUTABLE_TOKENS,
+  },
+  {
+    label: "workspace",
+    components: Object.values(workspace.WORKSPACE_COMPONENT_CONTRACTS).map(
+      (contract) => contract.name,
+    ),
+    mutableTokens: workspace.WORKSPACE_COMPONENT_MUTABLE_TOKENS,
   },
 ]);
 

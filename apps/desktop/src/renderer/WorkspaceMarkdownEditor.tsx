@@ -1,10 +1,12 @@
 import { useCallback, useState } from "react";
-
-import { MarkdownContent } from "./MarkdownContent.js";
 import {
   WorkspaceEditorToolbar,
+  WorkspacePreview,
+  WorkspaceSourceEditor,
   type WorkspaceEditorView,
-} from "./WorkspaceEditorToolbar.js";
+} from "@artemis/ui/workspace";
+
+import { MarkdownContent } from "./MarkdownContent.js";
 
 interface WorkspaceMarkdownEditorProps {
   ariaLabel: string;
@@ -73,44 +75,45 @@ export function WorkspaceMarkdownEditor({
   const imageProps = imageFailureText === undefined ? {} : { imageFailureText };
 
   return (
-    <div className="workspace-markdown-editor">
-      <WorkspaceEditorToolbar
-        dirty={dirty}
-        modeToggle={{
-          ariaLabel,
-          onChange: changeView,
-          richLabel,
-          sourceLabel,
-          value: view,
-        }}
-        path={path}
-        readOnly={readOnly}
-        {...errorProps}
-        saveLabel={saveLabel}
-        savedLabel={savedLabel}
-        saveState={saveState}
-        savingLabel={savingLabel}
-        unsavedLabel={unsavedLabel}
-        onSave={onSave}
-      >
-        {view === "rich" ? (
+    <WorkspaceEditorToolbar
+      dirty={dirty}
+      modeToggle={{
+        ariaLabel,
+        onChange: changeView,
+        richLabel,
+        sourceLabel,
+        value: view,
+      }}
+      path={path}
+      readOnly={readOnly}
+      {...errorProps}
+      saveLabel={saveLabel}
+      savedLabel={savedLabel}
+      saveState={saveState}
+      savingLabel={savingLabel}
+      unsavedLabel={unsavedLabel}
+      onSave={onSave}
+    >
+      {view === "rich" ? (
+        <WorkspacePreview label={ariaLabel} readOnly={readOnly}>
           <MarkdownContent
-            className="markdown-reader-content workspace-file-markdown-preview"
             {...imageProps}
             resolveImage={resolveImage}
             text={content}
           />
-        ) : (
-          <textarea
-            aria-label={ariaLabel}
-            className="markdown-reader-source"
-            disabled={readOnly}
-            onChange={(event) => onChange(event.target.value)}
-            spellCheck={false}
-            value={content}
-          />
-        )}
-      </WorkspaceEditorToolbar>
-    </div>
+        </WorkspacePreview>
+      ) : (
+        <WorkspaceSourceEditor
+          disabled={readOnly}
+          label={ariaLabel}
+          language="markdown"
+          onChange={(event) => onChange(event.target.value)}
+          readOnly={readOnly}
+          spellCheck={false}
+          value={content}
+          variant="markdown"
+        />
+      )}
+    </WorkspaceEditorToolbar>
   );
 }

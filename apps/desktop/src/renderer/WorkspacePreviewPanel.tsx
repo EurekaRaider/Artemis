@@ -6,7 +6,12 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { SegmentedControl } from "@artemis/ui/navigation";
+import {
+  WorkspaceContentState,
+  WorkspaceEditorToolbar,
+  WorkspacePreview,
+  WorkspaceSourceEditor,
+} from "@artemis/ui/workspace";
 
 import type { WorkspaceTextFile } from "../shared/api.js";
 import {
@@ -387,90 +392,66 @@ export function MarkdownReaderPanel(props: MarkdownReaderProps) {
       });
   };
 
+  const editorLabel = `${props.editLabel}: ${file?.path ?? props.path ?? props.title}`;
+
   return (
-    <section className="markdown-reader-panel">
-      <div className="preview-panel-header">
-        <strong className="preview-file-path" title={file?.path ?? props.path}>
-          {file?.path ?? props.title}
-        </strong>
-        <div className="markdown-reader-actions">
-          <SegmentedControl
-            className="markdown-reader-mode-toggle"
-            label={props.title}
-            onValueChange={setView}
-            options={[
-              { value: "rich", label: props.richLabel },
-              { value: "source", label: props.sourceLabel },
-            ]}
-            size="compact"
-            value={view}
-          />
-          <button
-            className="text-button"
-            disabled={!props.path || loading}
-            onClick={refresh}
-          >
-            {props.refreshLabel}
-          </button>
-          <span
-            className={
-              dirty
-                ? "markdown-reader-save-state dirty"
-                : "markdown-reader-save-state"
-            }
-          >
-            {saveState === "saving"
-              ? props.savingLabel
-              : dirty
-                ? props.unsavedLabel
-                : saveState === "saved"
-                  ? props.savedLabel
-                  : ""}
-          </span>
-          <button
-            className="markdown-reader-save"
-            disabled={!dirty || saveState === "saving"}
-            onClick={saveMarkdown}
-          >
-            {props.saveLabel}
-          </button>
-        </div>
-      </div>
-      {saveError && (
-        <div className="workspace-file-editor-error">{saveError}</div>
-      )}
+    <WorkspaceEditorToolbar
+      dirty={dirty}
+      modeToggle={{
+        ariaLabel: props.title,
+        onChange: setView,
+        richLabel: props.richLabel,
+        sourceLabel: props.sourceLabel,
+        value: view,
+      }}
+      onSave={saveMarkdown}
+      path={file?.path ?? props.path ?? props.title}
+      readOnly={false}
+      saveError={saveError}
+      saveLabel={props.saveLabel}
+      savedLabel={props.savedLabel}
+      saveState={saveState}
+      savingLabel={props.savingLabel}
+      tools={
+        <button
+          className="text-button"
+          disabled={!props.path || loading}
+          onClick={refresh}
+          type="button"
+        >
+          {props.refreshLabel}
+        </button>
+      }
+      unsavedLabel={props.unsavedLabel}
+    >
       {content === undefined ? (
-        <div className={error ? "preview-empty error" : "preview-empty"}>
+        <WorkspaceContentState
+          label={error ?? (loading ? props.refreshLabel : props.emptyMessage)}
+          state={error ? "error" : loading ? "loading" : "empty"}
+        >
           {error ?? (loading ? "…" : props.emptyMessage)}
-        </div>
+        </WorkspaceContentState>
       ) : view === "rich" ? (
-        <MarkdownContent
-          className="markdown-reader-content"
-          imageFailureText={props.imageFailureMessage}
-          resolveImage={resolveImage}
-          text={draft}
-        />
+        <WorkspacePreview label={editorLabel}>
+          <MarkdownContent
+            imageFailureText={props.imageFailureMessage}
+            resolveImage={resolveImage}
+            text={draft}
+          />
+        </WorkspacePreview>
       ) : (
-        <textarea
-          aria-label={`${props.editLabel}: ${file?.path ?? props.path ?? props.title}`}
-          className="markdown-reader-source"
+        <WorkspaceSourceEditor
+          label={editorLabel}
+          language="markdown"
           onChange={(event) => {
             setDraft(event.target.value);
             setSaveState("idle");
           }}
-          onKeyDown={(event) => {
-            if (
-              (event.ctrlKey || event.metaKey) &&
-              event.key.toLowerCase() === "s"
-            ) {
-              event.preventDefault();
-              saveMarkdown();
-            }
-          }}
           spellCheck={false}
           value={draft}
+          variant="markdown"
         />
       )}
-    </section>
+    </WorkspaceEditorToolbar>
   );
 }

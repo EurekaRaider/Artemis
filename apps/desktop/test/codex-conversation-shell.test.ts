@@ -341,9 +341,9 @@ describe("Codex conversation shell contract", () => {
         '[data-artemis-component="conversation-surface"]',
       ),
     ).toMatch(/\bbackground:\s*var\(--artemis-color-canvas\)/u);
-    expect(cssDeclarations(".workspace-tool-dock")).toMatch(
-      /\bbackground:\s*var\(--codex-workspace-bg\)/u,
-    );
+    expect(
+      publicUiCssDeclarations('[data-artemis-component="workspace-dock"]'),
+    ).toMatch(/\bbackground:\s*var\(--artemis-color-surface-base\)/u);
     expect(cssDeclarations(".workspace")).toMatch(
       /\bborder-top-left-radius:\s*0/u,
     );

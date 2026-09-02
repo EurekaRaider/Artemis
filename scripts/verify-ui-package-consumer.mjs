@@ -97,6 +97,8 @@ try {
       "dist/patterns.d.ts",
       "dist/surfaces.js",
       "dist/surfaces.d.ts",
+      "dist/workspace.js",
+      "dist/workspace.d.ts",
       "dist/styles.css",
     ]),
     await pack("packages/theme-artemis", [
@@ -192,6 +194,38 @@ void invalidMemberMissing;
     "utf8",
   );
   await writeFile(
+    join(consumer, "workspace-consumer.ts"),
+    `import { createElement } from "react";
+import {
+  WORKSPACE_COMPONENT_CONTRACTS,
+  WorkspaceDock,
+  WorkspaceEditorToolbar,
+  WorkspaceSourceEditor,
+  type WorkspaceComponentState,
+  type WorkspaceEditorToolbarProps,
+} from "@artemis/ui/workspace";
+
+const state: WorkspaceComponentState = "dirty";
+const toolbar: WorkspaceEditorToolbarProps = {
+  dirty: true,
+  onSave() {},
+  path: "README.md",
+  readOnly: false,
+  saveLabel: "Save",
+  savedLabel: "Saved",
+  saveState: "idle",
+  savingLabel: "Saving",
+  unsavedLabel: "Unsaved",
+};
+const dock = createElement(WorkspaceDock, { children: "Content", label: "Workspace", open: true });
+const editor = createElement(WorkspaceEditorToolbar, toolbar, createElement(WorkspaceSourceEditor, { label: "Source", language: "markdown", value: "# README" }));
+if (!Object.isFrozen(WORKSPACE_COMPONENT_CONTRACTS) || state !== "dirty") throw new Error("invalid workspace contract");
+void dock;
+void editor;
+`,
+    "utf8",
+  );
+  await writeFile(
     join(consumer, "tsconfig.json"),
     `${JSON.stringify(
       {
@@ -203,7 +237,11 @@ void invalidMemberMissing;
           skipLibCheck: true,
           noEmit: true,
         },
-        include: ["consumer.ts", "pattern-label-types.ts"],
+        include: [
+          "consumer.ts",
+          "pattern-label-types.ts",
+          "workspace-consumer.ts",
+        ],
       },
       null,
       2,
@@ -279,6 +317,18 @@ if (!Object.isFrozen(SURFACE_COMPONENT_CONTRACTS) || !shell.includes('data-artem
     "utf8",
   );
   run(process.execPath, ["surfaces-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "workspace-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { WORKSPACE_COMPONENT_CONTRACTS, WorkspaceDock, WorkspaceEditorToolbar, WorkspaceSourceEditor, WorkspaceTab, WorkspaceTabBar, WorkspaceTabPane } from "@artemis/ui/workspace";
+const tabs = renderToStaticMarkup(createElement(WorkspaceDock, { label: "Workspace", open: true }, createElement(WorkspaceTabBar, { label: "Workspace tabs" }, createElement(WorkspaceTab, { active: true, closeIcon: createElement("span"), closeLabel: "Close README", id: "readme-tab", label: "README.md", onClose() {}, onSelect() {}, panelId: "readme-panel", tabIndex: 0 })), createElement(WorkspaceTabPane, { active: true, id: "readme-panel", labelledBy: "readme-tab" }, "README")));
+const editor = renderToStaticMarkup(createElement(WorkspaceEditorToolbar, { dirty: true, onSave() {}, path: "README.md", readOnly: false, saveLabel: "Save", savedLabel: "Saved", saveState: "idle", savingLabel: "Saving", unsavedLabel: "Unsaved" }, createElement(WorkspaceSourceEditor, { label: "Source", language: "markdown", value: "# README" })));
+if (!Object.isFrozen(WORKSPACE_COMPONENT_CONTRACTS) || !tabs.includes('data-artemis-component="workspace-dock"') || !tabs.includes('data-artemis-component="workspace-tab-bar"') || !tabs.includes('aria-controls="readme-panel"') || !editor.includes('data-artemis-component="workspace-editor-toolbar"') || !editor.includes('data-artemis-component="workspace-source-editor"')) throw new Error("workspace peer/component resolution failed");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["workspace-consumer.mjs"], consumer);
   run(npm, ["ls", "--all", "react", "react-dom"], consumer);
 
   await writeFile(

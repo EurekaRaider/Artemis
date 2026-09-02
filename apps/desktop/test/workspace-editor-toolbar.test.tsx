@@ -15,7 +15,7 @@ import {
   type WorkspaceEditorModeToggle,
   type WorkspaceEditorToolbarProps,
   type WorkspaceEditorView,
-} from "../src/renderer/WorkspaceEditorToolbar.js";
+} from "@artemis/ui/workspace";
 
 const editorLabel = "Editor content";
 
@@ -150,9 +150,7 @@ describe("WorkspaceEditorToolbar contract (D#76 PR7 §5 shared toolbar)", () => 
     });
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Workspace file exceeds 4 MiB.");
-    const detail = alert.querySelector(
-      "small.workspace-file-editor-error-detail",
-    );
+    const detail = alert.querySelector('small[data-part="error-detail"]');
     expect(detail).not.toBeNull();
     expect(detail).toHaveTextContent("notes/big.md is 5.1 MiB");
   });
@@ -165,9 +163,7 @@ describe("WorkspaceEditorToolbar contract (D#76 PR7 §5 shared toolbar)", () => 
     renderToolbar({ overrides: { saveError: "Write failed" } });
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Write failed");
-    expect(
-      alert.querySelector("small.workspace-file-editor-error-detail"),
-    ).toBeNull();
+    expect(alert.querySelector('small[data-part="error-detail"]')).toBeNull();
   });
 
   it("disables Save when the draft is clean (save button)", async () => {
