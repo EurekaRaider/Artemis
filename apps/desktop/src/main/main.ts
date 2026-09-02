@@ -15021,6 +15021,14 @@ function createMainWindow(): BrowserWindow {
                                 timelineScroll.clientHeight),
                           ) <= 1,
                         collapsedVisible,
+                        collapsedGeometry: {
+                          bottom: collapsedBounds.bottom,
+                          top: collapsedBounds.top,
+                        },
+                        collapsedScrollGeometry: {
+                          bottom: collapsedScrollBounds.bottom,
+                          top: collapsedScrollBounds.top,
+                        },
                         contentVisible:
                           content instanceof HTMLElement && !content.hidden,
                         expanded:
@@ -15030,6 +15038,17 @@ function createMainWindow(): BrowserWindow {
                           contentBounds.bottom <=
                             expandedScrollBounds.bottom + 1 &&
                           contentBounds.bottom >= expandedScrollBounds.top - 1,
+                        expandedEndGeometry:
+                          contentBounds instanceof DOMRect
+                            ? {
+                                bottom: contentBounds.bottom,
+                                top: contentBounds.top,
+                              }
+                            : null,
+                        expandedScrollGeometry: {
+                          bottom: expandedScrollBounds.bottom,
+                          top: expandedScrollBounds.top,
+                        },
                         groupItems,
                         state: disclosure.getAttribute('data-state'),
                         timelineScrollable:
