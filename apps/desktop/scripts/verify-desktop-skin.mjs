@@ -935,10 +935,27 @@ async function verifyReferenceSliceGeometry(connection) {
     await dispatchSidebarResizeKey("ArrowRight");
   }
   const keyboardSidebarWidth = Math.min(420, initialSidebarWidth + 72);
-  await waitFor(
+  const keyboardState = await evaluate(
     connection,
-    `document.querySelector('[data-artemis-component="application-shell-resizer"]')?.getAttribute("aria-valuenow") === ${JSON.stringify(String(keyboardSidebarWidth))}`,
-    "compact viewport keyboard sidebar resize",
+    `(() => {
+      const resizer = document.querySelector(
+        '[data-artemis-component="application-shell-resizer"]',
+      );
+      const sidebar = document.querySelector(
+        '[data-artemis-component="navigation-sidebar"]',
+      );
+      return {
+        active: document.activeElement === resizer,
+        ariaValue: resizer?.getAttribute("aria-valuenow"),
+        sidebarWidth: sidebar?.getBoundingClientRect().width,
+      };
+    })()`,
+  );
+  assert(
+    keyboardState.active &&
+      keyboardState.ariaValue === String(keyboardSidebarWidth) &&
+      Math.abs(keyboardState.sidebarWidth - keyboardSidebarWidth) <= 1,
+    `Compact keyboard resize did not reach ${String(keyboardSidebarWidth)}px: ${JSON.stringify(keyboardState)}`,
   );
   const afterKeyboardResize = await referenceSliceGeometry(connection);
   assert(
