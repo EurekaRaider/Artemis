@@ -8,6 +8,10 @@ export interface WorkspaceDockWidthBounds {
   max: number;
 }
 
+export type WorkspaceDirection = "ltr" | "rtl";
+export type WorkspaceDockResizeKey =
+  "ArrowLeft" | "ArrowRight" | "Home" | "End";
+
 export function workspaceDockWidthBounds(
   workspaceWidth: number,
   viewportWidth: number,
@@ -36,4 +40,34 @@ export function clampWorkspaceDockWidth(
   bounds: WorkspaceDockWidthBounds,
 ): number {
   return Math.round(Math.min(bounds.max, Math.max(bounds.min, width)));
+}
+
+export function workspaceDockWidthAfterPointer(
+  startWidth: number,
+  startX: number,
+  clientX: number,
+  direction: WorkspaceDirection,
+  bounds: WorkspaceDockWidthBounds,
+): number {
+  const delta = direction === "rtl" ? clientX - startX : startX - clientX;
+  return clampWorkspaceDockWidth(startWidth + delta, bounds);
+}
+
+export function workspaceDockWidthAfterKey(
+  currentWidth: number,
+  key: WorkspaceDockResizeKey,
+  direction: WorkspaceDirection,
+  bounds: WorkspaceDockWidthBounds,
+  workspaceWidth: number,
+  step: number,
+): number {
+  if (key === "Home") {
+    return clampWorkspaceDockWidth(workspaceWidth * 0.62, bounds);
+  }
+  if (key === "End") return bounds.max;
+  const increaseKey = direction === "rtl" ? "ArrowRight" : "ArrowLeft";
+  return clampWorkspaceDockWidth(
+    currentWidth + (key === increaseKey ? step : -step),
+    bounds,
+  );
 }

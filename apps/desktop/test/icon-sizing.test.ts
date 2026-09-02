@@ -219,12 +219,6 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
   const UNMIGRATED_RULES: Array<[string, number, boolean]> = [
     [".environment-trigger svg", 20, false],
     [".agent-team-member-disclosure svg", 12, false],
-    [".workspace-tab-select > svg", 17, false],
-    [
-      ".workspace-tab-select > .workspace-file-kind .seti-file-icon svg",
-      18,
-      false,
-    ],
     [
       ".workspace-file-kind .seti-file-icon,\n.workspace-file-kind .seti-file-icon svg",
       21,
@@ -232,8 +226,6 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     ],
     [".workspace-tab-menu svg", 17, false],
     [".sources-panel-icon svg", 22, false],
-    [".workspace-file-refresh svg", 17, false],
-    [".workspace-file-chevron svg", 16, false],
     [
       ".library-hero-icon svg,\n.catalog-tabs svg,\n.catalog-card-icon svg,\n.library-search svg,\n.catalog-search svg",
       24,

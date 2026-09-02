@@ -406,6 +406,12 @@ other everyday tasks.
 The right workspace keeps source code, documents, research and task output
 beside the conversation:
 
+Its public Workspace surfaces keep launcher actions, closable tabs, file trees,
+source and Markdown editing, save/error status and the resizable Dock consistent
+across themes. The Dock starts at 62% of the available workspace, preserves the
+conversation minimum, supports pointer and Arrow/Home/End resizing in both LTR
+and RTL layouts, and remembers the chosen width.
+
 <table>
   <tr>
     <td width="50%" valign="top"><p><strong>REVIEW</strong></p><p>Live Git scopes, file/hunk actions and inline comments.</p></td>
@@ -1091,14 +1097,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.53`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.54`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.53
-git push origin v1.4.53
+git tag v1.4.54
+git push origin v1.4.54
 ```
 
 ### Build and test matrix
@@ -1111,11 +1117,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current full test run contains **1122 passing tests** (7 skipped):
+The current core test suites contain **1501 passing tests** (7 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|       71 |       24 |        139 |     888 |  **1122** |
+|      117 |       24 |        144 |    1216 |  **1501** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1144,13 +1150,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.53` packaging configuration produces:
+The `1.4.54` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.53.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.53.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.53.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.54.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.54.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.54.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

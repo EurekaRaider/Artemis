@@ -1,4 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  WorkspaceContentState,
+  WorkspaceFileHeader,
+  WorkspaceFileLayout,
+  WorkspaceFileTree,
+  WorkspaceFileTreeRow,
+} from "@artemis/ui/workspace";
 
 import type {
   WorkspaceDirectoryEntry,
@@ -113,54 +120,43 @@ function DirectoryTree({
         const open = directory && expanded.has(entry.path);
         const presentation = filePresentation(entry.path);
         return (
-          <div className="workspace-file-tree-entry" key={entry.path}>
-            <button
-              aria-current={selectedPath === entry.path ? "page" : undefined}
-              className={[
-                "workspace-file-tree-row",
-                directory ? "directory" : "",
-                selectedPath === entry.path ? "selected" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              onClick={() => (directory ? onToggle(entry) : onOpen(entry))}
-              style={{ paddingInlineStart: `${10 + depth * 14}px` }}
-              title={entry.path}
-            >
-              <span className="workspace-file-chevron" aria-hidden="true">
-                {directory ? (
-                  loadingDirectories.has(entry.path) ? (
-                    "…"
-                  ) : (
-                    <ChevronIcon open={open} />
-                  )
+          <div key={entry.path} role="none">
+            <WorkspaceFileTreeRow
+              depth={depth}
+              directory={directory}
+              expanded={open}
+              icon={
+                directory ? (
+                  <span className="workspace-file-kind" />
                 ) : (
-                  ""
-                )}
-              </span>
-              {directory ? (
-                <span aria-hidden="true" className="workspace-file-kind" />
-              ) : (
-                <WorkspaceFileIcon
-                  path={entry.path}
-                  presentation={presentation}
-                  symlink={entry.kind === "symlink"}
-                />
-              )}
-              <span>{entry.name}</span>
-            </button>
+                  <WorkspaceFileIcon
+                    path={entry.path}
+                    presentation={presentation}
+                    symlink={entry.kind === "symlink"}
+                  />
+                )
+              }
+              indicator={directory ? <ChevronIcon open={open} /> : undefined}
+              label={entry.name}
+              loading={loadingDirectories.has(entry.path)}
+              onActivate={() => (directory ? onToggle(entry) : onOpen(entry))}
+              selected={selectedPath === entry.path}
+              title={entry.path}
+            />
             {open && childrenByDirectory[entry.path] && (
-              <DirectoryTree
-                childrenByDirectory={childrenByDirectory}
-                depth={depth + 1}
-                entries={childrenByDirectory[entry.path] ?? []}
-                expanded={expanded}
-                filter={filter}
-                loadingDirectories={loadingDirectories}
-                selectedPath={selectedPath}
-                onOpen={onOpen}
-                onToggle={onToggle}
-              />
+              <div role="group">
+                <DirectoryTree
+                  childrenByDirectory={childrenByDirectory}
+                  depth={depth + 1}
+                  entries={childrenByDirectory[entry.path] ?? []}
+                  expanded={expanded}
+                  filter={filter}
+                  loadingDirectories={loadingDirectories}
+                  selectedPath={selectedPath}
+                  onOpen={onOpen}
+                  onToggle={onToggle}
+                />
+              </div>
             )}
           </div>
         );
@@ -348,107 +344,103 @@ export function WorkspaceFilesPanel({
     /\.(?:md|markdown)$/iu.test(selectedFile.path);
 
   return (
-    <section aria-label={title} className="workspace-files-panel">
-      <div className="workspace-files-body">
-        <div className="workspace-file-viewer">
-          {selectedFile ? (
-            markdownSelected && !selectedFile.binary ? (
-              <WorkspaceMarkdownEditor
-                ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
-                content={draft}
-                dirty={draft !== selectedFile.content}
-                imageFailureText={imageFailureMessage}
-                onChange={(content) => {
-                  setDraft(content);
-                  setSaveState("idle");
-                }}
-                onSave={saveFile}
-                path={selectedFile.path}
-                // The branch guard above already excludes binary files (they
-                // render the preview-empty notice); readOnly is kept as an
-                // explicit contract for future call sites.
-                readOnly={selectedFile.binary}
-                richLabel={richLabel}
-                saveError={saveError}
-                saveLabel={saveLabel}
-                savedLabel={savedLabel}
-                saveState={saveState}
-                savingLabel={savingLabel}
-                sourceLabel={sourceLabel}
-                threadId={threadId}
-                unsavedLabel={unsavedLabel}
-              />
-            ) : selectedFile.binary ? (
-              <>
-                <div className="workspace-file-viewer-path">
-                  <span title={selectedFile.path}>{selectedFile.path}</span>
-                </div>
-                <div className="preview-empty">{binaryMessage}</div>
-              </>
-            ) : (
-              <WorkspaceFileEditor
-                ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
-                content={draft}
-                dirty={draft !== selectedFile.content}
-                onChange={(content) => {
-                  setDraft(content);
-                  setSaveState("idle");
-                }}
-                onSave={saveFile}
-                path={selectedFile.path}
-                // Binary files render the preview-empty branch above; readOnly
-                // is kept as an explicit contract for future call sites.
-                readOnly={selectedFile.binary}
-                saveError={saveError}
-                saveLabel={saveLabel}
-                savedLabel={savedLabel}
-                saveState={saveState}
-                savingLabel={savingLabel}
-                unsavedLabel={unsavedLabel}
-              />
-            )
+    <WorkspaceFileLayout
+      label={title}
+      viewer={
+        selectedFile ? (
+          markdownSelected && !selectedFile.binary ? (
+            <WorkspaceMarkdownEditor
+              ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
+              content={draft}
+              dirty={draft !== selectedFile.content}
+              imageFailureText={imageFailureMessage}
+              onChange={(content) => {
+                setDraft(content);
+                setSaveState("idle");
+              }}
+              onSave={saveFile}
+              path={selectedFile.path}
+              // The branch guard above already excludes binary files (they
+              // render the preview-empty notice); readOnly is kept as an
+              // explicit contract for future call sites.
+              readOnly={selectedFile.binary}
+              richLabel={richLabel}
+              saveError={saveError}
+              saveLabel={saveLabel}
+              savedLabel={savedLabel}
+              saveState={saveState}
+              savingLabel={savingLabel}
+              sourceLabel={sourceLabel}
+              threadId={threadId}
+              unsavedLabel={unsavedLabel}
+            />
+          ) : selectedFile.binary ? (
+            <>
+              <WorkspaceFileHeader path={selectedFile.path} readOnly />
+              <WorkspaceContentState label={binaryMessage} state="read-only">
+                {binaryMessage}
+              </WorkspaceContentState>
+            </>
           ) : (
-            <div className={error ? "preview-empty error" : "preview-empty"}>
-              {error ?? openFileMessage}
-            </div>
-          )}
-        </div>
-        <aside className="workspace-file-tree">
-          <div className="workspace-file-tree-toolbar">
-            <input
-              aria-label={filterPlaceholder}
-              className="workspace-file-filter"
-              onChange={(event) => setFilter(event.target.value)}
-              placeholder={filterPlaceholder}
-              type="search"
-              value={filter}
+            <WorkspaceFileEditor
+              ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
+              content={draft}
+              dirty={draft !== selectedFile.content}
+              onChange={(content) => {
+                setDraft(content);
+                setSaveState("idle");
+              }}
+              onSave={saveFile}
+              path={selectedFile.path}
+              // Binary files render the preview-empty branch above; readOnly
+              // is kept as an explicit contract for future call sites.
+              readOnly={selectedFile.binary}
+              saveError={saveError}
+              saveLabel={saveLabel}
+              savedLabel={savedLabel}
+              saveState={saveState}
+              savingLabel={savingLabel}
+              unsavedLabel={unsavedLabel}
             />
-            <button
-              aria-label={refreshLabel}
-              className="workspace-file-refresh"
-              onClick={refresh}
-              title={refreshLabel}
-            >
-              <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20">
-                <path d="M15.5 7.5A6 6 0 1 0 16 11M15.5 3.5v4h-4" />
-              </svg>
-            </button>
-          </div>
-          <div className="workspace-file-tree-scroll">
-            <DirectoryTree
-              childrenByDirectory={childrenByDirectory}
-              depth={0}
-              entries={childrenByDirectory[""] ?? []}
-              expanded={expanded}
-              filter={filter}
-              loadingDirectories={loadingDirectories}
-              selectedPath={selectedFile?.path}
-              onOpen={openFile}
-              onToggle={toggleDirectory}
-            />
-          </div>
-        </aside>
-      </div>
-    </section>
+          )
+        ) : (
+          <WorkspaceContentState
+            label={error ?? openFileMessage}
+            state={error ? "error" : "empty"}
+          >
+            {error ?? openFileMessage}
+          </WorkspaceContentState>
+        )
+      }
+      tree={
+        <WorkspaceFileTree
+          filterLabel={filterPlaceholder}
+          filterPlaceholder={filterPlaceholder}
+          filterValue={filter}
+          label={title}
+          loading={loadingDirectories.has("")}
+          onFilterChange={setFilter}
+          onRefresh={refresh}
+          refreshIcon={
+            <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20">
+              <path d="M15.5 7.5A6 6 0 1 0 16 11M15.5 3.5v4h-4" />
+            </svg>
+          }
+          refreshLabel={refreshLabel}
+        >
+          <DirectoryTree
+            childrenByDirectory={childrenByDirectory}
+            depth={0}
+            entries={childrenByDirectory[""] ?? []}
+            expanded={expanded}
+            filter={filter}
+            loadingDirectories={loadingDirectories}
+            selectedPath={selectedFile?.path}
+            onOpen={openFile}
+            onToggle={toggleDirectory}
+          />
+        </WorkspaceFileTree>
+      }
+    />
   );
 }

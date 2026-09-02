@@ -399,6 +399,83 @@ for (const [selector, declarations] of MIG2_GALLERY_SCAFFOLD_RULES) {
   }
   GALLERY_SCAFFOLD_RULES.set(selector, declarations);
 }
+const MIG3A_GALLERY_SCAFFOLD_RULES = [
+  [
+    ".gallery-workspace-grid",
+    [
+      ["display", "grid"],
+      ["gap", "var(--artemis-space-4)"],
+    ],
+  ],
+  [
+    ".gallery-workspace-shell",
+    [
+      ["display", "flex"],
+      ["block-size", "36rem"],
+      ["min-inline-size", "0"],
+      ["overflow", "hidden"],
+      ["background", "var(--artemis-color-surface-base)"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-panel)"],
+    ],
+  ],
+  [
+    ".gallery-workspace-shell > section",
+    [
+      ["order", "1"],
+      ["flex", "1 1 20rem"],
+      ["min-inline-size", "20rem"],
+      ["padding", "var(--artemis-space-4)"],
+      ["background", "var(--artemis-color-canvas)"],
+    ],
+  ],
+  [
+    '.gallery-workspace-shell > [data-artemis-component="workspace-dock-resizer"]',
+    [["order", "2"]],
+  ],
+  [
+    '.gallery-workspace-shell > [data-artemis-component="workspace-dock"]',
+    [["order", "3"]],
+  ],
+  [
+    ".gallery-workspace-tab-content",
+    [
+      ["display", "flex"],
+      ["flex", "1 1 auto"],
+      ["min-block-size", "0"],
+      ["min-inline-size", "0"],
+    ],
+  ],
+  [
+    ".gallery-workspace-states",
+    [
+      ["display", "grid"],
+      ["grid-template-columns", "repeat(2, minmax(0, 1fr))"],
+      ["gap", "var(--artemis-space-4)"],
+    ],
+  ],
+  [
+    ".gallery-workspace-states > *",
+    [
+      ["min-block-size", "18rem"],
+      ["overflow", "hidden"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-card)"],
+    ],
+  ],
+];
+for (const [selector, declarations] of MIG3A_GALLERY_SCAFFOLD_RULES) {
+  if (GALLERY_SCAFFOLD_RULES.has(selector)) {
+    throw new Error(`MIG3A Gallery scaffold duplicates ${selector}`);
+  }
+  GALLERY_SCAFFOLD_RULES.set(selector, declarations);
+}
 const GALLERY_REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const GALLERY_REDUCED_MOTION_SIGNATURE = JSON.stringify([
   ["rule", ".gallery-motion-swatch", [["decl", "transition", "none", null]]],
@@ -413,6 +490,11 @@ const GALLERY_NARROW_SIGNATURE = JSON.stringify([
   [
     "rule",
     ".gallery-conversation-grid",
+    [["decl", "grid-template-columns", "minmax(0, 1fr)", null]],
+  ],
+  [
+    "rule",
+    ".gallery-workspace-states",
     [["decl", "grid-template-columns", "minmax(0, 1fr)", null]],
   ],
   ["rule", ".gallery-split-sample", [["decl", "block-size", "26rem", null]]],
@@ -454,6 +536,10 @@ const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-type-sample",
   "gallery-type-secondary",
   "gallery-type-tertiary",
+  "gallery-workspace-grid",
+  "gallery-workspace-shell",
+  "gallery-workspace-states",
+  "gallery-workspace-tab-content",
 ]);
 const PRIVATE_GALLERY_ATTRIBUTES = new Set([
   "data-gallery-active-contrast",
@@ -468,6 +554,7 @@ const PRIVATE_GALLERY_TEXT_MARKERS = [
   "@artemis/ui-gallery",
   "Artemis UI Gallery",
   "CL4 agent pattern conformance",
+  "Workspace dock, tabs, and files",
   "com.artemis.synthetic-stress",
 ];
 

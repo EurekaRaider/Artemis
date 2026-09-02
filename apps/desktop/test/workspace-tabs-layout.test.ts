@@ -5,7 +5,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { describe, expect, it } from "vitest";
 
-import { WorkspaceFileEditor } from "../src/renderer/WorkspaceFileEditor.js";
+import {
+  WorkspaceFileEditor,
+  workspaceHighlightTokensByLine,
+} from "../src/renderer/WorkspaceFileEditor.js";
 import {
   setiFileIcon,
   WorkspaceFileIcon,
@@ -60,6 +63,8 @@ function expectToken(
 
 const appSource = source("../src/renderer/App.tsx");
 const stylesSource = source("../src/renderer/styles.css");
+const publicUiStylesSource = source("../../../packages/ui/src/styles.css");
+const publicWorkspaceSource = source("../../../packages/ui/src/workspace.tsx");
 const workspaceFilesSource = source("../src/renderer/WorkspaceFilesPanel.tsx");
 const workspaceEditorSource = source("../src/renderer/WorkspaceFileEditor.tsx");
 const workspaceMarkdownEditorSource = source(
@@ -88,16 +93,32 @@ const fileEditorSources = [
 ].join("\n");
 const tabContentSources = [appSource, workspaceTabContentSource].join("\n");
 
-function optionalCssRule(selector: string): string | undefined {
+function optionalCssRuleIn(
+  cssSource: string,
+  selector: string,
+): string | undefined {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  return stylesSource.match(
+  return cssSource.match(
     new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, "u"),
   )?.[1];
+}
+
+function optionalCssRule(selector: string): string | undefined {
+  return optionalCssRuleIn(stylesSource, selector);
 }
 
 function cssRule(selector: string): string {
   const declarations = optionalCssRule(selector);
   expect(declarations, `Missing CSS rule for ${selector}`).toBeDefined();
+  return declarations ?? "";
+}
+
+function publicUiCssRule(selector: string): string {
+  const declarations = optionalCssRuleIn(publicUiStylesSource, selector);
+  expect(
+    declarations,
+    `Missing public UI CSS rule for ${selector}`,
+  ).toBeDefined();
   return declarations ?? "";
 }
 
@@ -112,22 +133,24 @@ function cssPropertyValue(
     .trim();
 }
 
-function numericCssProperty(
-  declarations: string,
-  property: string,
-): { value: number; unit: string } | undefined {
-  const raw = cssPropertyValue(declarations, property);
-  const match = raw?.match(
-    /^(?<value>\d+(?:\.\d+)?)(?<unit>[a-z%]*)$/iu,
-  )?.groups;
-  return match
-    ? { value: Number(match.value), unit: match.unit ?? "" }
-    : undefined;
-}
-
 describe("Codex-like workspace tab layout contract", () => {
+  it("skips tokenization entirely above the large-file highlight limit", () => {
+    let calls = 0;
+    const result = workspaceHighlightTokensByLine(
+      "x".repeat(250_001),
+      "typescript",
+      () => {
+        calls += 1;
+        return [];
+      },
+    );
+
+    expect(result).toBeUndefined();
+    expect(calls).toBe(0);
+  });
+
   it("renders Review, Terminal, file, Markdown, and Sources as closable top workspace tabs", () => {
-    const tabBarIndex = appSource.indexOf('className="workspace-tab-bar"');
+    const tabBarIndex = appSource.indexOf("<WorkspaceTabBar");
     const tabContentIndex = appSource.indexOf(
       'className="workspace-tab-content"',
     );
@@ -135,15 +158,19 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(appSource).toContain('from "./workspace-tabs.js"');
     expect(tabBarIndex).toBeGreaterThan(-1);
     expect(tabContentIndex).toBeGreaterThan(tabBarIndex);
-    expect(appSource).toMatch(
-      /className="workspace-tab-bar"[\s\S]{0,2000}?role="tablist"/u,
-    );
+    expect(appSource).toContain("<WorkspaceTabSurface");
     expect(appSource).toMatch(/\w+\.tabs\.map\(\(tab\)\s*=>/u);
-    expect(appSource).toContain('role="tab"');
-    expect(appSource).toMatch(
-      /aria-selected=\{[^}]*activeTabId[^}]*tab\.id[^}]*\}/u,
+    expect(appSource).toContain(
+      "active={workspaceTabs.activeTabId === tab.id}",
     );
-    expect(appSource).toContain('className="workspace-tab-close"');
+    expect(appSource).toContain("closeLabel={`${t.closeTab}: ${tab.title}`}");
+    expect(appSource).toContain(
+      "panelId={`${workspaceTabDomId(tab.id)}-pane`}",
+    );
+    expect(publicWorkspaceSource).toContain('role="tablist"');
+    expect(publicWorkspaceSource).toContain('role="tab"');
+    expect(publicWorkspaceSource).toContain("aria-selected={active}");
+    expect(publicWorkspaceSource).toContain('data-part="close"');
     expect(tabContentSources).toContain('tab.kind === "review"');
     expect(tabContentSources).toContain('tab.kind === "terminal"');
     expect(tabContentSources).toContain('tab.kind === "file"');
@@ -151,25 +178,33 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(tabContentSources).toContain('tab.kind === "sources"');
     expect(stylesSource).toContain(".sources-panel");
     expect(appSource).not.toContain("type RightSidebarView");
-    expect(cssRule(".workspace-tab-bar")).toMatch(/\bdisplay:\s*flex/u);
+    expect(
+      publicUiCssRule('[data-artemis-component="workspace-tab-bar"]'),
+    ).toMatch(/\bdisplay:\s*flex/u);
   });
 
   it("adds overflow arrows plus touchpad and mouse-wheel tab scrolling", () => {
-    const tabBarStart = appSource.indexOf('className="workspace-tab-bar"');
+    const tabBarStart = appSource.indexOf("<WorkspaceTabBar");
     const tabBarEnd = appSource.indexOf(
       'className="workspace-tab-content"',
       tabBarStart,
     );
     const tabBarSource = appSource.slice(tabBarStart, tabBarEnd);
-    const scrollRule = cssRule(".workspace-tab-scroll");
-    const scrollTrackRule = cssRule(".workspace-tab-track");
-    const scrollButtonRule = cssRule(".workspace-tab-scroll-button");
+    const scrollRule = publicUiCssRule(
+      '[data-artemis-component="workspace-tab-bar"] [data-part="scroll"]',
+    );
+    const scrollTrackRule = publicUiCssRule(
+      '[data-artemis-component="workspace-tab-bar"] [data-part="track"]',
+    );
+    const scrollButtonRule = publicUiCssRule(
+      '[data-artemis-component="workspace-tab-bar"]\n    :is([data-part="scroll-start"], [data-part="scroll-end"])',
+    );
 
-    expect(tabBarSource).toContain('className="workspace-tab-scroll-shell"');
+    expect(tabBarSource).toContain("<WorkspaceTabBar");
     expect(tabBarSource).toContain("workspaceTabScrollState.hasOverflow");
     expect(tabBarSource).toContain("scrollWorkspaceTabs(-1)");
     expect(tabBarSource).toContain("scrollWorkspaceTabs(1)");
-    expect(tabBarSource).toContain("onWheel={handleWorkspaceTabWheel}");
+    expect(tabBarSource).toContain("onWheel: handleWorkspaceTabWheel");
     expect(tabBarSource).toContain(
       "disabled={!workspaceTabScrollState.canScrollLeft}",
     );
@@ -181,13 +216,15 @@ describe("Codex-like workspace tab layout contract", () => {
     );
     expect(appSource).toContain("activeWorkspaceTabElement");
     expect(scrollRule).toMatch(/\boverflow-x:\s*auto/u);
-    expect(scrollTrackRule).toMatch(/\bwidth:\s*max-content/u);
+    expect(scrollTrackRule).toMatch(/\binline-size:\s*max-content/u);
     expect(scrollButtonRule).toMatch(/\bposition:\s*absolute/u);
     expect(
-      cssRule(
-        '.workspace-tab-scroll-shell[data-overflow="true"] .workspace-tab-scroll',
+      publicUiCssRule(
+        '[data-artemis-component="workspace-tab-bar"]\n    [data-part="scroll-shell"][data-overflow="true"]\n    [data-part="scroll"]',
       ),
-    ).toMatch(/\bpadding-inline:\s*32px/u);
+    ).toMatch(
+      /\bpadding-inline:\s*calc\(\s*var\(--artemis-size-control-compact\)\s*\+\s*var\(--artemis-space-1\)\s*\)/u,
+    );
   });
 
   it("collapses only when the user closes the last workspace tab", () => {
@@ -199,13 +236,6 @@ describe("Codex-like workspace tab layout contract", () => {
       handlerStart,
     );
     const handlerSource = appSource.slice(handlerStart, handlerEnd);
-    const closeClassIndex = appSource.indexOf(
-      'className="workspace-tab-close"',
-    );
-    const closeButtonStart = appSource.lastIndexOf("<button", closeClassIndex);
-    const closeButtonEnd = appSource.indexOf("</button>", closeClassIndex);
-    const closeButtonSource = appSource.slice(closeButtonStart, closeButtonEnd);
-
     expect(handlerStart).toBeGreaterThan(-1);
     expect(handlerEnd).toBeGreaterThan(handlerStart);
     expect(handlerSource).toContain(
@@ -213,7 +243,9 @@ describe("Codex-like workspace tab layout contract", () => {
     );
     expect(handlerSource).toContain('type: "close"');
     expect(handlerSource).toContain("setWorkspaceDockOpen(false)");
-    expect(closeButtonSource).toContain("closeWorkspaceTab(tab.id, {");
+    expect(appSource).toContain(
+      "onClose={() =>\n                            closeWorkspaceTab(tab.id, { moveFocus: true })",
+    );
     expect(appSource).toContain("workspaceTabs.tabs.length === 0");
   });
 
@@ -397,8 +429,8 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(stylesSource).toContain('[data-file-type="typescript"]');
     expect(stylesSource).toContain('[data-file-type="markdown"]');
     expect(stylesSource).toContain('[data-file-type="json"]');
-    expect(fileEditorSources).toContain('className="workspace-file-editor"');
-    expect(fileEditorSources).toContain("data-language={");
+    expect(fileEditorSources).toContain("<WorkspaceSourceEditor");
+    expect(publicWorkspaceSource).toContain("data-language={language}");
     expect(fileEditorSources).toContain("syntax-token");
     for (const token of ["keyword", "string", "comment", "number"]) {
       expect(stylesSource).toContain(`.syntax-token.${token}`);
@@ -544,48 +576,66 @@ describe("Codex-like workspace tab layout contract", () => {
       createElement(WorkspaceFileEditor, {
         ariaLabel: "Edit src/user.ts",
         content: "const answer = 42;",
+        dirty: false,
         path: "src/user.ts",
+        saveError: undefined,
+        saveLabel: "Save",
+        savedLabel: "Saved",
+        saveState: "idle",
+        savingLabel: "Saving",
+        unsavedLabel: "Unsaved",
         onChange: () => undefined,
         onSave: () => undefined,
       }),
     );
-    const tokenLayerIndex = markup.indexOf('class="workspace-code-highlight"');
-    const textareaIndex = markup.indexOf('class="workspace-file-editor"');
+    const tokenLayerIndex = markup.indexOf('data-part="highlight"');
+    const textareaIndex = markup.indexOf('data-part="source"');
 
     expect(tokenLayerIndex).toBeGreaterThan(-1);
     expect(textareaIndex).toBeGreaterThan(tokenLayerIndex);
     expect(markup).toContain('<pre aria-hidden="true"');
     expect(markup).toContain("<code>");
     expect(markup).toContain("<textarea");
-    expect(cssRule(".workspace-code-highlight")).toMatch(
-      /\bposition:\s*absolute/u,
-    );
-    expect(cssRule(".workspace-file-editor")).toMatch(
-      /\bposition:\s*absolute/u,
-    );
-    expect(cssRule(".workspace-file-editor")).toMatch(
-      /\bbackground:\s*transparent/u,
-    );
+    expect(
+      publicUiCssRule(
+        '[data-artemis-component="workspace-source-editor"] [data-part="highlight"]',
+      ),
+    ).toMatch(/\bposition:\s*absolute/u);
+    expect(
+      publicUiCssRule(
+        '[data-artemis-component="workspace-source-editor"] [data-part="source"]',
+      ),
+    ).toMatch(/\bposition:\s*absolute/u);
+    expect(
+      publicUiCssRule(
+        '[data-artemis-component="workspace-source-editor"] [data-part="source"]',
+      ),
+    ).toMatch(/\bbackground:\s*transparent/u);
   });
 
   it("uses the verified Codex font stacks and compact workspace typography", () => {
     const root = cssRule(":root");
-    const filesPanel = cssRule(".workspace-files-panel");
-    const treeRow = cssRule(".workspace-file-tree-row");
-    const tabLabel = cssRule(".workspace-tab-select > span");
-    const editor = cssRule(
-      ".workspace-code-highlight,\n.workspace-file-editor",
+    const filesPanel = publicUiCssRule(
+      '[data-artemis-component="workspace-file-layout"]',
     );
-    const highlightCode = optionalCssRule(".workspace-code-highlight code");
+    const treeRow = publicUiCssRule(
+      '[data-artemis-component="workspace-file-tree-row"]',
+    );
+    const tabLabel = publicUiCssRule(
+      '[data-artemis-component="workspace-tab"] [data-part="label"]',
+    );
+    const editor = publicUiCssRule(
+      '[data-artemis-component="workspace-source-editor"]',
+    );
+    const editorText = publicUiCssRule(
+      '[data-artemis-component="workspace-source-editor"]\n    :is([data-part="highlight"], [data-part="source"])',
+    );
+    const highlightCode = publicUiCssRule(
+      '[data-artemis-component="workspace-source-editor"]\n    [data-part="highlight"]\n    code',
+    );
     const comment = cssRule(".syntax-token.comment");
     const uiFont = cssPropertyValue(root, "--ui-font") ?? "";
     const monoFont = cssPropertyValue(root, "--mono-font") ?? "";
-    const editorFontSize = numericCssProperty(editor, "font-size");
-    const editorLineHeight = numericCssProperty(editor, "line-height");
-    const treeFontSize = numericCssProperty(treeRow, "font-size");
-    const treeLineHeight = numericCssProperty(treeRow, "line-height");
-    const tabFontSize = numericCssProperty(tabLabel, "font-size");
-    const tabFontWeight = numericCssProperty(tabLabel, "font-weight");
 
     expect
       .soft(uiFont, "UI font stack should match Codex order without extras")
@@ -595,12 +645,16 @@ describe("Codex-like workspace tab layout contract", () => {
       .toBe(
         'ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
       );
-    expect(filesPanel).toMatch(/\bfont-family:\s*var\(--ui-font\)/u);
-    expect(treeRow).toMatch(/\bfont-family:\s*var\(--ui-font\)/u);
-    expect(editor).toMatch(/\bfont-family:\s*var\(--mono-font\)/u);
+    expect(filesPanel).toMatch(
+      /\bfont-family:\s*var\(--artemis-typography-body-family\)/u,
+    );
+    expect(treeRow).toMatch(/\bfont:\s*inherit/u);
+    expect(editor).toMatch(
+      /\bfont-family:\s*var\(--artemis-typography-code-family\)/u,
+    );
     expect
       .soft(
-        highlightCode ?? "",
+        highlightCode,
         "The highlight code element must inherit the Codex mono stack",
       )
       .toMatch(/(?:^|;)\s*(?:font|font-family):\s*inherit\s*(?:;|$)/u);
@@ -608,14 +662,18 @@ describe("Codex-like workspace tab layout contract", () => {
       .soft(comment, "Code comments should remain upright")
       .not.toMatch(/\bfont-style:\s*italic/u);
 
-    expect.soft(editorFontSize).toEqual({ value: 13, unit: "px" });
-    expect.soft(editorLineHeight).toEqual({ value: 1.5, unit: "" });
-    expect.soft(treeFontSize).toEqual({ value: 13, unit: "px" });
-    expect.soft(treeLineHeight).toEqual({ value: 20, unit: "px" });
-    expect.soft(tabFontSize).toEqual({ value: 12, unit: "px" });
-    expect.soft(tabFontWeight?.unit).toBe("");
-    expect.soft(tabFontWeight?.value).toBeGreaterThanOrEqual(500);
-    expect.soft(tabFontWeight?.value).toBeLessThanOrEqual(600);
+    expect(editorText).toMatch(
+      /\bfont-size:\s*calc\(var\(--artemis-typography-body-size\) \+ 1px\)/u,
+    );
+    expect(editorText).toMatch(/\bline-height:\s*1\.5/u);
+    expect(treeRow).toMatch(
+      /\bfont-size:\s*var\(--artemis-typography-body-size\)/u,
+    );
+    expect(treeRow).toMatch(/\bline-height:\s*1\.4/u);
+    expect(tabLabel).toMatch(
+      /\bfont-size:\s*var\(--artemis-typography-label-size\)/u,
+    );
+    expect(tabLabel).toMatch(/\bfont-weight:\s*600/u);
   });
 
   it("opens Markdown inside Files with rich and editable modes while keeping the tree mounted", () => {
@@ -653,10 +711,16 @@ describe("Codex-like workspace tab layout contract", () => {
       "resolveImage={resolveImage}",
     );
     expect(fileEditorSources).toMatch(
-      /<textarea[\s\S]{0,600}?className="markdown-reader-source"/u,
+      /<WorkspaceSourceEditor[\s\S]{0,500}?variant="markdown"/u,
     );
-    expect(workspaceFilesSource).toMatch(
-      /<div className="workspace-file-viewer">[\s\S]*?<\/div>\s*<aside className="workspace-file-tree">/u,
+    const fileLayoutStart = workspaceFilesSource.indexOf(
+      "<WorkspaceFileLayout",
+    );
+    const fileLayoutSource = workspaceFilesSource.slice(fileLayoutStart);
+    expect(fileLayoutStart).toBeGreaterThan(-1);
+    expect(fileLayoutSource.indexOf("viewer={")).toBeGreaterThan(-1);
+    expect(fileLayoutSource.indexOf("tree={")).toBeGreaterThan(
+      fileLayoutSource.indexOf("viewer={"),
     );
   });
 
@@ -682,9 +746,7 @@ describe("Codex-like workspace tab layout contract", () => {
   });
 
   it("edits normal workspace files and saves through the isolated IPC bridge", () => {
-    expect(fileEditorSources).toMatch(
-      /<textarea[\s\S]{0,600}?className="workspace-file-editor"/u,
-    );
+    expect(fileEditorSources).toContain("<WorkspaceSourceEditor");
     expect(fileEditorSources).toContain("onChange=");
     expect(fileEditorSources).toMatch(/value=\{[^}]*(?:draft|content)[^}]*\}/u);
     expect(fileEditorSources).toMatch(
@@ -704,35 +766,15 @@ describe("Codex-like workspace tab layout contract", () => {
   });
 
   it("toggles Markdown preview and editable raw text and saves the raw draft", () => {
-    const saveClassIndex = workspacePreviewSource.indexOf(
-      'className="markdown-reader-save"',
-    );
-    const saveButtonStart = workspacePreviewSource.lastIndexOf(
-      "<button",
-      saveClassIndex,
-    );
-    const saveButtonEnd = workspacePreviewSource.indexOf(
-      "</button>",
-      saveClassIndex,
-    );
-    const saveButtonSource = workspacePreviewSource.slice(
-      saveButtonStart,
-      saveButtonEnd,
-    );
-
     expect(workspacePreviewSource).toContain("<MarkdownContent");
-    expect(workspacePreviewSource).toContain("onValueChange={setView}");
-    expect(workspacePreviewSource).toContain(
-      '{ value: "rich", label: props.richLabel }',
-    );
-    expect(workspacePreviewSource).toContain(
-      '{ value: "source", label: props.sourceLabel }',
-    );
+    expect(workspacePreviewSource).toContain("<WorkspaceEditorToolbar");
+    expect(workspacePreviewSource).toContain("modeToggle={{");
+    expect(workspacePreviewSource).toContain("onChange: setView");
+    expect(workspacePreviewSource).toContain("richLabel: props.richLabel");
+    expect(workspacePreviewSource).toContain("sourceLabel: props.sourceLabel");
+    expect(workspacePreviewSource).toContain("value: view");
     expect(workspacePreviewSource).toMatch(
-      /<textarea[\s\S]{0,500}?className="markdown-reader-source"/u,
-    );
-    expect(workspacePreviewSource).not.toContain(
-      '<pre className="markdown-reader-source">',
+      /<WorkspaceSourceEditor[\s\S]{0,500}?variant="markdown"/u,
     );
     expect(workspacePreviewSource).toContain("onChange=");
     expect(workspacePreviewSource).toMatch(
@@ -741,9 +783,8 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(workspacePreviewSource).toMatch(
       /window\.artemis\s*\.writeWorkspaceFile/u,
     );
-    expect(saveClassIndex).toBeGreaterThan(-1);
-    expect(saveButtonStart).toBeGreaterThan(-1);
-    expect(saveButtonEnd).toBeGreaterThan(saveButtonStart);
-    expect(saveButtonSource).toContain("onClick=");
+    expect(workspacePreviewSource).toContain("onSave={saveMarkdown}");
+    expect(publicWorkspaceSource).toContain('data-part="save"');
+    expect(publicWorkspaceSource).toContain("onClick={onSave}");
   });
 });

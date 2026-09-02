@@ -55,6 +55,15 @@ import {
   NavigationSidebar,
 } from "@artemis/ui/surfaces";
 import {
+  WorkspaceDock,
+  WorkspaceDockResizer,
+  WorkspaceLauncher,
+  WorkspaceLauncherAction,
+  WorkspaceTab as WorkspaceTabSurface,
+  WorkspaceTabBar,
+  WorkspaceTabPane,
+} from "@artemis/ui/workspace";
+import {
   MAX_PROMPT_ATTACHMENTS,
   reduceAgentEventBatch,
   reduceAgentEvents,
@@ -221,6 +230,8 @@ import {
 } from "./workspace-tabs.js";
 import {
   clampWorkspaceDockWidth,
+  workspaceDockWidthAfterKey,
+  workspaceDockWidthAfterPointer,
   workspaceDockWidthBounds,
 } from "./workspace-dock-layout.js";
 import {
@@ -3227,8 +3238,11 @@ export function App() {
     (clientX: number) => {
       const drag = workspaceDockDrag.current;
       if (!drag) return workspaceDockWidthRef.current;
-      return clampWorkspaceDockWidth(
-        drag.startWidth + drag.startX - clientX,
+      return workspaceDockWidthAfterPointer(
+        drag.startWidth,
+        drag.startX,
+        clientX,
+        document.documentElement.dir === "rtl" ? "rtl" : "ltr",
         currentWorkspaceDockBounds(),
       );
     },
@@ -3293,16 +3307,28 @@ export function App() {
   );
   const resizeWorkspaceDockFromKeyboard = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      if (
+        event.key !== "ArrowLeft" &&
+        event.key !== "ArrowRight" &&
+        event.key !== "Home" &&
+        event.key !== "End"
+      ) {
+        return;
+      }
       event.preventDefault();
+      const bounds = currentWorkspaceDockBounds();
       const currentWidth =
         workspaceDock.current?.getBoundingClientRect().width ??
         workspaceDockWidthRef.current ??
-        currentWorkspaceDockBounds().min;
+        bounds.min;
       const step = event.shiftKey ? 64 : 24;
-      const width = clampWorkspaceDockWidth(
-        currentWidth + (event.key === "ArrowLeft" ? step : -step),
-        currentWorkspaceDockBounds(),
+      const width = workspaceDockWidthAfterKey(
+        currentWidth,
+        event.key,
+        document.documentElement.dir === "rtl" ? "rtl" : "ltr",
+        bounds,
+        workspaceContent.current?.clientWidth ?? window.innerWidth,
+        step,
       );
       setWorkspaceDockWidth(width);
       void persistWorkspaceDockWidth(width);
@@ -6520,6 +6546,7 @@ export function App() {
             >
               <ConversationSurface
                 className="conversation"
+                id="conversation"
                 label={t.conversation}
                 state={
                   !activeThread ||
@@ -7776,31 +7803,26 @@ export function App() {
 
               {!activeThread?.archived && (
                 <>
-                  <div
-                    aria-controls="workspace-tool-dock"
-                    aria-hidden={!workspaceDockOpen}
-                    aria-label={t.resizeRightSidebar}
-                    aria-orientation="vertical"
-                    aria-valuemax={dockWidthBounds.max}
-                    aria-valuemin={dockWidthBounds.min}
-                    aria-valuenow={dockWidthNow}
-                    className="workspace-dock-resizer"
-                    data-open={workspaceDockOpen}
+                  <WorkspaceDockResizer
+                    controls="conversation workspace-tool-dock"
+                    label={t.resizeRightSidebar}
+                    maximum={dockWidthBounds.max}
+                    minimum={dockWidthBounds.min}
+                    open={workspaceDockOpen}
                     onKeyDown={resizeWorkspaceDockFromKeyboard}
                     onPointerCancel={cancelWorkspaceDockResize}
                     onPointerDown={beginWorkspaceDockResize}
                     onPointerMove={moveWorkspaceDockResize}
                     onPointerUp={finishWorkspaceDockResize}
-                    role="separator"
-                    tabIndex={workspaceDockOpen ? 0 : -1}
+                    value={dockWidthNow}
+                    valueText={`${t.rightSidebar}: ${dockWidthNow}px`}
                   />
-                  <aside
-                    aria-hidden={!workspaceDockOpen}
-                    aria-label={t.rightSidebar}
-                    className="workspace-tool-dock"
-                    data-open={workspaceDockOpen}
+                  <WorkspaceDock
                     id="workspace-tool-dock"
+                    label={t.rightSidebar}
+                    open={workspaceDockOpen}
                     ref={workspaceDock}
+                    resizing={workspaceDockResizing}
                     style={
                       workspaceDockWidth === undefined
                         ? undefined
@@ -7809,8 +7831,58 @@ export function App() {
                           } as CSSProperties)
                     }
                   >
-                    <div
-                      className="workspace-tab-bar"
+                    <WorkspaceTabBar
+                      add={
+                        <div
+                          className="workspace-tab-add-wrap"
+                          ref={workspaceTabMenuRoot}
+                        >
+                          <button
+                            aria-expanded={workspaceTabMenuOpen}
+                            aria-label={t.addTab}
+                            className="workspace-tab-add"
+                            onClick={() =>
+                              setWorkspaceTabMenuOpen((open) => !open)
+                            }
+                            title={t.addTab}
+                            type="button"
+                          >
+                            <PlusIcon />
+                          </button>
+                          {workspaceTabMenuOpen && (
+                            <div className="workspace-tab-menu">
+                              {(
+                                [
+                                  ...(activeProject
+                                    ? ([
+                                        [
+                                          "review",
+                                          t.reviewPanel,
+                                          <ReviewIcon />,
+                                        ],
+                                      ] as const)
+                                    : []),
+                                  ["terminal", t.terminal, <TerminalIcon />],
+                                  ["browser", t.browser, <BrowserIcon />],
+                                  ["file", t.files, <FilesIcon />],
+                                ] as const
+                              ).map(([kind, label, icon]) => (
+                                <button
+                                  key={kind}
+                                  onClick={() =>
+                                    openWorkspaceTab(kind, { forceNew: true })
+                                  }
+                                  type="button"
+                                >
+                                  {icon}
+                                  <span>{label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      }
+                      label={t.rightSidebar}
                       onKeyDown={(event) =>
                         handleWorkspaceTabBarKeyDown(event, {
                           tabs: workspaceTabs.tabs,
@@ -7824,112 +7896,11 @@ export function App() {
                           focusTab: focusWorkspaceTab,
                         })
                       }
-                      role="tablist"
-                    >
-                      <div
-                        className="workspace-tab-scroll-shell"
-                        data-overflow={workspaceTabScrollState.hasOverflow}
-                      >
-                        {workspaceTabScrollState.hasOverflow && (
-                          <button
-                            aria-label={t.scrollTabsLeft}
-                            className="workspace-tab-scroll-button left"
-                            disabled={!workspaceTabScrollState.canScrollLeft}
-                            onClick={() => scrollWorkspaceTabs(-1)}
-                            title={t.scrollTabsLeft}
-                            type="button"
-                          >
-                            <TabScrollIcon direction="left" />
-                          </button>
-                        )}
-                        <div
-                          className="workspace-tab-scroll"
-                          onScroll={syncWorkspaceTabScrollState}
-                          onWheel={handleWorkspaceTabWheel}
-                          ref={workspaceTabScroll}
-                        >
-                          <div
-                            className="workspace-tab-track"
-                            ref={workspaceTabTrack}
-                          >
-                            {workspaceTabs.tabs.map((tab) => (
-                              <div
-                                className={
-                                  workspaceTabs.activeTabId === tab.id
-                                    ? "workspace-tab active"
-                                    : "workspace-tab"
-                                }
-                                key={tab.id}
-                                ref={
-                                  workspaceTabs.activeTabId === tab.id
-                                    ? activeWorkspaceTabElement
-                                    : undefined
-                                }
-                              >
-                                <button
-                                  aria-controls={`${workspaceTabDomId(tab.id)}-pane`}
-                                  aria-selected={
-                                    workspaceTabs.activeTabId === tab.id
-                                  }
-                                  className="workspace-tab-select"
-                                  id={workspaceTabDomId(tab.id)}
-                                  ref={(element) => {
-                                    if (element) {
-                                      workspaceTabButtons.current.set(
-                                        tab.id,
-                                        element,
-                                      );
-                                    } else {
-                                      workspaceTabButtons.current.delete(
-                                        tab.id,
-                                      );
-                                    }
-                                  }}
-                                  tabIndex={
-                                    workspaceTabs.activeTabId === tab.id ||
-                                    (!workspaceTabs.activeTabId &&
-                                      workspaceTabs.tabs[0]?.id === tab.id)
-                                      ? 0
-                                      : -1
-                                  }
-                                  onClick={() =>
-                                    dispatchWorkspaceTab({
-                                      type: "activate",
-                                      tabId: tab.id,
-                                    })
-                                  }
-                                  role="tab"
-                                  title={tab.path ?? tab.title}
-                                >
-                                  <WorkspaceTabIcon
-                                    identity={
-                                      tab.childAgentId ?? tab.agentTeamId
-                                    }
-                                    kind={tab.kind}
-                                    path={tab.path}
-                                  />
-                                  <span>{tab.title}</span>
-                                </button>
-                                <button
-                                  aria-label={`${t.closeTab}: ${tab.title}`}
-                                  className="workspace-tab-close"
-                                  onClick={() =>
-                                    closeWorkspaceTab(tab.id, {
-                                      moveFocus: true,
-                                    })
-                                  }
-                                  title={t.closeTab}
-                                >
-                                  <CloseIcon />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        {workspaceTabScrollState.hasOverflow && (
+                      overflow={workspaceTabScrollState.hasOverflow}
+                      scrollEnd={
+                        workspaceTabScrollState.hasOverflow ? (
                           <button
                             aria-label={t.scrollTabsRight}
-                            className="workspace-tab-scroll-button right"
                             disabled={!workspaceTabScrollState.canScrollRight}
                             onClick={() => scrollWorkspaceTabs(1)}
                             title={t.scrollTabsRight}
@@ -7937,102 +7908,112 @@ export function App() {
                           >
                             <TabScrollIcon direction="right" />
                           </button>
-                        )}
-                      </div>
-                      <div
-                        className="workspace-tab-add-wrap"
-                        ref={workspaceTabMenuRoot}
-                      >
-                        <button
-                          aria-expanded={workspaceTabMenuOpen}
-                          aria-label={t.addTab}
-                          className="workspace-tab-add"
-                          onClick={() =>
-                            setWorkspaceTabMenuOpen((open) => !open)
+                        ) : undefined
+                      }
+                      scrollProps={{
+                        onScroll: syncWorkspaceTabScrollState,
+                        onWheel: handleWorkspaceTabWheel,
+                      }}
+                      scrollRef={workspaceTabScroll}
+                      scrollStart={
+                        workspaceTabScrollState.hasOverflow ? (
+                          <button
+                            aria-label={t.scrollTabsLeft}
+                            disabled={!workspaceTabScrollState.canScrollLeft}
+                            onClick={() => scrollWorkspaceTabs(-1)}
+                            title={t.scrollTabsLeft}
+                            type="button"
+                          >
+                            <TabScrollIcon direction="left" />
+                          </button>
+                        ) : undefined
+                      }
+                      trackRef={workspaceTabTrack}
+                    >
+                      {workspaceTabs.tabs.map((tab) => (
+                        <WorkspaceTabSurface
+                          active={workspaceTabs.activeTabId === tab.id}
+                          closeIcon={<CloseIcon />}
+                          closeLabel={`${t.closeTab}: ${tab.title}`}
+                          closeTitle={t.closeTab}
+                          icon={
+                            <WorkspaceTabIcon
+                              identity={tab.childAgentId ?? tab.agentTeamId}
+                              kind={tab.kind}
+                              path={tab.path}
+                            />
                           }
-                          title={t.addTab}
-                        >
-                          <PlusIcon />
-                        </button>
-                        {workspaceTabMenuOpen && (
-                          <div className="workspace-tab-menu">
-                            {(
-                              [
-                                ...(activeProject
-                                  ? ([
-                                      ["review", t.reviewPanel, <ReviewIcon />],
-                                    ] as const)
-                                  : []),
-                                ["terminal", t.terminal, <TerminalIcon />],
-                                ["browser", t.browser, <BrowserIcon />],
-                                ["file", t.files, <FilesIcon />],
-                              ] as const
-                            ).map(([kind, label, icon]) => (
-                              <button
-                                key={kind}
-                                onClick={() =>
-                                  openWorkspaceTab(kind, { forceNew: true })
-                                }
-                              >
-                                {icon}
-                                <span>{label}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                          id={workspaceTabDomId(tab.id)}
+                          key={tab.id}
+                          label={tab.title}
+                          onClose={() =>
+                            closeWorkspaceTab(tab.id, { moveFocus: true })
+                          }
+                          onSelect={() =>
+                            dispatchWorkspaceTab({
+                              type: "activate",
+                              tabId: tab.id,
+                            })
+                          }
+                          panelId={`${workspaceTabDomId(tab.id)}-pane`}
+                          rootRef={
+                            workspaceTabs.activeTabId === tab.id
+                              ? activeWorkspaceTabElement
+                              : undefined
+                          }
+                          selectRef={(element) => {
+                            if (element) {
+                              workspaceTabButtons.current.set(tab.id, element);
+                            } else {
+                              workspaceTabButtons.current.delete(tab.id);
+                            }
+                          }}
+                          tabIndex={
+                            workspaceTabs.activeTabId === tab.id ||
+                            (!workspaceTabs.activeTabId &&
+                              workspaceTabs.tabs[0]?.id === tab.id)
+                              ? 0
+                              : -1
+                          }
+                          title={tab.path ?? tab.title}
+                        />
+                      ))}
+                    </WorkspaceTabBar>
                     <div className="workspace-tab-content">
                       {workspaceTabs.tabs.length === 0 && (
-                        <div className="right-sidebar-launcher">
-                          <div className="right-sidebar-launcher-actions">
-                            {activeProject && (
-                              <button
-                                className="right-sidebar-launcher-item"
-                                onClick={openReviewPanel}
-                              >
-                                <ReviewIcon />
-                                <span>{t.reviewPanel}</span>
-                                <kbd>Ctrl+Alt+B</kbd>
-                              </button>
-                            )}
-                            <button
-                              className="right-sidebar-launcher-item"
-                              onClick={openTerminalPanel}
-                            >
-                              <TerminalIcon />
-                              <span>{t.terminal}</span>
-                              <kbd>Ctrl+J</kbd>
-                            </button>
-                            <button
-                              className="right-sidebar-launcher-item"
-                              onClick={openBrowserPanel}
-                            >
-                              <BrowserIcon />
-                              <span>{t.browser}</span>
-                            </button>
-                            <button
-                              className="right-sidebar-launcher-item"
-                              onClick={openFilesPanel}
-                            >
-                              <FilesIcon />
-                              <span>{t.files}</span>
-                            </button>
-                          </div>
-                        </div>
+                        <WorkspaceLauncher label={t.rightSidebar}>
+                          {activeProject && (
+                            <WorkspaceLauncherAction
+                              icon={<ReviewIcon />}
+                              label={t.reviewPanel}
+                              onActivate={openReviewPanel}
+                              shortcut="Ctrl+Alt+B"
+                            />
+                          )}
+                          <WorkspaceLauncherAction
+                            icon={<TerminalIcon />}
+                            label={t.terminal}
+                            onActivate={openTerminalPanel}
+                            shortcut="Ctrl+J"
+                          />
+                          <WorkspaceLauncherAction
+                            icon={<BrowserIcon />}
+                            label={t.browser}
+                            onActivate={openBrowserPanel}
+                          />
+                          <WorkspaceLauncherAction
+                            icon={<FilesIcon />}
+                            label={t.files}
+                            onActivate={openFilesPanel}
+                          />
+                        </WorkspaceLauncher>
                       )}
                       {workspaceTabs.tabs.map((tab) => (
-                        <div
-                          className={
-                            workspaceTabs.activeTabId === tab.id
-                              ? "workspace-tab-pane active"
-                              : "workspace-tab-pane"
-                          }
-                          aria-labelledby={workspaceTabDomId(tab.id)}
-                          hidden={workspaceTabs.activeTabId !== tab.id}
+                        <WorkspaceTabPane
+                          active={workspaceTabs.activeTabId === tab.id}
                           id={`${workspaceTabDomId(tab.id)}-pane`}
                           key={tab.id}
-                          role="tabpanel"
+                          labelledBy={workspaceTabDomId(tab.id)}
                         >
                           {tab.kind === "review" && (
                             <section
@@ -8678,10 +8659,10 @@ export function App() {
                               pendingAction={childAgentControlPending}
                             />
                           )}
-                        </div>
+                        </WorkspaceTabPane>
                       ))}
                     </div>
-                  </aside>
+                  </WorkspaceDock>
                 </>
               )}
             </div>

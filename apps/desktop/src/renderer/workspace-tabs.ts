@@ -220,7 +220,10 @@ export function handleWorkspaceTabBarKeyDown(
   const target = event.target;
   if (
     !(target instanceof HTMLElement) ||
-    !target.classList.contains("workspace-tab-select")
+    (!target.classList.contains("workspace-tab-select") &&
+      !target.matches(
+        '[data-artemis-component="workspace-tab"] > [data-part="select"]',
+      ))
   ) {
     return;
   }

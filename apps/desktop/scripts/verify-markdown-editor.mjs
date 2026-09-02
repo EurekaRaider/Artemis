@@ -23,10 +23,38 @@ const electronPath = createRequire(import.meta.url)("electron");
 const temporaryDirectory = await mkdtemp(
   join(tmpdir(), "artemis-markdown-editor-"),
 );
+
+function runGit(arguments_) {
+  const result = spawnSync("git", arguments_, {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  });
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      `Markdown editor verifier could not run git ${arguments_.join(" ")}: ${result.error?.message ?? result.stderr}`,
+    );
+  }
+  return result.stdout.trim();
+}
+
+const candidateHead = runGit(["rev-parse", "HEAD"]);
+const expectedHead = process.env.ARTEMIS_EXPECTED_HEAD?.trim() || candidateHead;
+if (!/^[0-9a-f]{40}$/u.test(candidateHead) || expectedHead !== candidateHead) {
+  throw new Error(
+    `Markdown editor verifier expected HEAD ${expectedHead} does not match candidate ${candidateHead}.`,
+  );
+}
+const initialStatus = runGit(["status", "--porcelain"]);
+if (initialStatus !== "") {
+  throw new Error(
+    `Markdown editor verification requires a clean exact-head worktree:\n${initialStatus}`,
+  );
+}
 const windowWidth = 1_440;
 const locale = "en";
 const markdownFileName = "NOTES.md";
 const binaryFileName = "cover.png";
+const largeFileName = "LARGE.ts";
 const binaryPngBase64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 const originalMarkdown = [
@@ -46,6 +74,7 @@ const originalMarkdown = [
 ].join("\n");
 const editSuffix = "\n\nEdited line appended by the markdown editor smoke run.";
 const editedMarkdown = originalMarkdown + editSuffix;
+const largeSource = "const workspaceValue = 1;\n".repeat(10_001);
 const savingLabel = "Saving…";
 const savedLabel = "Saved";
 const unsavedLabel = "Unsaved";
@@ -101,6 +130,12 @@ const steps = [
     scenario:
       "Toggle Rich text / Source; aria-pressed stays unique and the editing surface switches both ways.",
   },
+  {
+    id: "h-large-file",
+    view: "markdown-editor-large-file",
+    scenario:
+      "Open a source file larger than the 250,000-character highlighting threshold; the editable source remains available without the expensive highlight layer.",
+  },
 ];
 const themes = ["light", "dark"];
 const cases = steps.flatMap((step) =>
@@ -125,6 +160,7 @@ try {
       join(caseWorkspace, binaryFileName),
       Buffer.from(binaryPngBase64, "base64"),
     );
+    await writeFile(join(caseWorkspace, largeFileName), largeSource, "utf8");
     const environment = {
       ...process.env,
       ARTEMIS_SMOKE_SCREENSHOT: screenshotPath,
@@ -140,37 +176,21 @@ try {
     // production renderer from this checkout, not whatever serves 127.0.0.1.
     delete environment.ELECTRON_RUN_AS_NODE;
     delete environment.ARTEMIS_DEV_SERVER_URL;
-    const launch = (disableRendererSandbox, attempt) =>
-      spawnSync(
-        electronPath,
-        [
-          appDirectory,
-          `--user-data-dir=${join(
-            temporaryDirectory,
-            "user-data",
-            `${caseId}-attempt-${attempt}`,
-          )}`,
-          "--disable-gpu",
-          "--disable-gpu-compositing",
-          "--disable-gpu-sandbox",
-          "--use-angle=swiftshader",
-          ...(disableRendererSandbox ? ["--no-sandbox"] : []),
-        ],
-        {
-          cwd: appDirectory,
-          encoding: "utf8",
-          env: environment,
-          maxBuffer: 2 * 1024 * 1024,
-          timeout: 60_000,
-        },
-      );
-    let launchResult = launch(false, 0);
-    if ((launchResult.error || launchResult.status !== 0) && !process.env.CI) {
-      launchResult = launch(true, 1);
-    }
-    if ((launchResult.error || launchResult.status !== 0) && !process.env.CI) {
-      launchResult = launch(false, 2);
-    }
+    const electronArguments = [
+      appDirectory,
+      `--user-data-dir=${join(temporaryDirectory, "user-data", caseId)}`,
+      "--disable-gpu",
+      "--disable-gpu-compositing",
+      "--disable-gpu-sandbox",
+      "--use-angle=swiftshader",
+    ];
+    const launchResult = spawnSync(electronPath, electronArguments, {
+      cwd: appDirectory,
+      encoding: "utf8",
+      env: environment,
+      maxBuffer: 2 * 1024 * 1024,
+      timeout: 60_000,
+    });
     if (launchResult.error || launchResult.status !== 0) {
       throw new Error(
         [
@@ -204,20 +224,53 @@ try {
       assertions.push(record);
       return record;
     };
-    const expectedPath = id === "e-binary" ? binaryFileName : markdownFileName;
-    const commonPass =
+    const expectedPath =
+      id === "e-binary"
+        ? binaryFileName
+        : id === "h-large-file"
+          ? largeFileName
+          : markdownFileName;
+    const commonPass = [
       assert(
         "files-panel-open",
         editor.panelOpen === true,
         editor.panelOpen,
         true,
-      ).pass &&
+      ),
       assert(
         "path-shown",
         editor.path === expectedPath,
         editor.path,
         expectedPath,
-      ).pass;
+      ),
+      assert(
+        "renderer-sandbox-launch-flag",
+        !electronArguments.includes("--no-sandbox"),
+        electronArguments,
+        "no --no-sandbox",
+      ),
+      assert(
+        "document-identity",
+        audit.title === "Artemis" && audit.documentLanguage === locale,
+        { title: audit.title, language: audit.documentLanguage },
+        { title: "Artemis", language: locale },
+      ),
+      assert(
+        "renderer-runtime-security",
+        audit.runtimeSecurity?.sandbox === true &&
+          audit.runtimeSecurity?.contextIsolation === true &&
+          audit.runtimeSecurity?.nodeIntegration === false,
+        audit.runtimeSecurity ?? null,
+        { sandbox: true, contextIsolation: true, nodeIntegration: false },
+      ),
+      assert(
+        "renderer-console-clean",
+        Array.isArray(audit.rendererConsoleEntries) &&
+          audit.rendererConsoleEntries.length === 0,
+        audit.rendererConsoleEntries ?? null,
+        [],
+      ),
+    ].every((assertion) => assertion.pass);
     if (!commonPass) {
       throw new Error(
         `${caseId} did not render the files panel: ${JSON.stringify(editor)}`,
@@ -227,7 +280,11 @@ try {
     // Local Storage, Partitions, artemis.sqlite, ...) lives in a separate
     // per-case per-attempt directory, so nothing beyond the seeded fixtures
     // may ever appear at the workspace top level.
-    const expectedWorkspaceEntries = [binaryFileName, markdownFileName];
+    const expectedWorkspaceEntries = [
+      binaryFileName,
+      largeFileName,
+      markdownFileName,
+    ];
     const workspaceEntries = (await readdir(caseWorkspace)).sort();
     const unexpectedEntries = workspaceEntries.filter(
       (entry) => !expectedWorkspaceEntries.includes(entry),
@@ -594,6 +651,42 @@ try {
           ),
         ];
       },
+      "h-large-file": () => [
+        assert(
+          "large-source-visible",
+          editor.sourceVisible === true,
+          editor.sourceVisible,
+          true,
+        ),
+        assert(
+          "large-source-complete",
+          editor.sourceValueLength === largeSource.length,
+          editor.sourceValueLength,
+          largeSource.length,
+        ),
+        assert(
+          "large-source-language",
+          editor.sourceLanguage === "typescript" &&
+            editor.sourceState === "ready",
+          {
+            language: editor.sourceLanguage,
+            state: editor.sourceState,
+          },
+          { language: "typescript", state: "ready" },
+        ),
+        assert(
+          "large-source-highlight-disabled",
+          editor.sourceHighlightPresent === false,
+          editor.sourceHighlightPresent,
+          false,
+        ),
+        assert(
+          "large-source-save-clean",
+          editor.savePresent === true && editor.saveDisabled === true,
+          { present: editor.savePresent, disabled: editor.saveDisabled },
+          { present: true, disabled: true },
+        ),
+      ],
     };
     // Common assertions (files-panel-open, path-shown, workspace-purity) are
     // recorded alongside the per-step expectations so every counted
@@ -653,18 +746,25 @@ try {
     format: "artemis-markdown-editor-smoke",
     version: 1,
     generatedAt: new Date().toISOString(),
+    candidateHead,
+    expectedHead,
+    launch: {
+      rendererSandbox: true,
+      noSandboxFlag: false,
+      mode: "single-attempt-built-production-renderer",
+    },
     locale,
     windowWidth,
     fixtures: {
       markdown: markdownFileName,
       binary: binaryFileName,
+      largeSource: largeFileName,
       failingImageHref: "missing-reference.png",
       note: "Fixtures live in a throwaway workspace directory; only the save-error view intercepts writeWorkspaceFile in the main process.",
     },
     userDataIsolation: {
-      directory:
-        "user-data/<caseId>-attempt-<attempt> under the throwaway run root",
-      note: "Electron user data never shares a path with the fixture workspace and every case x attempt retry gets its own directory. The workspace-purity assertion on every case proves the workspace top level only ever holds the seeded fixtures.",
+      directory: "user-data/<caseId> under the throwaway run root",
+      note: "Electron user data never shares a path with the fixture workspace. The workspace-purity assertion on every case proves the workspace top level only ever holds the seeded fixtures.",
     },
     evidenceSplit: {
       productionReadOnly:
@@ -688,13 +788,19 @@ try {
     results,
   };
   const auditPath = join(outputDirectory, "audit.json");
+  const finalStatus = runGit(["status", "--porcelain"]);
+  if (finalStatus !== initialStatus) {
+    throw new Error(
+      `Markdown editor verification changed tracked worktree state:\n${finalStatus}`,
+    );
+  }
   await writeFile(
     auditPath,
     `${JSON.stringify(auditReport, null, 2)}\n`,
     "utf8",
   );
   console.log(
-    `Markdown editor smoke passed: ${results.length} cases, ${totalAssertions} assertions.`,
+    `Markdown editor smoke passed: ${results.length} cases, ${totalAssertions} assertions; exact HEAD ${candidateHead}.`,
   );
   console.log(auditPath);
 } finally {

@@ -51,6 +51,7 @@ import { galleryContract } from "./gallery-contract.js";
 import { ConversationGallery } from "./conversation-gallery.js";
 import { GalleryActionIcon } from "./gallery-action-icon.js";
 import { STRESS_SKIN_ID, stressSkinCss } from "./stress-skin-fixture.mjs";
+import { WorkspaceGallery } from "./workspace-gallery.js";
 
 export type GallerySkin = "default" | "stress";
 
@@ -557,6 +558,18 @@ export function GalleryApp() {
           caller-owned while public components provide stable visual anatomy.
         </p>
         <ConversationGallery />
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="workspace-heading"
+      >
+        <h2 id="workspace-heading">Workspace dock, tabs, and files</h2>
+        <p>
+          Dock geometry, tab focus, editor states, and file presentation use
+          public UI anatomy while data and persistence remain caller-owned.
+        </p>
+        <WorkspaceGallery />
       </section>
 
       <section

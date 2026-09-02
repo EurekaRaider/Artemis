@@ -38,7 +38,11 @@
       "conversation-anatomy",
       "conversation-state-matrix",
       "conversation-controlled-events",
-      "conversation-rtl-long-content"
+      "conversation-rtl-long-content",
+      "workspace-anatomy",
+      "workspace-state-matrix",
+      "workspace-controlled-events",
+      "workspace-rtl-long-content"
     ],
     "stress": [
       "anatomy",
@@ -76,7 +80,11 @@
       "conversation-anatomy",
       "conversation-state-matrix",
       "conversation-controlled-events",
-      "conversation-rtl-long-content"
+      "conversation-rtl-long-content",
+      "workspace-anatomy",
+      "workspace-state-matrix",
+      "workspace-controlled-events",
+      "workspace-rtl-long-content"
     ]
   },
   "switchCases": [
