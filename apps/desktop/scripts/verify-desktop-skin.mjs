@@ -820,6 +820,7 @@ async function setReferenceSliceViewport(connection, width, height) {
       return true;
     })()`,
   );
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 700));
 }
 
 async function setRuntimeViewport(connection) {
