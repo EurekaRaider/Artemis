@@ -8224,9 +8224,8 @@ function registerIpc(): void {
       }
       const smokeView = process.env.ARTEMIS_SMOKE_VIEW;
       if (
-        smokeMode &&
-        (smokeView?.startsWith("environment") ||
-          smokeView?.startsWith("icon-sizing-environment"))
+        smokeView?.startsWith("environment") ||
+        smokeView?.startsWith("icon-sizing-environment")
       ) {
         return { status: "not-found" };
       }
