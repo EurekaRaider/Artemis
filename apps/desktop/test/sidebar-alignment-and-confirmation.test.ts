@@ -44,7 +44,7 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
     const projectTree = sourceBetween(
       appSource,
       '<div\n          aria-label={t.projects}\n          className="project-tree"',
-      '<div className="sidebar-footer">',
+      "</NavigationSidebar>",
     );
     expect(projectTree).toContain(
       '<span className="project-title">{project.name}</span>',
@@ -103,7 +103,7 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
     const temporary = sourceBetween(
       appSource,
       'className="project-group temporary-conversations"',
-      '<div className="sidebar-footer">',
+      "</NavigationSidebar>",
     );
 
     expect(projects).toContain('className="project-group-select"');
@@ -123,7 +123,7 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
     const projectTree = sourceBetween(
       appSource,
       '<div\n          aria-label={t.projects}\n          className="project-tree"',
-      '<div className="sidebar-footer">',
+      "</NavigationSidebar>",
     );
 
     expect(projectTree).toContain('className="thread-title"');

@@ -1408,6 +1408,7 @@ export function ResultDisclosure({
       {...attributes}
       aria-label={label}
       data-artemis-component="result-disclosure"
+      data-expanded={disclosure.expanded}
       data-part="root"
       data-state={state}
     >

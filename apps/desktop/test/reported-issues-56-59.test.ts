@@ -13,6 +13,7 @@ const mainSource = source("../src/main/main.ts");
 const preloadSource = source("../src/preload/preload.ts");
 const settingsStoreSource = source("../src/main/encrypted-settings-store.ts");
 const stylesSource = source("../src/renderer/styles.css");
+const publicUiStylesSource = source("../../../packages/ui/src/styles.css");
 
 function sectionBetween(start: string, end: string): string {
   const startIndex = appSource.indexOf(start);
@@ -26,7 +27,7 @@ describe("reported issues #56–#59", () => {
   it("persists and renders the temporary-conversation disclosure state", () => {
     const temporarySection = sectionBetween(
       'className="project-group temporary-conversations"',
-      '<div className="sidebar-footer">',
+      "</NavigationSidebar>",
     );
 
     expect(appSource).toContain(
@@ -75,7 +76,7 @@ describe("reported issues #56–#59", () => {
 
   it("keeps creation actions beside their owning group", () => {
     const header = sectionBetween(
-      '<div className="sidebar-header">',
+      "<PanelHeader",
       '<div\n          aria-label={t.projects}\n          className="project-tree"',
     );
     const projects = sectionBetween(
@@ -84,7 +85,7 @@ describe("reported issues #56–#59", () => {
     );
     const temporarySection = sectionBetween(
       'className="project-group temporary-conversations"',
-      '<div className="sidebar-footer">',
+      "</NavigationSidebar>",
     );
 
     expect(header).not.toContain("<PlusIcon />");
@@ -98,11 +99,13 @@ describe("reported issues #56–#59", () => {
   });
 
   it("top-aligns the drawer and has no obsolete global create popover", () => {
-    const sidebarRule = stylesSource.match(/\.sidebar\s*\{([^}]*)\}/u)?.[1];
+    const sidebarRule = publicUiStylesSource.match(
+      /\[data-artemis-component="navigation-sidebar"\]\s*\{([^}]*)\}/u,
+    )?.[1];
     const treeRule = stylesSource.match(/\.project-tree\s*\{([^}]*)\}/u)?.[1];
 
     expect(sidebarRule).toContain("flex-direction: column");
-    expect(sidebarRule).toContain("justify-content: flex-start");
+    expect(sidebarRule).toContain("display: flex");
     expect(treeRule).toMatch(/padding:\s*[1-9]\d*px\s+10px\s+16px/u);
     expect(appSource).not.toContain('className="sidebar-create-menu"');
   });

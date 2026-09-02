@@ -116,6 +116,34 @@ const cases = [
     width: 1_100,
   },
   {
+    caseId: "approval-resolved-light",
+    component: "result-disclosure",
+    context: "approval",
+    direction: "ltr",
+    expectedGroupCount: 0,
+    expectedParts: ["root", "disclosure", "summary", "status", "content"],
+    portal: false,
+    reducedMotion: false,
+    scale: 1,
+    theme: "light",
+    view: "environment-feedback-approval-resolved",
+    width: 1_440,
+  },
+  {
+    caseId: "approval-grouped-dark-rtl-200",
+    component: "result-disclosure",
+    context: "approval",
+    direction: "rtl",
+    expectedGroupCount: 2,
+    expectedParts: ["root", "disclosure", "summary", "status", "content"],
+    portal: false,
+    reducedMotion: true,
+    scale: 2,
+    theme: "dark",
+    view: "environment-feedback-approval-grouped",
+    width: 1_100,
+  },
+  {
     caseId: "resource-empty-light-narrow",
     component: "empty-state",
     context: "resource",
@@ -328,21 +356,26 @@ try {
       found.geometry,
       "positive width and height",
     );
-    assert(
-      "within-viewport",
-      found.withinViewport === true,
-      found.geometry,
-      "inside viewport",
-    );
-    assert(
-      "visible-within-scroll-container",
-      found.visibleWithinScrollContainer === true,
-      {
-        component: found.geometry,
-        scrollContainer: found.scrollContainerGeometry,
-      },
-      "fully inside the nearest scroll viewport",
-    );
+    const expandedGroupedApproval =
+      testCase.component === "result-disclosure" &&
+      testCase.expectedGroupCount > 0;
+    if (!expandedGroupedApproval) {
+      assert(
+        "within-viewport",
+        found.withinViewport === true,
+        found.geometry,
+        "inside viewport",
+      );
+      assert(
+        "visible-within-scroll-container",
+        found.visibleWithinScrollContainer === true,
+        {
+          component: found.geometry,
+          scrollContainer: found.scrollContainerGeometry,
+        },
+        "fully inside the nearest scroll viewport",
+      );
+    }
     if (testCase.component === "approval-card") {
       assert(
         "approval-dynamic-copy-bidi-isolated",
@@ -370,6 +403,68 @@ try {
           ?.securityAndActionsDoNotOverlap === true,
         feedbackLayout.approvalScrollVerification ?? null,
         "security content and actions have non-overlapping flow geometry",
+      );
+      assert(
+        "approval-actions-do-not-wrap-per-character",
+        found.approvalActionButtons.length > 0 &&
+          found.approvalActionButtons.every(
+            (button) =>
+              button.width >= 32 &&
+              button.height <= 48 &&
+              button.scrollWidth <= button.clientWidth + 1 &&
+              button.scrollHeight <= button.clientHeight + 1,
+          ),
+        found.approvalActionButtons,
+        "single-line reachable approval actions",
+      );
+    }
+    if (testCase.component === "result-disclosure") {
+      assert(
+        "approval-disclosure-collapsed-trigger-visible",
+        feedbackLayout.approvalDisclosureVerification?.collapsedVisible ===
+          true,
+        feedbackLayout.approvalDisclosureVerification ?? null,
+        "collapsed disclosure fully visible before expansion",
+      );
+      assert(
+        "approval-disclosure-expanded",
+        feedbackLayout.approvalDisclosureVerification?.expanded === true &&
+          feedbackLayout.approvalDisclosureVerification?.contentVisible ===
+            true,
+        feedbackLayout.approvalDisclosureVerification ?? null,
+        "expanded public disclosure with visible content",
+      );
+      assert(
+        "approval-group-count",
+        feedbackLayout.approvalDisclosureVerification?.groupItems ===
+          testCase.expectedGroupCount,
+        feedbackLayout.approvalDisclosureVerification ?? null,
+        testCase.expectedGroupCount,
+      );
+      if (expandedGroupedApproval) {
+        assert(
+          "approval-disclosure-expanded-end-reachable",
+          feedbackLayout.approvalDisclosureVerification?.timelineScrollable ===
+            true &&
+            feedbackLayout.approvalDisclosureVerification
+              ?.expandedEndVisible === true,
+          feedbackLayout.approvalDisclosureVerification ?? null,
+          "expanded grouped content end reachable at timeline scroll end",
+        );
+      }
+    }
+    if (
+      testCase.component === "approval-card" ||
+      testCase.component === "result-disclosure"
+    ) {
+      assert(
+        "workspace-label-fully-visible",
+        feedbackLayout.workspaceLabel?.text === "Artemis" &&
+          feedbackLayout.workspaceLabel?.contentFitsInline === true &&
+          feedbackLayout.workspaceLabel?.fullyVisible === true &&
+          feedbackLayout.workspaceLabel?.textFullyVisible === true,
+        feedbackLayout.workspaceLabel ?? null,
+        "complete Artemis label inside the workspace heading",
       );
     }
     assert(

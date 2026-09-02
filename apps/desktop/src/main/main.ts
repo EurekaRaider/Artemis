@@ -8224,9 +8224,8 @@ function registerIpc(): void {
       }
       const smokeView = process.env.ARTEMIS_SMOKE_VIEW;
       if (
-        smokeMode &&
-        (smokeView?.startsWith("environment") ||
-          smokeView?.startsWith("icon-sizing-environment"))
+        smokeView?.startsWith("environment") ||
+        smokeView?.startsWith("icon-sizing-environment")
       ) {
         return { status: "not-found" };
       }
@@ -13146,6 +13145,43 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
     updatedAt: now,
   });
   type SmokeEnvironmentEvent = { id: string; payload: AgentPayload };
+  const approvalEvents: SmokeEnvironmentEvent[] = [];
+  if (view.startsWith("environment-feedback-approval")) {
+    const approvalCount =
+      view === "environment-feedback-approval-grouped" ? 2 : 1;
+    for (let index = 0; index < approvalCount; index += 1) {
+      const suffix = String(index + 1);
+      const approvalId = `environment-smoke-approval-${suffix}`;
+      const nonce = `environment-smoke-approval-nonce-${suffix}`;
+      approvalEvents.push({
+        id: `environment-approval-requested-${suffix}`,
+        payload: {
+          type: "approval.requested",
+          approvalId,
+          nonce,
+          summary: `Apply reviewed workspace change ${suffix}`,
+          command: `git apply reviewed-${suffix}.patch`,
+          paths: ["README.md"],
+          network: [],
+          risk: "medium",
+          allowedScopes: ["once", "session"],
+          modelReason: "Matches this task.",
+        },
+      });
+      if (view !== "environment-feedback-approval") {
+        approvalEvents.push({
+          id: `environment-approval-resolved-${suffix}`,
+          payload: {
+            type: "approval.resolved",
+            approvalId,
+            nonce,
+            approved: true,
+            scope: "once",
+          },
+        });
+      }
+    }
+  }
   const events: SmokeEnvironmentEvent[] = [
     {
       id: "environment-turn-started",
@@ -13265,25 +13301,7 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
         delta: "环境面板、Git 状态和任务来源已经验证。",
       },
     },
-    ...(view === "environment-feedback-approval"
-      ? ([
-          {
-            id: "environment-approval-requested",
-            payload: {
-              type: "approval.requested",
-              approvalId: "environment-smoke-approval",
-              nonce: "environment-smoke-approval-nonce",
-              summary: "Apply the reviewed workspace changes",
-              command: "git apply reviewed.patch",
-              paths: ["README.md"],
-              network: [],
-              risk: "medium",
-              allowedScopes: ["once", "session"],
-              modelReason: "Matches this task.",
-            },
-          },
-        ] satisfies SmokeEnvironmentEvent[])
-      : []),
+    ...approvalEvents,
     ...(view === "environment-feedback-approval"
       ? []
       : ([
@@ -14933,11 +14951,128 @@ function createMainWindow(): BrowserWindow {
                     }
                     return;
                   }
-                  if (view === 'environment-feedback-approval') {
+                  if (view.startsWith('environment-feedback-approval')) {
                     const trigger = document.querySelector('.environment-trigger');
                     if (trigger?.getAttribute('aria-expanded') === 'true') {
                       trigger.click();
                       await wait(300);
+                    }
+                    if (view !== 'environment-feedback-approval') {
+                      const disclosure = document.querySelector(
+                        '.approval-card[data-artemis-component="result-disclosure"]',
+                      );
+                      const disclosureButton = disclosure?.querySelector(
+                        '[data-part="disclosure"]',
+                      );
+                      if (
+                        !(disclosure instanceof HTMLElement) ||
+                        !(disclosureButton instanceof HTMLButtonElement)
+                      ) {
+                        throw new Error(
+                          'Public resolved approval ResultDisclosure missing.',
+                        );
+                      }
+                      const completedTurnDetails = disclosure.closest(
+                        'details.turn-execution-details',
+                      );
+                      if (
+                        completedTurnDetails instanceof HTMLDetailsElement &&
+                        !completedTurnDetails.open
+                      ) {
+                        const summary = completedTurnDetails.querySelector(
+                          ':scope > summary',
+                        );
+                        if (!(summary instanceof HTMLElement)) {
+                          throw new Error(
+                            'Completed turn execution disclosure missing.',
+                          );
+                        }
+                        summary.click();
+                        await wait(350);
+                      }
+                      const timelineScroll = disclosure.closest('.timeline-scroll');
+                      if (!(timelineScroll instanceof HTMLElement)) {
+                        throw new Error(
+                          'Resolved approval timeline scroll container missing.',
+                        );
+                      }
+                      disclosure.scrollIntoView({
+                        block: 'start',
+                        inline: 'nearest',
+                      });
+                      await wait(350);
+                      const collapsedBounds =
+                        disclosureButton.getBoundingClientRect();
+                      const collapsedScrollBounds =
+                        timelineScroll.getBoundingClientRect();
+                      const collapsedVisible =
+                        collapsedBounds.top >= collapsedScrollBounds.top - 1 &&
+                        collapsedBounds.bottom <=
+                          collapsedScrollBounds.bottom + 1;
+                      disclosureButton.click();
+                      await wait(350);
+                      const content = disclosure.querySelector(
+                        '[data-part="content"]',
+                      );
+                      const expandedEndTarget =
+                        disclosure.querySelector(
+                          '.approval-group-list > li:last-child',
+                        ) ?? content;
+                      expandedEndTarget?.scrollIntoView({
+                        block: 'end',
+                        inline: 'nearest',
+                      });
+                      await wait(350);
+                      const expandedScrollBounds =
+                        timelineScroll.getBoundingClientRect();
+                      const contentBounds =
+                        expandedEndTarget?.getBoundingClientRect();
+                      const groupItems = disclosure.querySelectorAll(
+                        '.approval-group-list > li',
+                      ).length;
+                      window.__approvalDisclosureVerification = {
+                        atScrollEnd:
+                          Math.abs(
+                            timelineScroll.scrollTop -
+                              (timelineScroll.scrollHeight -
+                                timelineScroll.clientHeight),
+                          ) <= 1,
+                        collapsedVisible,
+                        collapsedGeometry: {
+                          bottom: collapsedBounds.bottom,
+                          top: collapsedBounds.top,
+                        },
+                        collapsedScrollGeometry: {
+                          bottom: collapsedScrollBounds.bottom,
+                          top: collapsedScrollBounds.top,
+                        },
+                        contentVisible:
+                          content instanceof HTMLElement && !content.hidden,
+                        expanded:
+                          disclosure.getAttribute('data-expanded') === 'true',
+                        expandedEndVisible:
+                          contentBounds instanceof DOMRect &&
+                          contentBounds.bottom <=
+                            expandedScrollBounds.bottom + 1 &&
+                          contentBounds.bottom >= expandedScrollBounds.top - 1,
+                        expandedEndGeometry:
+                          contentBounds instanceof DOMRect
+                            ? {
+                                bottom: contentBounds.bottom,
+                                top: contentBounds.top,
+                              }
+                            : null,
+                        expandedScrollGeometry: {
+                          bottom: expandedScrollBounds.bottom,
+                          top: expandedScrollBounds.top,
+                        },
+                        groupItems,
+                        state: disclosure.getAttribute('data-state'),
+                        timelineScrollable:
+                          timelineScroll.scrollHeight >
+                          timelineScroll.clientHeight,
+                      };
+                      return;
                     }
                     const approvalCard = document.querySelector(
                       '.approval-card[data-artemis-component="approval-card"]',
@@ -16967,6 +17102,7 @@ function createMainWindow(): BrowserWindow {
                       'scroll-area',
                       'split-pane',
                       'approval-card',
+                      'result-disclosure',
                     ]
                       .map(
                         (component) =>
@@ -16986,6 +17122,22 @@ function createMainWindow(): BrowserWindow {
                           : null;
                       const approvalActionBounds =
                         approvalActions?.getBoundingClientRect();
+                      const approvalActionButtons = approvalActions
+                        ? [...approvalActions.querySelectorAll('button')].map(
+                            (button) => {
+                              const buttonBounds =
+                                button.getBoundingClientRect();
+                              return {
+                                width: buttonBounds.width,
+                                height: buttonBounds.height,
+                                clientWidth: button.clientWidth,
+                                scrollWidth: button.scrollWidth,
+                                clientHeight: button.clientHeight,
+                                scrollHeight: button.scrollHeight,
+                              };
+                            },
+                          )
+                        : [];
                       const overlay = [
                         'tooltip',
                         'popover',
@@ -17025,15 +17177,17 @@ function createMainWindow(): BrowserWindow {
                                 'environment-checks-popover',
                               )
                             ? 'environment'
-                            : root.getAttribute(
+                            : root.classList.contains('approval-card')
+                              ? 'approval'
+                              : root.getAttribute(
                                   'data-artemis-component',
                                 ) === 'approval-card'
-                              ? 'approval'
-                              : root.closest('.resource-page')
-                                ? 'resource'
-                                : root.classList.contains('transient-notice')
-                                  ? 'app-notice'
-                                  : 'other',
+                                ? 'approval'
+                                : root.closest('.resource-page')
+                                  ? 'resource'
+                                  : root.classList.contains('transient-notice')
+                                    ? 'app-notice'
+                                    : 'other',
                         state: root.getAttribute('data-state'),
                         tone: root.getAttribute('data-tone'),
                         role: root.getAttribute('role'),
@@ -17093,6 +17247,7 @@ function createMainWindow(): BrowserWindow {
                             approvalActionBounds.top >= scrollBounds.top - 1 &&
                             approvalActionBounds.bottom <=
                               scrollBounds.bottom + 1),
+                        approvalActionButtons,
                         contentFitsInline:
                           root.scrollWidth <= root.clientWidth + 1,
                         inlineMetrics: {
@@ -17127,6 +17282,24 @@ function createMainWindow(): BrowserWindow {
                         },
                       };
                     };
+                    const workspaceHeading = document.querySelector(
+                      '.workspace-heading',
+                    );
+                    const workspaceLabel = workspaceHeading?.querySelector(
+                      ':scope > strong',
+                    );
+                    const workspaceHeadingBounds =
+                      workspaceHeading?.getBoundingClientRect();
+                    const workspaceLabelBounds =
+                      workspaceLabel?.getBoundingClientRect();
+                    const workspaceLabelTextBounds = (() => {
+                      if (!(workspaceLabel instanceof HTMLElement)) {
+                        return null;
+                      }
+                      const range = document.createRange();
+                      range.selectNodeContents(workspaceLabel);
+                      return range.getBoundingClientRect();
+                    })();
                     return {
                       components: roots.map(describe),
                       direction: document.documentElement.dir,
@@ -17134,6 +17307,31 @@ function createMainWindow(): BrowserWindow {
                         window.__feedbackLayoutInteraction ?? null,
                       approvalScrollVerification:
                         window.__approvalScrollVerification ?? null,
+                      approvalDisclosureVerification:
+                        window.__approvalDisclosureVerification ?? null,
+                      workspaceLabel:
+                        workspaceHeading instanceof HTMLElement &&
+                        workspaceLabel instanceof HTMLElement &&
+                        workspaceHeadingBounds &&
+                        workspaceLabelBounds
+                          ? {
+                              contentFitsInline:
+                                workspaceLabel.scrollWidth <=
+                                workspaceLabel.clientWidth + 1,
+                              fullyVisible:
+                                workspaceLabelBounds.left >=
+                                  workspaceHeadingBounds.left - 1 &&
+                                workspaceLabelBounds.right <=
+                                  workspaceHeadingBounds.right + 1,
+                              text: workspaceLabel.textContent?.trim() ?? '',
+                              textFullyVisible:
+                                workspaceLabelTextBounds !== null &&
+                                workspaceLabelTextBounds.left >=
+                                  workspaceLabelBounds.left - 1 &&
+                                workspaceLabelTextBounds.right <=
+                                  workspaceLabelBounds.right + 1,
+                            }
+                          : null,
                       reducedMotion: window.matchMedia(
                         '(prefers-reduced-motion: reduce)',
                       ).matches,

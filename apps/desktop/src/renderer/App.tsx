@@ -21,10 +21,20 @@ import {
 import { useTranslation } from "react-i18next";
 import { CaretRightIcon, TargetIcon } from "@phosphor-icons/react";
 import { Dialog, LoadingState, Toast } from "@artemis/ui/feedback";
+import { PanelHeader, Toolbar } from "@artemis/ui/layout";
 import {
   ApprovalCard as ApprovalPatternCard,
+  ResultDisclosure,
   ToolActivity,
 } from "@artemis/ui/patterns";
+import {
+  ActivityBar,
+  ActivityBarItem,
+  ApplicationShell,
+  ApplicationShellResizer,
+  ComposerSurface,
+  NavigationSidebar,
+} from "@artemis/ui/surfaces";
 import {
   MAX_PROMPT_ATTACHMENTS,
   reduceAgentEventBatch,
@@ -344,6 +354,7 @@ const TokenUsagePage = lazy(() =>
 const copy = {
   en: {
     appName: "Artemis",
+    activityBar: "Activity bar",
     projects: "Projects",
     expandProjects: "Expand projects",
     collapseProjects: "Collapse projects",
@@ -626,6 +637,7 @@ const copy = {
   },
   "zh-CN": {
     appName: "Artemis",
+    activityBar: "活动栏",
     projects: "项目",
     expandProjects: "展开项目",
     collapseProjects: "收起项目",
@@ -4202,11 +4214,6 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [activeThread?.goal?.status, turnActive]);
 
-  useEffect(() => {
-    document.body.classList.toggle("sidebar-collapsed", !sidebarOpen);
-    return () => document.body.classList.remove("sidebar-collapsed");
-  }, [sidebarOpen]);
-
   useLayoutEffect(() => {
     if (!activeThreadId || activeView !== "workspace") {
       timelinePinned.current = true;
@@ -5478,29 +5485,34 @@ export function App() {
   }
 
   return (
-    <main
+    <ApplicationShell
       className="app-shell"
       data-platform={snapshot.platform}
       data-renderer-ready="true"
-      style={
-        {
-          "--project-sidebar-width": sidebarOpen
-            ? `${projectSidebarWidth ?? PROJECT_SIDEBAR_WIDTH_DEFAULT}px`
-            : "0px",
-        } as CSSProperties
-      }
+      sidebarOpen={sidebarOpen}
+      sidebarSize={projectSidebarWidth ?? PROJECT_SIDEBAR_WIDTH_DEFAULT}
     >
-      <aside className="activity-bar">
-        <ArtemisMark />
-        <button
-          className={
-            activeView === "workspace"
-              ? "activity-button active"
-              : "activity-button"
-          }
+      <ActivityBar
+        brand={<ArtemisMark />}
+        className="activity-bar"
+        footer={
+          <ActivityBarItem
+            className="activity-button"
+            icon={<SettingsIcon />}
+            label={t.settings}
+            onClick={() => openSettings()}
+            ref={settingsTrigger}
+            title={t.settings}
+          />
+        }
+        label={t.activityBar}
+      >
+        <ActivityBarItem
           aria-current={activeView === "workspace" ? "page" : undefined}
-          aria-label={t.projects}
           aria-expanded={sidebarOpen}
+          className="activity-button"
+          icon={<FolderIcon />}
+          label={t.projects}
           onClick={() => {
             if (activeView === "workspace") {
               setSidebarOpen((open) => !open);
@@ -5509,91 +5521,102 @@ export function App() {
               setSidebarOpen(true);
             }
           }}
+          selected={activeView === "workspace"}
           title={t.projects}
-        >
-          <FolderIcon />
-        </button>
-        <button
+        />
+        <ActivityBarItem
           aria-current={activeView === "resources" ? "page" : undefined}
-          aria-label={t.resourceCenter}
-          className={
-            activeView === "resources"
-              ? "activity-button active"
-              : "activity-button"
-          }
-          onClick={() => setActiveView("resources")}
-          title={t.resourceCenter}
-        >
-          <ResourceIcon />
-        </button>
-        <button
-          className={
-            activeView === "token-usage"
-              ? "activity-button active"
-              : "activity-button"
-          }
-          onClick={() => setActiveView("token-usage")}
-          aria-current={activeView === "token-usage" ? "page" : undefined}
-          aria-label={t.tokenUsage}
-          title={t.tokenUsage}
-        >
-          <TokenUsageIcon />
-        </button>
-        <button
-          aria-current={activeView === "automations" ? "page" : undefined}
-          aria-label={t.automations}
-          className={
-            activeView === "automations"
-              ? "activity-button active"
-              : "activity-button"
-          }
-          onClick={() => setActiveView("automations")}
-          title={t.automations}
-        >
-          <AutomationIcon />
-        </button>
-        <button
-          aria-current={activeView === "archive" ? "page" : undefined}
-          aria-label={t.archiveLibrary}
-          className={
-            activeView === "archive"
-              ? "activity-button active"
-              : "activity-button"
-          }
-          onClick={() => setActiveView("archive")}
-          title={t.archiveLibrary}
-        >
-          <ArchiveIcon />
-        </button>
-        <div className="activity-spacer" />
-        <button
-          aria-label={t.settings}
           className="activity-button"
-          onClick={() => openSettings()}
-          ref={settingsTrigger}
-          title={t.settings}
-        >
-          <SettingsIcon />
-        </button>
-      </aside>
+          icon={<ResourceIcon />}
+          label={t.resourceCenter}
+          onClick={() => setActiveView("resources")}
+          selected={activeView === "resources"}
+          title={t.resourceCenter}
+        />
+        <ActivityBarItem
+          aria-current={activeView === "token-usage" ? "page" : undefined}
+          className="activity-button"
+          icon={<TokenUsageIcon />}
+          label={t.tokenUsage}
+          onClick={() => setActiveView("token-usage")}
+          selected={activeView === "token-usage"}
+          title={t.tokenUsage}
+        />
+        <ActivityBarItem
+          aria-current={activeView === "automations" ? "page" : undefined}
+          className="activity-button"
+          icon={<AutomationIcon />}
+          label={t.automations}
+          onClick={() => setActiveView("automations")}
+          selected={activeView === "automations"}
+          title={t.automations}
+        />
+        <ActivityBarItem
+          aria-current={activeView === "archive" ? "page" : undefined}
+          className="activity-button"
+          icon={<ArchiveIcon />}
+          label={t.archiveLibrary}
+          onClick={() => setActiveView("archive")}
+          selected={activeView === "archive"}
+          title={t.archiveLibrary}
+        />
+      </ActivityBar>
 
-      <aside className="sidebar" ref={projectSidebar}>
-        <div className="sidebar-header">
-          <span>{t.tasks}</span>
-          <div className="sidebar-header-actions">
-            <label
-              className={query ? "sidebar-search has-query" : "sidebar-search"}
-            >
-              <SearchIcon />
-              <input
-                aria-label={t.search}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={t.search}
-                value={query}
-              />
-            </label>
+      <NavigationSidebar
+        className="sidebar"
+        footer={
+          <div className="sidebar-footer">
+            <span className="local-indicator" title={username}>
+              <span aria-hidden="true" className="sidebar-profile-avatar">
+                {runtimeSettings?.profileAvatar ? (
+                  <img alt="" src={runtimeSettings.profileAvatar} />
+                ) : (
+                  userInitials(username)
+                )}
+              </span>
+              <span className="local-user-name">{username}</span>
+            </span>
+            {runtimeSettings?.update.currentVersion && (
+              <button
+                aria-label={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+                className="app-version"
+                onClick={() => openSettings("maintenance")}
+                title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+                type="button"
+              >
+                v{runtimeSettings.update.currentVersion}
+              </button>
+            )}
           </div>
-        </div>
+        }
+        header={
+          <PanelHeader
+            actions={
+              <div className="sidebar-header-actions">
+                <label
+                  className={
+                    query ? "sidebar-search has-query" : "sidebar-search"
+                  }
+                >
+                  <SearchIcon />
+                  <input
+                    aria-label={t.search}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={t.search}
+                    value={query}
+                  />
+                </label>
+              </div>
+            }
+            className="sidebar-header"
+            headingLevel={2}
+            title={t.tasks}
+          />
+        }
+        label={t.projects}
+        open={sidebarOpen}
+        ref={projectSidebar}
+      >
         <div
           aria-label={t.projects}
           className="project-tree"
@@ -6287,46 +6310,20 @@ export function App() {
             </div>
           </section>
         </div>
-        <div className="sidebar-footer">
-          <span className="local-indicator" title={username}>
-            <span aria-hidden="true" className="sidebar-profile-avatar">
-              {runtimeSettings?.profileAvatar ? (
-                <img alt="" src={runtimeSettings.profileAvatar} />
-              ) : (
-                userInitials(username)
-              )}
-            </span>
-            <span className="local-user-name">{username}</span>
-          </span>
-          {runtimeSettings?.update.currentVersion && (
-            <button
-              aria-label={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
-              className="app-version"
-              onClick={() => openSettings("maintenance")}
-              title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
-              type="button"
-            >
-              v{runtimeSettings.update.currentVersion}
-            </button>
-          )}
-        </div>
-      </aside>
+      </NavigationSidebar>
 
-      <div
-        aria-label={t.resizeProjectsSidebar}
-        aria-orientation="vertical"
+      <ApplicationShellResizer
         aria-valuemax={PROJECT_SIDEBAR_WIDTH_MAX}
         aria-valuemin={PROJECT_SIDEBAR_WIDTH_MIN}
         aria-valuenow={projectSidebarWidth ?? PROJECT_SIDEBAR_WIDTH_DEFAULT}
         className="project-sidebar-resizer"
-        data-open={sidebarOpen}
+        label={t.resizeProjectsSidebar}
         onKeyDown={resizeProjectSidebarFromKeyboard}
         onPointerCancel={cancelProjectSidebarResize}
         onPointerDown={beginProjectSidebarResize}
         onPointerMove={moveProjectSidebarResize}
         onPointerUp={finishProjectSidebarResize}
-        role="separator"
-        tabIndex={sidebarOpen ? 0 : -1}
+        open={sidebarOpen}
       />
 
       <section className="workspace">
@@ -6386,7 +6383,80 @@ export function App() {
           </Suspense>
         ) : (
           <>
-            <header className="workspace-header">
+            <Toolbar
+              actions={
+                <div className="header-actions">
+                  <span className="status-pill">
+                    <span
+                      className={`status-dot ${runPresentation.status === "completed" ? "idle" : runPresentation.status}`}
+                    />
+                    <span className="status-pill-label">
+                      {runPresentation.status === "completed"
+                        ? t.completed
+                        : statusLabel(threadState, locale, clockMs)}
+                    </span>
+                    {runPresentation.status !== "idle" && (
+                      <time
+                        dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
+                      >
+                        {formatRunDuration(runPresentation.elapsedMs)}
+                      </time>
+                    )}
+                  </span>
+                  {activeProject && (
+                    <EnvironmentPanel
+                      actionsDisabled={
+                        projectBranchActionsDisabled ||
+                        Boolean(activeThread?.archived)
+                      }
+                      agents={environmentAgents}
+                      attachments={attachments}
+                      defaultOpen={!workspaceDockOpen}
+                      dockOffset={
+                        workspaceDockOpen ? Math.max(0, dockWidthNow - 50) : 0
+                      }
+                      dockOpen={workspaceDockOpen}
+                      key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}
+                      locale={locale}
+                      mcpUsages={environmentMcpUsages}
+                      onAddProject={() => void openProject()}
+                      onAddSources={() => void selectPromptAttachments()}
+                      onConfirm={requestConfirmation}
+                      onMessage={(message, error) =>
+                        setToast(error ? { error: true, message } : message)
+                      }
+                      onOpenAgent={openChildAgentPanel}
+                      onOpenReview={openReviewScopePanel}
+                      onOpenTeam={openAgentTeamPanel}
+                      onOpenUrl={openConversationExternalLink}
+                      onViewAllSources={openSourcesPanel}
+                      project={activeProject}
+                      {...(environmentRefreshKey
+                        ? { refreshKey: environmentRefreshKey }
+                        : {})}
+                      sources={environmentSources}
+                      taskTitle={activeThread?.title ?? activeProject.name}
+                      teams={environmentTeams}
+                      {...(activeThreadId ? { threadId: activeThreadId } : {})}
+                    />
+                  )}
+                  {!activeThread?.archived && (
+                    <button
+                      aria-expanded={workspaceDockOpen}
+                      aria-label={t.rightSidebar}
+                      className="right-sidebar-toggle"
+                      onClick={toggleRightSidebar}
+                      ref={workspaceDockToggleElement}
+                      title={t.rightSidebar}
+                    >
+                      <RightSidebarIcon />
+                    </button>
+                  )}
+                </div>
+              }
+              className="workspace-header"
+              label={activeWorkspaceLabel}
+            >
               <div className="workspace-header-leading">
                 <button
                   aria-expanded={sidebarOpen}
@@ -6398,7 +6468,7 @@ export function App() {
                   <LeftSidebarIcon />
                 </button>
                 <div className="workspace-heading">
-                  <strong>{activeWorkspaceLabel}</strong>
+                  <strong dir="auto">{activeWorkspaceLabel}</strong>
                   {activeThread && (
                     <>
                       <span className="header-separator">/</span>
@@ -6418,73 +6488,7 @@ export function App() {
                   )}
                 </div>
               </div>
-              <div className="header-actions">
-                <span className="status-pill">
-                  <span
-                    className={`status-dot ${runPresentation.status === "completed" ? "idle" : runPresentation.status}`}
-                  />
-                  {runPresentation.status === "completed"
-                    ? t.completed
-                    : statusLabel(threadState, locale, clockMs)}
-                  {runPresentation.status !== "idle" && (
-                    <time
-                      dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
-                    >
-                      {formatRunDuration(runPresentation.elapsedMs)}
-                    </time>
-                  )}
-                </span>
-                {activeProject && (
-                  <EnvironmentPanel
-                    actionsDisabled={
-                      projectBranchActionsDisabled ||
-                      Boolean(activeThread?.archived)
-                    }
-                    agents={environmentAgents}
-                    attachments={attachments}
-                    defaultOpen={!workspaceDockOpen}
-                    dockOffset={
-                      workspaceDockOpen ? Math.max(0, dockWidthNow - 50) : 0
-                    }
-                    dockOpen={workspaceDockOpen}
-                    key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}
-                    locale={locale}
-                    mcpUsages={environmentMcpUsages}
-                    onAddProject={() => void openProject()}
-                    onAddSources={() => void selectPromptAttachments()}
-                    onConfirm={requestConfirmation}
-                    onMessage={(message, error) =>
-                      setToast(error ? { error: true, message } : message)
-                    }
-                    onOpenAgent={openChildAgentPanel}
-                    onOpenReview={openReviewScopePanel}
-                    onOpenTeam={openAgentTeamPanel}
-                    onOpenUrl={openConversationExternalLink}
-                    onViewAllSources={openSourcesPanel}
-                    project={activeProject}
-                    {...(environmentRefreshKey
-                      ? { refreshKey: environmentRefreshKey }
-                      : {})}
-                    sources={environmentSources}
-                    taskTitle={activeThread?.title ?? activeProject.name}
-                    teams={environmentTeams}
-                    {...(activeThreadId ? { threadId: activeThreadId } : {})}
-                  />
-                )}
-                {!activeThread?.archived && (
-                  <button
-                    aria-expanded={workspaceDockOpen}
-                    aria-label={t.rightSidebar}
-                    className="right-sidebar-toggle"
-                    onClick={toggleRightSidebar}
-                    ref={workspaceDockToggleElement}
-                    title={t.rightSidebar}
-                  >
-                    <RightSidebarIcon />
-                  </button>
-                )}
-              </div>
-            </header>
+            </Toolbar>
 
             <div
               className="workspace-content"
@@ -6872,8 +6876,9 @@ export function App() {
                           onResume={() => void updateActiveGoal("resume")}
                         />
                       )}
-                      <div
+                      <ComposerSurface
                         className="composer"
+                        label={t.prompt}
                         onDragEnter={handleAttachmentDragEnter}
                         onDragLeave={handleAttachmentDragLeave}
                         onDragOver={handleAttachmentDragOver}
@@ -7727,7 +7732,7 @@ export function App() {
                             )}
                           </div>
                         </div>
-                      </div>
+                      </ComposerSurface>
                     </>
                   </div>
                 )}
@@ -8808,7 +8813,7 @@ export function App() {
           placement="view"
         />
       )}
-    </main>
+    </ApplicationShell>
   );
 }
 
@@ -10029,6 +10034,20 @@ function Timeline({
       },
     }[legacyLocale(locale)],
   );
+  const approvalDisclosureLabels = localizedCopy(
+    locale,
+    "app",
+    {
+      en: {
+        collapse: "Collapse",
+        expand: "Expand",
+      },
+      "zh-CN": {
+        collapse: "收起",
+        expand: "展开",
+      },
+    }[legacyLocale(locale)],
+  );
   const latestCompletedTurnId = state.turnOrder.findLast(
     (turnId) => state.turns[turnId]?.status === "completed",
   );
@@ -10207,23 +10226,30 @@ function Timeline({
             return grouped ? [grouped] : [];
           },
         );
+        const groupLabel = `${t.approvalApproved} ×${groupedApprovals.length}`;
         return (
-          <details
+          <ResultDisclosure
             className="approval-card approved approval-group"
+            collapseLabel={approvalDisclosureLabels.collapse}
+            expandLabel={approvalDisclosureLabels.expand}
             key={`approval-group:${approvedGroup.key}`}
+            label={groupLabel}
+            state="completed"
+            statusLabel={t.approvalApproved}
+            summary={
+              <>
+                <span className="approval-shield">
+                  <ApprovalIcon neutral />
+                </span>
+                <span className="approval-count-badge">
+                  ×{groupedApprovals.length}
+                </span>
+                <span className="approval-card-chevron">
+                  <ChevronIcon />
+                </span>
+              </>
+            }
           >
-            <summary>
-              <span className="approval-shield">
-                <ApprovalIcon neutral />
-              </span>
-              <strong>{t.approvalApproved}</strong>
-              <span className="approval-count-badge">
-                ×{groupedApprovals.length}
-              </span>
-              <span className="approval-card-chevron">
-                <ChevronIcon />
-              </span>
-            </summary>
             <ol className="approval-resolved-details approval-group-list">
               {groupedApprovals.map((grouped) => (
                 <li key={grouped.approvalId}>
@@ -10257,7 +10283,7 @@ function Timeline({
                 </li>
               ))}
             </ol>
-          </details>
+          </ResultDisclosure>
         );
       }
       const approvalCopy = (
@@ -10287,26 +10313,35 @@ function Timeline({
         </p>
       ) : null;
       if (approval.status !== "pending") {
+        const statusLabel =
+          approval.status === "approved"
+            ? t.approvalApproved
+            : t.approvalDenied;
         return (
-          <details className={`approval-card ${approval.status}`} key={entry}>
-            <summary>
-              <span className="approval-shield">
-                <ApprovalIcon neutral />
-              </span>
-              <strong>
-                {approval.status === "approved"
-                  ? t.approvalApproved
-                  : t.approvalDenied}
-              </strong>
-              <span className="approval-card-chevron">
-                <ChevronIcon />
-              </span>
-            </summary>
+          <ResultDisclosure
+            className={`approval-card ${approval.status}`}
+            collapseLabel={approvalDisclosureLabels.collapse}
+            expandLabel={approvalDisclosureLabels.expand}
+            key={entry}
+            label={statusLabel}
+            state={approval.status === "approved" ? "completed" : "failed"}
+            statusLabel={statusLabel}
+            summary={
+              <>
+                <span className="approval-shield">
+                  <ApprovalIcon neutral />
+                </span>
+                <span className="approval-card-chevron">
+                  <ChevronIcon />
+                </span>
+              </>
+            }
+          >
             <div className="approval-resolved-details">
               {approvalCopy}
               {modelReason}
             </div>
-          </details>
+          </ResultDisclosure>
         );
       }
       const pendingView = approvalPatternView(

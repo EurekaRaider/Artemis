@@ -251,40 +251,21 @@ body {
   }
 }
 
-.app-shell {
-  --project-sidebar-width: 252px;
-  background: var(--bg);
-  display: grid;
-  grid-template-columns: 46px var(--project-sidebar-width) minmax(0, 1fr);
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  position: relative;
-  transition: grid-template-columns 240ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
 .app-shell[data-platform="darwin"] {
-  padding-top: 28px;
-  position: relative;
+  padding-block-start: 28px;
 }
 
 .app-shell[data-platform="darwin"]::before {
   -webkit-app-region: drag;
+  block-size: 28px;
   content: "";
-  height: 28px;
-  left: 0;
+  inset-block-start: 0;
+  inset-inline: 0;
   position: absolute;
-  right: 0;
-  top: 0;
 }
 
-.activity-bar {
-  align-items: center;
-  background: var(--codex-sidebar-bg);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 6px;
+.app-shell[data-platform="darwin"] .project-sidebar-resizer {
+  inset-block-start: 28px;
 }
 
 .artemis-mark {
@@ -309,11 +290,6 @@ body {
   width: 100%;
 }
 
-.activity-bar > .artemis-mark {
-  margin-bottom: 12px;
-}
-
-.activity-button,
 .icon-button,
 .toolbar-button,
 .model-button,
@@ -327,13 +303,6 @@ body {
   justify-content: center;
 }
 
-.activity-button {
-  height: 34px;
-  width: 34px;
-}
-
-.activity-button:hover,
-.activity-button.active,
 .icon-button:hover,
 .toolbar-button:hover,
 .toolbar-button.active {
@@ -341,66 +310,35 @@ body {
   color: var(--text);
 }
 
-.activity-spacer {
-  flex: 1;
+.sidebar,
+.workspace-header,
+.composer-wrap,
+.approval-card {
+  --border: var(--artemis-color-border-default);
+  --border-soft: var(--artemis-color-border-subtle);
+  --text: var(--artemis-color-text-primary);
+  --muted: var(--artemis-color-text-secondary);
+  --muted-2: var(--artemis-color-text-tertiary);
+  --hover: var(--artemis-color-interaction-hover);
+  --selected: var(--artemis-color-interaction-selected);
+  --blue: var(--artemis-color-accent-text);
+  --success: var(--artemis-color-status-success);
+  --warning: var(--artemis-color-status-warning);
+  --danger: var(--artemis-color-status-danger);
 }
 
 .sidebar {
-  background: var(--codex-sidebar-bg);
-  border-inline-start: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  min-height: 0;
-  min-width: 0;
-  opacity: 1;
-  overflow: hidden;
-  transform: translateX(0);
-  transition:
-    opacity 180ms ease,
-    transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
-    visibility 0s linear;
-  visibility: visible;
+  --codex-sidebar-bg: var(--artemis-color-background-sidebar);
+  --panel: var(--artemis-color-surface-raised);
+  --panel-2: var(--artemis-color-surface-base);
+  --panel-3: var(--artemis-color-surface-sunken);
 }
 
-.project-sidebar-resizer {
-  bottom: 0;
-  cursor: col-resize;
-  inset-inline-start: calc(46px + var(--project-sidebar-width) - 4px);
-  position: absolute;
-  top: 0;
-  touch-action: none;
-  width: 8px;
-  z-index: 55;
-}
-
-.app-shell[data-platform="darwin"] .project-sidebar-resizer {
-  top: 28px;
-}
-
-.project-sidebar-resizer::after {
-  background: transparent;
-  bottom: 0;
-  content: "";
-  left: 3px;
-  position: absolute;
-  top: 0;
-  transition: background 120ms ease;
-  width: 2px;
-}
-
-.project-sidebar-resizer:hover::after,
-.project-sidebar-resizer:focus-visible::after {
-  background: color-mix(in srgb, var(--blue) 72%, var(--border));
-}
-
-.project-sidebar-resizer:focus-visible {
-  outline: none;
-}
-
-.project-sidebar-resizer[data-open="false"] {
-  opacity: 0;
-  pointer-events: none;
+.composer-wrap,
+.approval-card {
+  --panel: var(--artemis-color-surface-raised);
+  --panel-2: var(--artemis-color-surface-composer);
+  --panel-3: var(--artemis-color-surface-sunken);
 }
 
 .sidebar-header,
@@ -991,9 +929,11 @@ body {
     var(--environment-panel-inline-size) + var(--environment-panel-layout-gap)
   );
   --environment-panel-min-conversation-inline-size: 720px;
-  background: var(--codex-workspace-bg);
-  border-left: 1px solid var(--border);
-  border-top: 1px solid var(--border);
+  background: var(--artemis-color-surface-base);
+  border-block-start: var(--artemis-border-width-default) solid
+    var(--artemis-color-border-subtle);
+  border-inline-start: var(--artemis-border-width-default) solid
+    var(--artemis-color-border-subtle);
   border-top-left-radius: 0;
   display: flex;
   flex-direction: column;
@@ -1004,13 +944,13 @@ body {
 }
 
 .workspace-header {
-  align-items: center;
-  background: var(--codex-workspace-bg);
-  border-bottom: 1px solid var(--border);
-  display: flex;
+  background: var(--artemis-color-surface-base);
+  border-block-end: var(--artemis-border-width-default) solid
+    var(--artemis-color-border-subtle);
+  container-name: workspace-header;
+  container-type: inline-size;
   flex: 0 0 48px;
   height: 48px;
-  justify-content: space-between;
   padding: 0 12px 0 18px;
 }
 
@@ -1028,6 +968,13 @@ body {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
+}
+
+.workspace-heading > strong {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .workspace-thread-title {
@@ -1087,6 +1034,26 @@ body {
   color: var(--muted-2);
   font-variant-numeric: tabular-nums;
   padding-left: 6px;
+}
+
+@container workspace-header (max-width: 290px) {
+  .status-pill {
+    justify-content: center;
+    margin-inline: 0;
+    padding-inline: 0;
+    width: 26px;
+  }
+
+  .status-pill-label {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
 }
 
 .toolbar-button {
@@ -2276,11 +2243,27 @@ button.environment-row:disabled {
 
 @media (max-width: 680px) {
   .workspace-header {
-    padding-inline: 8px;
+    gap: 2px;
+    padding-inline: 6px;
+  }
+
+  .workspace-header-leading {
+    gap: 2px;
+  }
+
+  .header-actions {
+    gap: 0;
+  }
+
+  .status-pill {
+    gap: 3px;
+    margin-inline: 0;
+    padding-inline: 4px;
   }
 
   .workspace-heading .workspace-thread-title,
   .workspace-heading .header-separator,
+  .workspace-heading .goal-pill,
   .status-pill time {
     display: none;
   }
@@ -3194,8 +3177,6 @@ button.environment-row:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-shell,
-  .sidebar,
   .workspace-dock-resizer,
   .workspace-tool-dock,
   .workspace-tool-dock[data-open="false"] {
@@ -3223,7 +3204,8 @@ button.environment-row:disabled {
 }
 
 .approval-card > header,
-.approval-card > summary {
+.approval-card[data-artemis-component="result-disclosure"]
+  > [data-part="disclosure"] {
   align-items: center;
   display: flex;
   gap: 10px;
@@ -3259,17 +3241,20 @@ button.environment-row:disabled {
   gap: 4px;
 }
 
-.approval-card > summary {
+.approval-card[data-artemis-component="result-disclosure"]
+  > [data-part="disclosure"] {
+  color: inherit;
   cursor: pointer;
-  list-style: none;
+  text-align: start;
 }
 
-.approval-card > summary::-webkit-details-marker {
-  display: none;
-}
-
-.approval-card > summary > strong {
-  flex: 1;
+.approval-card[data-artemis-component="result-disclosure"]
+  > [data-part="disclosure"]
+  > [data-part="summary"] {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  min-inline-size: 0;
 }
 
 .approval-count-badge {
@@ -3298,7 +3283,7 @@ button.environment-row:disabled {
   transition: transform 120ms ease;
 }
 
-.approval-card[open] .approval-card-chevron {
+.approval-card[data-expanded="true"] .approval-card-chevron {
   transform: rotate(180deg);
 }
 
@@ -5462,15 +5447,6 @@ button.environment-row:disabled {
 .sandbox-notice small {
   color: var(--muted);
   line-height: 1.4;
-}
-
-.composer {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  box-shadow: 0 10px 36px rgb(0 0 0 / 18%);
-  padding: 13px 14px 11px;
-  position: relative;
 }
 
 .slash-command-menu {
@@ -12131,23 +12107,7 @@ kbd {
   min-height: 0;
 }
 
-body.sidebar-collapsed .sidebar {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-18px);
-  transition:
-    opacity 140ms ease,
-    transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
-    visibility 0s linear 240ms;
-  visibility: hidden;
-}
-
 @media (max-width: 1100px) {
-  .app-shell {
-    --project-sidebar-width: 220px;
-    grid-template-columns: 44px var(--project-sidebar-width) minmax(0, 1fr);
-  }
-
   .workspace-tool-dock {
     min-width: min(380px, max(320px, calc(100% - 327px)));
     width: var(--workspace-dock-width, 58%);

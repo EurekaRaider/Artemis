@@ -855,7 +855,7 @@ describe("Agent patterns", () => {
   });
 
   it("closes uncontrolled result disclosures through native activation", () => {
-    render(
+    const { container } = render(
       <ResultDisclosure
         collapseLabel="Collapse"
         defaultExpanded
@@ -868,7 +868,12 @@ describe("Agent patterns", () => {
         Content
       </ResultDisclosure>,
     );
+    const disclosure = container.querySelector(
+      '[data-artemis-component="result-disclosure"]',
+    );
+    expect(disclosure?.getAttribute("data-expanded")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "Collapse: Result" }));
+    expect(disclosure?.getAttribute("data-expanded")).toBe("false");
     expect(
       screen.getByText("Content").closest('[data-part="content"]'),
     ).toHaveProperty("hidden", true);

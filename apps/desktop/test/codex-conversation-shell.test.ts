@@ -11,6 +11,12 @@ const stylesSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/styles.css", import.meta.url)),
   "utf8",
 );
+const publicUiStylesSource = readFileSync(
+  fileURLToPath(
+    new URL("../../../packages/ui/src/styles.css", import.meta.url),
+  ),
+  "utf8",
+);
 const apiSource = readFileSync(
   fileURLToPath(new URL("../src/shared/api.ts", import.meta.url)),
   "utf8",
@@ -53,6 +59,15 @@ function cssDeclarations(selector: string): string {
   return match?.groups?.body ?? "";
 }
 
+function publicUiCssDeclarations(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const match = publicUiStylesSource.match(
+    new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{(?<body>[^}]*)\\}`, "u"),
+  );
+  expect(match, `Missing public UI CSS rule for ${selector}`).not.toBeNull();
+  return match?.groups?.body ?? "";
+}
+
 function cssVariable(name: string): string {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const value = stylesSource.match(
@@ -88,7 +103,7 @@ describe("Codex conversation shell contract", () => {
     const projectTree = sourceBetween(
       appSource,
       "{projects.map((project) => {",
-      '<div className="sidebar-footer">',
+      "</NavigationSidebar>",
     );
 
     expect(appSource).toContain("const PROJECT_THREAD_PREVIEW_LIMIT = 5;");
@@ -310,18 +325,18 @@ describe("Codex conversation shell contract", () => {
     expect(stylesSource).toContain(
       '--ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;',
     );
-    expect(cssDeclarations(".activity-bar")).toMatch(
-      /\bbackground:\s*var\(--codex-sidebar-bg\)/u,
-    );
-    expect(cssDeclarations(".sidebar")).toMatch(
-      /\bbackground:\s*var\(--codex-sidebar-bg\)/u,
-    );
-    for (const selector of [
-      ".workspace",
-      ".workspace-header",
-      ".conversation",
-      ".workspace-tool-dock",
-    ]) {
+    expect(
+      publicUiCssDeclarations('[data-artemis-component="activity-bar"]'),
+    ).toMatch(/\bbackground:\s*var\(--artemis-color-background-activity\)/u);
+    expect(
+      publicUiCssDeclarations('[data-artemis-component="navigation-sidebar"]'),
+    ).toMatch(/\bbackground:\s*var\(--artemis-color-background-sidebar\)/u);
+    for (const selector of [".workspace", ".workspace-header"]) {
+      expect(cssDeclarations(selector)).toMatch(
+        /\bbackground:\s*var\(--artemis-color-surface-base\)/u,
+      );
+    }
+    for (const selector of [".conversation", ".workspace-tool-dock"]) {
       expect(cssDeclarations(selector)).toMatch(
         /\bbackground:\s*var\(--codex-workspace-bg\)/u,
       );
@@ -345,6 +360,13 @@ describe("Codex conversation shell contract", () => {
     const status = cssDeclarations(".status-pill");
     expect(status).toMatch(/\bflex:\s*0 0 auto/u);
     expect(status).toMatch(/\bwhite-space:\s*nowrap/u);
+    const workspaceLabel = cssDeclarations(".workspace-heading > strong");
+    expect(workspaceLabel).toMatch(/\bmin-inline-size:\s*0/u);
+    expect(workspaceLabel).toMatch(/\boverflow:\s*hidden/u);
+    expect(workspaceLabel).toMatch(/\btext-overflow:\s*ellipsis/u);
+    expect(appSource).toContain(
+      '<strong dir="auto">{activeWorkspaceLabel}</strong>',
+    );
   });
 
   it("deletes a conversation through confirmation, preload IPC, and the store with an active-turn guard", () => {
