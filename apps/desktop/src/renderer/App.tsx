@@ -4262,11 +4262,12 @@ export function App() {
       });
     });
     observer.observe(container);
+    for (const child of container.children) observer.observe(child);
     return () => {
       observer.disconnect();
       if (frame !== undefined) window.cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [activeEvents.length, activeThreadId]);
 
   useEffect(() => {
     const finishScrollbarInteraction = () => {

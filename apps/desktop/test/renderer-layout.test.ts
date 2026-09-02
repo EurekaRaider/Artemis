@@ -343,6 +343,14 @@ describe("renderer layout contract", () => {
     expect(rule).toMatch(/\boverflow-y:\s*auto/u);
   });
 
+  it("keeps a pinned timeline at the bottom when its rendered content resizes", () => {
+    expect(appSource).toContain("observer.observe(container);");
+    expect(appSource).toContain(
+      "for (const child of container.children) observer.observe(child);",
+    );
+    expect(appSource).toContain("[activeEvents.length, activeThreadId]");
+  });
+
   it("keeps the composer in a fixed layout row instead of a sticky overlay", () => {
     const composer = cssRule(".composer-wrap");
     const conversation = cssRule(".conversation");

@@ -13283,15 +13283,19 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
           },
         ] satisfies SmokeEnvironmentEvent[])
       : []),
-    {
-      id: "environment-turn-completed",
-      payload: {
-        type: "turn.completed",
-        reason: "completed",
-        finalPartId: "environment-assistant-message:text",
-        durationMs: 54_000,
-      },
-    },
+    ...(view === "environment-feedback-approval"
+      ? []
+      : ([
+          {
+            id: "environment-turn-completed",
+            payload: {
+              type: "turn.completed",
+              reason: "completed",
+              finalPartId: "environment-assistant-message:text",
+              durationMs: 54_000,
+            },
+          },
+        ] satisfies SmokeEnvironmentEvent[])),
   ];
   for (const event of events) {
     if (
@@ -17005,6 +17009,14 @@ function createMainWindow(): BrowserWindow {
                               bottom: scrollBounds.bottom,
                             }
                           : null,
+                        scrollContainerMetrics:
+                          scrollContainer instanceof HTMLElement
+                            ? {
+                                clientHeight: scrollContainer.clientHeight,
+                                scrollHeight: scrollContainer.scrollHeight,
+                                scrollTop: scrollContainer.scrollTop,
+                              }
+                            : null,
                         contentFitsInline:
                           root.scrollWidth <= root.clientWidth + 1,
                         inlineMetrics: {
