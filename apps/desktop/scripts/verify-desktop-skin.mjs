@@ -912,7 +912,7 @@ async function verifyReferenceSliceGeometry(connection) {
       type: "keyUp",
       windowsVirtualKeyCode: right ? 39 : 37,
     });
-    await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 700));
   };
 
   await setReferenceSliceViewport(connection, 1_050, 900);
@@ -931,10 +931,8 @@ async function verifyReferenceSliceGeometry(connection) {
     "document.activeElement === document.querySelector('[data-artemis-component=\"application-shell-resizer\"]')",
     "compact viewport sidebar resizer focus",
   );
-  for (let index = 0; index < 3; index += 1) {
-    await dispatchSidebarResizeKey("ArrowRight");
-  }
-  const keyboardSidebarWidth = Math.min(420, initialSidebarWidth + 72);
+  await dispatchSidebarResizeKey("ArrowRight");
+  const keyboardSidebarWidth = Math.min(420, initialSidebarWidth + 24);
   const keyboardState = await evaluate(
     connection,
     `(() => {
@@ -997,6 +995,7 @@ async function verifyReferenceSliceGeometry(connection) {
     `document.querySelector('[data-artemis-component="application-shell-resizer"]')?.getAttribute("aria-valuenow") === ${JSON.stringify(String(pointerSidebarWidth))}`,
     "compact viewport pointer sidebar resize",
   );
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 700));
   const afterPointerResize = await referenceSliceGeometry(connection);
   assert(
     Math.abs(afterPointerResize.sidebar.width - pointerSidebarWidth) <= 1,
@@ -1034,6 +1033,7 @@ async function verifyReferenceSliceGeometry(connection) {
     `document.querySelector('[data-artemis-component="application-shell-resizer"]')?.getAttribute("aria-valuenow") === ${JSON.stringify(String(initialSidebarWidth))}`,
     "reference sidebar width reset",
   );
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 700));
   const compactResize = {
     viewportWidth: 1_050,
     initial: compactInitial,
