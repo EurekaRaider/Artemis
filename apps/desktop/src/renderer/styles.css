@@ -947,6 +947,8 @@ body {
   background: var(--artemis-color-surface-base);
   border-block-end: var(--artemis-border-width-default) solid
     var(--artemis-color-border-subtle);
+  container-name: workspace-header;
+  container-type: inline-size;
   flex: 0 0 48px;
   height: 48px;
   padding: 0 12px 0 18px;
@@ -1032,6 +1034,26 @@ body {
   color: var(--muted-2);
   font-variant-numeric: tabular-nums;
   padding-left: 6px;
+}
+
+@container workspace-header (max-width: 290px) {
+  .status-pill {
+    justify-content: center;
+    margin-inline: 0;
+    padding-inline: 0;
+    width: 26px;
+  }
+
+  .status-pill-label {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
 }
 
 .toolbar-button {

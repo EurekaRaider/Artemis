@@ -2068,6 +2068,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('leftSidebar: "Left sidebar"');
     expect(appSource).toContain('leftSidebar: "左侧边栏"');
     expect(appSource).toContain('className="left-sidebar-toggle"');
+    expect(appSource).toContain('className="status-pill-label"');
     expect(appSource).toContain("aria-expanded={sidebarOpen}");
     expect(appSource).toContain(
       "onClick={() => setSidebarOpen((open) => !open)}",
@@ -2093,6 +2094,9 @@ describe("renderer layout contract", () => {
     expect(stylesSource).not.toContain("--project-sidebar-width");
     expect(mainProcessSource).toContain("Math.max(980");
     expect(mainProcessSource).toContain("minWidth: 980");
+    expect(stylesSource).toContain(
+      "@container workspace-header (max-width: 290px)",
+    );
 
     expect(shell).toMatch(/--_artemis-application-shell-rail-size:\s*46px/u);
     expect(shell).toMatch(/grid-template-columns:/u);

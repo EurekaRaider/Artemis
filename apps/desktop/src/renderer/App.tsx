@@ -6390,9 +6390,11 @@ export function App() {
                     <span
                       className={`status-dot ${runPresentation.status === "completed" ? "idle" : runPresentation.status}`}
                     />
-                    {runPresentation.status === "completed"
-                      ? t.completed
-                      : statusLabel(threadState, locale, clockMs)}
+                    <span className="status-pill-label">
+                      {runPresentation.status === "completed"
+                        ? t.completed
+                        : statusLabel(threadState, locale, clockMs)}
+                    </span>
                     {runPresentation.status !== "idle" && (
                       <time
                         dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
