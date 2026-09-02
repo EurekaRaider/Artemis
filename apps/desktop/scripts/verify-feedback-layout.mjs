@@ -356,21 +356,26 @@ try {
       found.geometry,
       "positive width and height",
     );
-    assert(
-      "within-viewport",
-      found.withinViewport === true,
-      found.geometry,
-      "inside viewport",
-    );
-    assert(
-      "visible-within-scroll-container",
-      found.visibleWithinScrollContainer === true,
-      {
-        component: found.geometry,
-        scrollContainer: found.scrollContainerGeometry,
-      },
-      "fully inside the nearest scroll viewport",
-    );
+    const expandedGroupedApproval =
+      testCase.component === "result-disclosure" &&
+      testCase.expectedGroupCount > 0;
+    if (!expandedGroupedApproval) {
+      assert(
+        "within-viewport",
+        found.withinViewport === true,
+        found.geometry,
+        "inside viewport",
+      );
+      assert(
+        "visible-within-scroll-container",
+        found.visibleWithinScrollContainer === true,
+        {
+          component: found.geometry,
+          scrollContainer: found.scrollContainerGeometry,
+        },
+        "fully inside the nearest scroll viewport",
+      );
+    }
     if (testCase.component === "approval-card") {
       assert(
         "approval-dynamic-copy-bidi-isolated",
@@ -415,6 +420,13 @@ try {
     }
     if (testCase.component === "result-disclosure") {
       assert(
+        "approval-disclosure-collapsed-trigger-visible",
+        feedbackLayout.approvalDisclosureVerification?.collapsedVisible ===
+          true,
+        feedbackLayout.approvalDisclosureVerification ?? null,
+        "collapsed disclosure fully visible before expansion",
+      );
+      assert(
         "approval-disclosure-expanded",
         feedbackLayout.approvalDisclosureVerification?.expanded === true &&
           feedbackLayout.approvalDisclosureVerification?.contentVisible ===
@@ -429,6 +441,19 @@ try {
         feedbackLayout.approvalDisclosureVerification ?? null,
         testCase.expectedGroupCount,
       );
+      if (expandedGroupedApproval) {
+        assert(
+          "approval-disclosure-expanded-end-reachable",
+          feedbackLayout.approvalDisclosureVerification?.timelineScrollable ===
+            true &&
+            feedbackLayout.approvalDisclosureVerification?.atScrollEnd ===
+              true &&
+            feedbackLayout.approvalDisclosureVerification
+              ?.expandedEndVisible === true,
+          feedbackLayout.approvalDisclosureVerification ?? null,
+          "expanded grouped content end reachable at timeline scroll end",
+        );
+      }
     }
     assert(
       "inline-content-not-cropped",

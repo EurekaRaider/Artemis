@@ -14973,21 +14973,54 @@ function createMainWindow(): BrowserWindow {
                           'Public resolved approval ResultDisclosure missing.',
                         );
                       }
+                      const timelineScroll = disclosure.closest('.timeline-scroll');
+                      if (!(timelineScroll instanceof HTMLElement)) {
+                        throw new Error(
+                          'Resolved approval timeline scroll container missing.',
+                        );
+                      }
+                      const collapsedBounds = disclosure.getBoundingClientRect();
+                      const collapsedScrollBounds =
+                        timelineScroll.getBoundingClientRect();
+                      const collapsedVisible =
+                        collapsedBounds.top >= collapsedScrollBounds.top - 1 &&
+                        collapsedBounds.bottom <=
+                          collapsedScrollBounds.bottom + 1;
                       disclosureButton.click();
                       await wait(350);
                       const content = disclosure.querySelector(
                         '[data-part="content"]',
                       );
+                      timelineScroll.scrollTop = timelineScroll.scrollHeight;
+                      await wait(350);
+                      const expandedScrollBounds =
+                        timelineScroll.getBoundingClientRect();
+                      const contentBounds = content?.getBoundingClientRect();
                       const groupItems = disclosure.querySelectorAll(
                         '.approval-group-list > li',
                       ).length;
                       window.__approvalDisclosureVerification = {
+                        atScrollEnd:
+                          Math.abs(
+                            timelineScroll.scrollTop -
+                              (timelineScroll.scrollHeight -
+                                timelineScroll.clientHeight),
+                          ) <= 1,
+                        collapsedVisible,
                         contentVisible:
                           content instanceof HTMLElement && !content.hidden,
                         expanded:
                           disclosure.getAttribute('data-expanded') === 'true',
+                        expandedEndVisible:
+                          contentBounds instanceof DOMRect &&
+                          contentBounds.bottom <=
+                            expandedScrollBounds.bottom + 1 &&
+                          contentBounds.bottom >= expandedScrollBounds.top - 1,
                         groupItems,
                         state: disclosure.getAttribute('data-state'),
+                        timelineScrollable:
+                          timelineScroll.scrollHeight >
+                          timelineScroll.clientHeight,
                       };
                       return;
                     }
