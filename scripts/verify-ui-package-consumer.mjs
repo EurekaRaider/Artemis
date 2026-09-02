@@ -99,6 +99,8 @@ try {
       "dist/surfaces.d.ts",
       "dist/workspace.js",
       "dist/workspace.d.ts",
+      "dist/workflow.js",
+      "dist/workflow.d.ts",
       "dist/styles.css",
     ]),
     await pack("packages/theme-artemis", [
@@ -226,6 +228,33 @@ void editor;
     "utf8",
   );
   await writeFile(
+    join(consumer, "workflow-consumer.ts"),
+    `import { createElement } from "react";
+import {
+  EnvironmentControl,
+  EnvironmentTrigger,
+  GoalEditorInput,
+  GoalEditorSurface,
+  ReviewSurface,
+  SourcesSurface,
+  WORKFLOW_COMPONENT_CONTRACTS,
+  type WorkflowComponentState,
+} from "@artemis/ui/workflow";
+
+const state: WorkflowComponentState = "stale";
+const review = createElement(ReviewSurface, { children: "Diff", label: "Review" });
+const environment = createElement(EnvironmentControl, { open: false }, createElement(EnvironmentTrigger, { controls: "environment-panel", expanded: false, icon: "Environment", label: "Environment" }));
+const goal = createElement(GoalEditorSurface, { children: createElement(GoalEditorInput, { "aria-label": "Objective", value: "Ship" }), label: "Goal", state });
+const sources = createElement(SourcesSurface, { children: "Source", label: "Sources" });
+if (!Object.isFrozen(WORKFLOW_COMPONENT_CONTRACTS)) throw new Error("invalid workflow contract");
+void review;
+void environment;
+void goal;
+void sources;
+`,
+    "utf8",
+  );
+  await writeFile(
     join(consumer, "tsconfig.json"),
     `${JSON.stringify(
       {
@@ -241,6 +270,7 @@ void editor;
           "consumer.ts",
           "pattern-label-types.ts",
           "workspace-consumer.ts",
+          "workflow-consumer.ts",
         ],
       },
       null,
@@ -329,6 +359,23 @@ if (!Object.isFrozen(WORKSPACE_COMPONENT_CONTRACTS) || !tabs.includes('data-arte
     "utf8",
   );
   run(process.execPath, ["workspace-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "workflow-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { EnvironmentControl, EnvironmentTrigger, GoalEditorSurface, ReviewSurface, SourcesSurface, WORKFLOW_COMPONENT_CONTRACTS } from "@artemis/ui/workflow";
+const html = [
+  renderToStaticMarkup(createElement(ReviewSurface, { label: "Review" }, "Diff")),
+  renderToStaticMarkup(createElement(EnvironmentControl, { open: false }, createElement(EnvironmentTrigger, { controls: "environment-panel", expanded: false, icon: "Environment", label: "Environment" }))),
+  renderToStaticMarkup(createElement(GoalEditorSurface, { label: "Goal", state: "ready" }, "Goal")),
+  renderToStaticMarkup(createElement(SourcesSurface, { label: "Sources" }, "Source")),
+].join("");
+for (const marker of ["review-surface", "environment-control", "goal-editor", "sources-surface"]) if (!html.includes('data-artemis-component="' + marker + '"')) throw new Error("workflow peer/component resolution failed: " + marker);
+if (!Object.isFrozen(WORKFLOW_COMPONENT_CONTRACTS)) throw new Error("workflow contract is mutable");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["workflow-consumer.mjs"], consumer);
   run(npm, ["ls", "--all", "react", "react-dom"], consumer);
 
   await writeFile(

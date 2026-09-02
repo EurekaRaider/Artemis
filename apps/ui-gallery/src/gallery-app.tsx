@@ -52,6 +52,7 @@ import { ConversationGallery } from "./conversation-gallery.js";
 import { GalleryActionIcon } from "./gallery-action-icon.js";
 import { STRESS_SKIN_ID, stressSkinCss } from "./stress-skin-fixture.mjs";
 import { WorkspaceGallery } from "./workspace-gallery.js";
+import { WorkflowGallery } from "./workflow-gallery.js";
 
 export type GallerySkin = "default" | "stress";
 
@@ -570,6 +571,18 @@ export function GalleryApp() {
           public UI anatomy while data and persistence remain caller-owned.
         </p>
         <WorkspaceGallery />
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="workflow-heading"
+      >
+        <h2 id="workflow-heading">Review, Environment, Goal, and Sources</h2>
+        <p>
+          Workflow presentation and finite visual states use public UI anatomy;
+          callers retain data, permissions, persistence, and runtime effects.
+        </p>
+        <WorkflowGallery />
       </section>
 
       <section

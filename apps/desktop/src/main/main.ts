@@ -297,6 +297,7 @@ import {
   type ProjectGitInfo,
   type ProjectGitCommitResult,
   type ProjectGitPushResult,
+  type ProjectPullRequestCheck,
   type ProjectPullRequestLookup,
   type ResourceInstallProgress,
   type ReviewDiff,
@@ -8192,9 +8193,41 @@ function registerIpc(): void {
       const context = await workspaceForGitRequest(projectId, threadId);
       if (
         smokeMode &&
-        process.env.ARTEMIS_SMOKE_VIEW === "environment-pr-checks"
+        process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment-pr-checks")
       ) {
         const gitInfo = await inspectGitBranches(context.workspacePath);
+        const checks: ProjectPullRequestCheck[] =
+          process.env.ARTEMIS_SMOKE_VIEW === "environment-pr-checks-empty"
+            ? []
+            : [
+                {
+                  name: "Test, typecheck, build and format",
+                  status: "passed",
+                  workflowName: "CI",
+                  detailsUrl: "https://github.com/EurekaRaider/Artemis/actions",
+                },
+                {
+                  name: "Desktop skin and package boundary",
+                  status: "pending",
+                  workflowName: "CI",
+                },
+                {
+                  name: "Windows native sandbox integration",
+                  status: "failed",
+                  workflowName: "CI",
+                  detailsUrl: "https://github.com/EurekaRaider/Artemis/actions",
+                },
+                {
+                  name: "Gallery macOS",
+                  status: "skipped",
+                  workflowName: "CI",
+                },
+                {
+                  name: "Gallery Windows",
+                  status: "cancelled",
+                  workflowName: "CI",
+                },
+              ];
         return {
           status: "found",
           pullRequest: {
@@ -8205,20 +8238,7 @@ function registerIpc(): void {
             isDraft: false,
             headRefName: gitInfo.currentBranch ?? "main",
             headRefOid: gitInfo.headOid ?? "0".repeat(40),
-            checks: [
-              {
-                name: "Test, typecheck, build and format",
-                status: "passed",
-                workflowName: "CI",
-                detailsUrl: "https://github.com/EurekaRaider/Artemis/actions",
-              },
-              {
-                name: "Windows native sandbox integration",
-                status: "passed",
-                workflowName: "CI",
-                detailsUrl: "https://github.com/EurekaRaider/Artemis/actions",
-              },
-            ],
+            checks,
           },
         };
       }
@@ -10484,6 +10504,35 @@ function seedSmokeTurnChangesFixture(): void {
       payload,
     })),
   );
+  store.upsertTurnChangeSet({
+    threadId,
+    turnId,
+    status: "ready",
+    files,
+    additions: files.reduce((sum, file) => sum + file.additions, 0),
+    deletions: files.reduce((sum, file) => sum + file.deletions, 0),
+    undoAvailable: false,
+    message: "Synthetic immutable review fixture.",
+    diffText: [
+      "diff --git a/apps/desktop/src/renderer/approval-groups.ts b/apps/desktop/src/renderer/approval-groups.ts",
+      "index 1111111..2222222 100644",
+      "--- a/apps/desktop/src/renderer/approval-groups.ts",
+      "+++ b/apps/desktop/src/renderer/approval-groups.ts",
+      "@@ -1,2 +1,3 @@",
+      " export const groupApprovals = true;",
+      "-export const reviewed = false;",
+      "+export const reviewed = true;",
+      '+export const reviewer = "independent";',
+      "",
+    ].join("\n"),
+    workspacePath: process.cwd(),
+    startHead: "1".repeat(40),
+    startIndex: "2".repeat(64),
+    endHead: "1".repeat(40),
+    endIndex: "2".repeat(64),
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 async function seedSmokeConversationTimelineFixture(): Promise<void> {
@@ -15568,14 +15617,9 @@ function createMainWindow(): BrowserWindow {
                   document.querySelector('.thread-select')?.click();
                   await wait(600);
                   if (view === 'turn-changes-form-controls') {
-                    window.dispatchEvent(
-                      new KeyboardEvent('keydown', {
-                        altKey: true,
-                        bubbles: true,
-                        ctrlKey: true,
-                        key: 'b',
-                      }),
-                    );
+                    document
+                      .querySelector('.turn-change-actions button:last-child')
+                      ?.click();
                     const deadline = Date.now() + 8_000;
                     let trigger = null;
                     while (Date.now() < deadline && trigger === null) {
@@ -15635,7 +15679,7 @@ function createMainWindow(): BrowserWindow {
                     await wait(500);
                     return;
                   }
-                  if (view === 'environment-pr-checks') {
+                  if (view.startsWith('environment-pr-checks')) {
                     const trigger = document.querySelector('.environment-trigger');
                     if (trigger?.getAttribute('aria-expanded') !== 'true') {
                       trigger?.click();
@@ -16432,7 +16476,7 @@ function createMainWindow(): BrowserWindow {
                   issues.push({ rule: "document-language", element: "html" });
                 }
                 const environmentPanel = document.querySelector(
-                  ".environment-popover",
+                  '[data-artemis-component="environment-panel"][data-part="root"]',
                 );
                 const environmentBounds = environmentPanel
                   ?.getBoundingClientRect();
@@ -16457,8 +16501,28 @@ function createMainWindow(): BrowserWindow {
                 const turnStatus = document.querySelector(".turn-status");
                 const turnStatusBounds = turnStatus?.getBoundingClientRect();
                 const environmentTrigger = document.querySelector(
-                  ".environment-trigger",
+                  '[data-artemis-component="environment-control"][data-part="trigger"]',
                 );
+                const environmentControls =
+                  environmentTrigger?.getAttribute("aria-controls") ?? null;
+                if (
+                  environmentTrigger?.getAttribute("aria-expanded") === "true"
+                ) {
+                  const controlledEnvironmentPanel = environmentControls
+                    ? document.getElementById(environmentControls)
+                    : null;
+                  if (
+                    !environmentControls ||
+                    controlledEnvironmentPanel !== environmentPanel ||
+                    controlledEnvironmentPanel?.getAttribute("role") !== "dialog" ||
+                    !name(controlledEnvironmentPanel)
+                  ) {
+                    issues.push({
+                      rule: "environment-trigger-dialog-relationship",
+                      element: environmentTrigger.outerHTML.slice(0, 240),
+                    });
+                  }
+                }
                 const workspaceDockResizer = document.querySelector(
                   '[data-artemis-component="workspace-dock-resizer"]',
                 );
@@ -16483,7 +16547,30 @@ function createMainWindow(): BrowserWindow {
                 const goalBarBounds = goalBar?.getBoundingClientRect();
                 const composer = document.querySelector(".composer");
                 const composerBounds = composer?.getBoundingClientRect();
-                const goalEditor = document.querySelector(".goal-editor-panel");
+                const goalEditor = document.querySelector(
+                  '[data-artemis-component="goal-editor"][data-part="root"]',
+                );
+                const reviewSurface = document.querySelector(
+                  '[data-artemis-component="review-surface"][data-part="root"]',
+                );
+                const reviewToolbar = reviewSurface?.querySelector(
+                  '[data-part="toolbar"]',
+                );
+                const reviewReader = reviewSurface?.querySelector(
+                  '[data-part="reader"]',
+                );
+                const reviewFiles = reviewSurface?.querySelector(
+                  '[data-part="files"]',
+                );
+                const reviewDiff = reviewSurface?.querySelector(
+                  '[data-artemis-component="review-diff"][data-part="root"]',
+                );
+                const sourcesSurface = document.querySelector(
+                  '[data-artemis-component="sources-surface"][data-part="root"]',
+                );
+                const environmentChecks = document.querySelector(
+                  '.environment-checks-popover[data-artemis-component="popover"]',
+                );
                 const queuedSteerBar = document.querySelector(
                   ".queued-message-bar",
                 );
@@ -16517,6 +16604,64 @@ function createMainWindow(): BrowserWindow {
                   workspaceWidth: workspaceBounds?.width ?? null,
                   environmentPanelOpen:
                     environmentTrigger?.getAttribute("aria-expanded") === "true",
+                  environmentControl: environmentTrigger
+                    ? {
+                        controls: environmentControls,
+                        panelId: environmentPanel?.id ?? null,
+                        panelRole: environmentPanel?.getAttribute("role") ?? null,
+                        panelName: environmentPanel ? name(environmentPanel) : null,
+                      }
+                    : null,
+                  workflowComponents: [
+                    ...new Set(
+                      [...document.querySelectorAll(
+                        '[data-artemis-component="review-surface"], ' +
+                          '[data-artemis-component="review-diff"], ' +
+                          '[data-artemis-component="environment-control"], ' +
+                          '[data-artemis-component="environment-panel"], ' +
+                          '[data-artemis-component="goal-editor"], ' +
+                          '[data-artemis-component="sources-surface"]',
+                      )].map((element) =>
+                        element.getAttribute("data-artemis-component"),
+                      ),
+                    ),
+                  ],
+                  reviewGeometry: reviewSurface
+                    ? {
+                        state: reviewSurface.getAttribute("data-state"),
+                        root: reviewSurface.getBoundingClientRect().toJSON(),
+                        toolbar: reviewToolbar?.getBoundingClientRect().toJSON() ?? null,
+                        reader: reviewReader?.getBoundingClientRect().toJSON() ?? null,
+                        files: reviewFiles?.getBoundingClientRect().toJSON() ?? null,
+                        diffState: reviewDiff?.getAttribute("data-state") ?? null,
+                        lineCount:
+                          reviewDiff?.querySelectorAll('[data-part="line"]')
+                            .length ?? 0,
+                        lineMarkers: [
+                          ...(reviewDiff?.querySelectorAll('[data-part="marker"]') ?? []),
+                        ].map((marker) => marker.textContent ?? ""),
+                      }
+                    : null,
+                  goalEditorGeometry: goalEditor
+                    ? {
+                        ...goalEditor.getBoundingClientRect().toJSON(),
+                        state: goalEditor.getAttribute("data-state"),
+                      }
+                    : null,
+                  sourcesGeometry: sourcesSurface
+                    ? {
+                        ...sourcesSurface.getBoundingClientRect().toJSON(),
+                        state: sourcesSurface.getAttribute("data-state"),
+                      }
+                    : null,
+                  environmentChecksGeometry: environmentChecks
+                    ? environmentChecks.getBoundingClientRect().toJSON()
+                    : null,
+                  environmentCheckStatuses: [
+                    ...document.querySelectorAll(
+                      ".environment-check-indicator[data-status]",
+                    ),
+                  ].map((indicator) => indicator.getAttribute("data-status")),
                   environmentPanel: environmentBounds
                     ? {
                         visible: visible(environmentPanel),

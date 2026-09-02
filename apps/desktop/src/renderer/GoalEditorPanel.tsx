@@ -1,5 +1,11 @@
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
 import type { AppLocale, Thread, ThreadGoal } from "@artemis/protocol";
+import {
+  GoalEditorFooter,
+  GoalEditorInput,
+  GoalEditorSurface,
+  type WorkflowComponentState,
+} from "@artemis/ui/workflow";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const COPY = {
@@ -256,9 +262,26 @@ export function GoalEditorPanel({
     (status.kind === "stale" && status.source !== undefined)
       ? status.draft
       : "";
+  const visualState: Extract<
+    WorkflowComponentState,
+    "ready" | "loading" | "dirty" | "saving" | "saved" | "stale" | "error"
+  > =
+    status.kind === "loading"
+      ? "loading"
+      : status.kind === "saving"
+        ? "saving"
+        : status.kind === "load-error" || status.kind === "save-error"
+          ? "error"
+          : status.kind === "stale"
+            ? "stale"
+            : status.saved
+              ? "saved"
+              : dirty
+                ? "dirty"
+                : "ready";
 
   return (
-    <section aria-busy={busy || undefined} className="goal-editor-panel">
+    <GoalEditorSurface busy={busy} label={copy.goal} state={visualState}>
       {status.kind === "loading" && (
         <div className="goal-editor-loading">{copy.loading}</div>
       )}
@@ -266,10 +289,9 @@ export function GoalEditorPanel({
         status.kind === "saving" ||
         status.kind === "save-error" ||
         (status.kind === "stale" && status.source !== undefined)) && (
-        <textarea
+        <GoalEditorInput
           aria-label={copy.goal}
           autoFocus={true}
-          className="goal-editor-input"
           disabled={status.kind === "saving" || status.kind === "stale"}
           onChange={(event) => {
             if (status.kind !== "ready" && status.kind !== "save-error") return;
@@ -319,46 +341,49 @@ export function GoalEditorPanel({
           </button>
         </p>
       )}
-      <footer className="goal-editor-footer">
-        <span>{updatedLabel}</span>
-        <div>
-          {status.kind === "ready" && status.saved && (
-            <span aria-live="polite" className="goal-editor-saved">
-              {copy.saved}
-            </span>
-          )}
-          <button
-            aria-label={copy.revert}
-            className="goal-editor-revert"
-            disabled={!dirty || busy || status.kind === "stale"}
-            onClick={() => {
-              if (status.kind !== "ready" && status.kind !== "save-error") {
-                return;
+      <GoalEditorFooter
+        actions={
+          <>
+            {status.kind === "ready" && status.saved && (
+              <span aria-live="polite" className="goal-editor-saved">
+                {copy.saved}
+              </span>
+            )}
+            <button
+              aria-label={copy.revert}
+              className="goal-editor-revert"
+              disabled={!dirty || busy || status.kind === "stale"}
+              onClick={() => {
+                if (status.kind !== "ready" && status.kind !== "save-error") {
+                  return;
+                }
+                setStatus({
+                  kind: "ready",
+                  source: status.source,
+                  draft: status.source,
+                  saved: false,
+                });
+              }}
+              title={copy.revert}
+              type="button"
+            >
+              <ArrowCounterClockwiseIcon aria-hidden="true" size={14} />
+            </button>
+            <button
+              className="primary-button"
+              disabled={
+                !dirty || !draftValue.trim() || busy || status.kind === "stale"
               }
-              setStatus({
-                kind: "ready",
-                source: status.source,
-                draft: status.source,
-                saved: false,
-              });
-            }}
-            title={copy.revert}
-            type="button"
-          >
-            <ArrowCounterClockwiseIcon aria-hidden="true" size={14} />
-          </button>
-          <button
-            className="primary-button"
-            disabled={
-              !dirty || !draftValue.trim() || busy || status.kind === "stale"
-            }
-            onClick={() => void save()}
-            type="button"
-          >
-            {status.kind === "saving" ? copy.saving : copy.save}
-          </button>
-        </div>
-      </footer>
-    </section>
+              onClick={() => void save()}
+              type="button"
+            >
+              {status.kind === "saving" ? copy.saving : copy.save}
+            </button>
+          </>
+        }
+      >
+        {updatedLabel}
+      </GoalEditorFooter>
+    </GoalEditorSurface>
   );
 }

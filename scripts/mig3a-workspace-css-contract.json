@@ -1009,8 +1009,20 @@
   [
     "narrow-width|[data-artemis-component=\"workspace-dock\"]",
     {
-      "min-inline-size": "min(20rem, calc(100% - 20.4375rem))",
-      "inline-size": "var(--workspace-dock-width, 62%)"
+      "position": "absolute",
+      "z-index": "3",
+      "inset-block": "0",
+      "inset-inline-end": "0",
+      "flex": "1 1 auto",
+      "min-inline-size": "min(20rem, 100%)",
+      "max-inline-size": "100%",
+      "inline-size": "100%"
+    }
+  ],
+  [
+    "narrow-width|[data-artemis-component=\"workspace-dock-resizer\"]",
+    {
+      "display": "none"
     }
   ],
   [

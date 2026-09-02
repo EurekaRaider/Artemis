@@ -120,6 +120,15 @@ describe("task environment panel state", () => {
     );
   });
 
+  it("links the trigger to the named Environment dialog", () => {
+    expect(panelSource).toContain("const panelId = useId()");
+    expect(panelSource).toContain("controls={panelId}");
+    expect(panelSource).toContain("<EnvironmentPanelSurface id={panelId}");
+    expect(mainSource).toContain(
+      'rule: "environment-trigger-dialog-relationship"',
+    );
+  });
+
   it("keeps loaded Git information mounted while the workspace dock toggles", () => {
     expect(appSource).toContain(
       'key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}',
@@ -292,7 +301,8 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain("ARTEMIS_SMOKE_WINDOW_WIDTH");
     expect(mainSource).toContain("ARTEMIS_SMOKE_RESIZE_WIDTH");
     expect(mainSource).toContain("view === 'environment-agents'");
-    expect(mainSource).toContain("view === 'environment-pr-checks'");
+    expect(mainSource).toContain("view.startsWith('environment-pr-checks')");
+    expect(mainSource).toContain('"environment-pr-checks-empty"');
     expect(mainSource).toContain("view === 'environment-sources'");
     expect(mainSource).toContain("view === 'environment-open'");
     expect(mainSource).toContain("view === 'environment-branch-menu'");
