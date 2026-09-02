@@ -1,6 +1,6 @@
 # Discussion #76 visual migration ledger
 
-Status: MIG1 reference-slice candidate on merged CL4 base
+Status: MIG1 reference-slice candidate implemented on merged CL4 base
 `44634b9e42525ee61ec047d457a48a7b53063ad8`; CL4 is merged. This
 ledger separates static prototype evidence, package/Gallery evidence, and
 production Electron evidence. It must not be used to turn a prototype,
@@ -445,6 +445,29 @@ avoidance, semantic computed styles, 200% zoom, RTL, and no per-character
 wrapping of model, approval, or send controls. Final evidence must record a
 clean exact candidate HEAD; build, unit, static conformance, or screenshots by
 themselves are not that proof.
+
+The implementation/evidence head `6a5aef6974cacc5c5fe025671bcdc9b3f80a435c`
+passes the Desktop skin verifier on a real strict-sandbox Electron launch. The
+run traverses 64 production vertices, records the exact 935/943/949-pixel
+Conversation content widths, exercises the 1440x900 Sidebar, Dock, and
+Environment geometry, and scans the packaged macOS arm64 `app.asar` without a
+finding. Its audit SHA-256 is
+`1895967b5f01460bbea1833fdb42411dc37d4364942dcf7fd3a7f8aacc807bbb`.
+The implementation-era feedback run covers eight production cases and 177
+assertions, including pending, resolved, and grouped Approval at 200% zoom and
+RTL. Resolved and grouped checks first expand the completed turn through the
+same public disclosure path a user follows, then prove the title is visible
+and the final item is scroll-reachable; they do not substitute hidden-node
+geometry or an unrelated absolute-scroll-end condition for reachability.
+
+A same-state prototype/current approval comparison and the 1440x900 reference
+slice were inspected together for cropping, padding, typography, borders, and
+control wrapping. The current slice preserves the source hierarchy and keeps
+all primary controls reachable without per-character wrapping. The final
+documentation-only PR head must still rerun the complete root test, typecheck,
+build, feedback, and Desktop skin gates. Those exact-head results belong in the
+PR evidence because adding the resulting HEAD to this tracked ledger would
+create a self-referential commit.
 
 ## Component and surface sequence
 
