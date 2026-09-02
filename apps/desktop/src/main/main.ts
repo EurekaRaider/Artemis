@@ -14973,6 +14973,24 @@ function createMainWindow(): BrowserWindow {
                           'Public resolved approval ResultDisclosure missing.',
                         );
                       }
+                      const completedTurnDetails = disclosure.closest(
+                        'details.turn-execution-details',
+                      );
+                      if (
+                        completedTurnDetails instanceof HTMLDetailsElement &&
+                        !completedTurnDetails.open
+                      ) {
+                        const summary = completedTurnDetails.querySelector(
+                          ':scope > summary',
+                        );
+                        if (!(summary instanceof HTMLElement)) {
+                          throw new Error(
+                            'Completed turn execution disclosure missing.',
+                          );
+                        }
+                        summary.click();
+                        await wait(350);
+                      }
                       const timelineScroll = disclosure.closest('.timeline-scroll');
                       if (!(timelineScroll instanceof HTMLElement)) {
                         throw new Error(
