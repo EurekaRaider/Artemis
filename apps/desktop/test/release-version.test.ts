@@ -65,7 +65,7 @@ describe("release version", () => {
       "utf8",
     );
     const readme = readFileSync(join(root, "README.md"), "utf8");
-    expect(mcp.match(/version: "1\.4\.52"/gu)).toHaveLength(3);
+    expect(mcp.match(/version: "1\.4\.53"/gu)).toHaveLength(3);
     expect(
       themeArtemisSource.match(
         /ARTEMIS_THEME_VERSION = "([^"]+)" as const;/u,
