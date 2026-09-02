@@ -19,13 +19,32 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { CaretRightIcon, TargetIcon } from "@phosphor-icons/react";
+import {
+  CaretRightIcon,
+  MagicWandIcon,
+  TargetIcon,
+} from "@phosphor-icons/react";
+import {
+  ConversationEmptyState,
+  ConversationMessage,
+  ConversationSurface,
+  QueuedMessageGroup,
+  QueuedMessageItem,
+  TimelineSurface,
+  TimelineTurn,
+  TimelineViewport,
+  TurnChangeSummary,
+  TurnExecutionDisclosure,
+} from "@artemis/ui/conversation";
 import { Dialog, LoadingState, Toast } from "@artemis/ui/feedback";
 import { PanelHeader, Toolbar } from "@artemis/ui/layout";
 import {
   ApprovalCard as ApprovalPatternCard,
+  AgentActivity,
   ResultDisclosure,
   ToolActivity,
+  TurnStatus,
+  UserInputFrame,
 } from "@artemis/ui/patterns";
 import {
   ActivityBar,
@@ -543,6 +562,8 @@ const copy = {
     editAndResend: "Edit and resend",
     messageCopied: "Message copied",
     messageCopyFailed: "The message could not be copied.",
+    conversation: "Conversation",
+    conversationHistory: "Conversation history",
     emptyConversationPrompt: "What should we build in {{workspace}}?",
     temporaryConversationPrompt: "What should we build in Artemis?",
     sandboxUnavailable: "Native command sandbox is not installed",
@@ -821,6 +842,8 @@ const copy = {
     editAndResend: "编辑后重新发送",
     messageCopied: "已复制消息",
     messageCopyFailed: "无法复制消息。",
+    conversation: "会话",
+    conversationHistory: "会话历史",
     emptyConversationPrompt: "想在 {{workspace}} 中构建什么？",
     temporaryConversationPrompt: "想在 Artemis 中构建什么？",
     sandboxUnavailable: "尚未安装原生命令沙箱",
@@ -6495,9 +6518,22 @@ export function App() {
               data-resizing={workspaceDockResizing || undefined}
               ref={workspaceContent}
             >
-              <section className="conversation">
-                <div
+              <ConversationSurface
+                className="conversation"
+                label={t.conversation}
+                state={
+                  !activeThread ||
+                  (!activeThread.archived &&
+                    loadedEventThreads.current.has(activeThread.id) &&
+                    activeEvents.length === 0 &&
+                    !busy)
+                    ? "empty"
+                    : "ready"
+                }
+              >
+                <TimelineViewport
                   className="timeline-scroll"
+                  label={t.conversationHistory}
                   onPointerDown={(event) => {
                     const container = event.currentTarget;
                     const bounds = container.getBoundingClientRect();
@@ -6549,22 +6585,26 @@ export function App() {
                     loadedEventThreads.current.has(activeThread.id) &&
                     activeEvents.length === 0 &&
                     !busy) ? (
-                    <div className="conversation-empty-state">
-                      <ArtemisMark />
-                      <h1 aria-label={emptyConversationLabel}>
-                        {activeProject ? (
-                          <>
-                            {emptyConversationPrefix}
-                            <span className="conversation-project-name">
-                              {activeProject.name}
-                            </span>
-                            {emptyConversationSuffix}
-                          </>
-                        ) : (
-                          t.temporaryConversationPrompt
-                        )}
-                      </h1>
-                    </div>
+                    <ConversationEmptyState
+                      className="conversation-empty-state"
+                      icon={<ArtemisMark />}
+                      label={emptyConversationLabel}
+                      title={
+                        <h1 aria-label={emptyConversationLabel}>
+                          {activeProject ? (
+                            <>
+                              {emptyConversationPrefix}
+                              <span className="conversation-project-name">
+                                {activeProject.name}
+                              </span>
+                              {emptyConversationSuffix}
+                            </>
+                          ) : (
+                            t.temporaryConversationPrompt
+                          )}
+                        </h1>
+                      }
+                    />
                   ) : (
                     <Timeline
                       installedPlugins={installedPlugins}
@@ -6594,16 +6634,25 @@ export function App() {
                   {activeThread &&
                     runPresentation.status !== "idle" &&
                     !latestTimelineEntryIsCompaction && (
-                      <div
-                        aria-live="polite"
+                      <TurnStatus
                         className={`turn-status ${runPresentation.status}`}
-                        role="status"
-                      >
-                        <span
-                          className={`status-dot ${runPresentation.status === "completed" ? "idle" : runPresentation.status}`}
-                        />
-                        <span>
-                          {runPresentation.status === "running"
+                        durationLabel={
+                          <time
+                            dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
+                            title={t.elapsed}
+                          >
+                            {formatRunDuration(runPresentation.elapsedMs)}
+                          </time>
+                        }
+                        label={t.elapsed}
+                        state={
+                          runPresentation.status === "waiting-approval" ||
+                          runPresentation.status === "waiting-user-input"
+                            ? "waiting"
+                            : runPresentation.status
+                        }
+                        statusLabel={
+                          runPresentation.status === "running"
                             ? statusLabel(threadState, locale, clockMs)
                             : runPresentation.status === "waiting-approval"
                               ? t.waiting
@@ -6611,17 +6660,11 @@ export function App() {
                                 ? t.waitingInput
                                 : runPresentation.status === "failed"
                                   ? t.failed
-                                  : t.completed}
-                        </span>
-                        <time
-                          dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
-                          title={t.elapsed}
-                        >
-                          {formatRunDuration(runPresentation.elapsedMs)}
-                        </time>
-                      </div>
+                                  : t.completed
+                        }
+                      />
                     )}
-                </div>
+                </TimelineViewport>
 
                 {activeTurnFailure && (
                   <div className="turn-error-banner" role="alert">
@@ -6719,150 +6762,143 @@ export function App() {
                         </div>
                       )}
                       {queuedFollowUps.length > 0 && (
-                        <div
-                          aria-label={t.queuedMessages.replace(
+                        <QueuedMessageGroup
+                          className="queued-message-bar"
+                          heading={
+                            <>
+                              <QueueIcon />
+                              <strong>
+                                {t.queuedMessages.replace(
+                                  "{{count}}",
+                                  String(queuedFollowUps.length),
+                                )}
+                              </strong>
+                            </>
+                          }
+                          label={t.queuedMessages.replace(
                             "{{count}}",
                             String(queuedFollowUps.length),
                           )}
-                          className="queued-message-bar"
-                          role="status"
+                          state={busy ? "busy" : "queued"}
                         >
-                          <div className="queued-message-heading">
-                            <QueueIcon />
-                            <strong>
-                              {t.queuedMessages.replace(
-                                "{{count}}",
-                                String(queuedFollowUps.length),
-                              )}
-                            </strong>
-                          </div>
-                          <ol className="queued-message-list">
-                            {queuedFollowUps.map((message, index) => {
-                              const editing =
-                                editingQueuedMessage?.index === index;
-                              const itemLabel = t.queueItem.replace(
-                                "{{number}}",
-                                String(index + 1),
-                              );
-                              return (
-                                <li
-                                  className="queued-message-item"
-                                  data-queued-index={index}
-                                  key={String(index)}
-                                >
-                                  <span
-                                    aria-hidden="true"
-                                    className="queued-message-index"
-                                  >
-                                    {index + 1}
-                                  </span>
-                                  {editing ? (
-                                    <QueuedMessageEditor
-                                      busy={busy}
-                                      cancelLabel={t.queueCancel}
-                                      errorDetail={queuedSaveErrorDetail}
-                                      errorLabel={t.queueSaveError}
-                                      retryLabel={t.queueRetry}
-                                      saveLabel={t.queueSave}
-                                      textareaLabel={t.queueEdit}
-                                      value={editingQueuedMessage.value}
-                                      focusReturnTarget={() =>
-                                        document.querySelector<HTMLElement>(
-                                          `[data-queued-index="${index}"] .queued-message-steer`,
-                                        )
-                                      }
-                                      onCancel={() =>
-                                        setEditingQueuedMessage(undefined)
-                                      }
-                                      onSave={async () =>
-                                        (await saveQueuedMessage(
-                                          index,
-                                          editingQueuedMessage.value,
-                                        )) === true
-                                      }
-                                      onSuccess={() =>
-                                        setEditingQueuedMessage(undefined)
-                                      }
-                                      onValueChange={(value) =>
-                                        setEditingQueuedMessage({
-                                          index,
-                                          value,
-                                        })
-                                      }
-                                    />
-                                  ) : (
+                          {queuedFollowUps.map((message, index) => {
+                            const editing =
+                              editingQueuedMessage?.index === index;
+                            const itemLabel = t.queueItem.replace(
+                              "{{number}}",
+                              String(index + 1),
+                            );
+                            return (
+                              <QueuedMessageItem
+                                actions={
+                                  editing ? undefined : (
                                     <>
-                                      <span
-                                        className="queued-message-content"
-                                        title={message}
+                                      <button
+                                        aria-label={`${t.queueSteer}: ${itemLabel}`}
+                                        className="queued-message-steer"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          void steerQueuedMessage(index)
+                                        }
+                                        title={t.queueSteerHint}
+                                        type="button"
                                       >
-                                        {message}
-                                      </span>
-                                      <div className="queued-message-actions">
+                                        <SteerIcon />
+                                        <span>{t.queueSteer}</span>
+                                      </button>
+                                      {index > 0 && (
                                         <button
-                                          aria-label={`${t.queueSteer}: ${itemLabel}`}
-                                          className="queued-message-steer"
+                                          aria-label={`${t.queueMoveToFront}: ${itemLabel}`}
+                                          className="queued-message-prioritize"
                                           disabled={busy}
                                           onClick={() =>
-                                            void steerQueuedMessage(index)
+                                            void moveQueuedMessageToFront(index)
                                           }
-                                          title={t.queueSteerHint}
+                                          title={t.queueMoveToFrontHint}
                                           type="button"
                                         >
-                                          <SteerIcon />
-                                          <span>{t.queueSteer}</span>
+                                          <MoveToFrontIcon />
                                         </button>
-                                        {index > 0 && (
-                                          <button
-                                            aria-label={`${t.queueMoveToFront}: ${itemLabel}`}
-                                            className="queued-message-prioritize"
-                                            disabled={busy}
-                                            onClick={() =>
-                                              void moveQueuedMessageToFront(
-                                                index,
-                                              )
-                                            }
-                                            title={t.queueMoveToFrontHint}
-                                            type="button"
-                                          >
-                                            <MoveToFrontIcon />
-                                          </button>
-                                        )}
-                                        <button
-                                          aria-label={`${t.queueEdit}: ${itemLabel}`}
-                                          className="queued-message-edit"
-                                          disabled={busy}
-                                          onClick={() =>
-                                            setEditingQueuedMessage({
-                                              index,
-                                              value: message,
-                                            })
-                                          }
-                                          title={t.queueEdit}
-                                          type="button"
-                                        >
-                                          <EditIcon />
-                                        </button>
-                                        <button
-                                          aria-label={`${t.queueDelete}: ${itemLabel}`}
-                                          className="queued-message-delete"
-                                          disabled={busy}
-                                          onClick={() =>
-                                            void deleteQueuedMessage(index)
-                                          }
-                                          title={t.queueDelete}
-                                          type="button"
-                                        >
-                                          <TrashIcon />
-                                        </button>
-                                      </div>
+                                      )}
+                                      <button
+                                        aria-label={`${t.queueEdit}: ${itemLabel}`}
+                                        className="queued-message-edit"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          setEditingQueuedMessage({
+                                            index,
+                                            value: message,
+                                          })
+                                        }
+                                        title={t.queueEdit}
+                                        type="button"
+                                      >
+                                        <EditIcon />
+                                      </button>
+                                      <button
+                                        aria-label={`${t.queueDelete}: ${itemLabel}`}
+                                        className="queued-message-delete"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          void deleteQueuedMessage(index)
+                                        }
+                                        title={t.queueDelete}
+                                        type="button"
+                                      >
+                                        <TrashIcon />
+                                      </button>
                                     </>
-                                  )}
-                                </li>
-                              );
-                            })}
-                          </ol>
-                        </div>
+                                  )
+                                }
+                                className="queued-message-item"
+                                data-queued-index={index}
+                                index={index + 1}
+                                key={String(index)}
+                                state={busy ? "busy" : "queued"}
+                              >
+                                {editing ? (
+                                  <QueuedMessageEditor
+                                    busy={busy}
+                                    cancelLabel={t.queueCancel}
+                                    errorDetail={queuedSaveErrorDetail}
+                                    errorLabel={t.queueSaveError}
+                                    retryLabel={t.queueRetry}
+                                    saveLabel={t.queueSave}
+                                    textareaLabel={t.queueEdit}
+                                    value={editingQueuedMessage.value}
+                                    focusReturnTarget={() =>
+                                      document.querySelector<HTMLElement>(
+                                        `[data-queued-index="${index}"] .queued-message-steer`,
+                                      )
+                                    }
+                                    onCancel={() =>
+                                      setEditingQueuedMessage(undefined)
+                                    }
+                                    onSave={async () =>
+                                      (await saveQueuedMessage(
+                                        index,
+                                        editingQueuedMessage.value,
+                                      )) === true
+                                    }
+                                    onSuccess={() =>
+                                      setEditingQueuedMessage(undefined)
+                                    }
+                                    onValueChange={(value) =>
+                                      setEditingQueuedMessage({ index, value })
+                                    }
+                                  />
+                                ) : (
+                                  <span
+                                    className="queued-message-content"
+                                    title={message}
+                                  >
+                                    {message}
+                                  </span>
+                                )}
+                              </QueuedMessageItem>
+                            );
+                          })}
+                        </QueuedMessageGroup>
                       )}
                       {activeThread?.goal && (
                         <GoalBar
@@ -7736,7 +7772,7 @@ export function App() {
                     </>
                   </div>
                 )}
-              </section>
+              </ConversationSurface>
 
               {!activeThread?.archived && (
                 <>
@@ -9508,7 +9544,17 @@ function UserInputCard({
   };
 
   return (
-    <article className={`user-input-card ${input.status}`}>
+    <UserInputFrame
+      className={`user-input-card ${input.status}`}
+      label={input.question}
+      state={
+        interactionBusy
+          ? "busy"
+          : input.status === "timed-out"
+            ? "timeout"
+            : input.status
+      }
+    >
       <header>
         <span aria-hidden="true" className="user-input-mark">
           <Icon size={18}>
@@ -9529,7 +9575,9 @@ function UserInputCard({
         </span>
         <div className="user-input-heading">
           <small className="user-input-eyebrow">{input.header}</small>
-          <strong className="user-input-question">{input.question}</strong>
+          <strong className="user-input-question" data-part="question">
+            {input.question}
+          </strong>
         </div>
         {input.status === "pending" && (
           <time
@@ -9548,6 +9596,7 @@ function UserInputCard({
             <div
               aria-label={input.question}
               className="user-input-options"
+              data-part="options"
               role="listbox"
             >
               {input.options.map((option, index) => (
@@ -9711,7 +9760,7 @@ function UserInputCard({
           </div>
         </>
       ) : (
-        <div className="user-input-result">
+        <div className="user-input-result" data-part="status">
           <span>
             {input.status === "timed-out"
               ? t.timedOut
@@ -9722,7 +9771,7 @@ function UserInputCard({
           {input.answer && <strong>{input.answer}</strong>}
         </div>
       )}
-    </article>
+    </UserInputFrame>
   );
 }
 
@@ -9872,43 +9921,49 @@ function TurnChangeSetCard({
   );
 
   return (
-    <article className={`turn-change-card ${changeSet.status}`}>
-      <header>
-        <span className="turn-change-icon">
-          <FileIcon />
-        </span>
-        <div className="turn-change-heading">
-          <strong>{title}</strong>
-          <small>{t.taskPeriodChanges}</small>
-          {singleBinary ? (
-            <span className="turn-change-binary">{t.binaryChange}</span>
-          ) : (
-            hasTextChanges && (
-              <span className="turn-change-total">
-                <span className="addition">+{changeSet.additions}</span>
-                <span className="deletion">−{changeSet.deletions}</span>
-              </span>
-            )
-          )}
-        </div>
-        <div className="turn-change-actions">
-          {changeSet.status === "undone" ? (
-            <span className="turn-change-undone">{t.changesUndone}</span>
-          ) : (
-            <button
-              disabled={!undoEnabled}
-              onClick={() => onUndo(turn.id)}
-              title={changeSet.message}
-              type="button"
-            >
-              {t.undoChanges}
+    <TurnChangeSummary
+      className={`turn-change-card ${changeSet.status}`}
+      header={
+        <>
+          <span className="turn-change-icon">
+            <FileIcon />
+          </span>
+          <div className="turn-change-heading">
+            <strong>{title}</strong>
+            <small>{t.taskPeriodChanges}</small>
+            {singleBinary ? (
+              <span className="turn-change-binary">{t.binaryChange}</span>
+            ) : (
+              hasTextChanges && (
+                <span className="turn-change-total">
+                  <span className="addition">+{changeSet.additions}</span>
+                  <span className="deletion">−{changeSet.deletions}</span>
+                </span>
+              )
+            )}
+          </div>
+          <div className="turn-change-actions">
+            {changeSet.status === "undone" ? (
+              <span className="turn-change-undone">{t.changesUndone}</span>
+            ) : (
+              <button
+                disabled={!undoEnabled}
+                onClick={() => onUndo(turn.id)}
+                title={changeSet.message}
+                type="button"
+              >
+                {t.undoChanges}
+              </button>
+            )}
+            <button onClick={() => onReview(turn.id)} type="button">
+              {t.reviewChanges}
             </button>
-          )}
-          <button onClick={() => onReview(turn.id)} type="button">
-            {t.reviewChanges}
-          </button>
-        </div>
-      </header>
+          </div>
+        </>
+      }
+      label={title}
+      state={changeSet.status === "unavailable" ? "failed" : changeSet.status}
+    >
       {previewFiles.length > 0 && (
         <ol className="turn-change-files">{previewFiles.map(fileRow)}</ol>
       )}
@@ -9927,7 +9982,7 @@ function TurnChangeSetCard({
       {changeSet.message && (
         <p className="turn-change-message">{changeSet.message}</p>
       )}
-    </article>
+    </TurnChangeSummary>
   );
 }
 
@@ -10074,75 +10129,83 @@ function Timeline({
     const kind = entry.slice(0, separator);
     const id = entry.slice(separator + 1);
     if (separator < 0 || !id) return null;
+    const turn = state.turns[state.entryTurnIds[entry] ?? ""];
     if (kind === "user") {
       const message = state.userMessages[id];
       if (!message) return null;
       const skillNames = selectedSkillNamesForPrompt(message.text);
       const visibleText = promptWithoutSelectedSkills(message.text);
-      const turn = state.turns[state.entryTurnIds[entry] ?? ""];
       const editable =
         onEditUserMessage !== undefined &&
         (turn?.status === "cancelled" || turn?.status === "failed");
       return (
-        <article className="user-message" key={entry}>
-          <div className="message-actions">
-            <button
-              aria-label={t.copyMessage}
-              className="message-action"
-              onClick={() => void onCopyText(visibleText || message.text)}
-              title={t.copyMessage}
-              type="button"
-            >
-              <CopyIcon />
-            </button>
-            {editable && (
+        <ConversationMessage
+          actions={
+            <>
               <button
-                aria-label={t.editAndResend}
+                aria-label={t.copyMessage}
                 className="message-action"
-                onClick={() => onEditUserMessage(message.text)}
-                title={t.editAndResend}
+                onClick={() => void onCopyText(visibleText || message.text)}
+                title={t.copyMessage}
                 type="button"
               >
-                <EditIcon />
+                <CopyIcon />
               </button>
-            )}
-          </div>
-          {skillNames.length > 0 && (
-            <div className="user-message-capabilities">
-              {skillNames.map((name) => {
-                const skill = installedSkills.find(
-                  (candidate) => candidate.name === name,
-                );
-                const plugin = installedPlugins.find((candidate) =>
-                  candidate.skillNames.includes(name),
-                );
-                return (
-                  <span className="user-message-capability" key={name}>
-                    <span
-                      className={`user-message-capability-icon${plugin ? " plugin-icon" : ""}`}
-                    >
-                      {plugin?.iconDataUrl ? (
-                        <img
-                          alt=""
-                          draggable={false}
-                          src={plugin.iconDataUrl}
-                        />
-                      ) : plugin ? (
-                        <ResourceIcon />
-                      ) : (
-                        "✦"
-                      )}
+              {editable && (
+                <button
+                  aria-label={t.editAndResend}
+                  className="message-action"
+                  onClick={() => onEditUserMessage(message.text)}
+                  title={t.editAndResend}
+                  type="button"
+                >
+                  <EditIcon />
+                </button>
+              )}
+            </>
+          }
+          capabilities={
+            skillNames.length > 0 ? (
+              <>
+                {skillNames.map((name) => {
+                  const skill = installedSkills.find(
+                    (candidate) => candidate.name === name,
+                  );
+                  const plugin = installedPlugins.find((candidate) =>
+                    candidate.skillNames.includes(name),
+                  );
+                  return (
+                    <span className="user-message-capability" key={name}>
+                      <span
+                        className={`user-message-capability-icon${plugin ? " plugin-icon" : ""}`}
+                      >
+                        {plugin?.iconDataUrl ? (
+                          <img
+                            alt=""
+                            draggable={false}
+                            src={plugin.iconDataUrl}
+                          />
+                        ) : plugin ? (
+                          <ResourceIcon />
+                        ) : (
+                          <MagicWandIcon aria-hidden="true" size={16} />
+                        )}
+                      </span>
+                      <strong>{skill?.name ?? name}</strong>
                     </span>
-                    <strong>{skill?.name ?? name}</strong>
-                  </span>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </>
+            ) : undefined
+          }
+          className="user-message"
+          key={entry}
+          kind="user"
+        >
           {visibleText && (
             <div className="user-message-text">{visibleText}</div>
           )}
-        </article>
+        </ConversationMessage>
       );
     }
     if (kind === "compaction") {
@@ -10161,8 +10224,8 @@ function Timeline({
       if (!part) return null;
       if (part.type === "thinking") return null;
       return (
-        <article className="assistant-message" key={entry}>
-          <div className="message-actions">
+        <ConversationMessage
+          actions={
             <button
               aria-label={t.copyMessage}
               className="message-action"
@@ -10172,7 +10235,12 @@ function Timeline({
             >
               <CopyIcon />
             </button>
-          </div>
+          }
+          className="assistant-message"
+          key={entry}
+          kind="assistant"
+          state={turn?.status === "running" ? "streaming" : "ready"}
+        >
           <MarkdownContent
             externalLinkIcons
             fileLinkIcons
@@ -10181,7 +10249,7 @@ function Timeline({
             onFileLinkContextMenu={onFileLinkContextMenu}
             text={part.text}
           />
-        </article>
+        </ConversationMessage>
       );
     }
     if (kind === "input") {
@@ -10415,46 +10483,49 @@ function Timeline({
         return null;
       }
       return child ? (
-        <button
-          aria-label={`${child.label}, ${childStatusLabels[child.status]}`}
+        <AgentActivity
+          actions={
+            <span aria-hidden="true" className="child-agent-open-icon">
+              <Icon size={14}>
+                <path
+                  d="m9 6 6 6-6 6"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.7"
+                />
+              </Icon>
+            </span>
+          }
           className={`child-agent-card ${child.status} ${child.health ?? "healthy"}`}
-          key={entry}
-          onClick={() => onOpenChildAgent(child)}
-          type="button"
-        >
-          <span className="child-agent-pill">
+          icon={
             <ChildAgentIcon
               className="child-agent-icon"
               identity={child.agentId}
             />
-            <strong>{child.label}</strong>
-          </span>
-          <span className="child-agent-status">
-            {childStatusLabels[child.status]}
-          </span>
-          <span aria-hidden="true" className="child-agent-open-icon">
-            <Icon size={14}>
-              <path
-                d="m9 6 6 6-6 6"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="1.7"
-              />
-            </Icon>
-          </span>
-        </button>
+          }
+          key={entry}
+          label={`${child.label}, ${childStatusLabels[child.status]}`}
+          onActivate={() => onOpenChildAgent(child)}
+          state={child.status}
+          statusLabel={childStatusLabels[child.status]}
+          title={child.label}
+        />
       ) : null;
     }
     return null;
   };
 
   return (
-    <div className="timeline">
+    <TimelineSurface className="timeline">
       {groupedTimeline.turns.map(({ entries, turn }) => {
         if (turn.status !== "completed") {
           return (
-            <section className="timeline-turn" key={turn.id}>
+            <TimelineTurn
+              className="timeline-turn"
+              key={turn.id}
+              state={turn.status}
+            >
               {entries.map(renderTimelineEntry)}
               <TurnChangeSetCard
                 locale={locale}
@@ -10467,7 +10538,7 @@ function Timeline({
                   turn.changeSet?.undoAvailable === true
                 }
               />
-            </section>
+            </TimelineTurn>
           );
         }
         const finalEntry = turn.finalPartId
@@ -10487,19 +10558,28 @@ function Timeline({
           (entry) => entry !== finalEntry && !userEntries.includes(entry),
         );
         return (
-          <section className="timeline-turn completed" key={turn.id}>
+          <TimelineTurn
+            className="timeline-turn completed"
+            key={turn.id}
+            state="completed"
+          >
             {userEntries.map(renderTimelineEntry)}
-            <details className="turn-execution-details">
-              <summary>
-                <span>
-                  {t.workedFor} {formatWorkedDuration(turn.durationMs)}
-                </span>
-                <ChevronIcon />
-              </summary>
+            <TurnExecutionDisclosure
+              className="turn-execution-details"
+              label={`${t.workedFor} ${formatWorkedDuration(turn.durationMs)}`}
+              summary={
+                <>
+                  <span>
+                    {t.workedFor} {formatWorkedDuration(turn.durationMs)}
+                  </span>
+                  <ChevronIcon />
+                </>
+              }
+            >
               <div className="turn-execution-entries">
                 {executionEntries.map(renderTimelineEntry)}
               </div>
-            </details>
+            </TurnExecutionDisclosure>
             {finalEntry ? renderTimelineEntry(finalEntry) : null}
             <TurnChangeSetCard
               locale={locale}
@@ -10512,24 +10592,29 @@ function Timeline({
                 turn.changeSet?.undoAvailable === true
               }
             />
-          </section>
+          </TimelineTurn>
         );
       })}
       {groupedTimeline.unassigned.map(renderTimelineEntry)}
       {state.queue.steering.map((message, index) => (
-        <article
+        <ConversationMessage
           className="user-message steering-message"
           key={`steering:${index}:${message}`}
+          kind="steering"
+          state="queued"
         >
           {message}
-        </article>
+        </ConversationMessage>
       ))}
       {state.error && (
-        <div className="error-card">
-          {localizedTurnFailure(t, state.error, state.errorCode)}
-        </div>
+        <TurnStatus
+          className="error-card"
+          label={t.failed}
+          state="failed"
+          statusLabel={localizedTurnFailure(t, state.error, state.errorCode)}
+        />
       )}
-    </div>
+    </TimelineSurface>
   );
 }
 
@@ -10569,19 +10654,19 @@ function ContextCompactionStatus({
 
   if (!visible) return null;
   return (
-    <article
-      aria-live="polite"
+    <TurnStatus
       className={`turn-status compaction-status ${compaction.status}`}
-      role="status"
-    >
-      <span
-        className={`status-dot ${compaction.status === "completed" ? "idle" : "running"}`}
-      />
-      <span>
-        {compaction.status === "running"
+      label={
+        compaction.status === "running"
           ? t.contextCompacting
-          : t.contextCompacted}
-      </span>
-    </article>
+          : t.contextCompacted
+      }
+      state={compaction.status}
+      statusLabel={
+        compaction.status === "running"
+          ? t.contextCompacting
+          : t.contextCompacted
+      }
+    />
   );
 }

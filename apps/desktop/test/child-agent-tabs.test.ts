@@ -38,8 +38,10 @@ describe("Codex-style child-agent workspace tabs", () => {
       "return null;\n  };",
     );
 
-    expect(childRowSource).toContain("<button");
-    expect(childRowSource).toContain("onClick={() => onOpenChildAgent(child)}");
+    expect(childRowSource).toContain("<AgentActivity");
+    expect(childRowSource).toContain(
+      "onActivate={() => onOpenChildAgent(child)}",
+    );
     expect(childRowSource).not.toContain("<details");
     expect(childRowSource).not.toContain('className="child-agent-details"');
     expect(childRowSource).toContain('child.parentAgentId !== "parent"');

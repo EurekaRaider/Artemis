@@ -347,6 +347,58 @@ const GALLERY_SCAFFOLD_RULES = new Map([
     ],
   ],
 ]);
+const MIG2_GALLERY_SCAFFOLD_RULES = [
+  [
+    ".gallery-conversation-grid",
+    [
+      ["display", "grid"],
+      ["grid-template-columns", "minmax(0, 2fr) minmax(16rem, 1fr)"],
+      ["gap", "var(--artemis-space-4)"],
+      ["align-items", "stretch"],
+    ],
+  ],
+  [
+    ".gallery-conversation-sample",
+    [
+      ["block-size", "38rem"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-panel)"],
+    ],
+  ],
+  [
+    ".gallery-conversation-empty, .gallery-conversation-rtl",
+    [
+      ["min-block-size", "18rem"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-panel)"],
+    ],
+  ],
+  [
+    ".gallery-conversation-rtl",
+    [["margin-block-start", "var(--artemis-space-4)"]],
+  ],
+  [
+    ".gallery-conversation-sample pre",
+    [
+      ["max-block-size", "9rem"],
+      ["overflow", "auto"],
+      ["margin", "0"],
+      ["white-space", "pre"],
+    ],
+  ],
+];
+for (const [selector, declarations] of MIG2_GALLERY_SCAFFOLD_RULES) {
+  if (GALLERY_SCAFFOLD_RULES.has(selector)) {
+    throw new Error(`MIG2 Gallery scaffold duplicates ${selector}`);
+  }
+  GALLERY_SCAFFOLD_RULES.set(selector, declarations);
+}
 const GALLERY_REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const GALLERY_REDUCED_MOTION_SIGNATURE = JSON.stringify([
   ["rule", ".gallery-motion-swatch", [["decl", "transition", "none", null]]],
@@ -358,6 +410,11 @@ const GALLERY_REDUCED_MOTION_SIGNATURE = JSON.stringify([
 ]);
 const GALLERY_NARROW_QUERY = "(max-width: 36rem)";
 const GALLERY_NARROW_SIGNATURE = JSON.stringify([
+  [
+    "rule",
+    ".gallery-conversation-grid",
+    [["decl", "grid-template-columns", "minmax(0, 1fr)", null]],
+  ],
   ["rule", ".gallery-split-sample", [["decl", "block-size", "26rem", null]]],
 ]);
 const PRIVATE_GALLERY_CLASSES = new Set([
@@ -365,6 +422,10 @@ const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-axis-grid",
   "gallery-eyebrow",
   "gallery-check-grid",
+  "gallery-conversation-empty",
+  "gallery-conversation-grid",
+  "gallery-conversation-rtl",
+  "gallery-conversation-sample",
   "gallery-form-grid",
   "gallery-feedback-grid",
   "gallery-motion-sample",

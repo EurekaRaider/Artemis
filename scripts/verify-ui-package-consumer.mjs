@@ -81,6 +81,8 @@ try {
       "dist/index.d.ts",
       "dist/conformance.js",
       "dist/conformance.d.ts",
+      "dist/conversation.js",
+      "dist/conversation.d.ts",
       "dist/actions.js",
       "dist/actions.d.ts",
       "dist/forms.js",
@@ -134,7 +136,7 @@ try {
 
   await writeFile(
     join(consumer, "consumer.ts"),
-    `import type { ReactNode } from "react";\nimport { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { FEEDBACK_COMPONENT_CONTRACTS, InlineNotice, Toast, type FeedbackTone } from "@artemis/ui/feedback";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField, type FormControlSize, type SelectOption } from "@artemis/ui/forms";\nimport { LAYOUT_COMPONENT_CONTRACTS, PanelHeader, SplitPane, type LayoutState } from "@artemis/ui/layout";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs, type NavigationControlSize, type TabOption } from "@artemis/ui/navigation";\nimport { PATTERN_COMPONENT_CONTRACTS, ApprovalCard, TaskPlan, ToolActivity, type AgentTeamMember, type PatternState, type ResultDisclosureProps, type RunModeOption, type TaskPlanProps, type ToolActivityProps, type UserInputOption } from "@artemis/ui/patterns";\nimport { ApplicationShell, ComposerSurface, SURFACE_COMPONENT_CONTRACTS, type SurfaceState } from "@artemis/ui/surfaces";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst tone: ActionTone = "success";\nconst feedbackTone: FeedbackTone = "warning";\nconst layoutState: LayoutState = "ready";\nconst patternState: PatternState = "pending";\nconst surfaceState: SurfaceState = "collapsed";\nconst formSize: FormControlSize = "comfortable";\nconst navigationSize: NavigationControlSize = "compact";\nconst option: SelectOption<"one"> = { value: "one", label: "One" };\nconst tabOption: TabOption<"one"> = { id: "one-tab", panelId: "one-panel", value: "one", label: "One" };\nconst richPatternLabel = {} as ReactNode;\n// @ts-expect-error run-mode labels are string-owned\nconst invalidRunModeLabel: RunModeOption<"plan"> = { label: richPatternLabel, value: "plan" };\n// @ts-expect-error user-input labels are string-owned\nconst invalidInputLabel: UserInputOption = { id: "one", label: richPatternLabel };\n// @ts-expect-error agent-team labels are string-owned\nconst invalidMemberLabel: AgentTeamMember = { id: "one", label: richPatternLabel, state: "completed", statusLabel: "Completed" };\n// @ts-expect-error controlled ToolActivity cannot also declare defaultExpanded\nconst invalidToolOwnership: ToolActivityProps = { children: "Details", collapseLabel: "Collapse", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Tool", onExpandedChange() {}, state: "completed", statusLabel: "Completed", summary: "Tool" };\n// @ts-expect-error controlled TaskPlan cannot also declare defaultExpanded\nconst invalidPlanOwnership: TaskPlanProps = { collapseLabel: "Collapse", currentStepId: "one", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Plan", onExpandedChange() {}, progressLabel: "Step 1", state: "active", statusLabel: "Active", steps: [{ id: "one", label: "One", status: "pending", statusLabel: "Pending" }], stepsLabel: "Steps" };\n// @ts-expect-error controlled ResultDisclosure cannot also declare defaultExpanded\nconst invalidResultOwnership: ResultDisclosureProps = { children: "Result", collapseLabel: "Collapse", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Result", onExpandedChange() {}, state: "completed", statusLabel: "Completed", summary: "Result" };\nvoid invalidRunModeLabel;\nvoid invalidInputLabel;\nvoid invalidMemberLabel;\nvoid invalidToolOwnership;\nvoid invalidPlanOwnership;\nvoid invalidResultOwnership;\nvoid ConformanceProbe;\nvoid Button;\nvoid IconButton;\nvoid InlineNotice;\nvoid Toast;\nvoid PanelHeader;\nvoid SplitPane;\nvoid ApprovalCard;\nvoid TaskPlan;\nvoid ToolActivity;\nvoid ApplicationShell;\nvoid ComposerSurface;\nvoid Checkbox;\nvoid SearchField;\nvoid Select;\nvoid Switch;\nvoid TextField;\nvoid SegmentedControl;\nvoid Tabs;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone || FEEDBACK_COMPONENT_CONTRACTS.toast.tones?.at(3) !== feedbackTone || LAYOUT_COMPONENT_CONTRACTS.toolbar.states.at(0) !== layoutState || PATTERN_COMPONENT_CONTRACTS.approvalCard.states.at(0) !== patternState || SURFACE_COMPONENT_CONTRACTS.navigationSidebar.states.at(-1) !== surfaceState || FORM_COMPONENT_CONTRACTS.textField.sizes.at(-1) !== formSize || NAVIGATION_COMPONENT_CONTRACTS.tabs.sizes.at(0) !== navigationSize || option.value !== "one" || tabOption.value !== "one") throw new Error("invalid contract");\n`,
+    `import type { ReactNode } from "react";\nimport { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { CONVERSATION_COMPONENT_CONTRACTS, ConversationMessage, type ConversationComponentState } from "@artemis/ui/conversation";\nimport { FEEDBACK_COMPONENT_CONTRACTS, InlineNotice, Toast, type FeedbackTone } from "@artemis/ui/feedback";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField, type FormControlSize, type SelectOption } from "@artemis/ui/forms";\nimport { LAYOUT_COMPONENT_CONTRACTS, PanelHeader, SplitPane, type LayoutState } from "@artemis/ui/layout";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs, type NavigationControlSize, type TabOption } from "@artemis/ui/navigation";\nimport { PATTERN_COMPONENT_CONTRACTS, ApprovalCard, TaskPlan, ToolActivity, type AgentTeamMember, type PatternState, type ResultDisclosureProps, type RunModeOption, type TaskPlanProps, type ToolActivityProps, type UserInputOption } from "@artemis/ui/patterns";\nimport { ApplicationShell, ComposerSurface, SURFACE_COMPONENT_CONTRACTS, type SurfaceState } from "@artemis/ui/surfaces";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst tone: ActionTone = "success";\nconst feedbackTone: FeedbackTone = "warning";\nconst layoutState: LayoutState = "ready";\nconst patternState: PatternState = "pending";\nconst conversationState: ConversationComponentState = "streaming";\nconst surfaceState: SurfaceState = "collapsed";\nconst formSize: FormControlSize = "comfortable";\nconst navigationSize: NavigationControlSize = "compact";\nconst option: SelectOption<"one"> = { value: "one", label: "One" };\nconst tabOption: TabOption<"one"> = { id: "one-tab", panelId: "one-panel", value: "one", label: "One" };\nconst richPatternLabel = {} as ReactNode;\n// @ts-expect-error run-mode labels are string-owned\nconst invalidRunModeLabel: RunModeOption<"plan"> = { label: richPatternLabel, value: "plan" };\n// @ts-expect-error user-input labels are string-owned\nconst invalidInputLabel: UserInputOption = { id: "one", label: richPatternLabel };\n// @ts-expect-error agent-team labels are string-owned\nconst invalidMemberLabel: AgentTeamMember = { id: "one", label: richPatternLabel, state: "completed", statusLabel: "Completed" };\n// @ts-expect-error controlled ToolActivity cannot also declare defaultExpanded\nconst invalidToolOwnership: ToolActivityProps = { children: "Details", collapseLabel: "Collapse", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Tool", onExpandedChange() {}, state: "completed", statusLabel: "Completed", summary: "Tool" };\n// @ts-expect-error controlled TaskPlan cannot also declare defaultExpanded\nconst invalidPlanOwnership: TaskPlanProps = { collapseLabel: "Collapse", currentStepId: "one", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Plan", onExpandedChange() {}, progressLabel: "Step 1", state: "active", statusLabel: "Active", steps: [{ id: "one", label: "One", status: "pending", statusLabel: "Pending" }], stepsLabel: "Steps" };\n// @ts-expect-error controlled ResultDisclosure cannot also declare defaultExpanded\nconst invalidResultOwnership: ResultDisclosureProps = { children: "Result", collapseLabel: "Collapse", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Result", onExpandedChange() {}, state: "completed", statusLabel: "Completed", summary: "Result" };\nvoid invalidRunModeLabel;\nvoid invalidInputLabel;\nvoid invalidMemberLabel;\nvoid invalidToolOwnership;\nvoid invalidPlanOwnership;\nvoid invalidResultOwnership;\nvoid ConformanceProbe;\nvoid ConversationMessage;\nvoid Button;\nvoid IconButton;\nvoid InlineNotice;\nvoid Toast;\nvoid PanelHeader;\nvoid SplitPane;\nvoid ApprovalCard;\nvoid TaskPlan;\nvoid ToolActivity;\nvoid ApplicationShell;\nvoid ComposerSurface;\nvoid Checkbox;\nvoid SearchField;\nvoid Select;\nvoid Switch;\nvoid TextField;\nvoid SegmentedControl;\nvoid Tabs;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone || FEEDBACK_COMPONENT_CONTRACTS.toast.tones?.at(3) !== feedbackTone || LAYOUT_COMPONENT_CONTRACTS.toolbar.states.at(0) !== layoutState || PATTERN_COMPONENT_CONTRACTS.approvalCard.states.at(0) !== patternState || CONVERSATION_COMPONENT_CONTRACTS.conversationMessage.states.at(2) !== conversationState || SURFACE_COMPONENT_CONTRACTS.navigationSidebar.states.at(-1) !== surfaceState || FORM_COMPONENT_CONTRACTS.textField.sizes.at(-1) !== formSize || NAVIGATION_COMPONENT_CONTRACTS.tabs.sizes.at(0) !== navigationSize || option.value !== "one" || tabOption.value !== "one") throw new Error("invalid contract");\n`,
     "utf8",
   );
   await writeFile(
@@ -242,6 +244,18 @@ if (!Object.isFrozen(PATTERN_COMPONENT_CONTRACTS) || !approval.includes('data-ar
     "utf8",
   );
   run(process.execPath, ["patterns-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "conversation-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { CONVERSATION_COMPONENT_CONTRACTS, ConversationMessage, ConversationSurface, QueuedMessageGroup, QueuedMessageItem, TimelineSurface, TimelineTurn, TimelineViewport, TurnChangeSummary, TurnExecutionDisclosure } from "@artemis/ui/conversation";
+const timeline = renderToStaticMarkup(createElement(ConversationSurface, { label: "Conversation" }, createElement(TimelineViewport, { label: "History" }, createElement(TimelineSurface, null, createElement(TimelineTurn, { state: "running" }, createElement(ConversationMessage, { kind: "assistant", state: "streaming" }, "Reply"), createElement(TurnExecutionDisclosure, { label: "Worked", summary: "Worked" }, "Details"), createElement(TurnChangeSummary, { header: "Changes", label: "Changes", state: "ready" }, "One file"))))));
+const queue = renderToStaticMarkup(createElement(QueuedMessageGroup, { heading: "Queue", label: "Queue" }, createElement(QueuedMessageItem, { index: 1 }, "Message")));
+if (!Object.isFrozen(CONVERSATION_COMPONENT_CONTRACTS) || !timeline.includes('data-artemis-component="conversation-surface"') || !timeline.includes('data-artemis-component="timeline-viewport"') || !timeline.includes('data-artemis-component="timeline"') || !timeline.includes('data-artemis-component="timeline-turn"') || !timeline.includes('data-artemis-component="conversation-message"') || !timeline.includes('data-artemis-component="turn-execution-disclosure"') || !timeline.includes('data-artemis-component="turn-change-summary"') || !queue.includes('data-artemis-component="queued-message-group"') || !queue.includes('data-artemis-component="queued-message-item"')) throw new Error("conversation peer/component resolution failed");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["conversation-consumer.mjs"], consumer);
   await writeFile(
     join(consumer, "surfaces-consumer.mjs"),
     `import { createElement } from "react";
@@ -468,6 +482,44 @@ if (!Object.isFrozen(SURFACE_COMPONENT_CONTRACTS) || !shell.includes('data-artem
   }
 
   await writeFile(
+    join(consumer, "conversation-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { ConversationMessage } from "@artemis/ui/conversation";\nexport const TreeShakeMessage = () => createElement(ConversationMessage, { kind: "assistant" }, "Reply");\n`,
+    "utf8",
+  );
+  run(
+    join(root, "node_modules/.bin/esbuild"),
+    [
+      "conversation-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=conversation-tree-shake.js",
+    ],
+    consumer,
+  );
+  const conversationTreeShaken = await readFile(
+    join(consumer, "conversation-tree-shake.js"),
+    "utf8",
+  );
+  const retainedUnusedConversationMarkers = [
+    "conversation-surface",
+    "timeline-viewport",
+    "queued-message-group",
+    "turn-change-summary",
+  ].filter((marker) => conversationTreeShaken.includes(marker));
+  if (
+    !conversationTreeShaken.includes("conversation-message") ||
+    retainedUnusedConversationMarkers.length > 0
+  ) {
+    throw new Error(
+      `ConversationMessage-only bundle retained unused conversation JS: ${retainedUnusedConversationMarkers.join(", ")}`,
+    );
+  }
+
+  await writeFile(
     join(consumer, "surface-tree-shake.ts"),
     `import { createElement } from "react";\nimport { ComposerSurface } from "@artemis/ui/surfaces";\nexport const TreeShakeComposer = () => createElement(ComposerSurface, { label: "Composer" }, "Prompt");\n`,
     "utf8",
@@ -526,7 +578,7 @@ if (!Object.isFrozen(SURFACE_COMPONENT_CONTRACTS) || !shell.includes('data-artem
   }
 
   console.log(
-    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout/pattern/surface JS tree-shaken)`,
+    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout/pattern/conversation/surface JS tree-shaken)`,
   );
 } finally {
   await rm(consumer, { recursive: true, force: true });

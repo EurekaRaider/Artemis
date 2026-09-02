@@ -48,6 +48,8 @@ import {
 } from "@artemis/ui/patterns";
 
 import { galleryContract } from "./gallery-contract.js";
+import { ConversationGallery } from "./conversation-gallery.js";
+import { GalleryActionIcon } from "./gallery-action-icon.js";
 import { STRESS_SKIN_ID, stressSkinCss } from "./stress-skin-fixture.mjs";
 
 export type GallerySkin = "default" | "stress";
@@ -215,14 +217,6 @@ function currentGalleryMode(): GalleryMode {
 
 function preserveProbeFocus(event: React.MouseEvent<HTMLButtonElement>) {
   event.preventDefault();
-}
-
-function GalleryActionIcon() {
-  return (
-    <svg viewBox="0 0 16 16">
-      <path d="M2 8h12M8 2v12" stroke="currentColor" />
-    </svg>
-  );
 }
 
 interface GalleryAxisControlProps<T extends string> {
@@ -551,6 +545,18 @@ export function GalleryApp() {
             All caller-selected checks passed.
           </ResultDisclosure>
         </div>
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="conversation-heading"
+      >
+        <h2 id="conversation-heading">Conversation and trusted-AI states</h2>
+        <p>
+          Timeline content, scroll state, actions, and runtime data stay
+          caller-owned while public components provide stable visual anatomy.
+        </p>
+        <ConversationGallery />
       </section>
 
       <section

@@ -161,7 +161,7 @@ describe("Codex conversation shell contract", () => {
   it("keeps a new conversation local until its first submitted message", () => {
     const conversation = sourceBetween(
       appSource,
-      '<section className="conversation">',
+      "<ConversationSurface",
       '<div className="composer-wrap">',
     );
     const startup = sourceBetween(
@@ -336,17 +336,22 @@ describe("Codex conversation shell contract", () => {
         /\bbackground:\s*var\(--artemis-color-surface-base\)/u,
       );
     }
-    for (const selector of [".conversation", ".workspace-tool-dock"]) {
-      expect(cssDeclarations(selector)).toMatch(
-        /\bbackground:\s*var\(--codex-workspace-bg\)/u,
-      );
-    }
+    expect(
+      publicUiCssDeclarations(
+        '[data-artemis-component="conversation-surface"]',
+      ),
+    ).toMatch(/\bbackground:\s*var\(--artemis-color-canvas\)/u);
+    expect(cssDeclarations(".workspace-tool-dock")).toMatch(
+      /\bbackground:\s*var\(--codex-workspace-bg\)/u,
+    );
     expect(cssDeclarations(".workspace")).toMatch(
       /\bborder-top-left-radius:\s*0/u,
     );
-    expect(cssDeclarations(".conversation-empty-state")).toMatch(
-      /\bfont-family:\s*var\(--ui-font\)/u,
-    );
+    expect(
+      publicUiCssDeclarations(
+        '[data-artemis-component="conversation-surface"]',
+      ),
+    ).toMatch(/\bfont-family:\s*var\(--artemis-typography-body-family\)/u);
     expect(cssDeclarations(".conversation-empty-state h1")).toMatch(
       /\bfont-weight:\s*(?:400|normal)/u,
     );

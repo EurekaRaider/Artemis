@@ -22,6 +22,7 @@
     "verify:bundled-plugins": "vitest run --no-file-parallelism test/codex-plugin-service.test.ts -t \"exposes all four Lite plugins from packaged resources without a runtime\"",
     "verify:desktop-skin": "node scripts/verify-desktop-skin.mjs",
     "verify:card-heatmap": "npm run build && node scripts/verify-card-heatmap.mjs",
+    "verify:conversation-timeline": "npm run build && node scripts/verify-conversation-timeline.mjs",
     "verify:environment-panel": "npm run build && node scripts/verify-environment-panel-responsive.mjs",
     "verify:form-controls": "npm run build && node scripts/verify-form-controls.mjs",
     "verify:goal-parity": "npm run build && node scripts/verify-goal-parity.mjs",

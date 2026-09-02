@@ -34,6 +34,7 @@ const source = (relativePath: string) =>
 const appSource = source("../src/renderer/App.tsx");
 const panelSource = source("../src/renderer/EnvironmentPanel.tsx");
 const stylesSource = source("../src/renderer/styles.css");
+const publicUiStylesSource = source("../../../packages/ui/src/styles.css");
 const mainSource = source("../src/main/main.ts");
 
 const copy = {
@@ -236,8 +237,8 @@ describe("task environment panel state", () => {
     expect(stylesSource).toContain(
       "--environment-panel-min-conversation-inline-size: 720px",
     );
-    expect(stylesSource).toMatch(
-      /\.timeline\s*\{[^}]*margin:\s*0 auto;[^}]*max-width:\s*960px;/su,
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="timeline"\]\s*\{[^}]*max-inline-size:\s*60rem;[^}]*margin-inline:\s*auto;/su,
     );
   });
 

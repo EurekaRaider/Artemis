@@ -28,6 +28,7 @@ import {
   ToolActivity,
   TurnStatus,
   UserInput,
+  UserInputFrame,
   type AgentTeamMember,
   type RunModeOption,
   type UserInputOption,
@@ -765,6 +766,71 @@ describe("Agent patterns", () => {
     expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe(
       "100",
     );
+  });
+
+  it("keeps advanced user-input interaction and content caller-owned", () => {
+    render(
+      <UserInputFrame label="Choose deployment options" state="pending">
+        <div aria-label="Deployment options" role="listbox" tabIndex={0}>
+          <div aria-selected="false" role="option">
+            Staging
+          </div>
+        </div>
+        <label>
+          Other
+          <input defaultValue="Custom region" />
+        </label>
+      </UserInputFrame>,
+    );
+
+    const frame = screen.getByRole("group", {
+      name: "Choose deployment options",
+    });
+    expect(frame.getAttribute("data-state")).toBe("pending");
+    expect(
+      within(frame).getByRole("listbox", { name: "Deployment options" }),
+    ).toBeTruthy();
+    expect(within(frame).getByRole("option", { name: "Staging" })).toBeTruthy();
+    expect(
+      (
+        within(frame).getByRole("textbox", {
+          name: "Other",
+        }) as HTMLInputElement
+      ).value,
+    ).toBe("Custom region");
+  });
+
+  it("uses a native button for caller-owned agent activation", async () => {
+    const user = userEvent.setup();
+    const onActivate = vi.fn();
+    const { rerender } = render(
+      <AgentActivity
+        label="Open build agent"
+        onActivate={onActivate}
+        state="blocked"
+        statusLabel="Blocked"
+        title="Build agent"
+      />,
+    );
+
+    const activity = screen.getByRole("button", { name: "Open build agent" });
+    expect(activity.getAttribute("type")).toBe("button");
+    expect(activity.getAttribute("data-state")).toBe("blocked");
+    expect(activity.textContent).toContain("Blocked");
+    await user.click(activity);
+    expect(onActivate).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <AgentActivity
+        label="Open build agent"
+        onActivate={onActivate}
+        state="cancelled"
+        statusLabel="Cancelled"
+        title="Build agent"
+      />,
+    );
+    expect(activity.getAttribute("data-state")).toBe("cancelled");
+    expect(activity.textContent).toContain("Cancelled");
   });
 
   it("renders agent, team, turn, and result states without runtime data", async () => {

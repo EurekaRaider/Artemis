@@ -1,7 +1,7 @@
 # Discussion #76 visual migration ledger
 
-Status: MIG1 reference-slice candidate implemented on merged CL4 base
-`44634b9e42525ee61ec047d457a48a7b53063ad8`; CL4 is merged. This
+Status: MIG2 Conversation/Timeline candidate implemented on merged MIG1 base
+`db17c67544df5c04e5f667a810ca1d89fb172dcb`; MIG1 is merged. This
 ledger separates static prototype evidence, package/Gallery evidence, and
 production Electron evidence. It must not be used to turn a prototype,
 Gallery pass, or attribute-only resolver pass into a migrated production
@@ -9,7 +9,7 @@ surface.
 
 ## Inputs and evidence boundary
 
-- Candidate base: `44634b9e42525ee61ec047d457a48a7b53063ad8` (CL4 merged).
+- Candidate base: `db17c67544df5c04e5f667a810ca1d89fb172dcb` (MIG1 merged).
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -25,7 +25,7 @@ surface.
   `ui-prototype/contrast/prototype-contract-result.json`, and
   `ui-prototype/contrast/summary.json`.
 - The prototype directory remains read-only in a companion checkout and is not
-  present in this candidate base. MIG1 does not copy or modify it.
+  present in this candidate base. MIG2 does not copy or modify it.
 - v17's 70/70 generic card contract, 22/22 targeted historical-gap checks, and
   36 contrast combinations are HTML/Chrome specification evidence only. They do
   not prove React anatomy, Desktop integration, Electron geometry, platform
@@ -469,6 +469,50 @@ build, feedback, and Desktop skin gates. Those exact-head results belong in the
 PR evidence because adding the resulting HEAD to this tracked ledger would
 create a self-referential commit.
 
+MIG1 merged through PR #140 at
+`db17c67544df5c04e5f667a810ca1d89fb172dcb`.
+
+## MIG2 Conversation and Timeline candidate evidence
+
+MIG2 adds the public `@artemis/ui/conversation` subpath for
+ConversationSurface, TimelineViewport, TimelineSurface, TimelineTurn,
+ConversationMessage, ConversationEmptyState, TurnExecutionDisclosure,
+TurnChangeSummary, QueuedMessageGroup, and QueuedMessageItem. Their frozen
+contracts own presentational anatomy, finite visual state, accessible landmark
+names, logical-direction geometry, and long-content safety. Desktop continues
+to own Protocol reduction, turn grouping, scroll snapshots and pinning, copy and
+edit callbacks, disclosure content, queue mutations, UserInput resolution,
+child-agent activation, localization, and error recovery.
+
+The real Desktop timeline now consumes those public components for user,
+assistant, and steered messages; completed execution disclosure; file-change
+summary; empty, running, failed, cancelled, blocked, and queued states; single
+and multi-question UserInput frames; and queued follow-ups. Thinking parts
+remain deliberately hidden. AgentActivity uses a native button only when the
+Desktop adapter supplies activation, while the advanced UserInput adapters keep
+their existing listbox, roving focus, Other input, timeout, IME, and retry
+behavior inside the shared frame.
+
+Gallery raises the default/stress matrix from 32 to 36 cases per skin. Its four
+new cases cover full conversation anatomy, state combinations, controlled
+events, long content, and RTL. Installed-package consumption verifies the new
+subpath, SSR output, declarations, and ConversationMessage tree-shaking. The
+skin verifier keeps an exact selector/property/value allowlist and exact
+per-family token set, so a skin cannot alter anatomy, scrolling, actions, or
+runtime ownership.
+
+The dedicated production Electron gate runs four isolated strict-sandbox cases:
+a rich light/LTR timeline, the same rich state at dark/RTL/200% zoom with
+reduced motion, an interrupted failure, and an empty conversation. It checks
+native disclosure and AgentActivity activation, keyboard-visible message
+actions and UserInput focus, completed/cancelled/running turn states and
+completed/failed/running tool states, pinned scroll after disclosure resize,
+vertical scrollbar ownership, long unbroken content, logical user-message
+alignment, zero unintended horizontal overflow, hidden Thinking content,
+accessible landmarks, renderer security, console output, and private-path
+leaks. Exact candidate-head results are recorded in PR evidence because adding
+that resulting HEAD to this tracked ledger would create a self-reference.
+
 ## Component and surface sequence
 
 | Scope                                                                     | Type               | Owner                     | Consumer                          | Legacy selector/source                           | Target PR | Electron evidence                                            | Status                                  |
@@ -485,8 +529,8 @@ create a self-referential commit.
 | Tabs and segmented controls                                               | component          | `@artemis/ui`             | Gallery + three Desktop consumers | tabs and segmented controls                      | CL2C      | 6-case/174-assertion strict-sandbox Electron matrix          | Merged at `5593e7b`                     |
 | Feedback, overlays, layout primitives                                     | component          | `@artemis/ui`             | Gallery + four Desktop surfaces   | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | 6-case strict-sandbox Electron matrix                        | Merged at `f6c1a36`                     |
 | Artemis-specific presentational patterns                                  | component          | `@artemis/ui`             | Desktop adapter layer             | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                          | Merged at `44634b9`                     |
-| Reference slice: shell, activity bar, sidebar, header, Composer, Approval | surface            | `@artemis/ui` + Desktop   | users                             | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom and state matrix         | Candidate; exact-head Electron pending  |
-| Conversation, Timeline, trusted-AI states                                 | surface            | `@artemis/ui` + Desktop   | users                             | message/timeline/status selectors                | MIG2      | State, scroll, interaction, performance, exact-head Electron | Pending                                 |
+| Reference slice: shell, activity bar, sidebar, header, Composer, Approval | surface            | `@artemis/ui` + Desktop   | users                             | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom and state matrix         | Merged at `db17c67`                     |
+| Conversation, Timeline, trusted-AI states                                 | surface            | `@artemis/ui` + Desktop   | users                             | message/timeline/status selectors                | MIG2      | State, scroll, interaction, performance, exact-head Electron | Candidate; exact-head Electron pending  |
 | Workspace, Dock, file/Markdown edit and preview                           | surface            | `@artemis/ui` + Desktop   | users                             | workspace/dock/editor selectors                  | MIG3A     | Tabs, resize, save/error, geometry, exact-head Electron      | Pending                                 |
 | Review, Diff, Environment, Goal, Sources                                  | surface            | `@artemis/ui` + Desktop   | users                             | review/environment/source selectors              | MIG3B     | State, permission and overlay geometry matrix                | Pending                                 |
 | Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | Pending                                 |

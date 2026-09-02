@@ -9,6 +9,7 @@ const source = (relativePath: string) =>
 const appSource = source("../src/renderer/App.tsx");
 const panelSource = source("../src/renderer/EnvironmentPanel.tsx");
 const stylesSource = source("../src/renderer/styles.css");
+const publicUiStylesSource = source("../../../packages/ui/src/styles.css");
 
 function cssDeclarations(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
@@ -40,15 +41,15 @@ describe("reported issue regressions #94-#97", () => {
   });
 
   it("keeps message actions discoverable by hover and keyboard focus", () => {
-    const actions = cssDeclarations(".message-actions");
-    expect(actions).toContain("opacity: 0");
-    expect(stylesSource).toContain(
-      ".user-message:focus-within .message-actions",
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="conversation-message"\]\s*>\s*\[data-part="actions"\]\s*\{[^}]*opacity:\s*0/su,
     );
-    expect(stylesSource).toContain(
-      ".assistant-message:focus-within .message-actions",
+    expect(publicUiStylesSource).toContain(
+      '[data-artemis-component="conversation-message"]:focus-within',
     );
-    expect(stylesSource).toContain(".message-action:focus-visible");
+    expect(publicUiStylesSource).toContain(
+      '> [data-part="actions"]\n    button:is(:hover, :focus-visible)',
+    );
   });
 
   it("moves the completed status row with the environment-safe content column", () => {
