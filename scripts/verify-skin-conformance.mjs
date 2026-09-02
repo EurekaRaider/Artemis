@@ -1897,21 +1897,6 @@ const MIG1_EXPECTED_CSS_RULES = [
     },
   ],
   [
-    'normal|[data-artemis-component="application-shell"][data-platform="darwin"]',
-    { "padding-block-start": "28px" },
-  ],
-  [
-    'normal|[data-artemis-component="application-shell"][data-platform="darwin"]::before',
-    {
-      position: "absolute",
-      "inset-block-start": "0",
-      "inset-inline": "0",
-      "block-size": "28px",
-      content: '""',
-      "-webkit-app-region": "drag",
-    },
-  ],
-  [
     'normal|[data-artemis-component="application-shell-resizer"]',
     {
       position: "absolute",
@@ -1923,10 +1908,6 @@ const MIG1_EXPECTED_CSS_RULES = [
       cursor: "col-resize",
       "touch-action": "none",
     },
-  ],
-  [
-    'normal|[data-artemis-component="application-shell"][data-platform="darwin"] [data-artemis-component="application-shell-resizer"]',
-    { "inset-block-start": "28px" },
   ],
   [
     'normal|[data-artemis-component="application-shell-resizer"]::after',
@@ -2096,7 +2077,7 @@ const MIG1_EXPECTED_CSS_RULES = [
       "pointer-events": "none",
       transform: "translateX(calc(var(--artemis-space-4) * -1))",
       transition:
-        "opacity var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), transform var(--artemis-motion-duration-normal) var(--artemis-motion-easing-shell), visibility 0s linear var(--artemis-motion-duration-normal)",
+        "opacity var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), transform var(--artemis-motion-duration-normal) var(--artemis-motion-easing-shell), visibility 0s linear",
       visibility: "hidden",
     },
   ],
@@ -2126,8 +2107,6 @@ const MIG1_EXPECTED_CSS_RULES = [
     'compact-width|[data-artemis-component="application-shell"]',
     {
       "--_artemis-application-shell-rail-size": "44px",
-      "--_artemis-application-shell-effective-sidebar-size":
-        "min(var(--_artemis-application-shell-sidebar-size), 220px)",
     },
   ],
   [
