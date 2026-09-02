@@ -904,11 +904,13 @@ async function verifyReferenceSliceGeometry(connection) {
         sidebar: document.querySelector('[data-artemis-component="navigation-sidebar"]'),
         composer: document.querySelector('[data-artemis-component="composer-surface"]'),
       };
-      const sidebarToggle = document.querySelector(
+      let sidebarToggle = document.querySelector(
         '[data-artemis-component="activity-bar-item"][aria-expanded]',
       );
-      sidebarToggle?.click();
-      await wait(550);
+      if (sidebarToggle?.getAttribute("aria-expanded") === "true") {
+        sidebarToggle.click();
+      }
+      await wait(900);
       const sidebarClosed = {
         workspace: rect(".workspace"),
         sidebar: rect('[data-artemis-component="navigation-sidebar"]'),
@@ -916,32 +918,55 @@ async function verifyReferenceSliceGeometry(connection) {
           .querySelector('[data-artemis-component="navigation-sidebar"]')
           ?.getAttribute("data-state"),
       };
-      sidebarToggle?.click();
-      await wait(550);
+      sidebarToggle = document.querySelector(
+        '[data-artemis-component="activity-bar-item"][aria-expanded]',
+      );
+      if (sidebarToggle?.getAttribute("aria-expanded") !== "true") {
+        sidebarToggle?.click();
+      }
+      await wait(900);
       const sidebarRestored = {
         workspace: rect(".workspace"),
         sidebar: rect('[data-artemis-component="navigation-sidebar"]'),
+        state: document
+          .querySelector('[data-artemis-component="navigation-sidebar"]')
+          ?.getAttribute("data-state"),
       };
-      const dockToggle = document.querySelector(".right-sidebar-toggle");
-      dockToggle?.click();
-      await wait(650);
+      let dockToggle = document.querySelector(".right-sidebar-toggle");
+      if (dockToggle?.getAttribute("aria-expanded") !== "true") {
+        dockToggle?.click();
+      }
+      await wait(900);
       const dockOpen = {
         timeline: rect(".timeline-scroll"),
         conversation: rect(".conversation"),
         resizer: rect(".workspace-dock-resizer"),
         dock: rect(".workspace-tool-dock"),
       };
-      const environment = document.querySelector(".environment-trigger");
-      environment?.click();
-      await wait(450);
+      let environment = document.querySelector(".environment-trigger");
+      if (environment?.getAttribute("aria-expanded") !== "true") {
+        environment?.click();
+      }
+      await wait(650);
       const environmentOpen = {
         timeline: rect(".timeline-scroll"),
         popover: rect(".environment-popover"),
       };
-      environment?.click();
-      await wait(350);
-      dockToggle?.click();
+      environment = document.querySelector(".environment-trigger");
+      if (environment?.getAttribute("aria-expanded") === "true") {
+        environment.click();
+      }
       await wait(650);
+      dockToggle = document.querySelector(".right-sidebar-toggle");
+      if (dockToggle?.getAttribute("aria-expanded") === "true") {
+        dockToggle.click();
+      }
+      await wait(900);
+      environment = document.querySelector(".environment-trigger");
+      if (environment?.getAttribute("aria-expanded") === "true") {
+        environment.click();
+        await wait(650);
+      }
       return {
         sameNodes: Object.entries(nodes).every(([name, node]) =>
           node === document.querySelector(
@@ -958,6 +983,14 @@ async function verifyReferenceSliceGeometry(connection) {
         sidebarRestored,
         dockOpen,
         environmentOpen,
+        environmentClosed:
+          document
+            .querySelector(".environment-trigger")
+            ?.getAttribute("aria-expanded") !== "true",
+        dockClosed:
+          document
+            .querySelector(".right-sidebar-toggle")
+            ?.getAttribute("aria-expanded") !== "true",
       };
     })()`,
   );
@@ -977,6 +1010,7 @@ async function verifyReferenceSliceGeometry(connection) {
       transitions.sameNodes &&
       transitions.sidebarClosed.state === "collapsed" &&
       transitions.sidebarClosed.workspace.width > before.workspace.width &&
+      transitions.sidebarRestored.state === "ready" &&
       Math.abs(
         transitions.sidebarRestored.workspace.width - before.workspace.width,
       ) <= 1 &&
@@ -993,6 +1027,8 @@ async function verifyReferenceSliceGeometry(connection) {
           transitions.dockOpen.timeline.right,
       ) <= 1 &&
       transitions.environmentOpen.popover.width > 0 &&
+      transitions.environmentClosed &&
+      transitions.dockClosed &&
       Math.abs(after.workspace.width - before.workspace.width) <= 1 &&
       after.viewport.documentScrollWidth <=
         after.viewport.documentClientWidth + 1,
