@@ -897,21 +897,21 @@ async function referenceSliceGeometry(connection) {
 
 async function verifyReferenceSliceGeometry(connection) {
   const dispatchSidebarResizeKey = async (key) => {
-    await evaluate(
-      connection,
-      `(() => {
-        const resizer = document.querySelector(
-          '[data-artemis-component="application-shell-resizer"]',
-        );
-        resizer?.focus();
-        return resizer?.dispatchEvent(new KeyboardEvent("keydown", {
-          bubbles: true,
-          cancelable: true,
-          code: ${JSON.stringify(key)},
-          key: ${JSON.stringify(key)},
-        }));
-      })()`,
-    );
+    const right = key === "ArrowRight";
+    await connection.send("Input.dispatchKeyEvent", {
+      code: key,
+      key,
+      nativeVirtualKeyCode: right ? 124 : 123,
+      type: "rawKeyDown",
+      windowsVirtualKeyCode: right ? 39 : 37,
+    });
+    await connection.send("Input.dispatchKeyEvent", {
+      code: key,
+      key,
+      nativeVirtualKeyCode: right ? 124 : 123,
+      type: "keyUp",
+      windowsVirtualKeyCode: right ? 39 : 37,
+    });
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
   };
 
