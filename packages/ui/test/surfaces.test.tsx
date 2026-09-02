@@ -131,6 +131,7 @@ describe("Reference-slice surfaces", () => {
     expect(screen.getByRole("complementary", { hidden: true })).toBe(sidebar);
     expect(screen.getByRole("button", { hidden: true })).toBe(task);
     expect(sidebar.getAttribute("aria-hidden")).toBe("true");
+    expect(sidebar.hasAttribute("inert")).toBe(true);
     expect(sidebar.dataset.state).toBe("collapsed");
   });
 
@@ -164,6 +165,7 @@ describe("Reference-slice surfaces", () => {
         label="Resize projects"
         onKeyDown={resize}
         open={false}
+        tabIndex={0}
       />,
     );
     expect(screen.getByRole("separator", { hidden: true })).toBe(resizer);

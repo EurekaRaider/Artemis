@@ -45,6 +45,7 @@ const smokePreloadSourcePath = join(
   "src/preload/.desktop-skin-smoke-preload.ts",
 );
 const screenshots = [];
+const runtimeViewport = Object.freeze({ width: 1_420, height: 920 });
 const conformanceMatrix = JSON.parse(
   await readFile(
     join(repositoryRoot, "apps/ui-gallery/src/conformance-matrix.json"),
@@ -317,6 +318,22 @@ const snapshot = () => {
   const composerSurface = document.querySelector(
     '[data-artemis-component="composer-surface"]',
   );
+  const workspace = document.querySelector(".workspace");
+  const workspaceStyles =
+    workspace instanceof HTMLElement ? getComputedStyle(workspace) : null;
+  const environmentPanelWidth = Number.parseFloat(
+    workspaceStyles?.getPropertyValue("--environment-panel-inline-size") ?? "",
+  );
+  const environmentLayoutGap = Number.parseFloat(
+    workspaceStyles?.getPropertyValue("--environment-panel-layout-gap") ?? "",
+  );
+  const environmentMinimumConversationWidth = Number.parseFloat(
+    workspaceStyles?.getPropertyValue(
+      "--environment-panel-min-conversation-inline-size",
+    ) ?? "",
+  );
+  const workspaceBounds =
+    workspace instanceof HTMLElement ? workspace.getBoundingClientRect() : null;
   const surfaceStyle = (element, tokenName) => {
     if (!(element instanceof HTMLElement)) return null;
     const computed = getComputedStyle(element);
@@ -398,7 +415,7 @@ const snapshot = () => {
         shell: elementRect(appShell),
         activity: elementRect(activityBar),
         sidebar: elementRect(navigationSidebar),
-        workspace: elementRect(document.querySelector(".workspace")),
+        workspace: elementRect(workspace),
         composer: elementRect(composerSurface),
         horizontalOverflow:
           document.documentElement.scrollWidth -
@@ -453,6 +470,28 @@ const snapshot = () => {
       environmentOpen:
         document.querySelector(".environment-trigger")?.getAttribute("aria-expanded") === "true",
       branchMenuOpen: portal !== null,
+      environmentLayout: {
+        workspaceWidth: workspaceBounds?.width ?? null,
+        panelWidth: Number.isFinite(environmentPanelWidth)
+          ? environmentPanelWidth
+          : null,
+        layoutGap: Number.isFinite(environmentLayoutGap)
+          ? environmentLayoutGap
+          : null,
+        minimumConversationWidth: Number.isFinite(
+          environmentMinimumConversationWidth,
+        )
+          ? environmentMinimumConversationWidth
+          : null,
+        conversationWidth:
+          workspaceBounds &&
+          Number.isFinite(environmentPanelWidth) &&
+          Number.isFinite(environmentLayoutGap)
+            ? workspaceBounds.width -
+              environmentPanelWidth -
+              environmentLayoutGap
+            : null,
+      },
       terminalActive:
         document.querySelector(".workspace-tab-pane.active .terminal-panel") !== null,
       xtermSame: Boolean(
@@ -783,6 +822,18 @@ async function setReferenceSliceViewport(connection, width, height) {
   );
 }
 
+async function setRuntimeViewport(connection) {
+  await connection.send("Emulation.setDeviceMetricsOverride", {
+    deviceScaleFactor: 1,
+    height: runtimeViewport.height,
+    mobile: false,
+    screenHeight: runtimeViewport.height,
+    screenWidth: runtimeViewport.width,
+    width: runtimeViewport.width,
+  });
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 350));
+}
+
 async function referenceSliceGeometry(connection) {
   return evaluate(
     connection,
@@ -827,6 +878,9 @@ async function referenceSliceGeometry(connection) {
         shell: rect('[data-artemis-component="application-shell"]'),
         activity: rect('[data-artemis-component="activity-bar"]'),
         sidebar: rect('[data-artemis-component="navigation-sidebar"]'),
+        sidebarResizer: rect(
+          '[data-artemis-component="application-shell-resizer"]',
+        ),
         workspace: rect(".workspace"),
         workspaceContent: rect(".workspace-content"),
         conversation: rect(".conversation"),
@@ -842,6 +896,95 @@ async function referenceSliceGeometry(connection) {
 }
 
 async function verifyReferenceSliceGeometry(connection) {
+  const dispatchSidebarResizeKey = async (key) => {
+    const code = key === "ArrowRight" ? 39 : 37;
+    await connection.send("Input.dispatchKeyEvent", {
+      code: key,
+      key,
+      nativeVirtualKeyCode: code,
+      type: "rawKeyDown",
+      windowsVirtualKeyCode: code,
+    });
+    await connection.send("Input.dispatchKeyEvent", {
+      code: key,
+      key,
+      nativeVirtualKeyCode: code,
+      type: "keyUp",
+      windowsVirtualKeyCode: code,
+    });
+  };
+
+  await setReferenceSliceViewport(connection, 1_050, 900);
+  await evaluate(
+    connection,
+    "document.querySelector('[data-artemis-component=\"application-shell-resizer\"]')?.focus()",
+  );
+  for (let index = 0; index < 3; index += 1) {
+    await dispatchSidebarResizeKey("ArrowRight");
+  }
+  await waitFor(
+    connection,
+    'document.querySelector(\'[data-artemis-component="application-shell-resizer"]\')?.getAttribute("aria-valuenow") === "324"',
+    "compact viewport keyboard sidebar resize",
+  );
+  const afterKeyboardResize = await referenceSliceGeometry(connection);
+  assert(
+    Math.abs(afterKeyboardResize.sidebar.width - 324) <= 1 &&
+      afterKeyboardResize.sidebarResizer &&
+      afterKeyboardResize.viewport.width === 1_050,
+    `Compact keyboard resize desynchronized: ${JSON.stringify(afterKeyboardResize)}`,
+  );
+
+  const pointerStart = afterKeyboardResize.sidebarResizer;
+  const pointerX = pointerStart.left + pointerStart.width / 2;
+  const pointerY = pointerStart.top + pointerStart.height / 2;
+  await connection.send("Input.dispatchMouseEvent", {
+    button: "left",
+    buttons: 1,
+    clickCount: 1,
+    type: "mousePressed",
+    x: pointerX,
+    y: pointerY,
+  });
+  await connection.send("Input.dispatchMouseEvent", {
+    button: "left",
+    buttons: 1,
+    type: "mouseMoved",
+    x: pointerX + 48,
+    y: pointerY,
+  });
+  await connection.send("Input.dispatchMouseEvent", {
+    button: "left",
+    buttons: 0,
+    clickCount: 1,
+    type: "mouseReleased",
+    x: pointerX + 48,
+    y: pointerY,
+  });
+  await waitFor(
+    connection,
+    'document.querySelector(\'[data-artemis-component="application-shell-resizer"]\')?.getAttribute("aria-valuenow") === "372"',
+    "compact viewport pointer sidebar resize",
+  );
+  const afterPointerResize = await referenceSliceGeometry(connection);
+  assert(
+    Math.abs(afterPointerResize.sidebar.width - 372) <= 1,
+    `Compact pointer resize desynchronized: ${JSON.stringify(afterPointerResize)}`,
+  );
+  for (let index = 0; index < 5; index += 1) {
+    await dispatchSidebarResizeKey("ArrowLeft");
+  }
+  await waitFor(
+    connection,
+    'document.querySelector(\'[data-artemis-component="application-shell-resizer"]\')?.getAttribute("aria-valuenow") === "252"',
+    "reference sidebar width reset",
+  );
+  const compactResize = {
+    viewportWidth: 1_050,
+    keyboard: afterKeyboardResize,
+    pointer: afterPointerResize,
+  };
+
   const contentWidths = [935, 943, 949];
   const contentWidthCases = [];
   for (const contentWidth of contentWidths) {
@@ -910,7 +1053,19 @@ async function verifyReferenceSliceGeometry(connection) {
       if (sidebarToggle?.getAttribute("aria-expanded") === "true") {
         sidebarToggle.click();
       }
-      await wait(900);
+      await wait(50);
+      const collapsedSidebar = document.querySelector(
+        '[data-artemis-component="navigation-sidebar"]',
+      );
+      const collapsedSidebarControl = collapsedSidebar?.querySelector(
+        "button, input, select, textarea, a[href], [tabindex]",
+      );
+      collapsedSidebarControl?.focus();
+      const sidebarCollapsedInteractionBlocked =
+        collapsedSidebar instanceof HTMLElement &&
+        collapsedSidebar.hasAttribute("inert") &&
+        document.activeElement !== collapsedSidebarControl;
+      await wait(850);
       const sidebarClosed = {
         workspace: rect(".workspace"),
         sidebar: rect('[data-artemis-component="navigation-sidebar"]'),
@@ -979,6 +1134,7 @@ async function verifyReferenceSliceGeometry(connection) {
                   : '[data-artemis-component="composer-surface"]',
           ),
         ),
+        sidebarCollapsedInteractionBlocked,
         sidebarClosed,
         sidebarRestored,
         dockOpen,
@@ -1008,6 +1164,7 @@ async function verifyReferenceSliceGeometry(connection) {
           control.bottom <= before.toolbar.bottom + 1,
       ) &&
       transitions.sameNodes &&
+      transitions.sidebarCollapsedInteractionBlocked &&
       transitions.sidebarClosed.state === "collapsed" &&
       transitions.sidebarClosed.workspace.width > before.workspace.width &&
       transitions.sidebarRestored.state === "ready" &&
@@ -1036,7 +1193,7 @@ async function verifyReferenceSliceGeometry(connection) {
   );
   await screenshot(connection, "05-reference-slice-1440x900.png");
   await connection.send("Emulation.clearDeviceMetricsOverride");
-  return { before, transitions, after, contentWidthCases };
+  return { before, transitions, after, compactResize, contentWidthCases };
 }
 
 async function rememberRuntimeState(connection, includePortal) {
@@ -1215,6 +1372,7 @@ async function driveElectron() {
       'Boolean(document.querySelector(".composer textarea"))',
       "real task composer",
     );
+    await setRuntimeViewport(connection);
 
     await connection.send("Emulation.setEmulatedMedia", {
       features: [{ name: "prefers-color-scheme", value: "light" }],
@@ -1382,6 +1540,12 @@ async function driveElectron() {
         remembered.state.inputFocused &&
         remembered.state.composerSame &&
         remembered.state.composerValue === "matrix-preserved" &&
+        remembered.surfaces?.geometry?.viewport?.width ===
+          runtimeViewport.width &&
+        remembered.surfaces?.geometry?.viewport?.height ===
+          runtimeViewport.height &&
+        remembered.state.environmentLayout.conversationWidth >=
+          remembered.state.environmentLayout.minimumConversationWidth &&
         remembered.state.portalInheritedCanvas ===
           remembered.tokens?.["color.canvas"],
       `Real state anchors were incomplete: ${JSON.stringify(remembered.state)}`,
@@ -1461,7 +1625,11 @@ async function driveElectron() {
         connection,
         `globalThis.__ARTEMIS_SKIN_SMOKE__.select(${JSON.stringify(skinIds[configuration.skin])})`,
       );
-      const { snapshot } = outcome;
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 350));
+      const snapshot = await evaluate(
+        connection,
+        "globalThis.__ARTEMIS_SKIN_SMOKE__.snapshot()",
+      );
       const canvas =
         expectedCanvas[configuration.skin][configuration.theme][
           configuration.contrast
@@ -1558,7 +1726,7 @@ async function driveElectron() {
               snapshot.state.portalDirection === configuration.direction
             : !snapshot.state.portalInBody) &&
           snapshot.state.terminalOpenCount === 1,
-        `Runtime state changed: ${JSON.stringify({ configuration, state: snapshot.state })}`,
+        `Runtime state changed: ${JSON.stringify({ configuration, state: snapshot.state, geometry: snapshot.surfaces?.geometry })}`,
       );
       assert(
         snapshot.inlineSemanticTokens.length === 0 &&

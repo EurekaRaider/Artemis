@@ -323,21 +323,20 @@ describe("renderer layout contract", () => {
       'titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default"',
     );
 
-    const macShell = publicUiCssRule(
-      '[data-artemis-component="application-shell"][data-platform="darwin"]',
-    );
+    const macShell = cssRule('.app-shell[data-platform="darwin"]');
     const shell = publicUiCssRule(
       '[data-artemis-component="application-shell"]',
     );
     expect(macShell).toMatch(/\bpadding-block-start:\s*28px/u);
     expect(shell).toMatch(/\bposition:\s*relative/u);
 
-    const dragRegion = publicUiCssRule(
-      '[data-artemis-component="application-shell"][data-platform="darwin"]::before',
-    );
+    const dragRegion = cssRule('.app-shell[data-platform="darwin"]::before');
     expect(dragRegion).toMatch(/-webkit-app-region:\s*drag/u);
     expect(dragRegion).toMatch(/\bblock-size:\s*28px/u);
     expect(dragRegion).toMatch(/\bposition:\s*absolute/u);
+    expect(publicUiStylesSource).not.toMatch(
+      /data-platform|-webkit-app-region/u,
+    );
   });
 
   it("uses a prebuilt multi-resolution icon for macOS packages", () => {
@@ -2101,6 +2100,10 @@ describe("renderer layout contract", () => {
     expect(sidebar).toMatch(/transition:/u);
     expect(sidebar).toMatch(/\btransform:/u);
     expect(collapsedSidebar).toMatch(/\bopacity:\s*0/u);
+    expect(collapsedSidebar).toMatch(/\bvisibility:\s*hidden/u);
+    expect(collapsedSidebar).not.toMatch(
+      /visibility[^;]*var\(--artemis-motion-duration-normal\)/u,
+    );
     expect(collapsedSidebar).toMatch(
       /\btransform:\s*translateX\(calc\(var\(--artemis-space-4\)\s*\*\s*-1\)\)/u,
     );
@@ -2143,6 +2146,9 @@ describe("renderer layout contract", () => {
     );
     expect(stylesSource).not.toMatch(
       /(?:^|\})\s*\.app-shell\s*\{|(?:^|\})\s*\.composer\s*\{/u,
+    );
+    expect(publicUiStylesSource).not.toMatch(
+      /--_artemis-application-shell-effective-sidebar-size:\s*min\(/u,
     );
   });
 

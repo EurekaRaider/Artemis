@@ -283,7 +283,7 @@ export const ApplicationShellResizer = /* @__PURE__ */ forwardRef<
   HTMLDivElement,
   ApplicationShellResizerProps
 >(function ApplicationShellResizer(
-  { label, open, tabIndex = open ? 0 : -1, ...attributes },
+  { label, open, tabIndex, ...attributes },
   ref,
 ) {
   requirePerceptibleText(label);
@@ -298,7 +298,7 @@ export const ApplicationShellResizer = /* @__PURE__ */ forwardRef<
       data-state={open ? "ready" : "collapsed"}
       ref={ref}
       role="separator"
-      tabIndex={tabIndex}
+      tabIndex={open ? (tabIndex ?? 0) : -1}
     />
   );
 });
@@ -398,6 +398,7 @@ export const NavigationSidebar = /* @__PURE__ */ forwardRef<
       data-artemis-component="navigation-sidebar"
       data-part="root"
       data-state={open ? "ready" : "collapsed"}
+      inert={!open}
       ref={ref}
     >
       <div data-part="header">{header}</div>

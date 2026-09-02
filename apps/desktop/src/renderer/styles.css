@@ -251,6 +251,23 @@ body {
   }
 }
 
+.app-shell[data-platform="darwin"] {
+  padding-block-start: 28px;
+}
+
+.app-shell[data-platform="darwin"]::before {
+  -webkit-app-region: drag;
+  block-size: 28px;
+  content: "";
+  inset-block-start: 0;
+  inset-inline: 0;
+  position: absolute;
+}
+
+.app-shell[data-platform="darwin"] .project-sidebar-resizer {
+  inset-block-start: 28px;
+}
+
 .artemis-mark {
   align-items: center;
   background: transparent;
