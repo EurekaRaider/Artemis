@@ -16,6 +16,7 @@ import {
   type WorkspaceEditorToolbarProps,
   type WorkspaceEditorView,
 } from "@artemis/ui/workspace";
+import { handleWorkspaceEditorSaveShortcut } from "../src/renderer/workspace-editor-shortcut.js";
 
 const editorLabel = "Editor content";
 
@@ -45,8 +46,16 @@ function ToolbarHarness({
   handlers: ToolbarHandlers;
   props: WorkspaceEditorToolbarProps;
 }) {
+  const canSave =
+    props.dirty && props.saveState !== "saving" && !props.readOnly;
   return (
-    <WorkspaceEditorToolbar {...props} onSave={handlers.onSave}>
+    <WorkspaceEditorToolbar
+      {...props}
+      onKeyDown={(event) =>
+        handleWorkspaceEditorSaveShortcut(event, canSave, handlers.onSave)
+      }
+      onSave={handlers.onSave}
+    >
       <textarea aria-label={editorLabel} />
     </WorkspaceEditorToolbar>
   );

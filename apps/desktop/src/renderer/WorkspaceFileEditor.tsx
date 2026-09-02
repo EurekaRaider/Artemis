@@ -10,6 +10,9 @@ import {
   tokenizeWorkspaceFile,
   type SyntaxToken,
 } from "./workspace-file-presentation.js";
+import { handleWorkspaceEditorSaveShortcut } from "./workspace-editor-shortcut.js";
+
+export const WORKSPACE_HIGHLIGHT_CHARACTER_LIMIT = 250_000;
 
 interface WorkspaceFileEditorProps {
   ariaLabel: string;
@@ -44,9 +47,14 @@ export function HighlightedCodeLine({
   );
 }
 
-function tokensByLine(content: string, language: string): SyntaxToken[][] {
+export function workspaceHighlightTokensByLine(
+  content: string,
+  language: string,
+  tokenize: typeof tokenizeWorkspaceFile = tokenizeWorkspaceFile,
+): SyntaxToken[][] | undefined {
+  if (content.length > WORKSPACE_HIGHLIGHT_CHARACTER_LIMIT) return undefined;
   const lines: SyntaxToken[][] = [[]];
-  for (const token of tokenizeWorkspaceFile(content, language)) {
+  for (const token of tokenize(content, language)) {
     const parts = token.text.split("\n");
     parts.forEach((part, index) => {
       if (part) lines.at(-1)!.push({ kind: token.kind, text: part });
@@ -73,22 +81,25 @@ export function WorkspaceFileEditor({
 }: WorkspaceFileEditorProps) {
   const presentation = filePresentation(path);
   const highlightedLines = useMemo(
-    () => tokensByLine(content, presentation.language),
+    () => workspaceHighlightTokensByLine(content, presentation.language),
     [content, presentation.language],
   );
-  const highlightsEnabled = content.length <= 250_000;
 
   // exactOptionalPropertyTypes: forward saveError only when defined so the
   // shared toolbar's optional prop stays absent rather than explicitly
   // undefined.
   const errorProps = saveError === undefined ? {} : { saveError };
 
-  // The shared toolbar owns the save status, save error, and guarded
-  // Meta/Ctrl+S chord; the plain file editor has no mode toggle, so the
-  // optional prop stays absent and the group never renders.
+  const canSave = dirty && saveState !== "saving" && !readOnly;
+
+  // The shared toolbar owns presentation only. Desktop retains the guarded
+  // Meta/Ctrl+S chord because save and IME behavior are runtime concerns.
   return (
     <WorkspaceEditorToolbar
       dirty={dirty}
+      onKeyDown={(event) =>
+        handleWorkspaceEditorSaveShortcut(event, canSave, onSave)
+      }
       path={path}
       readOnly={readOnly}
       {...errorProps}
@@ -102,7 +113,7 @@ export function WorkspaceFileEditor({
       <WorkspaceSourceEditor
         disabled={readOnly}
         highlight={
-          highlightsEnabled
+          highlightedLines
             ? highlightedLines.map((tokens, lineIndex) => (
                 <span className="workspace-code-line" key={lineIndex}>
                   <span className="workspace-code-line-number">

@@ -493,7 +493,9 @@ const snapshot = () => {
             : null,
       },
       terminalActive:
-        document.querySelector(".workspace-tab-pane.active .terminal-panel") !== null,
+        document.querySelector(
+          '[data-artemis-component="workspace-tab-pane"][data-state="active"] .terminal-panel',
+        ) !== null,
       xtermSame: Boolean(
         terminalReferences && xterm === terminalReferences.xterm,
       ),

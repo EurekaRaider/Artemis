@@ -5,7 +5,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { describe, expect, it } from "vitest";
 
-import { WorkspaceFileEditor } from "../src/renderer/WorkspaceFileEditor.js";
+import {
+  WorkspaceFileEditor,
+  workspaceHighlightTokensByLine,
+} from "../src/renderer/WorkspaceFileEditor.js";
 import {
   setiFileIcon,
   WorkspaceFileIcon,
@@ -131,6 +134,21 @@ function cssPropertyValue(
 }
 
 describe("Codex-like workspace tab layout contract", () => {
+  it("skips tokenization entirely above the large-file highlight limit", () => {
+    let calls = 0;
+    const result = workspaceHighlightTokensByLine(
+      "x".repeat(250_001),
+      "typescript",
+      () => {
+        calls += 1;
+        return [];
+      },
+    );
+
+    expect(result).toBeUndefined();
+    expect(calls).toBe(0);
+  });
+
   it("renders Review, Terminal, file, Markdown, and Sources as closable top workspace tabs", () => {
     const tabBarIndex = appSource.indexOf("<WorkspaceTabBar");
     const tabContentIndex = appSource.indexOf(

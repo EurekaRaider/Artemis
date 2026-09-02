@@ -230,6 +230,8 @@ import {
 } from "./workspace-tabs.js";
 import {
   clampWorkspaceDockWidth,
+  workspaceDockWidthAfterKey,
+  workspaceDockWidthAfterPointer,
   workspaceDockWidthBounds,
 } from "./workspace-dock-layout.js";
 import {
@@ -3236,8 +3238,11 @@ export function App() {
     (clientX: number) => {
       const drag = workspaceDockDrag.current;
       if (!drag) return workspaceDockWidthRef.current;
-      return clampWorkspaceDockWidth(
-        drag.startWidth + drag.startX - clientX,
+      return workspaceDockWidthAfterPointer(
+        drag.startWidth,
+        drag.startX,
+        clientX,
+        document.documentElement.dir === "rtl" ? "rtl" : "ltr",
         currentWorkspaceDockBounds(),
       );
     },
@@ -3317,13 +3322,13 @@ export function App() {
         workspaceDockWidthRef.current ??
         bounds.min;
       const step = event.shiftKey ? 64 : 24;
-      const width = clampWorkspaceDockWidth(
-        event.key === "Home"
-          ? (workspaceContent.current?.clientWidth ?? window.innerWidth) * 0.62
-          : event.key === "End"
-            ? bounds.max
-            : currentWidth + (event.key === "ArrowLeft" ? step : -step),
+      const width = workspaceDockWidthAfterKey(
+        currentWidth,
+        event.key,
+        document.documentElement.dir === "rtl" ? "rtl" : "ltr",
         bounds,
+        workspaceContent.current?.clientWidth ?? window.innerWidth,
+        step,
       );
       setWorkspaceDockWidth(width);
       void persistWorkspaceDockWidth(width);

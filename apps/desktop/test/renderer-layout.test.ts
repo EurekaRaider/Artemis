@@ -86,6 +86,12 @@ const workspaceFilesSource = readFileSync(
   ),
   "utf8",
 );
+const workspaceDockLayoutSource = readFileSync(
+  fileURLToPath(
+    new URL("../src/renderer/workspace-dock-layout.ts", import.meta.url),
+  ),
+  "utf8",
+);
 const mainProcessSource = readFileSync(
   fileURLToPath(new URL("../src/main/main.ts", import.meta.url)),
   "utf8",
@@ -2095,10 +2101,15 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('controls="conversation workspace-tool-dock"');
     expect(appSource).toContain("onPointerDown={beginWorkspaceDockResize}");
     expect(appSource).toContain("onKeyDown={resizeWorkspaceDockFromKeyboard}");
-    expect(appSource).toMatch(
-      /event\.key === "Home"[\s\S]{0,160}?clientWidth[\s\S]{0,80}?0\.62/u,
+    expect(appSource).toContain("workspaceDockWidthAfterKey(");
+    expect(workspaceDockLayoutSource).toContain('if (key === "Home")');
+    expect(workspaceDockLayoutSource).toContain("workspaceWidth * 0.62");
+    expect(workspaceDockLayoutSource).toContain(
+      'if (key === "End") return bounds.max',
     );
-    expect(appSource).toMatch(/event\.key === "End"[\s\S]{0,80}?bounds\.max/u);
+    expect(workspaceDockLayoutSource).toContain(
+      'direction === "rtl" ? "ArrowRight" : "ArrowLeft"',
+    );
     expect(apiSource).toContain("setWorkspaceDockWidth(width: number)");
     expect(preloadSource).toContain("setWorkspaceDockWidth: (width)");
     expect(appSource).toContain("onPointerDown={beginProjectSidebarResize}");

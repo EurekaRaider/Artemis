@@ -25,6 +25,7 @@ import {
   normalizeBrowserAddress,
 } from "./browser-navigation.js";
 import { MarkdownContent } from "./MarkdownContent.js";
+import { handleWorkspaceEditorSaveShortcut } from "./workspace-editor-shortcut.js";
 
 interface WorkspacePreviewProps {
   threadId: string | undefined;
@@ -404,6 +405,13 @@ export function MarkdownReaderPanel(props: MarkdownReaderProps) {
         sourceLabel: props.sourceLabel,
         value: view,
       }}
+      onKeyDown={(event) =>
+        handleWorkspaceEditorSaveShortcut(
+          event,
+          dirty && saveState !== "saving",
+          saveMarkdown,
+        )
+      }
       onSave={saveMarkdown}
       path={file?.path ?? props.path ?? props.title}
       readOnly={false}

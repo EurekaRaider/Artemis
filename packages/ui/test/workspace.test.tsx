@@ -248,10 +248,11 @@ describe("workspace editor toolbar", () => {
     );
   });
 
-  it("saves exactly once for click and clean keyboard chords", async () => {
+  it("saves on click and forwards caller-owned keyboard handling", async () => {
     const onSave = vi.fn();
+    const onKeyDown = vi.fn();
     render(
-      <WorkspaceEditorToolbar {...props} onSave={onSave}>
+      <WorkspaceEditorToolbar {...props} onKeyDown={onKeyDown} onSave={onSave}>
         <textarea aria-label="Editor" />
       </WorkspaceEditorToolbar>,
     );
@@ -261,13 +262,8 @@ describe("workspace editor toolbar", () => {
       key: "s",
       metaKey: true,
     });
-    expect(onSave).toHaveBeenCalledTimes(2);
-    fireEvent.keyDown(screen.getByRole("textbox", { name: "Editor" }), {
-      key: "s",
-      ctrlKey: true,
-      isComposing: true,
-    });
-    expect(onSave).toHaveBeenCalledTimes(2);
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledTimes(1);
   });
 
   it("disables mode and save controls in read-only state", () => {

@@ -58,15 +58,27 @@ if (initialStatus !== "") {
 const cases = [
   {
     caseId: "wide-light-100",
+    direction: "ltr",
+    locale: "en",
     scale: 1,
     theme: "light",
     width: 1_440,
   },
   {
     caseId: "compact-dark-200",
+    direction: "ltr",
+    locale: "en",
     scale: 2,
     theme: "dark",
     width: 2_000,
+  },
+  {
+    caseId: "wide-dark-rtl-100",
+    direction: "rtl",
+    locale: "ar",
+    scale: 1,
+    theme: "dark",
+    width: 1_440,
   },
 ];
 const results = [];
@@ -84,7 +96,7 @@ try {
     const environment = {
       ...process.env,
       ARTEMIS_SMOKE_ACCESSIBILITY: accessibilityPath,
-      ARTEMIS_SMOKE_LOCALE: "en",
+      ARTEMIS_SMOKE_LOCALE: testCase.locale,
       ARTEMIS_SMOKE_SCALE: String(testCase.scale),
       ARTEMIS_SMOKE_SCREENSHOT: screenshotPath,
       ARTEMIS_SMOKE_SETTLE_DELAY: "650",
@@ -153,8 +165,12 @@ try {
           snapshot.resizer.state === "open" &&
           snapshot.resizer.value >= snapshot.resizer.minimum &&
           snapshot.resizer.value <= snapshot.resizer.maximum &&
-          snapshot.resizer.valueText ===
-            `Right sidebar: ${snapshot.resizer.value}px` &&
+          typeof snapshot.resizer.label === "string" &&
+          snapshot.resizer.label.length > 0 &&
+          typeof snapshot.resizer.valueText === "string" &&
+          snapshot.resizer.valueText.endsWith(
+            `: ${snapshot.resizer.value}px`,
+          ) &&
           approximatelyEqual(snapshot.resizer.value, snapshot.dock.width),
         snapshot?.resizer ?? null,
         "open vertical separator with exact clamped pixel value",
@@ -167,10 +183,21 @@ try {
       );
       assert(
         `${name}-scrollbar-boundary`,
-        approximatelyEqual(snapshot?.timeline?.right, snapshot?.resizer?.left),
+        snapshot?.direction === "rtl"
+          ? approximatelyEqual(
+              snapshot?.timeline?.left,
+              snapshot?.resizer?.right,
+            )
+          : approximatelyEqual(
+              snapshot?.timeline?.right,
+              snapshot?.resizer?.left,
+            ),
         {
+          direction: snapshot?.direction ?? null,
+          timelineLeft: snapshot?.timeline?.left ?? null,
           timelineRight: snapshot?.timeline?.right ?? null,
           resizerLeft: snapshot?.resizer?.left ?? null,
+          resizerRight: snapshot?.resizer?.right ?? null,
         },
         "within 1px",
       );
@@ -214,6 +241,12 @@ try {
       interaction !== null && typeof interaction === "object",
       interaction,
       "workspace interaction audit",
+    );
+    assert(
+      "logical-direction",
+      interaction.initial.direction === testCase.direction,
+      interaction.initial.direction,
+      testCase.direction,
     );
     assertOpenGeometry("initial", interaction.initial);
     assert(

@@ -11680,6 +11680,7 @@ async function driveSmokeWorkspaceDockEvidence(
     (await contents.executeJavaScript(script)) as T;
   const pressKey = async (keyCode: string): Promise<void> => {
     const keyDetails = {
+      ArrowLeft: { code: "ArrowLeft", virtualKeyCode: 37 },
       ArrowRight: { code: "ArrowRight", virtualKeyCode: 39 },
       Home: { code: "Home", virtualKeyCode: 36 },
       End: { code: "End", virtualKeyCode: 35 },
@@ -11706,7 +11707,11 @@ async function driveSmokeWorkspaceDockEvidence(
   if (process.platform === "darwin") app.focus({ steal: true });
   window.focus();
   contents.focus();
-  const resizePoint = await evaluate<{ x: number; y: number }>(`(async () => {
+  const resizePoint = await evaluate<{
+    direction: "ltr" | "rtl";
+    x: number;
+    y: number;
+  }>(`(async () => {
     const wait = (milliseconds) =>
       new Promise((resolve) => setTimeout(resolve, milliseconds));
     const dockSelector = '[data-artemis-component="workspace-dock"]';
@@ -11739,6 +11744,7 @@ async function driveSmokeWorkspaceDockEvidence(
         };
       });
       return {
+        direction: getComputedStyle(document.documentElement).direction,
         dock: dockBounds
           ? {
               state: dock?.getAttribute('data-state') ?? null,
@@ -11757,6 +11763,7 @@ async function driveSmokeWorkspaceDockEvidence(
               state: resizer?.getAttribute('data-state') ?? null,
               role: resizer?.getAttribute('role') ?? null,
               controls: resizer?.getAttribute('aria-controls') ?? null,
+              label: resizer?.getAttribute('aria-label') ?? null,
               minimum: Number(resizer?.getAttribute('aria-valuemin')),
               maximum: Number(resizer?.getAttribute('aria-valuemax')),
               value: Number(resizer?.getAttribute('aria-valuenow')),
@@ -11796,18 +11803,18 @@ async function driveSmokeWorkspaceDockEvidence(
         tabs,
       };
     };
-    const addTab = async (label) => {
+    const addTab = async (position) => {
       const add = document.querySelector('.workspace-tab-add');
       if (!(add instanceof HTMLButtonElement)) {
         throw new Error('Workspace add-tab button missing.');
       }
       add.click();
       await wait(120);
-      const entry = [...document.querySelectorAll('.workspace-tab-menu button')]
-        .find((button) => button.textContent?.trim().startsWith(label));
+      const entries = [...document.querySelectorAll('.workspace-tab-menu button')];
+      const entry = entries.at(position);
       if (!(entry instanceof HTMLButtonElement)) {
         throw new Error(
-          'Workspace add-tab entry missing for ' + label + '.',
+          'Workspace add-tab entry missing at position ' + position + '.',
         );
       }
       entry.click();
@@ -11826,13 +11833,36 @@ async function driveSmokeWorkspaceDockEvidence(
       throw new Error('Workspace tabs did not reach the empty state.');
     }
     const dockToggle = document.querySelector('.right-sidebar-toggle');
-    if (dockToggle?.getAttribute('aria-expanded') !== 'true') {
-      dockToggle?.click();
-      await wait(520);
+    if (!(dockToggle instanceof HTMLButtonElement)) {
+      throw new Error('Workspace Dock toggle missing.');
     }
+    if (dockToggle?.getAttribute('aria-expanded') !== 'true') {
+      dockToggle.click();
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        await wait(100);
+        const currentToggle = document.querySelector('.right-sidebar-toggle');
+        const currentDock = document.querySelector(dockSelector);
+        if (
+          currentToggle?.getAttribute('aria-expanded') === 'true' &&
+          currentDock?.getAttribute('data-state') === 'open'
+        ) {
+          break;
+        }
+      }
+    }
+    if (
+      document.querySelector('.right-sidebar-toggle')?.getAttribute(
+        'aria-expanded',
+      ) !== 'true' ||
+      document.querySelector(dockSelector)?.getAttribute('data-state') !==
+        'open'
+    ) {
+      throw new Error('Workspace Dock did not open before capture.');
+    }
+    await wait(520);
     const initial = capture();
-    await addTab('Review');
-    await addTab('Files');
+    await addTab(0);
+    await addTab(-1);
     const multiTab = capture();
     const firstTab = document.querySelector(tabSelector);
     const firstSelect = firstTab?.querySelector(':scope > [data-part="select"]');
@@ -11866,6 +11896,7 @@ async function driveSmokeWorkspaceDockEvidence(
     window.__workspaceDockCapture = capture;
     window.__workspaceDockInteraction = { initial, multiTab, afterClose };
     return {
+      direction: getComputedStyle(document.documentElement).direction,
       x: Math.round(bounds.left + bounds.width / 2),
       y: Math.round(bounds.top + bounds.height / 2),
     };
@@ -11886,7 +11917,9 @@ async function driveSmokeWorkspaceDockEvidence(
   await wait(80);
   contents.sendInputEvent({
     type: "mouseMove",
-    x: inputPoint.x - Math.round(96 * inputScale),
+    x:
+      inputPoint.x +
+      (resizePoint.direction === "rtl" ? 1 : -1) * Math.round(96 * inputScale),
     y: inputPoint.y,
   });
   await wait(160);
@@ -11917,7 +11950,7 @@ async function driveSmokeWorkspaceDockEvidence(
   await evaluate(`document
     .querySelector('[data-artemis-component="workspace-dock-resizer"]')
     ?.focus()`);
-  await pressKey("ArrowRight");
+  await pressKey(resizePoint.direction === "rtl" ? "ArrowLeft" : "ArrowRight");
   await evaluate(`window.__workspaceDockInteraction.arrow =
     window.__workspaceDockCapture()`);
   await pressKey("Home");

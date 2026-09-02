@@ -7,6 +7,7 @@ import {
 } from "@artemis/ui/workspace";
 
 import { MarkdownContent } from "./MarkdownContent.js";
+import { handleWorkspaceEditorSaveShortcut } from "./workspace-editor-shortcut.js";
 
 interface WorkspaceMarkdownEditorProps {
   ariaLabel: string;
@@ -73,6 +74,7 @@ export function WorkspaceMarkdownEditor({
   const errorProps = saveError === undefined ? {} : { saveError };
   // Same contract for the optional localized image-failure copy.
   const imageProps = imageFailureText === undefined ? {} : { imageFailureText };
+  const canSave = dirty && saveState !== "saving" && !readOnly;
 
   return (
     <WorkspaceEditorToolbar
@@ -84,6 +86,9 @@ export function WorkspaceMarkdownEditor({
         sourceLabel,
         value: view,
       }}
+      onKeyDown={(event) =>
+        handleWorkspaceEditorSaveShortcut(event, canSave, onSave)
+      }
       path={path}
       readOnly={readOnly}
       {...errorProps}

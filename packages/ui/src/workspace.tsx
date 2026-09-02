@@ -3,7 +3,7 @@ import {
   useRef,
   type CSSProperties,
   type HTMLAttributes,
-  type KeyboardEvent,
+  type KeyboardEventHandler,
   type ReactNode,
   type Ref,
   type TextareaHTMLAttributes,
@@ -251,9 +251,8 @@ export const WORKSPACE_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
       "native-disabled-save",
     ],
     interaction: [
-      "caller-owned-save-effect",
-      "single-meta-or-control-s-save",
-      "ime-composition-does-not-save",
+      "caller-owned-save-effect-and-shortcut",
+      "caller-owned-ime-guard",
       "caller-owned-source-preview-mode",
     ],
     theme: WORKSPACE_THEME_CONTRACT,
@@ -712,6 +711,7 @@ export interface WorkspaceEditorToolbarProps {
   readonly savingLabel: string;
   readonly unsavedLabel: string;
   readonly tools?: ReactNode | undefined;
+  readonly onKeyDown?: KeyboardEventHandler<HTMLDivElement> | undefined;
   readonly onSave: () => void;
 }
 
@@ -743,25 +743,18 @@ export function WorkspaceEditorToolbar({
   savingLabel,
   unsavedLabel,
   tools,
+  onKeyDown,
   onSave,
 }: WorkspaceEditorToolbarProps) {
   requirePerceptibleText(path);
   requirePerceptibleText(saveLabel);
   const canSave = dirty && saveState !== "saving" && !readOnly;
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.nativeEvent.isComposing) return;
-    if (event.key.toLowerCase() !== "s" || !(event.metaKey || event.ctrlKey)) {
-      return;
-    }
-    event.preventDefault();
-    if (canSave) onSave();
-  };
   return (
     <div
       data-artemis-component="workspace-editor-toolbar"
       data-part="root"
       data-state={editorState(readOnly, saveError, saveState, dirty)}
-      onKeyDown={handleKeyDown}
+      onKeyDown={onKeyDown}
     >
       <div data-part="path">
         <span title={path}>{path}</span>

@@ -1852,6 +1852,7 @@ const caseRunners = {
     const filter = vi.fn();
     const refresh = vi.fn();
     const change = vi.fn();
+    const keyDown = vi.fn();
     render(
       <WorkspaceFileLayout
         label="Files"
@@ -1877,6 +1878,9 @@ const caseRunners = {
         viewer={
           <WorkspaceEditorToolbar
             dirty
+            onKeyDown={(event) => {
+              if (event.key.toLowerCase() === "s") keyDown(event);
+            }}
             onSave={save}
             path="README.md"
             readOnly={false}
@@ -1920,7 +1924,8 @@ const caseRunners = {
     expect(select).toHaveBeenCalledOnce();
     expect(filter).toHaveBeenCalled();
     expect(refresh).toHaveBeenCalledOnce();
-    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenCalledOnce();
+    expect(keyDown).toHaveBeenCalledTimes(2);
     expect(change).toHaveBeenCalled();
     expect(close).not.toHaveBeenCalled();
   },
