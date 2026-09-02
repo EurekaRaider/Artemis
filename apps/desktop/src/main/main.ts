@@ -17633,6 +17633,32 @@ function createMainWindow(): BrowserWindow {
                                   );
                                 }).length
                               : 0,
+                            visibleMessagePixels: viewportBounds
+                              ? Math.max(
+                                  0,
+                                  ...roots
+                                    .filter(
+                                      (root) =>
+                                        root.getAttribute(
+                                          'data-artemis-component',
+                                        ) === 'conversation-message',
+                                    )
+                                    .map((root) => {
+                                      const bounds =
+                                        root.getBoundingClientRect();
+                                      return (
+                                        Math.min(
+                                          bounds.bottom,
+                                          viewportBounds.bottom,
+                                        ) -
+                                        Math.max(
+                                          bounds.top,
+                                          viewportBounds.top,
+                                        )
+                                      );
+                                    }),
+                                )
+                              : 0,
                             viewport:
                               viewport instanceof HTMLElement
                                 ? {

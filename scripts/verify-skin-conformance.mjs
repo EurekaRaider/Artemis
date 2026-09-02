@@ -2410,7 +2410,7 @@ const MIG2_EXPECTED_CSS_RULES = [
       "flex-direction": "column",
       "align-items": "stretch",
       gap: "var(--artemis-space-2)",
-      "max-block-size": "min(17.5rem, 20vh)",
+      "max-block-size": "min(17.5rem, 42vh)",
       margin: "0 var(--artemis-space-5) calc(var(--artemis-space-5) * -1)",
       overflow: "auto",
       padding:
@@ -2561,6 +2561,18 @@ for (const [key, declarations] of MIG2_EXPECTED_CSS_RULES) {
   }
   expectedCssRules.set(key, declarations);
 }
+expectedCssRules.set(
+  'compact-width|[data-artemis-component="conversation-message"]',
+  {
+    "margin-block-end": "var(--artemis-space-1)",
+  },
+);
+expectedCssRules.set(
+  'compact-width|[data-artemis-component="queued-message-group"]',
+  {
+    "max-block-size": "min(17.5rem, 18vh)",
+  },
+);
 
 function verifyStructuralCss(css, from, tokenFamilies) {
   const parsed = postcss.parse(css, { from });
@@ -2710,7 +2722,7 @@ function verifyStructuralCss(css, from, tokenFamilies) {
       throw new Error("UI structural CSS contains an unexpected at-rule");
     }
     const media = normalizeWhitespace(node.params);
-    if (media === "(max-width: 1100px)" && node.nodes.length === 1) {
+    if (media === "(max-width: 1100px)" && node.nodes.length === 3) {
       for (const nested of node.nodes) verifyRule(nested, "compact-width");
       continue;
     }

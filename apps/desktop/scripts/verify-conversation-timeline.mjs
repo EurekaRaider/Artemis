@@ -360,9 +360,12 @@ try {
       );
       assert(
         "conversation-message-visible",
-        timeline.visibleMessageCount > 0,
-        timeline.visibleMessageCount,
-        "> 0",
+        timeline.visibleMessageCount > 0 && timeline.visibleMessagePixels >= 20,
+        {
+          count: timeline.visibleMessageCount,
+          pixels: timeline.visibleMessagePixels,
+        },
+        "at least one message with >= 20 visible CSS px",
       );
       assert(
         "user-message-inline-end-alignment",

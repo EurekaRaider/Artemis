@@ -1950,7 +1950,7 @@
     flex-direction: column;
     align-items: stretch;
     gap: var(--artemis-space-2);
-    max-block-size: min(17.5rem, 20vh);
+    max-block-size: min(17.5rem, 42vh);
     margin: 0 var(--artemis-space-5) calc(var(--artemis-space-5) * -1);
     overflow: auto;
     padding: calc(var(--artemis-space-2) + 2px) var(--artemis-space-3)
@@ -2306,6 +2306,14 @@
   @media (max-width: 1100px) {
     [data-artemis-component="application-shell"] {
       --_artemis-application-shell-rail-size: 44px;
+    }
+
+    [data-artemis-component="conversation-message"] {
+      margin-block-end: var(--artemis-space-1);
+    }
+
+    [data-artemis-component="queued-message-group"] {
+      max-block-size: min(17.5rem, 18vh);
     }
   }
 
