@@ -349,13 +349,13 @@ describe("renderer layout contract", () => {
       "for (const child of container.children) observer.observe(child);",
     );
     expect(appSource).toContain("[activeEvents.length, activeThreadId]");
-    expect(appSource).toContain('"--timeline-viewport-block-size"');
     expect(stylesSource).toContain(
       '.timeline .approval-card[data-artemis-component="approval-card"]',
     );
-    expect(stylesSource).toContain(
-      "max-block-size: calc(var(--timeline-viewport-block-size, 100vh) - 28px)",
+    expect(stylesSource).not.toMatch(
+      /\.approval-card\[data-artemis-component="approval-card"\][\s\S]{0,500}\bposition:\s*sticky/u,
     );
+    expect(stylesSource).toContain("@container (max-width: 320px)");
   });
 
   it("keeps the composer in a fixed layout row instead of a sticky overlay", () => {
@@ -1058,7 +1058,7 @@ describe("renderer layout contract", () => {
       "TASK_PLAN_HOVER_INTENT_MILLISECONDS = 175",
     );
     expect(uiPatternsSource).toContain(
-      "onFocus={() => disclosure.requestExpanded(true)}",
+      "cancelScheduledOpen();\n          disclosure.requestExpanded(true);",
     );
     expect(uiPatternsSource).toContain("aria-expanded={disclosure.expanded}");
   });

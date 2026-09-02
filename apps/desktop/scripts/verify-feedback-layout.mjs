@@ -105,6 +105,7 @@ const cases = [
       "title",
       "description",
       "status",
+      "reason",
       "actions",
     ],
     portal: false,
@@ -333,24 +334,36 @@ try {
       found.geometry,
       "inside viewport",
     );
-    assert(
-      "visible-within-scroll-container",
-      found.visibleWithinScrollContainer === true,
-      {
-        component: found.geometry,
-        scrollContainer: found.scrollContainerGeometry,
-      },
-      "fully inside the nearest timeline scroll viewport",
-    );
     if (testCase.component === "approval-card") {
       assert(
-        "approval-actions-visible-within-scroll-container",
-        found.approvalActionsVisibleWithinScrollContainer === true,
+        "approval-security-content-visible-before-actions",
+        feedbackLayout.approvalScrollVerification?.securityVisibleAtStart ===
+          true,
+        feedbackLayout.approvalScrollVerification ?? null,
+        "title, detail, status, and reason visible at the approval start",
+      );
+      assert(
+        "approval-actions-reachable",
+        feedbackLayout.approvalScrollVerification?.actionsVisibleAtEnd === true,
+        feedbackLayout.approvalScrollVerification ?? null,
+        "actions visible after scrolling to the approval end",
+      );
+      assert(
+        "approval-content-not-obscured-by-actions",
+        feedbackLayout.approvalScrollVerification
+          ?.securityAndActionsDoNotOverlap === true,
+        feedbackLayout.approvalScrollVerification ?? null,
+        "security content and actions have non-overlapping flow geometry",
+      );
+    } else {
+      assert(
+        "visible-within-scroll-container",
+        found.visibleWithinScrollContainer === true,
         {
-          actions: found.approvalActionsGeometry,
+          component: found.geometry,
           scrollContainer: found.scrollContainerGeometry,
         },
-        "approval actions fully inside the nearest timeline scroll viewport",
+        "fully inside the nearest scroll viewport",
       );
     }
     assert(

@@ -13279,6 +13279,7 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
               network: [],
               risk: "medium",
               allowedScopes: ["once", "session"],
+              modelReason: "Matches this task.",
             },
           },
         ] satisfies SmokeEnvironmentEvent[])
@@ -14944,21 +14945,63 @@ function createMainWindow(): BrowserWindow {
                     if (!approvalCard) {
                       throw new Error('Public pending ApprovalCard missing.');
                     }
-                    approvalCard.scrollIntoView({ block: 'start' });
-                    await wait(120);
                     const timelineScroll = approvalCard.closest('.timeline-scroll');
-                    if (timelineScroll instanceof HTMLElement) {
-                      const timelineBounds = timelineScroll.getBoundingClientRect();
-                      const approvalBounds = approvalCard.getBoundingClientRect();
-                      if (approvalBounds.bottom > timelineBounds.bottom - 12) {
-                        timelineScroll.scrollTop +=
-                          approvalBounds.bottom - timelineBounds.bottom + 12;
-                      }
-                      if (approvalBounds.top < timelineBounds.top + 12) {
-                        timelineScroll.scrollTop -=
-                          timelineBounds.top - approvalBounds.top + 12;
-                      }
+                    const actions = approvalCard.querySelector(
+                      '[data-part="actions"]',
+                    );
+                    if (
+                      !(timelineScroll instanceof HTMLElement) ||
+                      !(actions instanceof HTMLElement)
+                    ) {
+                      throw new Error(
+                        'Pending approval scroll contract is incomplete.',
+                      );
                     }
+                    const withinTimeline = (element) => {
+                      const bounds = element.getBoundingClientRect();
+                      const timelineBounds =
+                        timelineScroll.getBoundingClientRect();
+                      return (
+                        bounds.left >= timelineBounds.left - 1 &&
+                        bounds.right <= timelineBounds.right + 1 &&
+                        bounds.top >= timelineBounds.top - 1 &&
+                        bounds.bottom <= timelineBounds.bottom + 1
+                      );
+                    };
+                    const securityParts = [
+                      'title',
+                      'description',
+                      'status',
+                      'reason',
+                    ].map((part) =>
+                      approvalCard.querySelector('[data-part="' + part + '"]'),
+                    );
+                    if (securityParts.some((part) => !(part instanceof HTMLElement))) {
+                      throw new Error(
+                        'Pending approval security content is incomplete.',
+                      );
+                    }
+                    approvalCard.scrollIntoView({ block: 'start' });
+                    await wait(350);
+                    const securityVisibleAtStart = securityParts.every((part) =>
+                      withinTimeline(part),
+                    );
+                    actions.scrollIntoView({ block: 'end' });
+                    await wait(350);
+                    const actionsVisibleAtEnd = withinTimeline(actions);
+                    const securityBottom = Math.max(
+                      ...securityParts.map(
+                        (part) => part.getBoundingClientRect().bottom,
+                      ),
+                    );
+                    const actionsTop = actions.getBoundingClientRect().top;
+                    window.__approvalScrollVerification = {
+                      actionsVisibleAtEnd,
+                      securityAndActionsDoNotOverlap:
+                        securityBottom <= actionsTop + 1,
+                      securityVisibleAtStart,
+                    };
+                    approvalCard.scrollIntoView({ block: 'start' });
                     await wait(350);
                     return;
                   }
@@ -17080,6 +17123,8 @@ function createMainWindow(): BrowserWindow {
                       direction: document.documentElement.dir,
                       interaction:
                         window.__feedbackLayoutInteraction ?? null,
+                      approvalScrollVerification:
+                        window.__approvalScrollVerification ?? null,
                       reducedMotion: window.matchMedia(
                         '(prefers-reduced-motion: reduce)',
                       ).matches,

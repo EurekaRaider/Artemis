@@ -1,4 +1,5 @@
 import {
+  isValidElement,
   useCallback,
   useEffect,
   useId,
@@ -22,6 +23,8 @@ const PERCEPTIBLE_LABEL_CHARACTER =
 
 export const PATTERN_ACCESSIBLE_NAME_ERROR =
   "Artemis agent patterns require a non-empty accessible label";
+export const PATTERN_LABEL_IN_NAME_ERROR =
+  "Artemis agent pattern accessible labels must contain their visible label";
 export const PATTERN_COLLECTION_ERROR =
   "Artemis agent pattern collections require unique non-empty keys and valid active references";
 export const PATTERN_DISCLOSURE_CONTROL_ERROR =
@@ -39,6 +42,51 @@ function requireUniqueKeys(values: readonly string[]): void {
     new Set(values).size !== values.length
   ) {
     throw new Error(PATTERN_COLLECTION_ERROR);
+  }
+}
+
+function visibleLabelText(value: ReactNode): string {
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+  if (Array.isArray(value)) return value.map(visibleLabelText).join(" ");
+  if (
+    !isValidElement<{ children?: ReactNode; "aria-hidden"?: boolean | string }>(
+      value,
+    )
+  ) {
+    return "";
+  }
+  if (
+    value.props["aria-hidden"] === true ||
+    value.props["aria-hidden"] === "true"
+  ) {
+    return "";
+  }
+  return visibleLabelText(value.props.children);
+}
+
+function normalizedLabelInName(value: string): string {
+  return value
+    .normalize("NFKC")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .toLocaleLowerCase();
+}
+
+function requireAccessibleLabel(
+  accessibleLabel: string,
+  visibleLabel: ReactNode,
+): void {
+  requirePerceptibleText(accessibleLabel);
+  const visibleText = visibleLabelText(visibleLabel);
+  if (!PERCEPTIBLE_LABEL_CHARACTER.test(visibleText)) return;
+  if (
+    !normalizedLabelInName(accessibleLabel).includes(
+      normalizedLabelInName(visibleText),
+    )
+  ) {
+    throw new Error(PATTERN_LABEL_IN_NAME_ERROR);
   }
 }
 
@@ -405,6 +453,21 @@ interface ControlledDisclosure {
   readonly requestExpanded: (expanded: boolean) => void;
 }
 
+interface ControlledDisclosureProps {
+  readonly expanded: boolean;
+  readonly defaultExpanded?: never;
+  readonly onExpandedChange: (expanded: boolean) => void;
+}
+
+interface UncontrolledDisclosureProps {
+  readonly expanded?: never;
+  readonly defaultExpanded?: boolean | undefined;
+  readonly onExpandedChange?: ((expanded: boolean) => void) | undefined;
+}
+
+type DisclosureOwnershipProps =
+  ControlledDisclosureProps | UncontrolledDisclosureProps;
+
 function useControlledDisclosure(
   expanded: boolean | undefined,
   defaultExpanded: boolean | undefined,
@@ -478,7 +541,9 @@ export function RunModeControl<T extends string>({
   ) {
     throw new Error(PATTERN_COLLECTION_ERROR);
   }
-  for (const option of options) requirePerceptibleText(option.accessibleLabel);
+  for (const option of options) {
+    requireAccessibleLabel(option.accessibleLabel, option.label);
+  }
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const enabledIndices = options.flatMap((option, index) =>
     isBlocked(state) || option.disabled === true ? [] : [index],
@@ -629,19 +694,16 @@ export function ApprovalCard({
   );
 }
 
-export interface ToolActivityProps extends Omit<
+interface ToolActivityCommonProps extends Omit<
   HTMLAttributes<HTMLElement>,
   "children"
 > {
   readonly children: ReactNode;
   readonly collapseLabel: string;
-  readonly defaultExpanded?: boolean | undefined;
   readonly disclosureIcon?: ReactNode | undefined;
   readonly expandLabel: string;
-  readonly expanded?: boolean | undefined;
   readonly icon?: ReactNode | undefined;
   readonly label: string;
-  readonly onExpandedChange?: ((expanded: boolean) => void) | undefined;
   readonly state: Extract<
     PatternState,
     "running" | "completed" | "failed" | "stale" | "disabled" | "timeout"
@@ -649,6 +711,9 @@ export interface ToolActivityProps extends Omit<
   readonly statusLabel: string;
   readonly summary: ReactNode;
 }
+
+export type ToolActivityProps = ToolActivityCommonProps &
+  DisclosureOwnershipProps;
 
 export function ToolActivity({
   children,
@@ -728,17 +793,14 @@ export interface TaskPlanStep {
   readonly statusLabel: string;
 }
 
-export interface TaskPlanProps extends Omit<
+interface TaskPlanCommonProps extends Omit<
   HTMLAttributes<HTMLDivElement>,
   "children" | "onBlur" | "onPointerLeave"
 > {
   readonly collapseLabel: string;
   readonly currentStepId: string;
-  readonly defaultExpanded?: boolean | undefined;
   readonly expandLabel: string;
-  readonly expanded?: boolean | undefined;
   readonly label: string;
-  readonly onExpandedChange?: ((expanded: boolean) => void) | undefined;
   readonly progressLabel: ReactNode;
   readonly state: Extract<
     PatternState,
@@ -748,6 +810,8 @@ export interface TaskPlanProps extends Omit<
   readonly steps: readonly TaskPlanStep[];
   readonly stepsLabel: string;
 }
+
+export type TaskPlanProps = TaskPlanCommonProps & DisclosureOwnershipProps;
 
 const TASK_PLAN_HOVER_INTENT_MILLISECONDS = 175;
 
@@ -783,27 +847,28 @@ export function TaskPlan({
   const openTimer = useRef<number | undefined>(undefined);
   const stepsId = useId();
   const blocked = state === "disabled";
-  const cancelScheduledOpen = () => {
+  const blockedRef = useRef(blocked);
+  const requestExpandedRef = useRef(disclosure.requestExpanded);
+  blockedRef.current = blocked;
+  requestExpandedRef.current = disclosure.requestExpanded;
+  const cancelScheduledOpen = useCallback(() => {
     if (openTimer.current === undefined) return;
     window.clearTimeout(openTimer.current);
     openTimer.current = undefined;
-  };
-  const scheduleOpen = () => {
-    if (blocked) return;
+  }, []);
+  const scheduleOpen = useCallback(() => {
+    if (blockedRef.current) return;
     cancelScheduledOpen();
     openTimer.current = window.setTimeout(() => {
       openTimer.current = undefined;
-      disclosure.requestExpanded(true);
+      if (!blockedRef.current) requestExpandedRef.current(true);
     }, TASK_PLAN_HOVER_INTENT_MILLISECONDS);
-  };
+  }, [cancelScheduledOpen]);
 
-  useEffect(
-    () => () => {
-      if (openTimer.current !== undefined)
-        window.clearTimeout(openTimer.current);
-    },
-    [],
-  );
+  useEffect(() => () => cancelScheduledOpen(), [cancelScheduledOpen]);
+  useEffect(() => {
+    if (blocked) cancelScheduledOpen();
+  }, [blocked, cancelScheduledOpen]);
   useEffect(() => {
     if (!disclosure.expanded) return;
     const closeOutside = (event: PointerEvent) => {
@@ -875,7 +940,10 @@ export function TaskPlan({
         data-part="trigger"
         disabled={blocked}
         onClick={() => disclosure.requestExpanded(!disclosure.expanded)}
-        onFocus={() => disclosure.requestExpanded(true)}
+        onFocus={() => {
+          cancelScheduledOpen();
+          disclosure.requestExpanded(true);
+        }}
         onPointerEnter={scheduleOpen}
         onPointerLeave={cancelScheduledOpen}
         type="button"
@@ -1008,7 +1076,9 @@ export function UserInput({
   ) {
     throw new Error(PATTERN_COLLECTION_ERROR);
   }
-  for (const option of options) requirePerceptibleText(option.accessibleLabel);
+  for (const option of options) {
+    requireAccessibleLabel(option.accessibleLabel, option.label);
+  }
   const blocked = state !== "pending" && state !== "error" && state !== "stale";
   return (
     <section
@@ -1157,7 +1227,7 @@ export function AgentTeamSummary({
   requirePerceptibleText(statusLabel);
   requireUniqueKeys(members.map((member) => member.id));
   for (const member of members) {
-    requirePerceptibleText(member.accessibleLabel);
+    requireAccessibleLabel(member.accessibleLabel, member.label);
     requirePerceptibleText(member.statusLabel);
   }
   return (
@@ -1242,17 +1312,14 @@ export function TurnStatus({
   );
 }
 
-export interface ResultDisclosureProps extends Omit<
+interface ResultDisclosureCommonProps extends Omit<
   HTMLAttributes<HTMLElement>,
   "children"
 > {
   readonly children: ReactNode;
   readonly collapseLabel: string;
-  readonly defaultExpanded?: boolean | undefined;
   readonly expandLabel: string;
-  readonly expanded?: boolean | undefined;
   readonly label: string;
-  readonly onExpandedChange?: ((expanded: boolean) => void) | undefined;
   readonly state: Extract<
     PatternState,
     "ready" | "streaming" | "completed" | "failed" | "stale" | "timeout"
@@ -1260,6 +1327,9 @@ export interface ResultDisclosureProps extends Omit<
   readonly statusLabel: string;
   readonly summary: ReactNode;
 }
+
+export type ResultDisclosureProps = ResultDisclosureCommonProps &
+  DisclosureOwnershipProps;
 
 export function ResultDisclosure({
   children,

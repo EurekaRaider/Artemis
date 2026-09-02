@@ -21,6 +21,7 @@ import {
   PATTERN_COMPONENT_CONTRACTS,
   PATTERN_COMPONENT_MUTABLE_TOKENS,
   PATTERN_DISCLOSURE_CONTROL_ERROR,
+  PATTERN_LABEL_IN_NAME_ERROR,
   ResultDisclosure,
   RunModeControl,
   TaskPlan,
@@ -198,6 +199,64 @@ describe("Agent patterns", () => {
     expect(screen.getByRole("radio", { name: "Plan mode" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Choose plan" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Open validator" })).toBeTruthy();
+  });
+
+  it("rejects accessible names that contradict visible option or member labels", () => {
+    expect(() =>
+      render(
+        <RunModeControl
+          label="Modes"
+          onValueChange={() => undefined}
+          options={[
+            {
+              accessibleLabel: "Execute",
+              label: "Plan",
+              value: "plan",
+            },
+          ]}
+          statusLabel="Ready"
+          value="plan"
+        />,
+      ),
+    ).toThrow(PATTERN_LABEL_IN_NAME_ERROR);
+    expect(() =>
+      render(
+        <UserInput
+          label="Input"
+          onOptionSelect={() => undefined}
+          options={[
+            {
+              accessibleLabel: "Reject request",
+              id: "approve",
+              label: "Approve request",
+            },
+          ]}
+          question="Choose"
+          state="pending"
+          statusLabel="Pending"
+        />,
+      ),
+    ).toThrow(PATTERN_LABEL_IN_NAME_ERROR);
+    expect(() =>
+      render(
+        <AgentTeamSummary
+          label="Team"
+          members={[
+            {
+              accessibleLabel: "Open reviewer",
+              id: "validator",
+              label: "Validator",
+              state: "running",
+              statusLabel: "Running",
+            },
+          ]}
+          onMemberSelect={() => undefined}
+          state="active"
+          statusLabel="Active"
+          title="Team"
+        />,
+      ),
+    ).toThrow(PATTERN_LABEL_IN_NAME_ERROR);
   });
 
   it("renders approval actions in the exact order supplied by the caller", () => {
@@ -396,6 +455,123 @@ describe("Agent patterns", () => {
           .getByRole("button", { name: "Collapse: Plan" })
           .getAttribute("aria-expanded"),
       ).toBe("true");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels a scheduled task-plan open when the latest state is disabled", () => {
+    vi.useFakeTimers();
+    try {
+      const onExpandedChange = vi.fn();
+      const renderPlan = (state: "active" | "disabled") => (
+        <TaskPlan
+          collapseLabel="Collapse"
+          currentStepId="one"
+          expandLabel="Expand"
+          label="Plan"
+          onExpandedChange={onExpandedChange}
+          progressLabel="Step 1"
+          state={state}
+          statusLabel={state === "disabled" ? "Disabled" : "In progress"}
+          steps={[
+            {
+              id: "one",
+              label: "Inspect",
+              status: "in_progress",
+              statusLabel: "In progress",
+            },
+          ]}
+          stepsLabel="Task steps"
+        />
+      );
+      const { rerender } = render(renderPlan("active"));
+      fireEvent.pointerEnter(
+        screen.getByRole("button", { name: "Expand: Plan" }),
+      );
+      rerender(renderPlan("disabled"));
+      act(() => vi.advanceTimersByTime(175));
+      expect(onExpandedChange).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole("button", { name: "Expand: Plan" }),
+      ).toHaveProperty("disabled", true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("uses the latest controlled callback for a scheduled task-plan open", () => {
+    vi.useFakeTimers();
+    try {
+      const firstCallback = vi.fn();
+      const latestCallback = vi.fn();
+      const renderPlan = (onExpandedChange: (expanded: boolean) => void) => (
+        <TaskPlan
+          collapseLabel="Collapse"
+          currentStepId="one"
+          expandLabel="Expand"
+          expanded={false}
+          label="Plan"
+          onExpandedChange={onExpandedChange}
+          progressLabel="Step 1"
+          state="active"
+          statusLabel="In progress"
+          steps={[
+            {
+              id: "one",
+              label: "Inspect",
+              status: "in_progress",
+              statusLabel: "In progress",
+            },
+          ]}
+          stepsLabel="Task steps"
+        />
+      );
+      const { rerender } = render(renderPlan(firstCallback));
+      fireEvent.pointerEnter(
+        screen.getByRole("button", { name: "Expand: Plan" }),
+      );
+      rerender(renderPlan(latestCallback));
+      act(() => vi.advanceTimersByTime(175));
+      expect(firstCallback).not.toHaveBeenCalled();
+      expect(latestCallback).toHaveBeenCalledTimes(1);
+      expect(latestCallback).toHaveBeenCalledWith(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not duplicate task-plan open intent when focus follows pointer enter", () => {
+    vi.useFakeTimers();
+    try {
+      const onExpandedChange = vi.fn();
+      render(
+        <TaskPlan
+          collapseLabel="Collapse"
+          currentStepId="one"
+          expandLabel="Expand"
+          label="Plan"
+          onExpandedChange={onExpandedChange}
+          progressLabel="Step 1"
+          state="active"
+          statusLabel="In progress"
+          steps={[
+            {
+              id: "one",
+              label: "Inspect",
+              status: "in_progress",
+              statusLabel: "In progress",
+            },
+          ]}
+          stepsLabel="Task steps"
+        />,
+      );
+      const trigger = screen.getByRole("button", { name: "Expand: Plan" });
+      fireEvent.pointerEnter(trigger);
+      fireEvent.focus(trigger);
+      act(() => vi.advanceTimersByTime(175));
+      expect(onExpandedChange).toHaveBeenCalledTimes(1);
+      expect(onExpandedChange).toHaveBeenCalledWith(true);
     } finally {
       vi.useRealTimers();
     }
