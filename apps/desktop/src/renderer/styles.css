@@ -3236,6 +3236,13 @@ button.environment-row:disabled {
   border: 0;
 }
 
+.timeline .approval-card[data-artemis-component="approval-card"] {
+  max-block-size: calc(var(--timeline-viewport-block-size, 100vh) - 28px);
+  overscroll-behavior: contain;
+  overflow-y: auto;
+  scroll-padding-block: 12px;
+}
+
 .approval-card[data-artemis-component="approval-card"] [data-part="heading"] {
   flex: 1 1 auto;
   gap: 4px;
@@ -3348,11 +3355,16 @@ button.environment-row:disabled {
 }
 
 .approval-card[data-artemis-component="approval-card"] > [data-part="actions"] {
+  background: var(--panel);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
   margin-top: 13px;
+  padding-block-start: 8px;
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 1;
 }
 
 .approval-card[data-artemis-component="approval-card"]

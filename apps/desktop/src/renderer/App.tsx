@@ -4251,7 +4251,14 @@ export function App() {
     const container = timelineScroll.current;
     if (!container || typeof ResizeObserver === "undefined") return;
     let frame: number | undefined;
+    const syncViewportBlockSize = () => {
+      container.style.setProperty(
+        "--timeline-viewport-block-size",
+        `${container.clientHeight}px`,
+      );
+    };
     const observer = new ResizeObserver(() => {
+      syncViewportBlockSize();
       if (!timelinePinned.current) return;
       if (frame !== undefined) window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
@@ -4261,10 +4268,12 @@ export function App() {
         }
       });
     });
+    syncViewportBlockSize();
     observer.observe(container);
     for (const child of container.children) observer.observe(child);
     return () => {
       observer.disconnect();
+      container.style.removeProperty("--timeline-viewport-block-size");
       if (frame !== undefined) window.cancelAnimationFrame(frame);
     };
   }, [activeEvents.length, activeThreadId]);

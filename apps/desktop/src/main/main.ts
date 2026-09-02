@@ -16927,6 +16927,13 @@ function createMainWindow(): BrowserWindow {
                       const style = getComputedStyle(root);
                       const scrollContainer = root.closest('.timeline-scroll');
                       const scrollBounds = scrollContainer?.getBoundingClientRect();
+                      const approvalActions =
+                        root.getAttribute('data-artemis-component') ===
+                        'approval-card'
+                          ? root.querySelector('[data-part="actions"]')
+                          : null;
+                      const approvalActionBounds =
+                        approvalActions?.getBoundingClientRect();
                       const overlay = [
                         'tooltip',
                         'popover',
@@ -17017,6 +17024,23 @@ function createMainWindow(): BrowserWindow {
                                 scrollTop: scrollContainer.scrollTop,
                               }
                             : null,
+                        approvalActionsGeometry: approvalActionBounds
+                          ? {
+                              left: approvalActionBounds.left,
+                              right: approvalActionBounds.right,
+                              top: approvalActionBounds.top,
+                              bottom: approvalActionBounds.bottom,
+                            }
+                          : null,
+                        approvalActionsVisibleWithinScrollContainer:
+                          !approvalActionBounds ||
+                          !scrollBounds ||
+                          (approvalActionBounds.left >= scrollBounds.left - 1 &&
+                            approvalActionBounds.right <=
+                              scrollBounds.right + 1 &&
+                            approvalActionBounds.top >= scrollBounds.top - 1 &&
+                            approvalActionBounds.bottom <=
+                              scrollBounds.bottom + 1),
                         contentFitsInline:
                           root.scrollWidth <= root.clientWidth + 1,
                         inlineMetrics: {

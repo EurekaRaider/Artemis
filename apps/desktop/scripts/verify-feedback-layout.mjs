@@ -342,6 +342,17 @@ try {
       },
       "fully inside the nearest timeline scroll viewport",
     );
+    if (testCase.component === "approval-card") {
+      assert(
+        "approval-actions-visible-within-scroll-container",
+        found.approvalActionsVisibleWithinScrollContainer === true,
+        {
+          actions: found.approvalActionsGeometry,
+          scrollContainer: found.scrollContainerGeometry,
+        },
+        "approval actions fully inside the nearest timeline scroll viewport",
+      );
+    }
     assert(
       "inline-content-not-cropped",
       found.contentFitsInline === true,

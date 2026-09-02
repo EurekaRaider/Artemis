@@ -349,6 +349,13 @@ describe("renderer layout contract", () => {
       "for (const child of container.children) observer.observe(child);",
     );
     expect(appSource).toContain("[activeEvents.length, activeThreadId]");
+    expect(appSource).toContain('"--timeline-viewport-block-size"');
+    expect(stylesSource).toContain(
+      '.timeline .approval-card[data-artemis-component="approval-card"]',
+    );
+    expect(stylesSource).toContain(
+      "max-block-size: calc(var(--timeline-viewport-block-size, 100vh) - 28px)",
+    );
   });
 
   it("keeps the composer in a fixed layout row instead of a sticky overlay", () => {
