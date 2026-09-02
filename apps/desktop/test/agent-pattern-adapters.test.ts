@@ -33,6 +33,7 @@ describe("Desktop agent pattern adapters", () => {
     ]);
     expect(view.currentStepId).toBe(view.steps[1]?.id);
     expect(view.state).toBe("active");
+    expect(view.statusLabel).toBe("In progress");
   });
 
   it("preserves approval content and the existing deny/project/session/once order", () => {

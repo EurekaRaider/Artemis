@@ -334,6 +334,15 @@ try {
       "inside viewport",
     );
     assert(
+      "visible-within-scroll-container",
+      found.visibleWithinScrollContainer === true,
+      {
+        component: found.geometry,
+        scrollContainer: found.scrollContainerGeometry,
+      },
+      "fully inside the nearest timeline scroll viewport",
+    );
+    assert(
       "inline-content-not-cropped",
       found.contentFitsInline === true,
       found,

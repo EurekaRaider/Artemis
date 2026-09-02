@@ -37,6 +37,7 @@ export function TaskPlanProgress({ locale, plan }: TaskPlanProgressProps) {
       onExpandedChange={setExpanded}
       progressLabel={view.progressLabel}
       state={view.state}
+      statusLabel={view.statusLabel}
       steps={view.steps}
       stepsLabel={view.stepsLabel}
     />

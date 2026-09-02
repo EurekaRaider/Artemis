@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -7,6 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -15,8 +17,10 @@ import {
   ApprovalCard,
   ContextUsage,
   PATTERN_ACCESSIBLE_NAME_ERROR,
+  PATTERN_COLLECTION_ERROR,
   PATTERN_COMPONENT_CONTRACTS,
   PATTERN_COMPONENT_MUTABLE_TOKENS,
+  PATTERN_DISCLOSURE_CONTROL_ERROR,
   ResultDisclosure,
   RunModeControl,
   TaskPlan,
@@ -62,9 +66,14 @@ describe("Agent patterns", () => {
         label="Run mode"
         onValueChange={onValueChange}
         options={[
-          { label: "Plan", value: "plan" },
-          { label: "Execute", value: "execute" },
+          { accessibleLabel: "Plan", label: "Plan", value: "plan" },
+          {
+            accessibleLabel: "Execute",
+            label: "Execute",
+            value: "execute",
+          },
         ]}
+        statusLabel="Ready"
         value="plan"
       />,
     );
@@ -79,15 +88,116 @@ describe("Agent patterns", () => {
         label="Run mode"
         onValueChange={onValueChange}
         options={[
-          { label: "Plan", value: "plan" },
-          { label: "Execute", value: "execute" },
+          { accessibleLabel: "Plan", label: "Plan", value: "plan" },
+          {
+            accessibleLabel: "Execute",
+            label: "Execute",
+            value: "execute",
+          },
         ]}
         state="busy"
+        statusLabel="Busy"
         value="plan"
       />,
     );
     await user.click(screen.getAllByRole("radio")[1]!);
     expect(onValueChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("implements roving radio keyboard navigation and skips disabled modes", () => {
+    function KeyboardModes() {
+      const [value, setValue] = useState<"plan" | "execute" | "review">("plan");
+      return (
+        <RunModeControl
+          label="Run mode"
+          onValueChange={setValue}
+          options={[
+            { accessibleLabel: "Plan", label: "Plan", value: "plan" },
+            {
+              accessibleLabel: "Execute",
+              disabled: true,
+              label: "Execute",
+              value: "execute",
+            },
+            {
+              accessibleLabel: "Review",
+              label: "Review",
+              value: "review",
+            },
+          ]}
+          statusLabel="Ready"
+          value={value}
+        />
+      );
+    }
+    render(<KeyboardModes />);
+    const plan = screen.getByRole("radio", { name: "Plan" });
+    const execute = screen.getByRole("radio", { name: "Execute" });
+    const review = screen.getByRole("radio", { name: "Review" });
+    expect([plan.tabIndex, execute.tabIndex, review.tabIndex]).toEqual([
+      0, -1, -1,
+    ]);
+    plan.focus();
+    fireEvent.keyDown(plan, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(review);
+    expect(review.getAttribute("aria-checked")).toBe("true");
+    fireEvent.keyDown(review, { key: "Home" });
+    expect(document.activeElement).toBe(plan);
+    fireEvent.keyDown(plan, { key: "End" });
+    expect(document.activeElement).toBe(review);
+  });
+
+  it("gives icon-only option and member content explicit accessible names", () => {
+    render(
+      <>
+        <RunModeControl
+          label="Modes"
+          onValueChange={() => undefined}
+          options={[
+            {
+              accessibleLabel: "Plan mode",
+              label: <span aria-hidden="true">icon</span>,
+              value: "plan",
+            },
+          ]}
+          statusLabel="Ready"
+          value="plan"
+        />
+        <UserInput
+          label="Input"
+          onOptionSelect={() => undefined}
+          options={[
+            {
+              accessibleLabel: "Choose plan",
+              id: "plan",
+              label: <span aria-hidden="true">icon</span>,
+            },
+          ]}
+          question="Choose"
+          state="pending"
+          statusLabel="Pending"
+        />
+        <AgentTeamSummary
+          label="Team"
+          members={[
+            {
+              accessibleLabel: "Open validator",
+              id: "validator",
+              label: <span aria-hidden="true">icon</span>,
+              state: "running",
+              statusLabel: "Running",
+            },
+          ]}
+          onMemberSelect={() => undefined}
+          state="active"
+          statusLabel="Active"
+          title="Team"
+        />
+      </>,
+    );
+    expect(screen.getByRole("radio", { name: "Plan mode" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Choose plan" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open validator" })).toBeTruthy();
   });
 
   it("renders approval actions in the exact order supplied by the caller", () => {
@@ -139,7 +249,9 @@ describe("Agent patterns", () => {
       screen.getByRole("button", { name: "Expand: Read files" }),
     );
     expect(onExpandedChange).toHaveBeenCalledWith(true);
-    expect(container.textContent).not.toContain("Details");
+    expect(
+      screen.getByText("Details").closest('[data-part="content"]'),
+    ).toHaveProperty("hidden", true);
     rerender(
       <ToolActivity
         collapseLabel="Collapse"
@@ -154,7 +266,56 @@ describe("Agent patterns", () => {
         Details
       </ToolActivity>,
     );
-    expect(container.textContent).toContain("Details");
+    expect(
+      screen.getByText("Details").closest('[data-part="content"]'),
+    ).toHaveProperty("hidden", false);
+  });
+
+  it("rejects dual disclosure props and controlled ownership changes", () => {
+    expect(() =>
+      render(
+        <ToolActivity
+          collapseLabel="Collapse"
+          defaultExpanded
+          expandLabel="Expand"
+          expanded={false}
+          label="Tool"
+          state="completed"
+          statusLabel="Completed"
+          summary="Tool"
+        >
+          Details
+        </ToolActivity>,
+      ),
+    ).toThrow(PATTERN_DISCLOSURE_CONTROL_ERROR);
+
+    const { rerender } = render(
+      <ResultDisclosure
+        collapseLabel="Collapse"
+        expandLabel="Expand"
+        expanded={false}
+        label="Result"
+        state="ready"
+        statusLabel="Ready"
+        summary="Result"
+      >
+        Details
+      </ResultDisclosure>,
+    );
+    expect(() =>
+      rerender(
+        <ResultDisclosure
+          collapseLabel="Collapse"
+          expandLabel="Expand"
+          label="Result"
+          state="ready"
+          statusLabel="Ready"
+          summary="Result"
+        >
+          Details
+        </ResultDisclosure>,
+      ),
+    ).toThrow(PATTERN_DISCLOSURE_CONTROL_ERROR);
   });
 
   it("exposes task-plan progress, ordered steps, and current pending state", () => {
@@ -167,6 +328,7 @@ describe("Agent patterns", () => {
         label="Step 2 of 3"
         progressLabel="Step 2 of 3"
         state="active"
+        statusLabel="In progress"
         steps={[
           {
             id: "one",
@@ -200,6 +362,155 @@ describe("Agent patterns", () => {
     ).toBeTruthy();
   });
 
+  it("preserves task-plan hover intent across streaming rerenders", () => {
+    vi.useFakeTimers();
+    try {
+      const renderPlan = (progressLabel: string) => (
+        <TaskPlan
+          collapseLabel="Collapse"
+          currentStepId="one"
+          expandLabel="Expand"
+          label="Plan"
+          progressLabel={progressLabel}
+          state="active"
+          statusLabel="In progress"
+          steps={[
+            {
+              id: "one",
+              label: "Inspect",
+              status: "in_progress",
+              statusLabel: "In progress",
+            },
+          ]}
+          stepsLabel="Task steps"
+        />
+      );
+      const { rerender } = render(renderPlan("Step 1"));
+      fireEvent.pointerEnter(
+        screen.getByRole("button", { name: "Expand: Plan" }),
+      );
+      rerender(renderPlan("Step 1, streaming update"));
+      act(() => vi.advanceTimersByTime(175));
+      expect(
+        screen
+          .getByRole("button", { name: "Collapse: Plan" })
+          .getAttribute("aria-expanded"),
+      ).toBe("true");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps every disclosure aria-controls target mounted while collapsed", () => {
+    const { container } = render(
+      <>
+        <ToolActivity
+          collapseLabel="Collapse"
+          expandLabel="Expand"
+          label="Tool"
+          state="completed"
+          statusLabel="Completed"
+          summary="Tool"
+        >
+          Tool details
+        </ToolActivity>
+        <TaskPlan
+          collapseLabel="Collapse"
+          currentStepId="one"
+          expandLabel="Expand"
+          label="Plan"
+          progressLabel="Step 1"
+          state="active"
+          statusLabel="In progress"
+          steps={[
+            {
+              id: "one",
+              label: "Inspect",
+              status: "in_progress",
+              statusLabel: "In progress",
+            },
+          ]}
+          stepsLabel="Task steps"
+        />
+        <ResultDisclosure
+          collapseLabel="Collapse"
+          expandLabel="Expand"
+          label="Result"
+          state="ready"
+          statusLabel="Ready"
+          summary="Result"
+        >
+          Result details
+        </ResultDisclosure>
+      </>,
+    );
+    const controls = [
+      ...container.querySelectorAll<HTMLElement>("[aria-controls]"),
+    ];
+    expect(controls).toHaveLength(3);
+    for (const control of controls) {
+      const target = document.getElementById(
+        control.getAttribute("aria-controls")!,
+      );
+      expect(target).not.toBeNull();
+      expect(target).toHaveProperty("hidden", true);
+    }
+  });
+
+  it("rejects duplicate collection keys and missing task references", () => {
+    expect(() =>
+      render(
+        <RunModeControl
+          label="Modes"
+          onValueChange={() => undefined}
+          options={[
+            { accessibleLabel: "One", label: "One", value: "same" },
+            { accessibleLabel: "Two", label: "Two", value: "same" },
+          ]}
+          statusLabel="Ready"
+          value="same"
+        />,
+      ),
+    ).toThrow(PATTERN_COLLECTION_ERROR);
+    expect(() =>
+      render(
+        <TaskPlan
+          collapseLabel="Collapse"
+          currentStepId="missing"
+          expandLabel="Expand"
+          label="Plan"
+          progressLabel="Step 1"
+          state="active"
+          statusLabel="In progress"
+          steps={[
+            {
+              id: "one",
+              label: "Inspect",
+              status: "pending",
+              statusLabel: "Not started",
+            },
+          ]}
+          stepsLabel="Task steps"
+        />,
+      ),
+    ).toThrow(PATTERN_COLLECTION_ERROR);
+    expect(() =>
+      render(
+        <UserInput
+          label="Input"
+          onOptionSelect={() => undefined}
+          options={[
+            { accessibleLabel: "One", id: "same", label: "One" },
+            { accessibleLabel: "Two", id: "same", label: "Two" },
+          ]}
+          question="Choose"
+          state="pending"
+          statusLabel="Pending"
+        />,
+      ),
+    ).toThrow(PATTERN_COLLECTION_ERROR);
+  });
+
   it("blocks resolved user input and reports bounded context usage", async () => {
     const user = userEvent.setup();
     const onOptionSelect = vi.fn();
@@ -207,9 +518,16 @@ describe("Agent patterns", () => {
       <UserInput
         label="Choose a direction"
         onOptionSelect={onOptionSelect}
-        options={[{ id: "a", label: "Direction A" }]}
+        options={[
+          {
+            accessibleLabel: "Direction A",
+            id: "a",
+            label: "Direction A",
+          },
+        ]}
         question="Which direction?"
         state="pending"
+        statusLabel="Pending"
       />,
     );
     await user.click(screen.getByRole("button", { name: "Direction A" }));
@@ -218,9 +536,16 @@ describe("Agent patterns", () => {
       <UserInput
         label="Choose a direction"
         onOptionSelect={onOptionSelect}
-        options={[{ id: "a", label: "Direction A" }]}
+        options={[
+          {
+            accessibleLabel: "Direction A",
+            id: "a",
+            label: "Direction A",
+          },
+        ]}
         question="Which direction?"
         state="timeout"
+        statusLabel="Timed out"
       />,
     );
     expect(screen.getByRole("button", { name: "Direction A" })).toHaveProperty(
@@ -234,6 +559,7 @@ describe("Agent patterns", () => {
         detail="2.5K of 10K tokens"
         label="Context usage"
         percent={125}
+        statusLabel="Ready"
         valueLabel="100%"
       />,
     );
@@ -257,12 +583,14 @@ describe("Agent patterns", () => {
           label="Migration team"
           members={[
             {
+              accessibleLabel: "Agent one",
               id: "one",
               label: "Agent one",
               state: "completed",
               statusLabel: "Completed",
             },
             {
+              accessibleLabel: "Agent two",
               id: "two",
               label: "Agent two",
               state: "waiting",
@@ -286,6 +614,7 @@ describe("Agent patterns", () => {
           expandLabel="Expand"
           label="Build result"
           state="completed"
+          statusLabel="Completed"
           summary="Build complete"
         >
           No errors
@@ -309,10 +638,19 @@ describe("Agent patterns", () => {
         <TaskPlan
           collapseLabel="Collapse"
           expandLabel="Expand"
+          currentStepId="one"
           label="Plan"
           progressLabel="Step 1"
           state="active"
-          steps={[]}
+          statusLabel="In progress"
+          steps={[
+            {
+              id: "one",
+              label: "Inspect",
+              status: "in_progress",
+              statusLabel: "In progress",
+            },
+          ]}
           stepsLabel=" "
         />,
       ),
@@ -327,12 +665,15 @@ describe("Agent patterns", () => {
         expandLabel="Expand"
         label="Result"
         state="ready"
+        statusLabel="Ready"
         summary="Summary"
       >
         Content
       </ResultDisclosure>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Collapse: Result" }));
-    expect(screen.queryByText("Content")).toBeNull();
+    expect(
+      screen.getByText("Content").closest('[data-part="content"]'),
+    ).toHaveProperty("hidden", true);
   });
 });

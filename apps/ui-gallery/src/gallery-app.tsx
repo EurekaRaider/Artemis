@@ -364,22 +364,31 @@ export function GalleryApp() {
             onValueChange={setPatternMode}
             options={[
               {
+                accessibleLabel: "Plan",
                 description: "Inspect without changing files",
                 label: "Plan",
                 value: "plan",
               },
               {
+                accessibleLabel: "Execute",
                 description: "Apply the approved change",
                 label: "Execute",
                 value: "execute",
               },
             ]}
+            statusLabel="Ready"
             value={patternMode}
           />
           <RunModeControl
             label="Disabled run mode"
             onValueChange={() => undefined}
-            options={[{ label: "Review", value: "review" }]}
+            options={[
+              {
+                accessibleLabel: "Review",
+                label: "Review",
+                value: "review",
+              },
+            ]}
             state="disabled"
             statusLabel="Unavailable"
             value="review"
@@ -434,6 +443,7 @@ export function GalleryApp() {
             label="Step 2 of 3"
             progressLabel="Step 2 of 3"
             state="active"
+            statusLabel="In progress"
             steps={[
               {
                 id: "inspect",
@@ -461,6 +471,7 @@ export function GalleryApp() {
             label="Context usage"
             percent={72.5}
             state="timeout"
+            statusLabel="Timed out"
             valueLabel="72.5%"
           />
           <div dir="rtl">
@@ -471,20 +482,32 @@ export function GalleryApp() {
               onOptionSelect={setPatternOption}
               options={[
                 {
+                  accessibleLabel: "مراجعة التغييرات قبل المتابعة",
                   id: "review",
                   label: "مراجعة التغييرات قبل المتابعة",
                 },
-                { id: "continue", label: "المتابعة مباشرة" },
+                {
+                  accessibleLabel: "المتابعة مباشرة",
+                  id: "continue",
+                  label: "المتابعة مباشرة",
+                },
               ]}
               question="كيف تريد المتابعة؟"
               selectedOptionId={patternOption}
               state="pending"
+              statusLabel="بانتظار الإجابة"
             />
           </div>
           <UserInput
             label="Timed out input"
             onOptionSelect={() => undefined}
-            options={[{ id: "fixed", label: "No longer available" }]}
+            options={[
+              {
+                accessibleLabel: "No longer available",
+                id: "fixed",
+                label: "No longer available",
+              },
+            ]}
             question="This request timed out"
             state="timeout"
             statusLabel="Timed out"
@@ -500,12 +523,14 @@ export function GalleryApp() {
             label="Agent team summary"
             members={[
               {
+                accessibleLabel: "Validator",
                 id: "one",
                 label: "Validator",
                 state: "completed",
                 statusLabel: "Completed",
               },
               {
+                accessibleLabel: "Reviewer",
                 id: "two",
                 label: "Reviewer",
                 state: "waiting",

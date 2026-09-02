@@ -56,6 +56,7 @@ export interface TaskPlanPatternView {
   readonly label: string;
   readonly progressLabel: string;
   readonly state: Extract<PatternState, "active" | "completed" | "failed">;
+  readonly statusLabel: string;
   readonly steps: readonly TaskPlanPatternStep[];
   readonly stepsLabel: string;
 }
@@ -90,6 +91,11 @@ export function taskPlanPatternView(
       statusLabel: statusCopy[status],
     } satisfies TaskPlanPatternStep;
   });
+  const state = isTaskPlanCompleted(plan)
+    ? "completed"
+    : plan.steps.some((step) => step.status === "failed")
+      ? "failed"
+      : "active";
   return {
     collapseLabel: copy.collapse,
     currentStepId:
@@ -97,11 +103,8 @@ export function taskPlanPatternView(
     expandLabel: copy.expand,
     label: progressLabel,
     progressLabel,
-    state: isTaskPlanCompleted(plan)
-      ? "completed"
-      : plan.steps.some((step) => step.status === "failed")
-        ? "failed"
-        : "active",
+    state,
+    statusLabel: statusCopy[state === "active" ? "in_progress" : state],
     steps,
     stepsLabel: copy.taskSteps,
   };

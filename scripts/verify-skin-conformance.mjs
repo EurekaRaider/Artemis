@@ -1582,7 +1582,7 @@ const CL4_EXPECTED_CSS_RULES = [
     },
   ],
   [
-    'normal|[data-artemis-component="approval-card"] [data-part="status"], [data-artemis-component="tool-activity"] [data-part="status"], [data-artemis-component="user-input"] [data-part="status"], [data-artemis-component="agent-activity"] [data-part="status"], [data-artemis-component="agent-team-summary"] [data-part="status"], [data-artemis-component="result-disclosure"] [data-part="status"]',
+    'normal|[data-artemis-component="run-mode-control"] [data-part="status"], [data-artemis-component="approval-card"] [data-part="status"], [data-artemis-component="tool-activity"] [data-part="status"], [data-artemis-component="task-plan"] [data-part="status"], [data-artemis-component="context-usage"] [data-part="status"], [data-artemis-component="user-input"] [data-part="status"], [data-artemis-component="agent-activity"] [data-part="status"], [data-artemis-component="agent-team-summary"] [data-part="status"], [data-artemis-component="result-disclosure"] [data-part="status"]',
     {
       color: "var(--artemis-color-text-secondary)",
       "font-size": "var(--artemis-typography-label-size)",
@@ -1664,6 +1664,10 @@ const CL4_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="tool-activity"] [data-part="content"]',
     { "grid-column": "1 / -1", "min-inline-size": "0" },
+  ],
+  [
+    'normal|[data-artemis-component="tool-activity"] [data-part="content"][hidden], [data-artemis-component="task-plan"] [data-part="steps"][hidden], [data-artemis-component="result-disclosure"] [data-part="content"][hidden]',
+    { display: "none" },
   ],
   [
     'normal|[data-artemis-component="tool-activity"] [data-part="disclosure"], [data-artemis-component="result-disclosure"] [data-part="disclosure"]',
@@ -1772,6 +1776,10 @@ const CL4_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="context-usage"]',
     { "grid-template-columns": "minmax(0, 1fr) auto" },
+  ],
+  [
+    'normal|[data-artemis-component="context-usage"] [data-part="status"]',
+    { "grid-column": "1 / -1" },
   ],
   [
     'normal|[data-artemis-component="context-usage"] [data-part="meter"]',

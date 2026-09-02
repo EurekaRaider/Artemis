@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type HTMLAttributes,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
 
@@ -21,10 +22,23 @@ const PERCEPTIBLE_LABEL_CHARACTER =
 
 export const PATTERN_ACCESSIBLE_NAME_ERROR =
   "Artemis agent patterns require a non-empty accessible label";
+export const PATTERN_COLLECTION_ERROR =
+  "Artemis agent pattern collections require unique non-empty keys and valid active references";
+export const PATTERN_DISCLOSURE_CONTROL_ERROR =
+  "Artemis disclosures require one stable controlled or uncontrolled ownership mode";
 
 function requirePerceptibleText(value: string): void {
   if (typeof value !== "string" || !PERCEPTIBLE_LABEL_CHARACTER.test(value)) {
     throw new Error(PATTERN_ACCESSIBLE_NAME_ERROR);
+  }
+}
+
+function requireUniqueKeys(values: readonly string[]): void {
+  if (
+    values.some((value) => !PERCEPTIBLE_LABEL_CHARACTER.test(value)) ||
+    new Set(values).size !== values.length
+  ) {
+    throw new Error(PATTERN_COLLECTION_ERROR);
   }
 }
 
@@ -119,6 +133,7 @@ const PATTERN_THEME_CONTRACT = {
     "caller-owns-copy-and-formatted-data",
     "caller-owns-policy-and-action-order",
     "caller-disables-injected-actions-for-blocked-states",
+    "every-state-has-visible-status-text",
     "status-is-not-color-only",
     "no-runtime-or-protocol-dependency",
   ],
@@ -129,18 +144,28 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     schemaVersion: 1,
     uiContractVersion: 1,
     name: "run-mode-control",
-    parts: ["root", "option", "label"],
-    optionalParts: ["description", "status"],
+    parts: ["root", "option", "label", "status"],
+    optionalParts: ["description"],
     states: ["ready", "busy", "error", "stale", "disabled", "timeout"],
-    accessibility: ["radiogroup-role", "radio-state", "native-disabled-state"],
-    interaction: ["controlled-value", "caller-owned-mode-order"],
+    accessibility: [
+      "radiogroup-role",
+      "radio-state",
+      "roving-tab-stop",
+      "arrow-home-end-keyboard",
+      "native-disabled-state",
+    ],
+    interaction: [
+      "controlled-value",
+      "caller-owned-mode-order",
+      "unique-option-values",
+    ],
     theme: PATTERN_THEME_CONTRACT,
   },
   approvalCard: {
     schemaVersion: 1,
     uiContractVersion: 1,
     name: "approval-card",
-    parts: ["root", "header", "title", "status", "actions"],
+    parts: ["root", "header", "heading", "title", "status", "actions"],
     optionalParts: ["icon", "description", "reason"],
     states: [
       "pending",
@@ -163,8 +188,17 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     parts: ["root", "summary", "status", "disclosure", "content"],
     optionalParts: ["icon", "disclosure-icon", "disclosure-label"],
     states: ["running", "completed", "failed", "stale", "disabled", "timeout"],
-    accessibility: ["named-disclosure", "expanded-state", "live-status"],
-    interaction: ["controlled-disclosure", "caller-formats-tool-data"],
+    accessibility: [
+      "named-disclosure",
+      "expanded-state",
+      "persistent-controls-target",
+      "live-status",
+    ],
+    interaction: [
+      "controlled-disclosure",
+      "stable-control-mode",
+      "caller-formats-tool-data",
+    ],
     theme: PATTERN_THEME_CONTRACT,
   },
   taskPlan: {
@@ -179,13 +213,21 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
       "step",
       "marker",
       "step-status",
+      "status",
     ],
     states: ["active", "completed", "failed", "stale", "disabled", "timeout"],
-    accessibility: ["named-disclosure", "expanded-state", "ordered-steps"],
+    accessibility: [
+      "named-disclosure",
+      "expanded-state",
+      "persistent-controls-target",
+      "ordered-steps",
+    ],
     interaction: [
       "controlled-disclosure",
+      "stable-control-mode",
       "hover-intent",
       "escape-and-outside-close",
+      "unique-step-ids-and-current-reference",
     ],
     theme: PATTERN_THEME_CONTRACT,
   },
@@ -193,7 +235,7 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     schemaVersion: 1,
     uiContractVersion: 1,
     name: "context-usage",
-    parts: ["root", "label", "value", "meter", "fill"],
+    parts: ["root", "label", "value", "status", "meter", "fill"],
     optionalParts: ["detail"],
     states: ["ready", "active", "error", "stale", "disabled", "timeout"],
     accessibility: ["progressbar-role", "numeric-range", "visible-value"],
@@ -204,8 +246,8 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     schemaVersion: 1,
     uiContractVersion: 1,
     name: "user-input",
-    parts: ["root", "question", "options", "option"],
-    optionalParts: ["description", "status", "actions"],
+    parts: ["root", "question", "options", "option", "label", "status"],
+    optionalParts: ["description", "actions"],
     states: [
       "pending",
       "busy",
@@ -221,7 +263,11 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
       "pressed-selection",
       "native-disabled-state",
     ],
-    interaction: ["controlled-selection", "caller-owned-submit-actions"],
+    interaction: [
+      "controlled-selection",
+      "unique-option-ids",
+      "caller-owned-submit-actions",
+    ],
     theme: PATTERN_THEME_CONTRACT,
   },
   agentActivity: {
@@ -248,10 +294,14 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     schemaVersion: 1,
     uiContractVersion: 1,
     name: "agent-team-summary",
-    parts: ["root", "title", "status", "members", "member"],
+    parts: ["root", "title", "status", "members", "member", "label"],
     states: ["active", "completed", "failed", "stale", "disabled", "timeout"],
     accessibility: ["named-region", "member-list", "visible-member-status"],
-    interaction: ["caller-owned-member-order", "optional-member-activation"],
+    interaction: [
+      "caller-owned-member-order",
+      "unique-member-ids",
+      "optional-member-activation",
+    ],
     theme: PATTERN_THEME_CONTRACT,
   },
   turnStatus: {
@@ -277,11 +327,18 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     schemaVersion: 1,
     uiContractVersion: 1,
     name: "result-disclosure",
-    parts: ["root", "disclosure", "summary", "content"],
-    optionalParts: ["status"],
+    parts: ["root", "disclosure", "summary", "status", "content"],
     states: ["ready", "streaming", "completed", "failed", "stale", "timeout"],
-    accessibility: ["named-disclosure", "expanded-state"],
-    interaction: ["controlled-disclosure", "caller-owned-result-content"],
+    accessibility: [
+      "named-disclosure",
+      "expanded-state",
+      "persistent-controls-target",
+    ],
+    interaction: [
+      "controlled-disclosure",
+      "stable-control-mode",
+      "caller-owned-result-content",
+    ],
     theme: PATTERN_THEME_CONTRACT,
   },
 } as const satisfies Readonly<Record<string, PatternComponentContract>>);
@@ -350,10 +407,20 @@ interface ControlledDisclosure {
 
 function useControlledDisclosure(
   expanded: boolean | undefined,
-  defaultExpanded: boolean,
+  defaultExpanded: boolean | undefined,
   onExpandedChange: ((expanded: boolean) => void) | undefined,
 ): ControlledDisclosure {
-  const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
+  const controlled = expanded !== undefined;
+  const initialControlled = useRef(controlled);
+  const [internalExpanded, setInternalExpanded] = useState(
+    defaultExpanded ?? false,
+  );
+  if (
+    (controlled && defaultExpanded !== undefined) ||
+    initialControlled.current !== controlled
+  ) {
+    throw new Error(PATTERN_DISCLOSURE_CONTROL_ERROR);
+  }
   const current = expanded ?? internalExpanded;
   const requestExpanded = useCallback(
     (next: boolean) => {
@@ -369,6 +436,7 @@ function useControlledDisclosure(
 }
 
 export interface RunModeOption<T extends string> {
+  readonly accessibleLabel: string;
   readonly description?: ReactNode | undefined;
   readonly disabled?: boolean | undefined;
   readonly label: ReactNode;
@@ -388,7 +456,7 @@ export interface RunModeControlProps<T extends string> extends Omit<
         "ready" | "busy" | "error" | "stale" | "disabled" | "timeout"
       >
     | undefined;
-  readonly statusLabel?: ReactNode | undefined;
+  readonly statusLabel: string;
   readonly value: T;
 }
 
@@ -402,6 +470,52 @@ export function RunModeControl<T extends string>({
   ...attributes
 }: RunModeControlProps<T>) {
   requirePerceptibleText(label);
+  requirePerceptibleText(statusLabel);
+  requireUniqueKeys(options.map((option) => option.value));
+  if (
+    options.length === 0 ||
+    !options.some((option) => option.value === value)
+  ) {
+    throw new Error(PATTERN_COLLECTION_ERROR);
+  }
+  for (const option of options) requirePerceptibleText(option.accessibleLabel);
+  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const enabledIndices = options.flatMap((option, index) =>
+    isBlocked(state) || option.disabled === true ? [] : [index],
+  );
+  const selectedIndex = options.findIndex((option) => option.value === value);
+  const focusableIndex = enabledIndices.includes(selectedIndex)
+    ? selectedIndex
+    : (enabledIndices[0] ?? -1);
+  const activateFromKeyboard = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    currentIndex: number,
+  ) => {
+    if (enabledIndices.length === 0) return;
+    const position = enabledIndices.indexOf(currentIndex);
+    let targetIndex: number | undefined;
+    if (event.key === "Home") targetIndex = enabledIndices[0];
+    if (event.key === "End") targetIndex = enabledIndices.at(-1);
+    if (
+      event.key === "ArrowRight" ||
+      event.key === "ArrowDown" ||
+      event.key === "ArrowLeft" ||
+      event.key === "ArrowUp"
+    ) {
+      const delta =
+        event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+      const base = position < 0 ? 0 : position;
+      targetIndex =
+        enabledIndices[
+          (base + delta + enabledIndices.length) % enabledIndices.length
+        ];
+    }
+    if (targetIndex === undefined) return;
+    event.preventDefault();
+    buttonRefs.current[targetIndex]?.focus();
+    const next = options[targetIndex];
+    if (next && next.value !== value) onValueChange(next.value);
+  };
   return (
     <div
       {...attributes}
@@ -412,11 +526,12 @@ export function RunModeControl<T extends string>({
       data-state={state}
       role="radiogroup"
     >
-      {options.map((option) => {
+      {options.map((option, index) => {
         const disabled = isBlocked(state) || option.disabled === true;
         return (
           <button
             aria-checked={option.value === value}
+            aria-label={option.accessibleLabel}
             disabled={disabled}
             data-part="option"
             key={option.value}
@@ -424,7 +539,12 @@ export function RunModeControl<T extends string>({
               if (!disabled && option.value !== value)
                 onValueChange(option.value);
             }}
+            onKeyDown={(event) => activateFromKeyboard(event, index)}
+            ref={(node) => {
+              buttonRefs.current[index] = node;
+            }}
             role="radio"
+            tabIndex={index === focusableIndex ? 0 : -1}
             type="button"
           >
             <span data-part="label">{option.label}</span>
@@ -434,7 +554,9 @@ export function RunModeControl<T extends string>({
           </button>
         );
       })}
-      {statusLabel ? <span data-part="status">{statusLabel}</span> : null}
+      <span aria-live="polite" data-part="status">
+        {statusLabel}
+      </span>
     </div>
   );
 }
@@ -459,7 +581,7 @@ export interface ApprovalCardProps extends Omit<
     | "disabled"
     | "timeout"
   >;
-  readonly statusLabel: ReactNode;
+  readonly statusLabel: string;
   readonly title: ReactNode;
 }
 
@@ -475,6 +597,7 @@ export function ApprovalCard({
   ...attributes
 }: ApprovalCardProps) {
   requirePerceptibleText(label);
+  requirePerceptibleText(statusLabel);
   return (
     <article
       {...attributes}
@@ -523,14 +646,14 @@ export interface ToolActivityProps extends Omit<
     PatternState,
     "running" | "completed" | "failed" | "stale" | "disabled" | "timeout"
   >;
-  readonly statusLabel: ReactNode;
+  readonly statusLabel: string;
   readonly summary: ReactNode;
 }
 
 export function ToolActivity({
   children,
   collapseLabel,
-  defaultExpanded = false,
+  defaultExpanded,
   disclosureIcon,
   expandLabel,
   expanded,
@@ -543,6 +666,7 @@ export function ToolActivity({
   ...attributes
 }: ToolActivityProps) {
   requirePerceptibleText(label);
+  requirePerceptibleText(statusLabel);
   const disclosure = useControlledDisclosure(
     expanded,
     defaultExpanded,
@@ -587,11 +711,9 @@ export function ToolActivity({
           </span>
         )}
       </button>
-      {disclosure.expanded ? (
-        <div data-part="content" id={contentId}>
-          {children}
-        </div>
-      ) : null}
+      <div data-part="content" hidden={!disclosure.expanded} id={contentId}>
+        {children}
+      </div>
     </section>
   );
 }
@@ -611,7 +733,7 @@ export interface TaskPlanProps extends Omit<
   "children" | "onBlur" | "onPointerLeave"
 > {
   readonly collapseLabel: string;
-  readonly currentStepId?: string | undefined;
+  readonly currentStepId: string;
   readonly defaultExpanded?: boolean | undefined;
   readonly expandLabel: string;
   readonly expanded?: boolean | undefined;
@@ -622,6 +744,7 @@ export interface TaskPlanProps extends Omit<
     PatternState,
     "active" | "completed" | "failed" | "stale" | "disabled" | "timeout"
   >;
+  readonly statusLabel: string;
   readonly steps: readonly TaskPlanStep[];
   readonly stepsLabel: string;
 }
@@ -631,19 +754,26 @@ const TASK_PLAN_HOVER_INTENT_MILLISECONDS = 175;
 export function TaskPlan({
   collapseLabel,
   currentStepId,
-  defaultExpanded = false,
+  defaultExpanded,
   expandLabel,
   expanded,
   label,
   onExpandedChange,
   progressLabel,
   state,
+  statusLabel,
   steps,
   stepsLabel,
   ...attributes
 }: TaskPlanProps) {
   requirePerceptibleText(label);
+  requirePerceptibleText(statusLabel);
   requirePerceptibleText(stepsLabel);
+  requireUniqueKeys(steps.map((step) => step.id));
+  for (const step of steps) requirePerceptibleText(step.statusLabel);
+  if (steps.length === 0 || !steps.some((step) => step.id === currentStepId)) {
+    throw new Error(PATTERN_COLLECTION_ERROR);
+  }
   const disclosure = useControlledDisclosure(
     expanded,
     defaultExpanded,
@@ -667,9 +797,13 @@ export function TaskPlan({
     }, TASK_PLAN_HOVER_INTENT_MILLISECONDS);
   };
 
-  useEffect(() => () => {
-    if (openTimer.current !== undefined) window.clearTimeout(openTimer.current);
-  });
+  useEffect(
+    () => () => {
+      if (openTimer.current !== undefined)
+        window.clearTimeout(openTimer.current);
+    },
+    [],
+  );
   useEffect(() => {
     if (!disclosure.expanded) return;
     const closeOutside = (event: PointerEvent) => {
@@ -687,12 +821,9 @@ export function TaskPlan({
     };
   }, [disclosure.expanded, disclosure.requestExpanded]);
 
-  const currentStep =
-    steps.find((step) => step.id === currentStepId) ?? steps[0];
+  const currentStep = steps.find((step) => step.id === currentStepId)!;
   const currentStatus =
-    currentStep?.status === "pending"
-      ? "in_progress"
-      : (currentStep?.status ?? "pending");
+    currentStep.status === "pending" ? "in_progress" : currentStep.status;
   return (
     <div
       {...attributes}
@@ -713,27 +844,30 @@ export function TaskPlan({
       }}
       ref={root}
     >
-      {disclosure.expanded ? (
-        <ol aria-label={stepsLabel} data-part="steps" id={stepsId}>
-          {steps.map((step) => {
-            const visibleStatus =
-              step.id === currentStepId && step.status === "pending"
-                ? "in_progress"
-                : step.status;
-            return (
-              <li data-part="step" data-status={visibleStatus} key={step.id}>
-                <span
-                  aria-hidden="true"
-                  data-part="marker"
-                  data-status={visibleStatus}
-                />
-                <span>{step.label}</span>
-                <small data-part="step-status">{step.statusLabel}</small>
-              </li>
-            );
-          })}
-        </ol>
-      ) : null}
+      <ol
+        aria-label={stepsLabel}
+        data-part="steps"
+        hidden={!disclosure.expanded}
+        id={stepsId}
+      >
+        {steps.map((step) => {
+          const visibleStatus =
+            step.id === currentStepId && step.status === "pending"
+              ? "in_progress"
+              : step.status;
+          return (
+            <li data-part="step" data-status={visibleStatus} key={step.id}>
+              <span
+                aria-hidden="true"
+                data-part="marker"
+                data-status={visibleStatus}
+              />
+              <span>{step.label}</span>
+              <small data-part="step-status">{step.statusLabel}</small>
+            </li>
+          );
+        })}
+      </ol>
       <button
         aria-controls={stepsId}
         aria-expanded={disclosure.expanded}
@@ -752,6 +886,9 @@ export function TaskPlan({
           data-status={currentStatus}
         />
         <span data-part="progress">{progressLabel}</span>
+        <span aria-live="polite" data-part="status">
+          {statusLabel}
+        </span>
       </button>
     </div>
   );
@@ -770,6 +907,7 @@ export interface ContextUsageProps extends Omit<
         "ready" | "active" | "error" | "stale" | "disabled" | "timeout"
       >
     | undefined;
+  readonly statusLabel: string;
   readonly valueLabel: ReactNode;
 }
 
@@ -778,10 +916,12 @@ export function ContextUsage({
   label,
   percent,
   state = "ready",
+  statusLabel,
   valueLabel,
   ...attributes
 }: ContextUsageProps) {
   requirePerceptibleText(label);
+  requirePerceptibleText(statusLabel);
   const normalizedPercent = Math.min(
     100,
     Math.max(0, Number.isFinite(percent) ? percent : 0),
@@ -800,6 +940,9 @@ export function ContextUsage({
     >
       <span data-part="label">{label}</span>
       <span data-part="value">{valueLabel}</span>
+      <span aria-live="polite" data-part="status">
+        {statusLabel}
+      </span>
       <span aria-hidden="true" data-part="meter">
         <span
           data-part="fill"
@@ -812,6 +955,7 @@ export function ContextUsage({
 }
 
 export interface UserInputOption {
+  readonly accessibleLabel: string;
   readonly description?: ReactNode | undefined;
   readonly disabled?: boolean | undefined;
   readonly id: string;
@@ -840,7 +984,7 @@ export interface UserInputProps extends Omit<
     | "disabled"
     | "timeout"
   >;
-  readonly statusLabel?: ReactNode | undefined;
+  readonly statusLabel: string;
 }
 
 export function UserInput({
@@ -856,6 +1000,15 @@ export function UserInput({
   ...attributes
 }: UserInputProps) {
   requirePerceptibleText(label);
+  requirePerceptibleText(statusLabel);
+  requireUniqueKeys(options.map((option) => option.id));
+  if (
+    selectedOptionId !== undefined &&
+    !options.some((option) => option.id === selectedOptionId)
+  ) {
+    throw new Error(PATTERN_COLLECTION_ERROR);
+  }
+  for (const option of options) requirePerceptibleText(option.accessibleLabel);
   const blocked = state !== "pending" && state !== "error" && state !== "stale";
   return (
     <section
@@ -874,6 +1027,7 @@ export function UserInput({
           const disabled = blocked || option.disabled === true;
           return (
             <button
+              aria-label={option.accessibleLabel}
               aria-pressed={option.id === selectedOptionId}
               data-part="option"
               disabled={disabled}
@@ -891,11 +1045,9 @@ export function UserInput({
           );
         })}
       </div>
-      {statusLabel ? (
-        <span aria-live="polite" data-part="status">
-          {statusLabel}
-        </span>
-      ) : null}
+      <span aria-live="polite" data-part="status">
+        {statusLabel}
+      </span>
       {actions ? <div data-part="actions">{actions}</div> : null}
     </section>
   );
@@ -920,7 +1072,7 @@ export interface AgentActivityProps extends Omit<
     | "disabled"
     | "timeout"
   >;
-  readonly statusLabel: ReactNode;
+  readonly statusLabel: string;
   readonly title: ReactNode;
 }
 
@@ -935,6 +1087,7 @@ export function AgentActivity({
   ...attributes
 }: AgentActivityProps) {
   requirePerceptibleText(label);
+  requirePerceptibleText(statusLabel);
   return (
     <article
       {...attributes}
@@ -959,6 +1112,7 @@ export function AgentActivity({
 }
 
 export interface AgentTeamMember {
+  readonly accessibleLabel: string;
   readonly id: string;
   readonly label: ReactNode;
   readonly state: Extract<
@@ -972,7 +1126,7 @@ export interface AgentTeamMember {
     | "disabled"
     | "timeout"
   >;
-  readonly statusLabel: ReactNode;
+  readonly statusLabel: string;
 }
 
 export interface AgentTeamSummaryProps extends Omit<
@@ -986,7 +1140,7 @@ export interface AgentTeamSummaryProps extends Omit<
     PatternState,
     "active" | "completed" | "failed" | "stale" | "disabled" | "timeout"
   >;
-  readonly statusLabel: ReactNode;
+  readonly statusLabel: string;
   readonly title: ReactNode;
 }
 
@@ -1000,6 +1154,12 @@ export function AgentTeamSummary({
   ...attributes
 }: AgentTeamSummaryProps) {
   requirePerceptibleText(label);
+  requirePerceptibleText(statusLabel);
+  requireUniqueKeys(members.map((member) => member.id));
+  for (const member of members) {
+    requirePerceptibleText(member.accessibleLabel);
+    requirePerceptibleText(member.statusLabel);
+  }
   return (
     <section
       {...attributes}
@@ -1017,6 +1177,7 @@ export function AgentTeamSummary({
           <li data-part="member" data-state={member.state} key={member.id}>
             {onMemberSelect ? (
               <button
+                aria-label={member.accessibleLabel}
                 disabled={state === "disabled" || member.state === "disabled"}
                 onClick={() => onMemberSelect(member.id)}
                 type="button"
@@ -1053,7 +1214,7 @@ export interface TurnStatusProps extends Omit<
     | "stale"
     | "timeout"
   >;
-  readonly statusLabel: ReactNode;
+  readonly statusLabel: string;
 }
 
 export function TurnStatus({
@@ -1064,6 +1225,7 @@ export function TurnStatus({
   ...attributes
 }: TurnStatusProps) {
   requirePerceptibleText(label);
+  requirePerceptibleText(statusLabel);
   return (
     <div
       {...attributes}
@@ -1095,14 +1257,14 @@ export interface ResultDisclosureProps extends Omit<
     PatternState,
     "ready" | "streaming" | "completed" | "failed" | "stale" | "timeout"
   >;
-  readonly statusLabel?: ReactNode | undefined;
+  readonly statusLabel: string;
   readonly summary: ReactNode;
 }
 
 export function ResultDisclosure({
   children,
   collapseLabel,
-  defaultExpanded = false,
+  defaultExpanded,
   expandLabel,
   expanded,
   label,
@@ -1113,6 +1275,7 @@ export function ResultDisclosure({
   ...attributes
 }: ResultDisclosureProps) {
   requirePerceptibleText(label);
+  requirePerceptibleText(statusLabel);
   const disclosure = useControlledDisclosure(
     expanded,
     defaultExpanded,
@@ -1136,13 +1299,11 @@ export function ResultDisclosure({
         type="button"
       >
         <span data-part="summary">{summary}</span>
-        {statusLabel ? <span data-part="status">{statusLabel}</span> : null}
+        <span data-part="status">{statusLabel}</span>
       </button>
-      {disclosure.expanded ? (
-        <div data-part="content" id={contentId}>
-          {children}
-        </div>
-      ) : null}
+      <div data-part="content" hidden={!disclosure.expanded} id={contentId}>
+        {children}
+      </div>
     </section>
   );
 }

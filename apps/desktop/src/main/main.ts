@@ -14198,7 +14198,9 @@ function createMainWindow(): BrowserWindow {
                   document.querySelector('.thread-select')?.click();
                   await wait(400);
                   if (view === 'markdown-editor-navigation-preview') {
-                    const disclosure = await waitFor('.tool-disclosure');
+                    const disclosure = await waitFor(
+                      '.tool-card[data-artemis-component="tool-activity"] [data-part="disclosure"]',
+                    );
                     if (!(disclosure instanceof HTMLButtonElement)) {
                       throw new Error('Synthetic Markdown tool activity missing.');
                     }
@@ -14935,11 +14937,25 @@ function createMainWindow(): BrowserWindow {
                     const approvalCard = document.querySelector(
                       '.approval-card[data-artemis-component="approval-card"]',
                     );
-                    approvalCard?.scrollIntoView({ block: 'center' });
-                    await wait(350);
                     if (!approvalCard) {
                       throw new Error('Public pending ApprovalCard missing.');
                     }
+                    approvalCard.scrollIntoView({ block: 'start' });
+                    await wait(120);
+                    const timelineScroll = approvalCard.closest('.timeline-scroll');
+                    if (timelineScroll instanceof HTMLElement) {
+                      const timelineBounds = timelineScroll.getBoundingClientRect();
+                      const approvalBounds = approvalCard.getBoundingClientRect();
+                      if (approvalBounds.bottom > timelineBounds.bottom - 12) {
+                        timelineScroll.scrollTop +=
+                          approvalBounds.bottom - timelineBounds.bottom + 12;
+                      }
+                      if (approvalBounds.top < timelineBounds.top + 12) {
+                        timelineScroll.scrollTop -=
+                          timelineBounds.top - approvalBounds.top + 12;
+                      }
+                    }
+                    await wait(350);
                     return;
                   }
                   if (view === 'environment-sources' || view === 'environment-sources-image') {
@@ -16905,6 +16921,8 @@ function createMainWindow(): BrowserWindow {
                     const describe = (root) => {
                       const bounds = root.getBoundingClientRect();
                       const style = getComputedStyle(root);
+                      const scrollContainer = root.closest('.timeline-scroll');
+                      const scrollBounds = scrollContainer?.getBoundingClientRect();
                       const overlay = [
                         'tooltip',
                         'popover',
@@ -16973,6 +16991,20 @@ function createMainWindow(): BrowserWindow {
                           bounds.right <= window.innerWidth + 1 &&
                           bounds.top >= -1 &&
                           bounds.bottom <= window.innerHeight + 1,
+                        visibleWithinScrollContainer:
+                          !scrollBounds ||
+                          (bounds.left >= scrollBounds.left - 1 &&
+                            bounds.right <= scrollBounds.right + 1 &&
+                            bounds.top >= scrollBounds.top - 1 &&
+                            bounds.bottom <= scrollBounds.bottom + 1),
+                        scrollContainerGeometry: scrollBounds
+                          ? {
+                              left: scrollBounds.left,
+                              right: scrollBounds.right,
+                              top: scrollBounds.top,
+                              bottom: scrollBounds.bottom,
+                            }
+                          : null,
                         contentFitsInline:
                           root.scrollWidth <= root.clientWidth + 1,
                         inlineMetrics: {

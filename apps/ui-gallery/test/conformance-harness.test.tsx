@@ -53,6 +53,7 @@ import {
   AgentTeamSummary,
   ApprovalCard,
   ContextUsage,
+  PATTERN_COMPONENT_CONTRACTS,
   ResultDisclosure,
   RunModeControl,
   TaskPlan,
@@ -1100,7 +1101,8 @@ const caseRunners = {
         <RunModeControl
           label="Run mode"
           onValueChange={() => undefined}
-          options={[{ label: "Plan", value: "plan" }]}
+          options={[{ accessibleLabel: "Plan", label: "Plan", value: "plan" }]}
+          statusLabel="Ready"
           value="plan"
         />
         <ApprovalCard
@@ -1122,10 +1124,12 @@ const caseRunners = {
         </ToolActivity>
         <TaskPlan
           collapseLabel="Collapse"
+          currentStepId="one"
           expandLabel="Expand"
           label="Step 1 of 1"
           progressLabel="Step 1 of 1"
           state="active"
+          statusLabel="In progress"
           steps={[
             {
               id: "one",
@@ -1136,13 +1140,19 @@ const caseRunners = {
           ]}
           stepsLabel="Task steps"
         />
-        <ContextUsage label="Context" percent={25} valueLabel="25%" />
+        <ContextUsage
+          label="Context"
+          percent={25}
+          statusLabel="Ready"
+          valueLabel="25%"
+        />
         <UserInput
           label="Input"
           onOptionSelect={() => undefined}
-          options={[{ id: "one", label: "One" }]}
+          options={[{ accessibleLabel: "One", id: "one", label: "One" }]}
           question="Choose"
           state="pending"
+          statusLabel="Pending"
         />
         <AgentActivity
           label="Agent"
@@ -1154,6 +1164,7 @@ const caseRunners = {
           label="Team"
           members={[
             {
+              accessibleLabel: "One",
               id: "one",
               label: "One",
               state: "completed",
@@ -1170,6 +1181,7 @@ const caseRunners = {
           expandLabel="Expand"
           label="Result"
           state="completed"
+          statusLabel="Completed"
           summary="Completed"
         >
           Result
@@ -1192,6 +1204,27 @@ const caseRunners = {
       "turn-status",
       "result-disclosure",
     ]);
+    for (const contract of Object.values(PATTERN_COMPONENT_CONTRACTS)) {
+      const root = container.querySelector(
+        `[data-artemis-component="${contract.name}"]`,
+      );
+      expect(root).not.toBeNull();
+      const actualParts = new Set(
+        [root!, ...root!.querySelectorAll("[data-part]")].map((node) =>
+          node.getAttribute("data-part"),
+        ),
+      );
+      for (const requiredPart of contract.parts) {
+        expect(actualParts.has(requiredPart)).toBe(true);
+      }
+      const allowedParts = new Set([
+        ...contract.parts,
+        ...(contract.optionalParts ?? []),
+      ]);
+      for (const actualPart of actualParts) {
+        expect(actualPart !== null && allowedParts.has(actualPart)).toBe(true);
+      }
+    }
   },
 
   "pattern-state-matrix"() {
@@ -1207,7 +1240,11 @@ const caseRunners = {
       <>
         {states.map((state) => (
           <ApprovalCard
-            actions={<button type="button">Action</button>}
+            actions={
+              <button disabled={state === "disabled"} type="button">
+                Action
+              </button>
+            }
             key={state}
             label={`${state} approval`}
             state={state}
@@ -1229,6 +1266,11 @@ const caseRunners = {
         '[data-artemis-component="approval-card"][data-state="disabled"]',
       ),
     ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-artemis-component="approval-card"][data-state="disabled"] button',
+      ),
+    ).toHaveProperty("disabled", true);
   },
 
   async "pattern-events"() {
@@ -1242,9 +1284,14 @@ const caseRunners = {
           label="Mode"
           onValueChange={modeChanges}
           options={[
-            { label: "Plan", value: "plan" },
-            { label: "Execute", value: "execute" },
+            { accessibleLabel: "Plan", label: "Plan", value: "plan" },
+            {
+              accessibleLabel: "Execute",
+              label: "Execute",
+              value: "execute",
+            },
           ]}
+          statusLabel="Ready"
           value="plan"
         />
         <ToolActivity
@@ -1262,9 +1309,16 @@ const caseRunners = {
         <UserInput
           label="Question"
           onOptionSelect={inputChanges}
-          options={[{ id: "one", label: "Option one" }]}
+          options={[
+            {
+              accessibleLabel: "Option one",
+              id: "one",
+              label: "Option one",
+            },
+          ]}
           question="Choose"
           state="pending"
+          statusLabel="Pending"
         />
       </>,
     );
@@ -1276,7 +1330,9 @@ const caseRunners = {
     expect(modeChanges).toHaveBeenCalledWith("execute");
     expect(toolChanges).toHaveBeenCalledWith(true);
     expect(inputChanges).toHaveBeenCalledWith("one");
-    expect(screen.queryByText("Details")).toBeNull();
+    expect(
+      screen.getByText("Details").closest('[data-part="content"]'),
+    ).toHaveProperty("hidden", true);
   },
 
   "pattern-rtl-long-content"() {

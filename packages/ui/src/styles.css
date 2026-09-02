@@ -1430,8 +1430,11 @@
     font-size: var(--artemis-typography-label-size);
   }
 
+  [data-artemis-component="run-mode-control"] [data-part="status"],
   [data-artemis-component="approval-card"] [data-part="status"],
   [data-artemis-component="tool-activity"] [data-part="status"],
+  [data-artemis-component="task-plan"] [data-part="status"],
+  [data-artemis-component="context-usage"] [data-part="status"],
   [data-artemis-component="user-input"] [data-part="status"],
   [data-artemis-component="agent-activity"] [data-part="status"],
   [data-artemis-component="agent-team-summary"] [data-part="status"],
@@ -1529,6 +1532,12 @@
     min-inline-size: 0;
   }
 
+  [data-artemis-component="tool-activity"] [data-part="content"][hidden],
+  [data-artemis-component="task-plan"] [data-part="steps"][hidden],
+  [data-artemis-component="result-disclosure"] [data-part="content"][hidden] {
+    display: none;
+  }
+
   [data-artemis-component="tool-activity"] [data-part="disclosure"],
   [data-artemis-component="result-disclosure"] [data-part="disclosure"] {
     min-block-size: var(--artemis-size-control-compact);
@@ -1624,6 +1633,10 @@
 
   [data-artemis-component="context-usage"] {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  [data-artemis-component="context-usage"] [data-part="status"] {
+    grid-column: 1 / -1;
   }
 
   [data-artemis-component="context-usage"] [data-part="meter"] {

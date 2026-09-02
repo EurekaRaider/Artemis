@@ -4721,6 +4721,12 @@ button.environment-row:disabled {
   color: var(--text);
 }
 
+.task-plan-progress [data-part="status"] {
+  color: var(--muted-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .task-plan-progress [data-part="steps"] {
   background: color-mix(in srgb, var(--panel-2) 96%, transparent);
   border: 1px solid var(--border);
