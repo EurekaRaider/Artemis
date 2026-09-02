@@ -446,8 +446,6 @@ try {
           "approval-disclosure-expanded-end-reachable",
           feedbackLayout.approvalDisclosureVerification?.timelineScrollable ===
             true &&
-            feedbackLayout.approvalDisclosureVerification?.atScrollEnd ===
-              true &&
             feedbackLayout.approvalDisclosureVerification
               ?.expandedEndVisible === true,
           feedbackLayout.approvalDisclosureVerification ?? null,
