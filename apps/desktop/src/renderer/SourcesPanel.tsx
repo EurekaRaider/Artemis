@@ -6,6 +6,15 @@ import {
   type PromptAttachment,
   type TaskSourceState,
 } from "@artemis/protocol";
+import {
+  SourceEntry,
+  SourceEntryBody,
+  SourceEntryButton,
+  SourceEntryIcon,
+  SourcesScroll,
+  SourcesState,
+  SourcesSurface,
+} from "@artemis/ui/workflow";
 
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
@@ -196,11 +205,11 @@ function WebSearchSourceGroupView({
   onOpenUrl: (url: string) => void;
 }) {
   return (
-    <article className="sources-panel-entry">
-      <span className="sources-panel-icon web">
+    <SourceEntry>
+      <SourceEntryIcon className="web">
         <WebIcon />
-      </span>
-      <div className="sources-panel-entry-body">
+      </SourceEntryIcon>
+      <SourceEntryBody>
         <h2 title={group.engine}>{group.engine}</h2>
         <p>{copy.searchSummary(group.searches.length, group.resultCount)}</p>
         <div className="sources-panel-queries">
@@ -231,8 +240,8 @@ function WebSearchSourceGroupView({
             ))}
           </div>
         )}
-      </div>
-    </article>
+      </SourceEntryBody>
+    </SourceEntry>
   );
 }
 
@@ -250,11 +259,11 @@ function McpUsageGroupView({
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
   return (
-    <article className="sources-panel-entry">
-      <span className="sources-panel-icon">
+    <SourceEntry>
+      <SourceEntryIcon>
         <SourcesIcon />
-      </span>
-      <div className="sources-panel-entry-body">
+      </SourceEntryIcon>
+      <SourceEntryBody>
         <h2 title={group.name}>{group.name}</h2>
         <p>{copy.mcpSummary(group.calls, group.tools.length)}</p>
         <p title={group.tools.join(", ")}>{group.tools.join(", ")}</p>
@@ -277,8 +286,8 @@ function McpUsageGroupView({
             ))}
           </div>
         )}
-      </div>
-    </article>
+      </SourceEntryBody>
+    </SourceEntry>
   );
 }
 
@@ -391,85 +400,97 @@ export function SourcesPanel({
     webGroups.length === 0;
 
   return (
-    <section aria-label={t.title} className="sources-panel">
-      <div className="sources-panel-scroll">
-        {empty && <p className="sources-panel-empty">{t.empty}</p>}
+    <SourcesSurface
+      label={t.title}
+      state={
+        previewError ? "error" : preview ? "open" : empty ? "empty" : "ready"
+      }
+    >
+      <SourcesScroll>
+        {empty && <SourcesState state="empty">{t.empty}</SourcesState>}
 
         {attachments.map((attachment, index) => {
           const image = !("type" in attachment);
-          const Tag = image ? "button" : "article";
-          return (
-            <Tag
-              {...(image
-                ? {
-                    "aria-label": `${t.openImage}: ${attachment.name}`,
-                    onClick: () => {
-                      setPreviewError(undefined);
-                      setPreview(attachment);
-                    },
-                    type: "button" as const,
-                  }
-                : {})}
-              className="sources-panel-entry attachment"
-              key={`draft:${index}:${attachment.name}`}
-            >
+          const content = (
+            <>
               {image ? (
                 <img
                   alt=""
                   src={`data:${attachment.mimeType};base64,${attachment.data}`}
                 />
               ) : (
-                <span className="sources-panel-icon">
+                <SourceEntryIcon>
                   <AttachmentIcon image={false} />
-                </span>
+                </SourceEntryIcon>
               )}
-              <div className="sources-panel-entry-body">
+              <SourceEntryBody>
                 <h2>{attachment.name}</h2>
                 <p>{attachment.mimeType}</p>
                 <p>{t.draft}</p>
-              </div>
-            </Tag>
+              </SourceEntryBody>
+            </>
+          );
+          return image ? (
+            <SourceEntryButton
+              className="attachment"
+              key={`draft:${index}:${attachment.name}`}
+              label={`${t.openImage}: ${attachment.name}`}
+              onClick={() => {
+                setPreviewError(undefined);
+                setPreview(attachment);
+              }}
+            >
+              {content}
+            </SourceEntryButton>
+          ) : (
+            <SourceEntry
+              className="attachment"
+              key={`draft:${index}:${attachment.name}`}
+            >
+              {content}
+            </SourceEntry>
           );
         })}
 
         {attachmentSources.map((source) => {
           const image = sourceImages[source.sourceId];
-          const Tag = source.kind === "image" ? "button" : "article";
-          return (
-            <Tag
-              {...(source.kind === "image"
-                ? {
-                    "aria-label": `${t.openImage}: ${source.name}`,
-                    onClick: () => void openPersistedImage(source),
-                    type: "button" as const,
-                  }
-                : {})}
-              className="sources-panel-entry attachment"
-              key={source.sourceId}
-            >
+          const content = (
+            <>
               {image ? (
                 <img
                   alt=""
                   src={`data:${image.mimeType};base64,${image.data}`}
                 />
               ) : (
-                <span className="sources-panel-icon">
+                <SourceEntryIcon>
                   <AttachmentIcon image={source.kind === "image"} />
-                </span>
+                </SourceEntryIcon>
               )}
-              <div className="sources-panel-entry-body">
+              <SourceEntryBody>
                 <h2>{source.name}</h2>
                 <p>{source.mimeType}</p>
                 <p>{t.sent}</p>
-              </div>
-            </Tag>
+              </SourceEntryBody>
+            </>
+          );
+          return source.kind === "image" ? (
+            <SourceEntryButton
+              className="attachment"
+              key={source.sourceId}
+              label={`${t.openImage}: ${source.name}`}
+              onClick={() => void openPersistedImage(source)}
+            >
+              {content}
+            </SourceEntryButton>
+          ) : (
+            <SourceEntry className="attachment" key={source.sourceId}>
+              {content}
+            </SourceEntry>
           );
         })}
 
         {previewError && (
-          <p className="sources-panel-preview-error" role="alert">
-            {previewError}
-          </p>
+          <SourcesState state="error">{previewError}</SourcesState>
         )}
 
         {mcpGroups.map((group) => (
@@ -500,7 +521,7 @@ export function SourcesPanel({
             onOpenUrl={onOpenUrl}
           />
         ))}
-      </div>
+      </SourcesScroll>
       {preview && (
         <div
           className="source-image-preview-backdrop"
@@ -532,6 +553,6 @@ export function SourcesPanel({
           </section>
         </div>
       )}
-    </section>
+    </SourcesSurface>
   );
 }

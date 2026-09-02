@@ -27,6 +27,12 @@ import {
   type TaskSourceState,
 } from "@artemis/protocol";
 import { Popover } from "@artemis/ui/feedback";
+import {
+  EnvironmentControl,
+  EnvironmentPanelSurface,
+  EnvironmentSection,
+  EnvironmentTrigger,
+} from "@artemis/ui/workflow";
 
 import type {
   ProjectGitBranch,
@@ -1590,9 +1596,9 @@ export function EnvironmentPanel({
   };
 
   return (
-    <div
-      className="environment-control"
+    <EnvironmentControl
       data-dock-open={dockOpen}
+      open={open}
       ref={control}
       style={
         dockOffset > 0
@@ -1602,29 +1608,18 @@ export function EnvironmentPanel({
           : undefined
       }
     >
-      <button
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-label={t.trigger}
-        className={`environment-trigger${open ? " active" : ""}`}
+      <EnvironmentTrigger
+        expanded={open}
+        icon={<EnvironmentIcon />}
+        label={t.trigger}
         onClick={togglePanel}
         ref={trigger}
         title={t.trigger}
-        type="button"
-      >
-        <EnvironmentIcon />
-      </button>
+      />
       {open && (
-        <div
-          aria-label={t.title}
-          className="environment-popover"
-          ref={panel}
-          role="dialog"
-          tabIndex={-1}
-        >
-          <section className="environment-section git-environment-section">
-            <header>
-              <h2>{t.title}</h2>
+        <EnvironmentPanelSurface label={t.title} ref={panel}>
+          <EnvironmentSection
+            action={
               <button
                 aria-label={t.addProject}
                 className="environment-header-action"
@@ -1634,7 +1629,10 @@ export function EnvironmentPanel({
               >
                 <EnvironmentAddIcon aria-hidden="true" />
               </button>
-            </header>
+            }
+            className="git-environment-section"
+            title={t.title}
+          >
             {gitLoading && !gitInfo ? (
               <div className="environment-empty" role="status">
                 {t.loading}
@@ -1812,13 +1810,12 @@ export function EnvironmentPanel({
                 )}
               </div>
             )}
-          </section>
+          </EnvironmentSection>
 
           {(displayAgents.length > 0 || teams.length > 0) && (
-            <section className="environment-section">
-              <header>
-                <h2>{t.agents}</h2>
-                {displayAgents.length + teams.length > activityPreviewLimit && (
+            <EnvironmentSection
+              action={
+                displayAgents.length + teams.length > activityPreviewLimit ? (
                   <button
                     className="environment-text-action"
                     onClick={() => setShowAllAgents((current) => !current)}
@@ -1826,8 +1823,10 @@ export function EnvironmentPanel({
                   >
                     {showAllAgents ? t.showLess : t.viewAll}
                   </button>
-                )}
-              </header>
+                ) : undefined
+              }
+              title={t.agents}
+            >
               <div className="environment-activity-list">
                 <p className="environment-agent-summary">
                   {t.agentSummary(counts.total, counts.active)}
@@ -1899,13 +1898,12 @@ export function EnvironmentPanel({
                   </button>
                 ))}
               </div>
-            </section>
+            </EnvironmentSection>
           )}
 
           {combinedSources.length > 0 && (
-            <section className="environment-section sources-section">
-              <header>
-                <h2>{t.sources}</h2>
+            <EnvironmentSection
+              action={
                 <button
                   aria-label={t.addSources}
                   className="environment-header-action"
@@ -1915,7 +1913,10 @@ export function EnvironmentPanel({
                 >
                   <EnvironmentAddIcon aria-hidden="true" />
                 </button>
-              </header>
+              }
+              className="sources-section"
+              title={t.sources}
+            >
               <div className="environment-source-list">
                 {visibleSources.map((source) =>
                   source.kind === "web-search" ? (
@@ -1974,9 +1975,9 @@ export function EnvironmentPanel({
                   </button>
                 )}
               </div>
-            </section>
+            </EnvironmentSection>
           )}
-        </div>
+        </EnvironmentPanelSurface>
       )}
       {open &&
         branchOpen &&
@@ -2350,6 +2351,6 @@ export function EnvironmentPanel({
           </div>,
           document.body,
         )}
-    </div>
+    </EnvironmentControl>
   );
 }

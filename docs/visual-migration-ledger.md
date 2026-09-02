@@ -1,7 +1,7 @@
 # Discussion #76 visual migration ledger
 
-Status: MIG3A Workspace/Dock/file/Markdown candidate implemented on merged MIG2
-base `a9dd2d4b4e0bda75ab4721399a244e29e5e36980`; MIG2 is merged. This
+Status: MIG3B Review/Diff/Environment/Goal/Sources candidate implemented on
+merged MIG3A base `6fa4887c8850f3d7e21af87bf6b9b705a6b18e6e`; MIG3A is merged. This
 ledger separates static prototype evidence, package/Gallery evidence, and
 production Electron evidence. It must not be used to turn a prototype,
 Gallery pass, or attribute-only resolver pass into a migrated production
@@ -9,7 +9,7 @@ surface.
 
 ## Inputs and evidence boundary
 
-- Candidate base: `a9dd2d4b4e0bda75ab4721399a244e29e5e36980` (MIG2 merged).
+- Candidate base: `6fa4887c8850f3d7e21af87bf6b9b705a6b18e6e` (MIG3A merged).
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -562,6 +562,54 @@ verifiers reject a dirty worktree or an unexpected candidate SHA. Exact
 candidate-head results belong in PR evidence because writing the resulting SHA
 into this tracked ledger would create a self-reference.
 
+MIG3A merged through PR #142 at
+`6fa4887c8850f3d7e21af87bf6b9b705a6b18e6e`.
+
+## MIG3B workflow surfaces candidate evidence
+
+MIG3B adds the public `@artemis/ui/workflow` subpath for ReviewSurface,
+ReviewToolbar, ReviewWorkspace, ReviewDiffReader, ReviewFileSidebar,
+ReviewState, ReviewDiff, ReviewDiffHeader, ReviewDiffHunk, ReviewDiffLines,
+ReviewDiffLine,
+EnvironmentControl, EnvironmentTrigger, EnvironmentPanelSurface,
+EnvironmentSection, GoalEditorSurface, GoalEditorInput, GoalEditorFooter,
+SourcesSurface, SourcesScroll, SourcesState, SourceEntry, SourceEntryButton,
+SourceEntryIcon, and SourceEntryBody. The frozen contract owns
+presentational anatomy, finite visual states, accessible landmark and control
+names, logical-direction geometry, reduced-motion behavior, long-content
+safety, and the exact semantic-token allowlist. Callers continue to own Git
+and review mutations, goal persistence and IME policy, source loading and
+preview effects, Environment data and permissions, localization, and all IPC.
+
+The real Desktop Review/Diff reader, Environment trigger/panel/sections, Goal
+editor, and Sources workspace consume these public surfaces without moving raw
+Pi events, Git operations, filesystem calls, or permission decisions into the
+renderer package. Source-image entries use an explicitly named public button;
+Review keeps immutable turn-diff data and caller-owned staging, reverting, and
+comments; Environment keeps its existing Git/PR/agent/source behavior and
+popover focus rules; Goal keeps its existing dirty/saving/saved/stale/error
+lifecycle; and Sources keeps image-preview and external-link behavior.
+
+Gallery raises the default/stress conformance matrix from 40 to 45 cases per
+skin while preserving the same 64 runtime vertices. Its five workflow cases
+cover exact anatomy, loading/empty/error/dirty/stale states, controlled events,
+permission ownership, long RTL content, and overlay geometry. Installed-package
+consumption verifies the new subpath, declarations, SSR output, exact contract,
+and package boundaries. The skin verifier adds an exact workflow selector,
+property, value, and per-family token allowlist; negative fixtures remain
+fail-closed.
+
+The dedicated production Electron gate runs nine isolated strict-sandbox
+cases. It verifies public Review/Diff anatomy on a persisted immutable turn
+diff at dark/RTL/200% zoom, responsive reader/sidebar separation, public Goal
+dirty state, public Sources image entry and labelled preview, Environment
+panel and trigger anatomy, in-viewport PR-check overlay geometry, all five
+real check-row states plus the empty summary state, Dock coexistence, wide and
+narrow layout behavior, renderer accessibility, and startup evidence. Static
+prototype, Gallery, and Electron results remain separate evidence: no combined
+prototype-versus-runtime pixel comparison or cross-platform native acceptance
+is claimed by this phase.
+
 ## Component and surface sequence
 
 | Scope                                                                     | Type               | Owner                     | Consumer                          | Legacy selector/source                           | Target PR | Electron evidence                                            | Status                                  |
@@ -580,8 +628,8 @@ into this tracked ledger would create a self-reference.
 | Artemis-specific presentational patterns                                  | component          | `@artemis/ui`             | Desktop adapter layer             | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                          | Merged at `44634b9`                     |
 | Reference slice: shell, activity bar, sidebar, header, Composer, Approval | surface            | `@artemis/ui` + Desktop   | users                             | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom and state matrix         | Merged at `db17c67`                     |
 | Conversation, Timeline, trusted-AI states                                 | surface            | `@artemis/ui` + Desktop   | users                             | message/timeline/status selectors                | MIG2      | State, scroll, interaction, performance, exact-head Electron | Merged at `a9dd2d4`                     |
-| Workspace, Dock, file/Markdown edit and preview                           | surface            | `@artemis/ui` + Desktop   | users                             | workspace/dock/editor selectors                  | MIG3A     | Tabs, resize, save/error, geometry, exact-head Electron      | Reviewer approved; final CI pending     |
-| Review, Diff, Environment, Goal, Sources                                  | surface            | `@artemis/ui` + Desktop   | users                             | review/environment/source selectors              | MIG3B     | State, permission and overlay geometry matrix                | Pending                                 |
+| Workspace, Dock, file/Markdown edit and preview                           | surface            | `@artemis/ui` + Desktop   | users                             | workspace/dock/editor selectors                  | MIG3A     | Tabs, resize, save/error, geometry, exact-head Electron      | Merged at `6fa4887`                     |
+| Review, Diff, Environment, Goal, Sources                                  | surface            | `@artemis/ui` + Desktop   | users                             | review/environment/source selectors              | MIG3B     | State, permission and overlay geometry matrix                | Candidate implemented on merged MIG3A   |
 | Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | Pending                                 |
 | Settings, Resource Center, MCP Editor                                     | surface            | `@artemis/ui` + Desktop   | users                             | feature-local renderer styles                    | MIG5A     | Form, permission, privacy and exact-head Electron matrix     | Pending                                 |
 | Archive, Usage, Automation                                                | surface            | `@artemis/ui` + Desktop   | users                             | secondary-page selectors                         | MIG5B     | Real-data, a11y, schedule and exact-head Electron matrix     | Pending                                 |

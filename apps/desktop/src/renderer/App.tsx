@@ -64,6 +64,19 @@ import {
   WorkspaceTabPane,
 } from "@artemis/ui/workspace";
 import {
+  ReviewDiff as ReviewDiffSurface,
+  ReviewDiffHeader,
+  ReviewDiffHunk,
+  ReviewDiffLine,
+  ReviewDiffLines,
+  ReviewDiffReader,
+  ReviewFileSidebar,
+  ReviewState,
+  ReviewSurface,
+  ReviewToolbar,
+  ReviewWorkspace,
+} from "@artemis/ui/workflow";
+import {
   MAX_PROMPT_ATTACHMENTS,
   reduceAgentEventBatch,
   reduceAgentEvents,
@@ -8016,11 +8029,11 @@ export function App() {
                           labelledBy={workspaceTabDomId(tab.id)}
                         >
                           {tab.kind === "review" && (
-                            <section
-                              aria-busy={reviewTransitionPending || !reviewDiff}
-                              className="review-panel"
+                            <ReviewSurface
+                              busy={reviewTransitionPending || !reviewDiff}
+                              label={t.reviewPanel}
                             >
-                              <header className="review-comparison-toolbar">
+                              <ReviewToolbar>
                                 <div className="review-comparison-primary">
                                   <div className="review-scope-select">
                                     <CodexSelect<ReviewScope>
@@ -8095,34 +8108,36 @@ export function App() {
                                     </>
                                   )}
                                 </div>
-                              </header>
-                              <div className="review-workspace">
-                                <main className="review-diff-reader">
+                              </ReviewToolbar>
+                              <ReviewWorkspace>
+                                <ReviewDiffReader label={t.comparison}>
                                   {!reviewDiff && (
-                                    <div className="review-empty">…</div>
+                                    <ReviewState state="loading">…</ReviewState>
                                   )}
                                   {reviewDiff?.available &&
                                     !reviewDiff.files.length && (
-                                      <div className="review-empty">
+                                      <ReviewState state="empty">
                                         <div className="review-empty-illustration">
                                           <ReviewEmptyIcon />
                                         </div>
                                         <strong>{t.noChanges}</strong>
                                         <p>{t.changesAppearHere}</p>
-                                      </div>
+                                      </ReviewState>
                                     )}
                                   {reviewDiff && !reviewDiff.available && (
-                                    <div className="review-empty error">
+                                    <ReviewState state="error">
                                       {reviewDiff.message ?? ""}
-                                    </div>
+                                    </ReviewState>
                                   )}
                                   {reviewDiff?.available &&
                                     selectedReviewFile && (
-                                      <div
-                                        className="review-file"
+                                      <ReviewDiffSurface
                                         key={selectedReviewFile.id}
+                                        state={
+                                          commentLineId ? "dirty" : "selected"
+                                        }
                                       >
-                                        <div className="changed-file review-diff-file-header">
+                                        <ReviewDiffHeader>
                                           <span className="file-status">
                                             {selectedReviewFile.status ===
                                             "added"
@@ -8196,13 +8211,10 @@ export function App() {
                                               </button>
                                             )}
                                           </span>
-                                        </div>
+                                        </ReviewDiffHeader>
                                         {selectedReviewFile.hunks.map(
                                           (hunk) => (
-                                            <div
-                                              className="review-hunk-block"
-                                              key={hunk.id}
-                                            >
+                                            <ReviewDiffHunk key={hunk.id}>
                                               <div className="review-hunk">
                                                 <code title={hunk.header}>
                                                   {hunk.header}
@@ -8278,7 +8290,7 @@ export function App() {
                                                   )}
                                                 </span>
                                               </div>
-                                              <div className="review-lines">
+                                              <ReviewDiffLines>
                                                 {hunk.lines.map((line) => {
                                                   const comments =
                                                     reviewComments.filter(
@@ -8293,9 +8305,9 @@ export function App() {
                                                       className="review-line-group"
                                                       key={line.id}
                                                     >
-                                                      <div
-                                                        className={`review-line ${line.kind}`}
+                                                      <ReviewDiffLine
                                                         data-line-id={line.id}
+                                                        kind={line.kind}
                                                       >
                                                         {reviewScope !==
                                                           "turn" && (
@@ -8333,7 +8345,7 @@ export function App() {
                                                             }
                                                           />
                                                         </code>
-                                                      </div>
+                                                      </ReviewDiffLine>
                                                       {comments.map(
                                                         (comment) => (
                                                           <div
@@ -8415,17 +8427,14 @@ export function App() {
                                                     </div>
                                                   );
                                                 })}
-                                              </div>
-                                            </div>
+                                              </ReviewDiffLines>
+                                            </ReviewDiffHunk>
                                           ),
                                         )}
-                                      </div>
+                                      </ReviewDiffSurface>
                                     )}
-                                </main>
-                                <aside
-                                  aria-label={t.changedFiles}
-                                  className="review-file-sidebar"
-                                >
+                                </ReviewDiffReader>
+                                <ReviewFileSidebar label={t.changedFiles}>
                                   <label className="review-file-filter">
                                     <SearchIcon />
                                     <input
@@ -8490,9 +8499,9 @@ export function App() {
                                       </div>
                                     )}
                                   </div>
-                                </aside>
-                              </div>
-                            </section>
+                                </ReviewFileSidebar>
+                              </ReviewWorkspace>
+                            </ReviewSurface>
                           )}
                           {tab.kind === "sources" && activeThread && (
                             <SourcesPanel

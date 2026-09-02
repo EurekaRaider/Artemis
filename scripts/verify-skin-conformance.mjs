@@ -46,6 +46,11 @@ const REQUIRED_SKIN_CASES = [
   "workspace-state-matrix",
   "workspace-controlled-events",
   "workspace-rtl-long-content",
+  "workflow-anatomy",
+  "workflow-state-matrix",
+  "workflow-controlled-events",
+  "workflow-permission-boundary",
+  "workflow-rtl-overlay-geometry",
 ];
 const REQUIRED_SWITCH_CASES = [
   "same-node",
@@ -2589,6 +2594,18 @@ for (const [key, declarations] of MIG3A_EXPECTED_CSS_RULES) {
   }
   expectedCssRules.set(key, declarations);
 }
+const MIG3B_EXPECTED_CSS_RULES = JSON.parse(
+  await readFile(
+    join(root, "scripts/mig3b-workflow-css-contract.json"),
+    "utf8",
+  ),
+);
+for (const [key, declarations] of MIG3B_EXPECTED_CSS_RULES) {
+  if (expectedCssRules.has(key)) {
+    throw new Error(`MIG3B UI structural CSS rule duplicates ${key}`);
+  }
+  expectedCssRules.set(key, declarations);
+}
 
 function verifyStructuralCss(css, from, tokenFamilies) {
   const parsed = postcss.parse(css, { from });
@@ -2738,7 +2755,7 @@ function verifyStructuralCss(css, from, tokenFamilies) {
       throw new Error("UI structural CSS contains an unexpected at-rule");
     }
     const media = normalizeWhitespace(node.params);
-    if (media === "(max-width: 1100px)" && node.nodes.length === 5) {
+    if (media === "(max-width: 1100px)" && node.nodes.length === 6) {
       for (const nested of node.nodes) verifyRule(nested, "compact-width");
       continue;
     }
@@ -2748,7 +2765,7 @@ function verifyStructuralCss(css, from, tokenFamilies) {
     }
     if (
       media === "(prefers-reduced-motion: reduce)" &&
-      node.nodes.length === 11
+      node.nodes.length === 12
     ) {
       for (const nested of node.nodes) verifyRule(nested, "reduced-motion");
       continue;
@@ -2822,6 +2839,9 @@ const surfaces = await import(
 const workspace = await import(
   pathToFileURL(join(root, "packages/ui/dist/workspace.js")).href
 );
+const workflow = await import(
+  pathToFileURL(join(root, "packages/ui/dist/workflow.js")).href
+);
 const themeContract = await import(
   pathToFileURL(join(root, "packages/theme-contract/dist/index.js")).href
 );
@@ -2881,6 +2901,11 @@ for (const [label, candidate, validate] of [
     "workspace",
     workspace.WORKSPACE_COMPONENT_CONTRACTS,
     workspace.validateWorkspaceComponentContracts,
+  ],
+  [
+    "workflow",
+    workflow.WORKFLOW_COMPONENT_CONTRACTS,
+    workflow.validateWorkflowComponentContracts,
   ],
 ]) {
   const candidateReport = validate(candidate);
@@ -3047,6 +3072,7 @@ for (const specifier of [
   "@artemis/ui/patterns",
   "@artemis/ui/surfaces",
   "@artemis/ui/workspace",
+  "@artemis/ui/workflow",
 ]) {
   const resolved = import.meta.resolve(specifier);
   const expectedRoot = pathToFileURL(join(root, "packages/ui/dist/")).href;
@@ -3131,6 +3157,13 @@ verifyStructuralCss(css, cssPath, [
       (contract) => contract.name,
     ),
     mutableTokens: workspace.WORKSPACE_COMPONENT_MUTABLE_TOKENS,
+  },
+  {
+    label: "workflow",
+    components: Object.values(workflow.WORKFLOW_COMPONENT_CONTRACTS).map(
+      (contract) => contract.name,
+    ),
+    mutableTokens: workflow.WORKFLOW_COMPONENT_MUTABLE_TOKENS,
   },
 ]);
 

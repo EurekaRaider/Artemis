@@ -17,7 +17,12 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-async function runCase(name, width, view = "environment") {
+async function runCase(
+  name,
+  width,
+  view = "environment",
+  { direction = "ltr", scale = 1, theme = "light" } = {},
+) {
   const screenshotPath = join(temporaryDirectory, `${name}.png`);
   const accessibilityPath = join(temporaryDirectory, `${name}.a11y.json`);
   const environment = {
@@ -25,6 +30,9 @@ async function runCase(name, width, view = "environment") {
     ARTEMIS_SMOKE_SCREENSHOT: screenshotPath,
     ARTEMIS_SMOKE_ACCESSIBILITY: accessibilityPath,
     ARTEMIS_SMOKE_LOCALE: "zh-CN",
+    ARTEMIS_SMOKE_DIRECTION: direction,
+    ARTEMIS_SMOKE_SCALE: String(scale),
+    ARTEMIS_SMOKE_THEME: theme,
     ARTEMIS_SMOKE_VIEW: view,
     ARTEMIS_SMOKE_WINDOW_WIDTH: String(width),
   };
@@ -73,6 +81,11 @@ try {
   assert(
     wide.environmentPanel?.visible,
     "Wide window environment panel is not visible.",
+  );
+  assert(
+    wide.workflowComponents.includes("environment-control") &&
+      wide.workflowComponents.includes("environment-panel"),
+    "Wide window is not using the public Environment surfaces.",
   );
   assert(
     wide.timelineScroll,
@@ -154,6 +167,12 @@ try {
   );
   assert(sourceImage.sourceImageEntry, "Source image entry is missing.");
   assert(
+    sourceImage.workflowComponents.includes("sources-surface") &&
+      sourceImage.sourcesGeometry?.width > 0 &&
+      sourceImage.sourcesGeometry.state === "open",
+    "Source image case is not using the public Sources surface.",
+  );
+  assert(
     sourceImage.sourceImageEntry.label === "打开图片: Codex 环境信息参考.png",
     "Source image entry does not have a distinct accessible name.",
   );
@@ -168,6 +187,79 @@ try {
     sourceImage.sourceImagePreview?.visible &&
       sourceImage.sourceImagePreview.imageAlt === "Codex 环境信息参考.png",
     "Clicking a source image did not open its preview.",
+  );
+
+  const checks = await runCase("pr-checks", 1_420, "environment-pr-checks", {
+    theme: "dark",
+  });
+  assert(
+    checks.environmentChecksGeometry?.width > 0 &&
+      checks.environmentChecksGeometry.left >= 0 &&
+      checks.environmentChecksGeometry.right <= checks.windowInnerWidth,
+    "Environment PR checks overlay is missing or outside the viewport.",
+  );
+  for (const status of [
+    "passed",
+    "pending",
+    "failed",
+    "skipped",
+    "cancelled",
+  ]) {
+    assert(
+      checks.environmentCheckStatuses.includes(status),
+      `Environment PR checks are missing the ${status} state.`,
+    );
+  }
+
+  const emptyChecks = await runCase(
+    "pr-checks-empty",
+    1_420,
+    "environment-pr-checks-empty",
+    { theme: "dark" },
+  );
+  assert(
+    emptyChecks.environmentChecksGeometry?.width > 0 &&
+      emptyChecks.environmentCheckStatuses.includes("none"),
+    "Environment PR checks do not expose the empty state.",
+  );
+
+  const review = await runCase(
+    "review-rtl",
+    1_420,
+    "turn-changes-form-controls",
+    { direction: "rtl", scale: 2, theme: "dark" },
+  );
+  assert(
+    review.documentDirection === "rtl" &&
+      review.workflowComponents.includes("review-surface") &&
+      review.workflowComponents.includes("review-diff"),
+    "RTL Review case is not using the public Review and Diff surfaces.",
+  );
+  assert(
+    review.reviewGeometry?.root.width > 0 &&
+      review.reviewGeometry.toolbar?.width > 0 &&
+      review.reviewGeometry.reader?.width > 0 &&
+      review.reviewGeometry.files?.width > 0 &&
+      review.reviewGeometry.diffState === "selected" &&
+      review.reviewGeometry.lineCount > 0,
+    "RTL Review geometry is incomplete.",
+  );
+  const reviewReader = review.reviewGeometry.reader;
+  const reviewFiles = review.reviewGeometry.files;
+  assert(
+    reviewReader.right <= reviewFiles.left + 1 ||
+      reviewFiles.right <= reviewReader.left + 1 ||
+      reviewReader.bottom <= reviewFiles.top + 1 ||
+      reviewFiles.bottom <= reviewReader.top + 1,
+    "RTL Review diff reader overlaps the changed-file sidebar.",
+  );
+
+  const goal = await runCase("goal-dirty", 1_420, "goal-editor-dirty");
+  assert(
+    goal.workflowComponents.includes("goal-editor") &&
+      goal.goalEditorGeometry?.state === "dirty" &&
+      goal.goalEditorGeometry.width > 0,
+    "Dirty Goal case is not using the public Goal editor surface.",
   );
 
   const narrow = await runCase("narrow", 980);
@@ -223,6 +315,13 @@ try {
           entry: sourceImage.sourceImageEntry,
           preview: sourceImage.sourceImagePreview,
         },
+        checks: {
+          geometry: checks.environmentChecksGeometry,
+          statuses: checks.environmentCheckStatuses,
+          emptyStatuses: emptyChecks.environmentCheckStatuses,
+        },
+        review: review.reviewGeometry,
+        goal: goal.goalEditorGeometry,
         narrow: {
           windowInnerWidth: narrow.windowInnerWidth,
           workspaceWidth: narrow.workspaceWidth,

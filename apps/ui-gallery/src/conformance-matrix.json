@@ -42,7 +42,12 @@
       "workspace-anatomy",
       "workspace-state-matrix",
       "workspace-controlled-events",
-      "workspace-rtl-long-content"
+      "workspace-rtl-long-content",
+      "workflow-anatomy",
+      "workflow-state-matrix",
+      "workflow-controlled-events",
+      "workflow-permission-boundary",
+      "workflow-rtl-overlay-geometry"
     ],
     "stress": [
       "anatomy",
@@ -84,7 +89,12 @@
       "workspace-anatomy",
       "workspace-state-matrix",
       "workspace-controlled-events",
-      "workspace-rtl-long-content"
+      "workspace-rtl-long-content",
+      "workflow-anatomy",
+      "workflow-state-matrix",
+      "workflow-controlled-events",
+      "workflow-permission-boundary",
+      "workflow-rtl-overlay-geometry"
     ]
   },
   "switchCases": [

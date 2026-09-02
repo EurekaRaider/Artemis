@@ -1774,17 +1774,15 @@ describe("renderer layout contract", () => {
   });
 
   it("lays out Review as a comparison toolbar, central diff reader, and searchable file sidebar", () => {
-    const reviewStart = appSource.indexOf('className="review-panel"');
+    const reviewStart = appSource.indexOf("<ReviewSurface");
     const reviewEnd = appSource.indexOf(
       '{tab.kind === "terminal"',
       reviewStart,
     );
     const reviewSource = appSource.slice(reviewStart, reviewEnd);
-    const toolbar = reviewSource.indexOf(
-      'className="review-comparison-toolbar"',
-    );
-    const reader = reviewSource.indexOf('className="review-diff-reader"');
-    const sidebar = reviewSource.indexOf('className="review-file-sidebar"');
+    const toolbar = reviewSource.indexOf("<ReviewToolbar");
+    const reader = reviewSource.indexOf("<ReviewDiffReader");
+    const sidebar = reviewSource.indexOf("<ReviewFileSidebar");
 
     expect(reviewStart).toBeGreaterThan(-1);
     expect(reviewEnd).toBeGreaterThan(reviewStart);
@@ -1810,11 +1808,15 @@ describe("renderer layout contract", () => {
     }
     expect(reviewSource).toMatch(/mutateReview\(\s*"revert"/u);
 
-    const workspace = cssRule(".review-workspace");
-    const fileSidebar = cssRule(".review-file-sidebar");
+    const workspace = publicUiCssRule(
+      '[data-artemis-component="review-surface"][data-part="workspace"]',
+    );
+    const fileSidebar = publicUiCssRule(
+      '[data-artemis-component="review-surface"][data-part="files"]',
+    );
     expect(workspace).toMatch(/\bdisplay:\s*(?:flex|grid)/u);
-    expect(fileSidebar).toMatch(/\bborder-left:/u);
-    expect(fileSidebar).toMatch(/\bwidth:/u);
+    expect(workspace).toMatch(/\bgrid-template-columns:/u);
+    expect(fileSidebar).toMatch(/\bborder-inline-start:/u);
   });
 
   it("contains offscreen Review files and avoids rendering the full diff twice", () => {
@@ -2049,7 +2051,7 @@ describe("renderer layout contract", () => {
     const workspaceContentIndex = appSource.indexOf(
       'className="workspace-content"',
     );
-    const reviewIndex = appSource.indexOf('className="review-panel"');
+    const reviewIndex = appSource.indexOf("<ReviewSurface");
     const terminalIndex = appSource.indexOf("<TerminalPanel");
     const terminalPanel = cssRule(".terminal-panel");
     const resizer = publicUiCssRule(

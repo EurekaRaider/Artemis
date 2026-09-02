@@ -50,6 +50,10 @@
       "types": "./dist/workspace.d.ts",
       "import": "./dist/workspace.js"
     },
+    "./workflow": {
+      "types": "./dist/workflow.d.ts",
+      "import": "./dist/workflow.js"
+    },
     "./styles.css": "./dist/styles.css",
     "./package.json": "./package.json"
   },

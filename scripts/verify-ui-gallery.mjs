@@ -476,6 +476,68 @@ for (const [selector, declarations] of MIG3A_GALLERY_SCAFFOLD_RULES) {
   }
   GALLERY_SCAFFOLD_RULES.set(selector, declarations);
 }
+const MIG3B_GALLERY_SCAFFOLD_RULES = [
+  [
+    ".gallery-workflow-grid",
+    [
+      ["display", "grid"],
+      ["grid-template-columns", "minmax(0, 1.6fr) minmax(18rem, 1fr)"],
+      ["gap", "var(--artemis-space-4)"],
+      ["min-inline-size", "0"],
+    ],
+  ],
+  [
+    '.gallery-workflow-grid > [data-artemis-component="review-surface"]',
+    [
+      ["min-block-size", "34rem"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-panel)"],
+    ],
+  ],
+  [
+    ".gallery-workflow-side",
+    [
+      ["display", "flex"],
+      ["flex-direction", "column"],
+      ["gap", "var(--artemis-space-3)"],
+      ["min-inline-size", "0"],
+    ],
+  ],
+  [
+    '.gallery-workflow-side > [data-artemis-component="environment-control"]',
+    [
+      ["z-index", "2"],
+      ["min-block-size", "25rem"],
+    ],
+  ],
+  [
+    '.gallery-workflow-side [data-artemis-component="environment-panel"][data-part="root"]',
+    [
+      ["inset-inline-start", "0"],
+      ["inset-inline-end", "auto"],
+    ],
+  ],
+  [
+    '.gallery-workflow-side > [data-artemis-component="goal-editor"], .gallery-workflow-side > [data-artemis-component="sources-surface"]',
+    [
+      ["min-block-size", "13rem"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-card)"],
+    ],
+  ],
+];
+for (const [selector, declarations] of MIG3B_GALLERY_SCAFFOLD_RULES) {
+  if (GALLERY_SCAFFOLD_RULES.has(selector)) {
+    throw new Error(`MIG3B Gallery scaffold duplicates ${selector}`);
+  }
+  GALLERY_SCAFFOLD_RULES.set(selector, declarations);
+}
 const GALLERY_REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const GALLERY_REDUCED_MOTION_SIGNATURE = JSON.stringify([
   ["rule", ".gallery-motion-swatch", [["decl", "transition", "none", null]]],
@@ -495,6 +557,11 @@ const GALLERY_NARROW_SIGNATURE = JSON.stringify([
   [
     "rule",
     ".gallery-workspace-states",
+    [["decl", "grid-template-columns", "minmax(0, 1fr)", null]],
+  ],
+  [
+    "rule",
+    ".gallery-workflow-grid",
     [["decl", "grid-template-columns", "minmax(0, 1fr)", null]],
   ],
   ["rule", ".gallery-split-sample", [["decl", "block-size", "26rem", null]]],
@@ -540,6 +607,8 @@ const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-workspace-shell",
   "gallery-workspace-states",
   "gallery-workspace-tab-content",
+  "gallery-workflow-grid",
+  "gallery-workflow-side",
 ]);
 const PRIVATE_GALLERY_ATTRIBUTES = new Set([
   "data-gallery-active-contrast",
@@ -555,6 +624,7 @@ const PRIVATE_GALLERY_TEXT_MARKERS = [
   "Artemis UI Gallery",
   "CL4 agent pattern conformance",
   "Workspace dock, tabs, and files",
+  "Review, Environment, Goal, and Sources",
   "com.artemis.synthetic-stress",
 ];
 

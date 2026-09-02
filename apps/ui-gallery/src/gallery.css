@@ -266,12 +266,56 @@
     line-height: 1.6;
   }
 
+  .gallery-workflow-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 1fr);
+    gap: var(--artemis-space-4);
+    min-inline-size: 0;
+  }
+
+  .gallery-workflow-grid > [data-artemis-component="review-surface"] {
+    min-block-size: 34rem;
+    border: var(--artemis-border-width-default) solid
+      var(--artemis-color-border-default);
+    border-radius: var(--artemis-radius-panel);
+  }
+
+  .gallery-workflow-side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--artemis-space-3);
+    min-inline-size: 0;
+  }
+
+  .gallery-workflow-side > [data-artemis-component="environment-control"] {
+    z-index: 2;
+    min-block-size: 25rem;
+  }
+
+  .gallery-workflow-side
+    [data-artemis-component="environment-panel"][data-part="root"] {
+    inset-inline-start: 0;
+    inset-inline-end: auto;
+  }
+
+  .gallery-workflow-side > [data-artemis-component="goal-editor"],
+  .gallery-workflow-side > [data-artemis-component="sources-surface"] {
+    min-block-size: 13rem;
+    border: var(--artemis-border-width-default) solid
+      var(--artemis-color-border-default);
+    border-radius: var(--artemis-radius-card);
+  }
+
   @media (max-width: 36rem) {
     .gallery-conversation-grid {
       grid-template-columns: minmax(0, 1fr);
     }
 
     .gallery-workspace-states {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .gallery-workflow-grid {
       grid-template-columns: minmax(0, 1fr);
     }
 

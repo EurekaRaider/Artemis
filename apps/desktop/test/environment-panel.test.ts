@@ -292,7 +292,8 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain("ARTEMIS_SMOKE_WINDOW_WIDTH");
     expect(mainSource).toContain("ARTEMIS_SMOKE_RESIZE_WIDTH");
     expect(mainSource).toContain("view === 'environment-agents'");
-    expect(mainSource).toContain("view === 'environment-pr-checks'");
+    expect(mainSource).toContain("view.startsWith('environment-pr-checks')");
+    expect(mainSource).toContain('"environment-pr-checks-empty"');
     expect(mainSource).toContain("view === 'environment-sources'");
     expect(mainSource).toContain("view === 'environment-open'");
     expect(mainSource).toContain("view === 'environment-branch-menu'");
