@@ -832,7 +832,7 @@ async function setRuntimeViewport(connection) {
     screenWidth: runtimeViewport.width,
     width: runtimeViewport.width,
   });
-  await new Promise((resolvePromise) => setTimeout(resolvePromise, 350));
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 700));
 }
 
 async function referenceSliceGeometry(connection) {
@@ -1265,6 +1265,7 @@ async function verifyReferenceSliceGeometry(connection) {
 }
 
 async function rememberRuntimeState(connection, includePortal) {
+  if (includePortal) await setRuntimeViewport(connection);
   await evaluate(
     connection,
     `(() => {
@@ -1294,17 +1295,35 @@ async function rememberRuntimeState(connection, includePortal) {
     );
     await waitFor(
       connection,
+      `(() => {
+        const trigger = document.querySelector(".environment-trigger");
+        const popover = document.querySelector(".environment-popover");
+        if (!(popover instanceof HTMLElement)) return false;
+        const bounds = popover.getBoundingClientRect();
+        return trigger?.getAttribute("aria-expanded") === "true" &&
+          bounds.width > 0 && bounds.height > 0;
+      })()`,
+      "open real Environment panel",
+    );
+    await waitFor(
+      connection,
       'Boolean(document.querySelector(".environment-branch-control > .environment-row"))',
       "real Environment branch control",
     );
     await evaluate(
       connection,
       `(() => {
-        if (!document.querySelector("#environment-branch-menu")) {
-          document.querySelector(".environment-branch-control > .environment-row")?.click();
-        }
+        const trigger = document.querySelector(
+          ".environment-branch-control > .environment-row",
+        );
+        if (trigger?.getAttribute("aria-expanded") !== "true") trigger?.click();
         return true;
       })()`,
+    );
+    await waitFor(
+      connection,
+      'document.querySelector(".environment-branch-control > .environment-row")?.getAttribute("aria-expanded") === "true"',
+      "expanded real Environment branch control",
     );
     await waitFor(
       connection,
