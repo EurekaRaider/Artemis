@@ -13279,19 +13279,24 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
               network: [],
               risk: "medium",
               allowedScopes: ["once", "session"],
+              modelReason: "Matches this task.",
             },
           },
         ] satisfies SmokeEnvironmentEvent[])
       : []),
-    {
-      id: "environment-turn-completed",
-      payload: {
-        type: "turn.completed",
-        reason: "completed",
-        finalPartId: "environment-assistant-message:text",
-        durationMs: 54_000,
-      },
-    },
+    ...(view === "environment-feedback-approval"
+      ? []
+      : ([
+          {
+            id: "environment-turn-completed",
+            payload: {
+              type: "turn.completed",
+              reason: "completed",
+              finalPartId: "environment-assistant-message:text",
+              durationMs: 54_000,
+            },
+          },
+        ] satisfies SmokeEnvironmentEvent[])),
   ];
   for (const event of events) {
     if (
@@ -14198,7 +14203,9 @@ function createMainWindow(): BrowserWindow {
                   document.querySelector('.thread-select')?.click();
                   await wait(400);
                   if (view === 'markdown-editor-navigation-preview') {
-                    const disclosure = await waitFor('.tool-disclosure');
+                    const disclosure = await waitFor(
+                      '.tool-card[data-artemis-component="tool-activity"] [data-part="disclosure"]',
+                    );
                     if (!(disclosure instanceof HTMLButtonElement)) {
                       throw new Error('Synthetic Markdown tool activity missing.');
                     }
@@ -14932,14 +14939,79 @@ function createMainWindow(): BrowserWindow {
                       trigger.click();
                       await wait(300);
                     }
-                    const header = document.querySelector(
-                      '.approval-pending-header[data-artemis-component="panel-header"]',
+                    const approvalCard = document.querySelector(
+                      '.approval-card[data-artemis-component="approval-card"]',
                     );
-                    header?.scrollIntoView({ block: 'center' });
-                    await wait(350);
-                    if (!header) {
-                      throw new Error('Public pending Approval PanelHeader missing.');
+                    if (!approvalCard) {
+                      throw new Error('Public pending ApprovalCard missing.');
                     }
+                    const timelineScroll = approvalCard.closest('.timeline-scroll');
+                    const actions = approvalCard.querySelector(
+                      '[data-part="actions"]',
+                    );
+                    if (
+                      !(timelineScroll instanceof HTMLElement) ||
+                      !(actions instanceof HTMLElement)
+                    ) {
+                      throw new Error(
+                        'Pending approval scroll contract is incomplete.',
+                      );
+                    }
+                    const withinTimeline = (element) => {
+                      const bounds = element.getBoundingClientRect();
+                      const timelineBounds =
+                        timelineScroll.getBoundingClientRect();
+                      return (
+                        bounds.left >= timelineBounds.left - 1 &&
+                        bounds.right <= timelineBounds.right + 1 &&
+                        bounds.top >= timelineBounds.top - 1 &&
+                        bounds.bottom <= timelineBounds.bottom + 1
+                      );
+                    };
+                    const securityParts = [
+                      'title',
+                      'description',
+                      'status',
+                      'reason',
+                    ].map((part) =>
+                      approvalCard.querySelector('[data-part="' + part + '"]'),
+                    );
+                    if (securityParts.some((part) => !(part instanceof HTMLElement))) {
+                      throw new Error(
+                        'Pending approval security content is incomplete.',
+                      );
+                    }
+                    approvalCard.scrollIntoView({ block: 'start' });
+                    await wait(350);
+                    const securityVisibleAtStart = securityParts.every((part) =>
+                      withinTimeline(part),
+                    );
+                    actions.scrollIntoView({ block: 'end' });
+                    await wait(350);
+                    const actionsVisibleAtEnd = withinTimeline(actions);
+                    const securityBottom = Math.max(
+                      ...securityParts.map(
+                        (part) => part.getBoundingClientRect().bottom,
+                      ),
+                    );
+                    const actionsTop = actions.getBoundingClientRect().top;
+                    window.__approvalScrollVerification = {
+                      actionsVisibleAtEnd,
+                      dynamicCopyBidiIsolated: [
+                        'title',
+                        'description',
+                        'reason',
+                      ].every((part) =>
+                        approvalCard
+                          .querySelector('[data-part="' + part + '"]')
+                          ?.querySelector('bdi'),
+                      ),
+                      securityAndActionsDoNotOverlap:
+                        securityBottom <= actionsTop + 1,
+                      securityVisibleAtStart,
+                    };
+                    approvalCard.scrollIntoView({ block: 'start' });
+                    await wait(350);
                     return;
                   }
                   if (view === 'environment-sources' || view === 'environment-sources-image') {
@@ -16894,6 +16966,7 @@ function createMainWindow(): BrowserWindow {
                       'panel-header',
                       'scroll-area',
                       'split-pane',
+                      'approval-card',
                     ]
                       .map(
                         (component) =>
@@ -16904,6 +16977,15 @@ function createMainWindow(): BrowserWindow {
                     const describe = (root) => {
                       const bounds = root.getBoundingClientRect();
                       const style = getComputedStyle(root);
+                      const scrollContainer = root.closest('.timeline-scroll');
+                      const scrollBounds = scrollContainer?.getBoundingClientRect();
+                      const approvalActions =
+                        root.getAttribute('data-artemis-component') ===
+                        'approval-card'
+                          ? root.querySelector('[data-part="actions"]')
+                          : null;
+                      const approvalActionBounds =
+                        approvalActions?.getBoundingClientRect();
                       const overlay = [
                         'tooltip',
                         'popover',
@@ -16943,9 +17025,9 @@ function createMainWindow(): BrowserWindow {
                                 'environment-checks-popover',
                               )
                             ? 'environment'
-                            : root.classList.contains(
-                                  'approval-pending-header',
-                                )
+                            : root.getAttribute(
+                                  'data-artemis-component',
+                                ) === 'approval-card'
                               ? 'approval'
                               : root.closest('.resource-page')
                                 ? 'resource'
@@ -16972,6 +17054,45 @@ function createMainWindow(): BrowserWindow {
                           bounds.right <= window.innerWidth + 1 &&
                           bounds.top >= -1 &&
                           bounds.bottom <= window.innerHeight + 1,
+                        visibleWithinScrollContainer:
+                          !scrollBounds ||
+                          (bounds.left >= scrollBounds.left - 1 &&
+                            bounds.right <= scrollBounds.right + 1 &&
+                            bounds.top >= scrollBounds.top - 1 &&
+                            bounds.bottom <= scrollBounds.bottom + 1),
+                        scrollContainerGeometry: scrollBounds
+                          ? {
+                              left: scrollBounds.left,
+                              right: scrollBounds.right,
+                              top: scrollBounds.top,
+                              bottom: scrollBounds.bottom,
+                            }
+                          : null,
+                        scrollContainerMetrics:
+                          scrollContainer instanceof HTMLElement
+                            ? {
+                                clientHeight: scrollContainer.clientHeight,
+                                scrollHeight: scrollContainer.scrollHeight,
+                                scrollTop: scrollContainer.scrollTop,
+                              }
+                            : null,
+                        approvalActionsGeometry: approvalActionBounds
+                          ? {
+                              left: approvalActionBounds.left,
+                              right: approvalActionBounds.right,
+                              top: approvalActionBounds.top,
+                              bottom: approvalActionBounds.bottom,
+                            }
+                          : null,
+                        approvalActionsVisibleWithinScrollContainer:
+                          !approvalActionBounds ||
+                          !scrollBounds ||
+                          (approvalActionBounds.left >= scrollBounds.left - 1 &&
+                            approvalActionBounds.right <=
+                              scrollBounds.right + 1 &&
+                            approvalActionBounds.top >= scrollBounds.top - 1 &&
+                            approvalActionBounds.bottom <=
+                              scrollBounds.bottom + 1),
                         contentFitsInline:
                           root.scrollWidth <= root.clientWidth + 1,
                         inlineMetrics: {
@@ -17011,6 +17132,8 @@ function createMainWindow(): BrowserWindow {
                       direction: document.documentElement.dir,
                       interaction:
                         window.__feedbackLayoutInteraction ?? null,
+                      approvalScrollVerification:
+                        window.__approvalScrollVerification ?? null,
                       reducedMotion: window.matchMedia(
                         '(prefers-reduced-motion: reduce)',
                       ).matches,

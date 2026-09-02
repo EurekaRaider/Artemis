@@ -63,6 +63,14 @@ const stylesSource = readFileSync(
   new URL("../src/renderer/styles.css", import.meta.url),
   "utf8",
 );
+const adapterSource = readFileSync(
+  new URL("../src/renderer/agent-pattern-adapters.ts", import.meta.url),
+  "utf8",
+);
+const patternsSource = readFileSync(
+  new URL("../../../packages/ui/src/patterns.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("tool presentation", () => {
   it("summarizes Bash searches and workspace checks without exposing raw commands", () => {
@@ -266,7 +274,10 @@ describe("tool presentation", () => {
 
     expect(toolCard).toContain("formatToolInput(tool.name, tool.input)");
     expect(toolCard).toContain("formatToolOutput(tool.name, tool.output)");
-    expect(toolCard).toContain("formatBashTranscript(tools)");
+    expect(adapterSource).toContain("formatBashTranscript(tools)");
+    expect(toolCard).toContain(
+      "toolActivityPatternView(tools, active, locale)",
+    );
     expect(toolCard).toContain('className="tool-activity-list"');
     expect(toolCard).toContain('className="bash-transcript"');
     expect(toolCard).not.toContain("JSON.stringify(tool.input, null, 2)");
@@ -303,37 +314,40 @@ describe("tool presentation", () => {
       appSource.indexOf("function Timeline"),
     );
 
+    expect(toolCard).toContain("<ToolActivity");
     expect(toolCard).toContain(
-      '<section className={`tool-card ${visualStatus}${open ? " open" : ""}`}>',
+      'className={`tool-card ${view.state}${open ? " open" : ""}`}',
     );
-    expect(toolCard).toContain(
-      'const visualStatus = active && status === "completed" ? "running" : status;',
+    expect(adapterSource).toContain(
+      'active && actualStatus === "completed" ? "running" : actualStatus',
     );
-    expect(toolCard).toContain('className="tool-summary-row"');
-    expect(toolCard).toContain("summarizeToolGroup(tools, locale)");
+    expect(adapterSource).toContain("summarizeToolGroup(tools, locale)");
     expect(toolCard).toContain('className="tool-activity-icon"');
     expect(toolCard).toContain('className="tool-summary-label"');
-    expect(toolCard).toContain('className="tool-disclosure"');
-    expect(toolCard).toContain("onClick={() => setOpen((value) => !value)}");
-    expect(toolCard).toContain("{open && fileActivity && (");
+    expect(toolCard).toContain("onExpandedChange={setOpen}");
+    expect(toolCard).toContain("{view.fileActivity && (");
     expect(toolCard).toContain(
-      '{open && kind === "bash" && bashTranscript && (',
+      '{view.kind === "bash" && view.bashTranscript && (',
     );
     expect(toolCard).toContain('className="tool-details"');
-    expect(toolCard.indexOf('className="tool-summary-label"')).toBeLessThan(
-      toolCard.indexOf('className="tool-disclosure"'),
+    const publicToolActivity = patternsSource.slice(
+      patternsSource.indexOf("export function ToolActivity"),
+      patternsSource.indexOf("export type TaskPlanStepStatus"),
+    );
+    expect(publicToolActivity.indexOf('data-part="summary"')).toBeLessThan(
+      publicToolActivity.indexOf('data-part="disclosure"'),
     );
     expect(toolCard).not.toContain("<strong>{tool.name}</strong>");
     expect(toolCard).not.toContain("<span>{tool.status}</span>");
     expect(toolCard).not.toContain("defaultOpen");
     expect(stylesSource).toMatch(
-      /\.tool-summary-row\s*\{[\s\S]*?display: flex;[\s\S]*?gap: 9px;/u,
+      /\.tool-card\[data-artemis-component="tool-activity"\]\s*\{[\s\S]*?display: grid;[\s\S]*?gap: 9px;/u,
     );
     expect(stylesSource).toMatch(
-      /\.tool-disclosure\s*\{[\s\S]*?flex: 0 0 24px;/u,
+      /\.tool-card \[data-part="disclosure"\]\s*\{[\s\S]*?flex: 0 0 24px;/u,
     );
-    expect(stylesSource).not.toContain(
-      "grid-template-columns: 20px minmax(0, 1fr) 24px",
+    expect(stylesSource).toContain(
+      "grid-template-columns: 20px minmax(0, 1fr) auto auto",
     );
     expect(stylesSource).toMatch(
       /\.tool-card\.running \.tool-summary-label\s*\{[\s\S]*?animation: tool-summary-shimmer/u,

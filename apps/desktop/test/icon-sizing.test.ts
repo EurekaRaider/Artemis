@@ -218,9 +218,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
 
   const UNMIGRATED_RULES: Array<[string, number, boolean]> = [
     [".environment-trigger svg", 20, false],
-    [".tool-disclosure svg", 14, false],
     [".agent-team-member-disclosure svg", 12, false],
-    [".task-step-marker.completed svg", 11, false],
     [".workspace-tab-select > svg", 17, false],
     [
       ".workspace-tab-select > .workspace-file-kind .seti-file-icon svg",

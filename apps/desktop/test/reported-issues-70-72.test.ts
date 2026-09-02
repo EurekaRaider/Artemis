@@ -8,6 +8,7 @@ const source = (relativePath: string) =>
 
 const appSource = source("../src/renderer/App.tsx");
 const taskPlanSource = source("../src/renderer/TaskPlanProgress.tsx");
+const taskPlanPatternSource = source("../../../packages/ui/src/patterns.tsx");
 const stylesSource = source("../src/renderer/styles.css");
 const tokenUsagePageSource = source("../src/renderer/TokenUsagePage.tsx");
 
@@ -46,13 +47,13 @@ describe("reported issue regressions #70-#72", () => {
 
   it("limits plan hover intent to the capsule instead of its full-width row", () => {
     const root = sourceBetween(
-      taskPlanSource,
-      'className="task-plan-progress"',
-      "<button\n        aria-controls={detailsId}",
+      taskPlanPatternSource,
+      "<div\n      {...attributes}",
+      "<button\n        aria-controls={stepsId}",
     );
     const trigger = sourceBetween(
-      taskPlanSource,
-      "<button\n        aria-controls={detailsId}",
+      taskPlanPatternSource,
+      "<button\n        aria-controls={stepsId}",
       "</button>",
     );
 
@@ -62,6 +63,7 @@ describe("reported issue regressions #70-#72", () => {
     expect(cssDeclarations(".task-plan-progress")).toContain(
       "width: fit-content",
     );
+    expect(taskPlanSource).toContain('className="task-plan-progress"');
   });
 
   it("replaces model response counts with a documented cache hit rate", () => {

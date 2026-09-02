@@ -146,6 +146,12 @@ const uiFormsSource = readFileSync(
   fileURLToPath(new URL("../../../packages/ui/src/forms.tsx", import.meta.url)),
   "utf8",
 );
+const uiPatternsSource = readFileSync(
+  fileURLToPath(
+    new URL("../../../packages/ui/src/patterns.tsx", import.meta.url),
+  ),
+  "utf8",
+);
 const uiStylesSource = readFileSync(
   fileURLToPath(
     new URL("../../../packages/ui/src/styles.css", import.meta.url),
@@ -335,6 +341,36 @@ describe("renderer layout contract", () => {
 
     expect(rule).toMatch(/\bmin-height:\s*0/u);
     expect(rule).toMatch(/\boverflow-y:\s*auto/u);
+  });
+
+  it("keeps a pinned timeline at the bottom when its rendered content resizes", () => {
+    expect(appSource).toContain("observer.observe(container);");
+    expect(appSource).toContain(
+      "for (const child of container.children) observer.observe(child);",
+    );
+    expect(appSource).toContain("[activeEvents.length, activeThreadId]");
+    expect(stylesSource).toContain(
+      '.timeline .approval-card[data-artemis-component="approval-card"]',
+    );
+    expect(stylesSource).not.toMatch(
+      /\.approval-card\[data-artemis-component="approval-card"\][\s\S]{0,500}\bposition:\s*sticky/u,
+    );
+    expect(stylesSource).toContain("@container (max-width: 320px)");
+  });
+
+  it("isolates dynamic approval copy from surrounding RTL direction", () => {
+    expect(appSource).toContain(
+      "<span>{t.modelReason}</span> {approval.modelReason}",
+    );
+    expect(appSource).toContain("<bdi>{pendingView.detail}</bdi>");
+    expect(appSource).toContain("title={<bdi>{pendingView.title}</bdi>}");
+    expect(mainProcessSource).toContain("dynamicCopyBidiIsolated");
+    expect(rootPackage.scripts["verify:feedback-layout"]).toBeTruthy();
+    expect(cssRule(".approval-model-reason")).toContain("margin-inline");
+    expect(cssRule(".approval-model-reason")).not.toMatch(
+      /margin-(left|right)/u,
+    );
+    expect(cssRule(".approval-resolved-details")).toContain("margin-inline");
   });
 
   it("keeps the composer in a fixed layout row instead of a sticky overlay", () => {
@@ -1009,34 +1045,41 @@ describe("renderer layout contract", () => {
   it("shows real task steps with status-specific progress markers", () => {
     expect(appSource).toContain("deriveTaskPlan(activeEvents, turnActive)");
     expect(appSource).toContain("<TaskPlanProgress");
-    expect(taskPlanSource).toContain(
-      "className={`task-step-marker ${status}`}",
+    expect(taskPlanSource).toContain("taskPlanPatternView(plan, locale)");
+    expect(taskPlanSource).toContain("<TaskPlanPattern");
+    expect(uiPatternsSource).toContain('data-part="marker"');
+    expect(uiPatternsSource).toContain("data-status={visibleStatus}");
+    expect(uiPatternsSource).toContain(
+      'step.id === currentStepId && step.status === "pending"',
     );
-    expect(taskPlanSource).toContain("function visibleStepStatus(");
-    expect(taskPlanSource).toMatch(
-      /visibleStepStatus\(\s*step\.status,\s*index === plan\.currentIndex,\s*\)/u,
+    expect(stylesSource).toContain(
+      '.task-plan-progress [data-part="marker"][data-status="in_progress"]',
     );
-    expect(taskPlanSource).toContain(
-      'visibleStepStatus(current?.status ?? "pending", true)',
+    expect(stylesSource).toContain(
+      '.task-plan-progress [data-part="marker"][data-status="pending"]',
     );
-    expect(stylesSource).toContain(".task-step-marker.in_progress");
-    expect(stylesSource).toContain(".task-step-marker.pending");
-    expect(stylesSource).toContain(".task-step-marker.completed");
+    expect(stylesSource).toContain(
+      '.task-plan-progress [data-part="marker"][data-status="completed"]',
+    );
     expect(stylesSource).toContain("@keyframes task-step-spin");
     expect(runtimeSource).toContain('name: "update_plan"');
     expect(runtimeSource).toContain('"update_plan"');
   });
 
   it("opens task-plan details with capsule hover intent and keyboard access", () => {
-    expect(taskPlanSource).toContain("onPointerEnter={scheduleOpen}");
-    expect(taskPlanSource).toContain("onPointerLeave={cancelScheduledOpen}");
-    expect(taskPlanSource).toContain("HOVER_INTENT_MILLISECONDS = 175");
-    expect(taskPlanSource).toContain("onFocus={() => {");
-    expect(taskPlanSource).toContain("aria-expanded={open}");
+    expect(uiPatternsSource).toContain("onPointerEnter={scheduleOpen}");
+    expect(uiPatternsSource).toContain("onPointerLeave={cancelScheduledOpen}");
+    expect(uiPatternsSource).toContain(
+      "TASK_PLAN_HOVER_INTENT_MILLISECONDS = 175",
+    );
+    expect(uiPatternsSource).toContain(
+      "cancelScheduledOpen();\n          disclosure.requestExpanded(true);",
+    );
+    expect(uiPatternsSource).toContain("aria-expanded={disclosure.expanded}");
   });
 
   it("keeps expanded task steps inside the conversation when the right sidebar opens", () => {
-    const taskPlanList = cssRule(".task-plan-list");
+    const taskPlanList = cssRule('.task-plan-progress [data-part="steps"]');
 
     expect(cssRule(".conversation")).toMatch(
       /\bcontainer-type:\s*inline-size/u,

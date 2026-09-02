@@ -34,6 +34,18 @@ import {
   Toolbar,
 } from "@artemis/ui/layout";
 import { SegmentedControl, Tabs } from "@artemis/ui/navigation";
+import {
+  AgentActivity,
+  AgentTeamSummary,
+  ApprovalCard,
+  ContextUsage,
+  ResultDisclosure,
+  RunModeControl,
+  TaskPlan,
+  ToolActivity,
+  TurnStatus,
+  UserInput,
+} from "@artemis/ui/patterns";
 
 import { galleryContract } from "./gallery-contract.js";
 import { STRESS_SKIN_ID, stressSkinCss } from "./stress-skin-fixture.mjs";
@@ -262,6 +274,8 @@ export function GalleryApp() {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
   const [splitSize, setSplitSize] = useState(240);
+  const [patternMode, setPatternMode] = useState<"plan" | "execute">("plan");
+  const [patternOption, setPatternOption] = useState("review");
   const popoverAnchorRef = useRef<HTMLButtonElement>(null);
   const appendEvent = (entry: string) =>
     setEventOrder((current) => [...current, entry]);
@@ -278,7 +292,7 @@ export function GalleryApp() {
 
   return (
     <main>
-      <p className="gallery-eyebrow">CL3 feedback and layout conformance</p>
+      <p className="gallery-eyebrow">CL4 agent pattern conformance</p>
       <h1>Artemis UI Gallery</h1>
       <p>
         Public package consumption is active for UI contract v
@@ -333,6 +347,210 @@ export function GalleryApp() {
             </div>
           ))}
         </dl>
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="pattern-heading"
+      >
+        <h2 id="pattern-heading">Agent patterns and state ownership</h2>
+        <p>
+          Copy, formatted values, action order, and policy stay caller-owned;
+          the UI package supplies stable anatomy and interaction affordances.
+        </p>
+        <div className="gallery-pattern-grid">
+          <RunModeControl
+            label="Gallery run mode"
+            onValueChange={setPatternMode}
+            options={[
+              {
+                description: "Inspect without changing files",
+                label: "Plan",
+                value: "plan",
+              },
+              {
+                description: "Apply the approved change",
+                label: "Execute",
+                value: "execute",
+              },
+            ]}
+            statusLabel="Ready"
+            value={patternMode}
+          />
+          <RunModeControl
+            label="Disabled run mode"
+            onValueChange={() => undefined}
+            options={[
+              {
+                label: "Review",
+                value: "review",
+              },
+            ]}
+            state="disabled"
+            statusLabel="Unavailable"
+            value="review"
+          />
+          <ApprovalCard
+            actions={
+              <>
+                <button type="button">Deny</button>
+                <button type="button">Approve project</button>
+                <button type="button">Approve once</button>
+              </>
+            }
+            description="npm test"
+            label="Run the complete test suite"
+            reason="This explanation is formatted by the consumer."
+            state="pending"
+            statusLabel="Pending"
+            title="Run the complete test suite"
+          />
+          <ApprovalCard
+            actions={<button type="button">View audit trail</button>}
+            label="Resolved approval"
+            state="approved"
+            statusLabel="Approved"
+            title="Read project files"
+          />
+          <ApprovalCard
+            actions={<button type="button">Dismiss</button>}
+            label="Approval error"
+            state="error"
+            statusLabel="Error"
+            title="Approval service is unavailable"
+          />
+          <ToolActivity
+            collapseLabel="Collapse"
+            defaultExpanded
+            expandLabel="Expand"
+            label="Read project files"
+            state="stale"
+            statusLabel="Stale"
+            summary="Read a very long localized set of project files without truncating the accessible name"
+          >
+            <p>
+              Caller-formatted file activity remains visible after expansion.
+            </p>
+          </ToolActivity>
+          <TaskPlan
+            collapseLabel="Collapse"
+            currentStepId="implement"
+            defaultExpanded
+            expandLabel="Expand"
+            label="Step 2 of 3"
+            progressLabel="Step 2 of 3"
+            state="active"
+            statusLabel="In progress"
+            steps={[
+              {
+                id: "inspect",
+                label: "Inspect the current implementation",
+                status: "completed",
+                statusLabel: "Completed",
+              },
+              {
+                id: "implement",
+                label: "Implement the public pattern boundary",
+                status: "pending",
+                statusLabel: "In progress",
+              },
+              {
+                id: "verify",
+                label: "Verify consumer behavior",
+                status: "pending",
+                statusLabel: "Not started",
+              },
+            ]}
+            stepsLabel="Gallery task steps"
+          />
+          <ContextUsage
+            detail="7,250 of 10,000 tokens"
+            label="Context usage"
+            percent={72.5}
+            state="timeout"
+            statusLabel="Timed out"
+            valueLabel="72.5%"
+          />
+          <div dir="rtl">
+            <UserInput
+              actions={<button type="button">Submit answer</button>}
+              description="تظل البيانات والسياسة لدى التطبيق المستهلك"
+              label="RTL user input"
+              onOptionSelect={setPatternOption}
+              options={[
+                {
+                  id: "review",
+                  label: "مراجعة التغييرات قبل المتابعة",
+                },
+                {
+                  id: "continue",
+                  label: "المتابعة مباشرة",
+                },
+              ]}
+              question="كيف تريد المتابعة؟"
+              selectedOptionId={patternOption}
+              state="pending"
+              statusLabel="بانتظار الإجابة"
+            />
+          </div>
+          <UserInput
+            label="Timed out input"
+            onOptionSelect={() => undefined}
+            options={[
+              {
+                id: "fixed",
+                label: "No longer available",
+              },
+            ]}
+            question="This request timed out"
+            state="timeout"
+            statusLabel="Timed out"
+          />
+          <AgentActivity
+            description="Waiting for a caller-owned dependency"
+            label="Agent activity"
+            state="failed"
+            statusLabel="Failed"
+            title="Validate package"
+          />
+          <AgentTeamSummary
+            label="Agent team summary"
+            members={[
+              {
+                id: "one",
+                label: "Validator",
+                state: "completed",
+                statusLabel: "Completed",
+              },
+              {
+                id: "two",
+                label: "Reviewer",
+                state: "waiting",
+                statusLabel: "Waiting",
+              },
+            ]}
+            state="active"
+            statusLabel="1 of 2 complete"
+            title="Migration review"
+          />
+          <TurnStatus
+            durationLabel="00:42"
+            label="Current turn"
+            state="running"
+            statusLabel="Working"
+          />
+          <ResultDisclosure
+            collapseLabel="Collapse"
+            defaultExpanded
+            expandLabel="Expand"
+            label="Validation result"
+            state="completed"
+            statusLabel="Completed"
+            summary="Validation result"
+          >
+            All caller-selected checks passed.
+          </ResultDisclosure>
+        </div>
       </section>
 
       <section

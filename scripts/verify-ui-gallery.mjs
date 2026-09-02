@@ -171,6 +171,16 @@ const GALLERY_SCAFFOLD_RULES = new Map([
     ],
   ],
   [
+    ".gallery-pattern-grid",
+    [
+      ["display", "grid"],
+      ["grid-template-columns", "repeat(auto-fit, minmax(18rem, 1fr))"],
+      ["gap", "var(--artemis-space-4)"],
+      ["align-items", "start"],
+    ],
+  ],
+  [".gallery-pattern-grid > *", [["min-inline-size", "0"]]],
+  [
     '.gallery-feedback-grid [data-artemis-component="toast"]',
     [["align-self", "start"]],
   ],
@@ -396,7 +406,7 @@ const PRIVATE_GALLERY_ATTRIBUTES = new Set([
 const PRIVATE_GALLERY_TEXT_MARKERS = [
   "@artemis/ui-gallery",
   "Artemis UI Gallery",
-  "CL3 feedback and layout conformance",
+  "CL4 agent pattern conformance",
   "com.artemis.synthetic-stress",
 ];
 
@@ -1174,7 +1184,7 @@ const galleryText = (
 ).join("\n");
 for (const marker of [
   "Artemis UI Gallery",
-  "CL3 feedback and layout conformance",
+  "CL4 agent pattern conformance",
   "com.artemis.synthetic-stress",
   "data-artemis-component",
   "data-gallery-active-skin",

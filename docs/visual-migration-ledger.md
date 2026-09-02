@@ -1,7 +1,7 @@
 # Discussion #76 visual migration ledger
 
-Status: CL3 Feedback/Overlay/Layout candidate on merged CL2C base
-`5593e7b161167d6d14b0c733b387a3caecd819da`; CL2C is merged. This
+Status: CL4 Artemis pattern candidate on merged CL3 base
+`f6c1a361015a001e7fc1ba92d76bf1fc1e705e44`; CL3 is merged. This
 ledger separates static prototype evidence, package/Gallery evidence, and
 production Electron evidence. It must not be used to turn a prototype,
 Gallery pass, or attribute-only resolver pass into a migrated production
@@ -9,7 +9,7 @@ surface.
 
 ## Inputs and evidence boundary
 
-- Candidate base: `5593e7b161167d6d14b0c733b387a3caecd819da` (CL2C merged).
+- Candidate base: `f6c1a361015a001e7fc1ba92d76bf1fc1e705e44` (CL3 merged).
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -25,7 +25,7 @@ surface.
   `ui-prototype/contrast/prototype-contract-result.json`, and
   `ui-prototype/contrast/summary.json`.
 - The prototype directory remains read-only in a companion checkout and is not
-  present in this candidate base. CL3 does not copy or modify it.
+  present in this candidate base. CL4 does not copy or modify it.
 - v17's 70/70 generic card contract, 22/22 targeted historical-gap checks, and
   36 contrast combinations are HTML/Chrome specification evidence only. They do
   not prove React anatomy, Desktop integration, Electron geometry, platform
@@ -382,6 +382,34 @@ requires native modal focus close/return/reopen behavior, portal ownership,
 public anatomy, viewport containment, semantic computed styles, clean console
 and accessibility audits, strict sandboxing, screenshots, and exact clean HEAD.
 
+CL3 merged through PR #138 at
+`f6c1a361015a001e7fc1ba92d76bf1fc1e705e44`.
+
+## CL4 Artemis pattern candidate evidence
+
+CL4 adds the public `@artemis/ui/patterns` subpath for RunModeControl,
+ApprovalCard, ToolActivity, TaskPlan, ContextUsage, UserInput, AgentActivity,
+AgentTeamSummary, TurnStatus, and ResultDisclosure. The package owns only
+presentational anatomy, finite visual states, accessibility, and controlled
+disclosures. It imports no Protocol, Electron, or Node API and does not parse
+raw Pi events, choose approval scope or order, localize copy, persist state, or
+format tool data.
+
+Gallery raises the same default/stress matrix from 25 to 29 cases per skin.
+The added runners cover public anatomy, pending/resolved/error/stale/disabled/
+timeout states, controlled interactions, long content, and RTL. Exact contract
+and CSS-token verification, installed-tarball consumption, SSR output,
+tree-shaking, and the UI boundary fixtures include the new public subpath.
+
+Desktop adapters retain Protocol and localization ownership for the three real
+CL4 consumers: pending approval actions preserve deny, project, session, once
+order; grouped tool activity preserves summary/status/detail formatting; and
+Task Plan preserves ordered steps, progress, hover intent, keyboard/outside
+close, and completed auto-dismiss behavior. The existing production feedback
+matrix continues to exercise the pending approval card on an exact clean HEAD;
+the broader CL4 component matrix remains Gallery-first as required by the
+sequence.
+
 ## Component and surface sequence
 
 | Scope                                                                    | Type               | Owner                     | Consumer                          | Legacy selector/source                           | Target PR | Electron evidence                                           | Status                                  |
@@ -396,8 +424,8 @@ and accessibility audits, strict sandboxing, screenshots, and exact clean HEAD.
 | Action and icon controls                                                 | component          | `@artemis/ui`             | Gallery + GoalBar                 | buttons, icon buttons, badge, status, icon sizes | CL2A      | 105-case sandboxed Goal parity Electron matrix              | Merged at `f0834dd`                     |
 | Field and selection controls                                             | component          | `@artemis/ui`             | Gallery + real Desktop            | field, search, select, checkbox, switch          | CL2B      | 14-case/288-assertion strict-sandbox Electron matrix        | Merged at `6fbbe14`                     |
 | Tabs and segmented controls                                              | component          | `@artemis/ui`             | Gallery + three Desktop consumers | tabs and segmented controls                      | CL2C      | 6-case/174-assertion strict-sandbox Electron matrix         | Merged at `5593e7b`                     |
-| Feedback, overlays, layout primitives                                    | component          | `@artemis/ui`             | Gallery + four Desktop surfaces   | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | 6-case strict-sandbox Electron matrix                       | Candidate                               |
-| Artemis-specific presentational patterns                                 | component          | `@artemis/ui`             | Desktop adapter layer             | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                         | Pending                                 |
+| Feedback, overlays, layout primitives                                    | component          | `@artemis/ui`             | Gallery + four Desktop surfaces   | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | 6-case strict-sandbox Electron matrix                       | Merged at `f6c1a36`                     |
+| Artemis-specific presentational patterns                                 | component          | `@artemis/ui`             | Desktop adapter layer             | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                         | Candidate                               |
 | Shell, activity bar, sidebar, navigation                                 | surface            | Desktop                   | users                             | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom matrix                  | Pending                                 |
 | Composer and approval surfaces                                           | surface            | Desktop                   | users                             | renderer Composer/approval selectors             | MIG2      | Exact-head interaction + screenshot evidence                | Pending                                 |
 | Conversation, timeline, sources, task activity                           | surface            | Desktop                   | users                             | timeline/source selectors                        | MIG3      | Exact-head state and Electron evidence                      | Pending                                 |

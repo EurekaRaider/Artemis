@@ -94,10 +94,20 @@ const cases = [
   },
   {
     caseId: "approval-panel-dark-rtl-200",
-    component: "panel-header",
+    component: "approval-card",
     context: "approval",
     direction: "rtl",
-    expectedParts: ["root", "content", "title", "description"],
+    expectedParts: [
+      "root",
+      "header",
+      "icon",
+      "heading",
+      "title",
+      "description",
+      "status",
+      "reason",
+      "actions",
+    ],
     portal: false,
     reducedMotion: true,
     scale: 2,
@@ -324,6 +334,44 @@ try {
       found.geometry,
       "inside viewport",
     );
+    assert(
+      "visible-within-scroll-container",
+      found.visibleWithinScrollContainer === true,
+      {
+        component: found.geometry,
+        scrollContainer: found.scrollContainerGeometry,
+      },
+      "fully inside the nearest scroll viewport",
+    );
+    if (testCase.component === "approval-card") {
+      assert(
+        "approval-dynamic-copy-bidi-isolated",
+        feedbackLayout.approvalScrollVerification?.dynamicCopyBidiIsolated ===
+          true,
+        feedbackLayout.approvalScrollVerification ?? null,
+        "title, detail, and model reason are isolated from RTL chrome",
+      );
+      assert(
+        "approval-security-content-visible-before-actions",
+        feedbackLayout.approvalScrollVerification?.securityVisibleAtStart ===
+          true,
+        feedbackLayout.approvalScrollVerification ?? null,
+        "title, detail, status, and reason visible at the approval start",
+      );
+      assert(
+        "approval-actions-reachable",
+        feedbackLayout.approvalScrollVerification?.actionsVisibleAtEnd === true,
+        feedbackLayout.approvalScrollVerification ?? null,
+        "actions visible after scrolling to the approval end",
+      );
+      assert(
+        "approval-content-not-obscured-by-actions",
+        feedbackLayout.approvalScrollVerification
+          ?.securityAndActionsDoNotOverlap === true,
+        feedbackLayout.approvalScrollVerification ?? null,
+        "security content and actions have non-overlapping flow geometry",
+      );
+    }
     assert(
       "inline-content-not-cropped",
       found.contentFitsInline === true,

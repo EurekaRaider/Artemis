@@ -91,6 +91,8 @@ try {
       "dist/layout.d.ts",
       "dist/navigation.js",
       "dist/navigation.d.ts",
+      "dist/patterns.js",
+      "dist/patterns.d.ts",
       "dist/styles.css",
     ]),
     await pack("packages/theme-artemis", [
@@ -106,6 +108,8 @@ try {
     await pack("node_modules/react"),
     await pack("node_modules/react-dom"),
     await pack("node_modules/scheduler"),
+    await pack("node_modules/@types/react"),
+    await pack("node_modules/csstype"),
   ];
 
   await writeFile(
@@ -128,7 +132,53 @@ try {
 
   await writeFile(
     join(consumer, "consumer.ts"),
-    `import { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { FEEDBACK_COMPONENT_CONTRACTS, InlineNotice, Toast, type FeedbackTone } from "@artemis/ui/feedback";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField, type FormControlSize, type SelectOption } from "@artemis/ui/forms";\nimport { LAYOUT_COMPONENT_CONTRACTS, PanelHeader, SplitPane, type LayoutState } from "@artemis/ui/layout";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs, type NavigationControlSize, type TabOption } from "@artemis/ui/navigation";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst tone: ActionTone = "success";\nconst feedbackTone: FeedbackTone = "warning";\nconst layoutState: LayoutState = "ready";\nconst formSize: FormControlSize = "comfortable";\nconst navigationSize: NavigationControlSize = "compact";\nconst option: SelectOption<"one"> = { value: "one", label: "One" };\nconst tabOption: TabOption<"one"> = { id: "one-tab", panelId: "one-panel", value: "one", label: "One" };\nvoid ConformanceProbe;\nvoid Button;\nvoid IconButton;\nvoid InlineNotice;\nvoid Toast;\nvoid PanelHeader;\nvoid SplitPane;\nvoid Checkbox;\nvoid SearchField;\nvoid Select;\nvoid Switch;\nvoid TextField;\nvoid SegmentedControl;\nvoid Tabs;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone || FEEDBACK_COMPONENT_CONTRACTS.toast.tones?.at(3) !== feedbackTone || LAYOUT_COMPONENT_CONTRACTS.toolbar.states.at(0) !== layoutState || FORM_COMPONENT_CONTRACTS.textField.sizes.at(-1) !== formSize || NAVIGATION_COMPONENT_CONTRACTS.tabs.sizes.at(0) !== navigationSize || option.value !== "one" || tabOption.value !== "one") throw new Error("invalid contract");\n`,
+    `import type { ReactNode } from "react";\nimport { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { FEEDBACK_COMPONENT_CONTRACTS, InlineNotice, Toast, type FeedbackTone } from "@artemis/ui/feedback";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField, type FormControlSize, type SelectOption } from "@artemis/ui/forms";\nimport { LAYOUT_COMPONENT_CONTRACTS, PanelHeader, SplitPane, type LayoutState } from "@artemis/ui/layout";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs, type NavigationControlSize, type TabOption } from "@artemis/ui/navigation";\nimport { PATTERN_COMPONENT_CONTRACTS, ApprovalCard, TaskPlan, ToolActivity, type AgentTeamMember, type PatternState, type ResultDisclosureProps, type RunModeOption, type TaskPlanProps, type ToolActivityProps, type UserInputOption } from "@artemis/ui/patterns";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst tone: ActionTone = "success";\nconst feedbackTone: FeedbackTone = "warning";\nconst layoutState: LayoutState = "ready";\nconst patternState: PatternState = "pending";\nconst formSize: FormControlSize = "comfortable";\nconst navigationSize: NavigationControlSize = "compact";\nconst option: SelectOption<"one"> = { value: "one", label: "One" };\nconst tabOption: TabOption<"one"> = { id: "one-tab", panelId: "one-panel", value: "one", label: "One" };\nconst richPatternLabel = {} as ReactNode;\n// @ts-expect-error run-mode labels are string-owned\nconst invalidRunModeLabel: RunModeOption<"plan"> = { label: richPatternLabel, value: "plan" };\n// @ts-expect-error user-input labels are string-owned\nconst invalidInputLabel: UserInputOption = { id: "one", label: richPatternLabel };\n// @ts-expect-error agent-team labels are string-owned\nconst invalidMemberLabel: AgentTeamMember = { id: "one", label: richPatternLabel, state: "completed", statusLabel: "Completed" };\n// @ts-expect-error controlled ToolActivity cannot also declare defaultExpanded\nconst invalidToolOwnership: ToolActivityProps = { children: "Details", collapseLabel: "Collapse", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Tool", onExpandedChange() {}, state: "completed", statusLabel: "Completed", summary: "Tool" };\n// @ts-expect-error controlled TaskPlan cannot also declare defaultExpanded\nconst invalidPlanOwnership: TaskPlanProps = { collapseLabel: "Collapse", currentStepId: "one", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Plan", onExpandedChange() {}, progressLabel: "Step 1", state: "active", statusLabel: "Active", steps: [{ id: "one", label: "One", status: "pending", statusLabel: "Pending" }], stepsLabel: "Steps" };\n// @ts-expect-error controlled ResultDisclosure cannot also declare defaultExpanded\nconst invalidResultOwnership: ResultDisclosureProps = { children: "Result", collapseLabel: "Collapse", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Result", onExpandedChange() {}, state: "completed", statusLabel: "Completed", summary: "Result" };\nvoid invalidRunModeLabel;\nvoid invalidInputLabel;\nvoid invalidMemberLabel;\nvoid invalidToolOwnership;\nvoid invalidPlanOwnership;\nvoid invalidResultOwnership;\nvoid ConformanceProbe;\nvoid Button;\nvoid IconButton;\nvoid InlineNotice;\nvoid Toast;\nvoid PanelHeader;\nvoid SplitPane;\nvoid ApprovalCard;\nvoid TaskPlan;\nvoid ToolActivity;\nvoid Checkbox;\nvoid SearchField;\nvoid Select;\nvoid Switch;\nvoid TextField;\nvoid SegmentedControl;\nvoid Tabs;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone || FEEDBACK_COMPONENT_CONTRACTS.toast.tones?.at(3) !== feedbackTone || LAYOUT_COMPONENT_CONTRACTS.toolbar.states.at(0) !== layoutState || PATTERN_COMPONENT_CONTRACTS.approvalCard.states.at(0) !== patternState || FORM_COMPONENT_CONTRACTS.textField.sizes.at(-1) !== formSize || NAVIGATION_COMPONENT_CONTRACTS.tabs.sizes.at(0) !== navigationSize || option.value !== "one" || tabOption.value !== "one") throw new Error("invalid contract");\n`,
+    "utf8",
+  );
+  await writeFile(
+    join(consumer, "pattern-label-types.ts"),
+    `import { createElement } from "react";
+import type { AgentTeamMember, RunModeOption, UserInputOption } from "@artemis/ui/patterns";
+
+const icon = createElement("span", null, "icon");
+const validRunMode: RunModeOption<"plan"> = { icon, label: "Plan", labelVisibility: "hidden", value: "plan" };
+const validInput: UserInputOption = { icon, id: "plan", label: "Plan", labelVisibility: "hidden" };
+const validMember: AgentTeamMember = { icon, id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+
+// @ts-expect-error hidden run-mode labels reject empty-string icons
+const invalidRunModeEmpty: RunModeOption<"plan"> = { icon: "", label: "Plan", labelVisibility: "hidden", value: "plan" };
+// @ts-expect-error hidden run-mode labels reject numeric icons
+const invalidRunModeZero: RunModeOption<"plan"> = { icon: 0, label: "Plan", labelVisibility: "hidden", value: "plan" };
+// @ts-expect-error hidden run-mode labels require an icon
+const invalidRunModeMissing: RunModeOption<"plan"> = { label: "Plan", labelVisibility: "hidden", value: "plan" };
+
+// @ts-expect-error hidden user-input labels reject empty-string icons
+const invalidInputEmpty: UserInputOption = { icon: "", id: "plan", label: "Plan", labelVisibility: "hidden" };
+// @ts-expect-error hidden user-input labels reject numeric icons
+const invalidInputZero: UserInputOption = { icon: 0, id: "plan", label: "Plan", labelVisibility: "hidden" };
+// @ts-expect-error hidden user-input labels require an icon
+const invalidInputMissing: UserInputOption = { id: "plan", label: "Plan", labelVisibility: "hidden" };
+
+// @ts-expect-error hidden agent-team labels reject empty-string icons
+const invalidMemberEmpty: AgentTeamMember = { icon: "", id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+// @ts-expect-error hidden agent-team labels reject numeric icons
+const invalidMemberZero: AgentTeamMember = { icon: 0, id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+// @ts-expect-error hidden agent-team labels require an icon
+const invalidMemberMissing: AgentTeamMember = { id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+
+void validRunMode;
+void validInput;
+void validMember;
+void invalidRunModeEmpty;
+void invalidRunModeZero;
+void invalidRunModeMissing;
+void invalidInputEmpty;
+void invalidInputZero;
+void invalidInputMissing;
+void invalidMemberEmpty;
+void invalidMemberZero;
+void invalidMemberMissing;
+`,
     "utf8",
   );
   await writeFile(
@@ -143,7 +193,7 @@ try {
           skipLibCheck: true,
           noEmit: true,
         },
-        include: ["consumer.ts"],
+        include: ["consumer.ts", "pattern-label-types.ts"],
       },
       null,
       2,
@@ -170,6 +220,26 @@ try {
     "utf8",
   );
   run(process.execPath, ["feedback-layout-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "patterns-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { PATTERN_COMPONENT_CONTRACTS, ApprovalCard, ContextUsage, ResultDisclosure, RunModeControl, TaskPlan, ToolActivity, TurnStatus, UserInput } from "@artemis/ui/patterns";
+const approval = renderToStaticMarkup(createElement(ApprovalCard, { actions: createElement("button", null, "Approve"), label: "Approval", state: "pending", statusLabel: "Pending", title: "Run command" }));
+const tool = renderToStaticMarkup(createElement(ToolActivity, { collapseLabel: "Collapse", expandLabel: "Expand", label: "Tool", state: "completed", statusLabel: "Completed", summary: "Read files" }, "Details"));
+const plan = renderToStaticMarkup(createElement(TaskPlan, { collapseLabel: "Collapse", currentStepId: "one", expandLabel: "Expand", label: "Step 1", progressLabel: "Step 1", state: "active", statusLabel: "In progress", steps: [{ id: "one", label: "Inspect", status: "pending", statusLabel: "Not started" }], stepsLabel: "Task steps" }));
+const other = [
+  renderToStaticMarkup(createElement(RunModeControl, { label: "Mode", onValueChange() {}, options: [{ label: "Plan", value: "plan" }], statusLabel: "Ready", value: "plan" })),
+  renderToStaticMarkup(createElement(ContextUsage, { label: "Context", percent: 25, statusLabel: "Ready", valueLabel: "25%" })),
+  renderToStaticMarkup(createElement(UserInput, { label: "Input", onOptionSelect() {}, options: [{ id: "one", label: "One" }], question: "Choose", state: "pending", statusLabel: "Pending" })),
+  renderToStaticMarkup(createElement(TurnStatus, { label: "Turn", state: "running", statusLabel: "Working" })),
+  renderToStaticMarkup(createElement(ResultDisclosure, { collapseLabel: "Collapse", expandLabel: "Expand", label: "Result", state: "completed", statusLabel: "Completed", summary: "Complete" }, "Result")),
+].join("");
+if (!Object.isFrozen(PATTERN_COMPONENT_CONTRACTS) || !approval.includes('data-artemis-component="approval-card"') || !tool.includes('data-artemis-component="tool-activity"') || !plan.includes('data-artemis-component="task-plan"') || !other.includes('data-artemis-component="run-mode-control"') || !other.includes('data-artemis-component="context-usage"') || !other.includes('data-artemis-component="user-input"') || !other.includes('data-artemis-component="turn-status"') || !other.includes('data-artemis-component="result-disclosure"')) throw new Error("pattern peer/component resolution failed");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["patterns-consumer.mjs"], consumer);
   run(npm, ["ls", "--all", "react", "react-dom"], consumer);
 
   await writeFile(
@@ -346,6 +416,38 @@ try {
     throw new Error("PanelHeader-only bundle retained unused layout JS");
   }
 
+  await writeFile(
+    join(consumer, "pattern-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { TurnStatus } from "@artemis/ui/patterns";\nexport const TreeShakeTurnStatus = () => createElement(TurnStatus, { label: "Turn", state: "running", statusLabel: "Working" });\n`,
+    "utf8",
+  );
+  run(
+    join(root, "node_modules/.bin/esbuild"),
+    [
+      "pattern-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=pattern-tree-shake.js",
+    ],
+    consumer,
+  );
+  const patternTreeShaken = await readFile(
+    join(consumer, "pattern-tree-shake.js"),
+    "utf8",
+  );
+  if (
+    !patternTreeShaken.includes("turn-status") ||
+    ["approval-card", "tool-activity", "task-plan", "user-input"].some(
+      (marker) => patternTreeShaken.includes(marker),
+    )
+  ) {
+    throw new Error("TurnStatus-only bundle retained unused pattern JS");
+  }
+
   const installedRoots = [
     join(consumer, "node_modules/@artemis/theme-contract"),
     join(consumer, "node_modules/@artemis/ui"),
@@ -368,7 +470,7 @@ try {
   }
 
   console.log(
-    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout JS tree-shaken)`,
+    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout/pattern JS tree-shaken)`,
   );
 } finally {
   await rm(consumer, { recursive: true, force: true });
