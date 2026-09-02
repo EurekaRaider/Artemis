@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -886,6 +887,7 @@ export function EnvironmentPanel({
   threadId?: string;
 }) {
   const t = localizedCopy(locale, "app", labels[legacyLocale(locale)]);
+  const panelId = useId();
   const control = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -1609,6 +1611,7 @@ export function EnvironmentPanel({
       }
     >
       <EnvironmentTrigger
+        controls={panelId}
         expanded={open}
         icon={<EnvironmentIcon />}
         label={t.trigger}
@@ -1617,7 +1620,7 @@ export function EnvironmentPanel({
         title={t.trigger}
       />
       {open && (
-        <EnvironmentPanelSurface label={t.title} ref={panel}>
+        <EnvironmentPanelSurface id={panelId} label={t.title} ref={panel}>
           <EnvironmentSection
             action={
               <button

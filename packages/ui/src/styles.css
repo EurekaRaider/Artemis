@@ -3340,6 +3340,13 @@
     white-space: pre;
   }
 
+  [data-artemis-component="review-diff"] [data-part="marker"] {
+    flex: 0 0 1ch;
+    inline-size: 1ch;
+    color: var(--artemis-color-text-primary);
+    text-align: center;
+  }
+
   [data-artemis-component="review-diff"][data-part="line"][data-state="addition"] {
     color: var(--artemis-color-text-primary);
     background: var(--artemis-color-status-success-subtle);
@@ -3638,12 +3645,34 @@
 
   @media (max-width: 820px) {
     [data-artemis-component="workspace-dock"] {
-      min-inline-size: min(20rem, calc(100% - 20.4375rem));
-      inline-size: var(--workspace-dock-width, 62%);
+      position: absolute;
+      z-index: 3;
+      inset-block: 0;
+      inset-inline-end: 0;
+      flex: 1 1 auto;
+      min-inline-size: min(20rem, 100%);
+      max-inline-size: 100%;
+      inline-size: 100%;
+    }
+
+    [data-artemis-component="workspace-dock-resizer"] {
+      display: none;
     }
 
     [data-artemis-component="workspace-tab"] {
       min-inline-size: 6rem;
+    }
+
+    [data-artemis-component="review-surface"][data-part="workspace"] {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(12rem, 1fr) minmax(8rem, auto);
+    }
+
+    [data-artemis-component="review-surface"][data-part="files"] {
+      max-block-size: min(12rem, 35vh);
+      border-block-start: var(--artemis-border-width-default) solid
+        var(--artemis-color-border-subtle);
+      border-inline-start: 0;
     }
   }
 

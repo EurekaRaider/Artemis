@@ -2759,7 +2759,7 @@ function verifyStructuralCss(css, from, tokenFamilies) {
       for (const nested of node.nodes) verifyRule(nested, "compact-width");
       continue;
     }
-    if (media === "(max-width: 820px)" && node.nodes.length === 2) {
+    if (media === "(max-width: 820px)" && node.nodes.length === 5) {
       for (const nested of node.nodes) verifyRule(nested, "narrow-width");
       continue;
     }

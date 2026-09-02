@@ -148,7 +148,7 @@ export const WORKFLOW_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     schemaVersion: 1,
     uiContractVersion: 1,
     name: "review-diff",
-    parts: ["root", "header", "hunk", "lines", "line"],
+    parts: ["root", "header", "hunk", "lines", "line", "marker"],
     optionalParts: ["actions", "comment", "comment-editor"],
     states: [
       "ready",
@@ -477,6 +477,7 @@ export function ReviewDiffLine({
   kind,
   ...attributes
 }: ReviewDiffLineProps) {
+  const marker = kind === "addition" ? "+" : kind === "deletion" ? "−" : " ";
   return (
     <div
       {...attributes}
@@ -485,6 +486,9 @@ export function ReviewDiffLine({
       data-part="line"
       data-state={kind}
     >
+      <span aria-hidden="true" data-part="marker">
+        {marker}
+      </span>
       {children}
     </div>
   );
@@ -513,19 +517,25 @@ export const EnvironmentControl = forwardRef<
 
 export const EnvironmentTrigger = forwardRef<
   HTMLButtonElement,
-  Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
+  Omit<
+    ButtonHTMLAttributes<HTMLButtonElement>,
+    "aria-controls" | "children"
+  > & {
+    readonly controls: string;
     readonly expanded: boolean;
     readonly icon: ReactNode;
     readonly label: string;
   }
 >(function EnvironmentTrigger(
-  { className, expanded, icon, label, title = label, ...attributes },
+  { className, controls, expanded, icon, label, title = label, ...attributes },
   ref,
 ) {
+  requirePerceptibleText(controls);
   requirePerceptibleText(label);
   return (
     <button
       {...attributes}
+      aria-controls={controls}
       aria-expanded={expanded}
       aria-haspopup="dialog"
       aria-label={label}
@@ -547,16 +557,18 @@ export const EnvironmentTrigger = forwardRef<
 
 export const EnvironmentPanelSurface = forwardRef<
   HTMLDivElement,
-  Omit<HTMLAttributes<HTMLDivElement>, "children"> & {
+  Omit<HTMLAttributes<HTMLDivElement>, "children" | "id"> & {
     readonly children: ReactNode;
+    readonly id: string;
     readonly label: string;
     readonly state?:
       "ready" | "loading" | "empty" | "error" | "open" | undefined;
   }
 >(function EnvironmentPanelSurface(
-  { children, className, label, state = "open", ...attributes },
+  { children, className, id, label, state = "open", ...attributes },
   ref,
 ) {
+  requirePerceptibleText(id);
   requirePerceptibleText(label);
   return (
     <div
@@ -566,6 +578,7 @@ export const EnvironmentPanelSurface = forwardRef<
       data-artemis-component="environment-panel"
       data-part="root"
       data-state={state}
+      id={id}
       ref={ref}
       role="dialog"
       tabIndex={attributes.tabIndex ?? -1}

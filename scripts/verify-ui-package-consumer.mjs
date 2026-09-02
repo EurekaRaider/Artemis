@@ -243,7 +243,7 @@ import {
 
 const state: WorkflowComponentState = "stale";
 const review = createElement(ReviewSurface, { children: "Diff", label: "Review" });
-const environment = createElement(EnvironmentControl, { open: false }, createElement(EnvironmentTrigger, { expanded: false, icon: "Environment", label: "Environment" }));
+const environment = createElement(EnvironmentControl, { open: false }, createElement(EnvironmentTrigger, { controls: "environment-panel", expanded: false, icon: "Environment", label: "Environment" }));
 const goal = createElement(GoalEditorSurface, { children: createElement(GoalEditorInput, { "aria-label": "Objective", value: "Ship" }), label: "Goal", state });
 const sources = createElement(SourcesSurface, { children: "Source", label: "Sources" });
 if (!Object.isFrozen(WORKFLOW_COMPONENT_CONTRACTS)) throw new Error("invalid workflow contract");
@@ -366,7 +366,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { EnvironmentControl, EnvironmentTrigger, GoalEditorSurface, ReviewSurface, SourcesSurface, WORKFLOW_COMPONENT_CONTRACTS } from "@artemis/ui/workflow";
 const html = [
   renderToStaticMarkup(createElement(ReviewSurface, { label: "Review" }, "Diff")),
-  renderToStaticMarkup(createElement(EnvironmentControl, { open: false }, createElement(EnvironmentTrigger, { expanded: false, icon: "Environment", label: "Environment" }))),
+  renderToStaticMarkup(createElement(EnvironmentControl, { open: false }, createElement(EnvironmentTrigger, { controls: "environment-panel", expanded: false, icon: "Environment", label: "Environment" }))),
   renderToStaticMarkup(createElement(GoalEditorSurface, { label: "Goal", state: "ready" }, "Goal")),
   renderToStaticMarkup(createElement(SourcesSurface, { label: "Sources" }, "Source")),
 ].join("");

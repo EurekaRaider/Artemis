@@ -2157,6 +2157,15 @@ describe("renderer layout contract", () => {
     expect(closedDock).toMatch(/\bflex-basis:\s*0/u);
     expect(closedDock).toMatch(/\bopacity:\s*0/u);
     expect(closedDock).toMatch(/\btransform:\s*translateX\(/u);
+    expect(stylesSource).toMatch(
+      /\.workspace-content\s*\{[^}]*position:\s*relative;/su,
+    );
+    expect(publicUiStylesSource).toMatch(
+      /@media\s*\(max-width:\s*820px\)[\s\S]*workspace-dock[^}]*position:\s*absolute;[^}]*inline-size:\s*100%;/u,
+    );
+    expect(publicUiStylesSource).toMatch(
+      /@media\s*\(max-width:\s*820px\)[\s\S]*review-surface[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/u,
+    );
 
     expect(publicUiStylesSource).toMatch(
       /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*application-shell[\s\S]*navigation-sidebar/u,

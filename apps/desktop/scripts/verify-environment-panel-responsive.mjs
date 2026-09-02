@@ -68,7 +68,12 @@ async function runCase(
         .join("\n"),
     );
   }
-  return JSON.parse(await readFile(accessibilityPath, "utf8"));
+  const snapshot = JSON.parse(await readFile(accessibilityPath, "utf8"));
+  assert(
+    Array.isArray(snapshot.issues) && snapshot.issues.length === 0,
+    `Electron environment-panel case ${name} has accessibility issues: ${JSON.stringify(snapshot.issues)}`,
+  );
+  return snapshot;
 }
 
 try {
@@ -86,6 +91,12 @@ try {
     wide.workflowComponents.includes("environment-control") &&
       wide.workflowComponents.includes("environment-panel"),
     "Wide window is not using the public Environment surfaces.",
+  );
+  assert(
+    wide.environmentControl?.controls === wide.environmentControl?.panelId &&
+      wide.environmentControl?.panelRole === "dialog" &&
+      wide.environmentControl?.panelName,
+    "Environment trigger does not control its named dialog.",
   );
   assert(
     wide.timelineScroll,
@@ -236,13 +247,19 @@ try {
     "RTL Review case is not using the public Review and Diff surfaces.",
   );
   assert(
-    review.reviewGeometry?.root.width > 0 &&
-      review.reviewGeometry.toolbar?.width > 0 &&
-      review.reviewGeometry.reader?.width > 0 &&
-      review.reviewGeometry.files?.width > 0 &&
+    review.workspaceDock?.width >= 320 &&
+      review.reviewGeometry?.root.width >= 320 &&
+      review.reviewGeometry.toolbar?.width >= 320 &&
+      review.reviewGeometry.reader?.width >= 320 &&
+      review.reviewGeometry.files?.width >= 320 &&
       review.reviewGeometry.diffState === "selected" &&
       review.reviewGeometry.lineCount > 0,
-    "RTL Review geometry is incomplete.",
+    "RTL Review geometry is incomplete or too narrow to use.",
+  );
+  assert(
+    review.reviewGeometry.lineMarkers.includes("+") &&
+      review.reviewGeometry.lineMarkers.includes("−"),
+    "RTL Review diff lines are missing visible addition or deletion markers.",
   );
   const reviewReader = review.reviewGeometry.reader;
   const reviewFiles = review.reviewGeometry.files;
@@ -320,7 +337,10 @@ try {
           statuses: checks.environmentCheckStatuses,
           emptyStatuses: emptyChecks.environmentCheckStatuses,
         },
-        review: review.reviewGeometry,
+        review: {
+          workspaceDock: review.workspaceDock,
+          ...review.reviewGeometry,
+        },
         goal: goal.goalEditorGeometry,
         narrow: {
           windowInnerWidth: narrow.windowInnerWidth,

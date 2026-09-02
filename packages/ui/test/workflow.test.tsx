@@ -77,8 +77,9 @@ describe("workflow surface public contract", () => {
               <ReviewDiffHeader>src/App.tsx</ReviewDiffHeader>
               <ReviewDiffHunk>
                 <ReviewDiffLines>
-                  <ReviewDiffLine kind="deletion">− old line</ReviewDiffLine>
-                  <ReviewDiffLine kind="addition">+ new line</ReviewDiffLine>
+                  <ReviewDiffLine kind="deletion">old line</ReviewDiffLine>
+                  <ReviewDiffLine kind="addition">new line</ReviewDiffLine>
+                  <ReviewDiffLine kind="context">context line</ReviewDiffLine>
                 </ReviewDiffLines>
               </ReviewDiffHunk>
             </ReviewDiff>
@@ -92,11 +93,19 @@ describe("workflow surface public contract", () => {
     expect(review).toHaveAttribute("data-state", "loading");
     expect(
       document.querySelectorAll('[data-artemis-component="review-diff"]'),
-    ).toHaveLength(6);
-    expect(screen.getByText("− old line")).toHaveAttribute(
+    ).toHaveLength(7);
+    expect(screen.getByText("old line")).toHaveAttribute(
       "data-state",
       "deletion",
     );
+    expect(
+      [...document.querySelectorAll('[data-part="marker"]')].map(
+        (marker) => marker.textContent,
+      ),
+    ).toEqual(["−", "+", " "]);
+    for (const marker of document.querySelectorAll('[data-part="marker"]')) {
+      expect(marker).toHaveAttribute("aria-hidden", "true");
+    }
     expect(
       document.querySelector(
         '[data-artemis-component="review-diff"][data-part="root"]',
@@ -125,12 +134,16 @@ describe("workflow surface public contract", () => {
     render(
       <EnvironmentControl open>
         <EnvironmentTrigger
+          controls="environment-details"
           expanded
           icon={<svg aria-hidden="true" />}
           label="Environment"
           onClick={onToggle}
         />
-        <EnvironmentPanelSurface label="Environment details">
+        <EnvironmentPanelSurface
+          id="environment-details"
+          label="Environment details"
+        >
           <EnvironmentSection
             action={<button type="button">Refresh</button>}
             title="Git"
@@ -141,10 +154,11 @@ describe("workflow surface public contract", () => {
       </EnvironmentControl>,
     );
     const trigger = screen.getByRole("button", { name: "Environment" });
+    expect(trigger).toHaveAttribute("aria-controls", "environment-details");
     expect(trigger).toHaveAttribute("aria-expanded", "true");
-    expect(
-      screen.getByRole("dialog", { name: "Environment details" }),
-    ).toHaveAttribute("data-state", "open");
+    const panel = screen.getByRole("dialog", { name: "Environment details" });
+    expect(panel).toHaveAttribute("id", "environment-details");
+    expect(panel).toHaveAttribute("data-state", "open");
     await userEvent.setup().click(trigger);
     expect(onToggle).toHaveBeenCalledTimes(1);
   });

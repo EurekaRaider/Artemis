@@ -56,10 +56,10 @@ export function WorkflowGallery() {
                     12 const state = ready;
                   </ReviewDiffLine>
                   <ReviewDiffLine kind="deletion">
-                    −13 legacySurface();
+                    13 legacySurface();
                   </ReviewDiffLine>
                   <ReviewDiffLine kind="addition">
-                    +13 publicSurface();
+                    13 publicSurface();
                   </ReviewDiffLine>
                 </ReviewDiffLines>
               </ReviewDiffHunk>
@@ -87,13 +87,17 @@ export function WorkflowGallery() {
       <div className="gallery-workflow-side">
         <EnvironmentControl open={environmentOpen}>
           <EnvironmentTrigger
+            controls="gallery-environment-details"
             expanded={environmentOpen}
             icon={<GalleryActionIcon />}
             label="Gallery Environment"
             onClick={() => setEnvironmentOpen((current) => !current)}
           />
           {environmentOpen && (
-            <EnvironmentPanelSurface label="Gallery Environment details">
+            <EnvironmentPanelSurface
+              id="gallery-environment-details"
+              label="Gallery Environment details"
+            >
               <EnvironmentSection
                 action={<button type="button">Refresh</button>}
                 title="Git · Artemis"

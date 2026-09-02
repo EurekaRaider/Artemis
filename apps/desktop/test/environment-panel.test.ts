@@ -120,6 +120,15 @@ describe("task environment panel state", () => {
     );
   });
 
+  it("links the trigger to the named Environment dialog", () => {
+    expect(panelSource).toContain("const panelId = useId()");
+    expect(panelSource).toContain("controls={panelId}");
+    expect(panelSource).toContain("<EnvironmentPanelSurface id={panelId}");
+    expect(mainSource).toContain(
+      'rule: "environment-trigger-dialog-relationship"',
+    );
+  });
+
   it("keeps loaded Git information mounted while the workspace dock toggles", () => {
     expect(appSource).toContain(
       'key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}',

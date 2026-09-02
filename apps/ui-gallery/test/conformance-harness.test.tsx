@@ -2004,7 +2004,7 @@ const caseRunners = {
                 <ReviewDiffHeader>App.tsx</ReviewDiffHeader>
                 <ReviewDiffHunk>
                   <ReviewDiffLines>
-                    <ReviewDiffLine kind="addition">+ public</ReviewDiffLine>
+                    <ReviewDiffLine kind="addition">public</ReviewDiffLine>
                   </ReviewDiffLines>
                 </ReviewDiffHunk>
               </ReviewDiff>
@@ -2014,11 +2014,15 @@ const caseRunners = {
         </ReviewSurface>
         <EnvironmentControl open>
           <EnvironmentTrigger
+            controls="matrix-environment-details"
             expanded
             icon={<MatrixIcon />}
             label="Environment"
           />
-          <EnvironmentPanelSurface label="Environment details">
+          <EnvironmentPanelSurface
+            id="matrix-environment-details"
+            label="Environment details"
+          >
             <EnvironmentSection title="Git">main</EnvironmentSection>
           </EnvironmentPanelSurface>
         </EnvironmentControl>
@@ -2084,6 +2088,7 @@ const caseRunners = {
       <>
         <EnvironmentControl open={false}>
           <EnvironmentTrigger
+            controls="controlled-environment-details"
             expanded={false}
             icon={<MatrixIcon />}
             label="Environment"
@@ -2127,8 +2132,16 @@ const caseRunners = {
     const { container } = render(
       <div dir="rtl">
         <EnvironmentControl open>
-          <EnvironmentTrigger expanded icon={<MatrixIcon />} label="البيئة" />
-          <EnvironmentPanelSurface label="تفاصيل البيئة">
+          <EnvironmentTrigger
+            controls="rtl-environment-details"
+            expanded
+            icon={<MatrixIcon />}
+            label="البيئة"
+          />
+          <EnvironmentPanelSurface
+            id="rtl-environment-details"
+            label="تفاصيل البيئة"
+          >
             <EnvironmentSection title="المصادر">
               {longArabic.repeat(4)}
             </EnvironmentSection>

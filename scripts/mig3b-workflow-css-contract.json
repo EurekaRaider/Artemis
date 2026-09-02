@@ -119,6 +119,15 @@
     }
   ],
   [
+    "normal|[data-artemis-component=\"review-diff\"] [data-part=\"marker\"]",
+    {
+      "flex": "0 0 1ch",
+      "inline-size": "1ch",
+      "color": "var(--artemis-color-text-primary)",
+      "text-align": "center"
+    }
+  ],
+  [
     "normal|[data-artemis-component=\"review-diff\"][data-part=\"line\"][data-state=\"addition\"]",
     {
       "color": "var(--artemis-color-text-primary)",
@@ -395,6 +404,21 @@
   [
     "compact-width|[data-artemis-component=\"review-surface\"][data-part=\"workspace\"]",
     { "grid-template-columns": "minmax(0, 1fr) minmax(9rem, 12rem)" }
+  ],
+  [
+    "narrow-width|[data-artemis-component=\"review-surface\"][data-part=\"workspace\"]",
+    {
+      "grid-template-columns": "minmax(0, 1fr)",
+      "grid-template-rows": "minmax(12rem, 1fr) minmax(8rem, auto)"
+    }
+  ],
+  [
+    "narrow-width|[data-artemis-component=\"review-surface\"][data-part=\"files\"]",
+    {
+      "max-block-size": "min(12rem, 35vh)",
+      "border-block-start": "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
+      "border-inline-start": "0"
+    }
   ],
   [
     "reduced-motion|[data-artemis-component=\"environment-control\"][data-part=\"trigger\"]",

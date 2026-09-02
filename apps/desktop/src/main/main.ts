@@ -16503,6 +16503,26 @@ function createMainWindow(): BrowserWindow {
                 const environmentTrigger = document.querySelector(
                   '[data-artemis-component="environment-control"][data-part="trigger"]',
                 );
+                const environmentControls =
+                  environmentTrigger?.getAttribute("aria-controls") ?? null;
+                if (
+                  environmentTrigger?.getAttribute("aria-expanded") === "true"
+                ) {
+                  const controlledEnvironmentPanel = environmentControls
+                    ? document.getElementById(environmentControls)
+                    : null;
+                  if (
+                    !environmentControls ||
+                    controlledEnvironmentPanel !== environmentPanel ||
+                    controlledEnvironmentPanel?.getAttribute("role") !== "dialog" ||
+                    !name(controlledEnvironmentPanel)
+                  ) {
+                    issues.push({
+                      rule: "environment-trigger-dialog-relationship",
+                      element: environmentTrigger.outerHTML.slice(0, 240),
+                    });
+                  }
+                }
                 const workspaceDockResizer = document.querySelector(
                   '[data-artemis-component="workspace-dock-resizer"]',
                 );
@@ -16584,6 +16604,14 @@ function createMainWindow(): BrowserWindow {
                   workspaceWidth: workspaceBounds?.width ?? null,
                   environmentPanelOpen:
                     environmentTrigger?.getAttribute("aria-expanded") === "true",
+                  environmentControl: environmentTrigger
+                    ? {
+                        controls: environmentControls,
+                        panelId: environmentPanel?.id ?? null,
+                        panelRole: environmentPanel?.getAttribute("role") ?? null,
+                        panelName: environmentPanel ? name(environmentPanel) : null,
+                      }
+                    : null,
                   workflowComponents: [
                     ...new Set(
                       [...document.querySelectorAll(
@@ -16609,6 +16637,9 @@ function createMainWindow(): BrowserWindow {
                         lineCount:
                           reviewDiff?.querySelectorAll('[data-part="line"]')
                             .length ?? 0,
+                        lineMarkers: [
+                          ...(reviewDiff?.querySelectorAll('[data-part="marker"]') ?? []),
+                        ].map((marker) => marker.textContent ?? ""),
                       }
                     : null,
                   goalEditorGeometry: goalEditor
