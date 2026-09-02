@@ -47,6 +47,11 @@ import {
   UserInputFrame,
 } from "@artemis/ui/patterns";
 import {
+  TerminalState,
+  TerminalSurface,
+  TerminalViewport,
+} from "@artemis/ui/professional";
+import {
   ActivityBar,
   ActivityBarItem,
   ApplicationShell,
@@ -8529,9 +8534,18 @@ export function App() {
                           {tab.kind === "terminal" && (
                             <Suspense
                               fallback={
-                                <section className="terminal-panel view-loading">
-                                  …
-                                </section>
+                                <TerminalSurface
+                                  busy
+                                  className="terminal-panel view-loading"
+                                  label={tab.title}
+                                  state="connecting"
+                                >
+                                  <TerminalViewport>
+                                    <TerminalState state="connecting">
+                                      …
+                                    </TerminalState>
+                                  </TerminalViewport>
+                                </TerminalSurface>
                               }
                             >
                               <TerminalPanel

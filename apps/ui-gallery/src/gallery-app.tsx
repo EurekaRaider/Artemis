@@ -50,6 +50,7 @@ import {
 import { galleryContract } from "./gallery-contract.js";
 import { ConversationGallery } from "./conversation-gallery.js";
 import { GalleryActionIcon } from "./gallery-action-icon.js";
+import { ProfessionalGallery } from "./professional-gallery.js";
 import { STRESS_SKIN_ID, stressSkinCss } from "./stress-skin-fixture.mjs";
 import { WorkspaceGallery } from "./workspace-gallery.js";
 import { WorkflowGallery } from "./workflow-gallery.js";
@@ -583,6 +584,19 @@ export function GalleryApp() {
           callers retain data, permissions, persistence, and runtime effects.
         </p>
         <WorkflowGallery />
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="professional-heading"
+      >
+        <h2 id="professional-heading">Terminal and Browser shells</h2>
+        <p>
+          Public presentation keeps technical content readable and responsive;
+          callers retain PTY, webview, navigation, session, and security
+          effects.
+        </p>
+        <ProfessionalGallery />
       </section>
 
       <section

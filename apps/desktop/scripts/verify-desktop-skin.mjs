@@ -308,6 +308,12 @@ const snapshot = () => {
   const xterm = document.querySelector(".terminal-host .xterm");
   const xtermScreen = document.querySelector(".terminal-host .xterm-screen");
   const xtermRows = document.querySelector(".terminal-host .xterm-rows");
+  const terminalSurface = document.querySelector(
+    '[data-artemis-component="terminal-surface"]',
+  );
+  const terminalHost = document.querySelector(
+    '[data-artemis-component="terminal-host"]',
+  );
   const appShell = document.querySelector(".app-shell");
   const activityBar = document.querySelector(
     '[data-artemis-component="activity-bar"]',
@@ -348,6 +354,19 @@ const snapshot = () => {
   const xtermStyle = [...(xterm?.querySelectorAll("style") ?? [])]
     .map((style) => style.textContent ?? "")
     .join("\\n");
+  const terminalRootStyle = getComputedStyle(root);
+  const terminalBackgroundToken = terminalRootStyle
+    .getPropertyValue("--artemis-color-terminal-background")
+    .trim();
+  const terminalForegroundToken = terminalRootStyle
+    .getPropertyValue("--artemis-color-terminal-foreground")
+    .trim();
+  const terminalSurfaceStyle =
+    terminalSurface instanceof HTMLElement
+      ? getComputedStyle(terminalSurface)
+      : null;
+  const terminalHostStyle =
+    terminalHost instanceof HTMLElement ? getComputedStyle(terminalHost) : null;
   const preload = globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__;
   return {
     attrs: {
@@ -512,11 +531,16 @@ const snapshot = () => {
       ),
       terminalPromptReceived:
         preload?.terminalData().includes("Artemis>") ?? false,
-      legacyPalettePresent:
-        xtermStyle.includes("#1f2023") &&
-        xtermStyle.includes("#795e00") &&
-        xtermStyle.includes("#6b5700") &&
-        xtermStyle.includes("#c9dcf8"),
+      semanticTerminalPalettePresent:
+        terminalBackgroundToken.length > 0 &&
+        terminalForegroundToken.length > 0 &&
+        terminalSurfaceStyle?.backgroundColor ===
+          resolvedColor(terminalBackgroundToken) &&
+        terminalSurfaceStyle?.color === resolvedColor(terminalForegroundToken) &&
+        terminalHostStyle?.backgroundColor ===
+          resolvedColor(terminalBackgroundToken) &&
+        xtermStyle.toLowerCase().includes(terminalBackgroundToken.toLowerCase()) &&
+        xtermStyle.toLowerCase().includes(terminalForegroundToken.toLowerCase()),
       terminalHeader:
         document.querySelector(".terminal-header")?.textContent
           ?.replace(/\\s+/gu, " ")
@@ -1806,6 +1830,7 @@ async function driveElectron() {
           snapshot.state.xtermScreenSame &&
           snapshot.state.xtermRowsSame &&
           snapshot.state.terminalPromptReceived &&
+          snapshot.state.semanticTerminalPalettePresent &&
           snapshot.state.inputValue === expectedInput &&
           snapshot.state.selectionStart === expectedSelection[0] &&
           snapshot.state.selectionEnd === expectedSelection[1] &&
@@ -1966,7 +1991,7 @@ async function driveElectron() {
         finalSnapshot.state.xtermScreenSame &&
         finalSnapshot.state.xtermRowsSame &&
         finalSnapshot.state.terminalPromptReceived &&
-        finalSnapshot.state.legacyPalettePresent &&
+        finalSnapshot.state.semanticTerminalPalettePresent &&
         finalSnapshot.state.inputValue === "main" &&
         finalSnapshot.state.selectionStart === 1 &&
         finalSnapshot.state.selectionEnd === 3 &&

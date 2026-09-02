@@ -42,6 +42,10 @@
       "types": "./dist/patterns.d.ts",
       "import": "./dist/patterns.js"
     },
+    "./professional": {
+      "types": "./dist/professional.d.ts",
+      "import": "./dist/professional.js"
+    },
     "./surfaces": {
       "types": "./dist/surfaces.d.ts",
       "import": "./dist/surfaces.js"

@@ -10,7 +10,13 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Component, createRef, useState, type ReactNode } from "react";
+import {
+  Component,
+  createRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { artemisThemeCss, artemisThemeManifest } from "@artemis/theme-artemis";
@@ -84,6 +90,23 @@ import {
   SURFACE_COMPONENT_CONTRACTS,
 } from "@artemis/ui/surfaces";
 import {
+  BrowserAddressForm,
+  BrowserAddressInput,
+  BrowserGoButton,
+  BrowserNavigation,
+  BrowserNavigationButton,
+  BrowserState,
+  BrowserSurface,
+  BrowserToolbar,
+  BrowserViewport,
+  PROFESSIONAL_COMPONENT_CONTRACTS,
+  TerminalHeader,
+  TerminalHost,
+  TerminalState,
+  TerminalSurface,
+  TerminalViewport,
+} from "@artemis/ui/professional";
+import {
   WorkspaceContentState,
   WorkspaceDock,
   WorkspaceDockResizer,
@@ -148,6 +171,10 @@ const workflowSource = readFileSync(
   "../../packages/ui/src/workflow.tsx",
   "utf8",
 );
+const professionalSource = readFileSync(
+  "../../packages/ui/src/professional.tsx",
+  "utf8",
+);
 const uiCss = readFileSync("../../packages/ui/src/styles.css", "utf8");
 
 type ConformanceCase =
@@ -191,6 +218,10 @@ type ConformanceCase =
   | "workspace-state-matrix"
   | "workspace-controlled-events"
   | "workspace-rtl-long-content"
+  | "professional-anatomy"
+  | "professional-state-matrix"
+  | "professional-controlled-events"
+  | "professional-rtl-long-content"
   | "workflow-anatomy"
   | "workflow-state-matrix"
   | "workflow-controlled-events"
@@ -1993,6 +2024,182 @@ const caseRunners = {
     expect(container.querySelector("[data-artemis-portal]")).toBeNull();
   },
 
+  "professional-anatomy"() {
+    const { container } = render(
+      <>
+        <TerminalSurface label="Terminal" state="ready">
+          <TerminalHeader detail="zsh · desktop-user" heading="Terminal" />
+          <TerminalViewport>
+            <TerminalHost>Artemis&gt;</TerminalHost>
+            <TerminalState state="connecting">Connecting</TerminalState>
+          </TerminalViewport>
+        </TerminalSurface>
+        <BrowserSurface label="Browser" state="ready">
+          <BrowserToolbar label="Browser toolbar">
+            <BrowserNavigation label="Browser navigation">
+              <BrowserNavigationButton icon={<MatrixIcon />} label="Back" />
+            </BrowserNavigation>
+            <BrowserAddressForm label="Browser address">
+              <BrowserAddressInput
+                label="Address"
+                readOnly
+                value="about:blank"
+              />
+              <BrowserGoButton label="Go" />
+            </BrowserAddressForm>
+          </BrowserToolbar>
+          <BrowserState state="loading">Loading</BrowserState>
+          <BrowserViewport label="Browser document">Document</BrowserViewport>
+        </BrowserSurface>
+      </>,
+    );
+    for (const contract of Object.values(PROFESSIONAL_COMPONENT_CONTRACTS)) {
+      expect(
+        container.querySelector(`[data-artemis-component="${contract.name}"]`),
+      ).not.toBeNull();
+    }
+    expect(screen.getByRole("region", { name: "Terminal" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Browser" })).toBeTruthy();
+    expect(
+      screen.getByRole("region", { name: "Browser document" }),
+    ).toBeTruthy();
+  },
+
+  "professional-state-matrix"() {
+    const { container } = render(
+      <>
+        <TerminalSurface busy label="Connecting terminal" state="connecting">
+          <TerminalState state="connecting">Connecting</TerminalState>
+        </TerminalSurface>
+        <TerminalState state="empty">No task</TerminalState>
+        <TerminalState state="exited">Exited</TerminalState>
+        <TerminalState state="error">PTY failed</TerminalState>
+        <BrowserSurface busy label="Loading browser" state="loading">
+          <BrowserState state="loading">Loading</BrowserState>
+        </BrowserSurface>
+        <BrowserState state="empty">No document</BrowserState>
+        <BrowserState state="error">Navigation failed</BrowserState>
+        <BrowserNavigationButton
+          disabled
+          icon={<MatrixIcon />}
+          label="Back unavailable"
+        />
+        <BrowserAddressInput disabled label="Address unavailable" />
+        <BrowserGoButton disabled label="Go unavailable" />
+      </>,
+    );
+    expect(container.querySelectorAll('[aria-busy="true"]')).toHaveLength(2);
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    expect(screen.getAllByRole("status")).toHaveLength(5);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Back unavailable",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Address unavailable",
+        }) as HTMLInputElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Go unavailable",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  },
+
+  async "professional-controlled-events"() {
+    const back = vi.fn();
+    const reload = vi.fn();
+    const change = vi.fn();
+    const submit = vi.fn((event: FormEvent<HTMLFormElement>) =>
+      event.preventDefault(),
+    );
+    render(
+      <BrowserSurface label="Browser" state="ready">
+        <BrowserToolbar label="Browser toolbar">
+          <BrowserNavigation label="Browser navigation">
+            <BrowserNavigationButton
+              icon={<MatrixIcon />}
+              label="Back"
+              onClick={back}
+            />
+            <BrowserNavigationButton
+              icon={<MatrixIcon />}
+              label="Reload"
+              onClick={reload}
+            />
+          </BrowserNavigation>
+          <BrowserAddressForm label="Browser address" onSubmit={submit}>
+            <BrowserAddressInput
+              label="Address"
+              onChange={change}
+              value="https://example.test"
+            />
+            <BrowserGoButton label="Go" />
+          </BrowserAddressForm>
+        </BrowserToolbar>
+        <BrowserViewport label="Browser document">Document</BrowserViewport>
+      </BrowserSurface>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("button", { name: "Reload" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Address" }), {
+      target: { value: "https://changed.test" },
+    });
+    await user.click(screen.getByRole("button", { name: "Go" }));
+    expect(back).toHaveBeenCalledOnce();
+    expect(reload).toHaveBeenCalledOnce();
+    expect(change).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledOnce();
+  },
+
+  "professional-rtl-long-content"() {
+    const longAddress =
+      "https://example.test/a/very/long/path/that/must/not/expand/the/browser/shell";
+    const { container } = render(
+      <div dir="rtl">
+        <TerminalSurface label="طرفية" state="ready">
+          <TerminalHeader detail="تفاصيل طويلة جدا" heading="طرفية" />
+          <TerminalViewport>
+            <TerminalHost>{longAddress.repeat(4)}</TerminalHost>
+          </TerminalViewport>
+        </TerminalSurface>
+        <BrowserSurface label="متصفح" state="ready">
+          <BrowserToolbar label="شريط أدوات المتصفح">
+            <BrowserNavigation label="التنقل">
+              <BrowserNavigationButton icon={<MatrixIcon />} label="رجوع" />
+            </BrowserNavigation>
+            <BrowserAddressForm label="عنوان المتصفح">
+              <BrowserAddressInput label="العنوان" value={longAddress} />
+              <BrowserGoButton label="انتقال" />
+            </BrowserAddressForm>
+          </BrowserToolbar>
+          <BrowserViewport label="مستند المتصفح">مستند</BrowserViewport>
+        </BrowserSurface>
+      </div>,
+    );
+    for (const root of container.querySelectorAll("[data-artemis-component]")) {
+      expect(root.closest('[dir="rtl"]')).not.toBeNull();
+    }
+    expect(professionalSource).not.toMatch(/window\.artemis|electron|node:/u);
+    expect(professionalSource).toContain(
+      "caller-owns-pty-process-input-resize-and-cleanup",
+    );
+    expect(professionalSource).toContain(
+      "caller-owns-webview-navigation-session-and-security",
+    );
+    expect(uiCss).toContain("direction: ltr");
+    expect(container.querySelector("[data-artemis-portal]")).toBeNull();
+  },
+
   "workflow-anatomy"() {
     const { container } = render(
       <>
@@ -2913,7 +3120,7 @@ describe("default and synthetic stress skin conformance", () => {
     expect(Object.keys(caseRunners).sort()).toEqual(
       [...conformanceMatrix.skins.default].sort(),
     );
-    expect(skinCaseMatrix).toHaveLength(90);
+    expect(skinCaseMatrix).toHaveLength(98);
   });
 
   it.each(skinCaseMatrix)(

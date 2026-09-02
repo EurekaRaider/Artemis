@@ -95,6 +95,8 @@ try {
       "dist/navigation.d.ts",
       "dist/patterns.js",
       "dist/patterns.d.ts",
+      "dist/professional.js",
+      "dist/professional.d.ts",
       "dist/surfaces.js",
       "dist/surfaces.d.ts",
       "dist/workspace.js",
@@ -255,6 +257,32 @@ void sources;
     "utf8",
   );
   await writeFile(
+    join(consumer, "professional-consumer.ts"),
+    `import { createElement } from "react";
+import {
+  BrowserAddressForm,
+  BrowserAddressInput,
+  BrowserGoButton,
+  BrowserSurface,
+  BrowserViewport,
+  PROFESSIONAL_COMPONENT_CONTRACTS,
+  TerminalHeader,
+  TerminalHost,
+  TerminalSurface,
+  TerminalViewport,
+  type ProfessionalComponentState,
+} from "@artemis/ui/professional";
+
+const state: ProfessionalComponentState = "connecting";
+const terminal = createElement(TerminalSurface, { children: undefined, label: "Terminal", state }, createElement(TerminalHeader, { detail: "zsh", heading: "Terminal" }), createElement(TerminalViewport, null, createElement(TerminalHost)));
+const browser = createElement(BrowserSurface, { children: undefined, label: "Browser", state: "ready" }, createElement(BrowserAddressForm, { children: undefined, label: "Address" }, createElement(BrowserAddressInput, { label: "Address", value: "about:blank" }), createElement(BrowserGoButton, { label: "Go" })), createElement(BrowserViewport, { children: undefined, label: "Document" }, "Document"));
+if (!Object.isFrozen(PROFESSIONAL_COMPONENT_CONTRACTS)) throw new Error("invalid professional contract");
+void terminal;
+void browser;
+`,
+    "utf8",
+  );
+  await writeFile(
     join(consumer, "tsconfig.json"),
     `${JSON.stringify(
       {
@@ -271,6 +299,7 @@ void sources;
           "pattern-label-types.ts",
           "workspace-consumer.ts",
           "workflow-consumer.ts",
+          "professional-consumer.ts",
         ],
       },
       null,
@@ -376,6 +405,21 @@ if (!Object.isFrozen(WORKFLOW_COMPONENT_CONTRACTS)) throw new Error("workflow co
     "utf8",
   );
   run(process.execPath, ["workflow-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "professional-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { BrowserAddressForm, BrowserAddressInput, BrowserGoButton, BrowserSurface, BrowserViewport, PROFESSIONAL_COMPONENT_CONTRACTS, TerminalHeader, TerminalHost, TerminalSurface, TerminalViewport } from "@artemis/ui/professional";
+const html = [
+  renderToStaticMarkup(createElement(TerminalSurface, { label: "Terminal", state: "ready" }, createElement(TerminalHeader, { detail: "zsh", heading: "Terminal" }), createElement(TerminalViewport, null, createElement(TerminalHost)))),
+  renderToStaticMarkup(createElement(BrowserSurface, { label: "Browser", state: "ready" }, createElement(BrowserAddressForm, { label: "Address" }, createElement(BrowserAddressInput, { label: "Address", value: "about:blank" }), createElement(BrowserGoButton, { label: "Go" })), createElement(BrowserViewport, { label: "Document" }, "Document"))),
+].join("");
+for (const marker of ["terminal-surface", "terminal-header", "terminal-viewport", "terminal-host", "browser-surface", "browser-address-form", "browser-address-input", "browser-go-button", "browser-viewport"]) if (!html.includes('data-artemis-component="' + marker + '"')) throw new Error("professional peer/component resolution failed: " + marker);
+if (!Object.isFrozen(PROFESSIONAL_COMPONENT_CONTRACTS)) throw new Error("professional contract is mutable");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["professional-consumer.mjs"], consumer);
   run(npm, ["ls", "--all", "react", "react-dom"], consumer);
 
   await writeFile(
@@ -659,6 +703,44 @@ if (!Object.isFrozen(WORKFLOW_COMPONENT_CONTRACTS)) throw new Error("workflow co
     );
   }
 
+  await writeFile(
+    join(consumer, "professional-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { TerminalSurface } from "@artemis/ui/professional";\nexport const TreeShakeTerminal = () => createElement(TerminalSurface, { label: "Terminal", state: "ready" }, "Terminal");\n`,
+    "utf8",
+  );
+  run(
+    join(root, "node_modules/.bin/esbuild"),
+    [
+      "professional-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=professional-tree-shake.js",
+    ],
+    consumer,
+  );
+  const professionalTreeShaken = await readFile(
+    join(consumer, "professional-tree-shake.js"),
+    "utf8",
+  );
+  const retainedUnusedProfessionalMarkers = [
+    "terminal-header",
+    "terminal-state",
+    "browser-surface",
+    "browser-navigation-button",
+  ].filter((marker) => professionalTreeShaken.includes(marker));
+  if (
+    !professionalTreeShaken.includes("terminal-surface") ||
+    retainedUnusedProfessionalMarkers.length > 0
+  ) {
+    throw new Error(
+      `TerminalSurface-only bundle retained unused professional JS: ${retainedUnusedProfessionalMarkers.join(", ")}`,
+    );
+  }
+
   const installedRoots = [
     join(consumer, "node_modules/@artemis/theme-contract"),
     join(consumer, "node_modules/@artemis/ui"),
@@ -681,7 +763,7 @@ if (!Object.isFrozen(WORKFLOW_COMPONENT_CONTRACTS)) throw new Error("workflow co
   }
 
   console.log(
-    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout/pattern/conversation/surface JS tree-shaken)`,
+    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout/pattern/conversation/surface/professional JS tree-shaken)`,
   );
 } finally {
   await rm(consumer, { recursive: true, force: true });

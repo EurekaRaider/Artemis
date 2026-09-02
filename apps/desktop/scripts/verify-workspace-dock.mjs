@@ -237,6 +237,22 @@ try {
       "no --no-sandbox",
     );
     assert(
+      "browser-webview-security",
+      audit.browserWebviewSecurity?.allowRunningInsecureContent === false &&
+        audit.browserWebviewSecurity?.attached === true &&
+        audit.browserWebviewSecurity?.contextIsolation === true &&
+        audit.browserWebviewSecurity?.guestType === "webview" &&
+        audit.browserWebviewSecurity?.navigationAllowed === true &&
+        audit.browserWebviewSecurity?.nodeIntegration === false &&
+        audit.browserWebviewSecurity?.nodeIntegrationInSubFrames === false &&
+        audit.browserWebviewSecurity?.partition === "persist:artemis-browser" &&
+        audit.browserWebviewSecurity?.preloadPresent === false &&
+        audit.browserWebviewSecurity?.sandbox === true &&
+        audit.browserWebviewSecurity?.webSecurity === true,
+      audit.browserWebviewSecurity ?? null,
+      "attached isolated Artemis Browser webview",
+    );
+    assert(
       "interaction-present",
       interaction !== null && typeof interaction === "object",
       interaction,
@@ -282,6 +298,44 @@ try {
         interaction.afterClose.tabs[0].selectFocused === true,
       interaction.afterClose.tabs,
       "remaining tab active and focused",
+    );
+    assert(
+      "browser-public-anatomy",
+      interaction.afterClose.browser?.markersComplete === true &&
+        interaction.afterClose.browser?.framePresent === true &&
+        interaction.afterClose.browser?.framePartition ===
+          "persist:artemis-browser" &&
+        interaction.afterClose.browser?.frameSource === "about:blank" &&
+        interaction.afterClose.browser?.state === "ready" &&
+        interaction.afterClose.browser?.ariaBusy === null,
+      interaction.afterClose.browser ?? null,
+      "ready public Browser shell with isolated webview child",
+    );
+    assert(
+      "browser-controls-and-address",
+      interaction.afterClose.browser?.addressDirection === "ltr" &&
+        interaction.afterClose.browser?.addressValue === "" &&
+        interaction.afterClose.browser?.backDisabled === true &&
+        interaction.afterClose.browser?.forwardDisabled === true &&
+        interaction.afterClose.browser?.refreshDisabled === false &&
+        interaction.afterClose.browser?.goDisabled === false,
+      interaction.afterClose.browser ?? null,
+      "LTR address, unavailable history, enabled reload and navigation",
+    );
+    assert(
+      "browser-responsive-geometry",
+      interaction.afterClose.browser?.surface?.width >= 320 &&
+        interaction.afterClose.browser?.surface?.height > 0 &&
+        interaction.afterClose.browser?.toolbar?.width >= 320 &&
+        interaction.afterClose.browser?.toolbar?.height > 0 &&
+        interaction.afterClose.browser?.viewport?.width >= 320 &&
+        interaction.afterClose.browser?.viewport?.height > 0 &&
+        interaction.afterClose.browser?.surface?.scrollWidth <=
+          interaction.afterClose.browser?.surface?.width + 1 &&
+        interaction.afterClose.browser?.toolbar?.scrollWidth <=
+          interaction.afterClose.browser?.toolbar?.width + 1,
+      interaction.afterClose.browser ?? null,
+      "non-zero >=320px Browser shell without horizontal overflow",
     );
     assertOpenGeometry("mouse", interaction.mouse);
     assert(
@@ -361,9 +415,14 @@ try {
     assert(
       "dock-reopen-preserves-tab",
       interaction.reopened.tabs.length === 1 &&
-        interaction.reopened.tabs[0].active === true,
-      interaction.reopened.tabs,
-      "one active tab",
+        interaction.reopened.tabs[0].active === true &&
+        interaction.reopened.browser?.markersComplete === true &&
+        interaction.reopened.browser?.framePresent === true,
+      {
+        browser: interaction.reopened.browser,
+        tabs: interaction.reopened.tabs,
+      },
+      "one active Browser tab",
     );
     assert(
       "mouse-resize-does-not-select-text",

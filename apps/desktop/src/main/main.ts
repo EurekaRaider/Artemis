@@ -11775,11 +11775,33 @@ async function driveSmokeWorkspaceDockEvidence(
       );
       const workspaceContent = document.querySelector('.workspace-content');
       const timeline = document.querySelector('.timeline-scroll');
+      const browserSurface = document.querySelector(
+        '[data-artemis-component="browser-surface"]',
+      );
+      const browserToolbar = document.querySelector(
+        '[data-artemis-component="browser-toolbar"]',
+      );
+      const browserNavigation = document.querySelector(
+        '[data-artemis-component="browser-navigation"]',
+      );
+      const browserAddressForm = document.querySelector(
+        '[data-artemis-component="browser-address-form"]',
+      );
+      const browserAddressInput = document.querySelector(
+        '[data-artemis-component="browser-address-input"]',
+      );
+      const browserViewport = document.querySelector(
+        '[data-artemis-component="browser-viewport"]',
+      );
+      const browserFrame = document.querySelector('.browser-frame');
       const dockBounds = dock?.getBoundingClientRect();
       const resizerBounds = resizer?.getBoundingClientRect();
       const conversationBounds = conversation?.getBoundingClientRect();
       const workspaceContentBounds = workspaceContent?.getBoundingClientRect();
       const timelineBounds = timeline?.getBoundingClientRect();
+      const browserSurfaceBounds = browserSurface?.getBoundingClientRect();
+      const browserToolbarBounds = browserToolbar?.getBoundingClientRect();
+      const browserViewportBounds = browserViewport?.getBoundingClientRect();
       const tabs = [...document.querySelectorAll(tabSelector)].map((tab) => {
         const select = tab.querySelector(':scope > [data-part="select"]');
         const close = tab.querySelector(':scope > [data-part="close"]');
@@ -11849,6 +11871,75 @@ async function driveSmokeWorkspaceDockEvidence(
           '[data-artemis-component="workspace-launcher"] [data-part="action"]',
         ).length,
         selectionText: window.getSelection()?.toString() ?? '',
+        browser: browserSurfaceBounds
+          ? {
+              addressDirection:
+                browserAddressInput instanceof HTMLElement
+                  ? getComputedStyle(browserAddressInput).direction
+                  : null,
+              addressValue:
+                browserAddressInput instanceof HTMLInputElement
+                  ? browserAddressInput.value
+                  : null,
+              ariaBusy: browserSurface?.getAttribute('aria-busy') ?? null,
+              backDisabled:
+                document.querySelector('.browser-back-button')?.hasAttribute(
+                  'disabled',
+                ) ?? null,
+              forwardDisabled:
+                document
+                  .querySelector('.browser-forward-button')
+                  ?.hasAttribute('disabled') ?? null,
+              framePartition: browserFrame?.getAttribute('partition') ?? null,
+              framePresent: browserFrame !== null,
+              frameSource: browserFrame?.getAttribute('src') ?? null,
+              goDisabled:
+                document.querySelector('.browser-go-button')?.hasAttribute(
+                  'disabled',
+                ) ?? null,
+              markersComplete:
+                browserToolbar !== null &&
+                browserNavigation !== null &&
+                browserAddressForm !== null &&
+                browserAddressInput !== null &&
+                browserViewport !== null &&
+                document.querySelectorAll(
+                  '[data-artemis-component="browser-navigation-button"]',
+                ).length === 3 &&
+                document.querySelector(
+                  '[data-artemis-component="browser-go-button"]',
+                ) !== null,
+              refreshDisabled:
+                document
+                  .querySelector('.browser-refresh-button')
+                  ?.hasAttribute('disabled') ?? null,
+              state: browserSurface?.getAttribute('data-state') ?? null,
+              surface: {
+                width: browserSurfaceBounds.width,
+                height: browserSurfaceBounds.height,
+                scrollWidth:
+                  browserSurface instanceof HTMLElement
+                    ? browserSurface.scrollWidth
+                    : null,
+              },
+              toolbar: browserToolbarBounds
+                ? {
+                    width: browserToolbarBounds.width,
+                    height: browserToolbarBounds.height,
+                    scrollWidth:
+                      browserToolbar instanceof HTMLElement
+                        ? browserToolbar.scrollWidth
+                        : null,
+                  }
+                : null,
+              viewport: browserViewportBounds
+                ? {
+                    width: browserViewportBounds.width,
+                    height: browserViewportBounds.height,
+                  }
+                : null,
+            }
+          : null,
         tabs,
       };
     };
@@ -11911,7 +12002,21 @@ async function driveSmokeWorkspaceDockEvidence(
     await wait(520);
     const initial = capture();
     await addTab(0);
-    await addTab(-1);
+    await addTab(2);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const browserReady =
+        document.querySelector(
+          '[data-artemis-component="browser-surface"][data-state="ready"]',
+        ) !== null &&
+        document.querySelector('.browser-refresh-button')?.hasAttribute(
+          'disabled',
+        ) === false &&
+        document.querySelector('.browser-go-button')?.hasAttribute(
+          'disabled',
+        ) === false;
+      if (browserReady) break;
+      await wait(120);
+    }
     const multiTab = capture();
     const firstTab = document.querySelector(tabSelector);
     const firstSelect = firstTab?.querySelector(':scope > [data-part="select"]');
@@ -14002,6 +14107,19 @@ function createMainWindow(): BrowserWindow {
     contextIsolated: boolean;
     sandboxed: boolean;
   } | null = null;
+  let smokeBrowserWebviewSecurity: {
+    allowRunningInsecureContent: boolean;
+    attached: boolean;
+    contextIsolation: boolean;
+    guestType: string | null;
+    navigationAllowed: boolean;
+    nodeIntegration: boolean;
+    nodeIntegrationInSubFrames: boolean;
+    partition: string | null;
+    preloadPresent: boolean;
+    sandbox: boolean;
+    webSecurity: boolean;
+  } | null = null;
   const window = new BrowserWindow({
     width: smokeWidth,
     height: 920,
@@ -14122,12 +14240,40 @@ function createMainWindow(): BrowserWindow {
       webPreferences.sandbox = true;
       webPreferences.webSecurity = true;
       webPreferences.allowRunningInsecureContent = false;
-      if (!isEmbeddedBrowserNavigationAllowed(params.src ?? "")) {
+      const navigationAllowed = isEmbeddedBrowserNavigationAllowed(
+        params.src ?? "",
+      );
+      if (smokeMode) {
+        smokeBrowserWebviewSecurity = {
+          allowRunningInsecureContent: false,
+          attached: false,
+          contextIsolation: true,
+          guestType: null,
+          navigationAllowed,
+          nodeIntegration: false,
+          nodeIntegrationInSubFrames: false,
+          partition:
+            typeof webPreferences.partition === "string"
+              ? webPreferences.partition
+              : null,
+          preloadPresent: typeof webPreferences.preload === "string",
+          sandbox: true,
+          webSecurity: true,
+        };
+      }
+      if (!navigationAllowed) {
         event.preventDefault();
       }
     },
   );
   window.webContents.on("did-attach-webview", (_event, guest) => {
+    if (smokeBrowserWebviewSecurity) {
+      smokeBrowserWebviewSecurity = {
+        ...smokeBrowserWebviewSecurity,
+        attached: true,
+        guestType: guest.getType(),
+      };
+    }
     guest.on("will-frame-navigate", (details) => {
       if (!isEmbeddedBrowserNavigationAllowed(details.url)) {
         details.preventDefault();
@@ -18496,6 +18642,7 @@ function createMainWindow(): BrowserWindow {
                     ),
                     sandbox: smokePreloadSecurity?.sandboxed ?? null,
                   },
+                  browserWebviewSecurity: smokeBrowserWebviewSecurity,
                   windowFocused: window.isFocused(),
                   userInputTransport: smokeUserInputTransportEvidence ?? null,
                   zoomFactor: smokeScale,
