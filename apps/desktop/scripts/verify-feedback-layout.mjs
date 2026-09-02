@@ -345,6 +345,13 @@ try {
     );
     if (testCase.component === "approval-card") {
       assert(
+        "approval-dynamic-copy-bidi-isolated",
+        feedbackLayout.approvalScrollVerification?.dynamicCopyBidiIsolated ===
+          true,
+        feedbackLayout.approvalScrollVerification ?? null,
+        "title, detail, and model reason are isolated from RTL chrome",
+      );
+      assert(
         "approval-security-content-visible-before-actions",
         feedbackLayout.approvalScrollVerification?.securityVisibleAtStart ===
           true,

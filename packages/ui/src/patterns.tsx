@@ -1,10 +1,10 @@
 import {
-  isValidElement,
   useCallback,
   useEffect,
   useId,
   useRef,
   useState,
+  type CSSProperties,
   type HTMLAttributes,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -23,8 +23,6 @@ const PERCEPTIBLE_LABEL_CHARACTER =
 
 export const PATTERN_ACCESSIBLE_NAME_ERROR =
   "Artemis agent patterns require a non-empty accessible label";
-export const PATTERN_LABEL_IN_NAME_ERROR =
-  "Artemis agent pattern accessible labels must contain their visible label";
 export const PATTERN_COLLECTION_ERROR =
   "Artemis agent pattern collections require unique non-empty keys and valid active references";
 export const PATTERN_DISCLOSURE_CONTROL_ERROR =
@@ -45,50 +43,29 @@ function requireUniqueKeys(values: readonly string[]): void {
   }
 }
 
-function visibleLabelText(value: ReactNode): string {
-  if (typeof value === "string" || typeof value === "number") {
-    return String(value);
-  }
-  if (Array.isArray(value)) return value.map(visibleLabelText).join(" ");
-  if (
-    !isValidElement<{ children?: ReactNode; "aria-hidden"?: boolean | string }>(
-      value,
-    )
-  ) {
-    return "";
-  }
-  if (
-    value.props["aria-hidden"] === true ||
-    value.props["aria-hidden"] === "true"
-  ) {
-    return "";
-  }
-  return visibleLabelText(value.props.children);
-}
+const VISUALLY_HIDDEN_LABEL_STYLE: CSSProperties = {
+  border: 0,
+  clip: "rect(0 0 0 0)",
+  height: 1,
+  margin: -1,
+  overflow: "hidden",
+  padding: 0,
+  position: "absolute",
+  whiteSpace: "nowrap",
+  width: 1,
+};
 
-function normalizedLabelInName(value: string): string {
-  return value
-    .normalize("NFKC")
-    .replace(/\s+/gu, " ")
-    .trim()
-    .toLocaleLowerCase();
-}
-
-function requireAccessibleLabel(
-  accessibleLabel: string,
-  visibleLabel: ReactNode,
-): void {
-  requirePerceptibleText(accessibleLabel);
-  const visibleText = visibleLabelText(visibleLabel);
-  if (!PERCEPTIBLE_LABEL_CHARACTER.test(visibleText)) return;
-  if (
-    !normalizedLabelInName(accessibleLabel).includes(
-      normalizedLabelInName(visibleText),
-    )
-  ) {
-    throw new Error(PATTERN_LABEL_IN_NAME_ERROR);
-  }
-}
+type PatternOwnedLabel =
+  | {
+      readonly icon?: ReactNode | undefined;
+      readonly label: string;
+      readonly labelVisibility?: "visible" | undefined;
+    }
+  | {
+      readonly icon: Exclude<ReactNode, boolean | null | undefined>;
+      readonly label: string;
+      readonly labelVisibility: "hidden";
+    };
 
 export const PATTERN_COMPONENT_CONTRACT_SCHEMA_VERSION = 1 as const;
 
@@ -193,7 +170,7 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     uiContractVersion: 1,
     name: "run-mode-control",
     parts: ["root", "option", "label", "status"],
-    optionalParts: ["description"],
+    optionalParts: ["icon", "description"],
     states: ["ready", "busy", "error", "stale", "disabled", "timeout"],
     accessibility: [
       "radiogroup-role",
@@ -295,7 +272,7 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     uiContractVersion: 1,
     name: "user-input",
     parts: ["root", "question", "options", "option", "label", "status"],
-    optionalParts: ["description", "actions"],
+    optionalParts: ["icon", "description", "actions"],
     states: [
       "pending",
       "busy",
@@ -343,6 +320,7 @@ export const PATTERN_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     uiContractVersion: 1,
     name: "agent-team-summary",
     parts: ["root", "title", "status", "members", "member", "label"],
+    optionalParts: ["icon"],
     states: ["active", "completed", "failed", "stale", "disabled", "timeout"],
     accessibility: ["named-region", "member-list", "visible-member-status"],
     interaction: [
@@ -498,13 +476,11 @@ function useControlledDisclosure(
   };
 }
 
-export interface RunModeOption<T extends string> {
-  readonly accessibleLabel: string;
+export type RunModeOption<T extends string> = PatternOwnedLabel & {
   readonly description?: ReactNode | undefined;
   readonly disabled?: boolean | undefined;
-  readonly label: ReactNode;
   readonly value: T;
-}
+};
 
 export interface RunModeControlProps<T extends string> extends Omit<
   HTMLAttributes<HTMLDivElement>,
@@ -542,8 +518,9 @@ export function RunModeControl<T extends string>({
     throw new Error(PATTERN_COLLECTION_ERROR);
   }
   for (const option of options) {
-    requireAccessibleLabel(option.accessibleLabel, option.label);
+    requirePerceptibleText(option.label);
   }
+  const optionLabelId = useId();
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const enabledIndices = options.flatMap((option, index) =>
     isBlocked(state) || option.disabled === true ? [] : [index],
@@ -596,7 +573,7 @@ export function RunModeControl<T extends string>({
         return (
           <button
             aria-checked={option.value === value}
-            aria-label={option.accessibleLabel}
+            aria-labelledby={`${optionLabelId}-${index}`}
             disabled={disabled}
             data-part="option"
             key={option.value}
@@ -612,7 +589,23 @@ export function RunModeControl<T extends string>({
             tabIndex={index === focusableIndex ? 0 : -1}
             type="button"
           >
-            <span data-part="label">{option.label}</span>
+            {option.icon ? (
+              <span aria-hidden="true" data-part="icon">
+                {option.icon}
+              </span>
+            ) : null}
+            <span
+              data-label-visibility={option.labelVisibility ?? "visible"}
+              data-part="label"
+              id={`${optionLabelId}-${index}`}
+              style={
+                option.labelVisibility === "hidden"
+                  ? VISUALLY_HIDDEN_LABEL_STYLE
+                  : undefined
+              }
+            >
+              {option.label}
+            </span>
             {option.description ? (
               <small data-part="description">{option.description}</small>
             ) : null}
@@ -1022,13 +1015,11 @@ export function ContextUsage({
   );
 }
 
-export interface UserInputOption {
-  readonly accessibleLabel: string;
+export type UserInputOption = PatternOwnedLabel & {
   readonly description?: ReactNode | undefined;
   readonly disabled?: boolean | undefined;
   readonly id: string;
-  readonly label: ReactNode;
-}
+};
 
 export interface UserInputProps extends Omit<
   HTMLAttributes<HTMLElement>,
@@ -1077,8 +1068,9 @@ export function UserInput({
     throw new Error(PATTERN_COLLECTION_ERROR);
   }
   for (const option of options) {
-    requireAccessibleLabel(option.accessibleLabel, option.label);
+    requirePerceptibleText(option.label);
   }
+  const optionLabelId = useId();
   const blocked = state !== "pending" && state !== "error" && state !== "stale";
   return (
     <section
@@ -1093,11 +1085,11 @@ export function UserInput({
       <strong data-part="question">{question}</strong>
       {description ? <div data-part="description">{description}</div> : null}
       <div data-part="options">
-        {options.map((option) => {
+        {options.map((option, index) => {
           const disabled = blocked || option.disabled === true;
           return (
             <button
-              aria-label={option.accessibleLabel}
+              aria-labelledby={`${optionLabelId}-${index}`}
               aria-pressed={option.id === selectedOptionId}
               data-part="option"
               disabled={disabled}
@@ -1107,7 +1099,23 @@ export function UserInput({
               }}
               type="button"
             >
-              <span data-part="label">{option.label}</span>
+              {option.icon ? (
+                <span aria-hidden="true" data-part="icon">
+                  {option.icon}
+                </span>
+              ) : null}
+              <span
+                data-label-visibility={option.labelVisibility ?? "visible"}
+                data-part="label"
+                id={`${optionLabelId}-${index}`}
+                style={
+                  option.labelVisibility === "hidden"
+                    ? VISUALLY_HIDDEN_LABEL_STYLE
+                    : undefined
+                }
+              >
+                {option.label}
+              </span>
               {option.description ? (
                 <small data-part="description">{option.description}</small>
               ) : null}
@@ -1181,10 +1189,8 @@ export function AgentActivity({
   );
 }
 
-export interface AgentTeamMember {
-  readonly accessibleLabel: string;
+export type AgentTeamMember = PatternOwnedLabel & {
   readonly id: string;
-  readonly label: ReactNode;
   readonly state: Extract<
     PatternState,
     | "queued"
@@ -1197,7 +1203,7 @@ export interface AgentTeamMember {
     | "timeout"
   >;
   readonly statusLabel: string;
-}
+};
 
 export interface AgentTeamSummaryProps extends Omit<
   HTMLAttributes<HTMLElement>,
@@ -1227,9 +1233,10 @@ export function AgentTeamSummary({
   requirePerceptibleText(statusLabel);
   requireUniqueKeys(members.map((member) => member.id));
   for (const member of members) {
-    requireAccessibleLabel(member.accessibleLabel, member.label);
+    requirePerceptibleText(member.label);
     requirePerceptibleText(member.statusLabel);
   }
+  const memberLabelId = useId();
   return (
     <section
       {...attributes}
@@ -1243,21 +1250,52 @@ export function AgentTeamSummary({
         {statusLabel}
       </span>
       <ul data-part="members">
-        {members.map((member) => (
+        {members.map((member, index) => (
           <li data-part="member" data-state={member.state} key={member.id}>
             {onMemberSelect ? (
               <button
-                aria-label={member.accessibleLabel}
+                aria-labelledby={`${memberLabelId}-${index}`}
                 disabled={state === "disabled" || member.state === "disabled"}
                 onClick={() => onMemberSelect(member.id)}
                 type="button"
               >
-                <span data-part="label">{member.label}</span>
+                {member.icon ? (
+                  <span aria-hidden="true" data-part="icon">
+                    {member.icon}
+                  </span>
+                ) : null}
+                <span
+                  data-label-visibility={member.labelVisibility ?? "visible"}
+                  data-part="label"
+                  id={`${memberLabelId}-${index}`}
+                  style={
+                    member.labelVisibility === "hidden"
+                      ? VISUALLY_HIDDEN_LABEL_STYLE
+                      : undefined
+                  }
+                >
+                  {member.label}
+                </span>
                 <span data-part="status">{member.statusLabel}</span>
               </button>
             ) : (
               <>
-                <span data-part="label">{member.label}</span>
+                {member.icon ? (
+                  <span aria-hidden="true" data-part="icon">
+                    {member.icon}
+                  </span>
+                ) : null}
+                <span
+                  data-label-visibility={member.labelVisibility ?? "visible"}
+                  data-part="label"
+                  style={
+                    member.labelVisibility === "hidden"
+                      ? VISUALLY_HIDDEN_LABEL_STYLE
+                      : undefined
+                  }
+                >
+                  {member.label}
+                </span>
                 <span data-part="status">{member.statusLabel}</span>
               </>
             )}

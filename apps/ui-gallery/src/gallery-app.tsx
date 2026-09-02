@@ -364,13 +364,11 @@ export function GalleryApp() {
             onValueChange={setPatternMode}
             options={[
               {
-                accessibleLabel: "Plan",
                 description: "Inspect without changing files",
                 label: "Plan",
                 value: "plan",
               },
               {
-                accessibleLabel: "Execute",
                 description: "Apply the approved change",
                 label: "Execute",
                 value: "execute",
@@ -384,7 +382,6 @@ export function GalleryApp() {
             onValueChange={() => undefined}
             options={[
               {
-                accessibleLabel: "Review",
                 label: "Review",
                 value: "review",
               },
@@ -482,12 +479,10 @@ export function GalleryApp() {
               onOptionSelect={setPatternOption}
               options={[
                 {
-                  accessibleLabel: "مراجعة التغييرات قبل المتابعة",
                   id: "review",
                   label: "مراجعة التغييرات قبل المتابعة",
                 },
                 {
-                  accessibleLabel: "المتابعة مباشرة",
                   id: "continue",
                   label: "المتابعة مباشرة",
                 },
@@ -503,7 +498,6 @@ export function GalleryApp() {
             onOptionSelect={() => undefined}
             options={[
               {
-                accessibleLabel: "No longer available",
                 id: "fixed",
                 label: "No longer available",
               },
@@ -523,14 +517,12 @@ export function GalleryApp() {
             label="Agent team summary"
             members={[
               {
-                accessibleLabel: "Validator",
                 id: "one",
                 label: "Validator",
                 state: "completed",
                 statusLabel: "Completed",
               },
               {
-                accessibleLabel: "Reviewer",
                 id: "two",
                 label: "Reviewer",
                 state: "waiting",

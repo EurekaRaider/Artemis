@@ -14997,6 +14997,15 @@ function createMainWindow(): BrowserWindow {
                     const actionsTop = actions.getBoundingClientRect().top;
                     window.__approvalScrollVerification = {
                       actionsVisibleAtEnd,
+                      dynamicCopyBidiIsolated: [
+                        'title',
+                        'description',
+                        'reason',
+                      ].every((part) =>
+                        approvalCard
+                          .querySelector('[data-part="' + part + '"]')
+                          ?.querySelector('bdi'),
+                      ),
                       securityAndActionsDoNotOverlap:
                         securityBottom <= actionsTop + 1,
                       securityVisibleAtStart,

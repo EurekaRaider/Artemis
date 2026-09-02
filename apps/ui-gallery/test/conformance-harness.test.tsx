@@ -1101,7 +1101,7 @@ const caseRunners = {
         <RunModeControl
           label="Run mode"
           onValueChange={() => undefined}
-          options={[{ accessibleLabel: "Plan", label: "Plan", value: "plan" }]}
+          options={[{ label: "Plan", value: "plan" }]}
           statusLabel="Ready"
           value="plan"
         />
@@ -1149,7 +1149,7 @@ const caseRunners = {
         <UserInput
           label="Input"
           onOptionSelect={() => undefined}
-          options={[{ accessibleLabel: "One", id: "one", label: "One" }]}
+          options={[{ id: "one", label: "One" }]}
           question="Choose"
           state="pending"
           statusLabel="Pending"
@@ -1164,7 +1164,6 @@ const caseRunners = {
           label="Team"
           members={[
             {
-              accessibleLabel: "One",
               id: "one",
               label: "One",
               state: "completed",
@@ -1284,9 +1283,8 @@ const caseRunners = {
           label="Mode"
           onValueChange={modeChanges}
           options={[
-            { accessibleLabel: "Plan", label: "Plan", value: "plan" },
+            { label: "Plan", value: "plan" },
             {
-              accessibleLabel: "Execute",
               label: "Execute",
               value: "execute",
             },
@@ -1311,7 +1309,6 @@ const caseRunners = {
           onOptionSelect={inputChanges}
           options={[
             {
-              accessibleLabel: "Option one",
               id: "one",
               label: "Option one",
             },

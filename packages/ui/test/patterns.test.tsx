@@ -21,7 +21,6 @@ import {
   PATTERN_COMPONENT_CONTRACTS,
   PATTERN_COMPONENT_MUTABLE_TOKENS,
   PATTERN_DISCLOSURE_CONTROL_ERROR,
-  PATTERN_LABEL_IN_NAME_ERROR,
   ResultDisclosure,
   RunModeControl,
   TaskPlan,
@@ -67,9 +66,8 @@ describe("Agent patterns", () => {
         label="Run mode"
         onValueChange={onValueChange}
         options={[
-          { accessibleLabel: "Plan", label: "Plan", value: "plan" },
+          { label: "Plan", value: "plan" },
           {
-            accessibleLabel: "Execute",
             label: "Execute",
             value: "execute",
           },
@@ -89,9 +87,8 @@ describe("Agent patterns", () => {
         label="Run mode"
         onValueChange={onValueChange}
         options={[
-          { accessibleLabel: "Plan", label: "Plan", value: "plan" },
+          { label: "Plan", value: "plan" },
           {
-            accessibleLabel: "Execute",
             label: "Execute",
             value: "execute",
           },
@@ -113,15 +110,13 @@ describe("Agent patterns", () => {
           label="Run mode"
           onValueChange={setValue}
           options={[
-            { accessibleLabel: "Plan", label: "Plan", value: "plan" },
+            { label: "Plan", value: "plan" },
             {
-              accessibleLabel: "Execute",
               disabled: true,
               label: "Execute",
               value: "execute",
             },
             {
-              accessibleLabel: "Review",
               label: "Review",
               value: "review",
             },
@@ -148,16 +143,17 @@ describe("Agent patterns", () => {
     expect(document.activeElement).toBe(review);
   });
 
-  it("gives icon-only option and member content explicit accessible names", () => {
-    render(
+  it("keeps icon-only visuals tied to string-owned rendered names", () => {
+    const { container } = render(
       <>
         <RunModeControl
           label="Modes"
           onValueChange={() => undefined}
           options={[
             {
-              accessibleLabel: "Plan mode",
-              label: <span aria-hidden="true">icon</span>,
+              icon: <span>mode icon</span>,
+              label: "Plan mode",
+              labelVisibility: "hidden",
               value: "plan",
             },
           ]}
@@ -169,9 +165,10 @@ describe("Agent patterns", () => {
           onOptionSelect={() => undefined}
           options={[
             {
-              accessibleLabel: "Choose plan",
+              icon: <span>input icon</span>,
               id: "plan",
-              label: <span aria-hidden="true">icon</span>,
+              label: "Choose plan",
+              labelVisibility: "hidden",
             },
           ]}
           question="Choose"
@@ -182,9 +179,10 @@ describe("Agent patterns", () => {
           label="Team"
           members={[
             {
-              accessibleLabel: "Open validator",
+              icon: <span>member icon</span>,
               id: "validator",
-              label: <span aria-hidden="true">icon</span>,
+              label: "Open validator",
+              labelVisibility: "hidden",
               state: "running",
               statusLabel: "Running",
             },
@@ -199,64 +197,25 @@ describe("Agent patterns", () => {
     expect(screen.getByRole("radio", { name: "Plan mode" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Choose plan" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Open validator" })).toBeTruthy();
-  });
-
-  it("rejects accessible names that contradict visible option or member labels", () => {
-    expect(() =>
-      render(
-        <RunModeControl
-          label="Modes"
-          onValueChange={() => undefined}
-          options={[
-            {
-              accessibleLabel: "Execute",
-              label: "Plan",
-              value: "plan",
-            },
-          ]}
-          statusLabel="Ready"
-          value="plan"
-        />,
+    const icons = container.querySelectorAll('[data-part="icon"]');
+    expect(icons).toHaveLength(3);
+    expect(
+      [...icons].every((icon) => icon.getAttribute("aria-hidden") === "true"),
+    ).toBe(true);
+    expect(
+      [...container.querySelectorAll('[data-part="label"]')].every(
+        (label) =>
+          label.getAttribute("data-label-visibility") === "hidden" &&
+          label.textContent !== "",
       ),
-    ).toThrow(PATTERN_LABEL_IN_NAME_ERROR);
-    expect(() =>
-      render(
-        <UserInput
-          label="Input"
-          onOptionSelect={() => undefined}
-          options={[
-            {
-              accessibleLabel: "Reject request",
-              id: "approve",
-              label: "Approve request",
-            },
-          ]}
-          question="Choose"
-          state="pending"
-          statusLabel="Pending"
-        />,
+    ).toBe(true);
+    expect(
+      [...container.querySelectorAll("button")].every(
+        (button) =>
+          button.hasAttribute("aria-labelledby") &&
+          !button.hasAttribute("aria-label"),
       ),
-    ).toThrow(PATTERN_LABEL_IN_NAME_ERROR);
-    expect(() =>
-      render(
-        <AgentTeamSummary
-          label="Team"
-          members={[
-            {
-              accessibleLabel: "Open reviewer",
-              id: "validator",
-              label: "Validator",
-              state: "running",
-              statusLabel: "Running",
-            },
-          ]}
-          onMemberSelect={() => undefined}
-          state="active"
-          statusLabel="Active"
-          title="Team"
-        />,
-      ),
-    ).toThrow(PATTERN_LABEL_IN_NAME_ERROR);
+    ).toBe(true);
   });
 
   it("renders approval actions in the exact order supplied by the caller", () => {
@@ -640,8 +599,8 @@ describe("Agent patterns", () => {
           label="Modes"
           onValueChange={() => undefined}
           options={[
-            { accessibleLabel: "One", label: "One", value: "same" },
-            { accessibleLabel: "Two", label: "Two", value: "same" },
+            { label: "One", value: "same" },
+            { label: "Two", value: "same" },
           ]}
           statusLabel="Ready"
           value="same"
@@ -676,8 +635,8 @@ describe("Agent patterns", () => {
           label="Input"
           onOptionSelect={() => undefined}
           options={[
-            { accessibleLabel: "One", id: "same", label: "One" },
-            { accessibleLabel: "Two", id: "same", label: "Two" },
+            { id: "same", label: "One" },
+            { id: "same", label: "Two" },
           ]}
           question="Choose"
           state="pending"
@@ -696,7 +655,6 @@ describe("Agent patterns", () => {
         onOptionSelect={onOptionSelect}
         options={[
           {
-            accessibleLabel: "Direction A",
             id: "a",
             label: "Direction A",
           },
@@ -714,7 +672,6 @@ describe("Agent patterns", () => {
         onOptionSelect={onOptionSelect}
         options={[
           {
-            accessibleLabel: "Direction A",
             id: "a",
             label: "Direction A",
           },
@@ -759,14 +716,12 @@ describe("Agent patterns", () => {
           label="Migration team"
           members={[
             {
-              accessibleLabel: "Agent one",
               id: "one",
               label: "Agent one",
               state: "completed",
               statusLabel: "Completed",
             },
             {
-              accessibleLabel: "Agent two",
               id: "two",
               label: "Agent two",
               state: "waiting",

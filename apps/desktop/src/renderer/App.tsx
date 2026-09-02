@@ -10228,13 +10228,19 @@ function Timeline({
               {groupedApprovals.map((grouped) => (
                 <li key={grouped.approvalId}>
                   <div className="approval-card-copy">
-                    <strong>{grouped.summary}</strong>
-                    <small>{grouped.command ?? grouped.paths.join(", ")}</small>
+                    <strong>
+                      <bdi>{grouped.summary}</bdi>
+                    </strong>
+                    <small>
+                      <bdi>{grouped.command ?? grouped.paths.join(", ")}</bdi>
+                    </small>
                     {grouped.actorAgentId && (
                       <small>
                         {t.agentActor}:{" "}
-                        {state.childAgents[grouped.actorAgentId]?.label ??
-                          grouped.actorAgentId}
+                        <bdi>
+                          {state.childAgents[grouped.actorAgentId]?.label ??
+                            grouped.actorAgentId}
+                        </bdi>
                       </small>
                     )}
                   </div>
@@ -10244,7 +10250,7 @@ function Timeline({
                   {grouped.modelReason && (
                     <p className="approval-model-reason">
                       <span>{t.modelReason}</span>
-                      {grouped.modelReason}
+                      <bdi>{grouped.modelReason}</bdi>
                     </p>
                   )}
                 </li>
@@ -10255,13 +10261,19 @@ function Timeline({
       }
       const approvalCopy = (
         <div className="approval-card-copy">
-          <strong>{approval.summary}</strong>
-          <small>{approval.command ?? approval.paths.join(", ")}</small>
+          <strong>
+            <bdi>{approval.summary}</bdi>
+          </strong>
+          <small>
+            <bdi>{approval.command ?? approval.paths.join(", ")}</bdi>
+          </small>
           {approval.actorAgentId && (
             <small>
               {t.agentActor}:{" "}
-              {state.childAgents[approval.actorAgentId]?.label ??
-                approval.actorAgentId}
+              <bdi>
+                {state.childAgents[approval.actorAgentId]?.label ??
+                  approval.actorAgentId}
+              </bdi>
             </small>
           )}
         </div>
@@ -10269,7 +10281,7 @@ function Timeline({
       const modelReason = approval.modelReason ? (
         <p className="approval-model-reason">
           <span>{t.modelReason}</span>
-          {approval.modelReason}
+          <bdi>{approval.modelReason}</bdi>
         </p>
       ) : null;
       if (approval.status !== "pending") {
@@ -10336,9 +10348,13 @@ function Timeline({
           className={`approval-card ${approval.status}`}
           description={
             <>
-              <small>{pendingView.detail}</small>
+              <small>
+                <bdi>{pendingView.detail}</bdi>
+              </small>
               {pendingView.actorLabel && (
-                <small>{pendingView.actorLabel}</small>
+                <small>
+                  <bdi>{pendingView.actorLabel}</bdi>
+                </small>
               )}
             </>
           }
@@ -10352,7 +10368,7 @@ function Timeline({
           reason={modelReason}
           state={pendingView.state}
           statusLabel={t.waiting}
-          title={pendingView.title}
+          title={<bdi>{pendingView.title}</bdi>}
         />
       );
     }

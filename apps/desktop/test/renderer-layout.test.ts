@@ -358,6 +358,14 @@ describe("renderer layout contract", () => {
     expect(stylesSource).toContain("@container (max-width: 320px)");
   });
 
+  it("isolates dynamic approval copy from surrounding RTL direction", () => {
+    expect(appSource).toContain("<bdi>{approval.modelReason}</bdi>");
+    expect(appSource).toContain("<bdi>{pendingView.detail}</bdi>");
+    expect(appSource).toContain("title={<bdi>{pendingView.title}</bdi>}");
+    expect(mainProcessSource).toContain("dynamicCopyBidiIsolated");
+    expect(rootPackage.scripts["verify:feedback-layout"]).toBeTruthy();
+  });
+
   it("keeps the composer in a fixed layout row instead of a sticky overlay", () => {
     const composer = cssRule(".composer-wrap");
     const conversation = cssRule(".conversation");
