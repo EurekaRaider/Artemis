@@ -359,11 +359,18 @@ describe("renderer layout contract", () => {
   });
 
   it("isolates dynamic approval copy from surrounding RTL direction", () => {
-    expect(appSource).toContain("<bdi>{approval.modelReason}</bdi>");
+    expect(appSource).toContain(
+      "<span>{t.modelReason}</span> {approval.modelReason}",
+    );
     expect(appSource).toContain("<bdi>{pendingView.detail}</bdi>");
     expect(appSource).toContain("title={<bdi>{pendingView.title}</bdi>}");
     expect(mainProcessSource).toContain("dynamicCopyBidiIsolated");
     expect(rootPackage.scripts["verify:feedback-layout"]).toBeTruthy();
+    expect(cssRule(".approval-model-reason")).toContain("margin-inline");
+    expect(cssRule(".approval-model-reason")).not.toMatch(
+      /margin-(left|right)/u,
+    );
+    expect(cssRule(".approval-resolved-details")).toContain("margin-inline");
   });
 
   it("keeps the composer in a fixed layout row instead of a sticky overlay", () => {

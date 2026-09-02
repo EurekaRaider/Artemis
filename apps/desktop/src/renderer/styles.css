@@ -3303,11 +3303,12 @@ button.environment-row:disabled {
 }
 
 .approval-resolved-details {
-  margin: 12px 0 0 34px;
+  margin-block: 12px 0;
+  margin-inline: 34px 0;
 }
 
 .approval-resolved-details .approval-model-reason {
-  margin-left: 0;
+  margin-inline-start: 0;
 }
 
 .approval-group-list {
@@ -3371,13 +3372,13 @@ button.environment-row:disabled {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
-  margin: 10px 0 0 34px;
+  margin-block: 10px 0;
+  margin-inline: 34px 0;
 }
 
 .approval-model-reason span {
   color: var(--text);
   font-weight: 650;
-  margin-right: 7px;
 }
 
 .recommendation-badge {

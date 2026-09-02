@@ -10249,8 +10249,9 @@ function Timeline({
                   </time>
                   {grouped.modelReason && (
                     <p className="approval-model-reason">
-                      <span>{t.modelReason}</span>
-                      <bdi>{grouped.modelReason}</bdi>
+                      <bdi>
+                        <span>{t.modelReason}</span> {grouped.modelReason}
+                      </bdi>
                     </p>
                   )}
                 </li>
@@ -10280,8 +10281,9 @@ function Timeline({
       );
       const modelReason = approval.modelReason ? (
         <p className="approval-model-reason">
-          <span>{t.modelReason}</span>
-          <bdi>{approval.modelReason}</bdi>
+          <bdi>
+            <span>{t.modelReason}</span> {approval.modelReason}
+          </bdi>
         </p>
       ) : null;
       if (approval.status !== "pending") {
