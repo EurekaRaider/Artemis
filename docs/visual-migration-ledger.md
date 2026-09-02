@@ -527,8 +527,8 @@ WorkspaceContentState. The package owns presentational anatomy, finite visual
 states, accessible roles, focus floors, tokenized layout, and bounded geometry
 validation. Desktop continues to own tab identity and reduction, focus transfer,
 resize callbacks and persistence, project/file IPC, syntax tokenization, draft
-state, save effects and errors, image resolution, localization, and permission
-decisions.
+state, save effects and errors, save-shortcut and IME guards, image resolution,
+localization, and permission decisions.
 
 The real Desktop Dock, tabs, launcher, file tree, source editor, Markdown
 source/preview toggle, standalone Markdown reader, binary read-only state, and
@@ -537,8 +537,9 @@ save toolbar now consume the public components. The migration preserves the
 open/close visibility, transition-free live resizing, exact pixel separator
 ARIA, mouse and Arrow/Home/End resize behavior, tab roving focus and close focus
 transfer, Meta/Ctrl+S with IME guard, dirty/saving/saved/error states, the
-250,000-character syntax-highlight limit, and accessible missing-image
-fallbacks. Browser and Terminal remain outside this phase.
+250,000-character syntax-highlight limit without invoking the tokenizer above
+that threshold, and accessible missing-image fallbacks. Browser and Terminal
+remain outside this phase.
 
 Gallery raises the default/stress conformance matrix from 36 to 40 cases per
 skin while preserving the same 64 runtime vertices. Its four Workspace cases
@@ -556,9 +557,10 @@ highlight threshold. The Dock matrix covers the four-action empty launcher,
 two closable tabs, roving selection, focus transfer after close, real mouse
 drag, Arrow/Home/End resizing, exact pixel separator ARIA, open/closed/reopened
 states, conversation minimum width, scrollbar boundary ownership, and dark
-200% zoom. Both verifiers reject a dirty worktree or an unexpected candidate
-SHA. Exact candidate-head results belong in PR evidence because writing the
-resulting SHA into this tracked ledger would create a self-reference.
+200% zoom, plus mirrored pointer and Arrow behavior in an Arabic RTL case. Both
+verifiers reject a dirty worktree or an unexpected candidate SHA. Exact
+candidate-head results belong in PR evidence because writing the resulting SHA
+into this tracked ledger would create a self-reference.
 
 ## Component and surface sequence
 
@@ -578,7 +580,7 @@ resulting SHA into this tracked ledger would create a self-reference.
 | Artemis-specific presentational patterns                                  | component          | `@artemis/ui`             | Desktop adapter layer             | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                          | Merged at `44634b9`                     |
 | Reference slice: shell, activity bar, sidebar, header, Composer, Approval | surface            | `@artemis/ui` + Desktop   | users                             | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom and state matrix         | Merged at `db17c67`                     |
 | Conversation, Timeline, trusted-AI states                                 | surface            | `@artemis/ui` + Desktop   | users                             | message/timeline/status selectors                | MIG2      | State, scroll, interaction, performance, exact-head Electron | Merged at `a9dd2d4`                     |
-| Workspace, Dock, file/Markdown edit and preview                           | surface            | `@artemis/ui` + Desktop   | users                             | workspace/dock/editor selectors                  | MIG3A     | Tabs, resize, save/error, geometry, exact-head Electron      | Candidate; exact-head Electron pending  |
+| Workspace, Dock, file/Markdown edit and preview                           | surface            | `@artemis/ui` + Desktop   | users                             | workspace/dock/editor selectors                  | MIG3A     | Tabs, resize, save/error, geometry, exact-head Electron      | Reviewer approved; final CI pending     |
 | Review, Diff, Environment, Goal, Sources                                  | surface            | `@artemis/ui` + Desktop   | users                             | review/environment/source selectors              | MIG3B     | State, permission and overlay geometry matrix                | Pending                                 |
 | Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | Pending                                 |
 | Settings, Resource Center, MCP Editor                                     | surface            | `@artemis/ui` + Desktop   | users                             | feature-local renderer styles                    | MIG5A     | Form, permission, privacy and exact-head Electron matrix     | Pending                                 |
