@@ -836,12 +836,6 @@ async function referenceSliceGeometry(connection) {
         toolbar: rect('[data-artemis-component="toolbar"].workspace-header'),
         controls,
         headerControls,
-        surfaceNodes: {
-          shell: document.querySelector('[data-artemis-component="application-shell"]'),
-          activity: document.querySelector('[data-artemis-component="activity-bar"]'),
-          sidebar: document.querySelector('[data-artemis-component="navigation-sidebar"]'),
-          composer: document.querySelector('[data-artemis-component="composer-surface"]'),
-        },
       };
     })()`,
   );
