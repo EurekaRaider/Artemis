@@ -2178,7 +2178,11 @@ const caseRunners = {
               <BrowserNavigationButton icon={<MatrixIcon />} label="رجوع" />
             </BrowserNavigation>
             <BrowserAddressForm label="عنوان المتصفح">
-              <BrowserAddressInput label="العنوان" value={longAddress} />
+              <BrowserAddressInput
+                label="العنوان"
+                readOnly
+                value={longAddress}
+              />
               <BrowserGoButton label="انتقال" />
             </BrowserAddressForm>
           </BrowserToolbar>
