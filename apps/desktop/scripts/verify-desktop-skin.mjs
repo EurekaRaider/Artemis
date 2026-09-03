@@ -626,6 +626,19 @@ export function App() {
 `;
 }
 
+function xtermWrapperModuleSource(path) {
+  return `
+import { Terminal as ProductionTerminal } from ${JSON.stringify(path)};
+
+export class Terminal extends ProductionTerminal {
+  constructor(options) {
+    super(options);
+    globalThis.__ARTEMIS_SKIN_SMOKE_XTERM__ = this;
+  }
+}
+`;
+}
+
 async function buildSmokePreload() {
   const productionSource = await readFile(
     join(appDirectory, "src/preload/preload.ts"),
@@ -1713,7 +1726,7 @@ async function driveElectron() {
       `Terminal write/resize IPC evidence was incomplete: ${JSON.stringify(terminalResizeEvidence)}`,
     );
 
-    await evaluate(
+    const terminalSelectionEvidence = await evaluate(
       connection,
       `(() => {
         globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__ = {
@@ -1726,90 +1739,41 @@ async function driveElectron() {
           globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__.eventText =
             event.clipboardData?.getData("text/plain") ?? "";
         });
-      })()`,
-    );
-    const terminalSelectionPoint = await evaluate(
-      connection,
-      `(() => {
-        const rows = [
-          ...document.querySelectorAll(".terminal-host .xterm-rows > div"),
-        ];
-        const row = rows.find((candidate) =>
-          (candidate.textContent ?? "").includes("Artemis>"),
-        );
-        const screen = document.querySelector(".terminal-host .xterm-screen");
-        const measure = document.querySelector(
-          ".terminal-host .xterm-char-measure-element",
-        );
-        if (!(row instanceof HTMLElement) || !(screen instanceof HTMLElement)) {
-          throw new Error("Rendered Artemis prompt row is unavailable.");
+        const xterm = globalThis.__ARTEMIS_SKIN_SMOKE_XTERM__;
+        if (!xterm) {
+          throw new Error("Dedicated smoke xterm instance is unavailable.");
         }
-        const rowBounds = row.getBoundingClientRect();
-        const screenBounds = screen.getBoundingClientRect();
-        const measuredWidth = measure?.getBoundingClientRect().width ?? 0;
-        const cellWidth = measuredWidth > 0 ? measuredWidth : 7;
-        const promptOffset = Math.max(0, (row.textContent ?? "").indexOf("Artemis>"));
+        let prompt;
+        for (let row = 0; row < xterm.buffer.active.length; row += 1) {
+          const text = xterm.buffer.active.getLine(row)?.translateToString(true) ?? "";
+          const column = text.indexOf("Artemis>");
+          if (column >= 0) {
+            prompt = { column, row, text };
+            break;
+          }
+        }
+        if (!prompt) throw new Error("Synthetic prompt is absent from xterm's buffer.");
+        xterm.select(prompt.column, prompt.row, "Artemis".length);
+        document.querySelector(".xterm-helper-textarea")?.focus();
+        const selectedText = xterm.getSelection();
+        const selectionPosition = xterm.getSelectionPosition();
+        const copyInvoked = document.execCommand("copy");
         return {
-          cellWidth,
-          endX: screenBounds.left + cellWidth * (promptOffset + 7.5),
-          startX: screenBounds.left + cellWidth * (promptOffset + 0.5),
-          y: rowBounds.top + rowBounds.height / 2,
+          copyEvent: globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__,
+          copyInvoked,
+          prompt,
+          selectedText,
+          selectionPosition,
         };
       })()`,
     );
-    await connection.send("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x: terminalSelectionPoint.startX,
-      y: terminalSelectionPoint.y,
-    });
-    await connection.send("Input.dispatchMouseEvent", {
-      button: "left",
-      buttons: 1,
-      clickCount: 1,
-      type: "mousePressed",
-      x: terminalSelectionPoint.startX,
-      y: terminalSelectionPoint.y,
-    });
-    await connection.send("Input.dispatchMouseEvent", {
-      button: "left",
-      buttons: 1,
-      type: "mouseMoved",
-      x: terminalSelectionPoint.endX,
-      y: terminalSelectionPoint.y,
-    });
-    await connection.send("Input.dispatchMouseEvent", {
-      button: "left",
-      buttons: 0,
-      clickCount: 1,
-      type: "mouseReleased",
-      x: terminalSelectionPoint.endX,
-      y: terminalSelectionPoint.y,
-    });
-    const copyInvoked = await evaluate(
-      connection,
-      'document.execCommand("copy")',
-    );
-    await waitFor(
-      connection,
-      'globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__?.count === 1 && globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__.eventText.includes("Artemis")',
-      "xterm selection copied through the real clipboard event",
-      15_000,
-    );
-    const terminalSelectionEvidence = {
-      ...(await evaluate(
-        connection,
-        `(() => ({
-          copyEvent: globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__,
-          point: ${JSON.stringify(terminalSelectionPoint)},
-        }))()`,
-      )),
-      copyInvoked,
-    };
     assert(
       terminalSelectionEvidence.copyEvent?.count === 1 &&
         terminalSelectionEvidence.copyEvent?.eventText.includes("Artemis") &&
-        terminalSelectionEvidence.point?.cellWidth > 0 &&
-        copyInvoked === true,
+        terminalSelectionEvidence.copyInvoked === true &&
+        terminalSelectionEvidence.selectedText === "Artemis" &&
+        terminalSelectionEvidence.selectionPosition?.start?.x ===
+          terminalSelectionEvidence.prompt?.column + 1,
       `Terminal selection/copy evidence was incomplete: ${JSON.stringify(terminalSelectionEvidence)}`,
     );
 
@@ -2405,6 +2369,7 @@ try {
 
   const fixtureRegistry = join(temporaryDirectory, "skin-smoke-registry.ts");
   const fixtureWrapper = join(temporaryDirectory, "skin-smoke-app.tsx");
+  const fixtureXtermWrapper = join(temporaryDirectory, "skin-smoke-xterm.mjs");
   const fixturePaths = {
     app: resolve(appDirectory, "src/renderer/App.tsx"),
     bootstrap: resolve(appDirectory, "src/renderer/desktop-skin-bootstrap.ts"),
@@ -2413,9 +2378,14 @@ try {
       repositoryRoot,
       "apps/ui-gallery/src/stress-skin-fixture.mjs",
     ),
+    xterm: resolve(repositoryRoot, "node_modules/@xterm/xterm/lib/xterm.mjs"),
   };
   await writeFile(fixtureRegistry, fixtureModuleSource(fixturePaths));
   await writeFile(fixtureWrapper, wrapperModuleSource(fixturePaths));
+  await writeFile(
+    fixtureXtermWrapper,
+    xtermWrapperModuleSource(fixturePaths.xterm),
+  );
   run("npx", ["vite", "build", "--config", "vite.skin-smoke.config.ts"], {
     cwd: appDirectory,
     timeout: 300_000,
@@ -2423,6 +2393,7 @@ try {
       ...process.env,
       ARTEMIS_SKIN_SMOKE_APP_WRAPPER: fixtureWrapper,
       ARTEMIS_SKIN_SMOKE_REGISTRY: fixtureRegistry,
+      ARTEMIS_SKIN_SMOKE_XTERM_WRAPPER: fixtureXtermWrapper,
     },
   });
   const dedicatedFindings = await desktopSkinLeakage(smokeRendererDirectory);
