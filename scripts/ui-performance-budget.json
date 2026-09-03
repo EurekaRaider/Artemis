@@ -31,13 +31,10 @@
       "galleryJsBytes": 365000,
       "uiCssBytes": 153000
     },
-    "startupStageMaximumMs": {
-      "app-ready": 2000,
-      "diagnostics-ready": 3500,
-      "core-state-ready": 5000,
-      "window-created": 8000,
-      "update-ready": 10000,
-      "renderer-ready": 15000
+    "startup": {
+      "baselineMultiplier": 4,
+      "jitterAllowanceMs": 500,
+      "note": "Each stage ceiling is its merged-base maximum times four plus 500 ms of cross-runner jitter."
     },
     "workloadWallClockMs": {
       "screenshot-matrix": 180000,

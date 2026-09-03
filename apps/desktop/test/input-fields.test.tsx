@@ -611,7 +611,9 @@ describe("avatar keyboard reachability (§5 file-键盘红测, fix ① sr-only)"
       stylesSource,
       '.profile-avatar-input:focus-visible + [data-artemis-component="button"]',
     );
-    expect(block).toContain("outline: 2px solid var(--blue)");
+    expect(block).toContain(
+      "outline: calc(var(--artemis-border-width-default) * 2) solid var(--blue)",
+    );
     expect(block).toContain("outline-offset: calc(var(--artemis-space-1) / 2)");
   });
 

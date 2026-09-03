@@ -1,10 +1,11 @@
 # Artemis Skin v1 compatibility ledger
 
 Status: Skin v1 compatibility remains fixed through merged MIG5B base
-`3b024552ab520d83982aaadf5185404d7b8325ce`. MIG6 is a local convergence
-candidate; its exact PR-head CI, sole post-PR review, and merge remain pending.
-SKIN1 has not started. This document records what is enforced now and which
-runtime behavior remains owned by later serialized milestones.
+`3b024552ab520d83982aaadf5185404d7b8325ce`. MIG6 is Draft PR #147. Its sole
+post-PR review completed on initial source head `ebe6741`; the combined repair,
+fresh exact-head native CI, and merge remain pending. SKIN1 has not started.
+This document records what is enforced now and which runtime behavior remains
+owned by later serialized milestones.
 
 ## v1 package contract
 
@@ -362,10 +363,11 @@ is approved:
 
 They belong to the independent SKIN1 sequence after MIG6. The MIG6 candidate
 adds convergence governance and evidence only; it does not implement any item
-above. SKIN1 may start only after the exact MIG6 PR head passes native CI,
-receives its single post-PR review, and merges. A packable workspace tarball and
-an outside consumer proof are packaging tests, not publication or a
-user-install feature.
+above. SKIN1 may start only after the exact MIG6 PR head passes native CI and
+merges. The one permitted post-PR review is already complete and remains scoped
+to initial head `ebe6741`; the combined repair will not receive a second review.
+A packable workspace tarball and an outside consumer proof are packaging tests,
+not publication or a user-install feature.
 
 ## Stop conditions and rollback
 

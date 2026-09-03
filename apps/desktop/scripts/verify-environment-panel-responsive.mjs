@@ -45,6 +45,7 @@ async function runCase(
       "--disable-gpu",
       "--disable-gpu-compositing",
       "--disable-gpu-sandbox",
+      "--force-prefers-no-reduced-motion",
       "--use-angle=swiftshader",
     ],
     {
@@ -136,6 +137,10 @@ try {
   assert(
     dock.dockTransition,
     "Workspace Tab Dock transition evidence is missing.",
+  );
+  assert(
+    dock.feedbackLayout?.reducedMotion === false,
+    "Workspace Tab Dock animation case did not force no-preference motion.",
   );
   assert(
     dock.dockTransition.middle.dock.width >

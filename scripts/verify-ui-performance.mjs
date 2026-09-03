@@ -37,6 +37,33 @@ function assertBudget(name, actual, maximum, violations) {
   }
 }
 
+export function startupStageMaximums(budget) {
+  const baseline = budget.baseline?.startupStageMaximumMs;
+  const policy = budget.thresholds?.startup;
+  const multiplier = policy?.baselineMultiplier;
+  const jitter = policy?.jitterAllowanceMs;
+  if (
+    baseline === undefined ||
+    typeof baseline !== "object" ||
+    !Number.isFinite(multiplier) ||
+    multiplier < 1 ||
+    !Number.isFinite(jitter) ||
+    jitter < 0
+  ) {
+    throw new Error(
+      "UI performance startup budget requires a baseline, multiplier >= 1, and non-negative jitter allowance",
+    );
+  }
+  return Object.fromEntries(
+    Object.entries(baseline).map(([stage, value]) => {
+      if (!Number.isFinite(value) || value < 0) {
+        throw new Error(`Invalid startup baseline for ${stage}`);
+      }
+      return [stage, Math.round((value * multiplier + jitter) * 10) / 10];
+    }),
+  );
+}
+
 function argument(name) {
   const index = process.argv.indexOf(name);
   return index === -1 ? undefined : process.argv[index + 1];
@@ -66,6 +93,7 @@ export async function verifyUiPerformance(
     assertBudget(name, metrics[name], maximum, violations);
   }
 
+  const startupThresholds = startupStageMaximums(budget);
   let startupStageMaximumMs;
   if (screenshotManifestPath !== undefined) {
     const manifest = JSON.parse(await readFile(screenshotManifestPath, "utf8"));
@@ -78,9 +106,7 @@ export async function verifyUiPerformance(
         );
       }
     }
-    for (const [stage, maximum] of Object.entries(
-      budget.thresholds.startupStageMaximumMs,
-    )) {
+    for (const [stage, maximum] of Object.entries(startupThresholds)) {
       assertBudget(
         `startup.${stage}`,
         startupStageMaximumMs[stage],
@@ -98,7 +124,10 @@ export async function verifyUiPerformance(
     baseline: budget.baseline,
     metrics,
     startupStageMaximumMs,
-    thresholds: budget.thresholds,
+    thresholds: {
+      ...budget.thresholds,
+      startupStageMaximumMs: startupThresholds,
+    },
   };
 }
 

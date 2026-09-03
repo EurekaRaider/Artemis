@@ -1,21 +1,25 @@
 # Discussion #76 visual migration ledger
 
-Status: MIG6 convergence and governance local candidate. MIG5B final 1.4.58 PR
+Status: MIG6 convergence and governance Draft PR #147. MIG5B final 1.4.58 PR
 head `b67d208b7972e2083e8752c677c37f2328913e77` passed fresh CI and merged
 through PR #146 as squash commit
-`3b024552ab520d83982aaadf5185404d7b8325ce`. MIG6 implementation checkpoint
-`2a38040a6e0a5d103ba151932cf08025b36ef51f` is based on that merge. The 1.4.59
-metadata and documentation candidate remains local: its exact PR head, native
-macOS arm64, macOS x64 and Windows x64 CI, sole post-PR review, and merge are
-not yet complete. This ledger separates static prototype evidence,
-package/Gallery evidence, and production Electron evidence. It must not be used
-to turn a prototype, Gallery pass, or attribute-only resolver pass into a
-migrated production surface.
+`3b024552ab520d83982aaadf5185404d7b8325ce`. MIG6 opened at source head
+`ebe6741e2dc92222638bf4b22de07ce43d667b32`; its one permitted post-PR review
+completed on that SHA. Findings from that review and initial CI run
+`33750952835` are combined in the current local repair. The repaired exact PR
+head, fresh native macOS arm64, macOS x64 and Windows x64 CI, and merge are not
+yet complete. This ledger separates static prototype evidence, package/Gallery
+evidence, and production Electron evidence. It must not be used to turn a
+prototype, Gallery pass, or attribute-only resolver pass into a migrated
+production surface.
 
 ## Inputs and evidence boundary
 
 - MIG6 candidate base: `3b024552ab520d83982aaadf5185404d7b8325ce`
   (MIG5B merged).
+- Draft PR #147 initial source head:
+  `ebe6741e2dc92222638bf4b22de07ce43d667b32`; the sole review is scoped to
+  this SHA, while the combined repair and its fresh CI remain pending.
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -763,18 +767,26 @@ and automated comments without another Validator/Reviewer pass.
 
 MIG6 removes only selectors proven unreachable from the production renderer
 entry point. A TypeScript AST reachability pass now owns that decision and
-rejects unknown static or computed class names before CSS cleanup can be
-accepted. The candidate removes 50 proven-unused selectors, replaces 18
-hardcoded spacing values with existing Artemis tokens, and retains seven
-runtime-generated class names through four exact, documented mappings:
-`drop-before`/`drop-after`, `composer-notice`/`view-notice`, `starting`, and
-`blocker`/`handoff`. Three necessary public overrides remain explicitly
-allowlisted with owner, reason, and evidence: the Composer and Review select
+recognizes only real `className`, DOM class, and generated-markup sinks. It
+checks exact compound class combinations, production ID and data-attribute
+consumers, finite runtime class unions, and renderer reachability before CSS
+cleanup can be accepted. The candidate removes 65 proven-unused selector
+alternatives and replaces 22 hardcoded spacing or border values with existing
+Artemis tokens. Fifteen documented mappings register 45 exact runtime or
+cross-component class-name sets, including complete task, automation, child
+agent, review, syntax, token-usage, Sources, and external-link state domains.
+Three necessary public overrides remain exactly allowlisted, including
+`!important` state, owner, reason, and evidence: the Composer and Review select
 stacking contexts, plus the isolated Browser white canvas.
 
-The convergence gate includes accepted and rejected fixtures for static,
-dynamic, and forbidden selectors. The performance gate records byte and
-startup budgets against merged base `3b02455`; implementation checkpoint
+The convergence gate includes four accepted and thirteen rejected fixtures for
+real class sinks, compound selectors, ID/data selectors, finite domains, and
+raw/token-only public-component declarations. Raw registrations cannot be
+bypassed by adding a token reference to a hardcoded color, dimension, or
+unitless stacking value. The performance gate records byte and startup budgets
+against merged base `3b02455`; every startup ceiling is now derived from the
+corresponding merged-base maximum times four plus 500 ms of cross-runner
+jitter, instead of a multi-second absolute allowance. Implementation checkpoint
 `2a38040` measured Desktop CSS at 287,911 bytes, Desktop JavaScript at
 1,855,194 bytes, largest Desktop chunk at 853,244 bytes, Gallery CSS at 180,175
 bytes, Gallery JavaScript at 355,604 bytes, and public UI CSS at 151,849 bytes.
@@ -793,13 +805,31 @@ isolation with Node integration disabled, and rejected sandbox fallbacks. Root
 tests, typecheck, production build, formatting, UI boundaries, skin
 conformance, and bundle/startup budgets passed at that checkpoint.
 
+The sole post-PR review examined exact source head `ebe6741` and found six
+issues: CI was testing GitHub's synthetic merge SHA, Windows packaging omitted
+the native boundary verifier, selector evidence allowed unrelated strings and
+partial compounds, explicit light/dark smoke cases did not persist the matching
+application preference, startup ceilings were too permissive, and raw override
+identity did not include `!important` or mixed token/raw values. Initial CI run
+`33750952835` passed its base test/typecheck/build/format jobs, all three Gallery
+jobs, and Windows native sandbox verification. Its three visual-convergence
+jobs exposed two additional environment assumptions: Windows started at a
+1024×768 desktop and macOS runners reported reduced motion during the Dock
+animation case. The combined repair pins checkout and expected evidence to the
+PR source SHA, configures a 1920×1080 Windows desktop, runs the final Windows
+native-package verifier, forces and asserts normal motion for that animation,
+persists and observes the requested smoke theme, and closes all six review
+findings. Because the repair changes the source head, that one review remains
+evidence for `ebe6741` only; no second review will be started.
+
 The final acceptance target is the exact clean 1.4.59 PR head. Its SHA and
 generated report paths belong in PR evidence rather than as a self-referential
 value in this commit. CI must reproduce the aggregate audit on native macOS
 arm64, macOS x64, and Windows x64 runners; Windows must also inspect its final
-package. Per the review policy, MIG6 receives no separate pre-PR validator and
-exactly one review after the PR exists. This local evidence does not establish
-the still-pending native x64 results, signing, notarization, stapling,
+package. Per the review policy, MIG6 received no separate pre-PR validator and
+exactly one review after the PR existed. Fresh CI on the repaired head remains
+the pending platform gate. This local evidence does not establish the
+still-pending native x64 results, signing, notarization, stapling,
 clean-install/update/rollback behavior, real provider or hardware behavior,
 screen-reader acceptance, or soak stability. No release artifact was
 downloaded for checksum, ZIP, or DMG verification. SKIN1 has not started.
@@ -827,7 +857,7 @@ downloaded for checksum, ZIP, or DMG verification. SKIN1 has not started.
 | Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | Merged at `94d1c0d`                                          |
 | Settings, Resource Center, MCP Editor                                     | surface            | `@artemis/ui` + Desktop   | users                             | feature-local renderer styles                    | MIG5A     | Form, permission, privacy and exact-head Electron matrix     | Merged at `e855865`                                          |
 | Archive, Usage, Automation                                                | surface            | `@artemis/ui` + Desktop   | users                             | secondary-page selectors                         | MIG5B     | Real-data, a11y, schedule and exact-head Electron matrix     | Merged at `3b02455` via PR #146                              |
-| Convergence and governance cleanup                                        | surface/governance | Desktop + CI              | users/contributors                | remaining proven-unused legacy selectors         | MIG6      | Complete exact-head runtime/performance/platform matrix      | Local implementation complete; PR CI and sole review pending |
+| Convergence and governance cleanup                                        | surface/governance | Desktop + CI              | users/contributors                | remaining proven-unused legacy selectors         | MIG6      | Complete exact-head runtime/performance/platform matrix      | Draft #147; combined repair/CI pending; sole review complete |
 
 ## Production behavior regression input
 

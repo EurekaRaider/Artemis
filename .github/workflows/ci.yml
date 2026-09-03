@@ -105,6 +105,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Node.js 24
         uses: actions/setup-node@v7
@@ -115,15 +117,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Configure Windows display for desktop geometry
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          Get-DisplayResolution
+
       - name: Verify exact-head visual convergence
         run: npm run verify:visual-convergence
         env:
-          ARTEMIS_EXPECTED_HEAD: ${{ github.sha }}
+          ARTEMIS_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
           ARTEMIS_VISUAL_CONVERGENCE_OUTPUT: ${{ runner.temp }}/artemis-visual-convergence
 
       - name: Verify the locally built Windows package boundary
         if: runner.os == 'Windows'
-        run: npm run package:win
+        run: |
+          npm run package:win
+          npm run verify:win-native -w @artemis/desktop
 
       - name: Upload visual convergence evidence
         if: always()

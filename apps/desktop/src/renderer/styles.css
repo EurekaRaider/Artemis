@@ -275,7 +275,6 @@ body {
   width: 100%;
 }
 
-.icon-button,
 .model-button,
 .text-button {
   align-items: center;
@@ -285,11 +284,6 @@ body {
   cursor: pointer;
   display: inline-flex;
   justify-content: center;
-}
-
-.icon-button:hover {
-  background: var(--hover);
-  color: var(--text);
 }
 
 .sidebar,
@@ -324,7 +318,6 @@ body {
 }
 
 .sidebar-header,
-.panel-header,
 .terminal-header {
   align-items: center;
   display: flex;
@@ -338,11 +331,6 @@ body {
   font-weight: 600;
   height: 56px;
   padding: 0 10px 0 18px;
-}
-
-.icon-button {
-  height: 28px;
-  width: 28px;
 }
 
 .sidebar-header-actions {
@@ -811,8 +799,7 @@ body {
 }
 
 .status-dot.waiting-approval,
-.status-dot.waiting-user-input,
-.status-dot.queued {
+.status-dot.waiting-user-input {
   background: var(--warning);
 }
 
@@ -820,7 +807,6 @@ body {
   background: var(--danger);
 }
 
-.status-dot.completed,
 .status-dot.idle {
   background: var(--success);
 }
@@ -2119,10 +2105,6 @@ button.environment-row:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-.environment-activity-row.static {
-  grid-template-columns: 24px minmax(0, 1fr);
-}
-
 .environment-source-row img {
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -2221,42 +2203,6 @@ button.environment-row:disabled {
 .workspace-content[data-resizing="true"] {
   cursor: col-resize;
   user-select: none;
-}
-
-.empty-state {
-  align-items: center;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  margin: auto;
-  max-width: 480px;
-  min-height: 360px;
-  padding: 38px;
-  text-align: center;
-}
-
-.empty-state .artemis-mark {
-  height: 42px;
-  width: 42px;
-}
-
-.empty-state .artemis-mark img {
-  height: 100%;
-  width: 100%;
-}
-
-.empty-state h1 {
-  font-size: 22px;
-  letter-spacing: -0.025em;
-  margin: 18px 0 8px;
-}
-
-.empty-state p {
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
-  margin: 0 0 20px;
 }
 
 .conversation-empty-state .artemis-mark {
@@ -6465,12 +6411,6 @@ button.sources-panel-entry.attachment:focus-visible {
   width: 100%;
 }
 
-.panel-header {
-  border-bottom: 1px solid var(--border);
-  height: 42px;
-  padding: 0 12px;
-}
-
 .text-button {
   cursor: pointer;
   font-size: 11px;
@@ -6692,11 +6632,11 @@ button.sources-panel-entry.attachment:focus-visible {
   gap: 4px;
 }
 
-.addition {
+.review-line.addition {
   color: var(--success);
 }
 
-.deletion {
+.review-line.deletion {
   color: #e9797e;
 }
 
@@ -7231,7 +7171,7 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .profile-avatar-input:focus-visible + [data-artemis-component="button"] {
-  outline: 2px solid var(--blue);
+  outline: calc(var(--artemis-border-width-default) * 2) solid var(--blue);
   outline-offset: calc(var(--artemis-space-1) / 2);
 }
 
@@ -7394,10 +7334,6 @@ button.sources-panel-entry.attachment:focus-visible {
   color: var(--muted);
   line-height: 1.5;
   margin: 0;
-}
-
-.model-delete-dialog p.warning {
-  color: var(--warning);
 }
 
 .model-delete-dialog .primary-button.danger {
@@ -8274,7 +8210,7 @@ button.sources-panel-entry.attachment:focus-visible {
 .token-usage-summary
   > [data-artemis-component="data-stat"]
   + [data-artemis-component="data-stat"] {
-  border-left: 1px solid var(--border-soft);
+  border-left: var(--artemis-border-width-default) solid var(--border-soft);
 }
 
 .token-usage-activity-header {
@@ -8320,10 +8256,6 @@ button.sources-panel-entry.attachment:focus-visible {
   font-size: 13px;
   margin: 18px 0 0;
   text-align: center;
-}
-
-.token-usage-empty.error {
-  color: var(--danger);
 }
 
 .token-usage-models {
@@ -8515,7 +8447,7 @@ button.sources-panel-entry.attachment:focus-visible {
   }
 
   .token-usage-summary > [data-artemis-component="data-stat"] {
-    border-bottom: 1px solid var(--border-soft);
+    border-bottom: var(--artemis-border-width-default) solid var(--border-soft);
     min-height: 92px;
   }
 
@@ -8526,7 +8458,7 @@ button.sources-panel-entry.attachment:focus-visible {
   }
 
   .token-usage-summary > [data-artemis-component="data-stat"]:nth-child(even) {
-    border-left: 1px solid var(--border-soft);
+    border-left: var(--artemis-border-width-default) solid var(--border-soft);
   }
 
   .token-usage-summary > [data-artemis-component="data-stat"]:last-child {

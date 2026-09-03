@@ -19529,11 +19529,15 @@ app
     );
     nativeTheme.on("updated", syncWindowBackgroundColors);
     const smokeTheme = process.env.ARTEMIS_SMOKE_THEME;
-    applyNativeTheme(
-      smokeMode && (smokeTheme === "light" || smokeTheme === "dark")
-        ? smokeTheme
-        : await settingsStore.themePreference(),
-    );
+    if (
+      smokeMode &&
+      (smokeTheme === "system" ||
+        smokeTheme === "light" ||
+        smokeTheme === "dark")
+    ) {
+      await settingsStore.setThemePreference(smokeTheme);
+    }
+    applyNativeTheme(await settingsStore.themePreference());
     languagePreference = await settingsStore.languagePreference();
     resolvedLocalePreference = resolveAppLocale(
       languagePreference,

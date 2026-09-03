@@ -12,7 +12,7 @@ let rejected = 0;
 
 async function fixture({
   contract = { dynamicClassConsumers: [], rawComponentOverrides: [] },
-  main = 'import "./used.js";\nexport const className = "used";\n',
+  main = 'import "./used.js";\nexport const view = <div className="used" data-artemis-component="button" />;\n',
   styles = ".used { color: var(--artemis-color-text-primary); }\n",
   extraFiles = {},
 } = {}) {
@@ -22,6 +22,7 @@ async function fixture({
     "apps/desktop/src/renderer/main.tsx": main,
     "apps/desktop/src/renderer/used.ts": "export const used = true;\n",
     "apps/desktop/src/renderer/styles.css": styles,
+    "apps/desktop/index.html": '<div id="root"></div>\n',
     "apps/desktop/tsconfig.json": tsconfig,
     "packages/ui/src/index.ts": "export {};\n",
     "packages/ui/tsconfig.json": tsconfig,
@@ -67,7 +68,51 @@ await runCase(
       ".used { color: var(--artemis-color-text-primary); }\n.stale { display: block; }\n",
   },
   false,
-  ".stale has no production class consumer",
+  ".stale has no production className consumer",
+);
+await runCase(
+  "unrelated string is not a class consumer",
+  {
+    main: 'import "./used.js";\nimport "react";\nexport const label = "react";\nexport const view = <div className="used" />;\n',
+    styles: ".used { display: block; }\n.react { display: block; }\n",
+  },
+  false,
+  ".react has no production className consumer",
+);
+await runCase(
+  "separate class names do not satisfy a compound selector",
+  {
+    main: 'import "./used.js";\nexport const view = <><div className="used" /><div className="active" /></>;\n',
+    styles: ".used.active { display: block; }\n",
+  },
+  false,
+  ".used.active has no production className consumer",
+);
+await runCase(
+  "attribute does not split a compound class requirement",
+  {
+    main: 'import "./used.js";\nexport const view = <><div className="used" data-state="ready" /><div className="active" /></>;\n',
+    styles: '.used[data-state="ready"].active { display: block; }\n',
+  },
+  false,
+  ".used.active has no production className consumer",
+);
+await runCase(
+  "unused data selector",
+  {
+    styles:
+      ".used { display: block; }\n[data-never-rendered] { display: block; }\n",
+  },
+  false,
+  "[data-never-rendered] has no production data-attribute consumer",
+);
+await runCase(
+  "unused id selector",
+  {
+    styles: ".used { display: block; }\n#never-rendered { display: block; }\n",
+  },
+  false,
+  "#never-rendered has no production id consumer",
 );
 await runCase(
   "unreachable adapter",
@@ -100,6 +145,7 @@ await runCase(
           selector: '[data-artemis-component="button"]',
           property: "z-index",
           value: "80",
+          important: false,
           owner: "Fixture overlay",
           reason: "The fixture has no layer token.",
         },
@@ -110,10 +156,59 @@ await runCase(
   },
   true,
 );
+await runCase(
+  "important raw override drift",
+  {
+    contract: {
+      dynamicClassConsumers: [],
+      rawComponentOverrides: [
+        {
+          atRules: [],
+          selector: '[data-artemis-component="button"]',
+          property: "z-index",
+          value: "80",
+          important: false,
+          owner: "Fixture overlay",
+          reason: "The fixture has no layer token.",
+        },
+      ],
+    },
+    styles:
+      '.used { display: block; }\n[data-artemis-component="button"] { z-index: 80 !important; }\n',
+  },
+  false,
+  "unregistered raw public-component override",
+);
+await runCase(
+  "mixed token and raw override",
+  {
+    styles:
+      '.used { display: block; }\n[data-artemis-component="button"] { gap: calc(var(--artemis-space-2) + 999px); }\n',
+  },
+  false,
+  "unregistered raw public-component override",
+);
+await runCase(
+  "mixed token and unitless raw override",
+  {
+    styles:
+      '.used { display: block; }\n[data-artemis-component="button"] { z-index: calc(var(--artemis-layer-overlay) + 999); }\n',
+  },
+  false,
+  "unregistered raw public-component override",
+);
+await runCase(
+  "token-only override calculation",
+  {
+    styles:
+      '.used { display: block; }\n[data-artemis-component="button"] { gap: calc(var(--artemis-space-2) + var(--artemis-border-width-default)); }\n',
+  },
+  true,
+);
 const dynamicContract = (contains) => ({
   dynamicClassConsumers: [
     {
-      classes: ["dynamic-before"],
+      classNameSets: [["dynamic-before"]],
       owner: "Fixture ordering",
       reason: "A finite edge is appended at runtime.",
       sources: [{ path: "apps/desktop/src/renderer/main.tsx", contains }],
@@ -122,7 +217,7 @@ const dynamicContract = (contains) => ({
   rawComponentOverrides: [],
 });
 const dynamicMain =
-  'import "./used.js";\nconst edge: "before" = "before";\nexport const className = `dynamic-${edge}`;\n';
+  'import "./used.js";\nconst edge: "before" = "before";\nexport const view = <div className={`dynamic-${edge}`} />;\n';
 await runCase(
   "dynamic finite class",
   {
@@ -141,6 +236,32 @@ await runCase(
   },
   false,
   "dynamic class evidence drifted",
+);
+await runCase(
+  "incomplete dynamic finite domain",
+  {
+    contract: {
+      dynamicClassConsumers: [
+        {
+          classNameSets: [["run", "running"]],
+          owner: "Fixture state",
+          reason: "A finite state is appended at runtime.",
+          sources: [
+            {
+              path: "apps/desktop/src/renderer/main.tsx",
+              contains: "`run ${state}`",
+            },
+          ],
+        },
+      ],
+      rawComponentOverrides: [],
+    },
+    main: 'import "./used.js";\nfunction Row({ state }: { state: "running" | "completed" }) { return <div className={`run ${state}`} />; }\nexport const view = <Row state="running" />;\n',
+    styles:
+      ".run.running { display: block; }\n.run.completed { display: block; }\n",
+  },
+  false,
+  ".run.completed has an unregistered runtime-generated className combination",
 );
 
 console.log(

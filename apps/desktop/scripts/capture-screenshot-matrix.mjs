@@ -14,6 +14,8 @@ import { dirname, join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
+import { startupStageMaximums } from "../../../scripts/verify-ui-performance.mjs";
+
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appDirectory = resolve(scriptDirectory, "..");
 const repositoryRoot = resolve(appDirectory, "..", "..");
@@ -29,6 +31,7 @@ const budget = JSON.parse(
     "utf8",
   ),
 );
+const startupThresholds = startupStageMaximums(budget);
 const locales = [
   "en",
   "zh-CN",
@@ -266,6 +269,10 @@ try {
       `${variant.id} requested theme is ${JSON.stringify(accessibility.requestedTheme)}.`,
     );
     assert(
+      accessibility.themePreference === variant.theme,
+      `${variant.id} theme preference is ${JSON.stringify(accessibility.themePreference)}.`,
+    );
+    assert(
       (variant.theme === "system"
         ? ["light", "dark"].includes(accessibility.resolvedTheme)
         : accessibility.resolvedTheme === variant.theme) &&
@@ -309,9 +316,7 @@ try {
     );
 
     const startupTimings = accessibility.startupTimings ?? [];
-    for (const [stage, maximum] of Object.entries(
-      budget.thresholds.startupStageMaximumMs,
-    )) {
+    for (const [stage, maximum] of Object.entries(startupThresholds)) {
       const timing = startupTimings.find(
         (candidate) => candidate.stage === stage,
       );

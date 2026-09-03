@@ -1117,11 +1117,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current core test suites contain **1507 passing tests** (7 skipped):
+The current core test suites contain **1509 passing tests** (7 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|      117 |       24 |        144 |    1222 |  **1507** |
+|      117 |       24 |        144 |    1224 |  **1509** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory

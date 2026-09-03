@@ -8,7 +8,7 @@ const checker = fileURLToPath(
   new URL("./verify-ui-performance.mjs", import.meta.url),
 );
 
-async function fixture(maximum, startupMaximum = 1_000) {
+async function fixture(maximum, startupElapsed = 100) {
   const root = await mkdtemp(join(tmpdir(), "artemis-ui-performance-"));
   const files = {
     "apps/desktop/dist-renderer/assets/app.js":
@@ -18,8 +18,8 @@ async function fixture(maximum, startupMaximum = 1_000) {
       "export const marker = 'gallery';\n",
     "apps/ui-gallery/dist/assets/gallery.css": ".gallery{}\n",
     "packages/ui/dist/styles.css": ".ui{}\n",
-    "scripts/ui-performance-budget.json": `${JSON.stringify({ baseline: {}, thresholds: { bundles: { desktopCssBytes: maximum, desktopJsBytes: maximum, desktopLargestJsBytes: maximum, galleryCssBytes: maximum, galleryJsBytes: maximum, uiCssBytes: maximum }, startupStageMaximumMs: { "renderer-ready": startupMaximum } } })}\n`,
-    "manifest.json": `${JSON.stringify({ variants: [{ startupTimings: [{ stage: "renderer-ready", elapsedMs: 100 }] }] })}\n`,
+    "scripts/ui-performance-budget.json": `${JSON.stringify({ baseline: { startupStageMaximumMs: { "renderer-ready": 100 } }, thresholds: { bundles: { desktopCssBytes: maximum, desktopJsBytes: maximum, desktopLargestJsBytes: maximum, galleryCssBytes: maximum, galleryJsBytes: maximum, uiCssBytes: maximum }, startup: { baselineMultiplier: 4, jitterAllowanceMs: 500 } } })}\n`,
+    "manifest.json": `${JSON.stringify({ variants: [{ startupTimings: [{ stage: "renderer-ready", elapsedMs: startupElapsed }] }] })}\n`,
   };
   for (const [path, content] of Object.entries(files)) {
     await mkdir(join(root, path, ".."), { recursive: true });
@@ -28,8 +28,8 @@ async function fixture(maximum, startupMaximum = 1_000) {
   return root;
 }
 
-async function runCase(maximum, startupMaximum, expectedSuccess) {
-  const root = await fixture(maximum, startupMaximum);
+async function runCase(maximum, startupElapsed, expectedSuccess) {
+  const root = await fixture(maximum, startupElapsed);
   try {
     const result = spawnSync(
       process.execPath,
@@ -52,7 +52,7 @@ async function runCase(maximum, startupMaximum, expectedSuccess) {
   }
 }
 
-await runCase(1_000, 1_000, true);
-await runCase(1, 1_000, false);
-await runCase(1_000, 1, false);
+await runCase(1_000, 100, true);
+await runCase(1, 100, false);
+await runCase(1_000, 5_000, false);
 console.log("UI performance budget fixtures passed (1 accepted; 2 rejected)");

@@ -12,6 +12,13 @@ const resourceCenterSource = source("../src/renderer/ResourceCenter.tsx");
 const settingsPanelSource = source("../src/renderer/SettingsPanel.tsx");
 const appSource = source("../src/renderer/App.tsx");
 const apiSource = source("../src/shared/api.ts");
+const ciWorkflowSource = source("../../../.github/workflows/ci.yml");
+const environmentVerifierSource = source(
+  "../scripts/verify-environment-panel-responsive.mjs",
+);
+const screenshotMatrixSource = source(
+  "../scripts/capture-screenshot-matrix.mjs",
+);
 const packageJson = JSON.parse(source("../package.json")) as {
   scripts: Record<string, string>;
   build: {
@@ -85,6 +92,40 @@ describe("desktop startup latency guardrails", () => {
     expect(mainSource).toContain("startupTimings");
     expect(packageJson.scripts["verify:environment-panel"]).toContain(
       "verify-environment-panel-responsive.mjs",
+    );
+  });
+
+  it("pins visual convergence to the PR source head and verifies the Windows package", () => {
+    const visualJob = ciWorkflowSource.slice(
+      ciWorkflowSource.indexOf("visual-convergence-electron:"),
+      ciWorkflowSource.indexOf("ui-gallery-conformance:"),
+    );
+    const exactSourceHead = "github.event.pull_request.head.sha || github.sha";
+
+    expect(visualJob).toContain(`ref: \${{ ${exactSourceHead} }}`);
+    expect(visualJob).toContain(
+      `ARTEMIS_EXPECTED_HEAD: \${{ ${exactSourceHead} }}`,
+    );
+    expect(visualJob).toContain(
+      "Set-DisplayResolution -Width 1920 -Height 1080 -Force",
+    );
+    expect(visualJob.indexOf("npm run package:win")).toBeLessThan(
+      visualJob.indexOf("npm run verify:win-native -w @artemis/desktop"),
+    );
+  });
+
+  it("makes animation and explicit theme preference evidence deterministic", () => {
+    expect(environmentVerifierSource).toContain(
+      '"--force-prefers-no-reduced-motion"',
+    );
+    expect(environmentVerifierSource).toContain(
+      "dock.feedbackLayout?.reducedMotion === false",
+    );
+    expect(mainSource).toContain(
+      "await settingsStore.setThemePreference(smokeTheme)",
+    );
+    expect(screenshotMatrixSource).toContain(
+      "accessibility.themePreference === variant.theme",
     );
   });
 
