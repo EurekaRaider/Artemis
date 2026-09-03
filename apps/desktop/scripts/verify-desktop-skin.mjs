@@ -1751,68 +1751,65 @@ async function driveElectron() {
         const promptOffset = Math.max(0, (row.textContent ?? "").indexOf("Artemis>"));
         return {
           cellWidth,
-          x: screenBounds.left + cellWidth * (promptOffset + 3.5),
+          endX: screenBounds.left + cellWidth * (promptOffset + 7.5),
+          startX: screenBounds.left + cellWidth * (promptOffset + 0.5),
           y: rowBounds.top + rowBounds.height / 2,
         };
       })()`,
     );
     await connection.send("Input.dispatchMouseEvent", {
       type: "mouseMoved",
-      x: terminalSelectionPoint.x,
+      x: terminalSelectionPoint.startX,
       y: terminalSelectionPoint.y,
     });
-    for (const clickCount of [1, 2]) {
-      await connection.send("Input.dispatchMouseEvent", {
-        button: "left",
-        buttons: 1,
-        clickCount,
-        type: "mousePressed",
-        x: terminalSelectionPoint.x,
-        y: terminalSelectionPoint.y,
-      });
-      await connection.send("Input.dispatchMouseEvent", {
-        button: "left",
-        buttons: 0,
-        clickCount,
-        type: "mouseReleased",
-        x: terminalSelectionPoint.x,
-        y: terminalSelectionPoint.y,
-      });
-    }
-    const copyModifiers = process.platform === "darwin" ? 4 : 2;
-    await connection.send("Input.dispatchKeyEvent", {
-      code: "KeyC",
-      key: "c",
-      modifiers: copyModifiers,
-      type: "rawKeyDown",
-      windowsVirtualKeyCode: 67,
-      nativeVirtualKeyCode: 67,
+    await connection.send("Input.dispatchMouseEvent", {
+      button: "left",
+      buttons: 1,
+      clickCount: 1,
+      type: "mousePressed",
+      x: terminalSelectionPoint.startX,
+      y: terminalSelectionPoint.y,
     });
-    await connection.send("Input.dispatchKeyEvent", {
-      code: "KeyC",
-      key: "c",
-      modifiers: copyModifiers,
-      type: "keyUp",
-      windowsVirtualKeyCode: 67,
-      nativeVirtualKeyCode: 67,
+    await connection.send("Input.dispatchMouseEvent", {
+      button: "left",
+      buttons: 1,
+      type: "mouseMoved",
+      x: terminalSelectionPoint.endX,
+      y: terminalSelectionPoint.y,
     });
+    await connection.send("Input.dispatchMouseEvent", {
+      button: "left",
+      buttons: 0,
+      clickCount: 1,
+      type: "mouseReleased",
+      x: terminalSelectionPoint.endX,
+      y: terminalSelectionPoint.y,
+    });
+    const copyInvoked = await evaluate(
+      connection,
+      'document.execCommand("copy")',
+    );
     await waitFor(
       connection,
       'globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__?.count === 1 && globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__.eventText.includes("Artemis")',
       "xterm selection copied through the real clipboard event",
       15_000,
     );
-    const terminalSelectionEvidence = await evaluate(
-      connection,
-      `(() => ({
-        copyEvent: globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__,
-        point: ${JSON.stringify(terminalSelectionPoint)},
-      }))()`,
-    );
+    const terminalSelectionEvidence = {
+      ...(await evaluate(
+        connection,
+        `(() => ({
+          copyEvent: globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__,
+          point: ${JSON.stringify(terminalSelectionPoint)},
+        }))()`,
+      )),
+      copyInvoked,
+    };
     assert(
       terminalSelectionEvidence.copyEvent?.count === 1 &&
         terminalSelectionEvidence.copyEvent?.eventText.includes("Artemis") &&
-        terminalSelectionEvidence.point?.cellWidth > 0,
+        terminalSelectionEvidence.point?.cellWidth > 0 &&
+        copyInvoked === true,
       `Terminal selection/copy evidence was incomplete: ${JSON.stringify(terminalSelectionEvidence)}`,
     );
 
