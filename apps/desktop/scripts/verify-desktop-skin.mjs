@@ -1773,7 +1773,9 @@ async function driveElectron() {
         terminalSelectionEvidence.copyInvoked === true &&
         terminalSelectionEvidence.selectedText === "Artemis" &&
         terminalSelectionEvidence.selectionPosition?.start?.x ===
-          terminalSelectionEvidence.prompt?.column + 1,
+          terminalSelectionEvidence.prompt?.column &&
+        terminalSelectionEvidence.selectionPosition?.end?.x ===
+          terminalSelectionEvidence.prompt?.column + "Artemis".length,
       `Terminal selection/copy evidence was incomplete: ${JSON.stringify(terminalSelectionEvidence)}`,
     );
 
