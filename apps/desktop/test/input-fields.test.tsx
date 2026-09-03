@@ -387,6 +387,68 @@ describe("avatar file field contract (SettingsPanel general tab, §5 file-合同
 });
 
 describe("settings management operation contract (MIG5A)", () => {
+  it("keeps every Settings tab linked to a mounted tabpanel", async () => {
+    const initial = settingsSnapshot({ models: [syntheticModel] });
+    stubSettingsApi(initial);
+    await renderSettingsPanel(initial, "providers");
+
+    for (const selector of [".settings-tabs", ".provider-config-tabs"]) {
+      const tablist = document.querySelector(selector);
+      expect(tablist).not.toBeNull();
+      const tabs = [...tablist!.querySelectorAll<HTMLElement>('[role="tab"]')];
+      expect(tabs.length).toBeGreaterThan(1);
+      for (const tab of tabs) {
+        const panelId = tab.getAttribute("aria-controls");
+        const panel = panelId ? document.getElementById(panelId) : null;
+        expect(panel).not.toBeNull();
+        expect(panel).toHaveAttribute("role", "tabpanel");
+        expect(panel).toHaveAttribute("aria-labelledby", tab.id);
+        expect(panel!.hidden).toBe(
+          tab.getAttribute("aria-selected") !== "true",
+        );
+      }
+    }
+    expect(document.querySelector(".settings-tabs")).toHaveAttribute(
+      "aria-orientation",
+      "vertical",
+    );
+    expect(document.querySelector(".provider-config-tabs")).toHaveAttribute(
+      "aria-orientation",
+      "horizontal",
+    );
+  });
+
+  it("shows configuration-import safety warnings without exposing source paths", async () => {
+    const initial = settingsSnapshot({ models: [syntheticModel] });
+    const hiddenPath = "/synthetic-user/.config/synthetic-agent/config.json";
+    const warning =
+      'codex MCP "synthetic-server" authentication values were not copied; configure authentication in Artemis.';
+    stubSettingsApi(initial, {
+      scanConfigurationImports: () =>
+        Promise.resolve({
+          sources: [
+            {
+              source: "codex",
+              detected: true,
+              paths: [hiddenPath],
+              counts: { instructions: 1, skills: 2, mcp: 1 },
+              warnings: [warning],
+            },
+          ],
+        }),
+    });
+    await renderSettingsPanel(initial, "agents");
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Scan Codex, OpenCode, and Claude Code",
+      }),
+    );
+
+    expect(await screen.findByText(warning)).toBeVisible();
+    expect(document.body).not.toHaveTextContent(hiddenPath);
+  });
+
   it("blocks same-tick duplicate add-model IPC calls", async () => {
     const initial = settingsSnapshot({ models: [syntheticModel] });
     const updated = settingsSnapshot({

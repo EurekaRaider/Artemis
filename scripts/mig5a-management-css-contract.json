@@ -50,7 +50,7 @@
     }
   ],
   [
-    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"]",
+    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"][aria-orientation=\"vertical\"]",
     {
       "display": "flex",
       "flex-direction": "column",
@@ -62,7 +62,7 @@
     }
   ],
   [
-    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"] [data-part=\"tab\"]",
+    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"][aria-orientation=\"vertical\"] [data-part=\"tab\"]",
     {
       "justify-content": "flex-start",
       "min-block-size": "var(--artemis-size-control-comfortable)",
@@ -81,6 +81,14 @@
       "overflow": "auto",
       "scrollbar-gutter": "stable"
     }
+  ],
+  [
+    "normal|[data-artemis-component=\"settings-surface\"] [data-artemis-component=\"select\"] [data-part=\"menu\"]",
+    { "z-index": "80" }
+  ],
+  [
+    "normal|[data-artemis-component=\"mcp-editor-surface\"] [data-artemis-component=\"select\"] [data-part=\"menu\"]",
+    { "z-index": "80" }
   ],
   [
     "normal|[data-artemis-component=\"resource-surface\"]",
@@ -401,11 +409,11 @@
     }
   ],
   [
-    "compact-width|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"]",
+    "compact-width|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"][aria-orientation=\"vertical\"]",
     {
-      "flex-direction": "row",
-      "inline-size": "max-content",
-      "min-inline-size": "100%"
+      "flex-direction": "column",
+      "inline-size": "100%",
+      "min-inline-size": "0"
     }
   ],
   [

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Button } from "@artemis/ui/actions";
 import { InlineNotice } from "@artemis/ui/feedback";
 
@@ -138,18 +138,21 @@ export function McpEditorFeedback(props: McpEditorFeedbackProps): ReactNode {
   // also takes part in the four-way mutual exclusion: no test can start (or
   // re-enter) while the confirmation is open.
   const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const confirmingRemoveRef = useRef(false);
 
   const testState = testConnection?.state;
   const testPending = testState?.status === "busy";
   const testBlocked = testConnection?.disabled === true;
 
   const handleRemove = async () => {
-    if (!remove || confirmingRemove || busy || testPending) return;
+    if (!remove || confirmingRemoveRef.current || busy || testPending) return;
+    confirmingRemoveRef.current = true;
     setConfirmingRemove(true);
     try {
       const confirmed = await remove.onConfirm(remove.confirmMessage, "danger");
       if (confirmed) remove.onRemove();
     } finally {
+      confirmingRemoveRef.current = false;
       setConfirmingRemove(false);
     }
   };

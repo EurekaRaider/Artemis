@@ -167,6 +167,9 @@ describe("McpServerEditor feedback wiring (D#76 PR8 §10 state matrix)", () => {
     expect(
       screen.queryByRole("button", { name: labels.uninstall }),
     ).not.toBeInTheDocument();
+    const backButton = screen.getByRole("button", { name: labels.back });
+    expect(backButton.querySelector("svg")).not.toBeNull();
+    expect(backButton).not.toHaveTextContent("←");
     newEditor.unmount();
 
     renderEditor({ server: stdioServer });

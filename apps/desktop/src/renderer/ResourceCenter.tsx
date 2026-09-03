@@ -773,6 +773,14 @@ export function ResourceCenter({
       });
   }
 
+  function runResourceSubmit(
+    event: FormEvent,
+    operation: () => Promise<void>,
+  ): void {
+    event.preventDefault();
+    runResourceOperation(operation);
+  }
+
   function focusCatalogSearch(): void {
     requestAnimationFrame(() => catalogSearchRef.current?.focus());
   }
@@ -857,8 +865,7 @@ export function ResourceCenter({
     }
   }
 
-  async function addCustomMarketplace(event: FormEvent) {
-    event.preventDefault();
+  async function addCustomMarketplace() {
     if (!sourceInput.trim() || searching) return;
     const operationId = beginInstallation("plugin", sourceInput.trim());
     setSearching(true);
@@ -870,11 +877,11 @@ export function ResourceCenter({
       const chinese = locale.startsWith("zh");
       const trustMessage = trust.signed
         ? chinese
-          ? `确认添加外部商店 ${trust.displayName}\n\nEd25519 密钥指纹：\n${trust.signingKeyFingerprint}\n\n后续刷新将固定使用此密钥。`
-          : `Add external marketplace ${trust.displayName}?\n\nEd25519 key fingerprint:\n${trust.signingKeyFingerprint}\n\nFuture refreshes will require this same key.`
+          ? `确认添加外部商店 ${trust.repository}\n\nEd25519 密钥指纹：\n${trust.signingKeyFingerprint}\n\n后续刷新将固定使用此密钥。`
+          : `Add external marketplace ${trust.repository}?\n\nEd25519 key fingerprint:\n${trust.signingKeyFingerprint}\n\nFuture refreshes will require this same key.`
         : chinese
-          ? `确认添加未签名商店 ${trust.displayName}？未签名插件不能使用 Artemis 宿主凭据。`
-          : `Add unsigned marketplace ${trust.displayName}? Unsigned plugins cannot use Artemis host credentials.`;
+          ? `确认添加未签名商店 ${trust.repository}？未签名插件不能使用 Artemis 宿主凭据。`
+          : `Add unsigned marketplace ${trust.repository}? Unsigned plugins cannot use Artemis host credentials.`;
       if (!(await onConfirm(trustMessage))) return;
       applyMarketplaceState(
         await window.artemis.addCodexPluginMarketplace(
@@ -904,8 +911,8 @@ export function ResourceCenter({
       const { trust } = inspected;
       const chinese = locale.startsWith("zh");
       const trustMessage = chinese
-        ? `确认导入脱机商店 ${trust.displayName}？\n\nEd25519 密钥指纹：\n${trust.signingKeyFingerprint}\n\n商店将复制到 Artemis 缓存；浏览和安装不会访问网络。再次导入同一商店会原子替换其缓存。`
-        : `Import offline marketplace ${trust.displayName}?\n\nEd25519 key fingerprint:\n${trust.signingKeyFingerprint}\n\nThe marketplace will be copied into the Artemis cache. Browsing and installation will not access the network. Re-importing the same marketplace atomically replaces its cache.`;
+        ? `确认导入脱机商店 ${trust.repository}？\n\nEd25519 密钥指纹：\n${trust.signingKeyFingerprint}\n\n商店将复制到 Artemis 缓存；浏览和安装不会访问网络。再次导入同一商店会原子替换其缓存。`
+        : `Import offline marketplace ${trust.repository}?\n\nEd25519 key fingerprint:\n${trust.signingKeyFingerprint}\n\nThe marketplace will be copied into the Artemis cache. Browsing and installation will not access the network. Re-importing the same marketplace atomically replaces its cache.`;
       if (!(await onConfirm(trustMessage))) return;
       const operationId = beginInstallation("plugin", trust.displayName);
       applyMarketplaceState(
@@ -1044,8 +1051,7 @@ export function ResourceCenter({
     }
   }
 
-  async function searchCatalog(event: FormEvent) {
-    event.preventDefault();
+  async function searchCatalog() {
     if (
       !catalogQuery.trim() ||
       searching ||
@@ -1137,8 +1143,7 @@ export function ResourceCenter({
     await executeMcpInstall(item, option, {});
   }
 
-  async function submitMcpInstall(event: FormEvent): Promise<void> {
-    event.preventDefault();
+  async function submitMcpInstall(): Promise<void> {
     if (!mcpInstallDraft) return;
     await executeMcpInstall(
       mcpInstallDraft.item,
@@ -1214,8 +1219,7 @@ export function ResourceCenter({
     }
   }
 
-  async function saveConnector(event: FormEvent) {
-    event.preventDefault();
+  async function saveConnector() {
     const name = connectorName.trim();
     const url = connectorUrl.trim();
     const bearerToken = connectorBearer.trim();
@@ -1355,9 +1359,7 @@ export function ResourceCenter({
       })),
     );
     setMessage(
-      result.warnings.length
-        ? t.pluginWarnings.replace("{count}", String(result.warnings.length))
-        : successMessage,
+      result.warnings.length ? result.warnings.join("\n") : successMessage,
     );
   }
 
@@ -1679,15 +1681,9 @@ export function ResourceCenter({
       (candidate) =>
         candidate.displayName.toLocaleLowerCase() === normalizedDisplayName,
     ).length;
-    const duplicateIndex = (marketplaceState?.sources ?? [])
-      .filter(
-        (candidate) =>
-          candidate.displayName.toLocaleLowerCase() === normalizedDisplayName,
-      )
-      .findIndex((candidate) => candidate.id === source.id);
     const base =
       duplicate > 1
-        ? `${source.displayName} ${duplicateIndex + 1}`
+        ? `${source.displayName} · ${source.repository}`
         : source.displayName;
     const mode = source.offline ? `${base} · ${t.offline}` : base;
     const stale =
@@ -1802,17 +1798,15 @@ export function ResourceCenter({
     ) ?? marketplaceTabOptions.at(-1)!;
   const marketplaceFilter = marketplaceQuery.trim().toLowerCase();
   const matchingMarketplacePlugins = (plugins: CodexPluginPreview[]) =>
-    plugins
-      .filter((plugin) => plugin.installable)
-      .filter((plugin) => {
-        return (
-          !marketplaceFilter ||
-          plugin.displayName.toLowerCase().includes(marketplaceFilter) ||
-          plugin.name.toLowerCase().includes(marketplaceFilter) ||
-          plugin.description.toLowerCase().includes(marketplaceFilter) ||
-          plugin.category?.toLowerCase().includes(marketplaceFilter)
-        );
-      });
+    plugins.filter((plugin) => {
+      return (
+        !marketplaceFilter ||
+        plugin.displayName.toLowerCase().includes(marketplaceFilter) ||
+        plugin.name.toLowerCase().includes(marketplaceFilter) ||
+        plugin.description.toLowerCase().includes(marketplaceFilter) ||
+        plugin.category?.toLowerCase().includes(marketplaceFilter)
+      );
+    });
   const selectedMarketplacePlugins = matchingMarketplacePlugins(
     selectedMarketplaceView === "local"
       ? localPluginResults
@@ -2063,6 +2057,11 @@ export function ResourceCenter({
     const sourceLabel = source
       ? marketplaceSourceLabel(source)
       : pluginMarketplaceLabel(plugin);
+    const diagnostic = conflict
+      ? conflict
+      : plugin.installable
+        ? plugin.warnings.join(" · ")
+        : plugin.unsupported.join(", ");
     return (
       <ManagementCard className="plugin-market-card" key={plugin.id}>
         <ResourceAvatar
@@ -2071,16 +2070,21 @@ export function ResourceCenter({
           kind="plugin"
           name={displayName}
         />
-        <span className="plugin-market-copy">
+        <div className="plugin-market-copy">
           <strong>{displayName}</strong>
           <small>{description}</small>
           <small className="plugin-market-source">
             {t.marketplaceSource}: {sourceLabel}
           </small>
-        </span>
+          {diagnostic && (
+            <InlineNotice className="plugin-market-diagnostic" tone="warning">
+              {pluginPageText(diagnostic)}
+            </InlineNotice>
+          )}
+        </div>
         {installed && installedPlugin ? (
           <Button
-            disabled={busyId === plugin.id}
+            disabled={operationPending || busyId === plugin.id}
             onClick={() =>
               runResourceOperation(() => removePlugin(installedPlugin))
             }
@@ -2092,13 +2096,16 @@ export function ResourceCenter({
           <Button
             className="resource-inline-action"
             disabled={
+              operationPending ||
               !plugin.installable ||
               Boolean(conflict) ||
               busyId === plugin.id ||
               installProgress !== undefined
             }
             onClick={() => runResourceOperation(() => installPlugin(plugin))}
-            title={plugin.installable ? conflict || t.install : t.needsSetup}
+            title={
+              diagnostic || (plugin.installable ? t.install : t.needsSetup)
+            }
           >
             {conflict
               ? t.skillConflict
@@ -2124,6 +2131,7 @@ export function ResourceCenter({
           leading={
             <IconButton
               className="resource-back-button"
+              disabled={operationPending}
               icon={<BackIcon />}
               label={t.backToPlugins}
               onClick={() => {
@@ -2147,18 +2155,22 @@ export function ResourceCenter({
             </div>
             <form
               onSubmit={(event) =>
-                runResourceOperation(() => addCustomMarketplace(event))
+                runResourceSubmit(event, addCustomMarketplace)
               }
             >
               <TextField
                 autoFocus
+                disabled={operationPending}
                 label={t.gitMarketplaceHint}
                 labelVisibility="hidden"
                 onValueChange={setSourceInput}
                 placeholder={t.gitMarketplaceHint}
                 value={sourceInput}
               />
-              <Button disabled={!sourceInput.trim() || searching} type="submit">
+              <Button
+                disabled={operationPending || !sourceInput.trim() || searching}
+                type="submit"
+              >
                 {t.loadMarketplace}
               </Button>
             </form>
@@ -2170,7 +2182,9 @@ export function ResourceCenter({
               <small>{t.offlineMarketplaceHint}</small>
             </div>
             <Button
-              disabled={searching || installProgress !== undefined}
+              disabled={
+                operationPending || searching || installProgress !== undefined
+              }
               icon={<CatalogIcon kind="plugin" />}
               onClick={() => runResourceOperation(importOfflineMarketplace)}
             >
@@ -2195,6 +2209,7 @@ export function ResourceCenter({
                         <>
                           <IconButton
                             disabled={
+                              operationPending ||
                               index === 0 ||
                               busyId === `marketplace:${source.id}`
                             }
@@ -2209,6 +2224,7 @@ export function ResourceCenter({
                           />
                           <IconButton
                             disabled={
+                              operationPending ||
                               index === sources.length - 1 ||
                               busyId === `marketplace:${source.id}`
                             }
@@ -2223,7 +2239,10 @@ export function ResourceCenter({
                           />
                           <IconButton
                             className="resource-icon-button resource-marketplace-remove-button"
-                            disabled={busyId === `marketplace:${source.id}`}
+                            disabled={
+                              operationPending ||
+                              busyId === `marketplace:${source.id}`
+                            }
                             icon={<TrashIcon />}
                             label={`${t.removeMarketplace}: ${source.displayName}`}
                             onClick={() =>
@@ -2237,7 +2256,7 @@ export function ResourceCenter({
                         </>
                       }
                       className="resource-marketplace-source-row"
-                      description={source.offline ? t.offline : t.marketplaces}
+                      description={`${source.repository}${source.offline ? ` · ${t.offline}` : ""}`}
                       key={source.id}
                       title={marketplaceSourceLabel(source)}
                     />
@@ -2252,7 +2271,7 @@ export function ResourceCenter({
               <small>{t.inspectLocalPlugin}</small>
             </div>
             <Button
-              disabled={busyId === "local-plugin"}
+              disabled={operationPending || busyId === "local-plugin"}
               icon={<CatalogIcon kind="plugin" />}
               onClick={() => runResourceOperation(inspectLocalPlugin)}
             >
@@ -2266,7 +2285,7 @@ export function ResourceCenter({
               <small>{t.executableExtensionHint}</small>
             </div>
             <Button
-              disabled={busyId === "extension:new"}
+              disabled={operationPending || busyId === "extension:new"}
               icon={<CatalogIcon kind="plugin" />}
               onClick={() => runResourceOperation(trustExtension)}
             >
@@ -2326,6 +2345,7 @@ export function ResourceCenter({
           leading={
             <IconButton
               className="resource-back-button"
+              disabled={operationPending}
               icon={<BackIcon />}
               label={t.backToMarketplace}
               onClick={() => setMode("marketplace")}
@@ -2358,7 +2378,7 @@ export function ResourceCenter({
               </div>
               {googleAccount?.grants[grant].authorized ? (
                 <Button
-                  disabled={busyId === `google:${grant}`}
+                  disabled={operationPending || busyId === `google:${grant}`}
                   onClick={() =>
                     runResourceOperation(() => disconnectGoogleGrant(grant))
                   }
@@ -2369,6 +2389,7 @@ export function ResourceCenter({
               ) : (
                 <Button
                   disabled={
+                    operationPending ||
                     !googleAccount ||
                     googleAccount.encryptionAvailable === false ||
                     busyId === `google:${grant}`
@@ -2385,7 +2406,7 @@ export function ResourceCenter({
 
           {googleAccount?.connected && (
             <Button
-              disabled={busyId === "google-disconnect"}
+              disabled={operationPending || busyId === "google-disconnect"}
               onClick={() => runResourceOperation(disconnectGoogleAccount)}
               variant="danger"
             >
@@ -2420,6 +2441,7 @@ export function ResourceCenter({
               <IconButton
                 className="resource-icon-button"
                 disabled={
+                  operationPending ||
                   selectedMarketplaceView === "local" ||
                   marketplaceSourceById.get(selectedMarketplaceView)?.builtIn ||
                   marketplaceSourceById.get(selectedMarketplaceView)
@@ -2434,6 +2456,7 @@ export function ResourceCenter({
               />
               <Button
                 className="resource-add-button"
+                disabled={operationPending}
                 icon={<PlusIcon />}
                 onClick={() => setMode("add-plugin")}
               >
@@ -2444,6 +2467,7 @@ export function ResourceCenter({
         />
         <SearchField
           className="resource-search-field resource-market-search"
+          disabled={operationPending}
           label={t.searchPlugins}
           onValueChange={setMarketplaceQuery}
           placeholder={t.searchPlugins}
@@ -2454,6 +2478,7 @@ export function ResourceCenter({
           actions={
             <IconButton
               className="resource-icon-button"
+              disabled={operationPending}
               icon={<GearIcon />}
               label={t.manage}
               onClick={() => openManagement()}
@@ -2467,6 +2492,7 @@ export function ResourceCenter({
             {installedTiles.slice(0, 24).map((item) => (
               <IconButton
                 className="resource-installed-icon-button"
+                disabled={operationPending}
                 icon={
                   <ResourceAvatar
                     brandColor={item.brandColor}
@@ -2506,6 +2532,7 @@ export function ResourceCenter({
         <div className="resource-market-controls">
           <Tabs
             className="resource-scope-tabs"
+            disabled={operationPending}
             label={t.marketplaces}
             onValueChange={(sourceId) =>
               runResourceOperation(() => selectMarketplace(sourceId))
@@ -2537,7 +2564,10 @@ export function ResourceCenter({
                   : "Used only by the Gmail and Google Workspace plugins from this marketplace."}
               </small>
             </div>
-            <Button onClick={() => runResourceOperation(openGoogleAccount)}>
+            <Button
+              disabled={operationPending}
+              onClick={() => runResourceOperation(openGoogleAccount)}
+            >
               {locale.startsWith("zh") ? "Google 账号" : "Google account"}
             </Button>
           </ManagementCard>
@@ -2555,6 +2585,7 @@ export function ResourceCenter({
               </div>
               <Button
                 disabled={
+                  operationPending ||
                   busyId === "required-documents" ||
                   installProgress !== undefined
                 }
@@ -2565,6 +2596,17 @@ export function ResourceCenter({
             </ManagementCard>
           )}
 
+        {marketplaceTabOptions
+          .filter((option) => option.value !== activeMarketplaceTabOption.value)
+          .map((option) => (
+            <div
+              aria-labelledby={option.id}
+              hidden
+              id={option.panelId}
+              key={option.value}
+              role="tabpanel"
+            />
+          ))}
         <div
           aria-labelledby={activeMarketplaceTabOption.id}
           className="plugin-market-groups"
@@ -2642,6 +2684,7 @@ export function ResourceCenter({
         leading={
           <IconButton
             className="resource-back-button"
+            disabled={operationPending}
             icon={<BackIcon />}
             label={t.backToMarketplace}
             onClick={() => {
@@ -2657,6 +2700,7 @@ export function ResourceCenter({
       <div className="resource-management-toolbar">
         <Tabs
           className="resource-management-tabs"
+          disabled={operationPending}
           label={t.manage}
           onValueChange={switchManagementTab}
           options={managementTabOptions}
@@ -2665,6 +2709,7 @@ export function ResourceCenter({
         />
         <SearchField
           className="resource-search-field resource-management-search"
+          disabled={operationPending}
           label={managementSearchLabel}
           onValueChange={setManagementQuery}
           placeholder={managementSearchLabel}
@@ -2675,11 +2720,24 @@ export function ResourceCenter({
 
       {renderProgressAndMessage()}
 
+      {managementTabOptions
+        .filter((option) => option.value !== managementTab)
+        .map((option) => (
+          <div
+            aria-labelledby={option.id}
+            hidden
+            id={option.panelId}
+            key={option.value}
+            role="tabpanel"
+          />
+        ))}
+
       {managementTab === "plugins" && (
         <ManagementSection
           actions={
             <Button
               className="resource-add-button subtle"
+              disabled={operationPending}
               icon={<PlusIcon />}
               onClick={() => setMode("add-plugin")}
             >
@@ -2689,6 +2747,7 @@ export function ResourceCenter({
           className="resource-management-section"
           id={activeManagementTabOption.panelId}
           labelledBy={activeManagementTabOption.id}
+          role="tabpanel"
           title={t.plugins}
         >
           <div className="resource-management-list">
@@ -2700,7 +2759,7 @@ export function ResourceCenter({
                     <div className="resource-row-actions">
                       <IconButton
                         className="resource-icon-button"
-                        disabled={busyId === plugin.id}
+                        disabled={operationPending || busyId === plugin.id}
                         icon={<RefreshIcon />}
                         label={`${t.update} ${pluginPageText(plugin.displayName)}`}
                         onClick={() =>
@@ -2710,7 +2769,7 @@ export function ResourceCenter({
                       />
                       <IconButton
                         className="resource-icon-button"
-                        disabled={busyId === plugin.id}
+                        disabled={operationPending || busyId === plugin.id}
                         icon={<TrashIcon />}
                         label={`${t.remove} ${pluginPageText(plugin.displayName)}`}
                         onClick={() =>
@@ -2722,7 +2781,11 @@ export function ResourceCenter({
                       <Switch
                         checked={pluginIsEnabled(plugin)}
                         className="resource-switch"
-                        disabled={busyId === plugin.id || !plugin.installable}
+                        disabled={
+                          operationPending ||
+                          busyId === plugin.id ||
+                          !plugin.installable
+                        }
                         label={pluginIsEnabled(plugin) ? t.enabled : t.disabled}
                         labelVisibility="hidden"
                         onCheckedChange={(enabled) =>
@@ -2771,6 +2834,7 @@ export function ResourceCenter({
                     <Button
                       className="resource-inline-action"
                       disabled={
+                        operationPending ||
                         busyId === extension.config.id ||
                         !extension.config.enabled
                       }
@@ -2791,7 +2855,9 @@ export function ResourceCenter({
                     {extension.state === "changed" && (
                       <IconButton
                         className="resource-icon-button"
-                        disabled={busyId === extension.config.id}
+                        disabled={
+                          operationPending || busyId === extension.config.id
+                        }
                         icon={<RefreshIcon />}
                         label={`${t.retrust}: ${extension.config.name}`}
                         onClick={() =>
@@ -2804,7 +2870,9 @@ export function ResourceCenter({
                     )}
                     <IconButton
                       className="resource-icon-button"
-                      disabled={busyId === extension.config.id}
+                      disabled={
+                        operationPending || busyId === extension.config.id
+                      }
                       icon={<TrashIcon />}
                       label={`${t.remove} ${extension.config.name}`}
                       onClick={() =>
@@ -2818,7 +2886,9 @@ export function ResourceCenter({
                     <Switch
                       checked={extension.config.enabled}
                       className="resource-switch"
-                      disabled={busyId === extension.config.id}
+                      disabled={
+                        operationPending || busyId === extension.config.id
+                      }
                       label={extension.config.enabled ? t.enabled : t.disabled}
                       labelVisibility="hidden"
                       onCheckedChange={(enabled) =>
@@ -2856,6 +2926,7 @@ export function ResourceCenter({
           actions={
             <Button
               className="resource-add-button subtle"
+              disabled={operationPending}
               icon={<PlusIcon />}
               onClick={() => setConnectorPanelOpen((current) => !current)}
             >
@@ -2865,19 +2936,19 @@ export function ResourceCenter({
           className="resource-management-section"
           id={activeManagementTabOption.panelId}
           labelledBy={activeManagementTabOption.id}
+          role="tabpanel"
           title={t.connectors}
         >
           {connectorPanelOpen && (
             <ManagementCard className="resource-connector-card">
               <form
                 className="resource-connector-form"
-                onSubmit={(event) =>
-                  runResourceOperation(() => saveConnector(event))
-                }
+                onSubmit={(event) => runResourceSubmit(event, saveConnector)}
               >
                 <InlineNotice tone="info">{t.connectorHelp}</InlineNotice>
                 <TextField
                   autoFocus
+                  disabled={operationPending}
                   label={t.connectorName}
                   labelVisibility="hidden"
                   onValueChange={setConnectorName}
@@ -2885,6 +2956,7 @@ export function ResourceCenter({
                   value={connectorName}
                 />
                 <TextField
+                  disabled={operationPending}
                   label={t.connectorUrl}
                   labelVisibility="hidden"
                   onValueChange={setConnectorUrl}
@@ -2893,6 +2965,7 @@ export function ResourceCenter({
                   value={connectorUrl}
                 />
                 <Select
+                  disabled={operationPending}
                   label={t.connectorAuth}
                   onValueChange={setConnectorAuth}
                   options={[
@@ -2905,6 +2978,7 @@ export function ResourceCenter({
                 {connectorAuth === "bearer" && (
                   <TextField
                     autoComplete="off"
+                    disabled={operationPending}
                     label={t.connectorBearer}
                     labelVisibility="hidden"
                     onValueChange={setConnectorBearer}
@@ -2915,6 +2989,7 @@ export function ResourceCenter({
                 )}
                 <Button
                   disabled={
+                    operationPending ||
                     busyId === "connector:new" ||
                     !connectorName.trim() ||
                     !connectorUrl.trim() ||
@@ -2946,6 +3021,7 @@ export function ResourceCenter({
                     <div className="resource-row-actions">
                       <IconButton
                         className="resource-icon-button"
+                        disabled={operationPending}
                         icon={<GearIcon />}
                         label={`${t.configure} ${displayName}`}
                         onClick={() => openMcpEditor(server)}
@@ -2954,7 +3030,9 @@ export function ResourceCenter({
                       {canAuthorize && (
                         <Button
                           className="resource-inline-action"
-                          disabled={busyId === server.config.id}
+                          disabled={
+                            operationPending || busyId === server.config.id
+                          }
                           onClick={() =>
                             runResourceOperation(() =>
                               authorizeConnector(server.config.id),
@@ -2967,6 +3045,7 @@ export function ResourceCenter({
                       <IconButton
                         className="resource-icon-button"
                         disabled={
+                          operationPending ||
                           busyId === server.config.id ||
                           managedMcpIds.has(server.config.id)
                         }
@@ -2990,7 +3069,9 @@ export function ResourceCenter({
                       <Switch
                         checked={server.config.enabled}
                         className="resource-switch"
-                        disabled={busyId === server.config.id}
+                        disabled={
+                          operationPending || busyId === server.config.id
+                        }
                         label={server.config.enabled ? t.enabled : t.disabled}
                         labelVisibility="hidden"
                         onCheckedChange={(enabled) =>
@@ -3031,6 +3112,7 @@ export function ResourceCenter({
             <div className="resource-list-heading-actions">
               <Button
                 className="resource-add-button subtle"
+                disabled={operationPending}
                 icon={<PlusIcon />}
                 onClick={() => toggleCatalogDiscovery("mcp")}
               >
@@ -3038,6 +3120,7 @@ export function ResourceCenter({
               </Button>
               <Button
                 className="resource-add-button subtle"
+                disabled={operationPending}
                 icon={<PlusIcon />}
                 onClick={() => openMcpEditor()}
               >
@@ -3048,16 +3131,16 @@ export function ResourceCenter({
           className="resource-management-section"
           id={activeManagementTabOption.panelId}
           labelledBy={activeManagementTabOption.id}
+          role="tabpanel"
           title={t.mcp}
         >
           {discoveryOpen && (
             <ManagementCard className="resource-discovery-panel">
               <form
-                onSubmit={(event) =>
-                  runResourceOperation(() => searchCatalog(event))
-                }
+                onSubmit={(event) => runResourceSubmit(event, searchCatalog)}
               >
                 <SearchField
+                  disabled={operationPending}
                   inputRef={catalogSearchRef}
                   label={t.searchMcp}
                   onValueChange={setCatalogQuery}
@@ -3065,7 +3148,9 @@ export function ResourceCenter({
                   value={catalogQuery}
                 />
                 <Button
-                  disabled={!catalogQuery.trim() || searching}
+                  disabled={
+                    operationPending || !catalogQuery.trim() || searching
+                  }
                   type="submit"
                 >
                   {catalogSearchPhase.mcp === "searching"
@@ -3084,6 +3169,7 @@ export function ResourceCenter({
                       actions={
                         <Button
                           disabled={
+                            operationPending ||
                             item.installed ||
                             !item.installable ||
                             busyId === item.configId ||
@@ -3139,6 +3225,7 @@ export function ResourceCenter({
                     <div className="resource-row-actions">
                       <IconButton
                         className="resource-icon-button"
+                        disabled={operationPending}
                         icon={<GearIcon />}
                         label={`${t.addMcp}: ${displayName}`}
                         onClick={() => openMcpEditor(server)}
@@ -3147,6 +3234,7 @@ export function ResourceCenter({
                       <IconButton
                         className="resource-icon-button"
                         disabled={
+                          operationPending ||
                           busyId === server.config.id ||
                           managedMcpIds.has(server.config.id)
                         }
@@ -3167,7 +3255,9 @@ export function ResourceCenter({
                       <Switch
                         checked={server.state === "connected"}
                         className="resource-switch"
-                        disabled={busyId === server.config.id}
+                        disabled={
+                          operationPending || busyId === server.config.id
+                        }
                         label={
                           server.state === "connected" ? t.enabled : t.disabled
                         }
@@ -3212,6 +3302,7 @@ export function ResourceCenter({
             <div className="resource-list-heading-actions">
               <Button
                 className="resource-add-button subtle"
+                disabled={operationPending}
                 icon={<PlusIcon />}
                 onClick={() => toggleCatalogDiscovery("skills")}
               >
@@ -3219,7 +3310,7 @@ export function ResourceCenter({
               </Button>
               <Button
                 className="resource-add-button subtle"
-                disabled={busyId === "local-skill"}
+                disabled={operationPending || busyId === "local-skill"}
                 icon={<PlusIcon />}
                 onClick={() => runResourceOperation(installLocalSkill)}
               >
@@ -3230,16 +3321,16 @@ export function ResourceCenter({
           className="resource-management-section"
           id={activeManagementTabOption.panelId}
           labelledBy={activeManagementTabOption.id}
+          role="tabpanel"
           title={t.skills}
         >
           {discoveryOpen && (
             <ManagementCard className="resource-discovery-panel">
               <form
-                onSubmit={(event) =>
-                  runResourceOperation(() => searchCatalog(event))
-                }
+                onSubmit={(event) => runResourceSubmit(event, searchCatalog)}
               >
                 <SearchField
+                  disabled={operationPending}
                   inputRef={catalogSearchRef}
                   label={t.searchSkills}
                   onValueChange={setCatalogQuery}
@@ -3247,7 +3338,9 @@ export function ResourceCenter({
                   value={catalogQuery}
                 />
                 <Button
-                  disabled={!catalogQuery.trim() || searching}
+                  disabled={
+                    operationPending || !catalogQuery.trim() || searching
+                  }
                   type="submit"
                 >
                   {catalogSearchPhase.skills === "searching"
@@ -3266,6 +3359,7 @@ export function ResourceCenter({
                       actions={
                         <Button
                           disabled={
+                            operationPending ||
                             item.installed ||
                             busyId === item.id ||
                             installProgress !== undefined
@@ -3278,7 +3372,7 @@ export function ResourceCenter({
                         </Button>
                       }
                       className="resource-discovery-row"
-                      description={t.skills}
+                      description={item.source}
                       key={item.id}
                       leading={<ResourceAvatar kind="skill" name={item.name} />}
                       title={item.name}
@@ -3303,7 +3397,7 @@ export function ResourceCenter({
                     <div className="resource-row-actions">
                       <IconButton
                         className="resource-icon-button"
-                        disabled={busyId === skill.id}
+                        disabled={operationPending || busyId === skill.id}
                         icon={<TrashIcon />}
                         label={`${t.remove} ${skill.name}`}
                         onClick={() =>
@@ -3315,7 +3409,7 @@ export function ResourceCenter({
                       <Switch
                         checked={skill.enabled}
                         className="resource-switch"
-                        disabled={busyId === skill.id}
+                        disabled={operationPending || busyId === skill.id}
                         label={skill.enabled ? t.enabled : t.disabled}
                         labelVisibility="hidden"
                         onCheckedChange={(enabled) =>
@@ -3353,22 +3447,22 @@ export function ResourceCenter({
       {mcpInstallDraft && (
         <Dialog
           className="mcp-install-dialog-backdrop"
-          closeOnBackdrop={busyId === undefined}
-          closeOnEscape={busyId === undefined}
+          closeOnBackdrop={!operationPending && busyId === undefined}
+          closeOnEscape={!operationPending && busyId === undefined}
           label={t.installMcpTitle.replace(
             "{name}",
             mcpInstallDraft.item.title,
           )}
           onOpenChange={(open) => {
-            if (!open && busyId === undefined) setMcpInstallDraft(undefined);
+            if (!open && !operationPending && busyId === undefined) {
+              setMcpInstallDraft(undefined);
+            }
           }}
           open
         >
           <form
             className="mcp-install-dialog"
-            onSubmit={(event) =>
-              runResourceOperation(() => submitMcpInstall(event))
-            }
+            onSubmit={(event) => runResourceSubmit(event, submitMcpInstall)}
           >
             <ManagementHeader
               description={mcpInstallDraft.item.description}
@@ -3387,6 +3481,7 @@ export function ResourceCenter({
                 autoComplete="off"
                 autoFocus={field.id === mcpInstallDraft.option.inputs[0]?.id}
                 description={field.description}
+                disabled={operationPending}
                 key={field.id}
                 label={`${field.label}${field.required ? "" : ` (${t.optional})`}`}
                 maxLength={32 * 1024}
@@ -3421,6 +3516,7 @@ export function ResourceCenter({
             <div className="mcp-install-dialog-actions">
               <Button
                 className="mcp-install-cancel"
+                disabled={operationPending}
                 icon={<XIcon aria-hidden="true" size={15} weight="bold" />}
                 onClick={() => setMcpInstallDraft(undefined)}
               >
@@ -3428,6 +3524,7 @@ export function ResourceCenter({
               </Button>
               <Button
                 className="mcp-install-primary"
+                disabled={operationPending}
                 icon={
                   <DownloadSimpleIcon
                     aria-hidden="true"

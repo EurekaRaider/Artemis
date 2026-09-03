@@ -2791,6 +2791,20 @@ describe("renderer layout contract", () => {
       /:\s*["'`][^"'`\n]*(?:Codex|OpenAI)[^"'`\n]*["'`]/u,
     );
     expect(resourceCenterSource).toContain("function pluginPageText");
+    expect(resourceCenterSource).toContain('? result.warnings.join("\\n")');
+    expect(resourceCenterSource).not.toContain(
+      't.pluginWarnings.replace("{count}"',
+    );
+    expect(resourceCenterSource.match(/trust\.repository/gu)).toHaveLength(6);
+    expect(resourceCenterSource).toContain(
+      "`${source.displayName} · ${source.repository}`",
+    );
+    expect(resourceCenterSource).toContain('plugin.warnings.join(" · ")');
+    expect(resourceCenterSource).toContain('plugin.unsupported.join(", ")');
+    expect(resourceCenterSource).toContain("description={item.source}");
+    expect(resourceCenterSource).toContain(
+      "description={`${source.repository}${source.offline",
+    );
     expect(resourceCenterSource).toContain(
       "pluginPageText(plugin.displayName)",
     );
@@ -2848,9 +2862,10 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).not.toContain(
       "Promise.allSettled([marketplaceRequest, runtimeRequest])",
     );
-    expect(resourceCenterSource).toContain(
+    expect(resourceCenterSource).not.toContain(
       ".filter((plugin) => plugin.installable)",
     );
+    expect(resourceCenterSource).toContain("plugin-market-diagnostic");
     expect(resourceCenterSource).toContain("Boolean(conflict)");
     expect(resourceCenterSource).toContain("label={item.name}");
     expect(resourceCenterSource).toContain(
@@ -3155,6 +3170,40 @@ describe("renderer layout contract", () => {
       /\[data-artemis-component="button"\]\[data-state="disabled"\][\s\S]*?opacity:\s*var\(--artemis-opacity-disabled\)/u,
     );
     expect(stylesSource).not.toContain(".settings-primary-action");
+  });
+
+  it("keeps public management Select menus above their surfaces", () => {
+    for (const surface of ["settings-surface", "mcp-editor-surface"]) {
+      expect(publicUiStylesSource).toMatch(
+        new RegExp(
+          `\\[data-artemis-component="${surface}"\\]\\s+` +
+            '\\[data-artemis-component="select"\\]\\s+' +
+            '\\[data-part="menu"\\]\\s*\\{[^}]*\\bz-index:\\s*80',
+          "u",
+        ),
+      );
+    }
+    expect(stylesSource).not.toContain(".settings-codex-select");
+  });
+
+  it("uses logical geometry and directional icons in management surfaces", () => {
+    expect(cssRule(".mcp-editor-validation ul")).toContain(
+      "padding-inline-start: 18px",
+    );
+    expect(cssRule(".mcp-editor-validation ul")).not.toContain("padding-left");
+    expect(cssRule(".resource-switch")).toContain("margin-inline-start: 5px");
+    expect(cssRule(".resource-switch")).not.toContain("margin-left");
+    expect(mcpServerEditorSource).toContain("<ArrowLeftIcon");
+    expect(mcpServerEditorSource).not.toContain("← {t.cancel}");
+    expect(stylesSource).toContain(".mcp-editor-back svg");
+  });
+
+  it("keeps configuration-import warnings visible while source paths stay hidden", () => {
+    expect(settingsSource).toContain("source.warnings.map");
+    expect(settingsSource).toContain(
+      'className="configuration-import-warning"',
+    );
+    expect(settingsSource).not.toContain("source.paths.map");
   });
 
   it("moves plugin and extension installation out of Settings", () => {

@@ -54,6 +54,7 @@ export function ManagementGallery() {
             <Tabs
               label="Settings sections"
               onValueChange={setSettingsTab}
+              orientation="vertical"
               options={SETTINGS_TABS}
               value={settingsTab}
             />

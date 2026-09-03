@@ -3683,7 +3683,7 @@
   [data-artemis-component="settings-surface"]
     > [data-part="body"]
     > [data-part="navigation"]
-    [data-artemis-component="tabs"] {
+    [data-artemis-component="tabs"][aria-orientation="vertical"] {
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -3696,7 +3696,7 @@
   [data-artemis-component="settings-surface"]
     > [data-part="body"]
     > [data-part="navigation"]
-    [data-artemis-component="tabs"]
+    [data-artemis-component="tabs"][aria-orientation="vertical"]
     [data-part="tab"] {
     justify-content: flex-start;
     min-block-size: var(--artemis-size-control-comfortable);
@@ -3715,6 +3715,18 @@
       var(--artemis-space-6);
     overflow: auto;
     scrollbar-gutter: stable;
+  }
+
+  [data-artemis-component="settings-surface"]
+    [data-artemis-component="select"]
+    [data-part="menu"] {
+    z-index: 80;
+  }
+
+  [data-artemis-component="mcp-editor-surface"]
+    [data-artemis-component="select"]
+    [data-part="menu"] {
+    z-index: 80;
   }
 
   [data-artemis-component="resource-surface"] {
@@ -4023,10 +4035,10 @@
     [data-artemis-component="settings-surface"]
       > [data-part="body"]
       > [data-part="navigation"]
-      [data-artemis-component="tabs"] {
-      flex-direction: row;
-      inline-size: max-content;
-      min-inline-size: 100%;
+      [data-artemis-component="tabs"][aria-orientation="vertical"] {
+      flex-direction: column;
+      inline-size: 100%;
+      min-inline-size: 0;
     }
 
     [data-artemis-component="settings-surface"]

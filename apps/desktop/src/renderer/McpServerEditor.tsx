@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { ArrowLeftIcon } from "@phosphor-icons/react/dist/icons/ArrowLeft";
 import type { AppLocale } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
 import { InlineNotice } from "@artemis/ui/feedback";
@@ -540,10 +541,11 @@ export function McpServerEditor({
             <Button
               className="mcp-editor-back"
               disabled={busy}
+              icon={<ArrowLeftIcon aria-hidden="true" weight="bold" />}
               onClick={onCancel}
               variant="quiet"
             >
-              ← {t.cancel}
+              {t.cancel}
             </Button>
           }
           title={editorTitle}
@@ -577,6 +579,7 @@ export function McpServerEditor({
                 // Track the confirm-open window so Save and the test control
                 // join the mutual exclusion while the alertdialog is showing.
                 onConfirm: async (message, tone) => {
+                  if (confirmingRemoveRef.current) return false;
                   confirmingRemoveRef.current = true;
                   setConfirmingRemove(true);
                   try {

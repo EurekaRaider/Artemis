@@ -1075,6 +1075,7 @@ export function SettingsPanel({
                 className="settings-tabs"
                 label={t.title}
                 onValueChange={setActiveTab}
+                orientation="vertical"
                 options={[
                   {
                     id: "settings-tab-general-button",
@@ -1115,6 +1116,26 @@ export function SettingsPanel({
           }
           state={!settings ? (message ? "error" : "loading") : undefined}
         >
+          {settings &&
+            (
+              [
+                "general",
+                "providers",
+                "agents",
+                "capabilities",
+                "maintenance",
+              ] as const
+            )
+              .filter((tab) => tab !== activeTab)
+              .map((tab) => (
+                <div
+                  aria-labelledby={`settings-tab-${tab}-button`}
+                  hidden
+                  id={`settings-tab-${tab}`}
+                  key={tab}
+                  role="tabpanel"
+                />
+              ))}
           {!settings ? (
             message ? (
               <ErrorState className="settings-loading" title={t.title}>
@@ -1157,6 +1178,22 @@ export function SettingsPanel({
                     size="compact"
                     value={providerConfigTab}
                   />
+                  {providerConfigTab !== "builtin" && (
+                    <div
+                      aria-labelledby="provider-config-builtin-tab"
+                      hidden
+                      id="provider-config-builtin"
+                      role="tabpanel"
+                    />
+                  )}
+                  {providerConfigTab !== "custom" && (
+                    <div
+                      aria-labelledby="provider-config-custom-tab"
+                      hidden
+                      id="provider-config-custom"
+                      role="tabpanel"
+                    />
+                  )}
                   {providerConfigTab === "builtin" && (
                     <ManagementSection
                       className="settings-section"
@@ -1821,7 +1858,20 @@ export function SettingsPanel({
                                 />
                               }
                               className="configuration-import-source"
-                              description={`${source.detected ? t.detected : t.notDetected} · ${t.importInstructions} ${source.counts.instructions} · ${t.importSkills} ${source.counts.skills} · ${t.importMcp} ${source.counts.mcp}`}
+                              description={
+                                <>
+                                  <span>{`${source.detected ? t.detected : t.notDetected} · ${t.importInstructions} ${source.counts.instructions} · ${t.importSkills} ${source.counts.skills} · ${t.importMcp} ${source.counts.mcp}`}</span>
+                                  {source.warnings.map((warning, index) => (
+                                    <InlineNotice
+                                      className="configuration-import-warning"
+                                      key={`${source.source}-${index}`}
+                                      tone="warning"
+                                    >
+                                      {warning}
+                                    </InlineNotice>
+                                  ))}
+                                </>
+                              }
                               key={source.source}
                               state={source.detected ? "ready" : "disabled"}
                               title={sourceLabel}

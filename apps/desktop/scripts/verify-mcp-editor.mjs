@@ -138,14 +138,19 @@ const steps = [
 ];
 const themes = ["light", "dark"];
 const cases = steps.flatMap((step) =>
-  themes.map((theme) => ({ ...step, theme, caseId: `${step.id}-${theme}` })),
+  themes.map((theme) => ({
+    ...step,
+    theme,
+    caseId: `${step.id}-${theme}`,
+    direction: step.id === "b-validation" && theme === "dark" ? "rtl" : "ltr",
+  })),
 );
 const results = [];
 
 await mkdir(outputDirectory, { recursive: true });
 try {
   for (const testCase of cases) {
-    const { id, view, theme, caseId, scenario } = testCase;
+    const { id, view, theme, caseId, direction, scenario } = testCase;
     const screenshotPath = join(outputDirectory, `${id}-${theme}.png`);
     const accessibilityPath = join(outputDirectory, `${id}-${theme}.a11y.json`);
     await rm(screenshotPath, { force: true });
@@ -154,6 +159,7 @@ try {
       ...process.env,
       ARTEMIS_SMOKE_SCREENSHOT: screenshotPath,
       ARTEMIS_SMOKE_ACCESSIBILITY: accessibilityPath,
+      ARTEMIS_SMOKE_DIRECTION: direction,
       ARTEMIS_SMOKE_LOCALE: locale,
       ARTEMIS_SMOKE_SETTLE_DELAY: "250",
       ARTEMIS_SMOKE_THEME: theme,
@@ -967,6 +973,27 @@ try {
       editor.seedStdioRow ?? null,
       `stateText starting with "${seedOfflineRowPrefix}"`,
     );
+    assert(
+      "direction-applied",
+      editor.direction === direction,
+      editor.direction,
+      direction,
+    );
+    if (id === "b-validation" && theme === "dark") {
+      assert(
+        "rtl-back-icon-mirrored",
+        typeof editor.backIconTransform === "string" &&
+          editor.backIconTransform !== "none",
+        editor.backIconTransform,
+        "a non-none transform",
+      );
+      assert(
+        "rtl-validation-list-logical-padding",
+        editor.validationPaddingInlineStart === "18px",
+        editor.validationPaddingInlineStart,
+        "18px",
+      );
+    }
     const stepAssertions = [...assertions, ...expectations[id]()];
     const failed = stepAssertions.filter((assertion) => !assertion.pass);
     if (failed.length) {
@@ -983,6 +1010,7 @@ try {
       id,
       view,
       theme,
+      direction,
       scenario,
       screenshot: `${id}-${theme}.png`,
       screenshotBytes,

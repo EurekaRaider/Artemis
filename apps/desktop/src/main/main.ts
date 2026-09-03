@@ -17728,6 +17728,8 @@ function createMainWindow(): BrowserWindow {
                     const backButton = document.querySelector(
                       '.mcp-editor .mcp-editor-back',
                     );
+                    const backIcon = backButton?.querySelector('svg');
+                    const validationList = validation?.querySelector('ul');
                     const commandInput = inputByLabel('Launch command');
                     const urlInput = inputByLabel('Server URL');
                     const bearerInput = document.querySelector(
@@ -17736,6 +17738,13 @@ function createMainWindow(): BrowserWindow {
                     const dialog = document.querySelector('.confirmation-dialog');
                     return {
                       editorVisible: editor ? visible(editor) : false,
+                      direction: getComputedStyle(document.documentElement).direction,
+                      backIconTransform: backIcon
+                        ? getComputedStyle(backIcon).transform
+                        : null,
+                      validationPaddingInlineStart: validationList
+                        ? getComputedStyle(validationList).paddingInlineStart
+                        : null,
                       heading: editor?.querySelector('h1')?.textContent?.trim() ?? null,
                       feedbackAriaBusy:
                         document

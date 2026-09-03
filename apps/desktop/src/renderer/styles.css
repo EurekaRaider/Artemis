@@ -7514,7 +7514,7 @@ button.sources-panel-entry.attachment:focus-visible {
 
 .mcp-editor-validation ul {
   margin: 6px 0 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .mcp-editor-test {
@@ -8265,7 +8265,7 @@ button.sources-panel-entry.attachment:focus-visible {
 
 .resource-switch {
   flex: 0 0 auto;
-  margin-left: 5px;
+  margin-inline-start: 5px;
 }
 
 .resource-remove {
@@ -10373,7 +10373,11 @@ kbd {
 }
 
 :root[dir="rtl"]
-  :is(.tool-card [data-part="disclosure"] > span, .resource-back-button svg) {
+  :is(
+    .tool-card [data-part="disclosure"] > span,
+    .resource-back-button svg,
+    .mcp-editor-back svg
+  ) {
   transform: scaleX(-1);
 }
 

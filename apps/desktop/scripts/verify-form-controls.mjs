@@ -370,7 +370,7 @@ try {
       const select = verifyComponent(
         "select",
         ["root", "label", "trigger"],
-        "codex-select",
+        undefined,
         "settings",
       );
       assert(
@@ -456,7 +456,7 @@ try {
       const select = verifyComponent(
         "select",
         ["root", "label", "trigger", "value", "indicator", "menu", "listbox"],
-        "codex-select",
+        id === "mcp-editor" ? undefined : "codex-select",
         context,
       );
       const expectedSize = id === "mcp-editor" ? "comfortable" : "compact";
