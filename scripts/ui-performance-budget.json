@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "baseline": {
+    "sourceHead": "3b024552ab520d83982aaadf5185404d7b8325ce",
+    "measurementHead": "1364af889a02c6adb51805bd14d4a438611447d1",
+    "platform": "darwin-arm64",
+    "note": "The measurement head differs from sourceHead only by the MIG5B ledger-close commit.",
+    "bundles": {
+      "desktopCssBytes": 300601,
+      "desktopJsBytes": 1855194,
+      "desktopLargestJsBytes": 853244,
+      "galleryCssBytes": 180175,
+      "galleryJsBytes": 355604,
+      "uiCssBytes": 151849
+    },
+    "startupStageMaximumMs": {
+      "app-ready": 37.5,
+      "diagnostics-ready": 92.9,
+      "core-state-ready": 105.7,
+      "window-created": 174.3,
+      "update-ready": 180.5,
+      "renderer-ready": 320.7
+    }
+  },
+  "thresholds": {
+    "bundles": {
+      "desktopCssBytes": 305000,
+      "desktopJsBytes": 1900000,
+      "desktopLargestJsBytes": 875000,
+      "galleryCssBytes": 182000,
+      "galleryJsBytes": 365000,
+      "uiCssBytes": 153000
+    },
+    "startupStageMaximumMs": {
+      "app-ready": 2000,
+      "diagnostics-ready": 3500,
+      "core-state-ready": 5000,
+      "window-created": 8000,
+      "update-ready": 10000,
+      "renderer-ready": 15000
+    },
+    "workloadWallClockMs": {
+      "screenshot-matrix": 180000,
+      "conversation-timeline": 180000,
+      "feedback-and-composer": 240000,
+      "large-diff-and-environment": 240000,
+      "terminal-and-browser": 240000,
+      "form-controls": 300000,
+      "navigation-controls": 240000,
+      "resource-center-mcp": 360000,
+      "secondary-pages": 300000,
+      "goal-parity": 360000,
+      "desktop-skin-gallery-package": 900000
+    }
+  }
+}

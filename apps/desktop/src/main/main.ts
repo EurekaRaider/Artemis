@@ -14428,6 +14428,7 @@ function createMainWindow(): BrowserWindow {
   const smokePickedScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT_PICKED;
   const smokeArtifacts = Boolean(smokeScreenshot || smokeAccessibility);
   const requestedSmokeWidth = Number(process.env.ARTEMIS_SMOKE_WINDOW_WIDTH);
+  const requestedSmokeHeight = Number(process.env.ARTEMIS_SMOKE_WINDOW_HEIGHT);
   const requestedSmokeResizeWidth = Number(
     process.env.ARTEMIS_SMOKE_RESIZE_WIDTH,
   );
@@ -14435,6 +14436,10 @@ function createMainWindow(): BrowserWindow {
     smokeMode && Number.isFinite(requestedSmokeWidth)
       ? Math.max(980, Math.min(2_000, Math.round(requestedSmokeWidth)))
       : 1_420;
+  const smokeHeight =
+    smokeMode && Number.isFinite(requestedSmokeHeight)
+      ? Math.max(680, Math.min(1_400, Math.round(requestedSmokeHeight)))
+      : 920;
   const requestedScale = Number(process.env.ARTEMIS_SMOKE_SCALE ?? "1");
   const smokeScale = [1, 1.25, 1.5, 2].includes(requestedScale)
     ? requestedScale
@@ -14458,7 +14463,7 @@ function createMainWindow(): BrowserWindow {
   } | null = null;
   const window = new BrowserWindow({
     width: smokeWidth,
-    height: 920,
+    height: smokeHeight,
     minWidth: 980,
     minHeight: 680,
     backgroundColor: windowBackgroundColor(),
@@ -17258,7 +17263,14 @@ function createMainWindow(): BrowserWindow {
                   documentLanguage: document.documentElement.lang,
                   documentDirection: document.documentElement.dir,
                   title: document.title,
+                  themePreference:
+                    document.documentElement.dataset.theme ?? "system",
+                  resolvedTheme:
+                    document.documentElement.dataset.artemisTheme ?? null,
+                  contrastMode:
+                    document.documentElement.dataset.artemisContrast ?? null,
                   windowInnerWidth: window.innerWidth,
+                  windowInnerHeight: window.innerHeight,
                   workspaceWidth: workspaceBounds?.width ?? null,
                   environmentPanelOpen:
                     environmentTrigger?.getAttribute("aria-expanded") === "true",
