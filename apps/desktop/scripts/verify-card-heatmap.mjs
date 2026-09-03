@@ -329,9 +329,20 @@ try {
     if (
       !assert(
         "heatmap-cell-role",
-        heatmap?.cellRole === "gridcell",
-        heatmap?.cellRole ?? null,
-        "gridcell",
+        heatmap?.rowRole === "row" &&
+          heatmap?.rowCount === 7 &&
+          heatmap?.cellRole === "gridcell" &&
+          heatmap?.ownedCellCount === heatmap?.cellCount &&
+          heatmap?.contextCellCount === heatmap?.cellCount,
+        {
+          rowRole: heatmap?.rowRole ?? null,
+          rowCount: heatmap?.rowCount ?? null,
+          cellRole: heatmap?.cellRole ?? null,
+          ownedCellCount: heatmap?.ownedCellCount ?? null,
+          contextCellCount: heatmap?.contextCellCount ?? null,
+          cellCount: heatmap?.cellCount ?? null,
+        },
+        "7 owned rows and every gridcell owned by a row",
       ).pass
     ) {
       throw new Error(`${caseId} heatmap cells lost role="gridcell".`);
@@ -423,9 +434,17 @@ try {
       if (
         !assert(
           "focus-tooltip-visible",
-          probe?.focused === true && probe?.tooltipRolePresent === true,
+          probe?.focused === true &&
+            probe?.tooltipRolePresent === true &&
+            probe?.cellWithinScrollPort === true &&
+            probe?.tooltipWithinScrollPort === true,
           probe,
-          { focused: true, tooltipRolePresent: true },
+          {
+            focused: true,
+            tooltipRolePresent: true,
+            cellWithinScrollPort: true,
+            tooltipWithinScrollPort: true,
+          },
         ).pass
       ) {
         throw new Error(

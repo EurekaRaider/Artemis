@@ -19,6 +19,16 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import { Button, Status } from "@artemis/ui/actions";
+import { DataSurface } from "@artemis/ui/data";
+import {
+  Dialog,
+  EmptyState,
+  ErrorState,
+  InlineNotice,
+} from "@artemis/ui/feedback";
+import { Checkbox, Select, TextAreaField, TextField } from "@artemis/ui/forms";
+import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
 import { legacyLocale } from "../shared/locales.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
 
@@ -99,6 +109,7 @@ const text = {
     days: "Days",
     local: "Local project",
     managed: "Managed worktree",
+    unavailableProject: "Unavailable project",
     deleteConfirm: "Delete this automation? Run history and tasks remain.",
     executeWarning:
       "Execute requires explicit unattended authorization after saving.",
@@ -150,10 +161,45 @@ const text = {
     days: "天",
     local: "本地项目",
     managed: "托管 Worktree",
+    unavailableProject: "不可用项目",
     deleteConfirm: "删除这个定时任务？已生成的任务和运行历史仍会保留。",
     executeWarning: "Execute 保存后必须明确授权无人值守执行。",
   },
 } as const;
+
+function normalizedOptionLabel(label: string): string {
+  return label
+    .normalize("NFKC")
+    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cc}]+/gu, "")
+    .replace(/\p{White_Space}+/gu, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function projectSelectOptions(
+  projects: readonly Project[],
+  reservedLabels: readonly string[] = [],
+): Array<{ label: string; value: string }> {
+  const nameCounts = new Map<string, number>();
+  for (const project of projects) {
+    const key = normalizedOptionLabel(project.name);
+    nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
+  }
+
+  const usedLabels = new Set(reservedLabels.map(normalizedOptionLabel));
+  return projects.map((project) => {
+    const nameKey = normalizedOptionLabel(project.name);
+    let label =
+      (nameCounts.get(nameKey) ?? 0) > 1 || usedLabels.has(nameKey)
+        ? `${project.name} — ${project.path}`
+        : project.name;
+    if (usedLabels.has(normalizedOptionLabel(label))) {
+      label = `${label} — ${project.id}`;
+    }
+    usedLabels.add(normalizedOptionLabel(label));
+    return { label, value: project.id };
+  });
+}
 
 const weekLabels = {
   en: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
@@ -589,6 +635,22 @@ export function AutomationPage(props: {
   const [draft, setDraft] = useState<AutomationDraft>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
+  const filterProjectOptions = useMemo(
+    () => projectSelectOptions(props.projects, [t.allProjects]),
+    [props.projects, t.allProjects],
+  );
+  const editorProjectOptions = useMemo(() => {
+    const missingProject =
+      draft !== undefined &&
+      !props.projects.some((project) => project.id === draft.projectId);
+    const options = projectSelectOptions(
+      props.projects,
+      missingProject ? [t.unavailableProject] : [],
+    );
+    return missingProject
+      ? [...options, { label: t.unavailableProject, value: draft.projectId }]
+      : options;
+  }, [draft?.projectId, props.projects, t.unavailableProject]);
 
   useEffect(() => {
     let mounted = true;
@@ -677,45 +739,52 @@ export function AutomationPage(props: {
   };
 
   return (
-    <section className="automation-page">
-      <header className="automation-header">
-        <div>
-          <h1>{t.title}</h1>
-          <p>{t.subtitle}</p>
-        </div>
-        <button
-          className="automation-primary automation-create-button"
-          disabled={props.projects.length === 0}
-          onClick={() =>
-            setDraft(defaultDraft(projectFilter || props.projects[0]?.id || ""))
-          }
-          type="button"
-        >
-          <svg
-            aria-hidden="true"
-            className="automation-create-icon"
-            viewBox="0 0 16 16"
+    <DataSurface
+      busy={busy}
+      className="automation-page"
+      label={t.title}
+      state={message ? "error" : busy ? "busy" : "ready"}
+    >
+      <ManagementHeader
+        actions={
+          <Button
+            className="automation-create-button"
+            disabled={props.projects.length === 0}
+            icon={
+              <svg className="automation-create-icon" viewBox="0 0 16 16">
+                <path d="M8 3.25v9.5M3.25 8h9.5" />
+              </svg>
+            }
+            onClick={() =>
+              setDraft(
+                defaultDraft(projectFilter || props.projects[0]?.id || ""),
+              )
+            }
+            variant="primary"
           >
-            <path d="M8 3.25v9.5M3.25 8h9.5" />
-          </svg>
-          {t.create}
-        </button>
-      </header>
+            {t.create}
+          </Button>
+        }
+        className="automation-header"
+        description={t.subtitle}
+        title={t.title}
+      />
 
       <div className="automation-toolbar">
-        <select
-          aria-label={t.project}
-          onChange={(event) => setProjectFilter(event.target.value)}
+        <Select
+          className="automation-project-filter"
+          label={t.project}
+          onValueChange={setProjectFilter}
+          options={[
+            { label: t.allProjects, value: "" },
+            ...filterProjectOptions,
+          ]}
+          size="compact"
           value={projectFilter}
-        >
-          <option value="">{t.allProjects}</option>
-          {props.projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </select>
-        {message && <span className="automation-message">{message}</span>}
+        />
+        {message ? (
+          <ErrorState className="automation-message">{message}</ErrorState>
+        ) : null}
       </div>
 
       <div className="automation-list">
@@ -728,22 +797,31 @@ export function AutomationPage(props: {
           const project = props.projects.find(
             (candidate) => candidate.id === automation.projectId,
           );
+          const statusLabel =
+            automation.authorizationState === "required"
+              ? t.authorizationRequired
+              : automation.enabled
+                ? t.enabled
+                : t.paused;
           return (
-            <article className="automation-card" key={automation.id}>
+            <ManagementCard className="automation-card" key={automation.id}>
               <div className="automation-card-heading">
                 <div>
                   <h2>{automation.name}</h2>
                   <span>{project?.name}</span>
                 </div>
-                <span
-                  className={`automation-state ${automation.enabled ? "enabled" : "paused"}`}
+                <Status
+                  className="automation-state"
+                  tone={
+                    automation.authorizationState === "required"
+                      ? "warning"
+                      : automation.enabled
+                        ? "success"
+                        : "neutral"
+                  }
                 >
-                  {automation.authorizationState === "required"
-                    ? t.authorizationRequired
-                    : automation.enabled
-                      ? t.enabled
-                      : t.paused}
-                </span>
+                  {statusLabel}
+                </Status>
               </div>
               <p className="automation-prompt">{automation.prompt}</p>
               <div className="automation-meta">
@@ -761,7 +839,7 @@ export function AutomationPage(props: {
               </div>
               <div className="automation-actions">
                 {automation.authorizationState === "required" && (
-                  <button
+                  <Button
                     disabled={busy}
                     onClick={() =>
                       void invoke(() =>
@@ -770,9 +848,9 @@ export function AutomationPage(props: {
                     }
                   >
                     {t.authorize}
-                  </button>
+                  </Button>
                 )}
-                <button
+                <Button
                   disabled={
                     busy || automation.authorizationState === "required"
                   }
@@ -783,8 +861,8 @@ export function AutomationPage(props: {
                   }
                 >
                   {t.runNow}
-                </button>
-                <button
+                </Button>
+                <Button
                   disabled={busy}
                   onClick={() =>
                     void invoke(() =>
@@ -796,15 +874,14 @@ export function AutomationPage(props: {
                   }
                 >
                   {automation.enabled ? t.paused : t.enabled}
-                </button>
-                <button
+                </Button>
+                <Button
                   disabled={busy}
                   onClick={() => setDraft(draftForAutomation(automation))}
                 >
                   {t.edit}
-                </button>
-                <button
-                  className="danger"
+                </Button>
+                <Button
                   disabled={busy}
                   onClick={() =>
                     void invoke(async () => {
@@ -814,9 +891,10 @@ export function AutomationPage(props: {
                       await window.artemis.deleteAutomation(automation.id);
                     })
                   }
+                  variant="danger"
                 >
                   {t.delete}
-                </button>
+                </Button>
               </div>
               <div className="automation-history">
                 <strong>{t.history}</strong>
@@ -824,143 +902,116 @@ export function AutomationPage(props: {
                   <span>{t.noRuns}</span>
                 ) : (
                   runs.slice(0, 5).map((run) => (
-                    <button
+                    <Button
+                      align="start"
+                      className="automation-history-row"
                       disabled={!run.threadId}
                       key={run.id}
                       onClick={() =>
                         run.threadId && props.onOpenThread(run.threadId)
                       }
+                      variant="quiet"
                     >
                       <span className={`automation-run-dot ${run.state}`} />
                       <span>{formatDate(run.scheduledFor, props.locale)}</span>
                       <span>{run.state}</span>
                       {run.reason && <small>{run.reason}</small>}
-                    </button>
+                    </Button>
                   ))
                 )}
               </div>
-            </article>
+            </ManagementCard>
           );
         })}
         {automations.length === 0 && (
-          <div className="automation-empty">{t.empty}</div>
+          <EmptyState className="automation-empty" title={t.empty} />
         )}
       </div>
 
-      {draft && (
-        <div className="automation-dialog-backdrop">
+      <Dialog
+        className="automation-dialog-shell"
+        closeOnBackdrop={!busy}
+        closeOnEscape={!busy}
+        label={draft?.id ? t.edit : t.create}
+        onOpenChange={(open) => {
+          if (!open && !busy) setDraft(undefined);
+        }}
+        open={draft !== undefined}
+      >
+        {draft ? (
           <form
-            aria-modal="true"
             className="automation-dialog"
             onSubmit={(event) => void save(event)}
-            role="dialog"
           >
             <h2>{draft.id ? t.edit : t.create}</h2>
-            <label>
-              <span>{t.project}</span>
-              <select
-                disabled={Boolean(draft.id)}
-                onChange={(event) =>
-                  setDraft({ ...draft, projectId: event.target.value })
-                }
-                value={draft.projectId}
-              >
-                {props.projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>{t.name}</span>
-              <input
-                maxLength={120}
-                onChange={(event) =>
-                  setDraft({ ...draft, name: event.target.value })
-                }
-                required
-                value={draft.name}
-              />
-            </label>
-            <label>
-              <span>{t.prompt}</span>
-              <textarea
-                maxLength={32 * 1024}
-                onChange={(event) =>
-                  setDraft({ ...draft, prompt: event.target.value })
-                }
-                required
-                rows={6}
-                value={draft.prompt}
-              />
-            </label>
+            <Select
+              disabled={Boolean(draft.id)}
+              label={t.project}
+              onValueChange={(projectId) => setDraft({ ...draft, projectId })}
+              options={editorProjectOptions}
+              value={draft.projectId}
+            />
+            <TextField
+              label={t.name}
+              maxLength={120}
+              onValueChange={(name) => setDraft({ ...draft, name })}
+              required
+              value={draft.name}
+            />
+            <TextAreaField
+              label={t.prompt}
+              maxLength={32 * 1024}
+              onValueChange={(prompt) => setDraft({ ...draft, prompt })}
+              required
+              rows={6}
+              value={draft.prompt}
+            />
             <div className="automation-form-grid">
-              <label>
-                <span>{t.mode}</span>
-                <select
-                  onChange={(event) => {
-                    const mode = event.target.value as RunMode;
-                    setDraft({
-                      ...draft,
-                      mode,
-                      target:
-                        mode === "execute" ? "managed-worktree" : draft.target,
-                    });
-                  }}
-                  value={draft.mode}
-                >
-                  {(["plan", "execute", "review"] as const).map((mode) => (
-                    <option key={mode} value={mode}>
-                      {mode}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>{t.target}</span>
-                <select
-                  onChange={(event) =>
-                    setDraft({
-                      ...draft,
-                      target: event.target.value as AutomationTarget,
-                    })
-                  }
-                  value={draft.target}
-                >
-                  <option value="local">{t.local}</option>
-                  <option value="managed-worktree">{t.managed}</option>
-                </select>
-              </label>
-              <label>
-                <span>{t.schedule}</span>
-                <select
-                  onChange={(event) =>
-                    setDraft({
-                      ...draft,
-                      preset: event.target.value as SchedulePreset,
-                    })
-                  }
-                  value={draft.preset}
-                >
-                  {(
-                    [
-                      "once",
-                      "interval",
-                      "windowed-interval",
-                      "daily",
-                      "weekdays",
-                      "weekly",
-                    ] as const
-                  ).map((preset) => (
-                    <option key={preset} value={preset}>
-                      {preset === "windowed-interval"
-                        ? t.windowedInterval
-                        : t[preset]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <Select
+                label={t.mode}
+                onValueChange={(mode) => {
+                  setDraft({
+                    ...draft,
+                    mode,
+                    target:
+                      mode === "execute" ? "managed-worktree" : draft.target,
+                  });
+                }}
+                options={(["plan", "execute", "review"] as const).map(
+                  (mode) => ({ label: mode, value: mode }),
+                )}
+                value={draft.mode}
+              />
+              <Select
+                label={t.target}
+                onValueChange={(target) => setDraft({ ...draft, target })}
+                options={[
+                  { label: t.local, value: "local" },
+                  { label: t.managed, value: "managed-worktree" },
+                ]}
+                value={draft.target}
+              />
+              <Select
+                label={t.schedule}
+                onValueChange={(preset) => setDraft({ ...draft, preset })}
+                options={(
+                  [
+                    "once",
+                    "interval",
+                    "windowed-interval",
+                    "daily",
+                    "weekdays",
+                    "weekly",
+                  ] as const
+                ).map((preset) => ({
+                  label:
+                    preset === "windowed-interval"
+                      ? t.windowedInterval
+                      : t[preset],
+                  value: preset,
+                }))}
+                value={draft.preset}
+              />
               {draft.preset === "once" && (
                 <label>
                   <span>{t.date}</span>
@@ -977,26 +1028,25 @@ export function AutomationPage(props: {
               )}
               {(draft.preset === "interval" ||
                 draft.preset === "windowed-interval") && (
-                <label className="automation-interval-field">
-                  <span>{t.interval}</span>
+                <div className="automation-interval-field">
                   <div className="automation-interval-controls">
-                    <input
+                    <TextField
+                      label={t.interval}
                       max={10_000}
                       min={1}
-                      onChange={(event) =>
+                      onValueChange={(value) =>
                         setDraft({
                           ...draft,
-                          intervalEvery: Number(event.target.value),
+                          intervalEvery: Number(value),
                         })
                       }
                       required
                       type="number"
-                      value={draft.intervalEvery}
+                      value={String(draft.intervalEvery)}
                     />
-                    <select
-                      aria-label={t.intervalUnit}
-                      onChange={(event) => {
-                        const unit = event.target.value;
+                    <Select
+                      label={t.intervalUnit}
+                      onValueChange={(unit) => {
                         setDraft(
                           draft.preset === "windowed-interval"
                             ? {
@@ -1007,23 +1057,18 @@ export function AutomationPage(props: {
                             : { ...draft, intervalUnit: unit as IntervalUnit },
                         );
                       }}
+                      options={(draft.preset === "windowed-interval"
+                        ? (["minutes", "hours"] as const)
+                        : (["minutes", "hours", "days"] as const)
+                      ).map((unit) => ({ label: t[unit], value: unit }))}
                       value={
                         draft.preset === "windowed-interval"
                           ? draft.windowIntervalUnit
                           : draft.intervalUnit
                       }
-                    >
-                      {(draft.preset === "windowed-interval"
-                        ? (["minutes", "hours"] as const)
-                        : (["minutes", "hours", "days"] as const)
-                      ).map((unit) => (
-                        <option key={unit} value={unit}>
-                          {t[unit]}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
-                </label>
+                </div>
               )}
               {draft.preset !== "interval" && (
                 <>
@@ -1066,16 +1111,14 @@ export function AutomationPage(props: {
                       />
                     </div>
                   )}
-                  <label>
-                    <span>{t.timeZone}</span>
-                    <input
-                      onChange={(event) =>
-                        setDraft({ ...draft, timeZone: event.target.value })
-                      }
-                      required
-                      value={draft.timeZone}
-                    />
-                  </label>
+                  <TextField
+                    label={t.timeZone}
+                    onValueChange={(timeZone) =>
+                      setDraft({ ...draft, timeZone })
+                    }
+                    required
+                    value={draft.timeZone}
+                  />
                 </>
               )}
             </div>
@@ -1085,40 +1128,35 @@ export function AutomationPage(props: {
                 {weekLabels[legacyLocale(props.locale)].map((label, index) => {
                   const day = index + 1;
                   return (
-                    <label key={day}>
-                      <input
-                        checked={draft.daysOfWeek.includes(day)}
-                        onChange={(event) =>
-                          setDraft({
-                            ...draft,
-                            daysOfWeek: event.target.checked
-                              ? [...draft.daysOfWeek, day]
-                              : draft.daysOfWeek.filter(
-                                  (candidate) => candidate !== day,
-                                ),
-                          })
-                        }
-                        type="checkbox"
-                      />
-                      <span>{label}</span>
-                    </label>
+                    <Checkbox
+                      checked={draft.daysOfWeek.includes(day)}
+                      key={day}
+                      label={label}
+                      onCheckedChange={(checked) =>
+                        setDraft({
+                          ...draft,
+                          daysOfWeek: checked
+                            ? [...draft.daysOfWeek, day]
+                            : draft.daysOfWeek.filter(
+                                (candidate) => candidate !== day,
+                              ),
+                        })
+                      }
+                    />
                   );
                 })}
               </div>
             )}
             {draft.mode === "execute" && (
-              <p className="automation-warning">{t.executeWarning}</p>
+              <InlineNotice className="automation-warning" tone="warning">
+                {t.executeWarning}
+              </InlineNotice>
             )}
             <div className="automation-dialog-actions">
-              <button
-                disabled={busy}
-                onClick={() => setDraft(undefined)}
-                type="button"
-              >
+              <Button disabled={busy} onClick={() => setDraft(undefined)}>
                 {t.cancel}
-              </button>
-              <button
-                className="automation-primary"
+              </Button>
+              <Button
                 disabled={
                   busy ||
                   ((draft.preset === "weekly" ||
@@ -1133,13 +1171,14 @@ export function AutomationPage(props: {
                     draft.windowStart === draft.windowEnd)
                 }
                 type="submit"
+                variant="primary"
               >
                 {t.save}
-              </button>
+              </Button>
             </div>
           </form>
-        </div>
-      )}
-    </section>
+        ) : null}
+      </Dialog>
+    </DataSurface>
   );
 }

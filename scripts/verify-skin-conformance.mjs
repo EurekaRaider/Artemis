@@ -60,6 +60,10 @@ const REQUIRED_SKIN_CASES = [
   "management-controlled-events",
   "management-permission-boundary",
   "management-rtl-long-content",
+  "data-anatomy",
+  "data-state-matrix",
+  "data-controlled-events",
+  "data-rtl-long-content",
 ];
 const REQUIRED_SWITCH_CASES = [
   "same-node",
@@ -2647,6 +2651,15 @@ for (const [key, declarations] of MIG5A_EXPECTED_CSS_RULES) {
   }
   expectedCssRules.set(key, declarations);
 }
+const MIG5B_EXPECTED_CSS_RULES = JSON.parse(
+  await readFile(join(root, "scripts/mig5b-data-css-contract.json"), "utf8"),
+);
+for (const [key, declarations] of MIG5B_EXPECTED_CSS_RULES) {
+  if (expectedCssRules.has(key)) {
+    throw new Error(`MIG5B UI structural CSS rule duplicates ${key}`);
+  }
+  expectedCssRules.set(key, declarations);
+}
 
 function verifyStructuralCss(css, from, tokenFamilies) {
   const parsed = postcss.parse(css, { from });
@@ -2800,7 +2813,7 @@ function verifyStructuralCss(css, from, tokenFamilies) {
       for (const nested of node.nodes) verifyRule(nested, "compact-width");
       continue;
     }
-    if (media === "(max-width: 52rem)" && node.nodes.length === 9) {
+    if (media === "(max-width: 52rem)" && node.nodes.length === 10) {
       for (const nested of node.nodes) verifyRule(nested, "compact-width");
       continue;
     }
@@ -2810,7 +2823,7 @@ function verifyStructuralCss(css, from, tokenFamilies) {
     }
     if (
       media === "(prefers-reduced-motion: reduce)" &&
-      node.nodes.length === 13
+      node.nodes.length === 15
     ) {
       for (const nested of node.nodes) verifyRule(nested, "reduced-motion");
       continue;
@@ -2890,6 +2903,9 @@ const professional = await import(
 const management = await import(
   pathToFileURL(join(root, "packages/ui/dist/management.js")).href
 );
+const data = await import(
+  pathToFileURL(join(root, "packages/ui/dist/data.js")).href
+);
 const workflow = await import(
   pathToFileURL(join(root, "packages/ui/dist/workflow.js")).href
 );
@@ -2963,6 +2979,7 @@ for (const [label, candidate, validate] of [
     management.MANAGEMENT_COMPONENT_CONTRACTS,
     management.validateManagementComponentContracts,
   ],
+  ["data", data.DATA_COMPONENT_CONTRACTS, data.validateDataComponentContracts],
   [
     "workflow",
     workflow.WORKFLOW_COMPONENT_CONTRACTS,
@@ -3126,6 +3143,7 @@ for (const specifier of [
   "@artemis/ui/actions",
   "@artemis/ui/conformance",
   "@artemis/ui/conversation",
+  "@artemis/ui/data",
   "@artemis/ui/forms",
   "@artemis/ui/navigation",
   "@artemis/ui/feedback",
@@ -3234,6 +3252,13 @@ verifyStructuralCss(css, cssPath, [
       (contract) => contract.name,
     ),
     mutableTokens: management.MANAGEMENT_COMPONENT_MUTABLE_TOKENS,
+  },
+  {
+    label: "data",
+    components: Object.values(data.DATA_COMPONENT_CONTRACTS).map(
+      (contract) => contract.name,
+    ),
+    mutableTokens: data.DATA_COMPONENT_MUTABLE_TOKENS,
   },
   {
     label: "workflow",

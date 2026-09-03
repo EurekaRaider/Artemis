@@ -18,6 +18,10 @@
       "types": "./dist/conversation.d.ts",
       "import": "./dist/conversation.js"
     },
+    "./data": {
+      "types": "./dist/data.d.ts",
+      "import": "./dist/data.js"
+    },
     "./actions": {
       "types": "./dist/actions.d.ts",
       "import": "./dist/actions.js"

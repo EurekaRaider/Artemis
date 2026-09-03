@@ -11134,7 +11134,12 @@ function emitSmokeCardHeatmapUsageEvents(target: BrowserWindow): void {
   // The smokeMode guard matches seedSmokeIconSizingFixture: injection must
   // stay a smoke-harness-only behavior so a merely VIEW-tagged process can
   // never receive synthetic usage events (non-smoke paths are unchanged).
-  if (!smokeMode || process.env.ARTEMIS_SMOKE_VIEW !== "card-heatmap") {
+  if (
+    !smokeMode ||
+    !["card-heatmap", "secondary-pages-token-usage"].includes(
+      process.env.ARTEMIS_SMOKE_VIEW ?? "",
+    )
+  ) {
     return;
   }
   const now = new Date();
@@ -11216,6 +11221,69 @@ async function seedSmokeInputFieldsFixture(): Promise<void> {
     createdAt: now,
     updatedAt: now,
   });
+}
+
+async function seedSmokeSecondaryPagesFixture(): Promise<void> {
+  const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (!store || !smokeMode || !view?.startsWith("secondary-pages-")) {
+    return;
+  }
+  if (view === "secondary-pages-token-usage") return;
+
+  const fixtureDirectory = join(
+    app.getPath("userData"),
+    "fixtures",
+    "secondary-pages",
+  );
+  await mkdir(fixtureDirectory, { recursive: true });
+  const now = new Date().toISOString();
+  const projectId = "artemis-smoke-secondary-pages-project";
+  store.upsertProject({
+    id: projectId,
+    name: "Artemis synthetic secondary-page project with a deliberately long name",
+    path: fixtureDirectory,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  if (view === "secondary-pages-archive") {
+    store.createThread({
+      id: "artemis-smoke-secondary-pages-archived-thread",
+      projectId,
+      title:
+        "Synthetic archived task with a deliberately long title for responsive layout evidence",
+      mode: "review",
+      target: "local",
+      status: "idle",
+      pinned: false,
+      archived: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return;
+  }
+
+  if (view === "secondary-pages-automations") {
+    store.createAutomation({
+      id: "artemis-smoke-secondary-pages-automation",
+      projectId,
+      name: "Synthetic automation with a deliberately long name for responsive layout evidence",
+      prompt:
+        "Synthetic smoke-only prompt used to verify that long automation content remains readable without changing scheduling behavior.",
+      mode: "review",
+      target: "local",
+      schedule: {
+        kind: "weekly",
+        daysOfWeek: [1, 3, 5],
+        localTime: "09:30",
+        timeZone: "UTC",
+      },
+      enabled: false,
+      authorizationState: "not-required",
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 }
 
 type SmokeInputFieldsActivationEvidence = {
@@ -12641,11 +12709,16 @@ async function driveSmokeInputFieldsEvidence(
       const wait = (milliseconds) =>
         new Promise((resolve) => setTimeout(resolve, milliseconds));
       const form = document.querySelector("form.automation-dialog");
+      const dialog = form?.closest('[role="dialog"]');
       const date = document.querySelector(${JSON.stringify(dateSelector)});
-      const name = document.querySelector(".automation-dialog input:not([type])");
+      const name = document.querySelector(
+        '.automation-dialog [data-artemis-component="text-field"] ' +
+          '[data-part="control"]',
+      );
       const prompt = document.querySelector(".automation-dialog textarea");
       if (
         !(form instanceof HTMLFormElement) ||
+        !(dialog instanceof HTMLElement) ||
         !(date instanceof HTMLInputElement) ||
         !(name instanceof HTMLInputElement) ||
         !(prompt instanceof HTMLTextAreaElement)
@@ -12672,8 +12745,8 @@ async function driveSmokeInputFieldsEvidence(
       await wait(150);
       const preSubmit = {
         formNoValidate: form.noValidate,
-        formRole: form.getAttribute("role"),
-        formAriaModal: form.getAttribute("aria-modal"),
+        dialogRole: dialog.getAttribute("role"),
+        dialogAriaModal: dialog.getAttribute("aria-modal"),
         dateRequired: date.required,
         dateType: date.type,
         dateValue: date.value,
@@ -14618,7 +14691,12 @@ function createMainWindow(): BrowserWindow {
       // move activeElement without firing focus events. Focusing the web
       // contents first lets the card-heatmap cell focus run the real
       // onFocus -> hovered -> tooltip chain for the §6 focus evidence.
-      if (smokeMode && requestedSmokeView === "card-heatmap") {
+      if (
+        smokeMode &&
+        ["card-heatmap", "secondary-pages-token-usage"].includes(
+          requestedSmokeView ?? "",
+        )
+      ) {
         window.webContents.focus();
       }
       const prepareSmokeView = process.env.ARTEMIS_SMOKE_USER_INPUT
@@ -14880,6 +14958,109 @@ function createMainWindow(): BrowserWindow {
                   }
                   return;
                 }
+                if (view.startsWith('secondary-pages-')) {
+                  const waitForElement = async (selector) => {
+                    const deadline = Date.now() + 8000;
+                    while (Date.now() < deadline) {
+                      const found = document.querySelector(selector);
+                      if (found) return found;
+                      await wait(100);
+                    }
+                    return null;
+                  };
+                  const routes = {
+                    'secondary-pages-token-usage': {
+                      activityIndex: 2,
+                      selector: '.token-usage-page',
+                    },
+                    'secondary-pages-automations': {
+                      activityIndex: 3,
+                      selector: '.automation-page',
+                    },
+                    'secondary-pages-archive': {
+                      activityIndex: 4,
+                      selector: '.archive-page',
+                    },
+                  };
+                  const route = routes[view];
+                  const activity = route
+                    ? document.querySelectorAll('.activity-button')[
+                        route.activityIndex
+                      ]
+                    : null;
+                  if (!(activity instanceof HTMLButtonElement) || !route) {
+                    throw new Error('Unknown secondary-pages smoke view: ' + view);
+                  }
+                  activity.click();
+                  const page = await waitForElement(route.selector);
+                  if (!page) {
+                    throw new Error(
+                      'Secondary page did not render for smoke view: ' + view,
+                    );
+                  }
+                  if (view === 'secondary-pages-token-usage') {
+                    page.scrollTop = page.scrollHeight;
+                    const grid = await waitForElement(
+                      '[data-artemis-component="data-heatmap"] [data-part="grid"]',
+                    );
+                    const scrollPort = grid?.closest(
+                      '.token-usage-chart-scroll',
+                    );
+                    if (scrollPort) {
+                      const pageBounds = page.getBoundingClientRect();
+                      const portBounds = scrollPort.getBoundingClientRect();
+                      if (
+                        portBounds.top < pageBounds.top ||
+                        portBounds.bottom > pageBounds.bottom
+                      ) {
+                        page.scrollTop += portBounds.top - pageBounds.top - 16;
+                        await wait(50);
+                      }
+                    }
+                    const cells = [
+                      ...(grid?.querySelectorAll('[role="gridcell"]') ?? []),
+                    ];
+                    const finalColumn = Math.max(
+                      ...cells.map((cell) =>
+                        Number(cell.getAttribute('aria-colindex') ?? 0),
+                      ),
+                    );
+                    const target = cells.find(
+                      (cell) =>
+                        Number(cell.getAttribute('aria-colindex')) ===
+                        finalColumn,
+                    );
+                    const targetRow = target?.closest('[role="row"]');
+                    const source = targetRow?.querySelector(
+                      '[role="gridcell"][aria-colindex="' +
+                        String(finalColumn - 1) +
+                        '"]',
+                    );
+                    if (
+                      source instanceof HTMLButtonElement &&
+                      target instanceof HTMLButtonElement
+                    ) {
+                      source.focus({ preventScroll: true });
+                      source.dispatchEvent(
+                        new KeyboardEvent('keydown', {
+                          bubbles: true,
+                          key:
+                            getComputedStyle(grid).direction === 'rtl'
+                              ? 'ArrowLeft'
+                              : 'ArrowRight',
+                        }),
+                      );
+                      await wait(100);
+                      if (document.activeElement !== target) {
+                        throw new Error(
+                          'Heatmap keyboard navigation did not reach the final column.',
+                        );
+                      }
+                    }
+                  }
+                  await wait(300);
+                  return;
+                }
                 if (view.startsWith('input-fields-')) {
                   const waitForElement = async (selector) => {
                     const deadline = Date.now() + 8000;
@@ -14921,23 +15102,36 @@ function createMainWindow(): BrowserWindow {
                       throw new Error('Automation dialog did not open.');
                     }
                     const presetSelect = [
-                      ...document.querySelectorAll('.automation-dialog select'),
-                    ].find((select) =>
-                      [...select.options].some(
-                        (option) => option.value === 'once',
+                      ...document.querySelectorAll(
+                        '.automation-dialog [data-artemis-component="select"]',
                       ),
+                    ].find((select) =>
+                      select.querySelector('[data-part="label"]')
+                        ?.textContent?.trim() === 'Schedule',
                     );
-                    if (!presetSelect) {
+                    const presetTrigger = presetSelect?.querySelector(
+                      '[data-part="trigger"]',
+                    );
+                    if (!(presetTrigger instanceof HTMLButtonElement)) {
                       throw new Error('Schedule preset select missing.');
                     }
-                    const setter = Object.getOwnPropertyDescriptor(
-                      HTMLSelectElement.prototype,
-                      'value',
-                    )?.set;
-                    setter?.call(presetSelect, 'once');
-                    presetSelect.dispatchEvent(
-                      new Event('change', { bubbles: true }),
+                    presetTrigger.click();
+                    await waitForElement(
+                      '.automation-dialog [role="option"]',
                     );
+                    const onceOption = [
+                      ...document.querySelectorAll(
+                        '.automation-dialog [role="option"]',
+                      ),
+                    ].find(
+                      (option) =>
+                        option.querySelector('span:last-child')
+                          ?.textContent?.trim() === 'Once',
+                    );
+                    if (!(onceOption instanceof HTMLElement)) {
+                      throw new Error('Once schedule option missing.');
+                    }
+                    onceOption.click();
                     if (
                       !(await waitForElement(
                         '.automation-dialog input[type="date"]',
@@ -16570,7 +16764,9 @@ function createMainWindow(): BrowserWindow {
                     return null;
                   };
                   document.querySelectorAll('.activity-button')[2]?.click();
-                  await waitForSelector('.token-usage-grid');
+                  await waitForSelector(
+                    '[data-artemis-component="data-heatmap"] [data-part="grid"]',
+                  );
                   document
                     .querySelector('.token-usage-summary')
                     ?.scrollIntoView({ block: 'start' });
@@ -16579,8 +16775,21 @@ function createMainWindow(): BrowserWindow {
                   // checklist §6 focus-tooltip evidence lands in both the
                   // screenshot and the audit: the tooltip DOM commits
                   // during this wait, before the capture chain runs.
-                  const grid = document.querySelector('.token-usage-grid');
-                  const lastCell = grid?.lastElementChild;
+                  const grid = document.querySelector(
+                    '[data-artemis-component="data-heatmap"] [data-part="grid"]',
+                  );
+                  const cells = [
+                    ...(grid?.querySelectorAll('[role="gridcell"]') ?? []),
+                  ];
+                  const finalColumn = Math.max(
+                    ...cells.map((cell) =>
+                      Number(cell.getAttribute('aria-colindex') ?? 0),
+                    ),
+                  );
+                  const lastCell = cells.find(
+                    (cell) =>
+                      Number(cell.getAttribute('aria-colindex')) === finalColumn,
+                  );
                   if (lastCell instanceof HTMLButtonElement) {
                     lastCell.focus();
                   }
@@ -16701,7 +16910,12 @@ function createMainWindow(): BrowserWindow {
           // Usage page is mounted with its live subscription active and the
           // synthetic usage sequence can ride the real agent-event channel.
           emitSmokeCardHeatmapUsageEvents(window);
-          if (smokeMode && process.env.ARTEMIS_SMOKE_VIEW === "card-heatmap") {
+          if (
+            smokeMode &&
+            ["card-heatmap", "secondary-pages-token-usage"].includes(
+              process.env.ARTEMIS_SMOKE_VIEW ?? "",
+            )
+          ) {
             await new Promise((resolve) => setTimeout(resolve, 1_000));
           }
           if (smokeMode) {
@@ -16822,6 +17036,9 @@ function createMainWindow(): BrowserWindow {
                 const inputFieldsView = ${JSON.stringify(
                   requestedSmokeView ?? "",
                 )};
+                const secondaryPagesView = ${JSON.stringify(
+                  requestedSmokeView ?? "",
+                )};
                 const conversationTimelineView = ${JSON.stringify(
                   requestedSmokeView ?? "",
                 )};
@@ -16856,11 +17073,15 @@ function createMainWindow(): BrowserWindow {
                       ? element.closest("[role='listbox']")
                       : role === "tab"
                         ? element.closest("[role='tablist']")
+                        : role === "gridcell"
+                          ? element.closest("[role='grid']")
                         : null;
                   const usesRovingTabIndex = rovingRoot?.querySelector(
                     role === "option"
                       ? "[role='option'][tabindex='0']"
-                      : "[role='tab'][tabindex='0']",
+                      : role === "tab"
+                        ? "[role='tab'][tabindex='0']"
+                        : "[role='gridcell'][tabindex='0']",
                   );
                   if (visible(element) && !name(element)) {
                     issues.push({
@@ -17899,22 +18120,43 @@ function createMainWindow(): BrowserWindow {
                           };
                         })
                     : [],
-                  cardHeatmap: cardHeatmapView === "card-heatmap"
+                  cardHeatmap: [
+                    "card-heatmap",
+                    "secondary-pages-token-usage",
+                  ].includes(cardHeatmapView)
                     ? (() => {
                         const summarySection = document.querySelector(
                           ".token-usage-summary",
                         );
                         const summaryItems = [
                           ...document.querySelectorAll(
-                            ".token-usage-summary-item",
+                            '.token-usage-summary [data-artemis-component="data-stat"]',
                           ),
                         ];
                         const grid = document.querySelector(
-                          ".token-usage-grid",
+                          '[data-artemis-component="data-heatmap"] [data-part="grid"]',
                         );
                         const cells = [
-                          ...document.querySelectorAll(".token-usage-cell"),
+                          ...document.querySelectorAll(
+                            '[data-artemis-component="data-heatmap"] [data-part="cell"]',
+                          ),
                         ];
+                        const rows = [
+                          ...(grid?.querySelectorAll(':scope > [role="row"]') ?? []),
+                        ];
+                        const ownedCellCount = rows.reduce(
+                          (count, row) =>
+                            count +
+                            [...row.children].filter(
+                              (child) => child.getAttribute('role') === 'gridcell',
+                            ).length,
+                          0,
+                        );
+                        const contextCellCount = cells.filter(
+                          (cell) =>
+                            cell.parentElement?.getAttribute('role') === 'row' &&
+                            cell.parentElement?.parentElement === grid,
+                        ).length;
                         const dataLevelHistogram = {};
                         for (const cell of cells) {
                           const level = cell.getAttribute("data-level") ?? "missing";
@@ -17922,7 +18164,7 @@ function createMainWindow(): BrowserWindow {
                             (dataLevelHistogram[level] ?? 0) + 1;
                         }
                         const months = document.querySelector(
-                          ".token-usage-months",
+                          '[data-artemis-component="data-heatmap"] [data-part="column-labels"]',
                         );
                         const monthLabels = [
                           ...(months?.querySelectorAll("span") ?? []),
@@ -17935,11 +18177,51 @@ function createMainWindow(): BrowserWindow {
                           cells.find(
                             (cell) => cell === document.activeElement,
                           ) ?? null;
+                        const tooltip = focusedCell?.querySelector(
+                          '[role="tooltip"]',
+                        );
+                        const scrollPort = grid?.closest(
+                          '.token-usage-chart-scroll',
+                        );
+                        const geometry = (element) => {
+                          const bounds = element?.getBoundingClientRect();
+                          return bounds
+                            ? {
+                                bottom: bounds.bottom,
+                                left: bounds.left,
+                                right: bounds.right,
+                                top: bounds.top,
+                              }
+                            : null;
+                        };
+                        const visibleWithin = (element, container) => {
+                          const bounds = element?.getBoundingClientRect();
+                          const port = container?.getBoundingClientRect();
+                          return Boolean(
+                            bounds &&
+                              port &&
+                              bounds.left >= Math.max(0, port.left) - 1 &&
+                              bounds.right <=
+                                Math.min(window.innerWidth, port.right) + 1 &&
+                              bounds.top >= Math.max(0, port.top) - 1 &&
+                              bounds.bottom <=
+                                Math.min(window.innerHeight, port.bottom) + 1,
+                          );
+                        };
                         const focusTooltipProbe = {
                           focused: focusedCell !== null,
-                          tooltipRolePresent:
-                            focusedCell?.querySelector('[role="tooltip"]') !==
-                            null,
+                          tooltipRolePresent: tooltip != null,
+                          cellWithinScrollPort: visibleWithin(
+                            focusedCell,
+                            scrollPort,
+                          ),
+                          tooltipWithinScrollPort: visibleWithin(
+                            tooltip,
+                            scrollPort,
+                          ),
+                          cellGeometry: geometry(focusedCell),
+                          tooltipGeometry: geometry(tooltip),
+                          scrollPortGeometry: geometry(scrollPort),
                         };
                         return {
                           view: cardHeatmapView,
@@ -17963,10 +18245,27 @@ function createMainWindow(): BrowserWindow {
                             gridRole: grid?.getAttribute("role") ?? null,
                             gridAriaLabel:
                               grid?.getAttribute("aria-label") ?? null,
+                            rowCount: rows.length,
+                            rowRole: rows[0]?.getAttribute("role") ?? null,
+                            ownedCellCount,
+                            contextCellCount,
                             cellCount: cells.length,
                             cellRole: cells[0]?.getAttribute("role") ?? null,
                             cellTagName:
                               cells[0]?.tagName.toLowerCase() ?? null,
+                            labelledCellCount: cells.filter(
+                              (cell) =>
+                                (cell.getAttribute("aria-label") ?? "")
+                                  .trim().length > 0,
+                            ).length,
+                            distinctCellLabelCount: new Set(
+                              cells.map((cell) =>
+                                cell.getAttribute("aria-label"),
+                              ),
+                            ).size,
+                            tabStopCount: cells.filter(
+                              (cell) => cell.getAttribute("tabindex") === "0",
+                            ).length,
                             dataLevelHistogram,
                             monthContainerAriaHidden:
                               months?.getAttribute("aria-hidden") ?? null,
@@ -17974,6 +18273,153 @@ function createMainWindow(): BrowserWindow {
                             monthLabels: monthLabels.map((label) => label.textContent),
                             focusTooltipProbe,
                           },
+                        };
+                      })()
+                    : null,
+                  secondaryPages: secondaryPagesView.startsWith(
+                    "secondary-pages-",
+                  )
+                    ? (() => {
+                        const rootSelector = {
+                          "secondary-pages-archive": ".archive-page",
+                          "secondary-pages-token-usage": ".token-usage-page",
+                          "secondary-pages-automations": ".automation-page",
+                        }[secondaryPagesView];
+                        const root = rootSelector
+                          ? document.querySelector(rootSelector)
+                          : null;
+                        const rootBounds = root?.getBoundingClientRect();
+                        const publicComponentCount = (component) => {
+                          const selector =
+                            '[data-artemis-component="' + component + '"]';
+                          return (
+                            (root?.matches(selector) ? 1 : 0) +
+                            (root?.querySelectorAll(selector).length ?? 0)
+                          );
+                        };
+                        return {
+                          view: secondaryPagesView,
+                          root: root
+                            ? {
+                                ariaBusy: root.getAttribute("aria-busy"),
+                                ariaLabel: root.getAttribute("aria-label"),
+                                component:
+                                  root.getAttribute("data-artemis-component"),
+                                role: root.getAttribute("role"),
+                                state: root.getAttribute("data-state"),
+                                geometry: rootBounds
+                                  ? {
+                                      bottom: rootBounds.bottom,
+                                      height: rootBounds.height,
+                                      left: rootBounds.left,
+                                      right: rootBounds.right,
+                                      top: rootBounds.top,
+                                      width: rootBounds.width,
+                                    }
+                                  : null,
+                              }
+                            : null,
+                          viewport: {
+                            bodyScrollWidth: document.body.scrollWidth,
+                            documentScrollWidth:
+                              document.documentElement.scrollWidth,
+                            horizontalOverflow:
+                              document.documentElement.scrollWidth >
+                                window.innerWidth + 1 ||
+                              document.body.scrollWidth > window.innerWidth + 1,
+                            innerHeight: window.innerHeight,
+                            innerWidth: window.innerWidth,
+                          },
+                          theme: {
+                            colorScheme:
+                              getComputedStyle(document.documentElement)
+                                .colorScheme,
+                            canvas:
+                              getComputedStyle(document.documentElement)
+                                .getPropertyValue("--artemis-color-canvas")
+                                .trim(),
+                            textPrimary:
+                              getComputedStyle(document.documentElement)
+                                .getPropertyValue(
+                                  "--artemis-color-text-primary",
+                                )
+                                .trim(),
+                          },
+                          components: {
+                            button: publicComponentCount("button"),
+                            dataHeatmap: publicComponentCount("data-heatmap"),
+                            dataStat: publicComponentCount("data-stat"),
+                            dataSurface: publicComponentCount("data-surface"),
+                            emptyState: publicComponentCount("empty-state"),
+                            managementCard:
+                              publicComponentCount("management-card"),
+                            managementHeader:
+                              publicComponentCount("management-header"),
+                            searchField: publicComponentCount("search-field"),
+                            select: publicComponentCount("select"),
+                            status: publicComponentCount("status"),
+                          },
+                          archive:
+                            secondaryPagesView === "secondary-pages-archive"
+                              ? {
+                                  cardCount:
+                                    root?.querySelectorAll(".archive-card")
+                                      .length ?? 0,
+                                  emptyVisible: Boolean(
+                                    root?.querySelector(
+                                      '[data-artemis-component="empty-state"]',
+                                    ),
+                                  ),
+                                  searchPresent: Boolean(
+                                    root?.querySelector(
+                                      '[data-artemis-component="search-field"]',
+                                    ),
+                                  ),
+                                }
+                              : null,
+                          automations:
+                            secondaryPagesView ===
+                            "secondary-pages-automations"
+                              ? {
+                                  cardCount:
+                                    root?.querySelectorAll(".automation-card")
+                                      .length ?? 0,
+                                  statusWithinCard: (() => {
+                                    const card = root?.querySelector(
+                                      ".automation-card",
+                                    );
+                                    const status = root?.querySelector(
+                                      ".automation-state",
+                                    );
+                                    const cardBounds =
+                                      card?.getBoundingClientRect();
+                                    const statusBounds =
+                                      status?.getBoundingClientRect();
+                                    return cardBounds && statusBounds
+                                      ? statusBounds.left >=
+                                          cardBounds.left - 1 &&
+                                          statusBounds.right <=
+                                            cardBounds.right + 1 &&
+                                          statusBounds.top >=
+                                            cardBounds.top - 1 &&
+                                          statusBounds.bottom <=
+                                            cardBounds.bottom + 1
+                                      : false;
+                                  })(),
+                                  longName:
+                                    root
+                                      ?.querySelector(
+                                        ".automation-card-heading h2",
+                                      )
+                                      ?.textContent?.trim() ?? null,
+                                  projectFilterPresent: Boolean(
+                                    root?.querySelector(
+                                      ".automation-project-filter" +
+                                        '[data-artemis-component="select"]',
+                                    ),
+                                  ),
+                                }
+                              : null,
                         };
                       })()
                     : null,
@@ -19090,6 +19536,7 @@ app
     await seedSmokeMcpEditorFixture();
     await seedSmokeIconSizingFixture();
     await seedSmokeInputFieldsFixture();
+    await seedSmokeSecondaryPagesFixture();
     mcpOAuthStore = new McpOAuthStore(
       join(app.getPath("userData"), "mcp-oauth.json"),
       safeStorage,
