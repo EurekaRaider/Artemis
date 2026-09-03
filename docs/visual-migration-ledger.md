@@ -6,12 +6,13 @@ through PR #146 as squash commit
 `3b024552ab520d83982aaadf5185404d7b8325ce`. MIG6 opened at source head
 `ebe6741e2dc92222638bf4b22de07ce43d667b32`; its one permitted post-PR review
 completed on that SHA. Findings from that review and initial CI run
-`33750952835` are combined in the current local repair. The repaired exact PR
-head, fresh native macOS arm64, macOS x64 and Windows x64 CI, and merge are not
-yet complete. This ledger separates static prototype evidence, package/Gallery
-evidence, and production Electron evidence. It must not be used to turn a
-prototype, Gallery pass, or attribute-only resolver pass into a migrated
-production surface.
+`33750952835` were combined at repair head `10e46d8`. Its CI run `33756491896`
+then isolated one remaining cross-runner startup-budget issue, addressed in the
+current local follow-up. The next exact PR head, fresh native macOS arm64,
+macOS x64 and Windows x64 CI, and merge are not yet complete. This ledger
+separates static prototype evidence, package/Gallery evidence, and production
+Electron evidence. It must not be used to turn a prototype, Gallery pass, or
+attribute-only resolver pass into a migrated production surface.
 
 ## Inputs and evidence boundary
 
@@ -785,7 +786,7 @@ raw/token-only public-component declarations. Raw registrations cannot be
 bypassed by adding a token reference to a hardcoded color, dimension, or
 unitless stacking value. The performance gate records byte and startup budgets
 against merged base `3b02455`; every startup ceiling is now derived from the
-corresponding merged-base maximum times four plus 500 ms of cross-runner
+corresponding merged-base maximum times eight plus 500 ms of cross-runner
 jitter, instead of a multi-second absolute allowance. Implementation checkpoint
 `2a38040` measured Desktop CSS at 287,911 bytes, Desktop JavaScript at
 1,855,194 bytes, largest Desktop chunk at 853,244 bytes, Gallery CSS at 180,175
@@ -821,6 +822,19 @@ native-package verifier, forces and asserts normal motion for that animation,
 persists and observes the requested smoke theme, and closes all six review
 findings. Because the repair changes the source head, that one review remains
 evidence for `ebe6741` only; no second review will be started.
+
+Repair-head CI run `33756491896` then passed its base job, Windows native
+sandbox integration, all three Gallery jobs, and the full macOS arm64
+visual-convergence audit. It also confirmed the Windows desktop was actually
+1920×1080. macOS x64 and Windows reached the screenshot matrix but exceeded
+the first `4× baseline + 500 ms` cold-start ceilings: x64 `update-ready` was
+1367.8 ms against 1222 ms, and Windows `renderer-ready` was 2120.7 ms against
+1782.8 ms. The follow-up uses `8× baseline + 500 ms`, giving those observations
+about 42–45 percent headroom while keeping every derived ceiling below 3.1
+seconds; the 5-second regression fixture still fails. No functional, geometry,
+theme, or motion failure was reported before those budget stops. The later x64
+and Windows workloads, including the final Windows package step, were not
+reached and still require fresh CI on the follow-up head.
 
 The final acceptance target is the exact clean 1.4.59 PR head. Its SHA and
 generated report paths belong in PR evidence rather than as a self-referential

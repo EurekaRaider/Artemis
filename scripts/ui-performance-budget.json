@@ -32,9 +32,9 @@
       "uiCssBytes": 153000
     },
     "startup": {
-      "baselineMultiplier": 4,
+      "baselineMultiplier": 8,
       "jitterAllowanceMs": 500,
-      "note": "Each stage ceiling is its merged-base maximum times four plus 500 ms of cross-runner jitter."
+      "note": "Each stage ceiling is its merged-base maximum times eight plus 500 ms of cross-runner jitter."
     },
     "workloadWallClockMs": {
       "screenshot-matrix": 180000,

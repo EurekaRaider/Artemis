@@ -18,7 +18,7 @@ async function fixture(maximum, startupElapsed = 100) {
       "export const marker = 'gallery';\n",
     "apps/ui-gallery/dist/assets/gallery.css": ".gallery{}\n",
     "packages/ui/dist/styles.css": ".ui{}\n",
-    "scripts/ui-performance-budget.json": `${JSON.stringify({ baseline: { startupStageMaximumMs: { "renderer-ready": 100 } }, thresholds: { bundles: { desktopCssBytes: maximum, desktopJsBytes: maximum, desktopLargestJsBytes: maximum, galleryCssBytes: maximum, galleryJsBytes: maximum, uiCssBytes: maximum }, startup: { baselineMultiplier: 4, jitterAllowanceMs: 500 } } })}\n`,
+    "scripts/ui-performance-budget.json": `${JSON.stringify({ baseline: { startupStageMaximumMs: { "renderer-ready": 100 } }, thresholds: { bundles: { desktopCssBytes: maximum, desktopJsBytes: maximum, desktopLargestJsBytes: maximum, galleryCssBytes: maximum, galleryJsBytes: maximum, uiCssBytes: maximum }, startup: { baselineMultiplier: 8, jitterAllowanceMs: 500 } } })}\n`,
     "manifest.json": `${JSON.stringify({ variants: [{ startupTimings: [{ stage: "renderer-ready", elapsedMs: startupElapsed }] }] })}\n`,
   };
   for (const [path, content] of Object.entries(files)) {
