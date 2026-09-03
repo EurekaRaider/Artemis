@@ -1,9 +1,10 @@
 # Artemis Skin v1 compatibility ledger
 
-Status: CL3 Feedback/Overlay/Layout candidate on merged CL2C base
-`5593e7b161167d6d14b0c733b387a3caecd819da`. This document records what is
-enforced now and which runtime behavior remains owned by later serialized
-milestones.
+Status: Skin v1 compatibility remains fixed through merged MIG5B base
+`3b024552ab520d83982aaadf5185404d7b8325ce`. MIG6 is a local convergence
+candidate; its exact PR-head CI, sole post-PR review, and merge remain pending.
+SKIN1 has not started. This document records what is enforced now and which
+runtime behavior remains owned by later serialized milestones.
 
 ## v1 package contract
 
@@ -350,8 +351,8 @@ trusted.
 
 ## SKIN1 ownership after MIG6
 
-The following are explicitly outside CL0A-CL2A and all MIG PRs unless a new
-scope is approved:
+The following are explicitly outside CL0A-CL4 and MIG1-MIG6 unless a new scope
+is approved:
 
 - user installation, deletion, enablement, and selection;
 - `skinId` persistence or migration;
@@ -359,8 +360,11 @@ scope is approved:
 - marketplace, remote download, update, signing, or revocation;
 - arbitrary CSS, selector, JavaScript, React, or Electron extension points.
 
-They belong to the independent SKIN1 sequence after MIG6. A packable workspace
-tarball and an outside consumer proof are packaging tests, not publication or a
+They belong to the independent SKIN1 sequence after MIG6. The MIG6 candidate
+adds convergence governance and evidence only; it does not implement any item
+above. SKIN1 may start only after the exact MIG6 PR head passes native CI,
+receives its single post-PR review, and merges. A packable workspace tarball and
+an outside consumer proof are packaging tests, not publication or a
 user-install feature.
 
 ## Stop conditions and rollback
