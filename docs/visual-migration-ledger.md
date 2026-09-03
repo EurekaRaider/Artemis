@@ -15,12 +15,17 @@ aggregate and confirmed the timeline fixes, then isolated one Windows startup
 outlier and the macOS x64 Goal workload circuit breaker, addressed at head
 `69bd71f`. CI run `33765644502` passed the full macOS arm64 aggregate and then
 proved that the remaining startup policy still conflated first cold launch with
-the 26 subsequent warm launches on macOS x64 and Windows x64. The current local
-follow-up separates those bounds. The next exact PR head, fresh native macOS
-arm64, macOS x64 and Windows x64 CI, and merge are not yet complete. This
-ledger separates static prototype evidence, package/Gallery evidence, and
-production Electron evidence. It must not be used to turn a prototype, Gallery
-pass, or attribute-only resolver pass into a migrated production surface.
+the 26 subsequent warm launches on macOS x64 and Windows x64, addressed at head
+`f33257c`. CI run `33768726913` then passed seven of eight jobs, including the
+complete Windows convergence and final package boundary, but macOS x64 exposed
+an over-broad requirement that all locale screenshots have unique hashes. The
+current local follow-up retains visual-difference checks within each locale and
+reports cross-locale duplicate groups without treating untranslated fixture
+content as a failure. The next exact PR head, fresh native macOS arm64, macOS
+x64 and Windows x64 CI, and merge are not yet complete. This ledger separates
+static prototype evidence, package/Gallery evidence, and production Electron
+evidence. It must not be used to turn a prototype, Gallery pass, or
+attribute-only resolver pass into a migrated production surface.
 
 ## Inputs and evidence boundary
 
@@ -900,6 +905,27 @@ cold launch at 10 seconds, permits no more than two of 26 warm outliers, and
 keeps a 4-second hard maximum on every warm timing. Both slower platforms
 stopped in the screenshot matrix, so no later workload or final Windows package
 result is claimed from this run.
+
+Commit `f33257c` separates the first post-build cold launch from the 26 warm
+launches while preserving the merged-base-derived warm ceilings. Exact-head CI
+run `33768726913` passed its base job, Windows native sandbox integration, all
+three Gallery jobs, the complete macOS arm64 aggregate, and the complete
+Windows x64 aggregate. Windows also built and inspected the final local package
+boundary for the first time in this PR. macOS x64 passed every screenshot
+variant's semantic locale, direction, theme, zoom, reduced-motion, viewport,
+accessibility, console, and renderer-sandbox checks, then stopped because at
+least two of the 27 PNG hashes were identical. The prior assertion required
+all hashes to be globally unique even when two different locale cases rendered
+fixture content with no visible translated text, and it did not identify the
+repeated variants.
+
+The follow-up keeps the per-file size gate and every semantic assertion, records
+all duplicate hash groups with their concrete variant IDs, and requires every
+same-locale theme/zoom/motion/viewport variant to remain visually distinct.
+Cross-locale duplicates remain visible in the manifest and log but are not by
+themselves a failure. This preserves visual proof for every configuration
+dimension while removing an assertion that depended on incidental translated
+text being visible in the initial fixture.
 
 The final acceptance target is the exact clean 1.4.59 PR head. Its SHA and
 generated report paths belong in PR evidence rather than as a self-referential

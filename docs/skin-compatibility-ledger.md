@@ -2,10 +2,12 @@
 
 Status: Skin v1 compatibility remains fixed through merged MIG5B base
 `3b024552ab520d83982aaadf5185404d7b8325ce`. MIG6 is Draft PR #147. Its sole
-post-PR review completed on initial source head `ebe6741`; the combined repair,
-fresh exact-head native CI, and merge remain pending. SKIN1 has not started.
-This document records what is enforced now and which runtime behavior remains
-owned by later serialized milestones.
+post-PR review completed on initial source head `ebe6741`; CI run `33768726913`
+passed the full macOS arm64 and Windows x64 convergence aggregates plus the
+Windows package boundary, while macOS x64 exposed a screenshot-evidence policy
+issue now under repair. Fresh exact-head native CI and merge remain pending.
+SKIN1 has not started. This document records what is enforced now and which
+runtime behavior remains owned by later serialized milestones.
 
 ## v1 package contract
 

@@ -15,6 +15,7 @@ import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
 import { evaluateStartupTimings } from "../../../scripts/verify-ui-performance.mjs";
+import { evaluateScreenshotMatrixVisualEvidence } from "./screenshot-matrix-evidence.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appDirectory = resolve(scriptDirectory, "..");
@@ -169,7 +170,7 @@ const temporaryDirectory = await mkdtemp(
 );
 const manifest = {
   format: "artemis-screenshot-matrix",
-  version: 2,
+  version: 3,
   generatedAt: new Date().toISOString(),
   candidateHead,
   expectedHead,
@@ -350,10 +351,18 @@ try {
     warmOutlierVariants: startup.warmOutlierVariants,
   };
 
+  const visualEvidence = evaluateScreenshotMatrixVisualEvidence(
+    manifest.variants,
+  );
+  manifest.visualEvidence = visualEvidence;
+  for (const duplicate of visualEvidence.duplicateGroups) {
+    console.log(
+      `Screenshot duplicate ${duplicate.screenshotSha256}: ${duplicate.variantIds.join(", ")}`,
+    );
+  }
   assert(
-    new Set(manifest.variants.map((variant) => variant.screenshotSha256))
-      .size === variants.length,
-    "Screenshot matrix variants are not visually distinct.",
+    visualEvidence.violations.length === 0,
+    `Screenshot matrix required visual differences failed:\n${visualEvidence.violations.join("\n")}`,
   );
   const finalHead = runGit(["rev-parse", "HEAD"]);
   const finalStatus = runGit(["status", "--porcelain"]);
