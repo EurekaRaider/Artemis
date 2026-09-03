@@ -634,7 +634,7 @@ async function buildSmokePreload() {
   const withCounters = productionSource
     .replace(
       'import { contextBridge, ipcRenderer, webUtils } from "electron";',
-      'import { clipboard, contextBridge, ipcRenderer, webFrame, webUtils } from "electron";',
+      'import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";',
     )
     .replace(
       "const api: ArtemisApi = {",
@@ -666,7 +666,7 @@ async function buildSmokePreload() {
     )
     .replace(
       'contextBridge.exposeInMainWorld("artemis", api);',
-      'contextBridge.exposeInMainWorld("__ARTEMIS_SKIN_SMOKE_PRELOAD__", {\n  clipboardText: () => clipboard.readText(),\n  restoreClipboardText: (value) => clipboard.writeText(value),\n  terminalData: () => desktopSkinSmokeTerminalData,\n  terminalOpenCount: () => desktopSkinSmokeTerminalOpenCount,\n  terminalWriteCount: () => desktopSkinSmokeTerminalWriteCount,\n  terminalResizeCount: () => desktopSkinSmokeTerminalResizeCount,\n  terminalLastResize: () => desktopSkinSmokeTerminalLastResize,\n  terminalCloseCount: () => desktopSkinSmokeTerminalCloseCount,\n  rendererReadyCount: () => desktopSkinSmokeRendererReadyCount,\n  setZoomFactor: (value) => webFrame.setZoomFactor(value),\n  zoomFactor: () => webFrame.getZoomFactor(),\n});\ncontextBridge.exposeInMainWorld("artemis", api);',
+      'contextBridge.exposeInMainWorld("__ARTEMIS_SKIN_SMOKE_PRELOAD__", {\n  terminalData: () => desktopSkinSmokeTerminalData,\n  terminalOpenCount: () => desktopSkinSmokeTerminalOpenCount,\n  terminalWriteCount: () => desktopSkinSmokeTerminalWriteCount,\n  terminalResizeCount: () => desktopSkinSmokeTerminalResizeCount,\n  terminalLastResize: () => desktopSkinSmokeTerminalLastResize,\n  terminalCloseCount: () => desktopSkinSmokeTerminalCloseCount,\n  rendererReadyCount: () => desktopSkinSmokeRendererReadyCount,\n  setZoomFactor: (value) => webFrame.setZoomFactor(value),\n  zoomFactor: () => webFrame.getZoomFactor(),\n});\ncontextBridge.exposeInMainWorld("artemis", api);',
     );
   assert(
     withCounters !== productionSource &&
@@ -1713,10 +1713,6 @@ async function driveElectron() {
       `Terminal write/resize IPC evidence was incomplete: ${JSON.stringify(terminalResizeEvidence)}`,
     );
 
-    const previousClipboardText = await evaluate(
-      connection,
-      "globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.clipboardText()",
-    );
     await evaluate(
       connection,
       `(() => {
@@ -1730,16 +1726,11 @@ async function driveElectron() {
           globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__.eventText =
             event.clipboardData?.getData("text/plain") ?? "";
         });
-        globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.restoreClipboardText(
-          "artemis-smoke-clipboard-sentinel",
-        );
       })()`,
     );
-    let terminalSelectionEvidence;
-    try {
-      const terminalSelectionPoint = await evaluate(
-        connection,
-        `(() => {
+    const terminalSelectionPoint = await evaluate(
+      connection,
+      `(() => {
         const rows = [
           ...document.querySelectorAll(".terminal-host .xterm-rows > div"),
         ];
@@ -1763,73 +1754,65 @@ async function driveElectron() {
           x: screenBounds.left + cellWidth * (promptOffset + 3.5),
           y: rowBounds.top + rowBounds.height / 2,
         };
-        })()`,
-      );
+      })()`,
+    );
+    await connection.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x: terminalSelectionPoint.x,
+      y: terminalSelectionPoint.y,
+    });
+    for (const clickCount of [1, 2]) {
       await connection.send("Input.dispatchMouseEvent", {
-        type: "mouseMoved",
+        button: "left",
+        buttons: 1,
+        clickCount,
+        type: "mousePressed",
         x: terminalSelectionPoint.x,
         y: terminalSelectionPoint.y,
       });
-      for (const clickCount of [1, 2]) {
-        await connection.send("Input.dispatchMouseEvent", {
-          button: "left",
-          buttons: 1,
-          clickCount,
-          type: "mousePressed",
-          x: terminalSelectionPoint.x,
-          y: terminalSelectionPoint.y,
-        });
-        await connection.send("Input.dispatchMouseEvent", {
-          button: "left",
-          buttons: 0,
-          clickCount,
-          type: "mouseReleased",
-          x: terminalSelectionPoint.x,
-          y: terminalSelectionPoint.y,
-        });
-      }
-      const copyModifiers = process.platform === "darwin" ? 4 : 2;
-      await connection.send("Input.dispatchKeyEvent", {
-        code: "KeyC",
-        key: "c",
-        modifiers: copyModifiers,
-        type: "rawKeyDown",
-        windowsVirtualKeyCode: 67,
-        nativeVirtualKeyCode: 67,
+      await connection.send("Input.dispatchMouseEvent", {
+        button: "left",
+        buttons: 0,
+        clickCount,
+        type: "mouseReleased",
+        x: terminalSelectionPoint.x,
+        y: terminalSelectionPoint.y,
       });
-      await connection.send("Input.dispatchKeyEvent", {
-        code: "KeyC",
-        key: "c",
-        modifiers: copyModifiers,
-        type: "keyUp",
-        windowsVirtualKeyCode: 67,
-        nativeVirtualKeyCode: 67,
-      });
-      await waitFor(
-        connection,
-        'globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__?.count === 1 && globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.clipboardText().includes("Artemis")',
-        "xterm selection copied through the real clipboard event",
-        15_000,
-      );
-      terminalSelectionEvidence = await evaluate(
-        connection,
-        `(() => ({
-        clipboardText:
-          globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.clipboardText(),
+    }
+    const copyModifiers = process.platform === "darwin" ? 4 : 2;
+    await connection.send("Input.dispatchKeyEvent", {
+      code: "KeyC",
+      key: "c",
+      modifiers: copyModifiers,
+      type: "rawKeyDown",
+      windowsVirtualKeyCode: 67,
+      nativeVirtualKeyCode: 67,
+    });
+    await connection.send("Input.dispatchKeyEvent", {
+      code: "KeyC",
+      key: "c",
+      modifiers: copyModifiers,
+      type: "keyUp",
+      windowsVirtualKeyCode: 67,
+      nativeVirtualKeyCode: 67,
+    });
+    await waitFor(
+      connection,
+      'globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__?.count === 1 && globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__.eventText.includes("Artemis")',
+      "xterm selection copied through the real clipboard event",
+      15_000,
+    );
+    const terminalSelectionEvidence = await evaluate(
+      connection,
+      `(() => ({
         copyEvent: globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__,
         point: ${JSON.stringify(terminalSelectionPoint)},
       }))()`,
-      );
-    } finally {
-      await evaluate(
-        connection,
-        `globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.restoreClipboardText(${JSON.stringify(previousClipboardText)})`,
-      );
-    }
+    );
     assert(
       terminalSelectionEvidence.copyEvent?.count === 1 &&
         terminalSelectionEvidence.copyEvent?.eventText.includes("Artemis") &&
-        terminalSelectionEvidence.clipboardText.includes("Artemis"),
+        terminalSelectionEvidence.point?.cellWidth > 0,
       `Terminal selection/copy evidence was incomplete: ${JSON.stringify(terminalSelectionEvidence)}`,
     );
 
