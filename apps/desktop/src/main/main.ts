@@ -14503,14 +14503,18 @@ function createMainWindow(): BrowserWindow {
     window.once("ready-to-show", () => {
       if (smokeScreenshot) {
         const view = process.env.ARTEMIS_SMOKE_VIEW ?? "";
-        if (
+        const focusEvidenceView =
           view.startsWith("form-controls-") ||
           view === "mcp-editor-form-controls" ||
-          view === "turn-changes-form-controls"
-        ) {
+          view === "turn-changes-form-controls" ||
+          view === "navigation-token-usage" ||
+          view === "markdown-editor-navigation-toolbar" ||
+          view === "markdown-editor-navigation-preview";
+        if (focusEvidenceView) {
           // Keep focus-evidence views on the active display. A macOS runner
           // cannot activate a window parked outside every screen, so moving
-          // these views offscreen makes real :focus-visible evidence
+          // these form and navigation views offscreen makes real
+          // :focus-visible evidence
           // impossible even when the renderer interaction is correct.
           window.center();
           window.show();

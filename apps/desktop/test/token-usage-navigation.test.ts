@@ -103,6 +103,31 @@ describe("token usage navigation", () => {
     expect(mainSource).toContain('window.webContents.on("console-message"');
     expect(mainSource).toContain("processType: typeof globalThis.process");
     expect(mainSource).toContain("requireType: typeof globalThis.require");
+
+    const focusEvidenceStart = mainSource.indexOf("const focusEvidenceView =");
+    const readyToShowEnd = mainSource.indexOf(
+      'window.on("unresponsive"',
+      focusEvidenceStart,
+    );
+    const focusEvidenceSetup = mainSource.slice(
+      focusEvidenceStart,
+      readyToShowEnd,
+    );
+    const focusBranchEnd = focusEvidenceSetup.indexOf("} else {");
+    const focusBranch = focusEvidenceSetup.slice(0, focusBranchEnd);
+    expect(focusEvidenceStart).toBeGreaterThan(-1);
+    expect(readyToShowEnd).toBeGreaterThan(focusEvidenceStart);
+    expect(focusBranchEnd).toBeGreaterThan(-1);
+    expect(focusEvidenceSetup).toContain('view === "navigation-token-usage"');
+    expect(focusEvidenceSetup).toContain(
+      'view === "markdown-editor-navigation-toolbar"',
+    );
+    expect(focusEvidenceSetup).toContain(
+      'view === "markdown-editor-navigation-preview"',
+    );
+    expect(focusBranch).toContain("window.center()");
+    expect(focusBranch).toContain("window.show()");
+    expect(focusBranch).not.toContain("window.showInactive()");
   });
 
   it("places the Token Usage button immediately after MCP & Skills and opens its page", () => {
