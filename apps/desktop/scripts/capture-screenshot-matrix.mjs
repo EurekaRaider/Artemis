@@ -262,11 +262,13 @@ try {
       `${variant.id} zoom factor is ${JSON.stringify(accessibility.zoomFactor)}.`,
     );
     assert(
-      accessibility.themePreference === variant.theme,
-      `${variant.id} theme preference is ${JSON.stringify(accessibility.themePreference)}.`,
+      accessibility.requestedTheme === variant.theme,
+      `${variant.id} requested theme is ${JSON.stringify(accessibility.requestedTheme)}.`,
     );
     assert(
-      ["light", "dark"].includes(accessibility.resolvedTheme) &&
+      (variant.theme === "system"
+        ? ["light", "dark"].includes(accessibility.resolvedTheme)
+        : accessibility.resolvedTheme === variant.theme) &&
         accessibility.contrastMode === "normal",
       `${variant.id} resolved theme is ${JSON.stringify(accessibility.resolvedTheme)} with contrast ${JSON.stringify(accessibility.contrastMode)}.`,
     );

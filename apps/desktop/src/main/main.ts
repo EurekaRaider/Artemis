@@ -19414,6 +19414,11 @@ function createMainWindow(): BrowserWindow {
               `${JSON.stringify(
                 {
                   ...result,
+                  requestedTheme:
+                    process.env.ARTEMIS_SMOKE_THEME === "light" ||
+                    process.env.ARTEMIS_SMOKE_THEME === "dark"
+                      ? process.env.ARTEMIS_SMOKE_THEME
+                      : "system",
                   rendererConsoleEntries: smokeRendererConsoleEntries,
                   runtimeSecurity: {
                     contextIsolation:
