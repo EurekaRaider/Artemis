@@ -14807,15 +14807,21 @@ function createMainWindow(): BrowserWindow {
                     '[data-artemis-component="conversation-message"]' +
                       '[data-message-kind="assistant"] [data-part="actions"] button',
                   );
+                  const assistantActions = assistantAction?.closest(
+                    '[data-part="actions"]',
+                  );
+                  let actionOpacity = null;
                   if (assistantAction instanceof HTMLButtonElement) {
                     assistantAction.focus({ preventScroll: true });
+                    const actionOpacityDeadline = performance.now() + 1_000;
+                    do {
+                      actionOpacity = assistantActions
+                        ? getComputedStyle(assistantActions).opacity
+                        : null;
+                      if (Number(actionOpacity) >= 0.99) break;
+                      await wait(25);
+                    } while (performance.now() < actionOpacityDeadline);
                   }
-                  await wait(200);
-                  const actionOpacity = assistantAction
-                    ? getComputedStyle(
-                        assistantAction.closest('[data-part="actions"]'),
-                      ).opacity
-                    : null;
                   const agentButtons = [
                     ...document.querySelectorAll(
                       'button[data-artemis-component="agent-activity"]',

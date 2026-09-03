@@ -7,12 +7,14 @@ through PR #146 as squash commit
 `ebe6741e2dc92222638bf4b22de07ce43d667b32`; its one permitted post-PR review
 completed on that SHA. Findings from that review and initial CI run
 `33750952835` were combined at repair head `10e46d8`. Its CI run `33756491896`
-then isolated one remaining cross-runner startup-budget issue, addressed in the
-current local follow-up. The next exact PR head, fresh native macOS arm64,
-macOS x64 and Windows x64 CI, and merge are not yet complete. This ledger
-separates static prototype evidence, package/Gallery evidence, and production
-Electron evidence. It must not be used to turn a prototype, Gallery pass, or
-attribute-only resolver pass into a migrated production surface.
+then isolated one cross-runner startup-budget issue, addressed at follow-up
+head `fcf993c`. CI run `33759335470` passed the full macOS arm64 aggregate and
+isolated two timeline sampling boundaries on macOS x64 and Windows x64, both
+addressed in the current local follow-up. The next exact PR head, fresh native
+macOS arm64, macOS x64 and Windows x64 CI, and merge are not yet complete. This
+ledger separates static prototype evidence, package/Gallery evidence, and
+production Electron evidence. It must not be used to turn a prototype, Gallery
+pass, or attribute-only resolver pass into a migrated production surface.
 
 ## Inputs and evidence boundary
 
@@ -20,7 +22,7 @@ attribute-only resolver pass into a migrated production surface.
   (MIG5B merged).
 - Draft PR #147 initial source head:
   `ebe6741e2dc92222638bf4b22de07ce43d667b32`; the sole review is scoped to
-  this SHA, while the combined repair and its fresh CI remain pending.
+  this SHA, while final repaired-head CI remains pending.
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -836,6 +838,20 @@ theme, or motion failure was reported before those budget stops. The later x64
 and Windows workloads, including the final Windows package step, were not
 reached and still require fresh CI on the follow-up head.
 
+Follow-up-head CI run `33759335470` confirmed the revised startup budgets on
+both slower runners. It passed the base job, Windows native sandbox integration,
+all three Gallery jobs, and the complete macOS arm64 visual-convergence audit
+in 16 minutes 7 seconds. macOS x64 and Windows both progressed beyond startup
+and reached the conversation Timeline. The x64 action-visibility sample caught
+opacity `0.96808` during its CSS transition against the required `0.99`; the
+Windows message-visibility sample measured `19.5390625` CSS pixels against a
+20-pixel boundary at device-pixel ratio 2. The follow-up now polls the actual
+action opacity for at most one second and still fails if it never reaches
+`0.99`. The geometry assertion retains the 20-CSS-pixel target while tolerating
+at most one physical pixel of cross-platform rounding (`19.5` CSS pixels at
+DPR 2). Later x64 and Windows workloads, including the final Windows package
+step, were not reached and require a fresh run on the new source head.
+
 The final acceptance target is the exact clean 1.4.59 PR head. Its SHA and
 generated report paths belong in PR evidence rather than as a self-referential
 value in this commit. CI must reproduce the aggregate audit on native macOS
@@ -843,9 +859,9 @@ arm64, macOS x64, and Windows x64 runners; Windows must also inspect its final
 package. Per the review policy, MIG6 received no separate pre-PR validator and
 exactly one review after the PR existed. Fresh CI on the repaired head remains
 the pending platform gate. This local evidence does not establish the
-still-pending native x64 results, signing, notarization, stapling,
-clean-install/update/rollback behavior, real provider or hardware behavior,
-screen-reader acceptance, or soak stability. No release artifact was
+still-pending final repaired-head native results, signing, notarization,
+stapling, clean-install/update/rollback behavior, real provider or hardware
+behavior, screen-reader acceptance, or soak stability. No release artifact was
 downloaded for checksum, ZIP, or DMG verification. SKIN1 has not started.
 
 ## Component and surface sequence
@@ -871,7 +887,7 @@ downloaded for checksum, ZIP, or DMG verification. SKIN1 has not started.
 | Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | Merged at `94d1c0d`                                          |
 | Settings, Resource Center, MCP Editor                                     | surface            | `@artemis/ui` + Desktop   | users                             | feature-local renderer styles                    | MIG5A     | Form, permission, privacy and exact-head Electron matrix     | Merged at `e855865`                                          |
 | Archive, Usage, Automation                                                | surface            | `@artemis/ui` + Desktop   | users                             | secondary-page selectors                         | MIG5B     | Real-data, a11y, schedule and exact-head Electron matrix     | Merged at `3b02455` via PR #146                              |
-| Convergence and governance cleanup                                        | surface/governance | Desktop + CI              | users/contributors                | remaining proven-unused legacy selectors         | MIG6      | Complete exact-head runtime/performance/platform matrix      | Draft #147; combined repair/CI pending; sole review complete |
+| Convergence and governance cleanup                                        | surface/governance | Desktop + CI              | users/contributors                | remaining proven-unused legacy selectors         | MIG6      | Complete exact-head runtime/performance/platform matrix      | Draft #147; timeline repair/CI pending; sole review complete |
 
 ## Production behavior regression input
 

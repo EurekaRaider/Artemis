@@ -358,14 +358,18 @@ try {
         timeline.viewport,
         "clientHeight >= 48 and scrollHeight > clientHeight",
       );
+      const minimumVisibleMessagePixels =
+        20 - 1 / Math.max(1, Number(timeline.devicePixelRatio) || 1);
       assert(
         "conversation-message-visible",
-        timeline.visibleMessageCount > 0 && timeline.visibleMessagePixels >= 20,
+        timeline.visibleMessageCount > 0 &&
+          timeline.visibleMessagePixels >= minimumVisibleMessagePixels,
         {
           count: timeline.visibleMessageCount,
           pixels: timeline.visibleMessagePixels,
+          minimum: minimumVisibleMessagePixels,
         },
-        "at least one message with >= 20 visible CSS px",
+        "at least one message within one device pixel of 20 visible CSS px",
       );
       assert(
         "user-message-inline-end-alignment",

@@ -19,6 +19,9 @@ const environmentVerifierSource = source(
 const screenshotMatrixSource = source(
   "../scripts/capture-screenshot-matrix.mjs",
 );
+const conversationVerifierSource = source(
+  "../scripts/verify-conversation-timeline.mjs",
+);
 const packageJson = JSON.parse(source("../package.json")) as {
   scripts: Record<string, string>;
   build: {
@@ -114,7 +117,7 @@ describe("desktop startup latency guardrails", () => {
     );
   });
 
-  it("makes animation and explicit theme preference evidence deterministic", () => {
+  it("makes animation, visibility, and explicit theme evidence deterministic", () => {
     expect(environmentVerifierSource).toContain(
       '"--force-prefers-no-reduced-motion"',
     );
@@ -126,6 +129,13 @@ describe("desktop startup latency guardrails", () => {
     );
     expect(screenshotMatrixSource).toContain(
       "accessibility.themePreference === variant.theme",
+    );
+    expect(mainSource).toContain(
+      "const actionOpacityDeadline = performance.now() + 1_000",
+    );
+    expect(mainSource).toContain("Number(actionOpacity) >= 0.99");
+    expect(conversationVerifierSource).toContain(
+      "20 - 1 / Math.max(1, Number(timeline.devicePixelRatio) || 1)",
     );
   });
 
