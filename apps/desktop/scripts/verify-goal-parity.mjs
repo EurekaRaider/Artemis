@@ -462,6 +462,9 @@ try {
         runRootUnexpectedEntries: unexpectedRunRootEntries,
       },
     });
+    console.log(
+      `Goal parity ${String(results.length)}/${String(cases.length)}: ${id}`,
+    );
   }
   const manifestPath = join(outputDirectory, "manifest.json");
   await writeFile(

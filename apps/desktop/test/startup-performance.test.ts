@@ -13,6 +13,7 @@ const settingsPanelSource = source("../src/renderer/SettingsPanel.tsx");
 const appSource = source("../src/renderer/App.tsx");
 const apiSource = source("../src/shared/api.ts");
 const ciWorkflowSource = source("../../../.github/workflows/ci.yml");
+const gitAttributesSource = source("../../../.gitattributes");
 const environmentVerifierSource = source(
   "../scripts/verify-environment-panel-responsive.mjs",
 );
@@ -115,6 +116,7 @@ describe("desktop startup latency guardrails", () => {
     expect(visualJob.indexOf("npm run package:win")).toBeLessThan(
       visualJob.indexOf("npm run verify:win-native -w @artemis/desktop"),
     );
+    expect(gitAttributesSource).toContain("*.css text eol=lf");
   });
 
   it("makes animation, visibility, and explicit theme evidence deterministic", () => {

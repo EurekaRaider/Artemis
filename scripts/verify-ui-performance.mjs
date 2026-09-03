@@ -42,16 +42,19 @@ export function startupStageMaximums(budget) {
   const policy = budget.thresholds?.startup;
   const multiplier = policy?.baselineMultiplier;
   const jitter = policy?.jitterAllowanceMs;
+  const maximumOutlierVariants = policy?.maximumOutlierVariants;
   if (
     baseline === undefined ||
     typeof baseline !== "object" ||
     !Number.isFinite(multiplier) ||
     multiplier < 1 ||
     !Number.isFinite(jitter) ||
-    jitter < 0
+    jitter < 0 ||
+    !Number.isInteger(maximumOutlierVariants) ||
+    maximumOutlierVariants < 0
   ) {
     throw new Error(
-      "UI performance startup budget requires a baseline, multiplier >= 1, and non-negative jitter allowance",
+      "UI performance startup budget requires a baseline, multiplier >= 1, non-negative jitter allowance, and non-negative integer outlier allowance",
     );
   }
   return Object.fromEntries(
@@ -62,6 +65,64 @@ export function startupStageMaximums(budget) {
       return [stage, Math.round((value * multiplier + jitter) * 10) / 10];
     }),
   );
+}
+
+export function evaluateStartupTimings(budget, variants) {
+  const thresholds = startupStageMaximums(budget);
+  const hardMaximumMs = Math.max(...Object.values(thresholds));
+  const maximumOutlierVariants =
+    budget.thresholds.startup.maximumOutlierVariants;
+  const stageMaximumMs = {};
+  const outlierVariants = [];
+  const violations = [];
+
+  if (variants.length === 0) {
+    violations.push("startup matrix: expected at least one variant");
+  }
+
+  for (const [index, variant] of variants.entries()) {
+    const variantId = variant.id ?? `variant-${String(index + 1)}`;
+    const stageOutliers = [];
+    for (const [stage, maximum] of Object.entries(thresholds)) {
+      const matches = (variant.startupTimings ?? []).filter(
+        (timing) => timing.stage === stage,
+      );
+      if (matches.length !== 1 || !Number.isFinite(matches[0]?.elapsedMs)) {
+        violations.push(
+          `startup.${variantId}.${stage}: expected one finite timing`,
+        );
+        continue;
+      }
+      const actual = matches[0].elapsedMs;
+      stageMaximumMs[stage] = Math.max(stageMaximumMs[stage] ?? 0, actual);
+      if (actual > maximum) {
+        stageOutliers.push({ stage, actual, maximum });
+      }
+      if (actual > hardMaximumMs) {
+        violations.push(
+          `startup.${variantId}.${stage}: ${String(actual)} exceeds hard maximum ${String(hardMaximumMs)}`,
+        );
+      }
+    }
+    if (stageOutliers.length > 0) {
+      outlierVariants.push({ id: variantId, stages: stageOutliers });
+    }
+  }
+
+  if (outlierVariants.length > maximumOutlierVariants) {
+    violations.push(
+      `startup outlier variants: ${String(outlierVariants.length)} exceeds ${String(maximumOutlierVariants)} (${outlierVariants.map((variant) => variant.id).join(", ")})`,
+    );
+  }
+
+  return {
+    stageMaximumMs,
+    thresholds,
+    hardMaximumMs,
+    maximumOutlierVariants,
+    outlierVariants,
+    violations,
+  };
 }
 
 function argument(name) {
@@ -95,25 +156,15 @@ export async function verifyUiPerformance(
 
   const startupThresholds = startupStageMaximums(budget);
   let startupStageMaximumMs;
+  let startupOutlierVariants;
+  let startupHardMaximumMs;
   if (screenshotManifestPath !== undefined) {
     const manifest = JSON.parse(await readFile(screenshotManifestPath, "utf8"));
-    startupStageMaximumMs = {};
-    for (const variant of manifest.variants ?? []) {
-      for (const timing of variant.startupTimings ?? []) {
-        startupStageMaximumMs[timing.stage] = Math.max(
-          startupStageMaximumMs[timing.stage] ?? 0,
-          timing.elapsedMs,
-        );
-      }
-    }
-    for (const [stage, maximum] of Object.entries(startupThresholds)) {
-      assertBudget(
-        `startup.${stage}`,
-        startupStageMaximumMs[stage],
-        maximum,
-        violations,
-      );
-    }
+    const startup = evaluateStartupTimings(budget, manifest.variants ?? []);
+    startupStageMaximumMs = startup.stageMaximumMs;
+    startupOutlierVariants = startup.outlierVariants;
+    startupHardMaximumMs = startup.hardMaximumMs;
+    violations.push(...startup.violations);
   }
   if (violations.length > 0) {
     throw new Error(
@@ -124,9 +175,11 @@ export async function verifyUiPerformance(
     baseline: budget.baseline,
     metrics,
     startupStageMaximumMs,
+    startupOutlierVariants,
     thresholds: {
       ...budget.thresholds,
       startupStageMaximumMs: startupThresholds,
+      startupHardMaximumMs,
     },
   };
 }

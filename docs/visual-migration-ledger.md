@@ -10,11 +10,14 @@ completed on that SHA. Findings from that review and initial CI run
 then isolated one cross-runner startup-budget issue, addressed at follow-up
 head `fcf993c`. CI run `33759335470` passed the full macOS arm64 aggregate and
 isolated two timeline sampling boundaries on macOS x64 and Windows x64, both
-addressed in the current local follow-up. The next exact PR head, fresh native
-macOS arm64, macOS x64 and Windows x64 CI, and merge are not yet complete. This
-ledger separates static prototype evidence, package/Gallery evidence, and
-production Electron evidence. It must not be used to turn a prototype, Gallery
-pass, or attribute-only resolver pass into a migrated production surface.
+addressed at head `331448c`. CI run `33762336220` passed the full macOS arm64
+aggregate and confirmed the timeline fixes, then isolated one Windows startup
+outlier and the macOS x64 Goal workload circuit breaker. Both are addressed in
+the current local follow-up. The next exact PR head, fresh native macOS arm64,
+macOS x64 and Windows x64 CI, and merge are not yet complete. This ledger
+separates static prototype evidence, package/Gallery evidence, and production
+Electron evidence. It must not be used to turn a prototype, Gallery pass, or
+attribute-only resolver pass into a migrated production surface.
 
 ## Inputs and evidence boundary
 
@@ -789,8 +792,12 @@ bypassed by adding a token reference to a hardcoded color, dimension, or
 unitless stacking value. The performance gate records byte and startup budgets
 against merged base `3b02455`; every startup ceiling is now derived from the
 corresponding merged-base maximum times eight plus 500 ms of cross-runner
-jitter, instead of a multi-second absolute allowance. Implementation checkpoint
-`2a38040` measured Desktop CSS at 287,911 bytes, Desktop JavaScript at
+jitter, instead of a multi-second absolute allowance. All 27 launch variants
+must meet their stage ceilings except at most one shared-runner outlier, and
+even that one variant must keep every stage below the highest derived ceiling
+of 3065.6 ms. Empty evidence, two outlier variants, and a five-second regression
+remain fail-closed. Implementation checkpoint `2a38040` measured Desktop CSS at
+287,911 bytes, Desktop JavaScript at
 1,855,194 bytes, largest Desktop chunk at 853,244 bytes, Gallery CSS at 180,175
 bytes, Gallery JavaScript at 355,604 bytes, and public UI CSS at 151,849 bytes.
 Its observed startup maxima were 26.4 ms for app start, 80 ms for diagnostics,
@@ -852,13 +859,35 @@ at most one physical pixel of cross-platform rounding (`19.5` CSS pixels at
 DPR 2). Later x64 and Windows workloads, including the final Windows package
 step, were not reached and require a fresh run on the new source head.
 
+Timeline-repair CI run `33762336220` passed its base job, Windows native sandbox
+integration, all three Gallery jobs, and the full macOS arm64 aggregate. The
+macOS x64 run passed every workload through secondary pages, including the
+repaired Timeline, but `goal-parity` hit its 360,000 ms aggregate circuit breaker
+at 360,007.9 ms. That workload performs 105 isolated Electron launches; the
+same exact head completed locally in 227,210.3 ms, and every individual launch
+retains its independent 45-second timeout. The follow-up raises only this
+workload's aggregate circuit breaker to 600,000 ms and records per-case progress
+for any future timeout.
+
+Windows stopped in its screenshot matrix when one `ar-dark-125` launch recorded
+`core-state-ready` at 2211.4 ms against the 1345.6 ms stage ceiling. The previous
+Windows run had passed the same startup matrix, so the follow-up keeps every
+derived ceiling unchanged and permits only one of 27 variants to exceed its
+stage ceiling while still requiring that launch to stay below 3065.6 ms. Two
+outliers and the five-second regression fixture fail. The Windows build also
+showed Gallery CSS at about 185.44 kB versus 180,175 bytes on macOS because its
+5,266 tracked source-CSS lines were checked out with CRLF. CSS checkout is now
+fixed to LF rather than weakening the 182,000-byte package budget. Windows did
+not reach later workloads or its final package step, and x64 did not reach its
+last Desktop-skin/package workload; both still require fresh CI.
+
 The final acceptance target is the exact clean 1.4.59 PR head. Its SHA and
 generated report paths belong in PR evidence rather than as a self-referential
 value in this commit. CI must reproduce the aggregate audit on native macOS
 arm64, macOS x64, and Windows x64 runners; Windows must also inspect its final
 package. Per the review policy, MIG6 received no separate pre-PR validator and
-exactly one review after the PR existed. Fresh CI on the repaired head remains
-the pending platform gate. This local evidence does not establish the
+exactly one review after the PR existed. Fresh CI on the next repaired head
+remains the pending platform gate. This local evidence does not establish the
 still-pending final repaired-head native results, signing, notarization,
 stapling, clean-install/update/rollback behavior, real provider or hardware
 behavior, screen-reader acceptance, or soak stability. No release artifact was
@@ -887,7 +916,7 @@ downloaded for checksum, ZIP, or DMG verification. SKIN1 has not started.
 | Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | Merged at `94d1c0d`                                          |
 | Settings, Resource Center, MCP Editor                                     | surface            | `@artemis/ui` + Desktop   | users                             | feature-local renderer styles                    | MIG5A     | Form, permission, privacy and exact-head Electron matrix     | Merged at `e855865`                                          |
 | Archive, Usage, Automation                                                | surface            | `@artemis/ui` + Desktop   | users                             | secondary-page selectors                         | MIG5B     | Real-data, a11y, schedule and exact-head Electron matrix     | Merged at `3b02455` via PR #146                              |
-| Convergence and governance cleanup                                        | surface/governance | Desktop + CI              | users/contributors                | remaining proven-unused legacy selectors         | MIG6      | Complete exact-head runtime/performance/platform matrix      | Draft #147; timeline repair/CI pending; sole review complete |
+| Convergence and governance cleanup                                        | surface/governance | Desktop + CI              | users/contributors                | remaining proven-unused legacy selectors         | MIG6      | Complete exact-head runtime/performance/platform matrix      | Draft #147; platform repair/CI pending; sole review complete |
 
 ## Production behavior regression input
 

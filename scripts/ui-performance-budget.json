@@ -34,7 +34,8 @@
     "startup": {
       "baselineMultiplier": 8,
       "jitterAllowanceMs": 500,
-      "note": "Each stage ceiling is its merged-base maximum times eight plus 500 ms of cross-runner jitter."
+      "maximumOutlierVariants": 1,
+      "note": "Each stage ceiling is its merged-base maximum times eight plus 500 ms of cross-runner jitter. At most one matrix variant may exceed its stage ceiling, and every timing must remain below the highest derived ceiling."
     },
     "workloadWallClockMs": {
       "screenshot-matrix": 180000,
@@ -46,7 +47,7 @@
       "navigation-controls": 240000,
       "resource-center-mcp": 360000,
       "secondary-pages": 300000,
-      "goal-parity": 360000,
+      "goal-parity": 600000,
       "desktop-skin-gallery-package": 900000
     }
   }

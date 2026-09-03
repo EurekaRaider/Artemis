@@ -14,7 +14,7 @@ import { dirname, join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
-import { startupStageMaximums } from "../../../scripts/verify-ui-performance.mjs";
+import { evaluateStartupTimings } from "../../../scripts/verify-ui-performance.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appDirectory = resolve(scriptDirectory, "..");
@@ -31,7 +31,6 @@ const budget = JSON.parse(
     "utf8",
   ),
 );
-const startupThresholds = startupStageMaximums(budget);
 const locales = [
   "en",
   "zh-CN",
@@ -316,15 +315,6 @@ try {
     );
 
     const startupTimings = accessibility.startupTimings ?? [];
-    for (const [stage, maximum] of Object.entries(startupThresholds)) {
-      const timing = startupTimings.find(
-        (candidate) => candidate.stage === stage,
-      );
-      assert(
-        Number.isFinite(timing?.elapsedMs) && timing.elapsedMs <= maximum,
-        `${variant.id} startup stage ${stage} is ${String(timing?.elapsedMs)}ms; maximum ${String(maximum)}ms.`,
-      );
-    }
 
     manifest.variants.push({
       ...variant,
@@ -343,6 +333,19 @@ try {
       },
     });
   }
+
+  const startup = evaluateStartupTimings(budget, manifest.variants);
+  assert(
+    startup.violations.length === 0,
+    `Screenshot matrix startup budget failed:\n${startup.violations.join("\n")}`,
+  );
+  manifest.startupBudget = {
+    stageMaximumMs: startup.stageMaximumMs,
+    stageThresholdMaximumMs: startup.thresholds,
+    hardMaximumMs: startup.hardMaximumMs,
+    maximumOutlierVariants: startup.maximumOutlierVariants,
+    outlierVariants: startup.outlierVariants,
+  };
 
   assert(
     new Set(manifest.variants.map((variant) => variant.screenshotSha256))
