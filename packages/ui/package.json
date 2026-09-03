@@ -1,6 +1,6 @@
 {
   "name": "@artemis/ui",
-  "version": "1.4.56",
+  "version": "1.4.57",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -33,6 +33,10 @@
     "./layout": {
       "types": "./dist/layout.d.ts",
       "import": "./dist/layout.js"
+    },
+    "./management": {
+      "types": "./dist/management.d.ts",
+      "import": "./dist/management.js"
     },
     "./navigation": {
       "types": "./dist/navigation.d.ts",

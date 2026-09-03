@@ -56,6 +56,10 @@ describe("Navigation component contracts", () => {
       "compact",
       "comfortable",
     ]);
+    expect(NAVIGATION_COMPONENT_CONTRACTS.tabs.orientations).toEqual([
+      "horizontal",
+      "vertical",
+    ]);
     expect(NAVIGATION_COMPONENT_CONTRACTS.tabs.theme.direction).toBe("inherit");
   });
 
@@ -107,6 +111,9 @@ describe("Tabs behavior", () => {
       "compact",
       "comfortable",
     ]);
+    expect(
+      [...roots].map((root) => root.getAttribute("aria-orientation")),
+    ).toEqual(["horizontal", "horizontal"]);
     const compact = screen.getByRole("tablist", { name: "Compact tabs" });
     const tabs = within(compact).getAllByRole("tab");
     expect(tabs.map((tab) => tab.getAttribute("data-part"))).toEqual([
@@ -204,6 +211,47 @@ describe("Tabs behavior", () => {
       screen.getByRole("tab", { name: "Gamma" }),
     );
     expect(changes).toHaveBeenCalledOnce();
+  });
+
+  it("announces vertical orientation and uses only Up and Down for roving selection", async () => {
+    const user = userEvent.setup();
+    const changes = vi.fn();
+    function Example() {
+      const [value, setValue] = useState<"alpha" | "blocked" | "gamma">(
+        "alpha",
+      );
+      return (
+        <Tabs
+          label="Vertical views"
+          onValueChange={(next) => {
+            changes(next);
+            setValue(next);
+          }}
+          orientation="vertical"
+          options={TAB_OPTIONS}
+          value={value}
+        />
+      );
+    }
+    render(<Example />);
+    const tablist = screen.getByRole("tablist", { name: "Vertical views" });
+    expect(tablist.getAttribute("aria-orientation")).toBe("vertical");
+    const alpha = screen.getByRole("tab", { name: "Alpha" });
+    alpha.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(document.activeElement).toBe(alpha);
+    expect(changes).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowDown}");
+    expect(document.activeElement).toBe(
+      screen.getByRole("tab", { name: "Gamma" }),
+    );
+    await user.keyboard("{ArrowDown}");
+    expect(document.activeElement).toBe(alpha);
+    await user.keyboard("{ArrowUp}");
+    expect(document.activeElement).toBe(
+      screen.getByRole("tab", { name: "Gamma" }),
+    );
+    expect(changes).toHaveBeenCalledTimes(3);
   });
 
   it("updates uncontrolled selection and uses native Enter and Space exactly once", async () => {

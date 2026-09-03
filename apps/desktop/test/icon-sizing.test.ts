@@ -20,12 +20,20 @@ const stylesSource = readFileSync(
   resolve(process.cwd(), "src/renderer/styles.css"),
   "utf8",
 );
+const publicUiStylesSource = readFileSync(
+  resolve(process.cwd(), "../../packages/ui/src/styles.css"),
+  "utf8",
+);
 const iconsSource = readFileSync(
   resolve(process.cwd(), "src/renderer/EnvironmentPanelIcons.tsx"),
   "utf8",
 );
 const resourceIconsSource = readFileSync(
   resolve(process.cwd(), "src/renderer/resource-icons.tsx"),
+  "utf8",
+);
+const resourceCenterSource = readFileSync(
+  resolve(process.cwd(), "src/renderer/ResourceCenter.tsx"),
   "utf8",
 );
 
@@ -104,10 +112,10 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(names).toEqual(
       [...TIER_ORDER].map((tier) => `--icon-size-${tier}`).sort(),
     );
-    // 5 declarations in :root plus 2 references (width/height) in each of
-    // the 13 migrated rules — locks the migration footprint so the token
-    // family cannot silently spread to unmigrated rules.
-    expect(stylesSource.match(/--icon-size-/g)?.length ?? 0).toBe(31);
+    // MIG5A moved two Resource Center consumers to the public action/icon
+    // contract. The renderer-local family therefore has 5 declarations plus
+    // 2 references (width/height) in each of the 11 remaining consumers.
+    expect(stylesSource.match(/--icon-size-/g)?.length ?? 0).toBe(27);
   });
 
   it("keeps tier values distinct and strictly increasing", () => {
@@ -186,14 +194,8 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       20,
     ],
     [".environment-view-all svg", "lg", 18],
-    [
-      ".resource-search-field svg,\n.resource-discovery-panel form > svg",
-      "base",
-      17,
-    ],
     [".resource-avatar svg", "lg", 20],
     [".resource-avatar .resource-semantic-icon", "xl", 22],
-    [".resource-add-plugin-card button svg", "base", 17],
   ];
 
   it.each(MIGRATED_RULES)(
@@ -207,13 +209,40 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     },
   );
 
-  it("shields the resource search icon from flex shrinking inside its field", () => {
-    // The search field lives in a shrinkable toolbar (flex: 0 1 300px on
-    // .resource-management-search) while its input claims width: 100%; without
-    // an explicit flex defense the flex shrink algorithm compresses the icon
-    // below the base tier (smoke-measured 14.66x16 instead of 16x16).
-    const block = cssRuleBlock(stylesSource, ".resource-search-field svg");
-    expect(block).toMatch(/flex:\s*none|flex-shrink:\s*0/);
+  it("delegates Resource Center action icon sizing and flex defense to public UI", () => {
+    const icon = cssRuleBlock(
+      publicUiStylesSource,
+      '[data-artemis-component="icon"]',
+    );
+    const svg = cssRuleBlock(
+      publicUiStylesSource,
+      '[data-artemis-component="icon"] > svg',
+    );
+    expect(icon).toContain("flex: 0 0 auto");
+    expect(icon).toContain("inline-size: 1em");
+    expect(icon).toContain("block-size: 1em");
+    expect(svg).toContain("inline-size: 1em");
+    expect(svg).toContain("block-size: 1em");
+  });
+
+  it("keeps Resource Center line icons visible without private SVG CSS", () => {
+    for (const name of [
+      "SearchIcon",
+      "GearIcon",
+      "RefreshIcon",
+      "PlusIcon",
+      "TrashIcon",
+      "BackIcon",
+    ]) {
+      const start = resourceCenterSource.indexOf(`function ${name}()`);
+      const end = resourceCenterSource.indexOf("\nfunction ", start + 1);
+      const component = resourceCenterSource.slice(start, end);
+      expect(start).toBeGreaterThan(-1);
+      expect(component).toContain('stroke="currentColor"');
+      expect(component).toContain('strokeLinecap="round"');
+      expect(component).toContain('strokeLinejoin="round"');
+      expect(component).toContain('strokeWidth="1.55"');
+    }
   });
 
   const UNMIGRATED_RULES: Array<[string, number, boolean]> = [
@@ -274,13 +303,12 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(dingbats).toEqual({
       "App.tsx": { check: 7, star: 2 },
       "EnvironmentPanel.tsx": { check: 1, star: 0 },
-      "SettingsPanel.tsx": { check: 1, star: 0 },
     });
     const total = Object.values(dingbats).reduce(
       (sum, counts) => sum + counts.check + counts.star,
       0,
     );
-    expect(total).toBe(11);
+    expect(total).toBe(10);
     expect(
       readFileSync(resolve(process.cwd(), "src/renderer/App.tsx"), "utf8"),
     ).toContain('<MagicWandIcon aria-hidden="true" size={16} />');

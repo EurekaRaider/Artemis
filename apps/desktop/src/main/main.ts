@@ -11245,6 +11245,7 @@ type SmokeInputFieldsRect = {
 type SmokeInputFieldsFocusProbe = {
   outlineColor?: string | null;
   labelOutlineColor?: string | null;
+  labelMatchesSiblingFocus?: boolean;
   targetRect?: SmokeInputFieldsRect | null;
   labelRect?: SmokeInputFieldsRect | null;
   viewport?: { innerWidth?: number | null } | null;
@@ -12551,7 +12552,7 @@ async function driveSmokeInputFieldsEvidence(
       const style = getComputedStyle(input);
       const label = ${
         labelSelector
-          ? `input.closest(${JSON.stringify(labelSelector)})`
+          ? `document.querySelector(${JSON.stringify(labelSelector)})`
           : "null"
       };
       const labelStyle = label ? getComputedStyle(label) : null;
@@ -12582,6 +12583,10 @@ async function driveSmokeInputFieldsEvidence(
         hasFocus: document.hasFocus(),
         labelMatchesFocusWithin:
           label instanceof HTMLElement ? label.matches(":focus-within") : false,
+        labelMatchesSiblingFocus:
+          label instanceof HTMLElement &&
+          label.previousElementSibling === input &&
+          input.matches(":focus-visible"),
         labelOutlineStyle: labelStyle ? labelStyle.outlineStyle : null,
         labelOutlineWidth: labelStyle ? labelStyle.outlineWidth : null,
         labelOutlineColor: labelStyle ? labelStyle.outlineColor : null,
@@ -12724,7 +12729,10 @@ async function driveSmokeInputFieldsEvidence(
     const avatarSelector = ".profile-avatar-input";
     const tab = await tabUntilFocused(avatarSelector);
     const focus = (await evaluate(
-      focusProbeScript(avatarSelector, "label.settings-secondary-action"),
+      focusProbeScript(
+        avatarSelector,
+        '.settings-profile-avatar-actions [data-artemis-component="button"]',
+      ),
     )) as SmokeInputFieldsFocusProbe;
     // Capture only after the focused frame was produced and presented, and
     // prove the avatar input still held focus at that exact moment.
@@ -12733,8 +12741,8 @@ async function driveSmokeInputFieldsEvidence(
       const image = await contents.capturePage();
       await writeFile(artifacts.focusedScreenshot, image.toPNG());
     }
-    // F3: same Electron-side pixel binding, against the trigger label's
-    // focus-within ring rect and color.
+    // F3: same Electron-side pixel binding, against the public trigger
+    // button's sibling-focus ring rect and color.
     const focusPixels = analyzeSmokeFocusPixels({
       defaultPath: artifacts.defaultScreenshot,
       focusedPath: artifacts.focusedScreenshot,
@@ -14949,7 +14957,7 @@ function createMainWindow(): BrowserWindow {
                     if (
                       !(await waitForElement('.profile-avatar-input')) ||
                       !(await waitForElement(
-                        '.settings-profile-avatar-actions label.settings-secondary-action',
+                        '.settings-profile-avatar-actions [data-artemis-component="button"]',
                       ))
                     ) {
                       throw new Error('Avatar field did not render.');
@@ -15582,6 +15590,29 @@ function createMainWindow(): BrowserWindow {
                     setter?.call(input, value);
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                   };
+                  const mcpInputByLabel = (text) => {
+                    const label = [
+                      ...document.querySelectorAll(
+                        '.mcp-editor label[data-part="label"]',
+                      ),
+                    ].find(
+                      (candidate) => candidate.textContent?.trim() === text,
+                    );
+                    return label instanceof HTMLLabelElement
+                      ? label.control
+                      : null;
+                  };
+                  const mcpInputsByLabelPrefix = (prefix) => [
+                    ...document.querySelectorAll(
+                      '.mcp-editor label[data-part="label"]',
+                    ),
+                  ].flatMap((label) =>
+                    label instanceof HTMLLabelElement &&
+                    label.textContent?.trim().startsWith(prefix) &&
+                    label.control instanceof HTMLInputElement
+                      ? [label.control]
+                      : [],
+                  );
                   const captureDisabledState = () => ({
                     ariaBusy:
                       document
@@ -15643,11 +15674,9 @@ function createMainWindow(): BrowserWindow {
                     document
                       .querySelector('.resource-installed-overview .resource-icon-button')
                       ?.click();
-                    await waitFor('.resource-management-tabs button');
-                    document
-                      .querySelectorAll('.resource-management-tabs button')
-                      [2]?.click();
-                    await waitFor('.resource-list-heading-actions');
+                    const mcpTab = await waitFor('#resource-management-tab-mcp');
+                    mcpTab?.click();
+                    await waitFor('#resource-management-panel-mcp');
                     const readSeedRowByName = (serverName) => {
                       const seededRow = [
                         ...document.querySelectorAll('.resource-management-row'),
@@ -15659,8 +15688,9 @@ function createMainWindow(): BrowserWindow {
                       return seededRow
                         ? {
                             stateText:
-                              seededRow.querySelector('small')?.textContent?.trim() ??
-                              null,
+                              seededRow
+                                .querySelector('[data-part="description"]')
+                                ?.textContent?.trim() ?? null,
                           }
                         : null;
                     };
@@ -15683,7 +15713,24 @@ function createMainWindow(): BrowserWindow {
                       (button.textContent ?? '').trim().startsWith('Add server'),
                     );
                     if (!addButton) {
-                      throw new Error('Add server button did not render.');
+                      throw new Error(
+                        'Add server button did not render: ' +
+                          JSON.stringify({
+                            selectedTab:
+                              document
+                                .querySelector('#resource-management-tab-mcp')
+                                ?.getAttribute('aria-selected') ?? null,
+                            panel:
+                              document.querySelector(
+                                '#resource-management-panel-mcp',
+                              ) !== null,
+                            actionLabels: [
+                              ...document.querySelectorAll(
+                                '#resource-management-panel-mcp button',
+                              ),
+                            ].map((button) => button.textContent?.trim() ?? ''),
+                          }),
+                      );
                     }
                     addButton.click();
                     await waitFor('.mcp-editor');
@@ -15737,9 +15784,7 @@ function createMainWindow(): BrowserWindow {
                   }
                   if (view === 'mcp-editor-validation') {
                     await openNewServerEditor();
-                    const command = document.querySelector(
-                      '.mcp-editor input[aria-label="Launch command"]',
-                    );
+                    const command = mcpInputByLabel('Launch command');
                     if (!(command instanceof HTMLInputElement)) {
                       throw new Error('Launch command input did not render.');
                     }
@@ -15751,9 +15796,7 @@ function createMainWindow(): BrowserWindow {
                   }
                   if (view === 'mcp-editor-save' || view === 'mcp-editor-save-error') {
                     await openNewServerEditor();
-                    const command = document.querySelector(
-                      '.mcp-editor input[aria-label="Launch command"]',
-                    );
+                    const command = mcpInputByLabel('Launch command');
                     if (!(command instanceof HTMLInputElement)) {
                       throw new Error('Launch command input did not render.');
                     }
@@ -15766,9 +15809,7 @@ function createMainWindow(): BrowserWindow {
                   }
                   if (view === 'mcp-editor-test-drift') {
                     await openSeededServerEditor();
-                    const url = document.querySelector(
-                      '.mcp-editor input[aria-label="Server URL"]',
-                    );
+                    const url = mcpInputByLabel('Server URL');
                     if (!(url instanceof HTMLInputElement)) {
                       throw new Error('Server URL input did not render.');
                     }
@@ -15782,11 +15823,9 @@ function createMainWindow(): BrowserWindow {
                   if (view === 'mcp-editor-test-drift-stdio') {
                     await openSeededServerEditorByName('Artemis Smoke Local');
                     const readArgsDraft = () =>
-                      [
-                        ...document.querySelectorAll(
-                          '.mcp-editor input[aria-label^="Arguments "]',
-                        ),
-                      ].map((input) => input.value);
+                      mcpInputsByLabelPrefix('Arguments ').map(
+                        (input) => input.value,
+                      );
                     const readTestGate = () => {
                       const button = document.querySelector(
                         '.mcp-editor-test-button',
@@ -15815,9 +15854,7 @@ function createMainWindow(): BrowserWindow {
                       .querySelector('.mcp-editor .mcp-add-row')
                       ?.click();
                     await wait(200);
-                    const added = document.querySelector(
-                      '.mcp-editor input[aria-label="Arguments 2"]',
-                    );
+                    const added = mcpInputByLabel('Arguments 2');
                     if (!(added instanceof HTMLInputElement)) {
                       throw new Error('Added argument input did not render.');
                     }
@@ -15837,8 +15874,7 @@ function createMainWindow(): BrowserWindow {
                       ...readTestGate(),
                     };
                     // Revert the draft so it matches the saved config again.
-                    document
-                      .querySelector('.mcp-editor input[aria-label="Arguments 2"]')
+                    mcpInputByLabel('Arguments 2')
                       ?.closest('.mcp-argument-row')
                       ?.querySelector('.mcp-remove-row')
                       ?.click();
@@ -17635,6 +17671,29 @@ function createMainWindow(): BrowserWindow {
                   })(),
                   mcpEditor: (() => {
                     const editor = document.querySelector('.mcp-editor');
+                    const inputByLabel = (text) => {
+                      const label = [
+                        ...document.querySelectorAll(
+                          '.mcp-editor label[data-part="label"]',
+                        ),
+                      ].find(
+                        (candidate) => candidate.textContent?.trim() === text,
+                      );
+                      return label instanceof HTMLLabelElement
+                        ? label.control
+                        : null;
+                    };
+                    const inputsByLabelPrefix = (prefix) => [
+                      ...document.querySelectorAll(
+                        '.mcp-editor label[data-part="label"]',
+                      ),
+                    ].flatMap((label) =>
+                      label instanceof HTMLLabelElement &&
+                      label.textContent?.trim().startsWith(prefix) &&
+                      label.control instanceof HTMLInputElement
+                        ? [label.control]
+                        : [],
+                    );
                     const validation = document.querySelector(
                       '.mcp-editor .mcp-editor-validation',
                     );
@@ -17669,18 +17728,23 @@ function createMainWindow(): BrowserWindow {
                     const backButton = document.querySelector(
                       '.mcp-editor .mcp-editor-back',
                     );
-                    const commandInput = document.querySelector(
-                      '.mcp-editor input[aria-label="Launch command"]',
-                    );
-                    const urlInput = document.querySelector(
-                      '.mcp-editor input[aria-label="Server URL"]',
-                    );
+                    const backIcon = backButton?.querySelector('svg');
+                    const validationList = validation?.querySelector('ul');
+                    const commandInput = inputByLabel('Launch command');
+                    const urlInput = inputByLabel('Server URL');
                     const bearerInput = document.querySelector(
                       '.mcp-editor input[type="password"]',
                     );
                     const dialog = document.querySelector('.confirmation-dialog');
                     return {
                       editorVisible: editor ? visible(editor) : false,
+                      direction: getComputedStyle(document.documentElement).direction,
+                      backIconTransform: backIcon
+                        ? getComputedStyle(backIcon).transform
+                        : null,
+                      validationPaddingInlineStart: validationList
+                        ? getComputedStyle(validationList).paddingInlineStart
+                        : null,
                       heading: editor?.querySelector('h1')?.textContent?.trim() ?? null,
                       feedbackAriaBusy:
                         document
@@ -17729,11 +17793,9 @@ function createMainWindow(): BrowserWindow {
                         urlInput instanceof HTMLInputElement ? urlInput.value : null,
                       urlDisabled:
                         urlInput instanceof HTMLInputElement ? urlInput.disabled : null,
-                      argsValues: [
-                        ...document.querySelectorAll(
-                          '.mcp-editor input[aria-label^="Arguments "]',
-                        ),
-                      ].map((input) => input.value),
+                      argsValues: inputsByLabelPrefix('Arguments ').map(
+                        (input) => input.value,
+                      ),
                       bearerMasked:
                         bearerInput instanceof HTMLInputElement
                           ? bearerInput.type === 'password'
@@ -17767,8 +17829,13 @@ function createMainWindow(): BrowserWindow {
                             }
                           : null,
                       manageMessageText:
-                        document.querySelector('.catalog-message')?.textContent?.trim() ??
-                        null,
+                        document
+                          .querySelector(
+                            '.resource-management-page ' +
+                              '[data-artemis-component="inline-notice"]' +
+                              '[data-tone="info"] [data-part="message"]',
+                          )
+                          ?.textContent?.trim() ?? null,
                       manageServerNames: [
                         ...document.querySelectorAll(
                           '.resource-management-list .resource-management-row strong',
@@ -18007,7 +18074,7 @@ function createMainWindow(): BrowserWindow {
                               ".resource-search-field svg",
                             ),
                             "resource-discovery-search": measure(
-                              ".resource-discovery-panel form > svg",
+                              '.resource-discovery-panel [data-artemis-component="search-field"] svg',
                             ),
                             "resource-add-plugin-card": measure(
                               ".resource-add-plugin-card button svg",
@@ -18024,9 +18091,11 @@ function createMainWindow(): BrowserWindow {
                           ".profile-avatar-input",
                         );
                         const avatarLabel =
-                          avatarInput?.closest(
-                            "label.settings-secondary-action",
-                          ) ?? null;
+                          avatarInput?.nextElementSibling?.matches(
+                            '[data-artemis-component="button"]',
+                          )
+                            ? avatarInput.nextElementSibling
+                            : null;
                         const avatarStyle = avatarInput
                           ? getComputedStyle(avatarInput)
                           : null;

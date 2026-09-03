@@ -167,6 +167,9 @@ describe("McpServerEditor feedback wiring (D#76 PR8 §10 state matrix)", () => {
     expect(
       screen.queryByRole("button", { name: labels.uninstall }),
     ).not.toBeInTheDocument();
+    const backButton = screen.getByRole("button", { name: labels.back });
+    expect(backButton.querySelector("svg")).not.toBeNull();
+    expect(backButton).not.toHaveTextContent("←");
     newEditor.unmount();
 
     renderEditor({ server: stdioServer });
@@ -666,10 +669,10 @@ describe("McpServerEditor feedback wiring (D#76 PR8 §10 state matrix)", () => {
   it("gates the test connection while the permission draft drifts (full drift gate)", async () => {
     renderEditor({ server: stdioServer });
     const user = userEvent.setup();
-    const fullAccessToggle = screen.getByRole("checkbox", {
+    const fullAccessToggle = screen.getByRole("switch", {
       name: labels.mcpFullAccess,
     });
-    const allowNetworkToggle = screen.getByRole("checkbox", {
+    const allowNetworkToggle = screen.getByRole("switch", {
       name: labels.mcpAllowNetwork,
     });
     const testButton = screen.getByRole("button", {

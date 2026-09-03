@@ -50,6 +50,7 @@ import {
 import { galleryContract } from "./gallery-contract.js";
 import { ConversationGallery } from "./conversation-gallery.js";
 import { GalleryActionIcon } from "./gallery-action-icon.js";
+import { ManagementGallery } from "./management-gallery.js";
 import { ProfessionalGallery } from "./professional-gallery.js";
 import { STRESS_SKIN_ID, stressSkinCss } from "./stress-skin-fixture.mjs";
 import { WorkspaceGallery } from "./workspace-gallery.js";
@@ -323,6 +324,19 @@ export function GalleryApp() {
       >
         Active mode: {mode.skin} / {mode.theme} / {mode.contrast}
       </p>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="management-heading"
+      >
+        <h2 id="management-heading">Settings and Resource management</h2>
+        <p>
+          Public management surfaces own presentation and responsive anatomy;
+          callers retain provider, credential, Connector, MCP, permission, and
+          persistence effects.
+        </p>
+        <ManagementGallery />
+      </section>
 
       <section
         className="gallery-sample-section"

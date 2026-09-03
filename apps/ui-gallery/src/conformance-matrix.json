@@ -51,7 +51,12 @@
       "workflow-state-matrix",
       "workflow-controlled-events",
       "workflow-permission-boundary",
-      "workflow-rtl-overlay-geometry"
+      "workflow-rtl-overlay-geometry",
+      "management-anatomy",
+      "management-state-matrix",
+      "management-controlled-events",
+      "management-permission-boundary",
+      "management-rtl-long-content"
     ],
     "stress": [
       "anatomy",
@@ -102,7 +107,12 @@
       "workflow-state-matrix",
       "workflow-controlled-events",
       "workflow-permission-boundary",
-      "workflow-rtl-overlay-geometry"
+      "workflow-rtl-overlay-geometry",
+      "management-anatomy",
+      "management-state-matrix",
+      "management-controlled-events",
+      "management-permission-boundary",
+      "management-rtl-long-content"
     ]
   },
   "switchCases": [

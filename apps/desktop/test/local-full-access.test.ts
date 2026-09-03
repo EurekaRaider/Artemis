@@ -68,7 +68,7 @@ describe("local full access setting", () => {
     expect(settingsPanelSource).toContain('localFullAccess: "完整本机访问"');
     expect(settingsPanelSource).toContain("checked={settings.localFullAccess}");
     expect(settingsPanelSource).toMatch(
-      /window\.artemis\.setLocalFullAccess\(\s*event\.target\.checked,?\s*\)/u,
+      /onCheckedChange=\{\(checked\)\s*=>[\s\S]*?window\.artemis\.setLocalFullAccess\(checked\)/u,
     );
     expect(settingsPanelSource).toContain("setSettings(updated)");
     expect(settingsPanelSource).toContain("onSettingsChange(updated)");

@@ -33,7 +33,7 @@ import "../src/renderer/i18n.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 import { AutomationPage } from "../src/renderer/AutomationPage.js";
 import { SettingsPanel } from "../src/renderer/SettingsPanel.js";
-import type { Automation, Project } from "@artemis/protocol";
+import type { AgentModelInfo, Automation, Project } from "@artemis/protocol";
 import type { SettingsSnapshot } from "../src/shared/api.js";
 
 const stylesSource = readFileSync(
@@ -162,6 +162,15 @@ function settingsSnapshot(
   } as unknown as SettingsSnapshot;
 }
 
+const syntheticModel: AgentModelInfo = {
+  providerId: "synthetic-provider",
+  modelId: "synthetic-model",
+  name: "Synthetic Model",
+  reasoning: false,
+  contextWindow: 258_000,
+  configured: true,
+};
+
 function stubSettingsApi(
   snapshot: SettingsSnapshot,
   overrides: Record<string, unknown> = {},
@@ -195,11 +204,19 @@ async function fillValidDraft() {
   );
 }
 
-async function renderSettingsPanel(snapshot: SettingsSnapshot) {
+async function renderSettingsPanel(
+  snapshot: SettingsSnapshot,
+  initialTab:
+    | "general"
+    | "providers"
+    | "agents"
+    | "capabilities"
+    | "maintenance" = "general",
+) {
   render(
     <SettingsPanel
       initialSettings={snapshot}
-      initialTab="general"
+      initialTab={initialTab}
       locale="en"
       onClose={() => {}}
       onSettingsChange={() => {}}
@@ -298,13 +315,14 @@ describe("date field state contract (§5 date-状态, §2.1 verification outcome
 });
 
 describe("avatar file field contract (SettingsPanel general tab, §5 file-合同)", () => {
-  it("locks the accept whitelist, implicit label, and file type", async () => {
+  it("locks the accept whitelist, accessible label, and file type", async () => {
     stubSettingsApi(settingsSnapshot());
     await renderSettingsPanel(settingsSnapshot());
     const input = avatarInput();
     expect(input.type).toBe("file");
     expect(input.accept).toBe("image/jpeg,image/png,image/webp");
-    expect(input.closest("label")?.textContent).toContain("Choose image");
+    expect(input).toHaveAccessibleName("Choose image");
+    expect(input.nextElementSibling).toHaveTextContent("Choose image");
   });
 
   it("clears the input value after a pick so the same file can be re-picked", async () => {
@@ -368,20 +386,153 @@ describe("avatar file field contract (SettingsPanel general tab, §5 file-合同
   });
 });
 
+describe("settings management operation contract (MIG5A)", () => {
+  it("keeps every Settings tab linked to a mounted tabpanel", async () => {
+    const initial = settingsSnapshot({ models: [syntheticModel] });
+    stubSettingsApi(initial);
+    await renderSettingsPanel(initial, "providers");
+
+    for (const selector of [".settings-tabs", ".provider-config-tabs"]) {
+      const tablist = document.querySelector(selector);
+      expect(tablist).not.toBeNull();
+      const tabs = [...tablist!.querySelectorAll<HTMLElement>('[role="tab"]')];
+      expect(tabs.length).toBeGreaterThan(1);
+      for (const tab of tabs) {
+        const panelId = tab.getAttribute("aria-controls");
+        const panel = panelId ? document.getElementById(panelId) : null;
+        expect(panel).not.toBeNull();
+        expect(panel).toHaveAttribute("role", "tabpanel");
+        expect(panel).toHaveAttribute("aria-labelledby", tab.id);
+        expect(panel!.hidden).toBe(
+          tab.getAttribute("aria-selected") !== "true",
+        );
+      }
+    }
+    expect(document.querySelector(".settings-tabs")).toHaveAttribute(
+      "aria-orientation",
+      "vertical",
+    );
+    expect(document.querySelector(".provider-config-tabs")).toHaveAttribute(
+      "aria-orientation",
+      "horizontal",
+    );
+  });
+
+  it("shows configuration-import safety warnings without exposing source paths", async () => {
+    const initial = settingsSnapshot({ models: [syntheticModel] });
+    const hiddenPath = "/synthetic-user/.config/synthetic-agent/config.json";
+    const warning =
+      'codex MCP "synthetic-server" authentication values were not copied; configure authentication in Artemis.';
+    stubSettingsApi(initial, {
+      scanConfigurationImports: () =>
+        Promise.resolve({
+          sources: [
+            {
+              source: "codex",
+              detected: true,
+              paths: [hiddenPath],
+              counts: { instructions: 1, skills: 2, mcp: 1 },
+              warnings: [warning],
+            },
+          ],
+        }),
+    });
+    await renderSettingsPanel(initial, "agents");
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Scan Codex, OpenCode, and Claude Code",
+      }),
+    );
+
+    expect(await screen.findByText(warning)).toBeVisible();
+    expect(document.body).not.toHaveTextContent(hiddenPath);
+  });
+
+  it("blocks same-tick duplicate add-model IPC calls", async () => {
+    const initial = settingsSnapshot({ models: [syntheticModel] });
+    const updated = settingsSnapshot({
+      models: [syntheticModel],
+      addedModels: [
+        {
+          providerId: syntheticModel.providerId,
+          modelId: syntheticModel.modelId,
+          contextWindow: syntheticModel.contextWindow,
+        },
+      ],
+    });
+    let resolveAdd!: (snapshot: SettingsSnapshot) => void;
+    const addModel = vi.fn(
+      () =>
+        new Promise<SettingsSnapshot>((resolve) => {
+          resolveAdd = resolve;
+        }),
+    );
+    stubSettingsApi(initial, { addModel });
+    await renderSettingsPanel(initial, "providers");
+
+    const add = screen.getByRole("button", { name: "Add model" });
+    fireEvent.click(add);
+    fireEvent.click(add);
+
+    expect(addModel).toHaveBeenCalledTimes(1);
+    expect(add).toBeDisabled();
+    await act(async () => resolveAdd(updated));
+    await screen.findByText("Model added");
+  });
+
+  it("preserves a stored credential when the password field stays blank", async () => {
+    const initial = settingsSnapshot({
+      models: [syntheticModel],
+      credentials: [{ providerId: syntheticModel.providerId, type: "api_key" }],
+    });
+    const addModel = vi.fn(() => Promise.resolve(initial));
+    stubSettingsApi(initial, { addModel });
+    await renderSettingsPanel(initial, "providers");
+
+    const credential = screen.getByLabelText(
+      "API key · synthetic-provider",
+    ) as HTMLInputElement;
+    expect(credential.type).toBe("password");
+    expect(credential).toHaveAttribute(
+      "placeholder",
+      "API key already stored — leave blank to keep it",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    await waitFor(() => expect(addModel).toHaveBeenCalledTimes(1));
+    expect(addModel.mock.calls[0]?.[1]).toBeUndefined();
+  });
+
+  it("keeps an entered credential out of visible text and sends it once", async () => {
+    const sentinel = "synthetic-settings-secret-5a";
+    const initial = settingsSnapshot({ models: [syntheticModel] });
+    const addModel = vi.fn(() => Promise.resolve(initial));
+    stubSettingsApi(initial, { addModel });
+    await renderSettingsPanel(initial, "providers");
+
+    const credential = screen.getByLabelText(
+      "API key · synthetic-provider",
+    ) as HTMLInputElement;
+    fireEvent.change(credential, { target: { value: sentinel } });
+    expect(credential.value).toBe(sentinel);
+    expect(document.body.textContent).not.toContain(sentinel);
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    await waitFor(() => expect(addModel).toHaveBeenCalledTimes(1));
+    expect(addModel.mock.calls[0]?.[1]).toBe(sentinel);
+    expect(document.body.textContent).not.toContain(sentinel);
+  });
+});
+
 describe("avatar keyboard reachability (§5 file-键盘红测, fix ① sr-only)", () => {
   it("does not hide the avatar input with display:none", () => {
-    const block = cssRuleBlock(
-      stylesSource,
-      ".settings-section input.profile-avatar-input",
-    );
+    const block = cssRuleBlock(stylesSource, ".profile-avatar-input");
     expect(block).not.toContain("display: none");
   });
 
   it("hides the avatar input visually with the focusable sr-only clip pattern", () => {
-    const block = cssRuleBlock(
-      stylesSource,
-      ".settings-section input.profile-avatar-input",
-    );
+    const block = cssRuleBlock(stylesSource, ".profile-avatar-input");
     expect(block).toContain("position: absolute");
     expect(block).toContain("width: 1px");
     expect(block).toContain("height: 1px");
@@ -391,10 +542,10 @@ describe("avatar keyboard reachability (§5 file-键盘红测, fix ① sr-only)"
     expect(block).toContain("white-space: nowrap");
   });
 
-  it("shows a focus ring on the avatar trigger label while the input is focused", () => {
+  it("shows a focus ring on the public avatar button while the input is focused", () => {
     const normalized = stylesSource.replace(/\s+/g, " ");
     expect(normalized).toMatch(
-      /\.settings-profile-avatar-actions > label\.settings-secondary-action:focus-within \{[^}]*outline: 2px solid var\(--blue\)[^}]*outline-offset: 2px[^}]*\}/,
+      /\.profile-avatar-input:focus-visible \+ \[data-artemis-component="button"\] \{[^}]*outline: 2px solid var\(--blue\)[^}]*outline-offset: 2px[^}]*\}/,
     );
   });
 
@@ -429,11 +580,12 @@ describe("composer attachment chain guard (§5 链路防回归)", () => {
   });
 
   it("leaves the PR9A icon sizing token freeze untouched", () => {
-    expect((stylesSource.match(/--icon-size-/g) ?? []).length).toBe(31);
-    const inputBlock = cssRuleBlock(
-      stylesSource,
-      ".settings-section input.profile-avatar-input",
-    );
+    expect(stylesSource).toContain("--icon-size-xs: 12px");
+    expect(stylesSource).toContain("--icon-size-sm: 14px");
+    expect(stylesSource).toContain("--icon-size-base: 16px");
+    expect(stylesSource).toContain("--icon-size-lg: 20px");
+    expect(stylesSource).toContain("--icon-size-xl: 24px");
+    const inputBlock = cssRuleBlock(stylesSource, ".profile-avatar-input");
     expect(inputBlock).not.toContain("--icon-size-");
   });
 });

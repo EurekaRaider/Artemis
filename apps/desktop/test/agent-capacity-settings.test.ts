@@ -15,7 +15,10 @@ describe("agent capacity settings surface", () => {
     expect(apiSource).toContain("setAgentConcurrency(");
     expect(apiSource).toContain("settingsAgentConcurrencySet");
     expect(preloadSource).toContain("setAgentConcurrency: (preference)");
-    expect(settingsSource).toContain('CodexSelect<"auto" | "manual">');
+    expect(settingsSource).toContain('<Select<"auto" | "manual">');
+    expect(settingsSource).toContain(
+      "onValueChange={(mode) =>\n                        void setAgentConcurrencyMode(mode)",
+    );
     expect(settingsSource).toContain(
       "settings.agentConcurrency.effectiveLimit",
     );

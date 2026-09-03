@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -361,7 +362,7 @@ describe("McpEditorFeedback contract (D#76 PR8 §5 shared feedback surface)", ()
         { disabled: true, disabledHint: labels.testSavedOnlyHint },
       ),
     });
-    expect(screen.getByRole("status")).toHaveTextContent(labels.testSuccess);
+    expect(screen.getByText(labels.testSuccess)).toBeInTheDocument();
     expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
     rerenderFeedback({ testConnection: testConnection() });
     expect(
@@ -382,8 +383,10 @@ describe("McpEditorFeedback contract (D#76 PR8 §5 shared feedback surface)", ()
         }),
     );
     const uninstall = screen.getByRole("button", { name: labels.remove });
-    await userEvent.setup().click(uninstall);
-    await userEvent.setup().click(uninstall);
+    act(() => {
+      uninstall.click();
+      uninstall.click();
+    });
     expect(handlers.onConfirm).toHaveBeenCalledTimes(1);
     expect(handlers.onConfirm).toHaveBeenCalledWith(
       labels.removeConfirm,

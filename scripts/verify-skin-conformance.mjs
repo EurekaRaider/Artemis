@@ -55,6 +55,11 @@ const REQUIRED_SKIN_CASES = [
   "workflow-controlled-events",
   "workflow-permission-boundary",
   "workflow-rtl-overlay-geometry",
+  "management-anatomy",
+  "management-state-matrix",
+  "management-controlled-events",
+  "management-permission-boundary",
+  "management-rtl-long-content",
 ];
 const REQUIRED_SWITCH_CASES = [
   "same-node",
@@ -441,7 +446,7 @@ const expectedCssRules = new Map([
   ],
   [`normal|${STATUS}`, { "font-variant-numeric": "tabular-nums" }],
   [
-    'normal|[data-artemis-component="text-field"], [data-artemis-component="search-field"], [data-artemis-component="select"]',
+    'normal|[data-artemis-component="text-field"], [data-artemis-component="textarea-field"], [data-artemis-component="search-field"], [data-artemis-component="select"]',
     {
       position: "relative",
       "box-sizing": "border-box",
@@ -454,7 +459,7 @@ const expectedCssRules = new Map([
     },
   ],
   [
-    'normal|[data-artemis-component="text-field"] [data-part="label"], [data-artemis-component="search-field"] [data-part="label"], [data-artemis-component="select"] [data-part="label"], [data-artemis-component="checkbox"] [data-part="label"], [data-artemis-component="switch"] [data-part="label"]',
+    'normal|[data-artemis-component="text-field"] [data-part="label"], [data-artemis-component="textarea-field"] [data-part="label"], [data-artemis-component="search-field"] [data-part="label"], [data-artemis-component="select"] [data-part="label"], [data-artemis-component="checkbox"] [data-part="label"], [data-artemis-component="switch"] [data-part="label"]',
     {
       color: "var(--artemis-color-text-primary)",
       "font-size": "var(--artemis-typography-label-size)",
@@ -474,7 +479,7 @@ const expectedCssRules = new Map([
     },
   ],
   [
-    'normal|[data-artemis-component="text-field"] [data-part="control"], [data-artemis-component="search-field"] [data-part="control"], [data-artemis-component="select"] [data-part="trigger"], [data-artemis-component="select"] [data-part="search"]',
+    'normal|[data-artemis-component="text-field"] [data-part="control"], [data-artemis-component="textarea-field"] [data-part="control"], [data-artemis-component="search-field"] [data-part="control"], [data-artemis-component="select"] [data-part="trigger"], [data-artemis-component="select"] [data-part="search"]',
     {
       "box-sizing": "border-box",
       "min-block-size": "var(--artemis-size-control-comfortable)",
@@ -492,23 +497,23 @@ const expectedCssRules = new Map([
     },
   ],
   [
-    'normal|[data-artemis-component="text-field"][data-size="compact"] [data-part="control"], [data-artemis-component="search-field"][data-size="compact"] [data-part="control"], [data-artemis-component="select"][data-size="compact"] [data-part="trigger"], [data-artemis-component="select"][data-size="compact"] [data-part="search"]',
+    'normal|[data-artemis-component="text-field"][data-size="compact"] [data-part="control"], [data-artemis-component="textarea-field"][data-size="compact"] [data-part="control"], [data-artemis-component="search-field"][data-size="compact"] [data-part="control"], [data-artemis-component="select"][data-size="compact"] [data-part="trigger"], [data-artemis-component="select"][data-size="compact"] [data-part="search"]',
     { "min-block-size": "var(--artemis-size-control-compact)" },
   ],
   [
-    'normal|[data-artemis-component="text-field"] [data-part="control"]:focus-visible, [data-artemis-component="search-field"] [data-part="control"]:focus-visible, [data-artemis-component="select"] [data-part="trigger"]:focus-visible, [data-artemis-component="select"] [data-part="search"]:focus-visible, [data-artemis-component="select"] [data-part="listbox"]:focus-visible',
+    'normal|[data-artemis-component="text-field"] [data-part="control"]:focus-visible, [data-artemis-component="textarea-field"] [data-part="control"]:focus-visible, [data-artemis-component="search-field"] [data-part="control"]:focus-visible, [data-artemis-component="select"] [data-part="trigger"]:focus-visible, [data-artemis-component="select"] [data-part="search"]:focus-visible, [data-artemis-component="select"] [data-part="listbox"]:focus-visible',
     { outline: "2px solid Highlight", "outline-offset": "2px" },
   ],
   [
-    'normal|[data-artemis-component="text-field"][data-state="error"] [data-part="control"], [data-artemis-component="search-field"][data-state="error"] [data-part="control"], [data-artemis-component="select"][data-state="error"] [data-part="trigger"]',
+    'normal|[data-artemis-component="text-field"][data-state="error"] [data-part="control"], [data-artemis-component="textarea-field"][data-state="error"] [data-part="control"], [data-artemis-component="search-field"][data-state="error"] [data-part="control"], [data-artemis-component="select"][data-state="error"] [data-part="trigger"]',
     { "border-color": "var(--artemis-color-status-danger)" },
   ],
   [
-    'normal|[data-artemis-component="text-field"][data-state="disabled"], [data-artemis-component="search-field"][data-state="disabled"], [data-artemis-component="select"][data-state="disabled"], [data-artemis-component="checkbox"][data-state="disabled"], [data-artemis-component="switch"][data-state="disabled"]',
+    'normal|[data-artemis-component="text-field"][data-state="disabled"], [data-artemis-component="textarea-field"][data-state="disabled"], [data-artemis-component="search-field"][data-state="disabled"], [data-artemis-component="select"][data-state="disabled"], [data-artemis-component="checkbox"][data-state="disabled"], [data-artemis-component="switch"][data-state="disabled"]',
     { cursor: "default", opacity: "var(--artemis-opacity-disabled)" },
   ],
   [
-    'normal|[data-artemis-component="text-field"] [data-part="description"], [data-artemis-component="search-field"] [data-part="description"], [data-artemis-component="select"] [data-part="description"], [data-artemis-component="checkbox"] [data-part="description"], [data-artemis-component="switch"] [data-part="description"], [data-artemis-component="text-field"] [data-part="error"], [data-artemis-component="search-field"] [data-part="error"], [data-artemis-component="select"] [data-part="error"], [data-artemis-component="checkbox"] [data-part="error"], [data-artemis-component="switch"] [data-part="error"]',
+    'normal|[data-artemis-component="text-field"] [data-part="description"], [data-artemis-component="textarea-field"] [data-part="description"], [data-artemis-component="search-field"] [data-part="description"], [data-artemis-component="select"] [data-part="description"], [data-artemis-component="checkbox"] [data-part="description"], [data-artemis-component="switch"] [data-part="description"], [data-artemis-component="text-field"] [data-part="error"], [data-artemis-component="textarea-field"] [data-part="error"], [data-artemis-component="search-field"] [data-part="error"], [data-artemis-component="select"] [data-part="error"], [data-artemis-component="checkbox"] [data-part="error"], [data-artemis-component="switch"] [data-part="error"]',
     {
       margin: "0",
       color: "var(--artemis-color-text-secondary)",
@@ -516,8 +521,16 @@ const expectedCssRules = new Map([
     },
   ],
   [
-    'normal|[data-artemis-component="text-field"] [data-part="error"], [data-artemis-component="search-field"] [data-part="error"], [data-artemis-component="select"] [data-part="error"], [data-artemis-component="checkbox"] [data-part="error"], [data-artemis-component="switch"] [data-part="error"]',
+    'normal|[data-artemis-component="text-field"] [data-part="error"], [data-artemis-component="textarea-field"] [data-part="error"], [data-artemis-component="search-field"] [data-part="error"], [data-artemis-component="select"] [data-part="error"], [data-artemis-component="checkbox"] [data-part="error"], [data-artemis-component="switch"] [data-part="error"]',
     { color: "var(--artemis-color-text-primary)" },
+  ],
+  [
+    'normal|[data-artemis-component="textarea-field"] [data-part="control"]',
+    {
+      "min-block-size": "calc(var(--artemis-size-control-comfortable) * 4)",
+      "line-height": "1.5",
+      resize: "vertical",
+    },
   ],
   [
     'normal|[data-artemis-component="search-field"] [data-part="icon"]',
@@ -940,7 +953,7 @@ const expectedCssRules = new Map([
     { transform: "none" },
   ],
   [
-    'reduced-motion|[data-artemis-component="text-field"] [data-part="control"], [data-artemis-component="search-field"] [data-part="control"], [data-artemis-component="select"] [data-part="trigger"], [data-artemis-component="select"] [data-part="search"], [data-artemis-component="select"] [data-part="indicator"], [data-artemis-component="switch"] [data-part="track"], [data-artemis-component="switch"] [data-part="thumb"], [data-artemis-component="tabs"] [data-part="tab"], [data-artemis-component="segmented-control"] [data-part="segment"]',
+    'reduced-motion|[data-artemis-component="text-field"] [data-part="control"], [data-artemis-component="textarea-field"] [data-part="control"], [data-artemis-component="search-field"] [data-part="control"], [data-artemis-component="select"] [data-part="trigger"], [data-artemis-component="select"] [data-part="search"], [data-artemis-component="select"] [data-part="indicator"], [data-artemis-component="switch"] [data-part="track"], [data-artemis-component="switch"] [data-part="thumb"], [data-artemis-component="tabs"] [data-part="tab"], [data-artemis-component="segmented-control"] [data-part="segment"]',
     { transition: "none" },
   ],
 ]);
@@ -2622,6 +2635,18 @@ for (const [key, declarations] of MIG4_EXPECTED_CSS_RULES) {
   }
   expectedCssRules.set(key, declarations);
 }
+const MIG5A_EXPECTED_CSS_RULES = JSON.parse(
+  await readFile(
+    join(root, "scripts/mig5a-management-css-contract.json"),
+    "utf8",
+  ),
+);
+for (const [key, declarations] of MIG5A_EXPECTED_CSS_RULES) {
+  if (expectedCssRules.has(key)) {
+    throw new Error(`MIG5A UI structural CSS rule duplicates ${key}`);
+  }
+  expectedCssRules.set(key, declarations);
+}
 
 function verifyStructuralCss(css, from, tokenFamilies) {
   const parsed = postcss.parse(css, { from });
@@ -2775,13 +2800,17 @@ function verifyStructuralCss(css, from, tokenFamilies) {
       for (const nested of node.nodes) verifyRule(nested, "compact-width");
       continue;
     }
+    if (media === "(max-width: 52rem)" && node.nodes.length === 9) {
+      for (const nested of node.nodes) verifyRule(nested, "compact-width");
+      continue;
+    }
     if (media === "(max-width: 820px)" && node.nodes.length === 5) {
       for (const nested of node.nodes) verifyRule(nested, "narrow-width");
       continue;
     }
     if (
       media === "(prefers-reduced-motion: reduce)" &&
-      node.nodes.length === 12
+      node.nodes.length === 13
     ) {
       for (const nested of node.nodes) verifyRule(nested, "reduced-motion");
       continue;
@@ -2858,6 +2887,9 @@ const workspace = await import(
 const professional = await import(
   pathToFileURL(join(root, "packages/ui/dist/professional.js")).href
 );
+const management = await import(
+  pathToFileURL(join(root, "packages/ui/dist/management.js")).href
+);
 const workflow = await import(
   pathToFileURL(join(root, "packages/ui/dist/workflow.js")).href
 );
@@ -2925,6 +2957,11 @@ for (const [label, candidate, validate] of [
     "professional",
     professional.PROFESSIONAL_COMPONENT_CONTRACTS,
     professional.validateProfessionalComponentContracts,
+  ],
+  [
+    "management",
+    management.MANAGEMENT_COMPONENT_CONTRACTS,
+    management.validateManagementComponentContracts,
   ],
   [
     "workflow",
@@ -3093,6 +3130,7 @@ for (const specifier of [
   "@artemis/ui/navigation",
   "@artemis/ui/feedback",
   "@artemis/ui/layout",
+  "@artemis/ui/management",
   "@artemis/ui/patterns",
   "@artemis/ui/professional",
   "@artemis/ui/surfaces",
@@ -3189,6 +3227,13 @@ verifyStructuralCss(css, cssPath, [
       professional.PROFESSIONAL_COMPONENT_CONTRACTS,
     ).map((contract) => contract.name),
     mutableTokens: professional.PROFESSIONAL_COMPONENT_MUTABLE_TOKENS,
+  },
+  {
+    label: "management",
+    components: Object.values(management.MANAGEMENT_COMPONENT_CONTRACTS).map(
+      (contract) => contract.name,
+    ),
+    mutableTokens: management.MANAGEMENT_COMPONENT_MUTABLE_TOKENS,
   },
   {
     label: "workflow",

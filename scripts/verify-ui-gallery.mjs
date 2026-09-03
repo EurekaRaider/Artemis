@@ -595,6 +595,44 @@ for (const [selector, declarations] of MIG4_GALLERY_SCAFFOLD_RULES) {
   }
   GALLERY_SCAFFOLD_RULES.set(selector, declarations);
 }
+const MIG5A_GALLERY_SCAFFOLD_RULES = [
+  [
+    ".gallery-management-grid",
+    [
+      ["display", "grid"],
+      [
+        "grid-template-columns",
+        "repeat(auto-fit, minmax(min(100%, 24rem), 1fr))",
+      ],
+      ["gap", "var(--artemis-space-4)"],
+    ],
+  ],
+  [".gallery-management-grid > div", [["min-inline-size", "0"]]],
+  [
+    ".gallery-management-settings, .gallery-management-resource",
+    [
+      ["block-size", "32rem"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-panel)"],
+    ],
+  ],
+  [
+    ".gallery-management-resource",
+    [
+      ["min-block-size", "32rem"],
+      ["padding", "var(--artemis-space-4)"],
+    ],
+  ],
+];
+for (const [selector, declarations] of MIG5A_GALLERY_SCAFFOLD_RULES) {
+  if (GALLERY_SCAFFOLD_RULES.has(selector)) {
+    throw new Error(`MIG5A Gallery scaffold duplicates ${selector}`);
+  }
+  GALLERY_SCAFFOLD_RULES.set(selector, declarations);
+}
 const GALLERY_REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const GALLERY_REDUCED_MOTION_SIGNATURE = JSON.stringify([
   ["rule", ".gallery-motion-swatch", [["decl", "transition", "none", null]]],
@@ -637,6 +675,9 @@ const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-feedback-grid",
   "gallery-motion-sample",
   "gallery-motion-swatch",
+  "gallery-management-grid",
+  "gallery-management-resource",
+  "gallery-management-settings",
   "gallery-navigation-grid",
   "gallery-probe-section",
   "gallery-professional-grid",
@@ -675,6 +716,7 @@ const PRIVATE_GALLERY_ATTRIBUTES = new Set([
   "data-gallery-active-skin",
   "data-gallery-active-theme",
   "data-gallery-event-order",
+  "data-gallery-management-case",
   "data-gallery-stress-skin",
   "data-gallery-token",
   "data-gallery-token-provenance",
@@ -1468,6 +1510,7 @@ for (const marker of [
   "data-gallery-active-skin",
   "data-gallery-active-theme",
   "data-gallery-active-contrast",
+  "data-gallery-management-case",
   "data-gallery-token-provenance",
   "--artemis-color-canvas",
   "data-artemis-skin",

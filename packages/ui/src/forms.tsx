@@ -9,6 +9,7 @@ import {
   type FocusEventHandler,
   type KeyboardEvent,
   type ReactNode,
+  type Ref,
 } from "react";
 
 function deepFreeze<T>(value: T): T {
@@ -81,7 +82,12 @@ export interface FormComponentContract {
   readonly schemaVersion: typeof FORM_COMPONENT_CONTRACT_SCHEMA_VERSION;
   readonly uiContractVersion: 1;
   readonly name:
-    "text-field" | "search-field" | "select" | "checkbox" | "switch";
+    | "text-field"
+    | "textarea-field"
+    | "search-field"
+    | "select"
+    | "checkbox"
+    | "switch";
   readonly parts: readonly string[];
   readonly optionalParts?: readonly string[];
   readonly states: readonly string[];
@@ -130,6 +136,28 @@ export const FORM_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
       "controlled-or-uncontrolled-fixed-at-mount",
       "one-change-callback-per-native-change",
       "native-text-editing-and-ime",
+    ],
+    theme: FORM_THEME_CONTRACT,
+  },
+  textAreaField: {
+    schemaVersion: 1,
+    uiContractVersion: 1,
+    name: "textarea-field",
+    parts: ["root", "label", "control"],
+    optionalParts: ["description", "error"],
+    states: ["ready", "read-only", "error", "disabled"],
+    statePriority: FIELD_STATE_PRIORITY,
+    sizes: ["compact", "comfortable"],
+    accessibility: [
+      "required-perceptible-label",
+      "native-label-relation",
+      "description-and-error-describedby",
+      "aria-invalid-on-error",
+    ],
+    interaction: [
+      "controlled-or-uncontrolled-fixed-at-mount",
+      "one-change-callback-per-native-change",
+      "native-multiline-editing-and-ime",
     ],
     theme: FORM_THEME_CONTRACT,
   },
@@ -379,7 +407,7 @@ function fieldState(
 interface FieldShellProps {
   readonly children: ReactNode;
   readonly className?: string | undefined;
-  readonly component: "text-field" | "search-field";
+  readonly component: "text-field" | "textarea-field" | "search-field";
   readonly description?: string | undefined;
   readonly descriptionId: string;
   readonly error?: string | undefined;
@@ -433,20 +461,27 @@ function FieldShell({
 }
 
 interface CommonFieldProps {
+  readonly autoCapitalize?: string | undefined;
   readonly autoComplete?: string | undefined;
+  readonly autoCorrect?: string | undefined;
+  readonly autoFocus?: boolean | undefined;
   readonly className?: string | undefined;
   readonly description?: string | undefined;
   readonly disabled?: boolean | undefined;
   readonly error?: string | undefined;
   readonly id?: string | undefined;
+  readonly inputRef?: Ref<HTMLInputElement> | undefined;
   readonly label: string;
   readonly labelVisibility?: "hidden" | "visible" | undefined;
+  readonly maxLength?: number | undefined;
   readonly name?: string | undefined;
   readonly onBlur?: FocusEventHandler<HTMLInputElement> | undefined;
   readonly placeholder?: string | undefined;
+  readonly pattern?: string | undefined;
   readonly readOnly?: boolean | undefined;
   readonly required?: boolean | undefined;
   readonly size?: FormControlSize | undefined;
+  readonly spellCheck?: boolean | undefined;
 }
 
 interface ControlledFieldProps {
@@ -481,7 +516,10 @@ export type TextFieldProps = TextFieldSpecificProps &
   (ControlledFieldProps | UncontrolledFieldProps);
 
 export function TextField({
+  autoCapitalize,
   autoComplete,
+  autoCorrect,
+  autoFocus,
   className,
   defaultValue,
   description,
@@ -489,17 +527,21 @@ export function TextField({
   error,
   id,
   inputMode,
+  inputRef,
   label,
   labelVisibility = "visible",
   max,
+  maxLength,
   min,
   name,
   onBlur,
   onValueChange,
   placeholder,
+  pattern,
   readOnly,
   required,
   size = "comfortable",
+  spellCheck,
   step,
   type = "text",
   value,
@@ -535,22 +577,134 @@ export function TextField({
       <input
         aria-describedby={describedBy || undefined}
         aria-invalid={error === undefined ? undefined : true}
+        autoCapitalize={autoCapitalize}
         autoComplete={autoComplete}
+        autoCorrect={autoCorrect}
+        autoFocus={autoFocus}
         data-part="control"
         defaultValue={defaultValue}
         disabled={disabled}
         id={controlId}
         inputMode={inputMode}
+        ref={inputRef}
         max={max}
+        maxLength={maxLength}
         min={min}
+        name={name}
+        onBlur={onBlur}
+        onChange={(event) => onValueChange?.(event.currentTarget.value)}
+        placeholder={placeholder}
+        pattern={pattern}
+        readOnly={readOnly}
+        required={required}
+        step={step}
+        spellCheck={spellCheck}
+        type={type}
+        value={value}
+      />
+    </FieldShell>
+  );
+}
+
+interface TextAreaFieldSpecificProps {
+  readonly autoCapitalize?: string | undefined;
+  readonly autoComplete?: string | undefined;
+  readonly autoCorrect?: string | undefined;
+  readonly autoFocus?: boolean | undefined;
+  readonly className?: string | undefined;
+  readonly description?: string | undefined;
+  readonly disabled?: boolean | undefined;
+  readonly error?: string | undefined;
+  readonly id?: string | undefined;
+  readonly label: string;
+  readonly labelVisibility?: "hidden" | "visible" | undefined;
+  readonly maxLength?: number | undefined;
+  readonly name?: string | undefined;
+  readonly onBlur?: FocusEventHandler<HTMLTextAreaElement> | undefined;
+  readonly placeholder?: string | undefined;
+  readonly readOnly?: boolean | undefined;
+  readonly required?: boolean | undefined;
+  readonly rows?: number | undefined;
+  readonly size?: FormControlSize | undefined;
+  readonly spellCheck?: boolean | undefined;
+}
+
+export type TextAreaFieldProps = TextAreaFieldSpecificProps &
+  (ControlledFieldProps | UncontrolledFieldProps);
+
+export function TextAreaField({
+  autoCapitalize,
+  autoComplete,
+  autoCorrect,
+  autoFocus,
+  className,
+  defaultValue,
+  description,
+  disabled,
+  error,
+  id,
+  label,
+  labelVisibility = "visible",
+  maxLength,
+  name,
+  onBlur,
+  onValueChange,
+  placeholder,
+  readOnly,
+  required,
+  rows,
+  size = "comfortable",
+  spellCheck,
+  value,
+}: TextAreaFieldProps) {
+  requirePerceptibleLabel(label);
+  requirePerceptibleErrorMessage(error);
+  requireExclusiveBoundary(value, defaultValue);
+  useStableControlBoundary(value !== undefined);
+  const generatedId = useId();
+  const controlId = id ?? `${generatedId}-control`;
+  const descriptionId = `${controlId}-description`;
+  const errorId = `${controlId}-error`;
+  const describedBy = [
+    description === undefined ? null : descriptionId,
+    error === undefined ? null : errorId,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <FieldShell
+      className={className}
+      component="textarea-field"
+      description={description}
+      descriptionId={descriptionId}
+      error={error}
+      errorId={errorId}
+      htmlFor={controlId}
+      label={label}
+      labelVisibility={labelVisibility}
+      size={size}
+      state={fieldState(disabled, error, readOnly)}
+    >
+      <textarea
+        aria-describedby={describedBy || undefined}
+        aria-invalid={error === undefined ? undefined : true}
+        autoCapitalize={autoCapitalize}
+        autoComplete={autoComplete}
+        autoCorrect={autoCorrect}
+        autoFocus={autoFocus}
+        data-part="control"
+        defaultValue={defaultValue}
+        disabled={disabled}
+        id={controlId}
+        maxLength={maxLength}
         name={name}
         onBlur={onBlur}
         onChange={(event) => onValueChange?.(event.currentTarget.value)}
         placeholder={placeholder}
         readOnly={readOnly}
         required={required}
-        step={step}
-        type={type}
+        rows={rows}
+        spellCheck={spellCheck}
         value={value}
       />
     </FieldShell>
@@ -574,7 +728,10 @@ function DefaultSearchIcon() {
 }
 
 export function SearchField({
+  autoCapitalize,
   autoComplete,
+  autoCorrect,
+  autoFocus,
   className,
   defaultValue,
   description,
@@ -582,15 +739,19 @@ export function SearchField({
   error,
   icon = <DefaultSearchIcon />,
   id,
+  inputRef,
   label,
   labelVisibility = "hidden",
+  maxLength,
   name,
   onBlur,
   onValueChange,
   placeholder,
+  pattern,
   readOnly,
   required,
   size = "comfortable",
+  spellCheck,
   value,
 }: SearchFieldProps) {
   requirePerceptibleLabel(label);
@@ -627,17 +788,24 @@ export function SearchField({
       <input
         aria-describedby={describedBy || undefined}
         aria-invalid={error === undefined ? undefined : true}
+        autoCapitalize={autoCapitalize}
         autoComplete={autoComplete}
+        autoCorrect={autoCorrect}
+        autoFocus={autoFocus}
         data-part="control"
         defaultValue={defaultValue}
         disabled={disabled}
         id={controlId}
+        ref={inputRef}
+        maxLength={maxLength}
         name={name}
         onBlur={onBlur}
         onChange={(event) => onValueChange?.(event.currentTarget.value)}
         placeholder={placeholder}
+        pattern={pattern}
         readOnly={readOnly}
         required={required}
+        spellCheck={spellCheck}
         type="search"
         value={value}
       />

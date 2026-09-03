@@ -18,6 +18,7 @@ import {
   SearchField,
   Select,
   Switch,
+  TextAreaField,
   TextField,
   filterSelectOptions,
   validateFormComponentContracts,
@@ -47,6 +48,11 @@ describe("Form component contracts", () => {
     expect(Object.isFrozen(FORM_COMPONENT_CONTRACTS)).toBe(true);
     expect(Object.isFrozen(FORM_COMPONENT_CONTRACTS.select.parts)).toBe(true);
     expect(FORM_COMPONENT_CONTRACTS.textField.parts).toEqual([
+      "root",
+      "label",
+      "control",
+    ]);
+    expect(FORM_COMPONENT_CONTRACTS.textAreaField.parts).toEqual([
       "root",
       "label",
       "control",
@@ -120,6 +126,11 @@ describe("Form component contracts", () => {
       <div>
         {(["compact", "comfortable"] as const).flatMap((size) => [
           <TextField key={`text-${size}`} label={`Text ${size}`} size={size} />,
+          <TextAreaField
+            key={`textarea-${size}`}
+            label={`Textarea ${size}`}
+            size={size}
+          />,
           <SearchField
             key={`search-${size}`}
             label={`Search ${size}`}
@@ -148,6 +159,7 @@ describe("Form component contracts", () => {
     );
     for (const component of [
       "text-field",
+      "textarea-field",
       "search-field",
       "select",
       "checkbox",

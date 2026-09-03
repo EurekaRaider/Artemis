@@ -37,6 +37,7 @@ export const NAVIGATION_COMPONENT_MUTABLE_TOKENS =
   ] as const);
 
 export type NavigationControlSize = "compact" | "comfortable";
+export type TabsOrientation = "horizontal" | "vertical";
 export type NavigationState = "ready" | "selected" | "disabled";
 
 export const NAVIGATION_STATE_PRIORITY = /* @__PURE__ */ Object.freeze([
@@ -53,6 +54,7 @@ export interface NavigationComponentContract {
   readonly states: readonly NavigationState[];
   readonly statePriority: readonly NavigationState[];
   readonly sizes: readonly NavigationControlSize[];
+  readonly orientations?: readonly TabsOrientation[];
   readonly accessibility: readonly string[];
   readonly interaction: readonly string[];
   readonly theme: {
@@ -86,15 +88,17 @@ export const NAVIGATION_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     states: ["ready", "selected", "disabled"],
     statePriority: NAVIGATION_STATE_PRIORITY,
     sizes: ["compact", "comfortable"],
+    orientations: ["horizontal", "vertical"],
     accessibility: [
       "named-tablist",
+      "orientation-announced",
       "tab-selected-and-controls-relations",
       "roving-tabindex",
       "automatic-activation",
     ],
     interaction: [
       "controlled-or-uncontrolled-fixed-at-mount",
-      "arrow-left-right-direction-aware",
+      "arrow-keys-follow-orientation",
       "home-end-boundaries",
       "disabled-tabs-skipped",
       "native-enter-and-space",
@@ -340,6 +344,7 @@ export type TabsProps<Value extends string> = Omit<
   CommonNavigationProps<Value>,
   "options"
 > & {
+  readonly orientation?: TabsOrientation | undefined;
   readonly options: readonly TabOption<Value>[];
 } & SelectionProps<Value>;
 
@@ -350,6 +355,7 @@ export function Tabs<Value extends string>({
   id,
   label,
   onValueChange,
+  orientation = "horizontal",
   options,
   size = "comfortable",
   value,
@@ -372,11 +378,11 @@ export function Tabs<Value extends string>({
     currentIndex: number,
   ) => {
     if (event.nativeEvent.isComposing) return;
-    if (
-      !(["ArrowLeft", "ArrowRight", "Home", "End"] as const).includes(
-        event.key as "ArrowLeft" | "ArrowRight" | "Home" | "End",
-      )
-    ) {
+    const arrowKeys =
+      orientation === "vertical"
+        ? (["ArrowUp", "ArrowDown"] as const)
+        : (["ArrowLeft", "ArrowRight"] as const);
+    if (![...arrowKeys, "Home", "End"].includes(event.key)) {
       return;
     }
     const enabledIndexes = options.flatMap((option, index) =>
@@ -390,16 +396,19 @@ export function Tabs<Value extends string>({
     } else if (event.key === "End") {
       nextIndex = enabledIndexes.at(-1)!;
     } else {
-      const computedDirection = rootRef.current
-        ? rootRef.current.ownerDocument.defaultView?.getComputedStyle(
-            rootRef.current,
-          ).direction
-        : undefined;
-      const explicitDirection =
-        rootRef.current?.closest("[dir]")?.getAttribute("dir") ??
-        rootRef.current?.ownerDocument.documentElement.dir;
-      const rtl = (computedDirection || explicitDirection) === "rtl";
-      const forward = event.key === (rtl ? "ArrowLeft" : "ArrowRight");
+      let forward = event.key === "ArrowDown";
+      if (orientation === "horizontal") {
+        const computedDirection = rootRef.current
+          ? rootRef.current.ownerDocument.defaultView?.getComputedStyle(
+              rootRef.current,
+            ).direction
+          : undefined;
+        const explicitDirection =
+          rootRef.current?.closest("[dir]")?.getAttribute("dir") ??
+          rootRef.current?.ownerDocument.documentElement.dir;
+        const rtl = (computedDirection || explicitDirection) === "rtl";
+        forward = event.key === (rtl ? "ArrowLeft" : "ArrowRight");
+      }
       const offset = forward ? 1 : -1;
       nextIndex =
         enabledIndexes[
@@ -416,6 +425,7 @@ export function Tabs<Value extends string>({
   return (
     <div
       aria-label={label}
+      aria-orientation={orientation}
       className={className}
       data-artemis-component="tabs"
       data-part="root"

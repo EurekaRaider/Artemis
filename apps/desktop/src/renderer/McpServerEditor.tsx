@@ -1,5 +1,14 @@
 import { useRef, useState } from "react";
+import { ArrowLeftIcon } from "@phosphor-icons/react/dist/icons/ArrowLeft";
 import type { AppLocale } from "@artemis/protocol";
+import { Button, IconButton } from "@artemis/ui/actions";
+import { InlineNotice } from "@artemis/ui/feedback";
+import { Select, Switch, TextField } from "@artemis/ui/forms";
+import {
+  ManagementCard,
+  ManagementHeader,
+  McpEditorSurface,
+} from "@artemis/ui/management";
 
 import type {
   McpServerConfig,
@@ -8,7 +17,6 @@ import type {
 } from "../shared/api.js";
 import { legacyLocale } from "../shared/locales.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
-import { CodexSelect } from "./CodexSelect.js";
 import {
   McpEditorFeedback,
   type McpEditorTestConnectionState,
@@ -503,29 +511,49 @@ export function McpServerEditor({
     }
   }
 
-  return (
-    <section className="settings-section resource-standalone-editor mcp-editor">
-      <header className="mcp-editor-header">
-        <div>
-          <button
-            className="text-button mcp-editor-back"
-            disabled={busy}
-            onClick={onCancel}
-            type="button"
-          >
-            ← {t.cancel}
-          </button>
-          <h1>
-            {server
-              ? t.updateMcp.replace("{name}", server.config.name)
-              : t.addMcp}
-          </h1>
-          <p className="settings-security">
-            {server ? t.transportChangeHint : t.newServerHint}
-          </p>
-        </div>
-      </header>
+  const editorTitle = server
+    ? t.updateMcp.replace("{name}", server.config.name)
+    : t.addMcp;
 
+  return (
+    <McpEditorSurface
+      actions={
+        <Button
+          className="mcp-editor-save"
+          disabled={
+            validationErrors.length > 0 ||
+            (actionsLocked && busyAction !== "save")
+          }
+          loading={busyAction === "save"}
+          onClick={attemptSave}
+          variant="primary"
+        >
+          {t.saveServer}
+        </Button>
+      }
+      busy={busy}
+      className="settings-section resource-standalone-editor mcp-editor"
+      header={
+        <ManagementHeader
+          className="mcp-editor-header"
+          description={server ? t.transportChangeHint : t.newServerHint}
+          leading={
+            <Button
+              className="mcp-editor-back"
+              disabled={busy}
+              icon={<ArrowLeftIcon aria-hidden="true" weight="bold" />}
+              onClick={onCancel}
+              variant="quiet"
+            >
+              {t.cancel}
+            </Button>
+          }
+          title={editorTitle}
+        />
+      }
+      label={editorTitle}
+      state={message || validationErrors.length > 0 ? "error" : undefined}
+    >
       <McpEditorFeedback
         busy={busy}
         onActionErrorRetry={retryLastAction}
@@ -551,6 +579,7 @@ export function McpServerEditor({
                 // Track the confirm-open window so Save and the test control
                 // join the mutual exclusion while the alertdialog is showing.
                 onConfirm: async (message, tone) => {
+                  if (confirmingRemoveRef.current) return false;
                   confirmingRemoveRef.current = true;
                   setConfirmingRemove(true);
                   try {
@@ -578,66 +607,65 @@ export function McpServerEditor({
       >
         {transport === "stdio" ? (
           <>
-            <div className="mcp-editor-card">
-              <label>
-                <strong>{t.launchCommand}</strong>
-                <input
-                  aria-label={t.launchCommand}
-                  autoFocus
-                  disabled={busy || locksCredentialTarget}
-                  onChange={(event) => setEndpoint(event.target.value)}
-                  value={endpoint}
-                />
-              </label>
-            </div>
-            <div className="mcp-editor-card">
+            <ManagementCard className="mcp-editor-card">
+              <TextField
+                autoFocus
+                disabled={busy || locksCredentialTarget}
+                label={t.launchCommand}
+                onValueChange={setEndpoint}
+                value={endpoint}
+              />
+            </ManagementCard>
+            <ManagementCard className="mcp-editor-card">
               <strong>{t.arguments}</strong>
               <div className="mcp-dynamic-list">
                 {argumentsList.map((argument, index) => (
                   <div className="mcp-argument-row" key={`argument-${index}`}>
-                    <input
-                      aria-label={`${t.arguments} ${index + 1}`}
+                    <TextField
                       disabled={busy || locksCredentialTarget}
-                      onChange={(event) =>
+                      label={`${t.arguments} ${index + 1}`}
+                      labelVisibility="hidden"
+                      onValueChange={(next) =>
                         setArgumentsList((current) =>
                           current.map((value, itemIndex) =>
-                            itemIndex === index ? event.target.value : value,
+                            itemIndex === index ? next : value,
                           ),
                         )
                       }
                       value={argument}
                     />
-                    <button
-                      aria-label={t.delete}
+                    <IconButton
                       className="mcp-remove-row"
                       disabled={busy || locksCredentialTarget}
+                      icon="×"
+                      label={`${t.delete} ${index + 1}`}
                       onClick={() =>
                         setArgumentsList((current) =>
                           current.filter((_, itemIndex) => itemIndex !== index),
                         )
                       }
-                      type="button"
-                    >
-                      ×
-                    </button>
+                      variant="danger"
+                    />
                   </div>
                 ))}
-                <button
+                <Button
                   className="mcp-add-row"
                   disabled={busy || locksCredentialTarget}
                   onClick={() =>
                     setArgumentsList((current) => [...current, ""])
                   }
-                  type="button"
+                  variant="secondary"
                 >
                   + {t.addArgument}
-                </button>
+                </Button>
               </div>
-            </div>
+            </ManagementCard>
             {locksCredentialTarget && (
-              <p className="settings-security">{t.registryCredentialsHint}</p>
+              <InlineNotice className="settings-security" tone="warning">
+                {t.registryCredentialsHint}
+              </InlineNotice>
             )}
-            <div className="mcp-editor-card">
+            <ManagementCard className="mcp-editor-card">
               <strong>{t.environmentVariables}</strong>
               <div className="mcp-dynamic-list">
                 {environment.map((entry, index) => (
@@ -645,14 +673,15 @@ export function McpServerEditor({
                     className="mcp-environment-row"
                     key={`environment-${index}`}
                   >
-                    <input
-                      aria-label={`${t.environmentKey} ${index + 1}`}
+                    <TextField
                       disabled={busy}
-                      onChange={(event) =>
+                      label={`${t.environmentKey} ${index + 1}`}
+                      labelVisibility="hidden"
+                      onValueChange={(next) =>
                         setEnvironment((current) =>
                           current.map((value, itemIndex) =>
                             itemIndex === index
-                              ? { ...value, key: event.target.value }
+                              ? { ...value, key: next }
                               : value,
                           ),
                         )
@@ -660,14 +689,15 @@ export function McpServerEditor({
                       placeholder={t.environmentKey}
                       value={entry.key}
                     />
-                    <input
-                      aria-label={`${t.environmentValue} ${index + 1}`}
+                    <TextField
                       disabled={busy}
-                      onChange={(event) =>
+                      label={`${t.environmentValue} ${index + 1}`}
+                      labelVisibility="hidden"
+                      onValueChange={(next) =>
                         setEnvironment((current) =>
                           current.map((value, itemIndex) =>
                             itemIndex === index
-                              ? { ...value, value: event.target.value }
+                              ? { ...value, value: next }
                               : value,
                           ),
                         )
@@ -675,22 +705,21 @@ export function McpServerEditor({
                       placeholder={t.environmentValue}
                       value={entry.value}
                     />
-                    <button
-                      aria-label={t.delete}
+                    <IconButton
                       className="mcp-remove-row"
                       disabled={busy}
+                      icon="×"
+                      label={`${t.delete} ${index + 1}`}
                       onClick={() =>
                         setEnvironment((current) =>
                           current.filter((_, itemIndex) => itemIndex !== index),
                         )
                       }
-                      type="button"
-                    >
-                      ×
-                    </button>
+                      variant="danger"
+                    />
                   </div>
                 ))}
-                <button
+                <Button
                   className="mcp-add-row"
                   disabled={busy}
                   onClick={() =>
@@ -699,13 +728,12 @@ export function McpServerEditor({
                       { key: "", value: "" },
                     ])
                   }
-                  type="button"
                 >
                   + {t.addEnvironment}
-                </button>
+                </Button>
               </div>
-            </div>
-            <div className="mcp-editor-card">
+            </ManagementCard>
+            <ManagementCard className="mcp-editor-card">
               <strong>{t.environmentVariablePassthrough}</strong>
               <div className="mcp-dynamic-list">
                 {environmentVariables.map((name, index) => (
@@ -713,150 +741,132 @@ export function McpServerEditor({
                     className="mcp-argument-row"
                     key={`environment-variable-${index}`}
                   >
-                    <input
-                      aria-label={`${t.environmentVariableName} ${index + 1}`}
+                    <TextField
                       disabled={busy}
-                      onChange={(event) =>
+                      label={`${t.environmentVariableName} ${index + 1}`}
+                      labelVisibility="hidden"
+                      onValueChange={(next) =>
                         setEnvironmentVariables((current) =>
                           current.map((value, itemIndex) =>
-                            itemIndex === index ? event.target.value : value,
+                            itemIndex === index ? next : value,
                           ),
                         )
                       }
                       placeholder={t.environmentVariableName}
                       value={name}
                     />
-                    <button
-                      aria-label={t.delete}
+                    <IconButton
                       className="mcp-remove-row"
                       disabled={busy}
+                      icon="×"
+                      label={`${t.delete} ${index + 1}`}
                       onClick={() =>
                         setEnvironmentVariables((current) =>
                           current.filter((_, itemIndex) => itemIndex !== index),
                         )
                       }
-                      type="button"
-                    >
-                      ×
-                    </button>
+                      variant="danger"
+                    />
                   </div>
                 ))}
-                <button
+                <Button
                   className="mcp-add-row"
                   disabled={busy}
                   onClick={() =>
                     setEnvironmentVariables((current) => [...current, ""])
                   }
-                  type="button"
                 >
                   + {t.addEnvironmentVariable}
-                </button>
+                </Button>
               </div>
-            </div>
-            <div className="mcp-editor-card">
-              <label>
-                <strong>{t.workspace}</strong>
-                <input
-                  aria-label={t.workspace}
-                  disabled={busy}
-                  onChange={(event) => setWorkspace(event.target.value)}
-                  value={workspace}
-                />
-              </label>
-            </div>
-            <div className="mcp-editor-card">
+            </ManagementCard>
+            <ManagementCard className="mcp-editor-card">
+              <TextField
+                disabled={busy}
+                label={t.workspace}
+                onValueChange={setWorkspace}
+                value={workspace}
+              />
+            </ManagementCard>
+            <ManagementCard
+              className="mcp-editor-card"
+              tone={mcpFullAccess ? "danger" : "warning"}
+            >
               <strong>{t.mcpSecurity}</strong>
-              <label className="settings-checkbox">
-                <input
-                  checked={mcpAllowNetwork}
-                  disabled={busy || mcpFullAccess}
-                  onChange={(event) => setMcpAllowNetwork(event.target.checked)}
-                  type="checkbox"
-                />
-                <span>{t.mcpAllowNetwork}</span>
-              </label>
-              <p className="settings-security">{t.mcpAllowNetworkHint}</p>
-              <label className="settings-checkbox">
-                <input
-                  checked={mcpFullAccess}
-                  disabled={busy}
-                  onChange={(event) => {
-                    setMcpFullAccess(event.target.checked);
-                    if (event.target.checked) setMcpAllowNetwork(true);
-                  }}
-                  type="checkbox"
-                />
-                <span>{t.mcpFullAccess}</span>
-              </label>
+              <Switch
+                checked={mcpAllowNetwork}
+                description={t.mcpAllowNetworkHint}
+                disabled={busy || mcpFullAccess}
+                label={t.mcpAllowNetwork}
+                onCheckedChange={setMcpAllowNetwork}
+              />
+              <Switch
+                checked={mcpFullAccess}
+                disabled={busy}
+                label={t.mcpFullAccess}
+                onCheckedChange={(checked) => {
+                  setMcpFullAccess(checked);
+                  if (checked) setMcpAllowNetwork(true);
+                }}
+              />
               {mcpFullAccess && (
-                <p className="settings-security warning">
+                <InlineNotice className="settings-security" tone="danger">
                   {t.mcpFullAccessHint}
-                </p>
+                </InlineNotice>
               )}
-            </div>
+            </ManagementCard>
           </>
         ) : (
-          <div className="mcp-editor-card">
-            <label>
-              <strong>{t.serverUrl}</strong>
-              <input
-                aria-label={t.serverUrl}
-                autoFocus
-                disabled={busy || locksHeaderTarget}
-                onChange={(event) => setEndpoint(event.target.value)}
-                type="url"
-                value={endpoint}
-              />
-            </label>
-            <label>
-              <strong>{t.authentication}</strong>
-              <div className="settings-codex-select">
-                <CodexSelect<"none" | "bearer" | "oauth" | "headers">
-                  ariaLabel={t.authentication}
-                  disabled={busy}
-                  onChange={setAuth}
-                  options={[
-                    { value: "none", label: t.authNone },
-                    { value: "bearer", label: t.authBearer },
-                    { value: "oauth", label: t.authOAuth },
-                    ...(server?.config.transport === "streamable-http" &&
-                    server.config.auth === "headers"
-                      ? ([{ value: "headers", label: t.authHeaders }] as const)
-                      : []),
-                  ]}
-                  value={auth}
-                />
-              </div>
-            </label>
+          <ManagementCard className="mcp-editor-card">
+            <TextField
+              autoFocus
+              disabled={busy || locksHeaderTarget}
+              label={t.serverUrl}
+              onValueChange={setEndpoint}
+              type="url"
+              value={endpoint}
+            />
+            <Select<"none" | "bearer" | "oauth" | "headers">
+              disabled={busy}
+              label={t.authentication}
+              labelVisibility="visible"
+              onValueChange={setAuth}
+              options={[
+                { value: "none", label: t.authNone },
+                { value: "bearer", label: t.authBearer },
+                { value: "oauth", label: t.authOAuth },
+                ...(server?.config.transport === "streamable-http" &&
+                server.config.auth === "headers"
+                  ? ([{ value: "headers", label: t.authHeaders }] as const)
+                  : []),
+              ]}
+              value={auth}
+            />
             {auth === "bearer" && (
-              <input
-                aria-label={t.bearer}
+              <TextField
                 autoComplete="off"
                 disabled={busy}
-                onChange={(event) => setBearer(event.target.value)}
+                label={t.bearer}
+                labelVisibility="hidden"
+                onValueChange={setBearer}
                 placeholder={t.bearer}
                 type="password"
                 value={bearer}
               />
             )}
             {auth === "oauth" && (
-              <span className="settings-security">{t.oauthHint}</span>
+              <InlineNotice className="settings-security" tone="info">
+                {t.oauthHint}
+              </InlineNotice>
             )}
             {auth === "headers" && (
-              <span className="settings-security">{t.registryHeadersHint}</span>
+              <InlineNotice className="settings-security" tone="warning">
+                {t.registryHeadersHint}
+              </InlineNotice>
             )}
-          </div>
+          </ManagementCard>
         )}
-
-        <button
-          className="mcp-editor-save"
-          disabled={actionsLocked || validationErrors.length > 0}
-          onClick={attemptSave}
-          type="button"
-        >
-          {t.saveServer}
-        </button>
       </McpEditorFeedback>
-    </section>
+    </McpEditorSurface>
   );
 }

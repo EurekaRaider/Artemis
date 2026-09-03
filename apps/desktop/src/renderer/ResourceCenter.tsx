@@ -7,8 +7,22 @@ import {
   type ReactNode,
 } from "react";
 import type { AppLocale } from "@artemis/protocol";
-import { EmptyState, InlineNotice, LoadingState } from "@artemis/ui/feedback";
-import { Switch } from "@artemis/ui/forms";
+import { Button, IconButton } from "@artemis/ui/actions";
+import {
+  Dialog,
+  EmptyState,
+  InlineNotice,
+  LoadingState,
+} from "@artemis/ui/feedback";
+import { SearchField, Select, Switch, TextField } from "@artemis/ui/forms";
+import {
+  ManagementCard,
+  ManagementHeader,
+  ManagementRow,
+  ManagementSection,
+  ResourceSurface,
+} from "@artemis/ui/management";
+import { Tabs } from "@artemis/ui/navigation";
 
 import type {
   CodexPluginMarketplace,
@@ -215,6 +229,8 @@ const labels = {
     confirmRemoveExtension: "Uninstall this executable extension?",
     installedNow: "Installed. New turns will load this capability.",
     removedNow: "Plugin removed.",
+    pluginWarnings:
+      "Completed with {count} warning(s). Review the source before enabling.",
     mcpSaved: "MCP server saved and connected.",
     mcpRemoved: "MCP server removed.",
     pluginEnabled: "Plugin capabilities enabled.",
@@ -349,6 +365,7 @@ const labels = {
     confirmRemoveExtension: "卸载这个可执行扩展？",
     installedNow: "安装完成；新一轮任务将加载此能力。",
     removedNow: "插件已卸载。",
+    pluginWarnings: "操作完成，但有 {count} 条警告；启用前请检查来源。",
     mcpSaved: "MCP 服务器已保存并连接。",
     mcpRemoved: "MCP 服务器已移除。",
     pluginEnabled: "插件能力已启用。",
@@ -381,7 +398,15 @@ function CatalogIcon({ kind }: { kind: ResourceKind }) {
 
 function SearchIcon() {
   return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.55"
+      viewBox="0 0 24 24"
+    >
       <circle cx="10.7" cy="10.7" r="6.2" />
       <path d="m15.4 15.4 4.3 4.3" />
     </svg>
@@ -390,7 +415,15 @@ function SearchIcon() {
 
 function GearIcon() {
   return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.55"
+      viewBox="0 0 24 24"
+    >
       <path d="M9.7 3.4h4.6l.5 2a7.2 7.2 0 0 1 1.3.8l2-.6 2.3 4-.1.1-1.5 1.4a7.1 7.1 0 0 1 0 1.8l1.6 1.5-2.3 4-2-.6a7.2 7.2 0 0 1-1.3.8l-.5 2H9.7l-.5-2a7.2 7.2 0 0 1-1.3-.8l-2 .6-2.3-4 1.6-1.5a7.1 7.1 0 0 1 0-1.8L3.6 9.6l2.3-4 2 .6a7.2 7.2 0 0 1 1.3-.8l.5-2Z" />
       <circle cx="12" cy="12" r="2.6" />
     </svg>
@@ -399,7 +432,15 @@ function GearIcon() {
 
 function RefreshIcon() {
   return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.55"
+      viewBox="0 0 24 24"
+    >
       <path d="M19.2 8.2A8 8 0 0 0 5.3 6.1L3.5 8" />
       <path d="M3.5 4.5V8H7" />
       <path d="M4.8 15.8a8 8 0 0 0 13.9 2.1l1.8-1.9" />
@@ -410,7 +451,15 @@ function RefreshIcon() {
 
 function PlusIcon() {
   return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.55"
+      viewBox="0 0 24 24"
+    >
       <path d="M12 5v14M5 12h14" />
     </svg>
   );
@@ -418,7 +467,15 @@ function PlusIcon() {
 
 function TrashIcon() {
   return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.55"
+      viewBox="0 0 24 24"
+    >
       <path d="M4.5 7h15M9 7V4.5h6V7M7 7l.8 13h8.4L17 7M10 10.5v6M14 10.5v6" />
     </svg>
   );
@@ -426,7 +483,15 @@ function TrashIcon() {
 
 function BackIcon() {
   return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+    <svg
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.55"
+      viewBox="0 0 24 24"
+    >
       <path d="m14.5 5-7 7 7 7" />
     </svg>
   );
@@ -498,7 +563,6 @@ export function CatalogSearchNotice({
     <LoadingState
       aria-atomic="true"
       aria-live="polite"
-      className="resource-empty-state resource-catalog-status is-loading"
       label={children}
       lines={1}
     />
@@ -506,7 +570,6 @@ export function CatalogSearchNotice({
     <EmptyState
       aria-atomic="true"
       aria-live="polite"
-      className="resource-empty-state resource-catalog-status"
       role="status"
       title={children}
     />
@@ -572,10 +635,12 @@ export function ResourceCenter({
   const [installProgress, setInstallProgress] =
     useState<ResourceInstallProgress>();
   const [busyId, setBusyId] = useState<string>();
+  const [operationPending, setOperationPending] = useState(false);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string>();
   const [googleAccount, setGoogleAccount] = useState<GoogleAccountStatus>();
   const catalogSearchRef = useRef<HTMLInputElement>(null);
+  const operationPendingRef = useRef(false);
   const t = localizedCopy(locale, "resources", labels[legacyLocale(locale)]);
 
   useEffect(() => {
@@ -685,6 +750,37 @@ export function ResourceCenter({
     return operationId;
   }
 
+  function runResourceOperation(operation: () => Promise<void>): void {
+    if (operationPendingRef.current) return;
+    operationPendingRef.current = true;
+    setOperationPending(true);
+    let pending: Promise<void>;
+    try {
+      pending = operation();
+    } catch (error) {
+      operationPendingRef.current = false;
+      setOperationPending(false);
+      setMessage(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    void pending
+      .catch((error) =>
+        setMessage(error instanceof Error ? error.message : String(error)),
+      )
+      .finally(() => {
+        operationPendingRef.current = false;
+        setOperationPending(false);
+      });
+  }
+
+  function runResourceSubmit(
+    event: FormEvent,
+    operation: () => Promise<void>,
+  ): void {
+    event.preventDefault();
+    runResourceOperation(operation);
+  }
+
   function focusCatalogSearch(): void {
     requestAnimationFrame(() => catalogSearchRef.current?.focus());
   }
@@ -769,8 +865,7 @@ export function ResourceCenter({
     }
   }
 
-  async function addCustomMarketplace(event: FormEvent) {
-    event.preventDefault();
+  async function addCustomMarketplace() {
     if (!sourceInput.trim() || searching) return;
     const operationId = beginInstallation("plugin", sourceInput.trim());
     setSearching(true);
@@ -956,8 +1051,7 @@ export function ResourceCenter({
     }
   }
 
-  async function searchCatalog(event: FormEvent) {
-    event.preventDefault();
+  async function searchCatalog() {
     if (
       !catalogQuery.trim() ||
       searching ||
@@ -1049,10 +1143,9 @@ export function ResourceCenter({
     await executeMcpInstall(item, option, {});
   }
 
-  function submitMcpInstall(event: FormEvent) {
-    event.preventDefault();
+  async function submitMcpInstall(): Promise<void> {
     if (!mcpInstallDraft) return;
-    void executeMcpInstall(
+    await executeMcpInstall(
       mcpInstallDraft.item,
       mcpInstallDraft.option,
       mcpInstallDraft.values,
@@ -1126,8 +1219,7 @@ export function ResourceCenter({
     }
   }
 
-  async function saveConnector(event: FormEvent) {
-    event.preventDefault();
+  async function saveConnector() {
     const name = connectorName.trim();
     const url = connectorUrl.trim();
     const bearerToken = connectorBearer.trim();
@@ -1686,19 +1778,35 @@ export function ResourceCenter({
   );
   const isArtemisPluginShop =
     selectedMarketplaceSource?.marketplaceName === "artemis-plugin-shop";
+  const marketplaceTabOptions = [
+    ...(marketplaceState?.sources ?? []).map((source) => ({
+      id: `resource-marketplace-tab-${encodeURIComponent(source.id)}`,
+      label: marketplaceSourceLabel(source),
+      panelId: `resource-marketplace-panel-${encodeURIComponent(source.id)}`,
+      value: source.id,
+    })),
+    {
+      id: "resource-marketplace-tab-local",
+      label: t.local,
+      panelId: "resource-marketplace-panel-local",
+      value: "local",
+    },
+  ];
+  const activeMarketplaceTabOption =
+    marketplaceTabOptions.find(
+      (option) => option.value === selectedMarketplaceView,
+    ) ?? marketplaceTabOptions.at(-1)!;
   const marketplaceFilter = marketplaceQuery.trim().toLowerCase();
   const matchingMarketplacePlugins = (plugins: CodexPluginPreview[]) =>
-    plugins
-      .filter((plugin) => plugin.installable)
-      .filter((plugin) => {
-        return (
-          !marketplaceFilter ||
-          plugin.displayName.toLowerCase().includes(marketplaceFilter) ||
-          plugin.name.toLowerCase().includes(marketplaceFilter) ||
-          plugin.description.toLowerCase().includes(marketplaceFilter) ||
-          plugin.category?.toLowerCase().includes(marketplaceFilter)
-        );
-      });
+    plugins.filter((plugin) => {
+      return (
+        !marketplaceFilter ||
+        plugin.displayName.toLowerCase().includes(marketplaceFilter) ||
+        plugin.name.toLowerCase().includes(marketplaceFilter) ||
+        plugin.description.toLowerCase().includes(marketplaceFilter) ||
+        plugin.category?.toLowerCase().includes(marketplaceFilter)
+      );
+    });
   const selectedMarketplacePlugins = matchingMarketplacePlugins(
     selectedMarketplaceView === "local"
       ? localPluginResults
@@ -1901,9 +2009,7 @@ export function ResourceCenter({
           </div>
         )}
         {message && (
-          <InlineNotice className="catalog-message" tone="info">
-            {pluginPageText(message)}
-          </InlineNotice>
+          <InlineNotice tone="info">{pluginPageText(message)}</InlineNotice>
         )}
       </>
     );
@@ -1926,7 +2032,7 @@ export function ResourceCenter({
         candidate.skillNames.includes(skill.name),
       );
       return `${t.skillConflict}: ${pluginPageText(skill.name)} · ${pluginPageText(
-        owner?.displayName ?? installed.source ?? t.skills,
+        owner?.displayName ?? t.skills,
       )}`;
     }
     return undefined;
@@ -1951,122 +2057,145 @@ export function ResourceCenter({
     const sourceLabel = source
       ? marketplaceSourceLabel(source)
       : pluginMarketplaceLabel(plugin);
+    const diagnostic = conflict
+      ? conflict
+      : plugin.installable
+        ? plugin.warnings.join(" · ")
+        : plugin.unsupported.join(", ");
     return (
-      <article className="plugin-market-card" key={plugin.id}>
+      <ManagementCard className="plugin-market-card" key={plugin.id}>
         <ResourceAvatar
           brandColor={plugin.brandColor}
           iconDataUrl={plugin.iconDataUrl}
           kind="plugin"
           name={displayName}
         />
-        <span className="plugin-market-copy">
+        <div className="plugin-market-copy">
           <strong>{displayName}</strong>
           <small>{description}</small>
           <small className="plugin-market-source">
             {t.marketplaceSource}: {sourceLabel}
           </small>
-        </span>
+          {diagnostic && (
+            <InlineNotice className="plugin-market-diagnostic" tone="warning">
+              {pluginPageText(diagnostic)}
+            </InlineNotice>
+          )}
+        </div>
         {installed && installedPlugin ? (
-          <button
-            className="resource-inline-action danger"
-            disabled={busyId === plugin.id}
-            onClick={() => void removePlugin(installedPlugin)}
-            type="button"
+          <Button
+            disabled={operationPending || busyId === plugin.id}
+            onClick={() =>
+              runResourceOperation(() => removePlugin(installedPlugin))
+            }
+            variant="danger"
           >
             {t.remove}
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             className="resource-inline-action"
             disabled={
+              operationPending ||
               !plugin.installable ||
               Boolean(conflict) ||
               busyId === plugin.id ||
               installProgress !== undefined
             }
-            onClick={() => void installPlugin(plugin)}
+            onClick={() => runResourceOperation(() => installPlugin(plugin))}
             title={
-              plugin.installable
-                ? conflict || plugin.warnings.join("\n")
-                : plugin.unsupported.join(", ")
+              diagnostic || (plugin.installable ? t.install : t.needsSetup)
             }
-            type="button"
           >
             {conflict
               ? t.skillConflict
               : plugin.installable
                 ? t.install
                 : t.needsSetup}
-          </button>
+          </Button>
         )}
-      </article>
+      </ManagementCard>
     );
   }
 
   if (mode === "add-plugin") {
     return (
-      <div className="library-page resource-page resource-standalone-page">
-        <header className="resource-page-header resource-management-header">
-          <button
-            aria-label={t.backToPlugins}
-            className="resource-back-button"
-            onClick={() => {
-              setMode("manage");
-              setManagementTab("plugins");
-              setMessage(undefined);
-            }}
-            title={t.backToPlugins}
-            type="button"
-          >
-            <BackIcon />
-          </button>
-          <div>
-            <h1>{t.addPlugin}</h1>
-            <p>{t.addPluginDescription}</p>
-          </div>
-        </header>
+      <ResourceSurface
+        busy={operationPending || Boolean(busyId) || searching}
+        className="resource-page resource-standalone-page"
+        label={t.addPlugin}
+      >
+        <ManagementHeader
+          className="resource-page-header resource-management-header"
+          description={t.addPluginDescription}
+          leading={
+            <IconButton
+              className="resource-back-button"
+              disabled={operationPending}
+              icon={<BackIcon />}
+              label={t.backToPlugins}
+              onClick={() => {
+                setMode("manage");
+                setManagementTab("plugins");
+                setMessage(undefined);
+              }}
+              title={t.backToPlugins}
+            />
+          }
+          title={t.addPlugin}
+        />
 
         {renderProgressAndMessage()}
 
         <section className="resource-add-plugin-options">
-          <article className="resource-add-plugin-card">
+          <ManagementCard className="resource-add-plugin-card">
             <div>
               <strong>{t.gitMarketplace}</strong>
               <small>{t.gitMarketplaceHint}</small>
             </div>
-            <form onSubmit={(event) => void addCustomMarketplace(event)}>
-              <input
-                aria-label={t.gitMarketplaceHint}
+            <form
+              onSubmit={(event) =>
+                runResourceSubmit(event, addCustomMarketplace)
+              }
+            >
+              <TextField
                 autoFocus
-                onChange={(event) => setSourceInput(event.target.value)}
+                disabled={operationPending}
+                label={t.gitMarketplaceHint}
+                labelVisibility="hidden"
+                onValueChange={setSourceInput}
                 placeholder={t.gitMarketplaceHint}
                 value={sourceInput}
               />
-              <button disabled={!sourceInput.trim() || searching} type="submit">
+              <Button
+                disabled={operationPending || !sourceInput.trim() || searching}
+                type="submit"
+              >
                 {t.loadMarketplace}
-              </button>
+              </Button>
             </form>
-          </article>
+          </ManagementCard>
 
-          <article className="resource-add-plugin-card">
+          <ManagementCard className="resource-add-plugin-card">
             <div>
               <strong>{t.offlineMarketplace}</strong>
               <small>{t.offlineMarketplaceHint}</small>
             </div>
-            <button
-              disabled={searching || installProgress !== undefined}
-              onClick={() => void importOfflineMarketplace()}
-              type="button"
+            <Button
+              disabled={
+                operationPending || searching || installProgress !== undefined
+              }
+              icon={<CatalogIcon kind="plugin" />}
+              onClick={() => runResourceOperation(importOfflineMarketplace)}
             >
-              <CatalogIcon kind="plugin" />
               {t.importOfflineMarketplace}
-            </button>
-          </article>
+            </Button>
+          </ManagementCard>
 
           {(marketplaceState?.sources ?? []).some(
             (source) => !source.builtIn,
           ) && (
-            <article className="resource-add-plugin-card resource-marketplace-manager">
+            <ManagementCard className="resource-add-plugin-card resource-marketplace-manager">
               <div>
                 <strong>{t.manageMarketplaces}</strong>
                 <small>{t.gitMarketplaceHint}</small>
@@ -2075,92 +2204,105 @@ export function ResourceCenter({
                 {(marketplaceState?.sources ?? [])
                   .filter((source) => !source.builtIn)
                   .map((source, index, sources) => (
-                    <div
+                    <ManagementRow
+                      actions={
+                        <>
+                          <IconButton
+                            disabled={
+                              operationPending ||
+                              index === 0 ||
+                              busyId === `marketplace:${source.id}`
+                            }
+                            icon={<span aria-hidden="true">↑</span>}
+                            label={`${t.moveMarketplaceUp}: ${source.displayName}`}
+                            onClick={() =>
+                              runResourceOperation(() =>
+                                moveMarketplace(source.id, -1),
+                              )
+                            }
+                            title={t.moveMarketplaceUp}
+                          />
+                          <IconButton
+                            disabled={
+                              operationPending ||
+                              index === sources.length - 1 ||
+                              busyId === `marketplace:${source.id}`
+                            }
+                            icon={<span aria-hidden="true">↓</span>}
+                            label={`${t.moveMarketplaceDown}: ${source.displayName}`}
+                            onClick={() =>
+                              runResourceOperation(() =>
+                                moveMarketplace(source.id, 1),
+                              )
+                            }
+                            title={t.moveMarketplaceDown}
+                          />
+                          <IconButton
+                            className="resource-icon-button resource-marketplace-remove-button"
+                            disabled={
+                              operationPending ||
+                              busyId === `marketplace:${source.id}`
+                            }
+                            icon={<TrashIcon />}
+                            label={`${t.removeMarketplace}: ${source.displayName}`}
+                            onClick={() =>
+                              runResourceOperation(() =>
+                                removeMarketplace(source),
+                              )
+                            }
+                            title={t.removeMarketplace}
+                            variant="danger"
+                          />
+                        </>
+                      }
                       className="resource-marketplace-source-row"
+                      description={`${source.repository}${source.offline ? ` · ${t.offline}` : ""}`}
                       key={source.id}
-                    >
-                      <span>
-                        <strong>{marketplaceSourceLabel(source)}</strong>
-                        <small>{source.repository}</small>
-                      </span>
-                      <div>
-                        <button
-                          aria-label={`${t.moveMarketplaceUp}: ${source.displayName}`}
-                          disabled={
-                            index === 0 || busyId === `marketplace:${source.id}`
-                          }
-                          onClick={() => void moveMarketplace(source.id, -1)}
-                          title={t.moveMarketplaceUp}
-                          type="button"
-                        >
-                          ↑
-                        </button>
-                        <button
-                          aria-label={`${t.moveMarketplaceDown}: ${source.displayName}`}
-                          disabled={
-                            index === sources.length - 1 ||
-                            busyId === `marketplace:${source.id}`
-                          }
-                          onClick={() => void moveMarketplace(source.id, 1)}
-                          title={t.moveMarketplaceDown}
-                          type="button"
-                        >
-                          ↓
-                        </button>
-                        <button
-                          aria-label={`${t.removeMarketplace}: ${source.displayName}`}
-                          className="resource-icon-button danger resource-marketplace-remove-button"
-                          data-tooltip={t.removeMarketplace}
-                          disabled={busyId === `marketplace:${source.id}`}
-                          onClick={() => void removeMarketplace(source)}
-                          type="button"
-                        >
-                          <TrashIcon />
-                        </button>
-                      </div>
-                    </div>
+                      title={marketplaceSourceLabel(source)}
+                    />
                   ))}
               </div>
-            </article>
+            </ManagementCard>
           )}
 
-          <article className="resource-add-plugin-card">
+          <ManagementCard className="resource-add-plugin-card">
             <div>
               <strong>{t.localPlugin}</strong>
               <small>{t.inspectLocalPlugin}</small>
             </div>
-            <button
-              disabled={busyId === "local-plugin"}
-              onClick={() => void inspectLocalPlugin()}
-              type="button"
+            <Button
+              disabled={operationPending || busyId === "local-plugin"}
+              icon={<CatalogIcon kind="plugin" />}
+              onClick={() => runResourceOperation(inspectLocalPlugin)}
             >
-              <CatalogIcon kind="plugin" />
               {t.inspectLocalPlugin}
-            </button>
-          </article>
+            </Button>
+          </ManagementCard>
 
-          <article className="resource-add-plugin-card">
+          <ManagementCard className="resource-add-plugin-card">
             <div>
               <strong>{t.executableExtension}</strong>
               <small>{t.executableExtensionHint}</small>
             </div>
-            <button
-              disabled={busyId === "extension:new"}
-              onClick={() => void trustExtension()}
-              type="button"
+            <Button
+              disabled={operationPending || busyId === "extension:new"}
+              icon={<CatalogIcon kind="plugin" />}
+              onClick={() => runResourceOperation(trustExtension)}
             >
-              <CatalogIcon kind="plugin" />
               {t.trustExtension}
-            </button>
-          </article>
+            </Button>
+          </ManagementCard>
         </section>
-      </div>
+      </ResourceSurface>
     );
   }
 
   if (mode === "mcp-editor") {
     return (
-      <div className="library-page resource-page resource-standalone-page">
+      <ResourceSurface
+        className="resource-page resource-standalone-page"
+        label={t.mcp}
+      >
         <McpServerEditor
           existingServers={mcpServers}
           key={editingMcpServer?.config.id ?? "new"}
@@ -2181,37 +2323,41 @@ export function ResourceCenter({
           }}
           {...(editingMcpServer ? { server: editingMcpServer } : {})}
         />
-      </div>
+      </ResourceSurface>
     );
   }
 
   if (mode === "google-account") {
     const chinese = locale.startsWith("zh");
     return (
-      <div className="library-page resource-page resource-standalone-page">
-        <header className="resource-page-header resource-management-header">
-          <button
-            aria-label={t.backToMarketplace}
-            className="resource-back-button"
-            onClick={() => setMode("marketplace")}
-            type="button"
-          >
-            <BackIcon />
-          </button>
-          <div>
-            <h1>{chinese ? "Google 账号连接" : "Google account"}</h1>
-            <p>
-              {chinese
-                ? "由 Artemis 保管 OAuth 凭据；插件只在单次调用中收到短期 access token。"
-                : "Artemis holds OAuth credentials; plugins receive only a short-lived access token for one call."}
-            </p>
-          </div>
-        </header>
+      <ResourceSurface
+        busy={operationPending || Boolean(busyId)}
+        className="resource-page resource-standalone-page"
+        label={chinese ? "Google 账号连接" : "Google account"}
+      >
+        <ManagementHeader
+          className="resource-page-header resource-management-header"
+          description={
+            chinese
+              ? "由 Artemis 保管 OAuth 凭据；插件只在单次调用中收到短期 access token。"
+              : "Artemis holds OAuth credentials; plugins receive only a short-lived access token for one call."
+          }
+          leading={
+            <IconButton
+              className="resource-back-button"
+              disabled={operationPending}
+              icon={<BackIcon />}
+              label={t.backToMarketplace}
+              onClick={() => setMode("marketplace")}
+            />
+          }
+          title={chinese ? "Google 账号连接" : "Google account"}
+        />
 
         {renderProgressAndMessage()}
         <section className="resource-add-plugin-options">
           {(["google-workspace", "gmail"] as const).map((grant) => (
-            <article className="resource-add-plugin-card" key={grant}>
+            <ManagementCard className="resource-add-plugin-card" key={grant}>
               <div>
                 <strong>
                   {grant === "gmail" ? "Gmail" : "Google Workspace"}
@@ -2231,115 +2377,133 @@ export function ResourceCenter({
                 </small>
               </div>
               {googleAccount?.grants[grant].authorized ? (
-                <button
-                  className="danger"
-                  disabled={busyId === `google:${grant}`}
-                  onClick={() => void disconnectGoogleGrant(grant)}
-                  type="button"
+                <Button
+                  disabled={operationPending || busyId === `google:${grant}`}
+                  onClick={() =>
+                    runResourceOperation(() => disconnectGoogleGrant(grant))
+                  }
+                  variant="danger"
                 >
                   {chinese ? "断开" : "Disconnect"}
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
                   disabled={
+                    operationPending ||
                     !googleAccount ||
                     googleAccount.encryptionAvailable === false ||
                     busyId === `google:${grant}`
                   }
-                  onClick={() => void authorizeGoogleGrant(grant)}
-                  type="button"
+                  onClick={() =>
+                    runResourceOperation(() => authorizeGoogleGrant(grant))
+                  }
                 >
                   {chinese ? "浏览器授权" : "Authorize in browser"}
-                </button>
+                </Button>
               )}
-            </article>
+            </ManagementCard>
           ))}
 
           {googleAccount?.connected && (
-            <button
-              className="resource-inline-action danger"
-              disabled={busyId === "google-disconnect"}
-              onClick={() => void disconnectGoogleAccount()}
-              type="button"
+            <Button
+              disabled={operationPending || busyId === "google-disconnect"}
+              onClick={() => runResourceOperation(disconnectGoogleAccount)}
+              variant="danger"
             >
               {chinese
                 ? "断开 Google 账号并撤销全部授权"
                 : "Disconnect Google account and revoke all grants"}
-            </button>
+            </Button>
           )}
         </section>
-      </div>
+      </ResourceSurface>
     );
   }
 
   if (mode === "marketplace") {
     return (
-      <div className="library-page resource-page resource-marketplace-page">
-        <header className="resource-page-header">
-          <div>
-            <h1>{t.title}</h1>
-            <p>{t.marketDescription}</p>
-          </div>
-          <div className="resource-header-actions">
-            <button
-              aria-label={t.refresh}
-              className="resource-icon-button"
-              disabled={
-                selectedMarketplaceView === "local" ||
-                marketplaceSourceById.get(selectedMarketplaceView)?.builtIn ||
-                marketplaceSourceById.get(selectedMarketplaceView)
-                  ?.refreshable === false ||
-                searching ||
-                installProgress !== undefined
-              }
-              onClick={() => void refreshSelectedMarketplace()}
-              title={t.refresh}
-              type="button"
-            >
-              <RefreshIcon />
-            </button>
-            <button
-              aria-label={t.add}
-              className="resource-add-button"
-              onClick={() => setMode("add-plugin")}
-              type="button"
-            >
-              <PlusIcon />
-              {t.add}
-            </button>
-          </div>
-        </header>
+      <ResourceSurface
+        busy={
+          operationPending ||
+          Boolean(busyId) ||
+          searching ||
+          Boolean(installProgress)
+        }
+        className="resource-page resource-marketplace-page"
+        label={t.title}
+      >
+        <ManagementHeader
+          className="resource-page-header"
+          description={t.marketDescription}
+          title={t.title}
+          actions={
+            <div className="resource-header-actions">
+              <IconButton
+                className="resource-icon-button"
+                disabled={
+                  operationPending ||
+                  selectedMarketplaceView === "local" ||
+                  marketplaceSourceById.get(selectedMarketplaceView)?.builtIn ||
+                  marketplaceSourceById.get(selectedMarketplaceView)
+                    ?.refreshable === false ||
+                  searching ||
+                  installProgress !== undefined
+                }
+                icon={<RefreshIcon />}
+                label={t.refresh}
+                onClick={() => runResourceOperation(refreshSelectedMarketplace)}
+                title={t.refresh}
+              />
+              <Button
+                className="resource-add-button"
+                disabled={operationPending}
+                icon={<PlusIcon />}
+                onClick={() => setMode("add-plugin")}
+              >
+                {t.add}
+              </Button>
+            </div>
+          }
+        />
+        <SearchField
+          className="resource-search-field resource-market-search"
+          disabled={operationPending}
+          label={t.searchPlugins}
+          onValueChange={setMarketplaceQuery}
+          placeholder={t.searchPlugins}
+          value={marketplaceQuery}
+        />
 
-        <label className="resource-search-field resource-market-search">
-          <SearchIcon />
-          <input
-            aria-label={t.searchPlugins}
-            onChange={(event) => setMarketplaceQuery(event.target.value)}
-            placeholder={t.searchPlugins}
-            value={marketplaceQuery}
-          />
-        </label>
-
-        <section className="resource-installed-overview">
-          <div className="resource-section-heading">
-            <strong>{t.installed}</strong>
-            <button
-              aria-label={t.manage}
+        <ManagementSection
+          actions={
+            <IconButton
               className="resource-icon-button"
+              disabled={operationPending}
+              icon={<GearIcon />}
+              label={t.manage}
               onClick={() => openManagement()}
               title={t.manage}
-              type="button"
-            >
-              <GearIcon />
-            </button>
-          </div>
+            />
+          }
+          className="resource-installed-overview"
+          title={t.installed}
+        >
           <div className="resource-installed-icons">
             {installedTiles.slice(0, 24).map((item) => (
-              <button
-                aria-label={item.name}
+              <IconButton
                 className="resource-installed-icon-button"
-                data-tooltip={item.name}
+                disabled={operationPending}
+                icon={
+                  <ResourceAvatar
+                    brandColor={item.brandColor}
+                    iconKey={item.iconKey}
+                    iconDataUrl={item.iconDataUrl}
+                    kind={item.kind}
+                    name={item.name}
+                  />
+                }
                 key={item.id}
+                label={item.name}
                 onClick={() =>
                   openManagement(
                     item.kind === "plugin"
@@ -2350,16 +2514,7 @@ export function ResourceCenter({
                   )
                 }
                 title={item.name}
-                type="button"
-              >
-                <ResourceAvatar
-                  brandColor={item.brandColor}
-                  iconKey={item.iconKey}
-                  iconDataUrl={item.iconDataUrl}
-                  kind={item.kind}
-                  name={item.name}
-                />
-              </button>
+              />
             ))}
             {installedTiles.length === 0 && (
               <span className="resource-empty-inline">{t.noPlugins}</span>
@@ -2370,47 +2525,33 @@ export function ResourceCenter({
               </span>
             )}
           </div>
-        </section>
+        </ManagementSection>
 
         {renderProgressAndMessage()}
 
         <div className="resource-market-controls">
-          <div className="resource-scope-tabs" role="tablist">
-            {(marketplaceState?.sources ?? []).map((source) => (
-              <button
-                aria-selected={selectedMarketplaceView === source.id}
-                className={
-                  selectedMarketplaceView === source.id ? "active" : ""
-                }
-                key={source.id}
-                onClick={() => void selectMarketplace(source.id)}
-                role="tab"
-                title={source.repository}
-                type="button"
-              >
-                {marketplaceSourceLabel(source)}
-              </button>
-            ))}
-            <button
-              aria-selected={selectedMarketplaceView === "local"}
-              className={selectedMarketplaceView === "local" ? "active" : ""}
-              onClick={() => void selectMarketplace("local")}
-              role="tab"
-              type="button"
-            >
-              {t.local}
-            </button>
-          </div>
+          <Tabs
+            className="resource-scope-tabs"
+            disabled={operationPending}
+            label={t.marketplaces}
+            onValueChange={(sourceId) =>
+              runResourceOperation(() => selectMarketplace(sourceId))
+            }
+            options={marketplaceTabOptions}
+            size="compact"
+            value={activeMarketplaceTabOption.value}
+          />
           <small>
             {marketplaceFilter
               ? t.allResults
-              : (marketplaceSourceById.get(selectedMarketplaceView)
-                  ?.repository ?? t.local)}
+              : selectedMarketplaceSource
+                ? marketplaceSourceLabel(selectedMarketplaceSource)
+                : t.local}
           </small>
         </div>
 
         {isArtemisPluginShop && !marketplaceFilter && (
-          <section className="resource-runtime-banner resource-marketplace-account-banner">
+          <ManagementCard className="resource-runtime-banner resource-marketplace-account-banner">
             <div>
               <strong>
                 {locale.startsWith("zh")
@@ -2423,36 +2564,55 @@ export function ResourceCenter({
                   : "Used only by the Gmail and Google Workspace plugins from this marketplace."}
               </small>
             </div>
-            <button onClick={() => void openGoogleAccount()} type="button">
+            <Button
+              disabled={operationPending}
+              onClick={() => runResourceOperation(openGoogleAccount)}
+            >
               {locale.startsWith("zh") ? "Google 账号" : "Google account"}
-            </button>
-          </section>
+            </Button>
+          </ManagementCard>
         )}
 
-        <p className="catalog-warning">{t.thirdParty}</p>
+        <InlineNotice tone="warning">{t.thirdParty}</InlineNotice>
 
         {selectedMarketplaceView === "bundled" &&
           !marketplaceFilter &&
           runtimePendingPlugins.length > 0 && (
-            <section className="resource-runtime-banner">
+            <ManagementCard className="resource-runtime-banner">
               <div>
                 <strong>{t.installRequiredDocuments}</strong>
                 <small>{t.requiredDocumentsDescription}</small>
               </div>
-              <button
+              <Button
                 disabled={
+                  operationPending ||
                   busyId === "required-documents" ||
                   installProgress !== undefined
                 }
-                onClick={() => void installRuntimePlugins()}
-                type="button"
+                onClick={() => runResourceOperation(installRuntimePlugins)}
               >
                 {t.installRequiredDocuments}
-              </button>
-            </section>
+              </Button>
+            </ManagementCard>
           )}
 
-        <div className="plugin-market-groups">
+        {marketplaceTabOptions
+          .filter((option) => option.value !== activeMarketplaceTabOption.value)
+          .map((option) => (
+            <div
+              aria-labelledby={option.id}
+              hidden
+              id={option.panelId}
+              key={option.value}
+              role="tabpanel"
+            />
+          ))}
+        <div
+          aria-labelledby={activeMarketplaceTabOption.id}
+          className="plugin-market-groups"
+          id={activeMarketplaceTabOption.panelId}
+          role="tabpanel"
+        >
           {marketplaceGroups.map((group) => (
             <section
               className="plugin-market-group"
@@ -2472,7 +2632,7 @@ export function ResourceCenter({
             <EmptyResource>{t.noMarketplaceResults}</EmptyResource>
           )}
         </div>
-      </div>
+      </ResourceSurface>
     );
   }
 
@@ -2487,6 +2647,17 @@ export function ResourceCenter({
     ).length,
     skills: standaloneSkills.length,
   };
+  const managementTabOptions = (
+    ["plugins", "connectors", "mcp", "skills"] as const
+  ).map((tab) => ({
+    id: `resource-management-tab-${tab}`,
+    label: `${t[tab]} ${managementCounts[tab]}`,
+    panelId: `resource-management-panel-${tab}`,
+    value: tab,
+  }));
+  const activeManagementTabOption = managementTabOptions.find(
+    (option) => option.value === managementTab,
+  )!;
   const managementSearchLabel =
     managementTab === "plugins"
       ? t.searchPlugins
@@ -2497,274 +2668,340 @@ export function ResourceCenter({
           : `${t.searchInstalled} · ${t.skills}`;
 
   return (
-    <div className="library-page resource-page resource-management-page">
-      <header className="resource-page-header resource-management-header">
-        <button
-          aria-label={t.backToMarketplace}
-          className="resource-back-button"
-          onClick={() => {
-            setMode("marketplace");
-            setMessage(undefined);
-          }}
-          title={t.backToMarketplace}
-          type="button"
-        >
-          <BackIcon />
-        </button>
-        <div>
-          <h1>{t.title}</h1>
-          <p>{t.manageDescription}</p>
-        </div>
-      </header>
+    <ResourceSurface
+      busy={
+        operationPending ||
+        Boolean(busyId) ||
+        searching ||
+        Boolean(installProgress)
+      }
+      className="resource-page resource-management-page"
+      label={`${t.manage}: ${t[managementTab]}`}
+    >
+      <ManagementHeader
+        className="resource-page-header resource-management-header"
+        description={t.manageDescription}
+        leading={
+          <IconButton
+            className="resource-back-button"
+            disabled={operationPending}
+            icon={<BackIcon />}
+            label={t.backToMarketplace}
+            onClick={() => {
+              setMode("marketplace");
+              setMessage(undefined);
+            }}
+            title={t.backToMarketplace}
+          />
+        }
+        title={t.title}
+      />
 
       <div className="resource-management-toolbar">
-        <div className="resource-management-tabs" role="tablist">
-          {(["plugins", "connectors", "mcp", "skills"] as const).map((tab) => (
-            <button
-              aria-selected={managementTab === tab}
-              className={managementTab === tab ? "active" : ""}
-              key={tab}
-              onClick={() => switchManagementTab(tab)}
-              role="tab"
-              type="button"
-            >
-              {t[tab]} <span>{managementCounts[tab]}</span>
-            </button>
-          ))}
-        </div>
-        <label className="resource-search-field resource-management-search">
-          <SearchIcon />
-          <input
-            aria-label={managementSearchLabel}
-            onChange={(event) => setManagementQuery(event.target.value)}
-            placeholder={managementSearchLabel}
-            value={managementQuery}
-          />
-        </label>
+        <Tabs
+          className="resource-management-tabs"
+          disabled={operationPending}
+          label={t.manage}
+          onValueChange={switchManagementTab}
+          options={managementTabOptions}
+          size="compact"
+          value={managementTab}
+        />
+        <SearchField
+          className="resource-search-field resource-management-search"
+          disabled={operationPending}
+          label={managementSearchLabel}
+          onValueChange={setManagementQuery}
+          placeholder={managementSearchLabel}
+          size="compact"
+          value={managementQuery}
+        />
       </div>
 
       {renderProgressAndMessage()}
 
+      {managementTabOptions
+        .filter((option) => option.value !== managementTab)
+        .map((option) => (
+          <div
+            aria-labelledby={option.id}
+            hidden
+            id={option.panelId}
+            key={option.value}
+            role="tabpanel"
+          />
+        ))}
+
       {managementTab === "plugins" && (
-        <section className="resource-management-section">
-          <div className="resource-list-heading">
-            <strong>{t.plugins}</strong>
-            <button
+        <ManagementSection
+          actions={
+            <Button
               className="resource-add-button subtle"
+              disabled={operationPending}
+              icon={<PlusIcon />}
               onClick={() => setMode("add-plugin")}
-              type="button"
             >
-              <PlusIcon />
               {t.addPlugin}
-            </button>
-          </div>
+            </Button>
+          }
+          className="resource-management-section"
+          id={activeManagementTabOption.panelId}
+          labelledBy={activeManagementTabOption.id}
+          role="tabpanel"
+          title={t.plugins}
+        >
           <div className="resource-management-list">
             {visibleInstalledPlugins.map((plugin) => {
               const visual = visualForPlugin(plugin);
               return (
-                <article className="resource-management-row" key={plugin.id}>
-                  <ResourceAvatar
-                    brandColor={visual.brandColor}
-                    iconDataUrl={visual.iconDataUrl}
-                    kind="plugin"
-                    name={pluginPageText(plugin.displayName)}
-                  />
-                  <span className="resource-management-copy">
-                    <strong>{pluginPageText(plugin.displayName)}</strong>
-                    <small>
-                      {plugin.installable
-                        ? pluginPageText(
-                            plugin.shortDescription ||
-                              plugin.description ||
-                              `${plugin.skillNames.length} ${t.skillsCount} · ${plugin.mcpServerIds.length} ${t.mcpCount}`,
+                <ManagementRow
+                  actions={
+                    <div className="resource-row-actions">
+                      <IconButton
+                        className="resource-icon-button"
+                        disabled={operationPending || busyId === plugin.id}
+                        icon={<RefreshIcon />}
+                        label={`${t.update} ${pluginPageText(plugin.displayName)}`}
+                        onClick={() =>
+                          runResourceOperation(() => updatePlugin(plugin))
+                        }
+                        title={t.update}
+                      />
+                      <IconButton
+                        className="resource-icon-button"
+                        disabled={operationPending || busyId === plugin.id}
+                        icon={<TrashIcon />}
+                        label={`${t.remove} ${pluginPageText(plugin.displayName)}`}
+                        onClick={() =>
+                          runResourceOperation(() => removePlugin(plugin))
+                        }
+                        title={t.remove}
+                        variant="danger"
+                      />
+                      <Switch
+                        checked={pluginIsEnabled(plugin)}
+                        className="resource-switch"
+                        disabled={
+                          operationPending ||
+                          busyId === plugin.id ||
+                          !plugin.installable
+                        }
+                        label={pluginIsEnabled(plugin) ? t.enabled : t.disabled}
+                        labelVisibility="hidden"
+                        onCheckedChange={(enabled) =>
+                          runResourceOperation(() =>
+                            setPluginEnabled(plugin, enabled),
                           )
-                        : t.needsSetup}
-                    </small>
-                    <small className="plugin-market-source">
-                      {t.marketplaceSource}: {pluginMarketplaceLabel(plugin)}
-                    </small>
-                  </span>
-                  <div className="resource-row-actions">
-                    <button
-                      aria-label={`${t.update} ${pluginPageText(plugin.displayName)}`}
-                      className="resource-icon-button"
-                      disabled={busyId === plugin.id}
-                      onClick={() => void updatePlugin(plugin)}
-                      title={t.update}
-                      type="button"
-                    >
-                      <RefreshIcon />
-                    </button>
-                    <button
-                      aria-label={`${t.remove} ${pluginPageText(plugin.displayName)}`}
-                      className="resource-icon-button danger"
-                      disabled={busyId === plugin.id}
-                      onClick={() => void removePlugin(plugin)}
-                      title={t.remove}
-                      type="button"
-                    >
-                      <TrashIcon />
-                    </button>
-                    <Switch
-                      checked={pluginIsEnabled(plugin)}
-                      className="resource-switch"
-                      disabled={busyId === plugin.id || !plugin.installable}
-                      label={pluginIsEnabled(plugin) ? t.enabled : t.disabled}
-                      labelVisibility="hidden"
-                      onCheckedChange={(enabled) =>
-                        void setPluginEnabled(plugin, enabled)
-                      }
-                      title={pluginIsEnabled(plugin) ? t.enabled : t.disabled}
+                        }
+                        title={pluginIsEnabled(plugin) ? t.enabled : t.disabled}
+                      />
+                    </div>
+                  }
+                  className="resource-management-row"
+                  description={
+                    <>
+                      <span>
+                        {plugin.installable
+                          ? pluginPageText(
+                              plugin.shortDescription ||
+                                plugin.description ||
+                                `${plugin.skillNames.length} ${t.skillsCount} · ${plugin.mcpServerIds.length} ${t.mcpCount}`,
+                            )
+                          : t.needsSetup}
+                      </span>
+                      <span className="plugin-market-source">
+                        {t.marketplaceSource}: {pluginMarketplaceLabel(plugin)}
+                      </span>
+                    </>
+                  }
+                  key={plugin.id}
+                  leading={
+                    <ResourceAvatar
+                      brandColor={visual.brandColor}
+                      iconDataUrl={visual.iconDataUrl}
+                      kind="plugin"
+                      name={pluginPageText(plugin.displayName)}
                     />
-                  </div>
-                </article>
+                  }
+                  title={pluginPageText(plugin.displayName)}
+                />
               );
             })}
             {visibleExtensions.map((extension) => (
-              <article
-                className="resource-management-row"
-                key={extension.config.id}
-              >
-                <ResourceAvatar kind="plugin" name={extension.config.name} />
-                <span className="resource-management-copy">
-                  <strong>{extension.config.name}</strong>
-                  <small title={extension.config.path}>
-                    {extension.state === "changed"
-                      ? t.extensionChanged
-                      : `${extension.state} · ${extension.tools.length} ${t.tools}`}
-                  </small>
-                </span>
-                <div className="resource-row-actions">
-                  <button
-                    aria-label={`${t.extensionNetwork}: ${extension.config.name}`}
-                    className={`resource-inline-action${extension.config.allowNetwork ? " active" : ""}`}
-                    disabled={
-                      busyId === extension.config.id ||
-                      !extension.config.enabled
-                    }
-                    onClick={() =>
-                      void setExtensionNetwork(
-                        extension.config.id,
-                        !extension.config.allowNetwork,
-                      )
-                    }
-                    title={t.extensionNetwork}
-                    type="button"
-                  >
-                    {t.extensionNetwork}
-                  </button>
-                  {extension.state === "changed" && (
-                    <button
-                      aria-label={`${t.retrust}: ${extension.config.name}`}
-                      className="resource-icon-button"
-                      disabled={busyId === extension.config.id}
-                      onClick={() => void retrustExtension(extension.config.id)}
-                      title={t.retrust}
-                      type="button"
+              <ManagementRow
+                actions={
+                  <div className="resource-row-actions">
+                    <Button
+                      className="resource-inline-action"
+                      disabled={
+                        operationPending ||
+                        busyId === extension.config.id ||
+                        !extension.config.enabled
+                      }
+                      label={`${t.extensionNetwork}: ${extension.config.name}`}
+                      onClick={() =>
+                        runResourceOperation(() =>
+                          setExtensionNetwork(
+                            extension.config.id,
+                            !extension.config.allowNetwork,
+                          ),
+                        )
+                      }
+                      selected={extension.config.allowNetwork}
+                      title={t.extensionNetwork}
                     >
-                      <RefreshIcon />
-                    </button>
-                  )}
-                  <button
-                    aria-label={`${t.remove} ${extension.config.name}`}
-                    className="resource-icon-button danger"
-                    disabled={busyId === extension.config.id}
-                    onClick={() => void removeExtension(extension.config.id)}
-                    title={t.remove}
-                    type="button"
-                  >
-                    <TrashIcon />
-                  </button>
-                  <Switch
-                    checked={extension.config.enabled}
-                    className="resource-switch"
-                    disabled={busyId === extension.config.id}
-                    label={extension.config.enabled ? t.enabled : t.disabled}
-                    labelVisibility="hidden"
-                    onCheckedChange={(enabled) =>
-                      void setExtensionEnabled(extension.config.id, enabled)
-                    }
-                    title={extension.config.enabled ? t.enabled : t.disabled}
-                  />
-                </div>
-              </article>
+                      {t.extensionNetwork}
+                    </Button>
+                    {extension.state === "changed" && (
+                      <IconButton
+                        className="resource-icon-button"
+                        disabled={
+                          operationPending || busyId === extension.config.id
+                        }
+                        icon={<RefreshIcon />}
+                        label={`${t.retrust}: ${extension.config.name}`}
+                        onClick={() =>
+                          runResourceOperation(() =>
+                            retrustExtension(extension.config.id),
+                          )
+                        }
+                        title={t.retrust}
+                      />
+                    )}
+                    <IconButton
+                      className="resource-icon-button"
+                      disabled={
+                        operationPending || busyId === extension.config.id
+                      }
+                      icon={<TrashIcon />}
+                      label={`${t.remove} ${extension.config.name}`}
+                      onClick={() =>
+                        runResourceOperation(() =>
+                          removeExtension(extension.config.id),
+                        )
+                      }
+                      title={t.remove}
+                      variant="danger"
+                    />
+                    <Switch
+                      checked={extension.config.enabled}
+                      className="resource-switch"
+                      disabled={
+                        operationPending || busyId === extension.config.id
+                      }
+                      label={extension.config.enabled ? t.enabled : t.disabled}
+                      labelVisibility="hidden"
+                      onCheckedChange={(enabled) =>
+                        runResourceOperation(() =>
+                          setExtensionEnabled(extension.config.id, enabled),
+                        )
+                      }
+                      title={extension.config.enabled ? t.enabled : t.disabled}
+                    />
+                  </div>
+                }
+                className="resource-management-row"
+                description={
+                  extension.state === "changed"
+                    ? t.extensionChanged
+                    : `${extension.state} · ${extension.tools.length} ${t.tools}`
+                }
+                key={extension.config.id}
+                leading={
+                  <ResourceAvatar kind="plugin" name={extension.config.name} />
+                }
+                title={extension.config.name}
+              />
             ))}
             {visibleInstalledPlugins.length === 0 &&
               visibleExtensions.length === 0 && (
                 <EmptyResource>{t.noPlugins}</EmptyResource>
               )}
           </div>
-        </section>
+        </ManagementSection>
       )}
 
       {managementTab === "connectors" && (
-        <section className="resource-management-section">
-          <div className="resource-list-heading">
-            <strong>{t.connectors}</strong>
-            <button
+        <ManagementSection
+          actions={
+            <Button
               className="resource-add-button subtle"
+              disabled={operationPending}
+              icon={<PlusIcon />}
               onClick={() => setConnectorPanelOpen((current) => !current)}
-              type="button"
             >
-              <PlusIcon />
               {t.addConnector}
-            </button>
-          </div>
+            </Button>
+          }
+          className="resource-management-section"
+          id={activeManagementTabOption.panelId}
+          labelledBy={activeManagementTabOption.id}
+          role="tabpanel"
+          title={t.connectors}
+        >
           {connectorPanelOpen && (
-            <form
-              className="resource-connector-form"
-              onSubmit={(event) => void saveConnector(event)}
-            >
-              <p>{t.connectorHelp}</p>
-              <input
-                aria-label={t.connectorName}
-                autoFocus
-                onChange={(event) => setConnectorName(event.target.value)}
-                placeholder={t.connectorName}
-                value={connectorName}
-              />
-              <input
-                aria-label={t.connectorUrl}
-                onChange={(event) => setConnectorUrl(event.target.value)}
-                placeholder={t.connectorUrl}
-                type="url"
-                value={connectorUrl}
-              />
-              <select
-                aria-label={t.connectorAuth}
-                onChange={(event) =>
-                  setConnectorAuth(
-                    event.target.value as "none" | "bearer" | "oauth",
-                  )
-                }
-                value={connectorAuth}
+            <ManagementCard className="resource-connector-card">
+              <form
+                className="resource-connector-form"
+                onSubmit={(event) => runResourceSubmit(event, saveConnector)}
               >
-                <option value="oauth">OAuth</option>
-                <option value="bearer">Bearer</option>
-                <option value="none">None</option>
-              </select>
-              {connectorAuth === "bearer" && (
-                <input
-                  aria-label={t.connectorBearer}
-                  autoComplete="off"
-                  onChange={(event) => setConnectorBearer(event.target.value)}
-                  placeholder={t.connectorBearer}
-                  type="password"
-                  value={connectorBearer}
+                <InlineNotice tone="info">{t.connectorHelp}</InlineNotice>
+                <TextField
+                  autoFocus
+                  disabled={operationPending}
+                  label={t.connectorName}
+                  labelVisibility="hidden"
+                  onValueChange={setConnectorName}
+                  placeholder={t.connectorName}
+                  value={connectorName}
                 />
-              )}
-              <button
-                disabled={
-                  busyId === "connector:new" ||
-                  !connectorName.trim() ||
-                  !connectorUrl.trim() ||
-                  (connectorAuth === "bearer" && !connectorBearer.trim())
-                }
-                type="submit"
-              >
-                {t.saveConnector}
-              </button>
-            </form>
+                <TextField
+                  disabled={operationPending}
+                  label={t.connectorUrl}
+                  labelVisibility="hidden"
+                  onValueChange={setConnectorUrl}
+                  placeholder={t.connectorUrl}
+                  type="url"
+                  value={connectorUrl}
+                />
+                <Select
+                  disabled={operationPending}
+                  label={t.connectorAuth}
+                  onValueChange={setConnectorAuth}
+                  options={[
+                    { label: "OAuth", value: "oauth" },
+                    { label: "Bearer", value: "bearer" },
+                    { label: "None", value: "none" },
+                  ]}
+                  value={connectorAuth}
+                />
+                {connectorAuth === "bearer" && (
+                  <TextField
+                    autoComplete="off"
+                    disabled={operationPending}
+                    label={t.connectorBearer}
+                    labelVisibility="hidden"
+                    onValueChange={setConnectorBearer}
+                    placeholder={t.connectorBearer}
+                    type="password"
+                    value={connectorBearer}
+                  />
+                )}
+                <Button
+                  disabled={
+                    operationPending ||
+                    busyId === "connector:new" ||
+                    !connectorName.trim() ||
+                    !connectorUrl.trim() ||
+                    (connectorAuth === "bearer" && !connectorBearer.trim())
+                  }
+                  type="submit"
+                  variant="primary"
+                >
+                  {t.saveConnector}
+                </Button>
+              </form>
+            </ManagementCard>
           )}
           <div className="resource-management-list">
             {visibleConnectors.map((server) => {
@@ -2779,141 +3016,147 @@ export function ResourceCenter({
                 server.config.enabled &&
                 server.state !== "connected";
               return (
-                <article
-                  className="resource-management-row"
-                  key={server.config.id}
-                >
-                  <ResourceAvatar
-                    brandColor={visual.brandColor}
-                    iconDataUrl={visual.iconDataUrl}
-                    iconKey={visual.iconKey}
-                    kind="connectors"
-                    name={displayName}
-                  />
-                  <span className="resource-management-copy">
-                    <strong>{displayName}</strong>
-                    <small
-                      title={
-                        server.config.transport === "streamable-http"
-                          ? server.config.url
-                          : server.config.command
-                      }
-                    >
-                      {owner
-                        ? `${t.fromPlugins}: ${pluginPageText(owner.displayName)} · `
-                        : ""}
-                      {!server.config.enabled ? t.disabled : server.state} ·{" "}
-                      {server.tools.length} {t.tools}
-                    </small>
-                  </span>
-                  <div className="resource-row-actions">
-                    <button
-                      aria-label={`${t.configure} ${displayName}`}
-                      className="resource-icon-button"
-                      onClick={() => openMcpEditor(server)}
-                      title={t.configure}
-                      type="button"
-                    >
-                      <GearIcon />
-                    </button>
-                    {canAuthorize && (
-                      <button
-                        className="resource-inline-action"
-                        disabled={busyId === server.config.id}
-                        onClick={() =>
-                          void authorizeConnector(server.config.id)
+                <ManagementRow
+                  actions={
+                    <div className="resource-row-actions">
+                      <IconButton
+                        className="resource-icon-button"
+                        disabled={operationPending}
+                        icon={<GearIcon />}
+                        label={`${t.configure} ${displayName}`}
+                        onClick={() => openMcpEditor(server)}
+                        title={t.configure}
+                      />
+                      {canAuthorize && (
+                        <Button
+                          className="resource-inline-action"
+                          disabled={
+                            operationPending || busyId === server.config.id
+                          }
+                          onClick={() =>
+                            runResourceOperation(() =>
+                              authorizeConnector(server.config.id),
+                            )
+                          }
+                        >
+                          {t.authorize}
+                        </Button>
+                      )}
+                      <IconButton
+                        className="resource-icon-button"
+                        disabled={
+                          operationPending ||
+                          busyId === server.config.id ||
+                          managedMcpIds.has(server.config.id)
                         }
-                        type="button"
-                      >
-                        {t.authorize}
-                      </button>
-                    )}
-                    <button
-                      aria-label={`${t.remove} ${displayName}`}
-                      className="resource-icon-button danger"
-                      disabled={
-                        busyId === server.config.id ||
-                        managedMcpIds.has(server.config.id)
-                      }
-                      onClick={() =>
-                        void removeMcp(
-                          server.config.id,
-                          t.confirmRemoveConnector,
-                        )
-                      }
-                      title={
-                        managedMcpIds.has(server.config.id)
-                          ? t.managedByPlugin
-                          : t.remove
-                      }
-                      type="button"
-                    >
-                      <TrashIcon />
-                    </button>
-                    <Switch
-                      checked={server.config.enabled}
-                      className="resource-switch"
-                      disabled={busyId === server.config.id}
-                      label={server.config.enabled ? t.enabled : t.disabled}
-                      labelVisibility="hidden"
-                      onCheckedChange={(enabled) =>
-                        void setMcpEnabled(server.config.id, enabled)
-                      }
-                      title={server.config.enabled ? t.enabled : t.disabled}
+                        icon={<TrashIcon />}
+                        label={`${t.remove} ${displayName}`}
+                        onClick={() =>
+                          runResourceOperation(() =>
+                            removeMcp(
+                              server.config.id,
+                              t.confirmRemoveConnector,
+                            ),
+                          )
+                        }
+                        title={
+                          managedMcpIds.has(server.config.id)
+                            ? t.managedByPlugin
+                            : t.remove
+                        }
+                        variant="danger"
+                      />
+                      <Switch
+                        checked={server.config.enabled}
+                        className="resource-switch"
+                        disabled={
+                          operationPending || busyId === server.config.id
+                        }
+                        label={server.config.enabled ? t.enabled : t.disabled}
+                        labelVisibility="hidden"
+                        onCheckedChange={(enabled) =>
+                          runResourceOperation(() =>
+                            setMcpEnabled(server.config.id, enabled),
+                          )
+                        }
+                        title={server.config.enabled ? t.enabled : t.disabled}
+                      />
+                    </div>
+                  }
+                  className="resource-management-row"
+                  description={`${owner ? `${t.fromPlugins}: ${pluginPageText(owner.displayName)} · ` : ""}${!server.config.enabled ? t.disabled : server.state} · ${server.tools.length} ${t.tools}`}
+                  key={server.config.id}
+                  leading={
+                    <ResourceAvatar
+                      brandColor={visual.brandColor}
+                      iconDataUrl={visual.iconDataUrl}
+                      iconKey={visual.iconKey}
+                      kind="connectors"
+                      name={displayName}
                     />
-                  </div>
-                </article>
+                  }
+                  title={displayName}
+                />
               );
             })}
             {visibleConnectors.length === 0 && (
               <EmptyResource>{t.noConnectors}</EmptyResource>
             )}
           </div>
-        </section>
+        </ManagementSection>
       )}
 
       {managementTab === "mcp" && (
-        <section className="resource-management-section">
-          <div className="resource-list-heading">
-            <strong>{t.mcp}</strong>
+        <ManagementSection
+          actions={
             <div className="resource-list-heading-actions">
-              <button
+              <Button
                 className="resource-add-button subtle"
+                disabled={operationPending}
+                icon={<PlusIcon />}
                 onClick={() => toggleCatalogDiscovery("mcp")}
-                type="button"
               >
-                <PlusIcon />
                 {t.browseOfficialMcp}
-              </button>
-              <button
+              </Button>
+              <Button
                 className="resource-add-button subtle"
+                disabled={operationPending}
+                icon={<PlusIcon />}
                 onClick={() => openMcpEditor()}
-                type="button"
               >
-                <PlusIcon />
                 {t.addMcp}
-              </button>
+              </Button>
             </div>
-          </div>
+          }
+          className="resource-management-section"
+          id={activeManagementTabOption.panelId}
+          labelledBy={activeManagementTabOption.id}
+          role="tabpanel"
+          title={t.mcp}
+        >
           {discoveryOpen && (
-            <section className="resource-discovery-panel">
-              <form onSubmit={(event) => void searchCatalog(event)}>
-                <SearchIcon />
-                <input
-                  aria-label={t.searchMcp}
-                  onChange={(event) => setCatalogQuery(event.target.value)}
+            <ManagementCard className="resource-discovery-panel">
+              <form
+                onSubmit={(event) => runResourceSubmit(event, searchCatalog)}
+              >
+                <SearchField
+                  disabled={operationPending}
+                  inputRef={catalogSearchRef}
+                  label={t.searchMcp}
+                  onValueChange={setCatalogQuery}
                   placeholder={t.searchMcp}
-                  ref={catalogSearchRef}
                   value={catalogQuery}
                 />
-                <button
-                  disabled={!catalogQuery.trim() || searching}
+                <Button
+                  disabled={
+                    operationPending || !catalogQuery.trim() || searching
+                  }
                   type="submit"
                 >
                   {catalogSearchPhase.mcp === "searching"
                     ? t.searchingMcp
                     : t.searchMcp}
-                </button>
+                </Button>
               </form>
               <div className="resource-discovery-results">
                 {catalogSearchPhase.mcp === "searching" ? (
@@ -2922,37 +3165,42 @@ export function ResourceCenter({
                   </CatalogSearchNotice>
                 ) : mcpResults.length > 0 ? (
                   mcpResults.map((item) => (
-                    <article
+                    <ManagementRow
+                      actions={
+                        <Button
+                          disabled={
+                            operationPending ||
+                            item.installed ||
+                            !item.installable ||
+                            busyId === item.configId ||
+                            installProgress !== undefined
+                          }
+                          onClick={() =>
+                            runResourceOperation(() => installMcp(item))
+                          }
+                        >
+                          {item.installed
+                            ? t.installedLabel
+                            : item.installable
+                              ? item.installMode === "needs-input"
+                                ? t.configureInstall
+                                : t.install
+                              : t.needsSetup}
+                        </Button>
+                      }
                       className="resource-discovery-row"
+                      description={
+                        <>
+                          <span>{item.description}</span>
+                          <span className="resource-discovery-detail">
+                            {item.installOption?.detail ?? item.reason}
+                          </span>
+                        </>
+                      }
                       key={item.registryName}
-                    >
-                      <ResourceAvatar kind="mcp" name={item.title} />
-                      <span>
-                        <strong>{item.title}</strong>
-                        <small>{item.description}</small>
-                        <small className="resource-discovery-detail">
-                          {item.installOption?.detail ?? item.reason}
-                        </small>
-                      </span>
-                      <button
-                        disabled={
-                          item.installed ||
-                          !item.installable ||
-                          busyId === item.configId ||
-                          installProgress !== undefined
-                        }
-                        onClick={() => void installMcp(item)}
-                        type="button"
-                      >
-                        {item.installed
-                          ? t.installedLabel
-                          : item.installable
-                            ? item.installMode === "needs-input"
-                              ? t.configureInstall
-                              : t.install
-                            : t.needsSetup}
-                      </button>
-                    </article>
+                      leading={<ResourceAvatar kind="mcp" name={item.title} />}
+                      title={item.title}
+                    />
                   ))
                 ) : (
                   <CatalogSearchNotice>
@@ -2962,7 +3210,7 @@ export function ResourceCenter({
                   </CatalogSearchNotice>
                 )}
               </div>
-            </section>
+            </ManagementCard>
           )}
           <div className="resource-management-list grouped">
             {visibleMcp.map((server) => {
@@ -2972,127 +3220,133 @@ export function ResourceCenter({
                 : server.config.name;
               const visual = visualForMcp(server);
               return (
-                <article
+                <ManagementRow
+                  actions={
+                    <div className="resource-row-actions">
+                      <IconButton
+                        className="resource-icon-button"
+                        disabled={operationPending}
+                        icon={<GearIcon />}
+                        label={`${t.addMcp}: ${displayName}`}
+                        onClick={() => openMcpEditor(server)}
+                        title={t.addMcp}
+                      />
+                      <IconButton
+                        className="resource-icon-button"
+                        disabled={
+                          operationPending ||
+                          busyId === server.config.id ||
+                          managedMcpIds.has(server.config.id)
+                        }
+                        icon={<TrashIcon />}
+                        label={`${t.remove} ${displayName}`}
+                        onClick={() =>
+                          runResourceOperation(() =>
+                            removeMcp(server.config.id),
+                          )
+                        }
+                        title={
+                          managedMcpIds.has(server.config.id)
+                            ? t.managedByPlugin
+                            : t.remove
+                        }
+                        variant="danger"
+                      />
+                      <Switch
+                        checked={server.state === "connected"}
+                        className="resource-switch"
+                        disabled={
+                          operationPending || busyId === server.config.id
+                        }
+                        label={
+                          server.state === "connected" ? t.enabled : t.disabled
+                        }
+                        labelVisibility="hidden"
+                        onCheckedChange={(enabled) =>
+                          runResourceOperation(() =>
+                            setMcpEnabled(server.config.id, enabled),
+                          )
+                        }
+                        title={
+                          server.state === "connected" ? t.enabled : t.disabled
+                        }
+                      />
+                    </div>
+                  }
                   className="resource-management-row"
+                  description={`${owner ? `${t.fromPlugins}: ${pluginPageText(owner.displayName)} · ` : ""}${!server.config.enabled ? t.disabled : server.state === "connected" ? t.connected : server.state} · ${server.tools.length} ${t.tools}`}
                   key={server.config.id}
-                >
-                  <ResourceAvatar
-                    brandColor={visual.brandColor}
-                    iconDataUrl={visual.iconDataUrl}
-                    iconKey={visual.iconKey}
-                    kind="mcp"
-                    name={displayName}
-                  />
-                  <span className="resource-management-copy">
-                    <strong>{displayName}</strong>
-                    <small>
-                      {owner
-                        ? `${t.fromPlugins}: ${pluginPageText(owner.displayName)} · `
-                        : ""}
-                      {!server.config.enabled
-                        ? t.disabled
-                        : server.state === "connected"
-                          ? t.connected
-                          : server.state}{" "}
-                      · {server.tools.length} {t.tools}
-                    </small>
-                  </span>
-                  <div className="resource-row-actions">
-                    <button
-                      aria-label={`${t.addMcp}: ${displayName}`}
-                      className="resource-icon-button"
-                      onClick={() => openMcpEditor(server)}
-                      title={t.addMcp}
-                      type="button"
-                    >
-                      <GearIcon />
-                    </button>
-                    <button
-                      aria-label={`${t.remove} ${displayName}`}
-                      className="resource-icon-button danger"
-                      disabled={
-                        busyId === server.config.id ||
-                        managedMcpIds.has(server.config.id)
-                      }
-                      onClick={() => void removeMcp(server.config.id)}
-                      title={
-                        managedMcpIds.has(server.config.id)
-                          ? t.managedByPlugin
-                          : t.remove
-                      }
-                      type="button"
-                    >
-                      <TrashIcon />
-                    </button>
-                    <Switch
-                      checked={server.state === "connected"}
-                      className="resource-switch"
-                      disabled={busyId === server.config.id}
-                      label={
-                        server.state === "connected" ? t.enabled : t.disabled
-                      }
-                      labelVisibility="hidden"
-                      onCheckedChange={(enabled) =>
-                        void setMcpEnabled(server.config.id, enabled)
-                      }
-                      title={
-                        server.state === "connected" ? t.enabled : t.disabled
-                      }
+                  leading={
+                    <ResourceAvatar
+                      brandColor={visual.brandColor}
+                      iconDataUrl={visual.iconDataUrl}
+                      iconKey={visual.iconKey}
+                      kind="mcp"
+                      name={displayName}
                     />
-                  </div>
-                </article>
+                  }
+                  title={displayName}
+                />
               );
             })}
             {visibleMcp.length === 0 && (
               <EmptyResource>{t.noMcp}</EmptyResource>
             )}
           </div>
-        </section>
+        </ManagementSection>
       )}
 
       {managementTab === "skills" && (
-        <section className="resource-management-section">
-          <div className="resource-list-heading">
-            <strong>{t.skills}</strong>
+        <ManagementSection
+          actions={
             <div className="resource-list-heading-actions">
-              <button
+              <Button
                 className="resource-add-button subtle"
+                disabled={operationPending}
+                icon={<PlusIcon />}
                 onClick={() => toggleCatalogDiscovery("skills")}
-                type="button"
               >
-                <PlusIcon />
                 {t.browseSkills}
-              </button>
-              <button
+              </Button>
+              <Button
                 className="resource-add-button subtle"
-                disabled={busyId === "local-skill"}
-                onClick={() => void installLocalSkill()}
-                type="button"
+                disabled={operationPending || busyId === "local-skill"}
+                icon={<PlusIcon />}
+                onClick={() => runResourceOperation(installLocalSkill)}
               >
-                <PlusIcon />
                 {t.addSkill}
-              </button>
+              </Button>
             </div>
-          </div>
+          }
+          className="resource-management-section"
+          id={activeManagementTabOption.panelId}
+          labelledBy={activeManagementTabOption.id}
+          role="tabpanel"
+          title={t.skills}
+        >
           {discoveryOpen && (
-            <section className="resource-discovery-panel">
-              <form onSubmit={(event) => void searchCatalog(event)}>
-                <SearchIcon />
-                <input
-                  aria-label={t.searchSkills}
-                  onChange={(event) => setCatalogQuery(event.target.value)}
+            <ManagementCard className="resource-discovery-panel">
+              <form
+                onSubmit={(event) => runResourceSubmit(event, searchCatalog)}
+              >
+                <SearchField
+                  disabled={operationPending}
+                  inputRef={catalogSearchRef}
+                  label={t.searchSkills}
+                  onValueChange={setCatalogQuery}
                   placeholder={t.searchSkills}
-                  ref={catalogSearchRef}
                   value={catalogQuery}
                 />
-                <button
-                  disabled={!catalogQuery.trim() || searching}
+                <Button
+                  disabled={
+                    operationPending || !catalogQuery.trim() || searching
+                  }
                   type="submit"
                 >
                   {catalogSearchPhase.skills === "searching"
                     ? t.searchingSkills
                     : t.searchSkills}
-                </button>
+                </Button>
               </form>
               <div className="resource-discovery-results">
                 {catalogSearchPhase.skills === "searching" ? (
@@ -3101,24 +3355,28 @@ export function ResourceCenter({
                   </CatalogSearchNotice>
                 ) : skillResults.length > 0 ? (
                   skillResults.map((item) => (
-                    <article className="resource-discovery-row" key={item.id}>
-                      <ResourceAvatar kind="skill" name={item.name} />
-                      <span>
-                        <strong>{item.name}</strong>
-                        <small>{item.source}</small>
-                      </span>
-                      <button
-                        disabled={
-                          item.installed ||
-                          busyId === item.id ||
-                          installProgress !== undefined
-                        }
-                        onClick={() => void installSkill(item)}
-                        type="button"
-                      >
-                        {item.installed ? t.installedLabel : t.install}
-                      </button>
-                    </article>
+                    <ManagementRow
+                      actions={
+                        <Button
+                          disabled={
+                            operationPending ||
+                            item.installed ||
+                            busyId === item.id ||
+                            installProgress !== undefined
+                          }
+                          onClick={() =>
+                            runResourceOperation(() => installSkill(item))
+                          }
+                        >
+                          {item.installed ? t.installedLabel : t.install}
+                        </Button>
+                      }
+                      className="resource-discovery-row"
+                      description={item.source}
+                      key={item.id}
+                      leading={<ResourceAvatar kind="skill" name={item.name} />}
+                      title={item.name}
+                    />
                   ))
                 ) : (
                   <CatalogSearchNotice>
@@ -3128,142 +3386,161 @@ export function ResourceCenter({
                   </CatalogSearchNotice>
                 )}
               </div>
-            </section>
+            </ManagementCard>
           )}
           <div className="resource-management-list">
             {visibleSkills.map((skill) => {
               const visual = visualForSkill(skill);
               return (
-                <article className="resource-management-row" key={skill.id}>
-                  <ResourceAvatar
-                    brandColor={visual.brandColor}
-                    iconDataUrl={visual.iconDataUrl}
-                    iconKey={visual.iconKey}
-                    kind="skill"
-                    name={skill.name}
-                  />
-                  <span className="resource-management-copy">
-                    <strong>{skill.name}</strong>
-                    <small>
-                      {skill.description || skill.source || skill.path}
-                    </small>
-                  </span>
-                  <div className="resource-row-actions">
-                    <button
-                      aria-label={`${t.remove} ${skill.name}`}
-                      className="resource-icon-button danger"
-                      disabled={busyId === skill.id}
-                      onClick={() => void removeSkill(skill)}
-                      title={t.remove}
-                      type="button"
-                    >
-                      <TrashIcon />
-                    </button>
-                    <Switch
-                      checked={skill.enabled}
-                      className="resource-switch"
-                      disabled={busyId === skill.id}
-                      label={skill.enabled ? t.enabled : t.disabled}
-                      labelVisibility="hidden"
-                      onCheckedChange={(enabled) =>
-                        void setSkillEnabled(skill.id, enabled)
-                      }
-                      title={skill.enabled ? t.enabled : t.disabled}
+                <ManagementRow
+                  actions={
+                    <div className="resource-row-actions">
+                      <IconButton
+                        className="resource-icon-button"
+                        disabled={operationPending || busyId === skill.id}
+                        icon={<TrashIcon />}
+                        label={`${t.remove} ${skill.name}`}
+                        onClick={() =>
+                          runResourceOperation(() => removeSkill(skill))
+                        }
+                        title={t.remove}
+                        variant="danger"
+                      />
+                      <Switch
+                        checked={skill.enabled}
+                        className="resource-switch"
+                        disabled={operationPending || busyId === skill.id}
+                        label={skill.enabled ? t.enabled : t.disabled}
+                        labelVisibility="hidden"
+                        onCheckedChange={(enabled) =>
+                          runResourceOperation(() =>
+                            setSkillEnabled(skill.id, enabled),
+                          )
+                        }
+                        title={skill.enabled ? t.enabled : t.disabled}
+                      />
+                    </div>
+                  }
+                  className="resource-management-row"
+                  description={skill.description || t.skills}
+                  key={skill.id}
+                  leading={
+                    <ResourceAvatar
+                      brandColor={visual.brandColor}
+                      iconDataUrl={visual.iconDataUrl}
+                      iconKey={visual.iconKey}
+                      kind="skill"
+                      name={skill.name}
                     />
-                  </div>
-                </article>
+                  }
+                  title={skill.name}
+                />
               );
             })}
             {visibleSkills.length === 0 && (
               <EmptyResource>{t.noSkills}</EmptyResource>
             )}
           </div>
-        </section>
+        </ManagementSection>
       )}
 
       {mcpInstallDraft && (
-        <div className="mcp-install-dialog-backdrop">
+        <Dialog
+          className="mcp-install-dialog-backdrop"
+          closeOnBackdrop={!operationPending && busyId === undefined}
+          closeOnEscape={!operationPending && busyId === undefined}
+          label={t.installMcpTitle.replace(
+            "{name}",
+            mcpInstallDraft.item.title,
+          )}
+          onOpenChange={(open) => {
+            if (!open && !operationPending && busyId === undefined) {
+              setMcpInstallDraft(undefined);
+            }
+          }}
+          open
+        >
           <form
-            aria-labelledby="mcp-install-dialog-title"
-            aria-modal="true"
             className="mcp-install-dialog"
-            onSubmit={submitMcpInstall}
-            role="dialog"
+            onSubmit={(event) => runResourceSubmit(event, submitMcpInstall)}
           >
-            <header>
-              <div>
-                <h2 id="mcp-install-dialog-title">
-                  {t.installMcpTitle.replace(
-                    "{name}",
-                    mcpInstallDraft.item.title,
-                  )}
-                </h2>
-                <p>{mcpInstallDraft.item.description}</p>
-              </div>
-            </header>
+            <ManagementHeader
+              description={mcpInstallDraft.item.description}
+              headingLevel={2}
+              title={t.installMcpTitle.replace(
+                "{name}",
+                mcpInstallDraft.item.title,
+              )}
+            />
             <div className="mcp-install-method">
               <span>{t.installMcpMethod}</span>
               <code>{mcpInstallDraft.option.detail}</code>
             </div>
             {mcpInstallDraft.option.inputs.map((field) => (
-              <label key={field.id}>
-                <span>
-                  {field.label}
-                  {!field.required && ` (${t.optional})`}
-                </span>
-                {field.description && <small>{field.description}</small>}
-                <input
-                  autoComplete="off"
-                  autoFocus={field.id === mcpInstallDraft.option.inputs[0]?.id}
-                  maxLength={32 * 1024}
-                  onChange={(event) =>
-                    setMcpInstallDraft((current) =>
-                      current
-                        ? {
-                            ...current,
-                            values: {
-                              ...current.values,
-                              [field.id]: event.target.value,
-                            },
-                          }
-                        : current,
-                    )
-                  }
-                  required={field.required}
-                  type={field.secret ? "password" : "text"}
-                  value={mcpInstallDraft.values[field.id] ?? ""}
-                />
-              </label>
+              <TextField
+                autoComplete="off"
+                autoFocus={field.id === mcpInstallDraft.option.inputs[0]?.id}
+                description={field.description}
+                disabled={operationPending}
+                key={field.id}
+                label={`${field.label}${field.required ? "" : ` (${t.optional})`}`}
+                maxLength={32 * 1024}
+                onValueChange={(value) =>
+                  setMcpInstallDraft((current) =>
+                    current
+                      ? {
+                          ...current,
+                          values: {
+                            ...current.values,
+                            [field.id]: value,
+                          },
+                        }
+                      : current,
+                  )
+                }
+                required={field.required}
+                type={field.secret ? "password" : "text"}
+                value={mcpInstallDraft.values[field.id] ?? ""}
+              />
             ))}
             {mcpInstallDraft.option.inputs.some((field) => field.secret) && (
-              <p className="mcp-install-security">
+              <InlineNotice className="mcp-install-security" tone="info">
                 {t.installMcpCredentialHint}
-              </p>
+              </InlineNotice>
             )}
             {mcpInstallDraft.option.kind === "npm-stdio" && (
-              <p className="mcp-install-warning">{t.installMcpLocalWarning}</p>
+              <InlineNotice className="mcp-install-warning" tone="danger">
+                {t.installMcpLocalWarning}
+              </InlineNotice>
             )}
             <div className="mcp-install-dialog-actions">
-              <button
+              <Button
                 className="mcp-install-cancel"
+                disabled={operationPending}
+                icon={<XIcon aria-hidden="true" size={15} weight="bold" />}
                 onClick={() => setMcpInstallDraft(undefined)}
-                type="button"
               >
-                <XIcon aria-hidden="true" size={15} weight="bold" />
-                <span>{t.cancel}</span>
-              </button>
-              <button className="mcp-install-primary" type="submit">
-                <DownloadSimpleIcon
-                  aria-hidden="true"
-                  size={16}
-                  weight="bold"
-                />
-                <span>{t.configureInstall}</span>
-              </button>
+                {t.cancel}
+              </Button>
+              <Button
+                className="mcp-install-primary"
+                disabled={operationPending}
+                icon={
+                  <DownloadSimpleIcon
+                    aria-hidden="true"
+                    size={16}
+                    weight="bold"
+                  />
+                }
+                type="submit"
+                variant="primary"
+              >
+                {t.configureInstall}
+              </Button>
             </div>
           </form>
-        </div>
+        </Dialog>
       )}
-    </div>
+    </ResourceSurface>
   );
 }
