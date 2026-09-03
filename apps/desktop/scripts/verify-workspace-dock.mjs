@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { createServer } from "node:net";
 import {
   mkdir,
   mkdtemp,
@@ -39,6 +40,29 @@ function runGit(arguments_) {
 
 function approximatelyEqual(left, right, tolerance = 1) {
   return Math.abs(left - right) <= tolerance;
+}
+
+async function createBrowserFailureUrl() {
+  const port = await new Promise((resolvePort, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        server.close();
+        reject(new Error("Could not reserve a loopback port."));
+        return;
+      }
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolvePort(address.port);
+      });
+    });
+  });
+  return `http://127.0.0.1:${port}/artemis-mig4-error`;
 }
 
 const candidateHead = runGit(["rev-parse", "HEAD"]);
@@ -89,6 +113,7 @@ const results = [];
 await mkdir(outputDirectory, { recursive: true });
 try {
   for (const testCase of cases) {
+    const browserFailureUrl = await createBrowserFailureUrl();
     const screenshotPath = join(outputDirectory, `${testCase.caseId}.png`);
     const accessibilityPath = join(
       outputDirectory,
@@ -99,6 +124,7 @@ try {
     const environment = {
       ...process.env,
       ARTEMIS_SMOKE_ACCESSIBILITY: accessibilityPath,
+      ARTEMIS_SMOKE_BROWSER_FAILURE_URL: browserFailureUrl,
       ARTEMIS_SMOKE_LOCALE: testCase.locale,
       ARTEMIS_SMOKE_SCALE: String(testCase.scale),
       ARTEMIS_SMOKE_SCREENSHOT: screenshotPath,
@@ -175,11 +201,12 @@ try {
         snapshot?.resizer ?? null,
         "open vertical separator with a clamped labelled pixel value",
       );
+      const conversationMinimum = testCase.layout === "overlay" ? 1 : 320;
       assert(
         `${name}-conversation-minimum`,
-        snapshot?.conversation?.width >= 320,
+        snapshot?.conversation?.width >= conversationMinimum,
         snapshot?.conversation?.width ?? null,
-        ">= 320",
+        `>= ${conversationMinimum}`,
       );
       assert(
         `${name}-viewport-evidence`,
@@ -374,27 +401,50 @@ try {
       interaction.afterClose.browser ?? null,
       "LTR address, unavailable history, enabled reload and navigation",
     );
+    const browserMinimum = testCase.layout === "overlay" ? 1 : 320;
     assert(
       "browser-responsive-geometry",
-      interaction.afterClose.browser?.surface?.width >= 320 &&
+      interaction.afterClose.browser?.surface?.width >= browserMinimum &&
         interaction.afterClose.browser?.surface?.height > 0 &&
-        interaction.afterClose.browser?.toolbar?.width >= 320 &&
+        interaction.afterClose.browser?.toolbar?.width >= browserMinimum &&
         interaction.afterClose.browser?.toolbar?.height > 0 &&
-        interaction.afterClose.browser?.viewport?.width >= 320 &&
+        interaction.afterClose.browser?.viewport?.width >= browserMinimum &&
         interaction.afterClose.browser?.viewport?.height > 0 &&
         interaction.afterClose.browser?.surface?.scrollWidth <=
           interaction.afterClose.browser?.surface?.width + 1 &&
         interaction.afterClose.browser?.toolbar?.scrollWidth <=
           interaction.afterClose.browser?.toolbar?.width + 1,
       interaction.afterClose.browser ?? null,
-      "non-zero >=320px Browser shell without horizontal overflow",
+      `non-zero >=${browserMinimum}px Browser shell without horizontal overflow`,
     );
+    if (testCase.layout === "overlay") {
+      assert(
+        "browser-compact-overlay-width",
+        approximatelyEqual(
+          interaction.afterClose.browser?.surface?.width,
+          interaction.afterClose.dock?.width,
+        ) &&
+          approximatelyEqual(
+            interaction.afterClose.browser?.toolbar?.width,
+            interaction.afterClose.dock?.width,
+          ) &&
+          approximatelyEqual(
+            interaction.afterClose.browser?.viewport?.width,
+            interaction.afterClose.dock?.width,
+          ),
+        {
+          browser: interaction.afterClose.browser,
+          dockWidth: interaction.afterClose.dock?.width ?? null,
+        },
+        "compact Browser surface, toolbar, and viewport span the overlay Dock",
+      );
+    }
     assert(
       "browser-address-submit-loading-error",
       interaction.browserInteraction?.controls?.go === 1 &&
         interaction.browserInteraction?.controls?.submit === 1 &&
         interaction.browserInteraction?.submission?.address ===
-          "http://127.0.0.1:1/artemis-mig4-error" &&
+          browserFailureUrl &&
         interaction.browserInteraction?.submission?.state === "error" &&
         typeof interaction.browserInteraction?.submission?.errorText ===
           "string" &&

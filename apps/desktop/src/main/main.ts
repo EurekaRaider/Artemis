@@ -11722,6 +11722,15 @@ async function driveSmokeWorkspaceDockEvidence(
 ): Promise<void> {
   if (view !== "environment-dock-workspace") return;
 
+  const browserFailureUrl =
+    process.env.ARTEMIS_SMOKE_BROWSER_FAILURE_URL ??
+    "http://127.0.0.1:65535/artemis-mig4-error";
+  if (
+    !/^http:\/\/127\.0\.0\.1:\d+\/artemis-mig4-error$/u.test(browserFailureUrl)
+  ) {
+    throw new Error("Workspace Dock smoke failure URL must use loopback HTTP.");
+  }
+
   const contents = window.webContents;
   const wait = (milliseconds: number) =>
     new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
@@ -12180,7 +12189,7 @@ async function driveSmokeWorkspaceDockEvidence(
       controls.submit += 1;
     });
 
-    const failureUrl = 'http://127.0.0.1:1/artemis-mig4-error';
+    const failureUrl = ${JSON.stringify(browserFailureUrl)};
     const addressSetter = Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,
       'value',
@@ -12225,14 +12234,26 @@ async function driveSmokeWorkspaceDockEvidence(
     await load(secondUrl, 'second synthetic document');
     await waitFor(() => !back.disabled, 'back control enabled');
     const beforeBack = frame.getURL();
+    const backStopBaseline = events.stops;
     back.click();
     await waitFor(
-      () => frame.getURL() === firstUrl && !forward.disabled,
+      () =>
+        frame.getURL() === firstUrl &&
+        !forward.disabled &&
+        events.stops > backStopBaseline &&
+        surface.getAttribute('data-state') === 'ready',
       'back navigation',
     );
     const afterBack = frame.getURL();
+    const forwardStopBaseline = events.stops;
     forward.click();
-    await waitFor(() => frame.getURL() === secondUrl, 'forward navigation');
+    await waitFor(
+      () =>
+        frame.getURL() === secondUrl &&
+        events.stops > forwardStopBaseline &&
+        surface.getAttribute('data-state') === 'ready',
+      'forward navigation',
+    );
     const afterForward = frame.getURL();
     const reloadStartBaseline = events.starts;
     const reloadStopBaseline = events.stops;
