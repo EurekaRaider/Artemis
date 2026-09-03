@@ -47,6 +47,7 @@ import {
   SearchField,
   Select,
   Switch,
+  TextAreaField,
   TextField,
 } from "@artemis/ui/forms";
 import {
@@ -67,6 +68,16 @@ import {
   Toolbar,
 } from "@artemis/ui/layout";
 import { SegmentedControl, Tabs } from "@artemis/ui/navigation";
+import {
+  MANAGEMENT_COMPONENT_CONTRACTS,
+  ManagementCard,
+  ManagementHeader,
+  ManagementRow,
+  ManagementSection,
+  McpEditorSurface,
+  ResourceSurface,
+  SettingsSurface,
+} from "@artemis/ui/management";
 import {
   AgentActivity,
   AgentTeamSummary,
@@ -171,6 +182,10 @@ const workflowSource = readFileSync(
   "../../packages/ui/src/workflow.tsx",
   "utf8",
 );
+const managementSource = readFileSync(
+  "../../packages/ui/src/management.tsx",
+  "utf8",
+);
 const professionalSource = readFileSync(
   "../../packages/ui/src/professional.tsx",
   "utf8",
@@ -226,7 +241,12 @@ type ConformanceCase =
   | "workflow-state-matrix"
   | "workflow-controlled-events"
   | "workflow-permission-boundary"
-  | "workflow-rtl-overlay-geometry";
+  | "workflow-rtl-overlay-geometry"
+  | "management-anatomy"
+  | "management-state-matrix"
+  | "management-controlled-events"
+  | "management-permission-boundary"
+  | "management-rtl-long-content";
 
 const MatrixIcon = () => (
   <svg viewBox="0 0 16 16">
@@ -2369,6 +2389,119 @@ const caseRunners = {
     expect(uiCss).toContain("inline-size: min(20rem");
     expect(uiCss).toContain("calc(100vw - var(--artemis-space-6))");
   },
+
+  "management-anatomy"() {
+    const { container } = render(
+      <>
+        <SettingsSurface
+          header={<ManagementHeader title="Settings" />}
+          label="Settings"
+          navigation={<span>Navigation</span>}
+        >
+          <ManagementSection title="Provider">
+            <TextAreaField
+              label="Instructions"
+              onValueChange={() => undefined}
+              value="Synthetic"
+            />
+          </ManagementSection>
+        </SettingsSurface>
+        <ResourceSurface label="Resources">
+          <ManagementCard>Catalog</ManagementCard>
+          <ManagementRow description="Disabled" title="Synthetic MCP" />
+        </ResourceSurface>
+        <McpEditorSurface
+          actions={<Button>Save</Button>}
+          header={<ManagementHeader title="MCP" />}
+          label="MCP editor"
+        >
+          Editor
+        </McpEditorSurface>
+      </>,
+    );
+    for (const contract of Object.values(MANAGEMENT_COMPONENT_CONTRACTS)) {
+      expect(
+        container.querySelector(`[data-artemis-component="${contract.name}"]`),
+      ).not.toBeNull();
+    }
+    expect(screen.getByRole("region", { name: "Settings" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Resources" })).toBeTruthy();
+  },
+
+  "management-state-matrix"() {
+    const { container } = render(
+      <ResourceSurface busy label="Resource states" state="loading">
+        <ManagementCard state="loading">Loading</ManagementCard>
+        <ManagementCard state="error" tone="danger">
+          Failed
+        </ManagementCard>
+        <ManagementSection state="disabled" title="Unavailable">
+          Disabled
+        </ManagementSection>
+        <ManagementRow state="busy" title="Installing" />
+      </ResourceSurface>,
+    );
+    for (const state of ["loading", "error", "disabled", "busy"]) {
+      expect(container.querySelector(`[data-state="${state}"]`)).not.toBeNull();
+    }
+    expect(container.querySelector('[data-tone="danger"]')).not.toBeNull();
+    expect(
+      screen
+        .getByRole("region", { name: "Resource states" })
+        .getAttribute("aria-busy"),
+    ).toBe("true");
+  },
+
+  async "management-controlled-events"() {
+    const action = vi.fn();
+    render(
+      <ManagementSection title="Caller effects">
+        <ManagementRow
+          actions={<Button onClick={action}>Install</Button>}
+          title="Synthetic resource"
+        />
+      </ManagementSection>,
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Install" }));
+    expect(action).toHaveBeenCalledOnce();
+  },
+
+  "management-permission-boundary"() {
+    expect(managementSource).not.toMatch(/window\.artemis|electron|node:/u);
+    expect(managementSource).toContain(
+      "caller-owns-provider-credential-connector-and-mcp-effects",
+    );
+    expect(managementSource).toContain(
+      "caller-owns-sandbox-network-and-full-access-policy",
+    );
+    expect(managementSource).toContain(
+      "credentials-never-become-presentational-props",
+    );
+  },
+
+  "management-rtl-long-content"() {
+    const { container } = render(
+      <div dir="rtl">
+        <ManagementSection
+          description="يبقى اختيار المزود والسياسة لدى التطبيق المستهلك"
+          title="إدارة الموارد مع تسمية محلية طويلة جدًا"
+        >
+          <ManagementRow
+            actions={<Button>إدارة</Button>}
+            description="وصف طويل يختبر التخطيط المنطقي"
+            title="موصل تجريبي باسم طويل للغاية"
+          />
+        </ManagementSection>
+      </div>,
+    );
+    for (const root of container.querySelectorAll("[data-artemis-component]")) {
+      expect(root.closest('[dir="rtl"]')).not.toBeNull();
+    }
+    expect(uiCss).toContain("margin-inline");
+    expect(uiCss).toContain("border-inline-end");
+  },
 } satisfies Record<ConformanceCase, () => void | Promise<void>>;
 
 const conformanceCases = conformanceMatrix.skins.default as ConformanceCase[];
@@ -2927,7 +3060,7 @@ describe("default and synthetic stress skin conformance", () => {
     const navigationSnapshots = [
       ...container.querySelectorAll<HTMLElement>(navigationSelector),
     ].map(snapshotNavigationRoot);
-    expect(navigationSnapshots).toHaveLength(7);
+    expect(navigationSnapshots).toHaveLength(8);
     expect(detailsTab.getAttribute("aria-selected")).toBe("true");
     expect(sourceSegment.getAttribute("aria-pressed")).toBe("true");
     expectCompleteTabRelations(container);
@@ -3126,7 +3259,7 @@ describe("default and synthetic stress skin conformance", () => {
     expect(Object.keys(caseRunners).sort()).toEqual(
       [...conformanceMatrix.skins.default].sort(),
     );
-    expect(skinCaseMatrix).toHaveLength(98);
+    expect(skinCaseMatrix).toHaveLength(108);
   });
 
   it.each(skinCaseMatrix)(

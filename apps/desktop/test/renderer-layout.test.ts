@@ -170,6 +170,12 @@ const uiFormsSource = readFileSync(
   fileURLToPath(new URL("../../../packages/ui/src/forms.tsx", import.meta.url)),
   "utf8",
 );
+const uiManagementSource = readFileSync(
+  fileURLToPath(
+    new URL("../../../packages/ui/src/management.tsx", import.meta.url),
+  ),
+  "utf8",
+);
 const uiPatternsSource = readFileSync(
   fileURLToPath(
     new URL("../../../packages/ui/src/patterns.tsx", import.meta.url),
@@ -1058,15 +1064,16 @@ describe("renderer layout contract", () => {
   it("uses the same custom selector for every product dropdown", () => {
     const rendererSources = `${appSource}\n${settingsSource}\n${mcpServerEditorSource}`;
     const settingsSelectors =
-      settingsSource.match(/<CodexSelect(?:<[^>]+>)?/gu) ?? [];
+      settingsSource.match(/<Select(?:<[^>]+>)?/gu) ?? [];
     const mcpEditorSelectors =
-      mcpServerEditorSource.match(/<CodexSelect(?:<[^>]+>)?/gu) ?? [];
+      mcpServerEditorSource.match(/<Select(?:<[^>]+>)?/gu) ?? [];
 
     expect(rendererSources).not.toMatch(/<select\b/gu);
-    expect(settingsSource).toContain('from "./CodexSelect.js"');
+    expect(settingsSource).toContain('from "@artemis/ui/forms"');
+    expect(mcpServerEditorSource).toContain('from "@artemis/ui/forms"');
     expect(settingsSelectors).toHaveLength(8);
     expect(mcpEditorSelectors).toHaveLength(1);
-    expect(stylesSource).toContain(".settings-codex-select .codex-select");
+    expect(uiFormsSource).toContain('data-artemis-component="select"');
     expect(codexSelectSource).toContain('size = "comfortable"');
     expect(composerContextSource).toContain('size="compact"');
     expect(appSource).toContain('className="review-scope-select"');
@@ -1401,9 +1408,7 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain(
       "const providerIdPattern = /^[a-z0-9][a-z0-9._-]*$/u;",
     );
-    expect(settingsSource).toContain(
-      'event.target.value.toLocaleLowerCase("en-US")',
-    );
+    expect(settingsSource).toContain('value.toLocaleLowerCase("en-US")');
     expect(settingsSource).toContain('pattern="[a-z0-9][a-z0-9._-]*"');
     expect(settingsSource).toContain("!providerIdValid");
     expect(settingsSource).toContain(
@@ -1416,7 +1421,7 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain(
       'highestReasoningLevel: "支持的最高推理档位"',
     );
-    expect(settingsSource).toContain("<CodexSelect<ProviderThinkingLevel>");
+    expect(settingsSource).toContain("<Select<ProviderThinkingLevel>");
     expect(settingsSource).toContain(
       '{ value: "xhigh", label: t.thinkingXHigh }',
     );
@@ -1461,7 +1466,9 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toMatch(
       /window\.artemis\.deleteProviderConnection\(\s*provider\.id,?\s*\)/u,
     );
-    expect(settingsSource).toContain('className="text-button danger"');
+    expect(settingsSource).toContain("setProviderDeleteTarget(provider)");
+    expect(settingsSource).toContain('variant="danger"');
+    expect(settingsSource).toContain("<ConfirmationDialog");
     expect(apiSource).toMatch(
       /deleteProviderConnection\(providerId: string\): Promise<SettingsSnapshot>/u,
     );
@@ -1523,10 +1530,10 @@ describe("renderer layout contract", () => {
       mainProcessSource.indexOf("IPC.settingsApiKeySave"),
     );
 
-    expect(builtInProvidersTabSource).toContain("<h3>{t.model}</h3>");
+    expect(builtInProvidersTabSource).toContain("title={t.model}");
     expect(builtInProvidersTabSource).not.toContain("{t.thinking}");
     expect(builtInProvidersTabSource).not.toContain("<h3>{t.apiKey}</h3>");
-    expect(builtInProvidersTabSource).toContain("aria-label={t.apiKey}");
+    expect(builtInProvidersTabSource).toContain("label={`${t.apiKey}${");
     expect(builtInProvidersTabSource).toContain(
       "selectedModelInfo?.providerId",
     );
@@ -1534,9 +1541,7 @@ describe("renderer layout contract", () => {
     expect(builtInProvidersTabSource).not.toContain("onClick={saveKey}");
     expect(builtInProvidersTabSource).not.toContain("keyProviderId");
     expect(
-      builtInProvidersTabSource.match(
-        /className="settings-primary-action"/gu,
-      ) ?? [],
+      builtInProvidersTabSource.match(/variant="primary"/gu) ?? [],
     ).toHaveLength(1);
     expect(builtInProvidersTabSource).not.toContain("settings.credentials.map");
     expect(builtInProvidersTabSource).not.toContain(
@@ -1581,7 +1586,7 @@ describe("renderer layout contract", () => {
     expect(mainProcessSource).toContain("selection.ultraMode === true");
 
     // Custom provider setup keeps its independent, working connection flow.
-    expect(customProvidersTabSource).toContain("<h3>{t.customProviders}</h3>");
+    expect(customProvidersTabSource).toContain("title={t.customProviders}");
     expect(customProvidersTabSource).toContain("saveProviderConnection");
     expect(customProvidersTabSource).toContain("t.optionalApiKey");
     expect(customProvidersTabSource).not.toContain("onClick={saveKey}");
@@ -1589,10 +1594,18 @@ describe("renderer layout contract", () => {
   });
 
   it("uses a centered settings dialog with left tabs and one active content panel", () => {
+    const settingsSurface = publicUiCssRule(
+      '[data-artemis-component="settings-surface"]',
+    );
+    const settingsBody = publicUiCssRule(
+      '[data-artemis-component="settings-surface"] > [data-part="body"]',
+    );
+
     expect(settingsSource).toContain("<Dialog");
+    expect(settingsSource).toContain("<SettingsSurface");
     expect(settingsSource).toContain('className="settings-panel"');
     expect(settingsSource).toContain('className="settings-tabs"');
-    expect(settingsSource).toContain('role="tablist"');
+    expect(settingsSource).toContain("<Tabs<SettingsTab>");
     expect(settingsSource).toContain('role="tabpanel"');
     expect(settingsSource).toContain('activeTab === "general"');
     expect(settingsSource).toContain('activeTab === "providers"');
@@ -1602,13 +1615,18 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain('tabProviders: "Providers & models"');
     expect(settingsSource).toContain('tabProviders: "供应商及模型配置"');
     expect(settingsSource).toContain('className="provider-config-tabs"');
-    expect(settingsSource).toContain('["builtin", t.providerConfigBuiltin]');
-    expect(settingsSource).toContain('["custom", t.providerConfigCustom]');
+    expect(settingsSource).toContain('value: "builtin"');
+    expect(settingsSource).toContain('value: "custom"');
+    expect(uiManagementSource).not.toMatch(
+      /@artemis\/protocol|electron|node:/u,
+    );
     expect(stylesSource).not.toContain(".settings-backdrop");
-    expect(cssRule(".settings-panel")).toMatch(/\bborder-radius:/u);
-    expect(cssRule(".settings-body")).toMatch(/\bdisplay:\s*flex/u);
-    expect(cssRule(".settings-tabs")).toMatch(/\bflex:\s*0\s+0\s+190px/u);
-    expect(cssRule(".settings-section input.profile-avatar-input")).toMatch(
+    expect(settingsSurface).toMatch(/\bdisplay:\s*flex/u);
+    expect(settingsBody).toMatch(/\bdisplay:\s*grid/u);
+    expect(publicUiStylesSource).toContain(
+      "grid-template-columns: minmax(11rem, 13rem)",
+    );
+    expect(cssRule(".profile-avatar-input")).toMatch(
       /\bposition:\s*absolute[\s\S]*\bwidth:\s*1px/u,
     );
   });
@@ -2317,7 +2335,7 @@ describe("renderer layout contract", () => {
       "onSubmit={(event) => void saveProviderConnection(event)}",
     );
     expect(settingsSource).toContain('type="submit"');
-    expect(settingsSource).toContain('className="settings-primary-action"');
+    expect(settingsSource).toContain('variant="primary"');
   });
 
   it("localizes every task mode in the Simplified Chinese menu", () => {
@@ -2365,21 +2383,27 @@ describe("renderer layout contract", () => {
   });
 
   it("keeps the Codex-style marketplace and manager on one centered grid", () => {
-    const pageChildren = cssRule(".resource-page > *");
+    const resourceSurface = publicUiCssRule(
+      '[data-artemis-component="resource-surface"]',
+    );
     const toolbar = cssRule(".resource-management-toolbar");
 
+    expect(resourceCenterSource).toContain("<ResourceSurface");
     expect(resourceCenterSource).toContain(
       'className="resource-installed-overview"',
     );
     expect(resourceCenterSource).toContain(
-      'className="resource-management-tabs" role="tablist"',
+      'className="resource-management-tabs"',
     );
-    expect(pageChildren).toMatch(/\bmax-width:\s*920px/u);
+    expect(resourceCenterSource).toContain(
+      "value={activeMarketplaceTabOption.value}",
+    );
+    expect(resourceCenterSource).toContain("options={managementTabOptions}");
+    expect(resourceSurface).toMatch(/\bdisplay:\s*flex/u);
+    expect(publicUiStylesSource).toContain("inline-size: min(100%, 72rem)");
     expect(toolbar).toMatch(/\bdisplay:\s*flex/u);
     expect(toolbar).toMatch(/\bjustify-content:\s*space-between/u);
-    expect(stylesSource).toMatch(
-      /\.resource-scope-tabs,\s*\.resource-management-tabs\s*\{[\s\S]*?display:\s*flex/u,
-    );
+    expect(resourceCenterSource).toContain("<Tabs");
   });
 
   it("scopes app-owned Google authorization to the Artemis Plugin Shop tab", () => {
@@ -2485,27 +2509,24 @@ describe("renderer layout contract", () => {
   });
 
   it("keeps configuration import source checkboxes compact", () => {
-    const checkbox = cssRule(
-      ".settings-section .configuration-import-source > input",
-    );
-
-    expect(checkbox).toMatch(/\bflex:\s*0 0 auto/u);
-    expect(checkbox).toMatch(/\bheight:\s*auto/u);
-    expect(checkbox).toMatch(/\bwidth:\s*auto/u);
+    expect(settingsSource).toContain('className="configuration-import-source"');
+    expect(settingsSource).toContain("<ManagementRow");
+    expect(settingsSource).toContain("<Checkbox");
+    expect(uiFormsSource).toContain('component="checkbox"');
   });
 
   it("lets capability-center MCP entries be removed", () => {
     expect(resourceCenterSource).toContain("window.artemis.removeMcpServer");
-    expect(resourceCenterSource).toContain(
-      'className="resource-icon-button danger"',
-    );
+    expect(resourceCenterSource).toContain("<ManagementRow");
+    expect(resourceCenterSource).toContain('variant="danger"');
   });
 
   it("keeps resource search editable and notices aligned after installation", () => {
-    const noticeRule = cssDeclarationsForSelector(".catalog-message");
-    expect(noticeRule).toMatch(/\bmargin:\s*0 auto 9px/u);
-    expect(noticeRule).toMatch(/\bwidth:\s*100%/u);
-    expect(resourceCenterSource).toContain("ref={catalogSearchRef}");
+    expect(resourceCenterSource).toContain('<InlineNotice tone="info">');
+    expect(publicUiStylesSource).toContain(
+      '[data-artemis-component="inline-notice"]',
+    );
+    expect(resourceCenterSource).toContain("inputRef={catalogSearchRef}");
     expect(resourceCenterSource).toContain("focusCatalogSearch()");
     expect(resourceCenterSource).toContain("value={catalogQuery}");
     expect(resourceCenterSource).not.toMatch(
@@ -2523,14 +2544,12 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain("t.noSkillCatalogResults");
     expect(resourceCenterSource).toContain("<LoadingState");
     expect(resourceCenterSource).toContain("<EmptyState");
-    const mcpSearch = resourceCenterSource.indexOf("aria-label={t.searchMcp}");
+    const mcpSearch = resourceCenterSource.indexOf("label={t.searchMcp}");
     const mcpList = resourceCenterSource.indexOf(
       'className="resource-management-list grouped"',
       mcpSearch,
     );
-    const skillSearch = resourceCenterSource.indexOf(
-      "aria-label={t.searchSkills}",
-    );
+    const skillSearch = resourceCenterSource.indexOf("label={t.searchSkills}");
     const skillList = resourceCenterSource.indexOf(
       'className="resource-management-list"',
       skillSearch,
@@ -2606,11 +2625,11 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain(
       'className="resource-add-button subtle"',
     );
-    const action = cssRule(".resource-add-button.subtle");
-    expect(action).toMatch(/\bborder-color:\s*var\(--border-soft\)/u);
-    expect(action).toMatch(/\bcolor:\s*var\(--text\)/u);
-    expect(cssRule(".resource-add-button.subtle:hover:not(:disabled)")).toMatch(
-      /\bbackground:\s*var\(--hover\)/u,
+    expect(resourceCenterSource).toContain(
+      "onClick={() => runResourceOperation(installLocalSkill)}",
+    );
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="button"\]\[data-variant="secondary"\][\s\S]*?background:\s*var\(--artemis-color-surface-base\)/u,
     );
   });
 
@@ -2756,7 +2775,7 @@ describe("renderer layout contract", () => {
     );
     expect(resourceCenterSource).toContain("managedSkillNames.has(skill.name)");
     expect(resourceCenterSource).toContain(
-      '(["plugins", "connectors", "mcp", "skills"] as const)',
+      '["plugins", "connectors", "mcp", "skills"] as const',
     );
     expect(resourceCenterSource).not.toContain('managementTab === "apps"');
     expect(resourceCenterSource).toContain('managementTab === "connectors" &&');
@@ -2790,16 +2809,11 @@ describe("renderer layout contract", () => {
       "pluginsForMarketplace(source.id, false)",
     );
     expect(resourceCenterSource).toContain("marketplaceGroups.length === 0");
-    expect(stylesSource).toContain(".resource-marketplace-source-row");
-    expect(resourceCenterSource).toContain(
-      "data-tooltip={t.removeMarketplace}",
-    );
+    expect(resourceCenterSource).toContain("<ManagementRow");
     expect(resourceCenterSource).toContain(
       "resource-marketplace-remove-button",
     );
-    expect(stylesSource).toContain(
-      ".resource-marketplace-remove-button:hover::after",
-    );
+    expect(resourceCenterSource).toContain("label={`${t.removeMarketplace}:");
     expect(stylesSource).toContain(".plugin-market-source");
     expect(resourceCenterSource).not.toContain("{marketplace.name}");
     expect(resourceCenterSource).toContain(
@@ -2838,7 +2852,7 @@ describe("renderer layout contract", () => {
       ".filter((plugin) => plugin.installable)",
     );
     expect(resourceCenterSource).toContain("Boolean(conflict)");
-    expect(resourceCenterSource).toContain("data-tooltip={item.name}");
+    expect(resourceCenterSource).toContain("label={item.name}");
     expect(resourceCenterSource).toContain(
       'resourceIconName(skill.name, "skill")',
     );
@@ -2855,7 +2869,9 @@ describe("renderer layout contract", () => {
       ".resource-avatar[data-icon] .resource-semantic-icon path[opacity]",
     );
     expect(resourceCenterSource).toContain("plugin.iconDataUrl");
-    expect(stylesSource).toContain(".resource-installed-icon-button::after");
+    expect(stylesSource).not.toContain(
+      ".resource-installed-icon-button::after",
+    );
     expect(stylesSource).toContain(".resource-runtime-banner");
     expect(runtimeSource).toContain('name: "load_workspace_dependencies"');
     expect(runtimeSource).toContain("resolveCodexWorkspaceDependencies()");
@@ -3076,8 +3092,9 @@ describe("renderer layout contract", () => {
   });
 
   it("enables Save and connect from the command or URL and prefills imported servers", () => {
-    expect(mcpServerEditorSource).toMatch(
-      /className="mcp-editor-save"\s+disabled=\{actionsLocked \|\| validationErrors\.length > 0\}/u,
+    expect(mcpServerEditorSource).toContain('loading={busyAction === "save"}');
+    expect(mcpServerEditorSource).toContain(
+      '(actionsLocked && busyAction !== "save")',
     );
     expect(mcpServerEditorSource).not.toContain("!workspace.trim()");
     expect(mcpServerEditorSource).not.toContain("!serverId.trim()");
@@ -3096,14 +3113,12 @@ describe("renderer layout contract", () => {
     const buttonBefore = (label: string) => {
       const labelIndex = settingsSource.indexOf(`{t.${label}}`);
       expect(labelIndex).toBeGreaterThan(-1);
-      const buttonIndex = settingsSource.lastIndexOf("<button", labelIndex);
+      const buttonIndex = settingsSource.lastIndexOf("<Button", labelIndex);
       return settingsSource.slice(buttonIndex, labelIndex);
     };
 
     for (const label of ["saveModel", "saveProvider", "saveGlobalAgents"]) {
-      expect(buttonBefore(label)).toContain(
-        'className="settings-primary-action"',
-      );
+      expect(buttonBefore(label)).toContain('variant="primary"');
     }
 
     for (const label of [
@@ -3112,56 +3127,45 @@ describe("renderer layout contract", () => {
       "exportDiagnostics",
       "checkUpdates",
     ]) {
-      expect(buttonBefore(label)).toContain(
-        'className="settings-secondary-action"',
-      );
+      expect(buttonBefore(label)).toContain("<Button");
     }
 
-    expect(cssRule(".settings-primary-action")).toMatch(
-      /\bbackground:\s*var\(--accent\)/u,
-    );
-    expect(cssRule(".settings-secondary-action")).toMatch(
-      /\bborder:\s*1px solid/u,
-    );
-    expect(stylesSource).toContain(
-      ".settings-section .settings-secondary-action:disabled",
+    expect(
+      publicUiCssRule(
+        '[data-artemis-component="button"][data-variant="primary"]',
+      ),
+    ).toMatch(/\bbackground:/u);
+    expect(publicUiStylesSource).toContain(
+      '[data-artemis-component="button"][data-state="disabled"]',
     );
   });
 
   it("keeps settings primary actions visible in the light theme above generic button rules", () => {
-    const lightTheme = stylesSource.match(
-      /:root\[data-theme="light"\]\s*\{(?<declarations>[^}]*)\}/u,
-    )?.groups?.declarations;
-    const primaryAction = cssRule(".settings-primary-action");
-    const genericSelector = stylesSource.match(
-      /(?<selector>\.settings-section\s*>\s*button[^,{]*,\s*\.credential-form\s*>\s*button[^{]*)\{/u,
-    )?.groups?.selector;
-    const scopedOverride = stylesSource.match(
-      /\.settings-section\s*>\s*\.settings-primary-action(?:\s*,\s*\.credential-form\s*>\s*\.settings-primary-action)?\s*\{(?<declarations>[^}]*)\}/u,
-    )?.groups?.declarations;
+    const primaryAction = publicUiCssRule(
+      '[data-artemis-component="button"][data-variant="primary"]',
+    );
 
-    expect(lightTheme).toMatch(/--accent:\s*#202124/u);
-    expect(lightTheme).toMatch(/--accent-text:\s*#ffffff/u);
-    expect(primaryAction).toMatch(/\bbackground:\s*var\(--accent\)/u);
-    expect(primaryAction).toMatch(/\bcolor:\s*var\(--accent-text\)/u);
-    expect(
-      genericSelector?.includes(":not(.settings-primary-action)") ||
-        Boolean(scopedOverride),
-      "the generic settings button rule must exclude primary actions or have a higher-specificity primary override",
-    ).toBe(true);
-    if (scopedOverride) {
-      expect(scopedOverride).toMatch(/\bbackground:\s*var\(--accent\)/u);
-      expect(scopedOverride).toMatch(/\bcolor:\s*var\(--accent-text\)/u);
-    }
+    expect(primaryAction).toMatch(
+      /\bbackground:\s*var\(--artemis-color-accent-primary\)/u,
+    );
+    expect(primaryAction).toMatch(
+      /\bcolor:\s*var\(--artemis-color-accent-on-primary\)/u,
+    );
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="button"\]\[data-state="disabled"\][\s\S]*?opacity:\s*var\(--artemis-opacity-disabled\)/u,
+    );
+    expect(stylesSource).not.toContain(".settings-primary-action");
   });
 
   it("moves plugin and extension installation out of Settings", () => {
     const labelIndex = resourceCenterSource.lastIndexOf("{t.trustExtension}");
     expect(labelIndex).toBeGreaterThan(-1);
-    const buttonIndex = resourceCenterSource.lastIndexOf("<button", labelIndex);
+    const buttonIndex = resourceCenterSource.lastIndexOf("<Button", labelIndex);
     const trustButton = resourceCenterSource.slice(buttonIndex, labelIndex);
 
-    expect(trustButton).toContain("onClick={() => void trustExtension()}");
+    expect(trustButton).toContain(
+      "onClick={() => runResourceOperation(trustExtension)}",
+    );
     expect(resourceCenterSource).toContain('mode === "add-plugin"');
     expect(resourceCenterSource).toContain("{t.gitMarketplace}");
     expect(resourceCenterSource).toContain("{t.offlineMarketplace}");

@@ -47,7 +47,7 @@ const steps = [
     id: "input-fields-settings-avatar",
     view: "input-fields-settings-avatar",
     scenario:
-      "Settings general tab avatar field: the sr-only focusable file input keeps the exact accept whitelist, a real Tab traversal reaches it and shows the focus-within ring on the trigger label, Enter activates the real (DevTools-intercepted) file chooser, and the synthetic pick clears the input, renders the preview, and exposes remove.",
+      "Settings general tab avatar field: the sr-only focusable file input keeps the exact accept whitelist, a real Tab traversal reaches it and shows the sibling-focus ring on the public trigger button, Enter activates the real (DevTools-intercepted) file chooser, and the synthetic pick clears the input, renders the preview, and exposes remove.",
   },
 ];
 const themes = ["light", "dark"];
@@ -329,7 +329,7 @@ try {
     // capture must differ from the default capture, and the theme ring
     // color read at focus time must appear inside the border band around
     // the target's focus-time bounding rect (avatar: the Choose image
-    // trigger label; once: the date input). The analysis itself runs
+    // public trigger button; once: the date input). The analysis itself runs
     // inside the Electron driver with nativeImage (the repo-locked
     // runtime; probe.focusPixels with analysisRuntime
     // "electron-nativeImage"), so a clean npm-install environment needs
@@ -391,7 +391,7 @@ try {
       ).pass
     ) {
       throw new Error(
-        `${caseId} cannot run the visible-ring analysis: the focus probe lacks the ring color, the ${targetUsesLabel ? "trigger label" : "date input"} rect, or the viewport geometry.`,
+        `${caseId} cannot run the visible-ring analysis: the focus probe lacks the ring color, the ${targetUsesLabel ? "trigger button" : "date input"} rect, or the viewport geometry.`,
       );
     }
     // F3: the pixel analysis ran inside the Electron driver with
@@ -553,22 +553,22 @@ try {
           },
         },
         {
-          name: "avatar-focus-ring-on-trigger-label",
+          name: "avatar-focus-ring-on-public-trigger",
           pass:
             probe?.focus?.focused === true &&
-            probe?.focus?.labelMatchesFocusWithin === true &&
+            probe?.focus?.labelMatchesSiblingFocus === true &&
             probe?.focus?.labelOutlineStyle === "solid" &&
             probe?.focus?.labelOutlineWidth === "2px",
           actual: {
             focused: probe?.focus?.focused ?? null,
-            labelMatchesFocusWithin:
-              probe?.focus?.labelMatchesFocusWithin ?? null,
+            labelMatchesSiblingFocus:
+              probe?.focus?.labelMatchesSiblingFocus ?? null,
             labelOutlineStyle: probe?.focus?.labelOutlineStyle ?? null,
             labelOutlineWidth: probe?.focus?.labelOutlineWidth ?? null,
           },
           expected: {
             focused: true,
-            labelMatchesFocusWithin: true,
+            labelMatchesSiblingFocus: true,
             labelOutlineStyle: "solid",
             labelOutlineWidth: "2px",
           },
@@ -692,7 +692,7 @@ try {
       tabTraversal:
         "Real DevTools-protocol Input.dispatchKeyEvent Tab presses from document start until the target control holds document.activeElement (cap 200).",
       focusRing:
-        "Computed outline read from the focused control (date: input:focus-visible; avatar: label focus-within) while it held real keyboard focus after webContents.focus() on the offscreen window. The focused capture then waits for a double rAF plus a presented compositor frame (beginFrameSubscription) with the active element re-read at capture time, and the Electron driver itself pixel-binds the artifact with nativeImage (analysisRuntime electron-nativeImage in probe.focusPixels): the focused capture must differ from the default one and carry ring-colored pixels inside the target's focus-time border band (ringPixelCount in results[].measured.focusPixels).",
+        "Computed outline read from the focused control (date: input:focus-visible; avatar: public trigger button styled by the focused sibling input) while it held real keyboard focus after webContents.focus() on the offscreen window. The focused capture then waits for a double rAF plus a presented compositor frame (beginFrameSubscription) with the active element re-read at capture time, and the Electron driver itself pixel-binds the artifact with nativeImage (analysisRuntime electron-nativeImage in probe.focusPixels): the focused capture must differ from the default one and carry ring-colored pixels inside the target's focus-time border band (ringPixelCount in results[].measured.focusPixels).",
       enterActivation:
         "Enter is dispatched as a real key event to the focused avatar input; Chromium's own file chooser then opens as Page.fileChooserOpened over the DevTools protocol (no native dialog ever shows), and Page.fileChooserAccepted feeds the synthetic PNG so the real change -> clear -> preview -> remove chain runs.",
     },

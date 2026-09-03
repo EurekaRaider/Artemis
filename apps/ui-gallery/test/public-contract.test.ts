@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  MANAGEMENT_COMPONENT_CONTRACTS,
+  validateManagementComponentContracts,
+} from "@artemis/ui/management";
 import { galleryContract } from "../src/gallery-contract.js";
 
 describe("UI Gallery public package contract", () => {
@@ -14,5 +18,12 @@ describe("UI Gallery public package contract", () => {
     );
     expect(galleryContract.modes).toEqual(["light", "dark"]);
     expect(galleryContract.contrastModes).toEqual(["normal", "high"]);
+  });
+
+  it("consumes the frozen public management contract", () => {
+    expect(Object.isFrozen(MANAGEMENT_COMPONENT_CONTRACTS)).toBe(true);
+    expect(
+      validateManagementComponentContracts(MANAGEMENT_COMPONENT_CONTRACTS),
+    ).toEqual({ valid: true, errors: [] });
   });
 });

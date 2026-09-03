@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from "react";
+import { Button } from "@artemis/ui/actions";
+import { InlineNotice } from "@artemis/ui/feedback";
 
 /** Tri-state reported by the parent for the edit-mode connection check. */
 export type McpEditorTestConnectionState =
@@ -155,35 +157,45 @@ export function McpEditorFeedback(props: McpEditorFeedbackProps): ReactNode {
   return (
     <div aria-busy={busy ? "true" : undefined} className="mcp-editor-feedback">
       {busy && busyLabel ? (
-        <p aria-live="polite" className="mcp-editor-busy" role="status">
+        <InlineNotice
+          aria-live="polite"
+          className="mcp-editor-busy"
+          tone="info"
+        >
           {busyLabel}
-        </p>
+        </InlineNotice>
       ) : null}
       {validationErrors && validationErrors.length > 0 ? (
-        <div className="mcp-editor-validation" role="alert">
-          {validationHeading ? (
-            <p className="mcp-editor-validation-heading">{validationHeading}</p>
-          ) : null}
+        <InlineNotice
+          className="mcp-editor-validation"
+          title={validationHeading}
+          tone="danger"
+        >
           <ul>
             {validationErrors.map((error, index) => (
               <li key={`${index}-${error}`}>{error}</li>
             ))}
           </ul>
-        </div>
+        </InlineNotice>
       ) : null}
       {actionError ? (
-        <div className="mcp-editor-action-error" role="alert">
+        <InlineNotice
+          action={
+            actionErrorRetryLabel && onActionErrorRetry ? (
+              <Button
+                className="mcp-editor-action-retry"
+                onClick={() => onActionErrorRetry()}
+                variant="danger"
+              >
+                {actionErrorRetryLabel}
+              </Button>
+            ) : undefined
+          }
+          className="mcp-editor-action-error"
+          tone="danger"
+        >
           {actionError}
-          {actionErrorRetryLabel && onActionErrorRetry ? (
-            <button
-              className="mcp-editor-action-retry"
-              onClick={() => onActionErrorRetry()}
-              type="button"
-            >
-              {actionErrorRetryLabel}
-            </button>
-          ) : null}
-        </div>
+        </InlineNotice>
       ) : null}
       {children}
       {testConnection ? (
@@ -191,33 +203,33 @@ export function McpEditorFeedback(props: McpEditorFeedbackProps): ReactNode {
           aria-busy={testPending ? "true" : undefined}
           className="mcp-editor-test"
         >
-          <button
+          <Button
             className="mcp-editor-test-button"
-            disabled={busy || testPending || confirmingRemove || testBlocked}
+            disabled={busy || confirmingRemove || testBlocked}
+            loading={testPending}
             onClick={() => testConnection.onTest()}
-            type="button"
           >
             {testConnection.label}
-          </button>
+          </Button>
           {testBlocked && !testPending && testConnection.disabledHint ? (
-            <p className="mcp-editor-test-hint">
+            <InlineNotice className="mcp-editor-test-hint" tone="info">
               {testConnection.disabledHint}
-            </p>
+            </InlineNotice>
           ) : null}
           {testPending ? (
-            <p
+            <InlineNotice
               aria-live="polite"
               className="mcp-editor-test-status"
-              role="status"
+              tone="info"
             >
               {testConnection.busyLabel}
-            </p>
+            </InlineNotice>
           ) : null}
           {testState?.status === "success" ? (
-            <p
+            <InlineNotice
               aria-live="polite"
               className="mcp-editor-test-status"
-              role="status"
+              tone="success"
             >
               {testConnection.successLabel}
               {testState.detail ? (
@@ -226,27 +238,31 @@ export function McpEditorFeedback(props: McpEditorFeedbackProps): ReactNode {
                   {testState.detail}
                 </small>
               ) : null}
-            </p>
+            </InlineNotice>
           ) : null}
           {testState?.status === "failure" ? (
-            <div className="mcp-editor-test-failure" role="alert">
-              <p>{testConnection.failureLabel}</p>
+            <InlineNotice
+              className="mcp-editor-test-failure"
+              title={testConnection.failureLabel}
+              tone="danger"
+            >
               <p className="mcp-editor-test-failure-message">
                 {testState.message}
               </p>
-            </div>
+            </InlineNotice>
           ) : null}
         </div>
       ) : null}
       {remove ? (
-        <button
+        <Button
           className="mcp-editor-remove"
-          disabled={busy || confirmingRemove || testPending}
+          disabled={busy || testPending}
+          loading={confirmingRemove}
           onClick={handleRemove}
-          type="button"
+          variant="danger"
         >
           {remove.label}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

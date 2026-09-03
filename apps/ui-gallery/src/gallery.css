@@ -471,6 +471,29 @@
     transform: translateX(var(--artemis-space-4));
   }
 
+  .gallery-management-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+    gap: var(--artemis-space-4);
+  }
+
+  .gallery-management-grid > div {
+    min-inline-size: 0;
+  }
+
+  .gallery-management-settings,
+  .gallery-management-resource {
+    block-size: 32rem;
+    border: var(--artemis-border-width-default) solid
+      var(--artemis-color-border-default);
+    border-radius: var(--artemis-radius-panel);
+  }
+
+  .gallery-management-resource {
+    min-block-size: 32rem;
+    padding: var(--artemis-space-4);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .gallery-motion-swatch {
       transition: none;

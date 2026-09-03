@@ -1,0 +1,439 @@
+[
+  [
+    "normal|[data-artemis-component=\"settings-surface\"], [data-artemis-component=\"resource-surface\"], [data-artemis-component=\"mcp-editor-surface\"]",
+    {
+      "box-sizing": "border-box",
+      "min-inline-size": "0",
+      "min-block-size": "0",
+      "color": "var(--artemis-color-text-primary)",
+      "font-family": "var(--artemis-typography-body-family)",
+      "font-size": "var(--artemis-typography-body-size)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"settings-surface\"]",
+    {
+      "display": "flex",
+      "flex-direction": "column",
+      "inline-size": "100%",
+      "block-size": "100%",
+      "overflow": "hidden",
+      "background": "var(--artemis-color-surface-base)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"header\"]",
+    {
+      "flex": "0 0 auto",
+      "border-block-end": "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"]",
+    {
+      "display": "grid",
+      "flex": "1 1 auto",
+      "grid-template-columns": "minmax(11rem, 13rem) minmax(0, 1fr)",
+      "min-inline-size": "0",
+      "min-block-size": "0"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"]",
+    {
+      "min-inline-size": "0",
+      "min-block-size": "0",
+      "padding": "var(--artemis-space-3) var(--artemis-space-2)",
+      "overflow": "auto",
+      "background": "var(--artemis-color-surface-sunken)",
+      "border-inline-end": "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"]",
+    {
+      "display": "flex",
+      "flex-direction": "column",
+      "align-items": "stretch",
+      "gap": "var(--artemis-space-1)",
+      "padding": "0",
+      "background": "transparent",
+      "border": "0"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"] [data-part=\"tab\"]",
+    {
+      "justify-content": "flex-start",
+      "min-block-size": "var(--artemis-size-control-comfortable)",
+      "text-align": "start"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"content\"]",
+    {
+      "display": "flex",
+      "flex-direction": "column",
+      "gap": "var(--artemis-space-5)",
+      "min-inline-size": "0",
+      "min-block-size": "0",
+      "padding": "var(--artemis-space-5) var(--artemis-space-5) var(--artemis-space-6)",
+      "overflow": "auto",
+      "scrollbar-gutter": "stable"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"resource-surface\"]",
+    {
+      "display": "flex",
+      "flex": "1 1 auto",
+      "flex-direction": "column",
+      "inline-size": "100%",
+      "min-block-size": "100%",
+      "padding": "clamp(var(--artemis-space-5), 5vh, var(--artemis-space-6)) clamp(var(--artemis-space-4), 6vw, calc(var(--artemis-space-6) * 2)) calc(var(--artemis-space-6) * 2)",
+      "overflow-y": "auto",
+      "background": "var(--artemis-color-canvas)",
+      "scrollbar-gutter": "stable"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"resource-surface\"] > [data-part=\"header\"], [data-artemis-component=\"resource-surface\"] > [data-part=\"toolbar\"], [data-artemis-component=\"resource-surface\"] > [data-part=\"content\"]",
+    {
+      "inline-size": "min(100%, 72rem)",
+      "margin-inline": "auto"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"resource-surface\"] > [data-part=\"toolbar\"]",
+    { "margin-block-end": "var(--artemis-space-5)" }
+  ],
+  [
+    "normal|[data-artemis-component=\"resource-surface\"] > [data-part=\"content\"]",
+    {
+      "display": "flex",
+      "flex-direction": "column",
+      "gap": "var(--artemis-space-5)",
+      "min-inline-size": "0"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-header\"]",
+    {
+      "box-sizing": "border-box",
+      "display": "flex",
+      "align-items": "center",
+      "gap": "var(--artemis-space-3)",
+      "min-inline-size": "0",
+      "padding-block": "var(--artemis-space-3)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"settings-surface\"] [data-artemis-component=\"management-header\"]",
+    {
+      "min-block-size": "calc(var(--artemis-size-control-comfortable) + var(--artemis-space-3))",
+      "padding-inline": "var(--artemis-space-4)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"resource-surface\"] > [data-part=\"header\"] [data-artemis-component=\"management-header\"]",
+    {
+      "align-items": "flex-start",
+      "margin-block-end": "var(--artemis-space-4)",
+      "padding-block-start": "0"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-header\"] > [data-part=\"leading\"], [data-artemis-component=\"management-header\"] > [data-part=\"actions\"]",
+    {
+      "display": "flex",
+      "flex": "0 0 auto",
+      "align-items": "center",
+      "gap": "var(--artemis-space-2)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-header\"] > [data-part=\"copy\"]",
+    { "flex": "1 1 auto", "min-inline-size": "0" }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-header\"] [data-part=\"title\"]",
+    {
+      "margin": "0",
+      "overflow-wrap": "anywhere",
+      "font-size": "calc(var(--artemis-typography-body-size) * 1.55)",
+      "font-weight": "650",
+      "line-height": "1.2",
+      "letter-spacing": "-0.025em"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"settings-surface\"] [data-artemis-component=\"management-header\"] [data-part=\"title\"]",
+    {
+      "font-size": "calc(var(--artemis-typography-body-size) * 1.08)",
+      "letter-spacing": "0"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-header\"] [data-part=\"description\"]",
+    {
+      "margin-block-start": "var(--artemis-space-1)",
+      "color": "var(--artemis-color-text-secondary)",
+      "font-size": "var(--artemis-typography-label-size)",
+      "line-height": "1.5"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-section\"]",
+    {
+      "box-sizing": "border-box",
+      "display": "flex",
+      "flex-direction": "column",
+      "gap": "var(--artemis-space-3)",
+      "min-inline-size": "0",
+      "padding": "var(--artemis-space-4)",
+      "background": "var(--artemis-color-surface-raised)",
+      "border": "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
+      "border-radius": "var(--artemis-radius-card)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-section\"] > [data-part=\"header\"]",
+    {
+      "display": "flex",
+      "align-items": "flex-start",
+      "justify-content": "space-between",
+      "gap": "var(--artemis-space-3)",
+      "min-inline-size": "0"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-section\"] [data-part=\"title\"]",
+    {
+      "margin": "0",
+      "font-size": "var(--artemis-typography-label-size)",
+      "font-weight": "650",
+      "line-height": "1.4"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-section\"] [data-part=\"description\"]",
+    {
+      "margin-block-start": "var(--artemis-space-1)",
+      "color": "var(--artemis-color-text-secondary)",
+      "font-size": "var(--artemis-typography-metadata-size)",
+      "line-height": "1.5"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-section\"] > [data-part=\"content\"]",
+    {
+      "display": "flex",
+      "flex-direction": "column",
+      "gap": "var(--artemis-space-3)",
+      "min-inline-size": "0"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-section\"] > [data-part=\"header\"] > [data-part=\"actions\"]",
+    {
+      "display": "flex",
+      "flex": "0 0 auto",
+      "flex-wrap": "wrap",
+      "gap": "var(--artemis-space-2)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-card\"], [data-artemis-component=\"management-row\"]",
+    {
+      "box-sizing": "border-box",
+      "min-inline-size": "0",
+      "background": "var(--artemis-color-surface-base)",
+      "border": "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
+      "border-radius": "var(--artemis-radius-card)",
+      "transition": "background var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), border-color var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-card\"] > [data-part=\"content\"]",
+    {
+      "display": "flex",
+      "flex-direction": "column",
+      "gap": "var(--artemis-space-3)",
+      "min-inline-size": "0",
+      "padding": "var(--artemis-space-4)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-row\"]",
+    {
+      "display": "grid",
+      "grid-template-columns": "auto minmax(0, 1fr) auto",
+      "align-items": "center",
+      "gap": "var(--artemis-space-3)",
+      "min-block-size": "calc(var(--artemis-size-control-comfortable) + var(--artemis-space-4))",
+      "padding": "var(--artemis-space-2) var(--artemis-space-3)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-row\"]:hover",
+    {
+      "background": "var(--artemis-color-interaction-hover)",
+      "border-color": "var(--artemis-color-border-default)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-row\"] > [data-part=\"leading\"]",
+    {
+      "display": "flex",
+      "align-items": "center",
+      "justify-content": "center"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-row\"] > [data-part=\"copy\"]",
+    { "min-inline-size": "0" }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-row\"] [data-part=\"title\"], [data-artemis-component=\"management-row\"] [data-part=\"description\"]",
+    {
+      "display": "block",
+      "overflow": "hidden",
+      "text-overflow": "ellipsis",
+      "white-space": "nowrap"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-row\"] [data-part=\"title\"]",
+    { "font-size": "var(--artemis-typography-label-size)" }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-row\"] [data-part=\"description\"]",
+    {
+      "margin-block-start": "var(--artemis-space-1)",
+      "color": "var(--artemis-color-text-secondary)",
+      "font-size": "var(--artemis-typography-metadata-size)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-row\"] > [data-part=\"actions\"]",
+    {
+      "display": "flex",
+      "align-items": "center",
+      "gap": "var(--artemis-space-2)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-section\"][data-tone=\"warning\"], [data-artemis-component=\"management-card\"][data-tone=\"warning\"], [data-artemis-component=\"management-row\"][data-tone=\"warning\"]",
+    {
+      "background": "var(--artemis-color-status-warning-subtle)",
+      "border-color": "var(--artemis-color-status-warning)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-section\"][data-tone=\"danger\"], [data-artemis-component=\"management-card\"][data-tone=\"danger\"], [data-artemis-component=\"management-row\"][data-tone=\"danger\"]",
+    {
+      "background": "var(--artemis-color-status-danger-subtle)",
+      "border-color": "var(--artemis-color-status-danger)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-section\"][data-tone=\"info\"], [data-artemis-component=\"management-card\"][data-tone=\"info\"], [data-artemis-component=\"management-row\"][data-tone=\"info\"]",
+    {
+      "background": "var(--artemis-color-status-info-subtle)",
+      "border-color": "var(--artemis-color-status-info)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-section\"]:is([data-state=\"busy\"], [data-state=\"disabled\"]), [data-artemis-component=\"management-card\"]:is([data-state=\"busy\"], [data-state=\"disabled\"]), [data-artemis-component=\"management-row\"]:is([data-state=\"busy\"], [data-state=\"disabled\"])",
+    { "opacity": "var(--artemis-opacity-disabled)" }
+  ],
+  [
+    "normal|[data-artemis-component=\"mcp-editor-surface\"]",
+    {
+      "display": "flex",
+      "flex-direction": "column",
+      "gap": "var(--artemis-space-4)",
+      "inline-size": "min(100%, 58rem)",
+      "margin-inline": "auto"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"mcp-editor-surface\"] > [data-part=\"header\"], [data-artemis-component=\"mcp-editor-surface\"] > [data-part=\"feedback\"], [data-artemis-component=\"mcp-editor-surface\"] > [data-part=\"content\"]",
+    { "min-inline-size": "0" }
+  ],
+  [
+    "normal|[data-artemis-component=\"mcp-editor-surface\"] > [data-part=\"content\"]",
+    {
+      "display": "flex",
+      "flex-direction": "column",
+      "gap": "var(--artemis-space-3)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"mcp-editor-surface\"] > [data-part=\"actions\"]",
+    {
+      "display": "flex",
+      "align-items": "center",
+      "justify-content": "flex-end",
+      "gap": "var(--artemis-space-2)",
+      "padding-block-start": "var(--artemis-space-2)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"mcp-editor-surface\"][data-state=\"error\"] > [data-part=\"feedback\"]",
+    { "color": "var(--artemis-color-status-danger)" }
+  ],
+  [
+    "compact-width|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"]",
+    {
+      "grid-template-columns": "minmax(0, 1fr)",
+      "grid-template-rows": "auto minmax(0, 1fr)"
+    }
+  ],
+  [
+    "compact-width|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"]",
+    {
+      "padding": "var(--artemis-space-2)",
+      "overflow-x": "auto",
+      "overflow-y": "hidden",
+      "border-block-end": "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
+      "border-inline-end": "0"
+    }
+  ],
+  [
+    "compact-width|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"]",
+    {
+      "flex-direction": "row",
+      "inline-size": "max-content",
+      "min-inline-size": "100%"
+    }
+  ],
+  [
+    "compact-width|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"content\"]",
+    { "padding": "var(--artemis-space-4)" }
+  ],
+  [
+    "compact-width|[data-artemis-component=\"resource-surface\"]",
+    { "padding-inline": "var(--artemis-space-4)" }
+  ],
+  [
+    "compact-width|[data-artemis-component=\"management-header\"]",
+    { "align-items": "flex-start", "flex-wrap": "wrap" }
+  ],
+  [
+    "compact-width|[data-artemis-component=\"management-header\"] > [data-part=\"actions\"]",
+    { "margin-inline-start": "auto" }
+  ],
+  [
+    "compact-width|[data-artemis-component=\"management-row\"]",
+    { "grid-template-columns": "auto minmax(0, 1fr)" }
+  ],
+  [
+    "compact-width|[data-artemis-component=\"management-row\"] > [data-part=\"actions\"]",
+    { "grid-column": "1 / -1", "justify-content": "flex-end" }
+  ],
+  [
+    "reduced-motion|[data-artemis-component=\"management-card\"], [data-artemis-component=\"management-row\"]",
+    { "transition": "none" }
+  ]
+]

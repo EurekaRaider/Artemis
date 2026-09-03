@@ -34,6 +34,10 @@
       "types": "./dist/layout.d.ts",
       "import": "./dist/layout.js"
     },
+    "./management": {
+      "types": "./dist/management.d.ts",
+      "import": "./dist/management.js"
+    },
     "./navigation": {
       "types": "./dist/navigation.d.ts",
       "import": "./dist/navigation.js"

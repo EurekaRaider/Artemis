@@ -361,7 +361,7 @@ describe("McpEditorFeedback contract (D#76 PR8 §5 shared feedback surface)", ()
         { disabled: true, disabledHint: labels.testSavedOnlyHint },
       ),
     });
-    expect(screen.getByRole("status")).toHaveTextContent(labels.testSuccess);
+    expect(screen.getByText(labels.testSuccess)).toBeInTheDocument();
     expect(screen.getByText(labels.testSavedOnlyHint)).toBeInTheDocument();
     rerenderFeedback({ testConnection: testConnection() });
     expect(

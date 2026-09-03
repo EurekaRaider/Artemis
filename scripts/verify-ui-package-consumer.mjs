@@ -91,6 +91,8 @@ try {
       "dist/feedback.d.ts",
       "dist/layout.js",
       "dist/layout.d.ts",
+      "dist/management.js",
+      "dist/management.d.ts",
       "dist/navigation.js",
       "dist/navigation.d.ts",
       "dist/patterns.js",
@@ -283,6 +285,36 @@ void browser;
     "utf8",
   );
   await writeFile(
+    join(consumer, "management-consumer.ts"),
+    `import { createElement } from "react";
+import { TextAreaField } from "@artemis/ui/forms";
+import {
+  MANAGEMENT_COMPONENT_CONTRACTS,
+  ManagementCard,
+  ManagementHeader,
+  ManagementRow,
+  ManagementSection,
+  McpEditorSurface,
+  ResourceSurface,
+  SettingsSurface,
+  type ManagementState,
+} from "@artemis/ui/management";
+
+const state: ManagementState = "busy";
+const header = createElement(ManagementHeader, { title: "Settings" });
+const field = createElement(TextAreaField, { defaultValue: "Synthetic", label: "Instructions" });
+const section = createElement(ManagementSection, { children: field, title: "Provider" });
+const settings = createElement(SettingsSurface, { children: section, header, label: "Settings", navigation: "Navigation", state });
+const resource = createElement(ResourceSurface, { children: createElement(ManagementCard, null, createElement(ManagementRow, { title: "Resource" })), label: "Resources" });
+const mcp = createElement(McpEditorSurface, { actions: "Save", children: "Editor", header, label: "MCP editor" });
+if (!Object.isFrozen(MANAGEMENT_COMPONENT_CONTRACTS)) throw new Error("invalid management contract");
+void settings;
+void resource;
+void mcp;
+`,
+    "utf8",
+  );
+  await writeFile(
     join(consumer, "tsconfig.json"),
     `${JSON.stringify(
       {
@@ -300,6 +332,7 @@ void browser;
           "workspace-consumer.ts",
           "workflow-consumer.ts",
           "professional-consumer.ts",
+          "management-consumer.ts",
         ],
       },
       null,
@@ -424,6 +457,26 @@ if (!Object.isFrozen(PROFESSIONAL_COMPONENT_CONTRACTS)) throw new Error("profess
     "utf8",
   );
   run(process.execPath, ["professional-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "management-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Button } from "@artemis/ui/actions";
+import { TextAreaField } from "@artemis/ui/forms";
+import { MANAGEMENT_COMPONENT_CONTRACTS, ManagementCard, ManagementHeader, ManagementRow, ManagementSection, McpEditorSurface, ResourceSurface, SettingsSurface } from "@artemis/ui/management";
+const header = createElement(ManagementHeader, { title: "Settings" });
+const section = createElement(ManagementSection, { title: "Provider" }, createElement(TextAreaField, { defaultValue: "Synthetic", label: "Instructions" }));
+const html = [
+  renderToStaticMarkup(createElement(SettingsSurface, { header, label: "Settings", navigation: "Navigation" }, section)),
+  renderToStaticMarkup(createElement(ResourceSurface, { label: "Resources" }, createElement(ManagementCard, null, createElement(ManagementRow, { title: "Resource" })))),
+  renderToStaticMarkup(createElement(McpEditorSurface, { actions: createElement(Button, null, "Save"), header, label: "MCP editor" }, "Editor")),
+].join("");
+for (const marker of ["settings-surface", "resource-surface", "management-header", "management-section", "management-card", "management-row", "mcp-editor-surface", "textarea-field"]) if (!html.includes('data-artemis-component="' + marker + '"')) throw new Error("management peer/component resolution failed: " + marker);
+if (!Object.isFrozen(MANAGEMENT_COMPONENT_CONTRACTS)) throw new Error("management contract is mutable");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["management-consumer.mjs"], consumer);
   run(npm, ["ls", "--all", "react", "react-dom"], consumer);
 
   await writeFile(
@@ -745,6 +798,45 @@ if (!Object.isFrozen(PROFESSIONAL_COMPONENT_CONTRACTS)) throw new Error("profess
     );
   }
 
+  await writeFile(
+    join(consumer, "management-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { ManagementCard } from "@artemis/ui/management";\nexport const TreeShakeManagementCard = () => createElement(ManagementCard, null, "Card");\n`,
+    "utf8",
+  );
+  run(
+    join(root, "node_modules/.bin/esbuild"),
+    [
+      "management-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=management-tree-shake.js",
+    ],
+    consumer,
+  );
+  const managementTreeShaken = await readFile(
+    join(consumer, "management-tree-shake.js"),
+    "utf8",
+  );
+  const retainedUnusedManagementMarkers = [
+    "settings-surface",
+    "resource-surface",
+    "management-header",
+    "management-row",
+    "mcp-editor-surface",
+  ].filter((marker) => managementTreeShaken.includes(marker));
+  if (
+    !managementTreeShaken.includes("management-card") ||
+    retainedUnusedManagementMarkers.length > 0
+  ) {
+    throw new Error(
+      `ManagementCard-only bundle retained unused management JS: ${retainedUnusedManagementMarkers.join(", ")}`,
+    );
+  }
+
   const installedRoots = [
     join(consumer, "node_modules/@artemis/theme-contract"),
     join(consumer, "node_modules/@artemis/ui"),
@@ -767,7 +859,7 @@ if (!Object.isFrozen(PROFESSIONAL_COMPONENT_CONTRACTS)) throw new Error("profess
   }
 
   console.log(
-    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout/pattern/conversation/surface/professional JS tree-shaken)`,
+    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout/pattern/conversation/surface/professional/management JS tree-shaken)`,
   );
 } finally {
   await rm(consumer, { recursive: true, force: true });

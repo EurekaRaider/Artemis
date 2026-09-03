@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type RefObject,
@@ -14,9 +15,29 @@ import type {
   ShellProfileMode,
   WindowsShellPreference,
 } from "@artemis/protocol";
-import { Dialog } from "@artemis/ui/feedback";
-import { Checkbox, TextField } from "@artemis/ui/forms";
+import { Button } from "@artemis/ui/actions";
+import {
+  ConfirmationDialog,
+  Dialog,
+  EmptyState,
+  ErrorState,
+  InlineNotice,
+  LoadingState,
+} from "@artemis/ui/feedback";
+import {
+  Checkbox,
+  Select,
+  Switch,
+  TextAreaField,
+  TextField,
+} from "@artemis/ui/forms";
 import { PanelHeader } from "@artemis/ui/layout";
+import {
+  ManagementRow,
+  ManagementSection,
+  SettingsSurface,
+} from "@artemis/ui/management";
+import { Tabs } from "@artemis/ui/navigation";
 
 import type {
   AddedModelConfiguration,
@@ -31,7 +52,6 @@ import {
   legacyLocale,
 } from "../shared/locales.js";
 import { I18N_RESOURCES } from "../shared/i18n-resources.js";
-import { CodexSelect } from "./CodexSelect.js";
 import { prepareProfileAvatar } from "./profile-avatar.js";
 
 interface SettingsPanelProps {
@@ -76,6 +96,8 @@ const labels = {
     removeModelConfirm: "Remove {model} from the conversation model picker?",
     removeModelCredentialConfirm:
       "This is the last added model for {provider}. Its saved API key will also be deleted.",
+    deleteProviderConfirm:
+      "Delete {provider}? Its models and saved API key will also be removed.",
     confirm: "OK",
     language: "Language",
     languageSystem: "Use system language",
@@ -267,6 +289,8 @@ const labels = {
     removeModelConfirm: "从对话模型菜单中删除 {model}？",
     removeModelCredentialConfirm:
       "这是 {provider} 最后一个已添加模型，删除时也会清理已保存的 API Key。",
+    deleteProviderConfirm:
+      "删除 {provider}？其模型和已保存的 API Key 也会一并删除。",
     confirm: "确定",
     language: "语言",
     languageSystem: "跟随系统",
@@ -532,6 +556,8 @@ export function SettingsPanel({
   }>();
   const [modelDeleteTarget, setModelDeleteTarget] =
     useState<AddedModelConfiguration>();
+  const [providerDeleteTarget, setProviderDeleteTarget] =
+    useState<ProviderConnection>();
   const [globalAgentsContent, setGlobalAgentsContent] = useState(
     initialSettings?.globalAgents.content ?? "",
   );
@@ -552,6 +578,8 @@ export function SettingsPanel({
   const [importCategories, setImportCategories] = useState<
     ConfigurationImportCategory[]
   >(["instructions", "skills", "mcp"]);
+  const operationPendingRef = useRef(false);
+  const profileAvatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -671,8 +699,14 @@ export function SettingsPanel({
   }
 
   async function addModel() {
-    if (!selectedModel || !contextWindowValid || !selectedModelCanBeAdded)
+    if (
+      operationPendingRef.current ||
+      !selectedModel ||
+      !contextWindowValid ||
+      !selectedModelCanBeAdded
+    )
       return;
+    operationPendingRef.current = true;
     const [selectedProvider, modelId] = parseModelKey(selectedModel);
     setBusy(true);
     setModelApplyResult(undefined);
@@ -700,6 +734,7 @@ export function SettingsPanel({
         detail: error instanceof Error ? error.message : String(error),
       });
     } finally {
+      operationPendingRef.current = false;
       setBusy(false);
     }
   }
@@ -899,6 +934,7 @@ export function SettingsPanel({
       );
       setSettings(updated);
       onSettingsChange(updated);
+      setProviderDeleteTarget(undefined);
       if (editingProviderId === provider.id) {
         resetProviderForm();
       }
@@ -985,6 +1021,8 @@ export function SettingsPanel({
   }
 
   async function run(action: () => Promise<void>) {
+    if (operationPendingRef.current) return;
+    operationPendingRef.current = true;
     setBusy(true);
     setMessage("");
     try {
@@ -992,9 +1030,18 @@ export function SettingsPanel({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
+      operationPendingRef.current = false;
       setBusy(false);
     }
   }
+
+  const activeTabLabel: Record<SettingsTab, string> = {
+    general: t.tabGeneral,
+    providers: t.tabProviders,
+    agents: t.tabAgents,
+    capabilities: t.tabCapabilities,
+    maintenance: t.tabMaintenance,
+  };
 
   return (
     <>
@@ -1007,44 +1054,80 @@ export function SettingsPanel({
         open
         returnFocusRef={returnFocusRef}
       >
-        <PanelHeader
-          actions={
-            <button className="text-button" onClick={onClose}>
-              {t.close}
-            </button>
+        <SettingsSurface
+          busy={busy}
+          header={
+            <PanelHeader
+              actions={
+                <Button onClick={onClose} variant="quiet">
+                  {t.close}
+                </Button>
+              }
+              className="settings-header"
+              headingLevel={2}
+              title={t.title}
+            />
           }
-          className="settings-header"
-          headingLevel={2}
-          title={t.title}
-        />
-        {!settings ? (
-          <div className="settings-loading">{message || t.loading}</div>
-        ) : (
-          <div className="settings-body">
-            <nav aria-label={t.title} className="settings-tabs" role="tablist">
-              {(
-                [
-                  ["general", t.tabGeneral],
-                  ["providers", t.tabProviders],
-                  ["agents", t.tabAgents],
-                  ["capabilities", t.tabCapabilities],
-                  ["maintenance", t.tabMaintenance],
-                ] as const
-              ).map(([tab, label]) => (
-                <button
-                  aria-controls={`settings-tab-${tab}`}
-                  aria-selected={activeTab === tab}
-                  className={activeTab === tab ? "active" : ""}
-                  id={`settings-tab-${tab}-button`}
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  role="tab"
-                  type="button"
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
+          label={`${t.title} · ${activeTabLabel[activeTab]}`}
+          navigation={
+            settings ? (
+              <Tabs<SettingsTab>
+                className="settings-tabs"
+                label={t.title}
+                onValueChange={setActiveTab}
+                options={[
+                  {
+                    id: "settings-tab-general-button",
+                    label: t.tabGeneral,
+                    panelId: "settings-tab-general",
+                    value: "general",
+                  },
+                  {
+                    id: "settings-tab-providers-button",
+                    label: t.tabProviders,
+                    panelId: "settings-tab-providers",
+                    value: "providers",
+                  },
+                  {
+                    id: "settings-tab-agents-button",
+                    label: t.tabAgents,
+                    panelId: "settings-tab-agents",
+                    value: "agents",
+                  },
+                  {
+                    id: "settings-tab-capabilities-button",
+                    label: t.tabCapabilities,
+                    panelId: "settings-tab-capabilities",
+                    value: "capabilities",
+                  },
+                  {
+                    id: "settings-tab-maintenance-button",
+                    label: t.tabMaintenance,
+                    panelId: "settings-tab-maintenance",
+                    value: "maintenance",
+                  },
+                ]}
+                value={activeTab}
+              />
+            ) : (
+              <span aria-hidden="true" />
+            )
+          }
+          state={!settings ? (message ? "error" : "loading") : undefined}
+        >
+          {!settings ? (
+            message ? (
+              <ErrorState className="settings-loading" title={t.title}>
+                {message}
+              </ErrorState>
+            ) : (
+              <LoadingState
+                className="settings-loading"
+                label={t.loading}
+                lines={4}
+              />
+            )
+          ) : (
             <div
               aria-labelledby={`settings-tab-${activeTab}-button`}
               className="settings-content"
@@ -1053,59 +1136,53 @@ export function SettingsPanel({
             >
               {activeTab === "providers" && (
                 <>
-                  <nav
-                    aria-label={t.tabProviders}
+                  <Tabs<"builtin" | "custom">
                     className="provider-config-tabs"
-                    role="tablist"
-                  >
-                    {(
-                      [
-                        ["builtin", t.providerConfigBuiltin],
-                        ["custom", t.providerConfigCustom],
-                      ] as const
-                    ).map(([tab, label]) => (
-                      <button
-                        aria-controls={`provider-config-${tab}`}
-                        aria-selected={providerConfigTab === tab}
-                        className={providerConfigTab === tab ? "active" : ""}
-                        id={`provider-config-${tab}-tab`}
-                        key={tab}
-                        onClick={() => setProviderConfigTab(tab)}
-                        role="tab"
-                        type="button"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </nav>
+                    label={t.tabProviders}
+                    onValueChange={setProviderConfigTab}
+                    options={[
+                      {
+                        id: "provider-config-builtin-tab",
+                        label: t.providerConfigBuiltin,
+                        panelId: "provider-config-builtin",
+                        value: "builtin",
+                      },
+                      {
+                        id: "provider-config-custom-tab",
+                        label: t.providerConfigCustom,
+                        panelId: "provider-config-custom",
+                        value: "custom",
+                      },
+                    ]}
+                    size="compact"
+                    value={providerConfigTab}
+                  />
                   {providerConfigTab === "builtin" && (
-                    <section
-                      aria-labelledby="provider-config-builtin-tab"
+                    <ManagementSection
                       className="settings-section"
                       id="provider-config-builtin"
+                      labelledBy="provider-config-builtin-tab"
                       role="tabpanel"
+                      title={t.model}
                     >
-                      <h3>{t.model}</h3>
-                      <div className="settings-field">
-                        <span>{t.model}</span>
-                        <div className="settings-codex-select">
-                          <CodexSelect
-                            ariaLabel={t.model}
-                            disabled={busy || models.length === 0}
-                            onChange={selectModel}
-                            noResultsLabel={t.modelSearchEmpty}
-                            options={models.map((model) => ({
-                              value: modelKey(model.providerId, model.modelId),
-                              label: `${model.providerId} · ${model.name} · ${model.modelId}`,
-                              searchText: `${model.providerId} ${model.name} ${model.modelId}`,
-                            }))}
-                            searchPlaceholder={t.modelSearch}
-                            value={selectedModel}
-                          />
-                        </div>
-                      </div>
+                      <Select
+                        label={t.model}
+                        disabled={busy || models.length === 0}
+                        onValueChange={selectModel}
+                        noResultsLabel={t.modelSearchEmpty}
+                        options={models.map((model) => ({
+                          value: modelKey(model.providerId, model.modelId),
+                          label: `${model.providerId} · ${model.name} · ${model.modelId}`,
+                          searchText: `${model.providerId} ${model.name} ${model.modelId}`,
+                        }))}
+                        searchPlaceholder={t.modelSearch}
+                        value={selectedModel}
+                      />
                       {models.length === 0 && (
-                        <p className="settings-empty">{t.modelUnavailable}</p>
+                        <EmptyState
+                          className="settings-empty"
+                          title={t.modelUnavailable}
+                        />
                       )}
                       <TextField
                         className="settings-field"
@@ -1119,53 +1196,52 @@ export function SettingsPanel({
                         value={contextWindow}
                       />
                       {selectedModelInfo && (
-                        <p className="settings-security">
+                        <InlineNotice className="settings-security" tone="info">
                           {t.contextWindowHint.replace(
                             "{limit}",
                             selectedModelInfo.contextWindow.toLocaleString(
                               locale,
                             ),
                           )}
-                        </p>
+                        </InlineNotice>
                       )}
                       {!selectedModelUsesCustomProvider && (
                         <>
-                          <div className="settings-field">
-                            <span>
-                              {t.apiKey}
-                              {selectedModelInfo?.providerId
+                          <TextField
+                            autoComplete="off"
+                            className="settings-field"
+                            disabled={
+                              busy ||
+                              !selectedModelInfo ||
+                              !settings.encryptionAvailable
+                            }
+                            label={`${t.apiKey}${
+                              selectedModelInfo?.providerId
                                 ? ` · ${selectedModelInfo.providerId}`
-                                : ""}
-                            </span>
-                            <input
-                              aria-label={t.apiKey}
-                              autoComplete="off"
-                              disabled={
-                                busy ||
-                                !selectedModelInfo ||
-                                !settings.encryptionAvailable
-                              }
-                              onChange={(event) =>
-                                setKeyApiKey(event.target.value)
-                              }
-                              placeholder={
-                                selectedModelCredential
-                                  ? t.storedApiKey
-                                  : t.apiKey
-                              }
-                              type="password"
-                              value={keyApiKey}
-                            />
-                          </div>
-                          <p className="settings-security">
+                                : ""
+                            }`}
+                            onValueChange={setKeyApiKey}
+                            placeholder={
+                              selectedModelCredential
+                                ? t.storedApiKey
+                                : t.apiKey
+                            }
+                            type="password"
+                            value={keyApiKey}
+                          />
+                          <InlineNotice
+                            className="settings-security"
+                            tone={
+                              settings.encryptionAvailable ? "info" : "warning"
+                            }
+                          >
                             {settings.encryptionAvailable
                               ? t.encrypted
                               : t.unavailable}
-                          </p>
+                          </InlineNotice>
                         </>
                       )}
-                      <button
-                        className="settings-primary-action"
+                      <Button
                         disabled={
                           busy ||
                           !selectedModel ||
@@ -1173,9 +1249,10 @@ export function SettingsPanel({
                           !selectedModelCanBeAdded
                         }
                         onClick={addModel}
+                        variant="primary"
                       >
                         {t.saveModel}
-                      </button>
+                      </Button>
                       <div
                         aria-label={t.addedModels}
                         className="added-model-list"
@@ -1188,43 +1265,35 @@ export function SettingsPanel({
                               candidate.modelId === model.modelId,
                           );
                           return (
-                            <div
+                            <ManagementRow
+                              actions={
+                                <Button
+                                  disabled={busy}
+                                  label={`${t.delete}: ${catalogModel?.name ?? model.modelId}`}
+                                  onClick={() => {
+                                    setMessage("");
+                                    setModelDeleteTarget(model);
+                                  }}
+                                  variant="danger"
+                                >
+                                  {t.delete}
+                                </Button>
+                              }
                               className="added-model-row"
+                              description={`${model.providerId} · ${model.modelId} · ${model.contextWindow.toLocaleString(locale)} token`}
                               key={modelKey(model.providerId, model.modelId)}
-                            >
-                              <span>
-                                <strong>
-                                  {catalogModel?.name ?? model.modelId}
-                                </strong>
-                                <small>
-                                  {model.providerId} · {model.modelId} ·{" "}
-                                  {model.contextWindow.toLocaleString(locale)}{" "}
-                                  token
-                                </small>
-                              </span>
-                              <button
-                                aria-label={`${t.removeModel}: ${catalogModel?.name ?? model.modelId}`}
-                                className="text-button danger"
-                                disabled={busy}
-                                onClick={() => {
-                                  setMessage("");
-                                  setModelDeleteTarget(model);
-                                }}
-                                type="button"
-                              >
-                                {t.delete}
-                              </button>
-                            </div>
+                              title={catalogModel?.name ?? model.modelId}
+                            />
                           );
                         })}
                         {settings.addedModels.length === 0 && (
-                          <span className="settings-empty">
-                            {t.noAddedModels}
-                          </span>
+                          <EmptyState
+                            className="settings-empty"
+                            title={t.noAddedModels}
+                          />
                         )}
                       </div>
-                      <button
-                        className="settings-secondary-action"
+                      <Button
                         disabled={busy || !settings.encryptionAvailable}
                         onClick={() =>
                           void run(async () => {
@@ -1238,16 +1307,19 @@ export function SettingsPanel({
                         }
                       >
                         {t.importPi}
-                      </button>
-                    </section>
+                      </Button>
+                    </ManagementSection>
                   )}
                 </>
               )}
 
               {activeTab === "general" && (
                 <>
-                  <section className="settings-section">
-                    <h3>{t.profileAvatar}</h3>
+                  <ManagementSection
+                    className="settings-section"
+                    description={t.profileAvatarHint}
+                    title={t.profileAvatar}
+                  >
                     <div className="settings-profile-avatar">
                       <div className="settings-profile-avatar-preview">
                         {settings.profileAvatar ? (
@@ -1257,198 +1329,188 @@ export function SettingsPanel({
                         )}
                       </div>
                       <div className="settings-profile-avatar-actions">
-                        <label className="settings-secondary-action">
-                          <input
-                            accept="image/jpeg,image/png,image/webp"
-                            className="profile-avatar-input"
-                            disabled={busy}
-                            onChange={(event) => {
-                              const file = event.currentTarget.files?.[0];
-                              event.currentTarget.value = "";
-                              if (file) void setProfileAvatar(file);
-                            }}
-                            type="file"
-                          />
+                        <input
+                          accept="image/jpeg,image/png,image/webp"
+                          aria-label={
+                            settings.profileAvatar
+                              ? t.profileAvatarChange
+                              : t.profileAvatarUpload
+                          }
+                          className="profile-avatar-input"
+                          disabled={busy}
+                          onChange={(event) => {
+                            const file = event.currentTarget.files?.[0];
+                            event.currentTarget.value = "";
+                            if (file) void setProfileAvatar(file);
+                          }}
+                          ref={profileAvatarInputRef}
+                          type="file"
+                        />
+                        <Button
+                          disabled={busy}
+                          onClick={() => profileAvatarInputRef.current?.click()}
+                        >
                           {settings.profileAvatar
                             ? t.profileAvatarChange
                             : t.profileAvatarUpload}
-                        </label>
+                        </Button>
                         {settings.profileAvatar && (
-                          <button
-                            className="settings-secondary-action"
+                          <Button
                             disabled={busy}
                             onClick={() => void setProfileAvatar(undefined)}
-                            type="button"
                           >
                             {t.profileAvatarRemove}
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </div>
-                    <p className="settings-security">{t.profileAvatarHint}</p>
-                  </section>
+                  </ManagementSection>
 
-                  <section className="settings-section">
-                    <h3>{t.language}</h3>
-                    <div className="settings-field">
-                      <span>{t.language}</span>
-                      <div className="settings-codex-select">
-                        <CodexSelect<AppLanguage>
-                          ariaLabel={t.language}
-                          disabled={busy}
-                          onChange={(language) => void setLanguage(language)}
-                          options={[
-                            { value: "system", label: t.languageSystem },
-                            ...SUPPORTED_LOCALES.map((language) => ({
-                              value: language,
-                              label: LOCALE_METADATA[language].nativeName,
-                            })),
-                          ]}
-                          value={settings.language}
-                        />
-                      </div>
-                    </div>
-                    <p className="settings-security">{t.languageHint}</p>
-                  </section>
+                  <ManagementSection
+                    className="settings-section"
+                    description={t.languageHint}
+                    title={t.language}
+                  >
+                    <Select<AppLanguage>
+                      label={t.language}
+                      disabled={busy}
+                      onValueChange={(language) => void setLanguage(language)}
+                      options={[
+                        { value: "system", label: t.languageSystem },
+                        ...SUPPORTED_LOCALES.map((language) => ({
+                          value: language,
+                          label: LOCALE_METADATA[language].nativeName,
+                        })),
+                      ]}
+                      value={settings.language}
+                    />
+                  </ManagementSection>
 
-                  <section className="settings-section">
-                    <h3>{t.theme}</h3>
-                    <div className="settings-field">
-                      <span>{t.theme}</span>
-                      <div className="settings-codex-select">
-                        <CodexSelect<AppTheme>
-                          ariaLabel={t.theme}
-                          disabled={busy}
-                          onChange={(theme) => void setTheme(theme)}
-                          options={[
-                            { value: "system", label: t.themeSystem },
-                            { value: "light", label: t.themeLight },
-                            { value: "dark", label: t.themeDark },
-                          ]}
-                          value={settings.theme}
-                        />
-                      </div>
-                    </div>
-                    <p className="settings-security">{t.themeHint}</p>
-                  </section>
+                  <ManagementSection
+                    className="settings-section"
+                    description={t.themeHint}
+                    title={t.theme}
+                  >
+                    <Select<AppTheme>
+                      label={t.theme}
+                      disabled={busy}
+                      onValueChange={(theme) => void setTheme(theme)}
+                      options={[
+                        { value: "system", label: t.themeSystem },
+                        { value: "light", label: t.themeLight },
+                        { value: "dark", label: t.themeDark },
+                      ]}
+                      value={settings.theme}
+                    />
+                  </ManagementSection>
                 </>
               )}
 
               {activeTab === "providers" && providerConfigTab === "custom" && (
-                <section
-                  aria-labelledby="provider-config-custom-tab"
+                <ManagementSection
                   className="settings-section"
+                  description={t.providerHint}
                   id="provider-config-custom"
+                  labelledBy="provider-config-custom-tab"
                   role="tabpanel"
+                  title={t.customProviders}
                 >
-                  <h3>{t.customProviders}</h3>
-                  <p className="settings-security">{t.providerHint}</p>
                   <form
                     className="credential-form provider-form"
                     onSubmit={(event) => void saveProviderConnection(event)}
                   >
-                    <input
-                      aria-label={t.provider}
+                    <TextField
                       autoCapitalize="none"
                       autoCorrect="off"
                       disabled={busy || Boolean(editingProviderId)}
+                      label={t.provider}
+                      labelVisibility="hidden"
                       maxLength={80}
-                      onChange={(event) =>
-                        setProviderId(
-                          event.target.value.toLocaleLowerCase("en-US"),
-                        )
+                      onValueChange={(value) =>
+                        setProviderId(value.toLocaleLowerCase("en-US"))
                       }
                       pattern="[a-z0-9][a-z0-9._-]*"
                       placeholder={t.provider}
                       spellCheck={false}
                       value={providerId}
                     />
-                    <input
-                      aria-label={t.providerName}
+                    <TextField
                       disabled={busy}
-                      onChange={(event) => setProviderName(event.target.value)}
+                      label={t.providerName}
+                      labelVisibility="hidden"
+                      onValueChange={setProviderName}
                       placeholder={t.providerName}
                       value={providerName}
                     />
-                    <input
-                      aria-label={t.baseUrl}
+                    <TextField
                       disabled={busy}
-                      onChange={(event) => setBaseUrl(event.target.value)}
+                      label={t.baseUrl}
+                      labelVisibility="hidden"
+                      onValueChange={setBaseUrl}
                       placeholder={t.baseUrl}
                       type="url"
                       value={baseUrl}
                     />
-                    <div className="settings-codex-select">
-                      <CodexSelect<NonNullable<ProviderConnection["api"]>>
-                        ariaLabel={t.providerApi}
-                        disabled={busy}
-                        onChange={setProviderApi}
-                        options={[
-                          {
-                            value: "openai-completions",
-                            label: t.chatCompletionsApi,
-                          },
-                          {
-                            value: "openai-responses",
-                            label: t.responsesApi,
-                          },
-                        ]}
-                        value={providerApi}
-                      />
-                    </div>
-                    <input
-                      aria-label={t.modelId}
+                    <Select<NonNullable<ProviderConnection["api"]>>
+                      label={t.providerApi}
                       disabled={busy}
-                      onChange={(event) =>
-                        setProviderModelId(event.target.value)
-                      }
+                      onValueChange={setProviderApi}
+                      options={[
+                        {
+                          value: "openai-completions",
+                          label: t.chatCompletionsApi,
+                        },
+                        {
+                          value: "openai-responses",
+                          label: t.responsesApi,
+                        },
+                      ]}
+                      value={providerApi}
+                    />
+                    <TextField
+                      disabled={busy}
+                      label={t.modelId}
+                      labelVisibility="hidden"
+                      onValueChange={setProviderModelId}
                       placeholder={t.modelId}
                       value={providerModelId}
                     />
-                    <input
-                      aria-label={t.modelName}
+                    <TextField
                       disabled={busy}
-                      onChange={(event) =>
-                        setProviderModelName(event.target.value)
-                      }
+                      label={t.modelName}
+                      labelVisibility="hidden"
+                      onValueChange={setProviderModelName}
                       placeholder={t.modelName}
                       value={providerModelName}
                     />
-                    <label className="settings-field">
-                      <span>{t.contextWindow}</span>
-                      <input
-                        aria-label={t.contextWindow}
-                        disabled={busy}
-                        max={10_000_000}
-                        min={1_024}
-                        onChange={(event) =>
-                          setProviderContextWindow(event.target.value)
-                        }
-                        step={1}
-                        type="number"
-                        value={providerContextWindow}
-                      />
-                    </label>
-                    <label className="settings-field">
-                      <span>{t.maxTokens}</span>
-                      <input
-                        aria-label={t.maxTokens}
-                        disabled={busy}
-                        max={1_000_000}
-                        min={1}
-                        onChange={(event) =>
-                          setProviderMaxTokens(event.target.value)
-                        }
-                        step={1}
-                        type="number"
-                        value={providerMaxTokens}
-                      />
-                    </label>
-                    <input
-                      aria-label={t.optionalApiKey}
+                    <TextField
+                      className="settings-field"
+                      disabled={busy}
+                      label={t.contextWindow}
+                      max={10_000_000}
+                      min={1_024}
+                      onValueChange={setProviderContextWindow}
+                      step={1}
+                      type="number"
+                      value={providerContextWindow}
+                    />
+                    <TextField
+                      className="settings-field"
+                      disabled={busy}
+                      label={t.maxTokens}
+                      max={1_000_000}
+                      min={1}
+                      onValueChange={setProviderMaxTokens}
+                      step={1}
+                      type="number"
+                      value={providerMaxTokens}
+                    />
+                    <TextField
                       autoComplete="off"
                       disabled={busy || !settings.encryptionAvailable}
-                      onChange={(event) => setApiKey(event.target.value)}
+                      label={t.optionalApiKey}
+                      labelVisibility="hidden"
+                      onValueChange={setApiKey}
                       placeholder={t.optionalApiKey}
                       type="password"
                       value={apiKey}
@@ -1468,28 +1530,22 @@ export function SettingsPanel({
                       />
                     </span>
                     {providerReasoning && (
-                      <div className="settings-field">
-                        <span>{t.highestReasoningLevel}</span>
-                        <div className="settings-codex-select">
-                          <CodexSelect<ProviderThinkingLevel>
-                            ariaLabel={t.highestReasoningLevel}
-                            disabled={busy}
-                            onChange={setProviderHighestThinkingLevel}
-                            options={[
-                              { value: "minimal", label: t.thinkingMinimal },
-                              { value: "low", label: t.thinkingLow },
-                              { value: "medium", label: t.thinkingMedium },
-                              { value: "high", label: t.thinkingHigh },
-                              { value: "xhigh", label: t.thinkingXHigh },
-                              { value: "max", label: t.thinkingMax },
-                            ]}
-                            value={providerHighestThinkingLevel}
-                          />
-                        </div>
-                      </div>
+                      <Select<ProviderThinkingLevel>
+                        label={t.highestReasoningLevel}
+                        disabled={busy}
+                        onValueChange={setProviderHighestThinkingLevel}
+                        options={[
+                          { value: "minimal", label: t.thinkingMinimal },
+                          { value: "low", label: t.thinkingLow },
+                          { value: "medium", label: t.thinkingMedium },
+                          { value: "high", label: t.thinkingHigh },
+                          { value: "xhigh", label: t.thinkingXHigh },
+                          { value: "max", label: t.thinkingMax },
+                        ]}
+                        value={providerHighestThinkingLevel}
+                      />
                     )}
-                    <button
-                      className="settings-primary-action"
+                    <Button
                       disabled={
                         busy ||
                         !providerIdValid ||
@@ -1500,18 +1556,14 @@ export function SettingsPanel({
                         (Boolean(apiKey) && !settings.encryptionAvailable)
                       }
                       type="submit"
+                      variant="primary"
                     >
                       {t.saveProvider}
-                    </button>
+                    </Button>
                     {editingProviderId && (
-                      <button
-                        className="settings-secondary-action"
-                        disabled={busy}
-                        onClick={resetProviderForm}
-                        type="button"
-                      >
+                      <Button disabled={busy} onClick={resetProviderForm}>
                         {t.cancelEdit}
-                      </button>
+                      </Button>
                     )}
                   </form>
                   <strong className="settings-subheading">
@@ -1519,99 +1571,93 @@ export function SettingsPanel({
                   </strong>
                   <div className="credential-list">
                     {settings.providers.map((provider) => (
-                      <div className="mcp-server-row" key={provider.id}>
-                        <div>
-                          <strong>{provider.name}</strong>
-                          <span>
-                            {provider.id} ·{" "}
-                            {provider.api ?? "openai-completions"} ·{" "}
-                            {provider.baseUrl}
+                      <ManagementRow
+                        actions={
+                          <span className="mcp-server-actions">
+                            <Button
+                              disabled={busy}
+                              onClick={() => editProviderConnection(provider)}
+                              variant="quiet"
+                            >
+                              {t.edit}
+                            </Button>
+                            <Button
+                              disabled={busy}
+                              onClick={() => setProviderDeleteTarget(provider)}
+                              variant="danger"
+                            >
+                              {t.delete}
+                            </Button>
                           </span>
+                        }
+                        description={
                           <span>
-                            {provider.models
-                              .map((model) => model.name)
-                              .join(", ")}
+                            <span>
+                              {provider.id} ·{" "}
+                              {provider.api ?? "openai-completions"} ·{" "}
+                              {provider.baseUrl}
+                            </span>
+                            <span>
+                              {provider.models
+                                .map((model) => model.name)
+                                .join(", ")}
+                            </span>
                           </span>
-                        </div>
-                        <span className="mcp-server-actions">
-                          <button
-                            className="text-button"
-                            disabled={busy}
-                            onClick={() => editProviderConnection(provider)}
-                            type="button"
-                          >
-                            {t.edit}
-                          </button>
-                          <button
-                            className="text-button danger"
-                            disabled={busy}
-                            onClick={() =>
-                              void deleteProviderConnection(provider)
-                            }
-                            type="button"
-                          >
-                            {t.delete}
-                          </button>
-                        </span>
-                      </div>
+                        }
+                        key={provider.id}
+                        title={provider.name}
+                      />
                     ))}
                     {!settings.providers.length && (
-                      <span className="settings-empty">{t.noProviders}</span>
+                      <EmptyState
+                        className="settings-empty"
+                        title={t.noProviders}
+                      />
                     )}
                   </div>
-                </section>
+                </ManagementSection>
               )}
 
               {activeTab === "agents" && (
                 <>
-                  <section className="settings-section">
-                    <h3>{t.agentConcurrency}</h3>
-                    <p className="settings-security">
-                      {t.agentConcurrencyHint}
-                    </p>
-                    <div className="settings-field">
-                      <span>{t.concurrencyMode}</span>
-                      <div className="settings-codex-select">
-                        <CodexSelect<"auto" | "manual">
-                          ariaLabel={t.concurrencyMode}
-                          disabled={busy}
-                          onChange={(mode) =>
-                            void setAgentConcurrencyMode(mode)
-                          }
-                          options={[
-                            {
-                              value: "auto",
-                              label: t.concurrencyAutomatic,
-                            },
-                            {
-                              value: "manual",
-                              label: t.concurrencyManual,
-                            },
-                          ]}
-                          value={settings.agentConcurrency.preference.mode}
-                        />
-                      </div>
-                    </div>
+                  <ManagementSection
+                    className="settings-section"
+                    description={t.agentConcurrencyHint}
+                    title={t.agentConcurrency}
+                  >
+                    <Select<"auto" | "manual">
+                      label={t.concurrencyMode}
+                      disabled={busy}
+                      onValueChange={(mode) =>
+                        void setAgentConcurrencyMode(mode)
+                      }
+                      options={[
+                        {
+                          value: "auto",
+                          label: t.concurrencyAutomatic,
+                        },
+                        {
+                          value: "manual",
+                          label: t.concurrencyManual,
+                        },
+                      ]}
+                      value={settings.agentConcurrency.preference.mode}
+                    />
                     {settings.agentConcurrency.preference.mode === "manual" && (
-                      <label className="settings-field">
-                        <span>{t.concurrencyManualLimit}</span>
-                        <input
-                          aria-label={t.concurrencyManualLimit}
-                          disabled={busy}
-                          max={settings.agentConcurrency.hardLimit}
-                          min={2}
-                          onChange={(event) =>
-                            setAgentConcurrencyLimit(event.target.value)
-                          }
-                          step={1}
-                          type="number"
-                          value={agentConcurrencyLimit}
-                        />
-                      </label>
+                      <TextField
+                        className="settings-field"
+                        disabled={busy}
+                        label={t.concurrencyManualLimit}
+                        max={settings.agentConcurrency.hardLimit}
+                        min={2}
+                        onValueChange={setAgentConcurrencyLimit}
+                        step={1}
+                        type="number"
+                        value={agentConcurrencyLimit}
+                      />
                     )}
                     {settings.agentConcurrency.preference.mode === "manual" && (
-                      <button
-                        className="settings-primary-action"
+                      <Button
                         disabled={
                           busy ||
                           !agentConcurrencyLimitValid ||
@@ -1619,9 +1665,10 @@ export function SettingsPanel({
                             settings.agentConcurrency.configuredLimit
                         }
                         onClick={() => void applyAgentConcurrencyLimit()}
+                        variant="primary"
                       >
                         {t.concurrencyApply}
-                      </button>
+                      </Button>
                     )}
                     <dl className="agent-concurrency-status">
                       <div>
@@ -1653,7 +1700,7 @@ export function SettingsPanel({
                         <dd>{settings.agentConcurrency.waiting}</dd>
                       </div>
                     </dl>
-                    <p className="settings-security">
+                    <InlineNotice className="settings-security" tone="info">
                       {t.concurrencyHardware}:{" "}
                       {t.concurrencyHardwareValue
                         .replace(
@@ -1664,9 +1711,12 @@ export function SettingsPanel({
                           "{memory}",
                           String(settings.agentConcurrency.totalMemoryGiB),
                         )}
-                    </p>
+                    </InlineNotice>
                     {settings.agentConcurrency.throttled && (
-                      <p className="settings-security warning">
+                      <InlineNotice
+                        className="settings-security"
+                        tone="warning"
+                      >
                         {t.concurrencyThrottled.replace(
                           "{reasons}",
                           settings.agentConcurrency.pressureReasons
@@ -1679,55 +1729,54 @@ export function SettingsPanel({
                             )
                             .join(", "),
                         )}
-                      </p>
+                      </InlineNotice>
                     )}
                     {settings.agentConcurrency.preference.mode === "manual" &&
                       settings.agentConcurrency.configuredLimit >
                         settings.agentConcurrency.automaticSafeLimit && (
-                        <p className="settings-security warning">
+                        <InlineNotice
+                          className="settings-security"
+                          tone="warning"
+                        >
                           {t.concurrencyHighWarning}
-                        </p>
+                        </InlineNotice>
                       )}
-                  </section>
-                  <section className="settings-section">
-                    <h3>{t.globalAgents}</h3>
-                    <p className="settings-security">{t.globalAgentsHint}</p>
-                    <code className="settings-path">
-                      {settings.globalAgents.path}
-                    </code>
-                    <textarea
-                      aria-label={t.globalAgents}
-                      className="settings-textarea"
+                  </ManagementSection>
+                  <ManagementSection
+                    className="settings-section"
+                    description={t.globalAgentsHint}
+                    title={t.globalAgents}
+                  >
+                    <TextAreaField
                       disabled={busy}
-                      onChange={(event) =>
-                        setGlobalAgentsContent(event.target.value)
-                      }
+                      label={t.globalAgents}
+                      labelVisibility="hidden"
+                      onValueChange={setGlobalAgentsContent}
                       rows={10}
                       value={globalAgentsContent}
                     />
-                    <button
-                      className="settings-primary-action"
+                    <Button
                       disabled={
                         busy ||
                         globalAgentsContent === settings.globalAgents.content
                       }
                       onClick={() => void saveGlobalAgents()}
+                      variant="primary"
                     >
                       {t.saveGlobalAgents}
-                    </button>
-                  </section>
-                  <section className="settings-section">
-                    <h3>{t.configurationImport}</h3>
-                    <p className="settings-security">
-                      {t.configurationImportHint}
-                    </p>
-                    <button
-                      className="settings-secondary-action"
+                    </Button>
+                  </ManagementSection>
+                  <ManagementSection
+                    className="settings-section"
+                    description={t.configurationImportHint}
+                    title={t.configurationImport}
+                  >
+                    <Button
                       disabled={busy}
                       onClick={() => void scanConfigurationImports()}
                     >
                       {t.scanImports}
-                    </button>
+                    </Button>
                     {importPreview && (
                       <div className="configuration-import">
                         <div className="configuration-import-categories">
@@ -1738,198 +1787,168 @@ export function SettingsPanel({
                               ["mcp", t.importMcp],
                             ] as const
                           ).map(([category, label]) => (
-                            <label className="settings-checkbox" key={category}>
-                              <input
-                                checked={importCategories.includes(category)}
-                                disabled={busy}
-                                onChange={(event) =>
-                                  toggleImportCategory(
-                                    category,
-                                    event.target.checked,
-                                  )
-                                }
-                                type="checkbox"
-                              />
-                              <span>{label}</span>
-                            </label>
+                            <Checkbox
+                              checked={importCategories.includes(category)}
+                              disabled={busy}
+                              key={category}
+                              label={label}
+                              onCheckedChange={(checked) =>
+                                toggleImportCategory(category, checked)
+                              }
+                            />
                           ))}
                         </div>
-                        {importPreview.sources.map((source) => (
-                          <label
-                            className={`configuration-import-source ${
-                              source.detected ? "" : "unavailable"
-                            }`}
-                            key={source.source}
-                          >
-                            <input
-                              checked={importSources.includes(source.source)}
-                              disabled={busy || !source.detected}
-                              onChange={(event) =>
-                                toggleImportSource(
-                                  source.source,
-                                  event.target.checked,
-                                )
+                        {importPreview.sources.map((source) => {
+                          const sourceLabel =
+                            source.source === "claude"
+                              ? "Claude Code"
+                              : source.source === "opencode"
+                                ? "OpenCode"
+                                : "Codex";
+                          return (
+                            <ManagementRow
+                              actions={
+                                <Checkbox
+                                  checked={importSources.includes(
+                                    source.source,
+                                  )}
+                                  disabled={busy || !source.detected}
+                                  label={`${sourceLabel}: ${source.detected ? t.detected : t.notDetected}`}
+                                  labelVisibility="hidden"
+                                  onCheckedChange={(checked) =>
+                                    toggleImportSource(source.source, checked)
+                                  }
+                                />
                               }
-                              type="checkbox"
+                              className="configuration-import-source"
+                              description={`${source.detected ? t.detected : t.notDetected} · ${t.importInstructions} ${source.counts.instructions} · ${t.importSkills} ${source.counts.skills} · ${t.importMcp} ${source.counts.mcp}`}
+                              key={source.source}
+                              state={source.detected ? "ready" : "disabled"}
+                              title={sourceLabel}
                             />
-                            <span>
-                              <strong>
-                                {source.source === "claude"
-                                  ? "Claude Code"
-                                  : source.source === "opencode"
-                                    ? "OpenCode"
-                                    : "Codex"}
-                              </strong>
-                              <small>
-                                {source.detected ? t.detected : t.notDetected} ·{" "}
-                                {t.importInstructions}{" "}
-                                {source.counts.instructions} · {t.importSkills}{" "}
-                                {source.counts.skills} · {t.importMcp}{" "}
-                                {source.counts.mcp}
-                              </small>
-                              {source.paths.map((path) => (
-                                <code key={path}>{path}</code>
-                              ))}
-                              {source.warnings.map((warning) => (
-                                <small className="error" key={warning}>
-                                  {warning}
-                                </small>
-                              ))}
-                            </span>
-                          </label>
-                        ))}
-                        <button
-                          className="settings-primary-action"
+                          );
+                        })}
+                        <Button
                           disabled={
                             busy ||
                             importSources.length === 0 ||
                             importCategories.length === 0
                           }
                           onClick={() => void importConfiguration()}
+                          variant="primary"
                         >
                           {t.applyImports}
-                        </button>
+                        </Button>
                       </div>
                     )}
-                  </section>
+                  </ManagementSection>
                 </>
               )}
 
               {activeTab === "capabilities" && (
                 <>
-                  <section className="settings-section">
-                    <h3>{t.shellRuntime}</h3>
+                  <ManagementSection
+                    className="settings-section"
+                    description={t.shellRuntimeHint}
+                    title={t.shellRuntime}
+                  >
                     {settings.platform === "win32" && (
-                      <div className="settings-field">
-                        <span>{t.windowsShell}</span>
-                        <div className="settings-codex-select">
-                          <CodexSelect<WindowsShellPreference>
-                            ariaLabel={t.windowsShell}
-                            disabled={busy}
-                            onChange={(windowsPreference) =>
-                              void setShellRuntimeConfiguration({
-                                windowsPreference,
-                              })
-                            }
-                            options={[
-                              {
-                                value: "auto",
-                                label: t.windowsShellAuto,
-                              },
-                              {
-                                value: "powershell7",
-                                label: t.windowsShellPowerShell7,
-                              },
-                              {
-                                value: "windows-powershell",
-                                label: t.windowsShellLegacy,
-                              },
-                            ]}
-                            value={settings.shell.windowsPreference}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <div className="settings-field">
-                      <span>{t.shellProfileMode}</span>
-                      <div className="settings-codex-select">
-                        <CodexSelect<ShellProfileMode>
-                          ariaLabel={t.shellProfileMode}
-                          disabled={busy}
-                          onChange={(profileMode) =>
-                            void setShellRuntimeConfiguration({ profileMode })
-                          }
-                          options={[
-                            {
-                              value: "environment",
-                              label: t.shellProfileEnvironment,
-                            },
-                            {
-                              value: "full",
-                              label: t.shellProfileFull,
-                            },
-                            {
-                              value: "disabled",
-                              label: t.shellProfileDisabled,
-                            },
-                          ]}
-                          value={settings.shell.profileMode}
-                        />
-                      </div>
-                    </div>
-                    <p className="settings-security">{t.shellRuntimeHint}</p>
-                  </section>
-
-                  <section className="settings-section">
-                    <h3>{t.capabilityAccess}</h3>
-                    <label className="settings-checkbox">
-                      <input
-                        checked={settings.localFullAccess}
+                      <Select<WindowsShellPreference>
+                        label={t.windowsShell}
                         disabled={busy}
-                        onChange={(event) =>
-                          void run(async () => {
-                            const updated =
-                              await window.artemis.setLocalFullAccess(
-                                event.target.checked,
-                              );
-                            setSettings(updated);
-                            onSettingsChange(updated);
+                        onValueChange={(windowsPreference) =>
+                          void setShellRuntimeConfiguration({
+                            windowsPreference,
                           })
                         }
-                        role="switch"
-                        type="checkbox"
+                        options={[
+                          {
+                            value: "auto",
+                            label: t.windowsShellAuto,
+                          },
+                          {
+                            value: "powershell7",
+                            label: t.windowsShellPowerShell7,
+                          },
+                          {
+                            value: "windows-powershell",
+                            label: t.windowsShellLegacy,
+                          },
+                        ]}
+                        value={settings.shell.windowsPreference}
                       />
-                      <span>{t.localFullAccess}</span>
-                    </label>
-                    <p className="settings-security">
-                      {t.localFullAccessDetail}
-                    </p>
-                  </section>
+                    )}
+                    <Select<ShellProfileMode>
+                      label={t.shellProfileMode}
+                      disabled={busy}
+                      onValueChange={(profileMode) =>
+                        void setShellRuntimeConfiguration({ profileMode })
+                      }
+                      options={[
+                        {
+                          value: "environment",
+                          label: t.shellProfileEnvironment,
+                        },
+                        {
+                          value: "full",
+                          label: t.shellProfileFull,
+                        },
+                        {
+                          value: "disabled",
+                          label: t.shellProfileDisabled,
+                        },
+                      ]}
+                      value={settings.shell.profileMode}
+                    />
+                  </ManagementSection>
+
+                  <ManagementSection
+                    className="settings-section"
+                    description={t.localFullAccessDetail}
+                    title={t.capabilityAccess}
+                    tone="warning"
+                  >
+                    <Switch
+                      checked={settings.localFullAccess}
+                      disabled={busy}
+                      label={t.localFullAccess}
+                      onCheckedChange={(checked) =>
+                        void run(async () => {
+                          const updated =
+                            await window.artemis.setLocalFullAccess(checked);
+                          setSettings(updated);
+                          onSettingsChange(updated);
+                        })
+                      }
+                    />
+                  </ManagementSection>
                 </>
               )}
 
               {activeTab === "maintenance" && (
                 <>
-                  <section className="settings-section">
-                    <h3>{t.diagnostics}</h3>
-                    <p className="settings-security">{t.diagnosticsHint}</p>
-                    <button
-                      className="settings-secondary-action"
+                  <ManagementSection
+                    className="settings-section"
+                    description={t.diagnosticsHint}
+                    title={t.diagnostics}
+                  >
+                    <Button
                       disabled={busy}
                       onClick={() =>
                         void run(async () => {
                           const path = await window.artemis.exportDiagnostics();
-                          if (path)
-                            setMessage(`${t.diagnosticsExported} ${path}`);
+                          if (path) setMessage(t.diagnosticsExported);
                         })
                       }
                     >
                       {t.exportDiagnostics}
-                    </button>
-                  </section>
-                  <section className="settings-section">
-                    <h3>{t.updates}</h3>
-                    <p className="settings-security">
+                    </Button>
+                  </ManagementSection>
+                  <ManagementSection
+                    className="settings-section"
+                    title={t.updates}
+                  >
+                    <InlineNotice className="settings-security" tone="info">
                       {settings.update.currentVersion} · {settings.update.state}
                       {settings.update.availableVersion
                         ? ` → ${settings.update.availableVersion}`
@@ -1937,16 +1956,22 @@ export function SettingsPanel({
                       {settings.update.progress === undefined
                         ? ""
                         : ` · ${Math.round(settings.update.progress)}%`}
-                    </p>
+                    </InlineNotice>
                     {settings.update.rollbackAvailable && (
-                      <p className="settings-security">{t.rollbackReady}</p>
+                      <InlineNotice
+                        className="settings-security"
+                        tone="success"
+                      >
+                        {t.rollbackReady}
+                      </InlineNotice>
                     )}
                     {settings.update.message && (
-                      <span className="error">{settings.update.message}</span>
+                      <InlineNotice tone="danger">
+                        {settings.update.message}
+                      </InlineNotice>
                     )}
                     <span>
-                      <button
-                        className="settings-secondary-action"
+                      <Button
                         disabled={
                           busy ||
                           settings.update.state === "disabled" ||
@@ -1964,31 +1989,40 @@ export function SettingsPanel({
                         }
                       >
                         {t.checkUpdates}
-                      </button>
+                      </Button>
                       {settings.update.state === "downloaded" && (
-                        <button
+                        <Button
                           disabled={busy}
                           onClick={() =>
                             void run(() => window.artemis.installUpdate())
                           }
                         >
                           {t.installUpdate}
-                        </button>
+                        </Button>
                       )}
                     </span>
-                  </section>
+                  </ManagementSection>
                 </>
               )}
-              {message && <div className="settings-message">{message}</div>}
+              {message && (
+                <InlineNotice className="settings-message" tone="info">
+                  {message}
+                </InlineNotice>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </SettingsSurface>
       </Dialog>
 
       {modelApplyResult && (
-        <Dialog
+        <ConfirmationDialog
+          actions={
+            <Button onClick={() => setModelApplyResult(undefined)}>
+              {t.confirm}
+            </Button>
+          }
           className="model-apply-dialog"
-          data-kind={modelApplyResult.kind}
+          description={modelApplyResult.detail}
           label={
             modelApplyResult.kind === "success"
               ? t.modelSaved
@@ -1998,82 +2032,110 @@ export function SettingsPanel({
             if (!open) setModelApplyResult(undefined);
           }}
           open
-        >
-          <span aria-hidden="true" className="model-apply-result-icon">
-            {modelApplyResult.kind === "success" ? "✓" : "!"}
-          </span>
-          <strong>
-            {modelApplyResult.kind === "success"
+          title={
+            modelApplyResult.kind === "success"
               ? t.modelSaved
-              : t.modelSaveFailed}
-          </strong>
-          <p>{modelApplyResult.detail}</p>
-          <button onClick={() => setModelApplyResult(undefined)}>
-            {t.confirm}
-          </button>
-        </Dialog>
+              : t.modelSaveFailed
+          }
+          tone={modelApplyResult.kind === "success" ? "success" : "danger"}
+        />
       )}
       {modelDeleteTarget && settings && (
-        <Dialog
-          aria-labelledby="model-delete-title"
+        <ConfirmationDialog
+          actions={
+            <>
+              <Button
+                disabled={busy}
+                onClick={() => setModelDeleteTarget(undefined)}
+              >
+                {t.cancelEdit}
+              </Button>
+              <Button
+                loading={busy}
+                onClick={() => void removeModel()}
+                variant="danger"
+              >
+                {t.delete}
+              </Button>
+            </>
+          }
           className="model-delete-dialog"
-          closeOnBackdrop={!busy}
-          closeOnEscape={!busy}
+          description={
+            <>
+              <p>
+                {t.removeModelConfirm.replace(
+                  "{model}",
+                  models.find(
+                    (model) =>
+                      model.providerId === modelDeleteTarget.providerId &&
+                      model.modelId === modelDeleteTarget.modelId,
+                  )?.name ?? modelDeleteTarget.modelId,
+                )}
+              </p>
+              {!settings.providers.some(
+                (provider) => provider.id === modelDeleteTarget.providerId,
+              ) &&
+                settings.addedModels.filter(
+                  (model) => model.providerId === modelDeleteTarget.providerId,
+                ).length === 1 &&
+                settings.credentials.some(
+                  (credential) =>
+                    credential.providerId === modelDeleteTarget.providerId,
+                ) && (
+                  <InlineNotice tone="warning">
+                    {t.removeModelCredentialConfirm.replace(
+                      "{provider}",
+                      modelDeleteTarget.providerId,
+                    )}
+                  </InlineNotice>
+                )}
+              {message && <InlineNotice tone="danger">{message}</InlineNotice>}
+            </>
+          }
+          disabled={busy}
           label={t.removeModel}
           onOpenChange={(open) => {
             if (!open && !busy) setModelDeleteTarget(undefined);
           }}
           open
-          role="alertdialog"
-        >
-          <strong id="model-delete-title">{t.removeModel}</strong>
-          <p>
-            {t.removeModelConfirm.replace(
-              "{model}",
-              models.find(
-                (model) =>
-                  model.providerId === modelDeleteTarget.providerId &&
-                  model.modelId === modelDeleteTarget.modelId,
-              )?.name ?? modelDeleteTarget.modelId,
-            )}
-          </p>
-          {!settings.providers.some(
-            (provider) => provider.id === modelDeleteTarget.providerId,
-          ) &&
-            settings.addedModels.filter(
-              (model) => model.providerId === modelDeleteTarget.providerId,
-            ).length === 1 &&
-            settings.credentials.some(
-              (credential) =>
-                credential.providerId === modelDeleteTarget.providerId,
-            ) && (
-              <p className="warning">
-                {t.removeModelCredentialConfirm.replace(
-                  "{provider}",
-                  modelDeleteTarget.providerId,
-                )}
-              </p>
-            )}
-          {message && <span className="error">{message}</span>}
-          <div className="model-delete-dialog-actions">
-            <button
-              className="secondary-button"
-              disabled={busy}
-              onClick={() => setModelDeleteTarget(undefined)}
-              type="button"
-            >
-              {t.cancelEdit}
-            </button>
-            <button
-              className="primary-button danger"
-              disabled={busy}
-              onClick={() => void removeModel()}
-              type="button"
-            >
-              {t.delete}
-            </button>
-          </div>
-        </Dialog>
+          title={t.removeModel}
+          tone="danger"
+        />
+      )}
+      {providerDeleteTarget && (
+        <ConfirmationDialog
+          actions={
+            <>
+              <Button
+                disabled={busy}
+                onClick={() => setProviderDeleteTarget(undefined)}
+              >
+                {t.cancelEdit}
+              </Button>
+              <Button
+                loading={busy}
+                onClick={() =>
+                  void deleteProviderConnection(providerDeleteTarget)
+                }
+                variant="danger"
+              >
+                {t.delete}
+              </Button>
+            </>
+          }
+          description={t.deleteProviderConfirm.replace(
+            "{provider}",
+            providerDeleteTarget.name,
+          )}
+          disabled={busy}
+          label={t.delete}
+          onOpenChange={(open) => {
+            if (!open && !busy) setProviderDeleteTarget(undefined);
+          }}
+          open
+          title={providerDeleteTarget.name}
+          tone="danger"
+        />
       )}
     </>
   );
