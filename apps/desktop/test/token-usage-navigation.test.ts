@@ -26,6 +26,16 @@ const tokenUsageHeatmapSource = (() => {
     return "";
   }
 })();
+const publicDataSource = readFileSync(
+  fileURLToPath(new URL("../../../packages/ui/src/data.tsx", import.meta.url)),
+  "utf8",
+);
+const publicUiStylesSource = readFileSync(
+  fileURLToPath(
+    new URL("../../../packages/ui/src/styles.css", import.meta.url),
+  ),
+  "utf8",
+);
 const stylesSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/styles.css", import.meta.url)),
   "utf8",
@@ -148,29 +158,21 @@ describe("token usage navigation", () => {
   });
 
   it("shows the same cell tooltip from pointer hover and keyboard focus", () => {
-    // D#76 PR9B §2.7 anchor migration: identical assertions, retargeted from
-    // TokenUsagePage.tsx to TokenUsageHeatmap.tsx. The only textual change is
-    // setHovered(cell) -> onHoveredChange(cell), because the extracted
-    // component reports hover through a controlled callback while the page
-    // keeps resetting it on view/model changes.
-    const cellClass = tokenUsageHeatmapSource.indexOf(
-      "className={`token-usage-cell",
+    expect(tokenUsageHeatmapSource).toContain("<DataHeatmap");
+    expect(tokenUsageHeatmapSource).toContain(
+      "onActiveCellChange={(cellId) =>",
     );
-    const cellStart = tokenUsageHeatmapSource.lastIndexOf("<button", cellClass);
-    const cellEnd =
-      tokenUsageHeatmapSource.indexOf("</button>", cellClass) +
-      "</button>".length;
-    const cellSource = tokenUsageHeatmapSource.slice(cellStart, cellEnd);
-
-    expect(cellClass).toBeGreaterThan(-1);
-    expect(cellStart).toBeGreaterThan(-1);
-    expect(cellEnd).toBeGreaterThan(cellStart);
-    expect(cellSource).toContain("onMouseEnter={() => onHoveredChange(cell)}");
-    expect(cellSource).toContain("onFocus={() => onHoveredChange(cell)}");
-    expect(cellSource).toContain("hovered?.date === cell.date");
-    expect(cellSource).toContain('role="tooltip"');
+    expect(publicDataSource).toContain("onMouseEnter={() => {");
+    expect(publicDataSource).toContain("onFocus={() => {");
+    expect(publicDataSource).toContain(
+      "if (!disabled) onActiveCellChange(cell.id);",
+    );
+    expect(publicDataSource).toContain('role="tooltip"');
+    expect(publicUiStylesSource).toMatch(
+      /\[data-artemis-component="data-heatmap"\][\s\S]*?\[data-part="cell"\]:is\(:hover, :focus-visible\)\s*\{(?=[^}]*\btransform:\s*scale\(1\.08\))(?=[^}]*\bz-index:\s*1)[^}]*\}/u,
+    );
     expect(stylesSource).toMatch(
-      /\.token-usage-cell:hover,\s*\.token-usage-cell:focus-visible\s*\{(?=[^}]*\btransform:\s*scale\(1\.08\))(?=[^}]*\bz-index:\s*1)[^}]*\}/u,
+      /\.token-usage-activity\s*\{(?=[^}]*\binline-size:\s*100%;)(?=[^}]*\bmin-inline-size:\s*0;)[^}]*\}/u,
     );
   });
 });

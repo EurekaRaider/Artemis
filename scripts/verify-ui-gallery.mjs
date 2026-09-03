@@ -633,6 +633,63 @@ for (const [selector, declarations] of MIG5A_GALLERY_SCAFFOLD_RULES) {
   }
   GALLERY_SCAFFOLD_RULES.set(selector, declarations);
 }
+const MIG5B_GALLERY_SCAFFOLD_RULES = [
+  [
+    ".gallery-data-grid",
+    [
+      ["display", "grid"],
+      [
+        "grid-template-columns",
+        "repeat(auto-fit, minmax(min(100%, 24rem), 1fr))",
+      ],
+      ["gap", "var(--artemis-space-4)"],
+    ],
+  ],
+  [
+    ".gallery-data-grid > div, .gallery-data-surface",
+    [["min-inline-size", "0"]],
+  ],
+  [
+    '.gallery-data-surface, .gallery-data-grid [data-gallery-data-case="state-matrix"] [data-artemis-component="data-surface"]',
+    [
+      ["gap", "var(--artemis-space-4)"],
+      ["padding", "var(--artemis-space-4)"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-panel)"],
+    ],
+  ],
+  [
+    ".gallery-data-stats",
+    [
+      ["display", "grid"],
+      ["grid-template-columns", "repeat(3, minmax(0, 1fr))"],
+      ["padding-block", "var(--artemis-space-4)"],
+      [
+        "border-block",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
+      ],
+    ],
+  ],
+  [
+    '.gallery-data-stats > [data-artemis-component="data-stat"] + [data-artemis-component="data-stat"]',
+    [
+      [
+        "border-inline-start",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
+      ],
+    ],
+  ],
+  [".gallery-data-scroll", [["overflow-x", "auto"]]],
+];
+for (const [selector, declarations] of MIG5B_GALLERY_SCAFFOLD_RULES) {
+  if (GALLERY_SCAFFOLD_RULES.has(selector)) {
+    throw new Error(`MIG5B Gallery scaffold duplicates ${selector}`);
+  }
+  GALLERY_SCAFFOLD_RULES.set(selector, declarations);
+}
 const GALLERY_REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const GALLERY_REDUCED_MOTION_SIGNATURE = JSON.stringify([
   ["rule", ".gallery-motion-swatch", [["decl", "transition", "none", null]]],
@@ -671,6 +728,10 @@ const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-conversation-grid",
   "gallery-conversation-rtl",
   "gallery-conversation-sample",
+  "gallery-data-grid",
+  "gallery-data-scroll",
+  "gallery-data-stats",
+  "gallery-data-surface",
   "gallery-form-grid",
   "gallery-feedback-grid",
   "gallery-motion-sample",
@@ -716,6 +777,8 @@ const PRIVATE_GALLERY_ATTRIBUTES = new Set([
   "data-gallery-active-skin",
   "data-gallery-active-theme",
   "data-gallery-event-order",
+  "data-gallery-data-case",
+  "data-gallery-data-event-count",
   "data-gallery-management-case",
   "data-gallery-stress-skin",
   "data-gallery-token",
@@ -1511,6 +1574,7 @@ for (const marker of [
   "data-gallery-active-theme",
   "data-gallery-active-contrast",
   "data-gallery-management-case",
+  "data-gallery-data-case",
   "data-gallery-token-provenance",
   "--artemis-color-canvas",
   "data-artemis-skin",

@@ -263,7 +263,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     [".catalog-tabs svg", 16, true],
     [".catalog-card-icon svg", 19, true],
     [".archive-header-icon svg", 23, true],
-    [".archive-empty-icon svg", 23, true],
+    ['.archive-empty [data-part="icon"] svg', 23, true],
   ];
 
   it.each(UNMIGRATED_RULES)(

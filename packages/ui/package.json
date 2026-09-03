@@ -1,6 +1,6 @@
 {
   "name": "@artemis/ui",
-  "version": "1.4.57",
+  "version": "1.4.58",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -17,6 +17,10 @@
     "./conversation": {
       "types": "./dist/conversation.d.ts",
       "import": "./dist/conversation.js"
+    },
+    "./data": {
+      "types": "./dist/data.d.ts",
+      "import": "./dist/data.js"
     },
     "./actions": {
       "types": "./dist/actions.d.ts",

@@ -1,6 +1,6 @@
 {
   "name": "artemis",
-  "version": "1.4.57",
+  "version": "1.4.58",
   "private": true,
   "description": "A local-first cross-platform desktop coding agent powered by Pi.",
   "type": "module",
@@ -50,6 +50,7 @@
     "verify:desktop-skin": "npm run build:core && npm run verify:desktop-skin -w @artemis/desktop",
     "verify:form-controls": "npm run build:core && npm run build -w @artemis/desktop && node apps/desktop/scripts/verify-form-controls.mjs",
     "verify:navigation-controls": "npm run build:core && npm run build -w @artemis/desktop && node apps/desktop/scripts/verify-navigation-controls.mjs",
+    "verify:secondary-pages": "npm run build:core && npm run build -w @artemis/desktop && node apps/desktop/scripts/verify-secondary-pages.mjs",
     "verify:feedback-layout": "npm run build:core && npm run build -w @artemis/desktop && node apps/desktop/scripts/verify-feedback-layout.mjs",
     "verify:conversation-timeline": "npm run build:core && npm run build -w @artemis/desktop && node apps/desktop/scripts/verify-conversation-timeline.mjs",
     "verify:ui-boundaries": "node scripts/verify-ui-boundaries.mjs && node scripts/test-ui-boundaries.mjs",

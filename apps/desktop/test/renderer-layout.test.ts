@@ -586,7 +586,8 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("<ArchivePage");
     expect(appSource).toContain('activeView === "archive"');
     expect(appSource).toContain("setThreadArchived(thread, false)");
-    expect(archivePageSource).toContain('className="archive-panel"');
+    expect(archivePageSource).toContain("<DataSurface");
+    expect(archivePageSource).toContain('from "@artemis/ui/data"');
     expect(archivePageSource).toContain('className="archive-header"');
     expect(archivePageSource).toContain('className="archive-toolbar"');
     expect(archivePageSource).toContain('className="archive-search"');
@@ -599,9 +600,12 @@ describe("renderer layout contract", () => {
     expect(archivePageSource).not.toContain('className="library-hero"');
     expect(cssRule(".archive-page")).toContain("overflow: hidden");
     expect(cssRule(".archive-page")).not.toContain("justify-content: center");
-    expect(cssRule(".archive-panel")).toContain("background: transparent");
-    expect(cssRule(".archive-panel")).toContain("flex: 1");
-    expect(cssRule(".archive-panel")).not.toContain("border-radius");
+    expect(cssRule('.archive-page > [data-part="content"]')).toContain(
+      "overflow-y: auto",
+    );
+    expect(publicUiStylesSource).toContain(
+      '[data-artemis-component="data-surface"]',
+    );
     expect(cssRule(".archive-results")).not.toContain("border:");
     expect(cssRule(".archive-empty")).not.toContain("border: 1px dashed");
   });

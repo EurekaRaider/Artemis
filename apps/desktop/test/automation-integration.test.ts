@@ -13,6 +13,10 @@ const page = readFileSync(
   "utf8",
 );
 const styles = readFileSync(join(root, "src/renderer/styles.css"), "utf8");
+const publicFeedback = readFileSync(
+  join(root, "../../packages/ui/src/feedback.tsx"),
+  "utf8",
+);
 
 describe("automation desktop integration", () => {
   it("exposes CRUD, run, authorization, and event APIs through isolated IPC", () => {
@@ -59,8 +63,10 @@ describe("automation desktop integration", () => {
     expect(app).toContain('automations: "Automations"');
     expect(app).toContain('automations: "定时任务"');
     expect(app).toContain("<AutomationPage");
-    expect(page).toContain('aria-modal="true"');
-    expect(page).toContain('role="dialog"');
+    expect(page).toContain("<Dialog");
+    expect(page).toContain('className="automation-dialog-shell"');
+    expect(publicFeedback).toContain('aria-modal="true"');
+    expect(publicFeedback).toContain("role={role}");
     expect(page).toContain("onAutomationEvent");
     expect(styles).toContain(".automation-page");
   });
@@ -79,17 +85,10 @@ describe("automation desktop integration", () => {
   });
 
   it("gives the header create action a decorative icon and interaction states", () => {
-    const createButton =
-      page.match(
-        /<header className="automation-header">[\s\S]*?(<button[\s\S]*?\{t\.create\}[\s\S]*?<\/button>)[\s\S]*?<\/header>/u,
-      )?.[1] ?? "";
-
-    expect(createButton).toMatch(
-      /<button(?=[^>]*\bclassName="[^"]*\bautomation-create-button\b[^"]*")[^>]*>/u,
-    );
-    expect(createButton).toMatch(
-      /<svg(?=[^>]*\bclassName="automation-create-icon")(?=[^>]*\baria-hidden="true")[^>]*>[\s\S]*?<\/svg>/u,
-    );
+    expect(page).toContain("<ManagementHeader");
+    expect(page).toContain('className="automation-create-button"');
+    expect(page).toContain('className="automation-create-icon"');
+    expect(page).toContain('variant="primary"');
     expect(styles).toMatch(
       /\.automation-create-button:hover:not\(:disabled\)\s*\{\s*[^}]+\}/u,
     );

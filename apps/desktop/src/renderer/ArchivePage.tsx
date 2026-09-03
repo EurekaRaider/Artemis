@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import type { AppLocale, Project, Thread } from "@artemis/protocol";
+import { Button, Icon } from "@artemis/ui/actions";
+import { DataSurface } from "@artemis/ui/data";
+import { EmptyState } from "@artemis/ui/feedback";
 import { SearchField } from "@artemis/ui/forms";
+import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
 
 import {
   promptWithoutSelectedSkills,
@@ -117,119 +121,106 @@ export function ArchivePage({
   ).replace("{count}", formattedResultCount);
 
   return (
-    <div className="archive-page">
-      <section aria-labelledby="archive-page-title" className="archive-panel">
-        <header className="archive-header">
-          <span className="archive-header-icon">
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path d="M4 7.5h16v11H4zM3.5 4.5h17v3h-17zM9 11h6" />
-            </svg>
-          </span>
-          <div className="archive-heading">
-            <h1 id="archive-page-title">{t.archiveTitle}</h1>
-            <p>{t.archiveDescription}</p>
+    <DataSurface
+      className="archive-page"
+      header={
+        <ManagementHeader
+          className="archive-header"
+          description={t.archiveDescription}
+          leading={
+            <Icon className="archive-header-icon">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 7.5h16v11H4zM3.5 4.5h17v3h-17zM9 11h6" />
+              </svg>
+            </Icon>
+          }
+          title={t.archiveTitle}
+        />
+      }
+      label={t.archiveTitle}
+      state={results.length === 0 ? "empty" : "ready"}
+    >
+      <div className="archive-content">
+        <div className="archive-toolbar">
+          <div className="archive-summary">
+            <h2>{t.archiveSectionTitle}</h2>
+            <p aria-live="polite">{resultCount}</p>
           </div>
-        </header>
-
-        <div className="archive-content">
-          <div className="archive-toolbar">
-            <div className="archive-summary">
-              <h2>{t.archiveSectionTitle}</h2>
-              <p aria-live="polite">{resultCount}</p>
-            </div>
-            <SearchField
-              className="archive-search"
-              label={t.archiveSearch}
-              onValueChange={setQuery}
-              placeholder={t.archiveSearch}
-              value={query}
-            />
-          </div>
-
-          <div className="archive-results">
-            {results.map((thread) => (
-              <article className="archive-card" key={thread.id}>
-                <div className="archive-card-copy">
-                  <div className="archive-card-heading">
-                    <span className="archive-project">
-                      {thread.projectId
-                        ? (projectNames.get(thread.projectId) ?? "Artemis")
-                        : t.archiveTemporary}
-                    </span>
-                    <time dateTime={thread.updatedAt}>
-                      {new Intl.DateTimeFormat(locale, {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      }).format(new Date(thread.updatedAt))}
-                    </time>
-                  </div>
-                  <h2>{visibleThreadTitle(thread.title)}</h2>
-                  {thread.goal && (
-                    <p className="archive-goal">
-                      <strong>{t.archiveGoal}</strong>
-                      <span>{thread.goal.objective}</span>
-                    </p>
-                  )}
-                </div>
-                <div className="archive-card-actions">
-                  <button
-                    className="archive-primary"
-                    onClick={() => onOpen(thread)}
-                    type="button"
-                  >
-                    {t.archiveOpen}
-                  </button>
-                  <button
-                    className="archive-secondary"
-                    onClick={() => onRestore(thread)}
-                    type="button"
-                  >
-                    {t.archiveRestore}
-                  </button>
-                  <button
-                    className="archive-secondary danger"
-                    onClick={() => onDelete(thread)}
-                    type="button"
-                  >
-                    {t.archiveDelete}
-                  </button>
-                </div>
-              </article>
-            ))}
-            {results.length === 0 && (
-              <div className="archive-empty">
-                <span className="archive-empty-icon">
-                  <svg aria-hidden="true" viewBox="0 0 24 24">
-                    <path d="M4 7.5h16v11H4zM3.5 4.5h17v3h-17zM9 11h6" />
-                  </svg>
-                </span>
-                <div className="archive-empty-copy">
-                  <h2>
-                    {isSearching
-                      ? t.archiveNoResultsTitle
-                      : t.archiveEmptyTitle}
-                  </h2>
-                  <p>
-                    {isSearching
-                      ? t.archiveNoResultsDescription
-                      : t.archiveEmptyDescription}
-                  </p>
-                </div>
-                {isSearching ? (
-                  <button
-                    className="archive-clear-search"
-                    onClick={() => setQuery("")}
-                    type="button"
-                  >
-                    {t.archiveClearSearch}
-                  </button>
-                ) : null}
-              </div>
-            )}
-          </div>
+          <SearchField
+            className="archive-search"
+            label={t.archiveSearch}
+            onValueChange={setQuery}
+            placeholder={t.archiveSearch}
+            value={query}
+          />
         </div>
-      </section>
-    </div>
+
+        <div className="archive-results">
+          {results.map((thread) => (
+            <ManagementCard className="archive-card" key={thread.id}>
+              <div className="archive-card-copy">
+                <div className="archive-card-heading">
+                  <span className="archive-project">
+                    {thread.projectId
+                      ? (projectNames.get(thread.projectId) ?? "Artemis")
+                      : t.archiveTemporary}
+                  </span>
+                  <time dateTime={thread.updatedAt}>
+                    {new Intl.DateTimeFormat(locale, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    }).format(new Date(thread.updatedAt))}
+                  </time>
+                </div>
+                <h2>{visibleThreadTitle(thread.title)}</h2>
+                {thread.goal && (
+                  <p className="archive-goal">
+                    <strong>{t.archiveGoal}</strong>
+                    <span>{thread.goal.objective}</span>
+                  </p>
+                )}
+              </div>
+              <div className="archive-card-actions">
+                <Button onClick={() => onOpen(thread)} variant="primary">
+                  {t.archiveOpen}
+                </Button>
+                <Button onClick={() => onRestore(thread)}>
+                  {t.archiveRestore}
+                </Button>
+                <Button onClick={() => onDelete(thread)} variant="danger">
+                  {t.archiveDelete}
+                </Button>
+              </div>
+            </ManagementCard>
+          ))}
+          {results.length === 0 && (
+            <EmptyState
+              action={
+                isSearching ? (
+                  <Button onClick={() => setQuery("")}>
+                    {t.archiveClearSearch}
+                  </Button>
+                ) : undefined
+              }
+              className="archive-empty"
+              description={
+                isSearching
+                  ? t.archiveNoResultsDescription
+                  : t.archiveEmptyDescription
+              }
+              icon={
+                <svg viewBox="0 0 24 24">
+                  <path d="M4 7.5h16v11H4zM3.5 4.5h17v3h-17zM9 11h6" />
+                </svg>
+              }
+              title={
+                isSearching ? t.archiveNoResultsTitle : t.archiveEmptyTitle
+              }
+            />
+          )}
+        </div>
+      </div>
+    </DataSurface>
   );
 }

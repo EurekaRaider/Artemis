@@ -1,6 +1,6 @@
 {
   "name": "@artemis/theme-artemis",
-  "version": "1.4.57",
+  "version": "1.4.58",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -30,6 +30,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@artemis/theme-contract": "1.4.57"
+    "@artemis/theme-contract": "1.4.58"
   }
 }

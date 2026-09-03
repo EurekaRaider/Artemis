@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AgentEvent } from "@artemis/protocol";
+import { Button } from "@artemis/ui/actions";
+import { DataStat, DataSurface } from "@artemis/ui/data";
+import { EmptyState, ErrorState, LoadingState } from "@artemis/ui/feedback";
+import { Select } from "@artemis/ui/forms";
 import { Tabs } from "@artemis/ui/navigation";
 
 import {
@@ -19,7 +23,6 @@ import {
 import { legacyLocale } from "../shared/locales.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { userInitials } from "./user-profile.js";
-import { StatCard } from "./StatCard.js";
 import { TokenUsageHeatmap } from "./TokenUsageHeatmap.js";
 
 const TOKEN_USAGE_VIEWS = ["daily", "weekly", "cumulative"] as const;
@@ -279,10 +282,20 @@ export function TokenUsagePage({
       ? t.unattributedModel
       : `${model.providerId} · ${model.modelId}`;
 
+  const usageState = loadError
+    ? "error"
+    : loading
+      ? "loading"
+      : events.length === 0
+        ? "empty"
+        : "ready";
+
   return (
-    <section
-      aria-busy={loading}
+    <DataSurface
+      busy={loading}
       className={`token-usage-page${loading ? " is-loading" : ""}`}
+      label={t.title}
+      state={usageState}
     >
       <header className="token-usage-profile">
         <div aria-hidden="true" className="token-usage-avatar">
@@ -308,7 +321,7 @@ export function TokenUsagePage({
 
       <section className="token-usage-summary" aria-label={t.title}>
         {summary.map((item) => (
-          <StatCard key={item.label} label={item.label} value={item.value} />
+          <DataStat key={item.label} label={item.label} value={item.value} />
         ))}
       </section>
 
@@ -316,24 +329,24 @@ export function TokenUsagePage({
         <div className="token-usage-activity-header">
           <h2>{t.activity}</h2>
           <div className="token-usage-activity-controls">
-            <label className="token-usage-model-filter">
-              <span>{t.modelFilter}</span>
-              <select
-                aria-label={t.modelFilter}
-                onChange={(event) => {
-                  setSelectedModel(event.target.value);
-                  setHovered(undefined);
-                }}
-                value={selectedModel}
-              >
-                <option value={ALL_USAGE_MODELS}>{t.allModels}</option>
-                {usageByModel.map((model) => (
-                  <option key={model.key} value={model.key}>
-                    {modelLabel(model)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              className="token-usage-model-filter"
+              label={t.modelFilter}
+              labelVisibility="visible"
+              onValueChange={(model) => {
+                setSelectedModel(model);
+                setHovered(undefined);
+              }}
+              options={[
+                { label: t.allModels, value: ALL_USAGE_MODELS },
+                ...usageByModel.map((model) => ({
+                  label: modelLabel(model),
+                  value: model.key,
+                })),
+              ]}
+              size="compact"
+              value={selectedModel}
+            />
             <Tabs
               className="token-usage-tabs"
               label={t.activity}
@@ -375,17 +388,11 @@ export function TokenUsagePage({
           </div>
         ))}
         {loadError ? (
-          <p className="token-usage-empty error" role="alert">
-            {t.error}
-          </p>
+          <ErrorState className="token-usage-empty">{t.error}</ErrorState>
         ) : loading ? (
-          <p aria-live="polite" className="token-usage-empty" role="status">
-            {t.loading}
-          </p>
+          <LoadingState className="token-usage-empty" label={t.loading} />
         ) : events.length === 0 ? (
-          <p className="token-usage-empty" role="status">
-            {t.empty}
-          </p>
+          <EmptyState className="token-usage-empty" title={t.empty} />
         ) : null}
       </section>
 
@@ -411,16 +418,16 @@ export function TokenUsagePage({
                     key={model.key}
                   >
                     <td>
-                      <button
-                        aria-pressed={selectedModel === model.key}
+                      <Button
+                        selected={selectedModel === model.key}
                         onClick={() => {
                           setSelectedModel(model.key);
                           setHovered(undefined);
                         }}
-                        type="button"
+                        variant="quiet"
                       >
                         {modelLabel(model)}
-                      </button>
+                      </Button>
                     </td>
                     <td>{number.format(model.inputTokens)}</td>
                     <td>{number.format(model.outputTokens)}</td>
@@ -470,6 +477,6 @@ export function TokenUsagePage({
           </dl>
         </div>
       </section>
-    </section>
+    </DataSurface>
   );
 }

@@ -24,6 +24,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Temporal } from "@js-temporal/polyfill";
@@ -204,6 +205,11 @@ async function fillValidDraft() {
   );
 }
 
+async function chooseAutomationOption(label: string, option: string) {
+  await userEvent.click(screen.getByLabelText(label));
+  await userEvent.click(screen.getByRole("option", { name: option }));
+}
+
 async function renderSettingsPanel(
   snapshot: SettingsSnapshot,
   initialTab:
@@ -228,24 +234,82 @@ async function renderSettingsPanel(
 const avatarInput = () =>
   screen.getByLabelText("Choose image") as HTMLInputElement;
 
+describe("automation project select compatibility", () => {
+  it("keeps duplicate and reserved project names perceptibly distinct", async () => {
+    const projects: Project[] = [
+      { ...syntheticProject, id: "one", name: "Shared", path: "/tmp/one" },
+      { ...syntheticProject, id: "two", name: "Shared", path: "/tmp/two" },
+      {
+        ...syntheticProject,
+        id: "reserved",
+        name: "All projects",
+        path: "/tmp/reserved",
+      },
+    ];
+    stubAutomationApi();
+    render(
+      <AutomationPage
+        locale="en"
+        projects={projects}
+        onConfirm={() => Promise.resolve(true)}
+        onOpenThread={() => {}}
+      />,
+    );
+    await act(async () => {});
+
+    await userEvent.click(screen.getByLabelText("Project"));
+    const labels = screen
+      .getAllByRole("option")
+      .map((option) => (option.textContent ?? "").replace(/^✓/u, ""));
+    expect(labels).toEqual([
+      "All projects",
+      "Shared — /tmp/one",
+      "Shared — /tmp/two",
+      "All projects — /tmp/reserved",
+    ]);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("keeps a partial automation editable when its project is unavailable", async () => {
+    const unavailable = {
+      ...savedAutomation(),
+      projectId: "unavailable-project",
+    };
+    stubAutomationApi({
+      listAutomations: () => Promise.resolve([unavailable]),
+    });
+    render(
+      <AutomationPage
+        locale="en"
+        projects={[syntheticProject]}
+        onConfirm={() => Promise.resolve(true)}
+        onOpenThread={() => {}}
+      />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = screen.getByRole("dialog");
+    const project = within(dialog).getByLabelText("Project");
+    expect(project).toBeDisabled();
+    expect(project).toHaveTextContent("Unavailable project");
+  });
+});
+
 describe("date field contract (AutomationPage once schedule, §5 date-合同)", () => {
   it("renders the date input only when the schedule preset is once", async () => {
     stubAutomationApi();
     await openAutomationDraftDialog();
     expect(screen.queryByLabelText("Date")).toBeNull();
-    await userEvent.selectOptions(screen.getByLabelText("Schedule"), "once");
+    await chooseAutomationOption("Schedule", "Once");
     expect(screen.getByLabelText("Date")).toBeInTheDocument();
-    await userEvent.selectOptions(
-      screen.getByLabelText("Schedule"),
-      "Every day",
-    );
+    await chooseAutomationOption("Schedule", "Every day");
     expect(screen.queryByLabelText("Date")).toBeNull();
   });
 
   it("names the date input through its implicit label and marks it required", async () => {
     stubAutomationApi();
     await openAutomationDraftDialog();
-    await userEvent.selectOptions(screen.getByLabelText("Schedule"), "once");
+    await chooseAutomationOption("Schedule", "Once");
     const date = screen.getByLabelText("Date") as HTMLInputElement;
     expect(date.type).toBe("date");
     expect(date.required).toBe(true);
@@ -257,7 +321,7 @@ describe("date field contract (AutomationPage once schedule, §5 date-合同)", 
     stubAutomationApi({ saveAutomation });
     await openAutomationDraftDialog();
     await fillValidDraft();
-    await userEvent.selectOptions(screen.getByLabelText("Schedule"), "once");
+    await chooseAutomationOption("Schedule", "Once");
     const date = screen.getByLabelText("Date") as HTMLInputElement;
     fireEvent.change(date, { target: { value: "2026-09-15" } });
     expect(date.value).toBe("2026-09-15");
@@ -288,7 +352,7 @@ describe("date field state contract (§5 date-状态, §2.1 verification outcome
     });
     await openAutomationDraftDialog();
     await fillValidDraft();
-    await userEvent.selectOptions(screen.getByLabelText("Schedule"), "once");
+    await chooseAutomationOption("Schedule", "Once");
     const date = screen.getByLabelText("Date") as HTMLInputElement;
     expect(date.disabled).toBe(false);
     fireEvent.submit(date.closest("form")!);
@@ -302,7 +366,7 @@ describe("date field state contract (§5 date-状态, §2.1 verification outcome
   it("keeps native constraint validation active so an empty required date blocks saving", async () => {
     stubAutomationApi();
     await openAutomationDraftDialog();
-    await userEvent.selectOptions(screen.getByLabelText("Schedule"), "once");
+    await chooseAutomationOption("Schedule", "Once");
     const date = screen.getByLabelText("Date") as HTMLInputElement;
     fireEvent.change(date, { target: { value: "" } });
     const form = date.closest("form")!;

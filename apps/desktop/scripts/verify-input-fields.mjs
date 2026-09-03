@@ -435,17 +435,17 @@ try {
         {
           name: "once-form-rendered",
           pass:
-            preSubmit?.formRole === "dialog" &&
-            preSubmit?.formAriaModal === "true" &&
+            preSubmit?.dialogRole === "dialog" &&
+            preSubmit?.dialogAriaModal === "true" &&
             preSubmit?.dateType === "date",
           actual: {
-            formRole: preSubmit?.formRole ?? null,
-            formAriaModal: preSubmit?.formAriaModal ?? null,
+            dialogRole: preSubmit?.dialogRole ?? null,
+            dialogAriaModal: preSubmit?.dialogAriaModal ?? null,
             dateType: preSubmit?.dateType ?? null,
           },
           expected: {
-            formRole: "dialog",
-            formAriaModal: "true",
+            dialogRole: "dialog",
+            dialogAriaModal: "true",
             dateType: "date",
           },
         },

@@ -56,7 +56,11 @@
       "management-state-matrix",
       "management-controlled-events",
       "management-permission-boundary",
-      "management-rtl-long-content"
+      "management-rtl-long-content",
+      "data-anatomy",
+      "data-state-matrix",
+      "data-controlled-events",
+      "data-rtl-long-content"
     ],
     "stress": [
       "anatomy",
@@ -112,7 +116,11 @@
       "management-state-matrix",
       "management-controlled-events",
       "management-permission-boundary",
-      "management-rtl-long-content"
+      "management-rtl-long-content",
+      "data-anatomy",
+      "data-state-matrix",
+      "data-controlled-events",
+      "data-rtl-long-content"
     ]
   },
   "switchCases": [

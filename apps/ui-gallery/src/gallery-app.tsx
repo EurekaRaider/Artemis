@@ -49,6 +49,7 @@ import {
 
 import { galleryContract } from "./gallery-contract.js";
 import { ConversationGallery } from "./conversation-gallery.js";
+import { DataGallery } from "./data-gallery.js";
 import { GalleryActionIcon } from "./gallery-action-icon.js";
 import { ManagementGallery } from "./management-gallery.js";
 import { ProfessionalGallery } from "./professional-gallery.js";
@@ -358,6 +359,18 @@ export function GalleryApp() {
             </div>
           ))}
         </dl>
+      </section>
+
+      <section
+        className="gallery-sample-section"
+        aria-labelledby="data-heading"
+      >
+        <h2 id="data-heading">Data surfaces and dense values</h2>
+        <p>
+          Public data components own presentation and accessible grid behavior;
+          callers retain values, calculation, loading, filtering, and effects.
+        </p>
+        <DataGallery />
       </section>
 
       <section
