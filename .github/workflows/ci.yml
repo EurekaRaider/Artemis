@@ -79,6 +79,11 @@ jobs:
           test/terminal-service.integration.test.ts
           test/trusted-extension-manager.integration.test.ts
 
+      - name: Verify Terminal and Browser professional shells in Electron
+        run: npm run verify:workspace-dock -w @artemis/desktop
+        env:
+          ARTEMIS_EXPECTED_HEAD: ${{ github.sha }}
+
   desktop-skin-electron:
     name: Desktop skin Electron and package boundary
     runs-on: macos-15
@@ -99,6 +104,11 @@ jobs:
 
       - name: Verify Desktop skin runtime and package isolation
         run: npm run verify:desktop-skin
+
+      - name: Verify Terminal and Browser professional shells in Electron
+        run: npm run verify:workspace-dock -w @artemis/desktop
+        env:
+          ARTEMIS_EXPECTED_HEAD: ${{ github.sha }}
 
       - name: Verify field and selection controls in production Electron
         run: npm run verify:form-controls

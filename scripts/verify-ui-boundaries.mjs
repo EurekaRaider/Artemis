@@ -115,6 +115,7 @@ const AREAS = [
       "@artemis/theme-artemis",
       "@artemis/theme-contract",
       "@artemis/ui",
+      "@phosphor-icons/react",
       "react",
       "react-dom",
     ],

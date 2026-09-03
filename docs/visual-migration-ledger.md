@@ -1,8 +1,8 @@
 # Discussion #76 visual migration ledger
 
-Status: MIG3B Review/Diff/Environment/Goal/Sources PR #143 implementation head
-`61de3d996cd8a4f899786b5a14a52633be405d6a` is independently approved on merged
-MIG3A base `6fa4887c8850f3d7e21af87bf6b9b705a6b18e6e`; the final 1.4.55 metadata head
+Status: MIG4 Terminal and Browser implementation head
+`0cce243333af7a6192e35493d9e363e518276da1` is independently approved on merged
+MIG3B base `ad28231944c80a52449a6755d3763e19fce33450`; the final 1.4.56 metadata head
 is pending fresh CI and automated comments. This ledger separates static
 prototype evidence, package/Gallery evidence, and production Electron evidence.
 It must not be used to turn a prototype, Gallery pass, or attribute-only
@@ -10,7 +10,7 @@ resolver pass into a migrated production surface.
 
 ## Inputs and evidence boundary
 
-- Candidate base: `6fa4887c8850f3d7e21af87bf6b9b705a6b18e6e` (MIG3A merged).
+- Candidate base: `ad28231944c80a52449a6755d3763e19fce33450` (MIG3B merged).
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -26,7 +26,7 @@ resolver pass into a migrated production surface.
   `ui-prototype/contrast/prototype-contract-result.json`, and
   `ui-prototype/contrast/summary.json`.
 - The prototype directory remains read-only in a companion checkout and is not
-  present in this candidate base. MIG3A does not copy or modify it.
+  present in this candidate base. MIG4 does not copy or modify it.
 - v17's 70/70 generic card contract, 22/22 targeted historical-gap checks, and
   36 contrast combinations are HTML/Chrome specification evidence only. They do
   not prove React anatomy, Desktop integration, Electron geometry, platform
@@ -629,8 +629,55 @@ Reviewer approved exact implementation head
 advisory then required lockfile-only transitive updates to `fast-uri` 3.1.7,
 `@xmldom/xmldom` 0.9.12, and `qs` 6.16.0; `npm audit --omit=dev
 --audit-level=high` reports zero vulnerabilities. Per the final-head workflow,
-the 1.4.55 manifests/README and this automated security update proceed through
-fresh CI and automated comments without another Validator/Reviewer pass.
+the 1.4.55 manifests/README and this automated security update proceeded through
+fresh CI and automated comments without another Validator/Reviewer pass. PR
+#143 merged at `ad28231944c80a52449a6755d3763e19fce33450`.
+
+## MIG4 professional shells candidate evidence
+
+MIG4 adds the public `@artemis/ui/professional` subpath for TerminalSurface,
+TerminalHeader, TerminalViewport, TerminalHost, TerminalState, BrowserSurface,
+BrowserToolbar, BrowserNavigation, BrowserNavigationButton,
+BrowserAddressForm, BrowserAddressInput, BrowserGoButton, BrowserViewport, and
+BrowserState. The frozen contract owns presentational anatomy, finite visual
+states, accessible landmark and control names, logical-direction layout,
+reduced-motion behavior, long-content safety, and the exact semantic-token
+allowlist. Callers continue to own PTY process/input/resize/cleanup, webview
+navigation/session/security, localization, and all IPC.
+
+The real Desktop Terminal and Browser consume these public shells without
+moving process or permission authority into `@artemis/ui`. Gallery raises the
+default/stress conformance matrix from 45 to 49 cases per skin while preserving
+all 64 runtime vertices. Installed-package consumption verifies the new
+subpath, declarations, SSR output, exact contract, generic Browser child
+sizing, tree-shaking, and the absence of Desktop-private `.browser-frame`
+selectors from public CSS.
+
+The exact-head Desktop skin verifier proves real native PTY input/output,
+resize IPC, xterm selection/copy, one close/cleanup, all 64 skin vertices, and
+that smoke-only instrumentation is absent from built package artifacts. The
+three-case Workspace Dock verifier covers light, dark 200% compact overlay,
+and Arabic RTL in strict-sandbox Electron. It drives the real Browser address
+form, loading/error transition over a dynamically reserved closed loopback
+port, two-document history, back, forward, and reload; verifies isolated
+webview security and responsive geometry; and reads guest and host canvas
+colors to fail closed below 4.5:1. The approved dark cases compose transparent
+guest content with black default text over the Desktop-owned white webview
+canvas at 21:1.
+
+The first independent review requested a cross-platform budget for the full
+Windows Gallery matrix, deterministic compact-Dock evidence, missing Browser
+and Terminal action/effect evidence, and removal of a Desktop-private selector
+from public CSS. A subsequent full-resolution screenshot review caught the
+dark Browser canvas regression. Both revision rounds were rechecked by the
+same sole Reviewer, who approved exact implementation head
+`0cce243333af7a6192e35493d9e363e518276da1`. Local root tests, typecheck,
+production build, format, package consumer, skin/CSS governance, and boundary
+suites pass; the final exact-head Electron matrix records 74 + 44 + 74 = 192
+assertions. Required CI passes all six jobs, including native Windows and
+macOS Electron runs. Per the final-head workflow, the 1.4.56 manifests, README,
+and this ledger update proceed through fresh CI and automated comments without
+another Validator/Reviewer pass.
 
 ## Component and surface sequence
 
@@ -651,8 +698,8 @@ fresh CI and automated comments without another Validator/Reviewer pass.
 | Reference slice: shell, activity bar, sidebar, header, Composer, Approval | surface            | `@artemis/ui` + Desktop   | users                             | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom and state matrix         | Merged at `db17c67`                     |
 | Conversation, Timeline, trusted-AI states                                 | surface            | `@artemis/ui` + Desktop   | users                             | message/timeline/status selectors                | MIG2      | State, scroll, interaction, performance, exact-head Electron | Merged at `a9dd2d4`                     |
 | Workspace, Dock, file/Markdown edit and preview                           | surface            | `@artemis/ui` + Desktop   | users                             | workspace/dock/editor selectors                  | MIG3A     | Tabs, resize, save/error, geometry, exact-head Electron      | Merged at `6fa4887`                     |
-| Review, Diff, Environment, Goal, Sources                                  | surface            | `@artemis/ui` + Desktop   | users                             | review/environment/source selectors              | MIG3B     | State, permission and overlay geometry matrix                | PR #143 approved; 1.4.55 CI pending     |
-| Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | Pending                                 |
+| Review, Diff, Environment, Goal, Sources                                  | surface            | `@artemis/ui` + Desktop   | users                             | review/environment/source selectors              | MIG3B     | State, permission and overlay geometry matrix                | Merged at `ad28231`                     |
+| Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | PR #144 approved; 1.4.56 CI pending     |
 | Settings, Resource Center, MCP Editor                                     | surface            | `@artemis/ui` + Desktop   | users                             | feature-local renderer styles                    | MIG5A     | Form, permission, privacy and exact-head Electron matrix     | Pending                                 |
 | Archive, Usage, Automation                                                | surface            | `@artemis/ui` + Desktop   | users                             | secondary-page selectors                         | MIG5B     | Real-data, a11y, schedule and exact-head Electron matrix     | Pending                                 |
 | Convergence and governance cleanup                                        | surface/governance | Desktop + CI              | users/contributors                | remaining proven-unused legacy selectors         | MIG6      | Complete exact-head runtime/performance/platform matrix      | Pending                                 |

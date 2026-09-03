@@ -14,6 +14,7 @@ function requiredFixturePath(name: string): string {
 function skinSmokeAliases(): Plugin {
   const appWrapper = requiredFixturePath("ARTEMIS_SKIN_SMOKE_APP_WRAPPER");
   const registry = requiredFixturePath("ARTEMIS_SKIN_SMOKE_REGISTRY");
+  const xtermWrapper = requiredFixturePath("ARTEMIS_SKIN_SMOKE_XTERM_WRAPPER");
   const productionApp = resolve(import.meta.dirname, "src/renderer/App.tsx");
   const productionBootstrap = resolve(
     import.meta.dirname,
@@ -34,6 +35,7 @@ function skinSmokeAliases(): Plugin {
       ) {
         return registry;
       }
+      if (source === "@xterm/xterm") return xtermWrapper;
       if (source === productionApp) return productionApp;
       return undefined;
     },

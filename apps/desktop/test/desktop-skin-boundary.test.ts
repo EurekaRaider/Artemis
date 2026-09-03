@@ -85,21 +85,22 @@ describe("Desktop skin production boundaries", () => {
     );
   });
 
-  it("leaves Terminal and native chrome outside the skin dependency graph", () => {
+  it("keeps native chrome outside the skin graph and Terminal behind public tokens", () => {
     const terminal = source("src/renderer/TerminalPanel.tsx");
     const mainProcess = source("src/main/main.ts");
     const preload = source("src/preload/preload.ts");
     const sharedApi = source("src/shared/api.ts");
-    for (const productionSource of [
-      terminal,
-      mainProcess,
-      preload,
-      sharedApi,
-    ]) {
+    for (const productionSource of [mainProcess, preload, sharedApi]) {
       expect(productionSource).not.toMatch(
         /desktop-skin|artemisSkin|data-artemis-skin|theme-contract|theme-artemis/iu,
       );
     }
+    expect(terminal).not.toMatch(
+      /desktop-skin|artemisSkin|theme-contract|theme-artemis/iu,
+    );
+    expect(terminal).toContain('"data-artemis-skin"');
+    expect(terminal).toContain('"--artemis-color-terminal-background"');
+    expect(terminal).toContain('"--artemis-color-terminal-foreground"');
     expect(terminal).toContain("const terminalThemes = {");
     expect(terminal).toContain(".openTerminal({");
     expect(mainProcess).toContain("nativeTheme.themeSource =");

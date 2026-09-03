@@ -1,6 +1,6 @@
 {
   "name": "@artemis/ui",
-  "version": "1.4.55",
+  "version": "1.4.56",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -41,6 +41,10 @@
     "./patterns": {
       "types": "./dist/patterns.d.ts",
       "import": "./dist/patterns.js"
+    },
+    "./professional": {
+      "types": "./dist/professional.d.ts",
+      "import": "./dist/professional.js"
     },
     "./surfaces": {
       "types": "./dist/surfaces.d.ts",

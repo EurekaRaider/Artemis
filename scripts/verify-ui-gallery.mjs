@@ -538,6 +538,63 @@ for (const [selector, declarations] of MIG3B_GALLERY_SCAFFOLD_RULES) {
   }
   GALLERY_SCAFFOLD_RULES.set(selector, declarations);
 }
+const MIG4_GALLERY_SCAFFOLD_RULES = [
+  [
+    ".gallery-professional-grid",
+    [
+      ["display", "grid"],
+      [
+        "grid-template-columns",
+        "repeat(auto-fit, minmax(min(100%, 22rem), 1fr))",
+      ],
+      ["gap", "var(--artemis-space-4)"],
+    ],
+  ],
+  [
+    '.gallery-professional-grid > [data-artemis-component="terminal-surface"], .gallery-professional-grid > [data-artemis-component="browser-surface"]',
+    [
+      ["block-size", "22rem"],
+      [
+        "border",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      ],
+      ["border-radius", "var(--artemis-radius-panel)"],
+    ],
+  ],
+  [
+    '.gallery-professional-grid > [data-artemis-component="terminal-surface"]:nth-last-child(-n + 2), .gallery-professional-grid > [data-artemis-component="browser-surface"]:nth-last-child(-n + 2)',
+    [["block-size", "12rem"]],
+  ],
+  [
+    '.gallery-professional-grid [data-artemis-component="terminal-host"] pre',
+    [
+      ["margin", "0"],
+      ["color", "inherit"],
+      ["font", "inherit"],
+      ["line-height", "1.5"],
+      ["white-space", "pre-wrap"],
+    ],
+  ],
+  [".gallery-terminal-prompt", [["color", "var(--artemis-color-accent-text)"]]],
+  [
+    ".gallery-browser-document",
+    [
+      ["box-sizing", "border-box"],
+      ["min-inline-size", "0"],
+      ["inline-size", "100%"],
+      ["padding", "var(--artemis-space-5)"],
+      ["overflow-wrap", "anywhere"],
+      ["background", "var(--artemis-color-surface-raised)"],
+    ],
+  ],
+  [".gallery-browser-document p", [["margin-block-start", "0"]]],
+];
+for (const [selector, declarations] of MIG4_GALLERY_SCAFFOLD_RULES) {
+  if (GALLERY_SCAFFOLD_RULES.has(selector)) {
+    throw new Error(`MIG4 Gallery scaffold duplicates ${selector}`);
+  }
+  GALLERY_SCAFFOLD_RULES.set(selector, declarations);
+}
 const GALLERY_REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const GALLERY_REDUCED_MOTION_SIGNATURE = JSON.stringify([
   ["rule", ".gallery-motion-swatch", [["decl", "transition", "none", null]]],
@@ -571,6 +628,7 @@ const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-axis-grid",
   "gallery-eyebrow",
   "gallery-check-grid",
+  "gallery-browser-document",
   "gallery-conversation-empty",
   "gallery-conversation-grid",
   "gallery-conversation-rtl",
@@ -581,6 +639,7 @@ const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-motion-swatch",
   "gallery-navigation-grid",
   "gallery-probe-section",
+  "gallery-professional-grid",
   "gallery-radius-card",
   "gallery-radius-composer",
   "gallery-radius-control",
@@ -599,6 +658,7 @@ const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-split-copy",
   "gallery-split-sample",
   "gallery-token-grid",
+  "gallery-terminal-prompt",
   "gallery-type-primary",
   "gallery-type-sample",
   "gallery-type-secondary",

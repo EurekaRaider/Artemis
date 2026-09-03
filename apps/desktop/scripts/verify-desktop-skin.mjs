@@ -308,6 +308,12 @@ const snapshot = () => {
   const xterm = document.querySelector(".terminal-host .xterm");
   const xtermScreen = document.querySelector(".terminal-host .xterm-screen");
   const xtermRows = document.querySelector(".terminal-host .xterm-rows");
+  const terminalSurface = document.querySelector(
+    '[data-artemis-component="terminal-surface"]',
+  );
+  const terminalHost = document.querySelector(
+    '[data-artemis-component="terminal-host"]',
+  );
   const appShell = document.querySelector(".app-shell");
   const activityBar = document.querySelector(
     '[data-artemis-component="activity-bar"]',
@@ -348,6 +354,19 @@ const snapshot = () => {
   const xtermStyle = [...(xterm?.querySelectorAll("style") ?? [])]
     .map((style) => style.textContent ?? "")
     .join("\\n");
+  const terminalRootStyle = getComputedStyle(root);
+  const terminalBackgroundToken = terminalRootStyle
+    .getPropertyValue("--artemis-color-terminal-background")
+    .trim();
+  const terminalForegroundToken = terminalRootStyle
+    .getPropertyValue("--artemis-color-terminal-foreground")
+    .trim();
+  const terminalSurfaceStyle =
+    terminalSurface instanceof HTMLElement
+      ? getComputedStyle(terminalSurface)
+      : null;
+  const terminalHostStyle =
+    terminalHost instanceof HTMLElement ? getComputedStyle(terminalHost) : null;
   const preload = globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__;
   return {
     attrs: {
@@ -512,16 +531,25 @@ const snapshot = () => {
       ),
       terminalPromptReceived:
         preload?.terminalData().includes("Artemis>") ?? false,
-      legacyPalettePresent:
-        xtermStyle.includes("#1f2023") &&
-        xtermStyle.includes("#795e00") &&
-        xtermStyle.includes("#6b5700") &&
-        xtermStyle.includes("#c9dcf8"),
+      semanticTerminalPalettePresent:
+        terminalBackgroundToken.length > 0 &&
+        terminalForegroundToken.length > 0 &&
+        terminalSurfaceStyle?.backgroundColor ===
+          resolvedColor(terminalBackgroundToken) &&
+        terminalSurfaceStyle?.color === resolvedColor(terminalForegroundToken) &&
+        terminalHostStyle?.backgroundColor ===
+          resolvedColor(terminalBackgroundToken) &&
+        xtermStyle.toLowerCase().includes(terminalBackgroundToken.toLowerCase()) &&
+        xtermStyle.toLowerCase().includes(terminalForegroundToken.toLowerCase()),
       terminalHeader:
         document.querySelector(".terminal-header")?.textContent
           ?.replace(/\\s+/gu, " ")
           .trim() ?? null,
+      terminalCloseCount: preload?.terminalCloseCount() ?? null,
+      terminalLastResize: preload?.terminalLastResize() ?? null,
       terminalOpenCount: preload?.terminalOpenCount() ?? null,
+      terminalResizeCount: preload?.terminalResizeCount() ?? null,
+      terminalWriteCount: preload?.terminalWriteCount() ?? null,
       rendererReadyCount: preload?.rendererReadyCount() ?? null,
     },
     consoleEntries: [...consoleEntries],
@@ -598,6 +626,19 @@ export function App() {
 `;
 }
 
+function xtermWrapperModuleSource(path) {
+  return `
+import { Terminal as ProductionTerminal } from ${JSON.stringify(path)};
+
+export class Terminal extends ProductionTerminal {
+  constructor(options) {
+    super(options);
+    globalThis.__ARTEMIS_SKIN_SMOKE_XTERM__ = this;
+  }
+}
+`;
+}
+
 async function buildSmokePreload() {
   const productionSource = await readFile(
     join(appDirectory, "src/preload/preload.ts"),
@@ -610,7 +651,7 @@ async function buildSmokePreload() {
     )
     .replace(
       "const api: ArtemisApi = {",
-      'let desktopSkinSmokeTerminalOpenCount = 0;\nlet desktopSkinSmokeRendererReadyCount = 0;\nlet desktopSkinSmokeTerminalData = "";\n\nconst api: ArtemisApi = {',
+      'let desktopSkinSmokeTerminalOpenCount = 0;\nlet desktopSkinSmokeTerminalWriteCount = 0;\nlet desktopSkinSmokeTerminalResizeCount = 0;\nlet desktopSkinSmokeTerminalCloseCount = 0;\nlet desktopSkinSmokeTerminalLastResize = null;\nlet desktopSkinSmokeRendererReadyCount = 0;\nlet desktopSkinSmokeTerminalData = "";\n\nconst api: ArtemisApi = {',
     )
     .replace(
       "rendererReady: () =>\n    ipcRenderer.send(IPC.rendererReady, {\n      contextIsolated: process.contextIsolated === true,\n      sandboxed: process.sandboxed === true,\n    }),",
@@ -621,16 +662,31 @@ async function buildSmokePreload() {
       "openTerminal: (input) => {\n    desktopSkinSmokeTerminalOpenCount += 1;\n    return ipcRenderer.invoke(IPC.terminalOpen, input);\n  },",
     )
     .replace(
+      "writeTerminal: (terminalId, data) =>\n    ipcRenderer.invoke(IPC.terminalWrite, terminalId, data),",
+      "writeTerminal: (terminalId, data) => {\n    desktopSkinSmokeTerminalWriteCount += 1;\n    return ipcRenderer.invoke(IPC.terminalWrite, terminalId, data);\n  },",
+    )
+    .replace(
+      "resizeTerminal: (terminalId, cols, rows) =>\n    ipcRenderer.invoke(IPC.terminalResize, terminalId, cols, rows),",
+      "resizeTerminal: (terminalId, cols, rows) => {\n    desktopSkinSmokeTerminalResizeCount += 1;\n    desktopSkinSmokeTerminalLastResize = { cols, rows };\n    return ipcRenderer.invoke(IPC.terminalResize, terminalId, cols, rows);\n  },",
+    )
+    .replace(
+      "closeTerminal: (terminalId) =>\n    ipcRenderer.invoke(IPC.terminalClose, terminalId),",
+      "closeTerminal: (terminalId) => {\n    desktopSkinSmokeTerminalCloseCount += 1;\n    return ipcRenderer.invoke(IPC.terminalClose, terminalId);\n  },",
+    )
+    .replace(
       "    ipcRenderer.on(IPC.terminalData, handler);",
       "    ipcRenderer.on(IPC.terminalData, (_event, value) => {\n      desktopSkinSmokeTerminalData = (desktopSkinSmokeTerminalData + value.data).slice(-16_384);\n    });\n    ipcRenderer.on(IPC.terminalData, handler);",
     )
     .replace(
       'contextBridge.exposeInMainWorld("artemis", api);',
-      'contextBridge.exposeInMainWorld("__ARTEMIS_SKIN_SMOKE_PRELOAD__", {\n  terminalData: () => desktopSkinSmokeTerminalData,\n  terminalOpenCount: () => desktopSkinSmokeTerminalOpenCount,\n  rendererReadyCount: () => desktopSkinSmokeRendererReadyCount,\n  setZoomFactor: (value) => webFrame.setZoomFactor(value),\n  zoomFactor: () => webFrame.getZoomFactor(),\n});\ncontextBridge.exposeInMainWorld("artemis", api);',
+      'contextBridge.exposeInMainWorld("__ARTEMIS_SKIN_SMOKE_PRELOAD__", {\n  terminalData: () => desktopSkinSmokeTerminalData,\n  terminalOpenCount: () => desktopSkinSmokeTerminalOpenCount,\n  terminalWriteCount: () => desktopSkinSmokeTerminalWriteCount,\n  terminalResizeCount: () => desktopSkinSmokeTerminalResizeCount,\n  terminalLastResize: () => desktopSkinSmokeTerminalLastResize,\n  terminalCloseCount: () => desktopSkinSmokeTerminalCloseCount,\n  rendererReadyCount: () => desktopSkinSmokeRendererReadyCount,\n  setZoomFactor: (value) => webFrame.setZoomFactor(value),\n  zoomFactor: () => webFrame.getZoomFactor(),\n});\ncontextBridge.exposeInMainWorld("artemis", api);',
     );
   assert(
     withCounters !== productionSource &&
       withCounters.includes("desktopSkinSmokeTerminalOpenCount += 1") &&
+      withCounters.includes("desktopSkinSmokeTerminalWriteCount += 1") &&
+      withCounters.includes("desktopSkinSmokeTerminalResizeCount += 1") &&
+      withCounters.includes("desktopSkinSmokeTerminalCloseCount += 1") &&
       withCounters.includes("desktopSkinSmokeTerminalData =") &&
       withCounters.includes("desktopSkinSmokeRendererReadyCount += 1") &&
       withCounters.includes("webFrame.setZoomFactor(value)") &&
@@ -1624,6 +1680,105 @@ async function driveElectron() {
       15_000,
     );
 
+    const initialTerminalResizeCount = await evaluate(
+      connection,
+      "globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.terminalResizeCount()",
+    );
+    await evaluate(
+      connection,
+      "globalThis.__ARTEMIS_SKIN_SMOKE__.setZoomFactor(1.25)",
+    );
+    await waitFor(
+      connection,
+      `globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.terminalResizeCount() > ${String(initialTerminalResizeCount)}`,
+      "native PTY resize IPC after a real viewport zoom",
+      15_000,
+    );
+    await evaluate(
+      connection,
+      "globalThis.__ARTEMIS_SKIN_SMOKE__.setZoomFactor(1)",
+    );
+    await waitFor(
+      connection,
+      "globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.zoomFactor() === 1",
+      "terminal zoom reset",
+    );
+    const terminalResizeEvidence = await evaluate(
+      connection,
+      `(() => ({
+        before: ${String(initialTerminalResizeCount)},
+        closeCount:
+          globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.terminalCloseCount(),
+        lastResize:
+          globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.terminalLastResize(),
+        resizeCount:
+          globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.terminalResizeCount(),
+        writeCount:
+          globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.terminalWriteCount(),
+      }))()`,
+    );
+    assert(
+      terminalResizeEvidence.resizeCount > terminalResizeEvidence.before &&
+        terminalResizeEvidence.writeCount > 0 &&
+        terminalResizeEvidence.closeCount === 0 &&
+        terminalResizeEvidence.lastResize?.cols > 0 &&
+        terminalResizeEvidence.lastResize?.rows > 0,
+      `Terminal write/resize IPC evidence was incomplete: ${JSON.stringify(terminalResizeEvidence)}`,
+    );
+
+    const terminalSelectionEvidence = await evaluate(
+      connection,
+      `(() => {
+        globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__ = {
+          count: 0,
+          eventText: "",
+        };
+        const terminal = document.querySelector(".terminal-host .xterm");
+        terminal?.addEventListener("copy", (event) => {
+          globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__.count += 1;
+          globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__.eventText =
+            event.clipboardData?.getData("text/plain") ?? "";
+        });
+        const xterm = globalThis.__ARTEMIS_SKIN_SMOKE_XTERM__;
+        if (!xterm) {
+          throw new Error("Dedicated smoke xterm instance is unavailable.");
+        }
+        let prompt;
+        for (let row = 0; row < xterm.buffer.active.length; row += 1) {
+          const text = xterm.buffer.active.getLine(row)?.translateToString(true) ?? "";
+          const column = text.indexOf("Artemis>");
+          if (column >= 0) {
+            prompt = { column, row, text };
+            break;
+          }
+        }
+        if (!prompt) throw new Error("Synthetic prompt is absent from xterm's buffer.");
+        xterm.select(prompt.column, prompt.row, "Artemis".length);
+        document.querySelector(".xterm-helper-textarea")?.focus();
+        const selectedText = xterm.getSelection();
+        const selectionPosition = xterm.getSelectionPosition();
+        const copyInvoked = document.execCommand("copy");
+        return {
+          copyEvent: globalThis.__ARTEMIS_TERMINAL_COPY_EVIDENCE__,
+          copyInvoked,
+          prompt,
+          selectedText,
+          selectionPosition,
+        };
+      })()`,
+    );
+    assert(
+      terminalSelectionEvidence.copyEvent?.count === 1 &&
+        terminalSelectionEvidence.copyEvent?.eventText.includes("Artemis") &&
+        terminalSelectionEvidence.copyInvoked === true &&
+        terminalSelectionEvidence.selectedText === "Artemis" &&
+        terminalSelectionEvidence.selectionPosition?.start?.x ===
+          terminalSelectionEvidence.prompt?.column &&
+        terminalSelectionEvidence.selectionPosition?.end?.x ===
+          terminalSelectionEvidence.prompt?.column + "Artemis".length,
+      `Terminal selection/copy evidence was incomplete: ${JSON.stringify(terminalSelectionEvidence)}`,
+    );
+
     const remembered = await rememberRuntimeState(connection, true);
     assert(
       remembered.state.portalInBody &&
@@ -1806,6 +1961,7 @@ async function driveElectron() {
           snapshot.state.xtermScreenSame &&
           snapshot.state.xtermRowsSame &&
           snapshot.state.terminalPromptReceived &&
+          snapshot.state.semanticTerminalPalettePresent &&
           snapshot.state.inputValue === expectedInput &&
           snapshot.state.selectionStart === expectedSelection[0] &&
           snapshot.state.selectionEnd === expectedSelection[1] &&
@@ -1966,7 +2122,7 @@ async function driveElectron() {
         finalSnapshot.state.xtermScreenSame &&
         finalSnapshot.state.xtermRowsSame &&
         finalSnapshot.state.terminalPromptReceived &&
-        finalSnapshot.state.legacyPalettePresent &&
+        finalSnapshot.state.semanticTerminalPalettePresent &&
         finalSnapshot.state.inputValue === "main" &&
         finalSnapshot.state.selectionStart === 1 &&
         finalSnapshot.state.selectionEnd === 3 &&
@@ -1989,6 +2145,39 @@ async function driveElectron() {
       `rendererReady count was ${String(finalSnapshot.state.rendererReadyCount)}.`,
     );
 
+    await evaluate(
+      connection,
+      `(() => {
+        const close = document.querySelector(
+          '[data-artemis-component="workspace-tab"][data-state="active"] > [data-part="close"]',
+        );
+        if (!(close instanceof HTMLButtonElement)) {
+          throw new Error("Active Terminal tab close control is unavailable.");
+        }
+        close.click();
+      })()`,
+    );
+    await waitFor(
+      connection,
+      'globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.terminalCloseCount() === 1 && !document.querySelector(".terminal-host .xterm")',
+      "Terminal tab close cleanup",
+      15_000,
+    );
+    const terminalCloseEvidence = await evaluate(
+      connection,
+      `(() => ({
+        closeCount:
+          globalThis.__ARTEMIS_SKIN_SMOKE_PRELOAD__.terminalCloseCount(),
+        terminalPresent:
+          document.querySelector(".terminal-host .xterm") !== null,
+      }))()`,
+    );
+    assert(
+      terminalCloseEvidence.closeCount === 1 &&
+        terminalCloseEvidence.terminalPresent === false,
+      `Terminal close cleanup evidence was incomplete: ${JSON.stringify(terminalCloseEvidence)}`,
+    );
+
     await connection.send("Browser.close").catch(() => undefined);
     return {
       renderEntry,
@@ -2005,6 +2194,9 @@ async function driveElectron() {
       returnedDefault,
       fallbackCases,
       finalSnapshot,
+      terminalCloseEvidence,
+      terminalResizeEvidence,
+      terminalSelectionEvidence,
       electronOutputTail: output.slice(-4_000),
       launchArguments: [
         "--disable-gpu",
@@ -2179,6 +2371,7 @@ try {
 
   const fixtureRegistry = join(temporaryDirectory, "skin-smoke-registry.ts");
   const fixtureWrapper = join(temporaryDirectory, "skin-smoke-app.tsx");
+  const fixtureXtermWrapper = join(temporaryDirectory, "skin-smoke-xterm.mjs");
   const fixturePaths = {
     app: resolve(appDirectory, "src/renderer/App.tsx"),
     bootstrap: resolve(appDirectory, "src/renderer/desktop-skin-bootstrap.ts"),
@@ -2187,9 +2380,14 @@ try {
       repositoryRoot,
       "apps/ui-gallery/src/stress-skin-fixture.mjs",
     ),
+    xterm: resolve(repositoryRoot, "node_modules/@xterm/xterm/lib/xterm.mjs"),
   };
   await writeFile(fixtureRegistry, fixtureModuleSource(fixturePaths));
   await writeFile(fixtureWrapper, wrapperModuleSource(fixturePaths));
+  await writeFile(
+    fixtureXtermWrapper,
+    xtermWrapperModuleSource(fixturePaths.xterm),
+  );
   run("npx", ["vite", "build", "--config", "vite.skin-smoke.config.ts"], {
     cwd: appDirectory,
     timeout: 300_000,
@@ -2197,6 +2395,7 @@ try {
       ...process.env,
       ARTEMIS_SKIN_SMOKE_APP_WRAPPER: fixtureWrapper,
       ARTEMIS_SKIN_SMOKE_REGISTRY: fixtureRegistry,
+      ARTEMIS_SKIN_SMOKE_XTERM_WRAPPER: fixtureXtermWrapper,
     },
   });
   const dedicatedFindings = await desktopSkinLeakage(smokeRendererDirectory);

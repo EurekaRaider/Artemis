@@ -6,6 +6,20 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/icons/ArrowClockwise";
+import { ArrowLeftIcon } from "@phosphor-icons/react/dist/icons/ArrowLeft";
+import { ArrowRightIcon } from "@phosphor-icons/react/dist/icons/ArrowRight";
+import {
+  BrowserAddressForm,
+  BrowserAddressInput,
+  BrowserGoButton,
+  BrowserNavigation,
+  BrowserNavigationButton,
+  BrowserState,
+  BrowserSurface,
+  BrowserToolbar,
+  BrowserViewport,
+} from "@artemis/ui/professional";
 import {
   WorkspaceContentState,
   WorkspaceEditorToolbar,
@@ -274,65 +288,100 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
   };
 
   return (
-    <section className="browser-panel">
-      <div className="browser-toolbar">
-        <div className="browser-navigation-actions">
-          <button
-            aria-label={props.backLabel}
+    <BrowserSurface
+      busy={loading || pageLoading}
+      className="browser-panel"
+      label={props.title}
+      state={
+        error || navigationError
+          ? "error"
+          : loading || pageLoading
+            ? "loading"
+            : "ready"
+      }
+    >
+      <BrowserToolbar
+        className="browser-toolbar"
+        label={`${props.title}: ${props.addressPlaceholder}`}
+      >
+        <BrowserNavigation
+          className="browser-navigation-actions"
+          label={props.title}
+        >
+          <BrowserNavigationButton
+            className="browser-back-button"
             disabled={!webviewReady || !canGoBack}
+            icon={
+              rtl ? (
+                <ArrowRightIcon weight="bold" />
+              ) : (
+                <ArrowLeftIcon weight="bold" />
+              )
+            }
+            label={props.backLabel}
             onClick={() => runWhenWebviewReady((webview) => webview.goBack())}
-            title={props.backLabel}
-          >
-            {rtl ? "→" : "←"}
-          </button>
-          <button
-            aria-label={props.forwardLabel}
+          />
+          <BrowserNavigationButton
+            className="browser-forward-button"
             disabled={!webviewReady || !canGoForward}
+            icon={
+              rtl ? (
+                <ArrowLeftIcon weight="bold" />
+              ) : (
+                <ArrowRightIcon weight="bold" />
+              )
+            }
+            label={props.forwardLabel}
             onClick={() =>
               runWhenWebviewReady((webview) => webview.goForward())
             }
-            title={props.forwardLabel}
-          >
-            {rtl ? "←" : "→"}
-          </button>
-          <button
-            aria-label={props.refreshLabel}
+          />
+          <BrowserNavigationButton
+            className="browser-refresh-button"
             disabled={!webviewReady || (pageLoading && loading)}
+            icon={<ArrowClockwiseIcon weight="bold" />}
+            label={props.refreshLabel}
             onClick={reload}
-            title={props.refreshLabel}
-          >
-            ↻
-          </button>
-        </div>
-        <form className="browser-address-form" onSubmit={navigate}>
-          <input
-            aria-label={props.addressPlaceholder}
+          />
+        </BrowserNavigation>
+        <BrowserAddressForm
+          className="browser-address-form"
+          label={props.addressPlaceholder}
+          onSubmit={navigate}
+        >
+          <BrowserAddressInput
             className="browser-address-input"
+            label={props.addressPlaceholder}
             onChange={(event) => setAddress(event.target.value)}
             placeholder={props.addressPlaceholder}
             spellCheck={false}
             value={address}
           />
-          <button
+          <BrowserGoButton
             className="browser-go-button"
             disabled={!webviewReady}
-            type="submit"
-          >
-            {props.goLabel}
-          </button>
-        </form>
-      </div>
+            label={props.goLabel}
+          />
+        </BrowserAddressForm>
+      </BrowserToolbar>
       {(error || navigationError) && (
-        <div className="browser-error">{error ?? navigationError}</div>
+        <BrowserState className="browser-error" state="error">
+          {error ?? navigationError}
+        </BrowserState>
       )}
-      <webview
-        className="browser-frame"
-        partition={BROWSER_SESSION_PARTITION}
-        ref={webviewRef}
-        src={browserSource}
-        title={`${props.title}: ${file?.path ?? props.initialUrl ?? ""}`}
-      />
-    </section>
+      <BrowserViewport
+        className="browser-viewport"
+        label={`${props.title}: ${file?.path ?? props.initialUrl ?? props.addressPlaceholder}`}
+      >
+        <webview
+          className="browser-frame"
+          partition={BROWSER_SESSION_PARTITION}
+          ref={webviewRef}
+          src={browserSource}
+          title={`${props.title}: ${file?.path ?? props.initialUrl ?? ""}`}
+        />
+      </BrowserViewport>
+    </BrowserSurface>
   );
 }
 

@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import type { AppTheme } from "@artemis/protocol";
+import {
+  TerminalHeader,
+  TerminalHost,
+  TerminalState,
+  TerminalSurface,
+  TerminalViewport,
+} from "@artemis/ui/professional";
 import "@xterm/xterm/css/xterm.css";
 
 interface TerminalPanelProps {
@@ -10,6 +17,8 @@ interface TerminalPanelProps {
   emptyMessage: string;
   theme: AppTheme;
 }
+
+type TerminalPanelState = "ready" | "connecting" | "empty" | "error" | "exited";
 
 const terminalThemes = {
   dark: {
@@ -52,6 +61,44 @@ function resolveTerminalTheme(theme: AppTheme, systemDark: boolean) {
   ];
 }
 
+function resolveTerminalElementTheme(
+  element: HTMLElement,
+  theme: AppTheme,
+  systemDark: boolean,
+) {
+  const fallback = resolveTerminalTheme(theme, systemDark);
+  const styles = window.getComputedStyle(element);
+  const color = (name: string, fallbackColor: string) =>
+    styles.getPropertyValue(name).trim() || fallbackColor;
+  const background = color(
+    "--artemis-color-terminal-background",
+    fallback.background,
+  );
+  const foreground = color(
+    "--artemis-color-terminal-foreground",
+    fallback.foreground,
+  );
+  const selectionForeground =
+    "selectionForeground" in fallback
+      ? fallback.selectionForeground
+      : fallback.foreground;
+  return {
+    ...fallback,
+    background,
+    cursor: color("--artemis-color-accent-primary", fallback.cursor),
+    cursorAccent: background,
+    foreground,
+    selectionBackground: color(
+      "--artemis-color-selection-background",
+      fallback.selectionBackground,
+    ),
+    selectionForeground: color(
+      "--artemis-color-selection-text",
+      selectionForeground,
+    ),
+  };
+}
+
 export function TerminalPanel({
   threadId,
   title,
@@ -62,15 +109,21 @@ export function TerminalPanel({
   const terminalRef = useRef<Terminal | null>(null);
   const themeRef = useRef(theme);
   const [detail, setDetail] = useState(emptyMessage);
+  const [state, setState] = useState<TerminalPanelState>(
+    threadId ? "connecting" : "empty",
+  );
   themeRef.current = theme;
 
   useEffect(() => {
     const element = host.current;
     if (!element || !threadId) {
       setDetail(emptyMessage);
+      setState("empty");
       return;
     }
 
+    setDetail(emptyMessage);
+    setState("connecting");
     let disposed = false;
     let terminalId: string | undefined;
     const terminal = new Terminal({
@@ -82,7 +135,8 @@ export function TerminalPanel({
       fontSize: 12,
       lineHeight: 1.15,
       scrollback: 10_000,
-      theme: resolveTerminalTheme(
+      theme: resolveTerminalElementTheme(
+        element,
         themeRef.current,
         window.matchMedia("(prefers-color-scheme: dark)").matches,
       ),
@@ -100,6 +154,8 @@ export function TerminalPanel({
     const exitSubscription = window.artemis.onTerminalExit((event) => {
       if (event.terminalId === terminalId) {
         terminal.writeln(`\r\n[process exited ${event.exitCode}]`);
+        setDetail(`Process exited ${event.exitCode}`);
+        setState("exited");
       }
     });
     const inputSubscription = terminal.onData((data) => {
@@ -134,10 +190,12 @@ export function TerminalPanel({
         }
         terminalId = descriptor.terminalId;
         setDetail(`${descriptor.shell} · ${descriptor.sandboxImplementation}`);
+        setState("ready");
         terminal.focus();
       })
       .catch((error) => {
         setDetail(error instanceof Error ? error.message : String(error));
+        setState("error");
       });
 
     return () => {
@@ -160,25 +218,51 @@ export function TerminalPanel({
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const applyTheme = () => {
       const terminal = terminalRef.current;
-      if (terminal) {
-        terminal.options.theme = resolveTerminalTheme(theme, media.matches);
+      const element = host.current;
+      if (terminal && element) {
+        terminal.options.theme = resolveTerminalElementTheme(
+          element,
+          theme,
+          media.matches,
+        );
       }
     };
     applyTheme();
-    if (theme !== "system") return;
-    media.addEventListener("change", applyTheme);
-    return () => media.removeEventListener("change", applyTheme);
+    const observer = new MutationObserver(applyTheme);
+    observer.observe(document.documentElement, {
+      attributeFilter: [
+        "data-artemis-contrast",
+        "data-artemis-skin",
+        "data-artemis-theme",
+        "data-theme",
+      ],
+      attributes: true,
+    });
+    if (theme === "system") media.addEventListener("change", applyTheme);
+    return () => {
+      observer.disconnect();
+      if (theme === "system") media.removeEventListener("change", applyTheme);
+    };
   }, [theme]);
 
   return (
-    <section className="terminal-panel">
-      <div className="terminal-header">
-        <span>{title}</span>
-        <span>{detail}</span>
-      </div>
-      <div className="terminal-body">
-        <div className="terminal-host" ref={host} />
-      </div>
-    </section>
+    <TerminalSurface
+      busy={state === "connecting"}
+      className="terminal-panel"
+      label={title}
+      state={state}
+    >
+      <TerminalHeader
+        className="terminal-header"
+        detail={detail}
+        heading={title}
+      />
+      <TerminalViewport className="terminal-body">
+        <TerminalHost className="terminal-host" ref={host} />
+        {(state === "connecting" || state === "empty" || state === "error") && (
+          <TerminalState state={state}>{detail}</TerminalState>
+        )}
+      </TerminalViewport>
+    </TerminalSurface>
   );
 }

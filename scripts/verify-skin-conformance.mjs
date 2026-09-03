@@ -46,6 +46,10 @@ const REQUIRED_SKIN_CASES = [
   "workspace-state-matrix",
   "workspace-controlled-events",
   "workspace-rtl-long-content",
+  "professional-anatomy",
+  "professional-state-matrix",
+  "professional-controlled-events",
+  "professional-rtl-long-content",
   "workflow-anatomy",
   "workflow-state-matrix",
   "workflow-controlled-events",
@@ -2606,6 +2610,18 @@ for (const [key, declarations] of MIG3B_EXPECTED_CSS_RULES) {
   }
   expectedCssRules.set(key, declarations);
 }
+const MIG4_EXPECTED_CSS_RULES = JSON.parse(
+  await readFile(
+    join(root, "scripts/mig4-professional-css-contract.json"),
+    "utf8",
+  ),
+);
+for (const [key, declarations] of MIG4_EXPECTED_CSS_RULES) {
+  if (expectedCssRules.has(key)) {
+    throw new Error(`MIG4 UI structural CSS rule duplicates ${key}`);
+  }
+  expectedCssRules.set(key, declarations);
+}
 
 function verifyStructuralCss(css, from, tokenFamilies) {
   const parsed = postcss.parse(css, { from });
@@ -2839,6 +2855,9 @@ const surfaces = await import(
 const workspace = await import(
   pathToFileURL(join(root, "packages/ui/dist/workspace.js")).href
 );
+const professional = await import(
+  pathToFileURL(join(root, "packages/ui/dist/professional.js")).href
+);
 const workflow = await import(
   pathToFileURL(join(root, "packages/ui/dist/workflow.js")).href
 );
@@ -2901,6 +2920,11 @@ for (const [label, candidate, validate] of [
     "workspace",
     workspace.WORKSPACE_COMPONENT_CONTRACTS,
     workspace.validateWorkspaceComponentContracts,
+  ],
+  [
+    "professional",
+    professional.PROFESSIONAL_COMPONENT_CONTRACTS,
+    professional.validateProfessionalComponentContracts,
   ],
   [
     "workflow",
@@ -3070,6 +3094,7 @@ for (const specifier of [
   "@artemis/ui/feedback",
   "@artemis/ui/layout",
   "@artemis/ui/patterns",
+  "@artemis/ui/professional",
   "@artemis/ui/surfaces",
   "@artemis/ui/workspace",
   "@artemis/ui/workflow",
@@ -3157,6 +3182,13 @@ verifyStructuralCss(css, cssPath, [
       (contract) => contract.name,
     ),
     mutableTokens: workspace.WORKSPACE_COMPONENT_MUTABLE_TOKENS,
+  },
+  {
+    label: "professional",
+    components: Object.values(
+      professional.PROFESSIONAL_COMPONENT_CONTRACTS,
+    ).map((contract) => contract.name),
+    mutableTokens: professional.PROFESSIONAL_COMPONENT_MUTABLE_TOKENS,
   },
   {
     label: "workflow",

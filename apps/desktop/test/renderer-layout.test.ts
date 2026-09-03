@@ -40,6 +40,12 @@ const publicUiSurfacesSource = readFileSync(
   ),
   "utf8",
 );
+const publicUiProfessionalSource = readFileSync(
+  fileURLToPath(
+    new URL("../../../packages/ui/src/professional.tsx", import.meta.url),
+  ),
+  "utf8",
+);
 const settingsSource = readFileSync(
   fileURLToPath(new URL("../src/renderer/SettingsPanel.tsx", import.meta.url)),
   "utf8",
@@ -249,6 +255,22 @@ function cssAtRule(pattern: RegExp): string | undefined {
 
 function cssDeclarationsForSelector(selector: string): string | undefined {
   const rules = stylesSource.matchAll(
+    /(?<selectors>[^{}]+)\{(?<declarations>[^{}]*)\}/gu,
+  );
+  for (const rule of rules) {
+    const selectors =
+      rule.groups?.selectors.split(",").map((item) => item.trim()) ?? [];
+    if (selectors.includes(selector)) {
+      return rule.groups?.declarations;
+    }
+  }
+  return undefined;
+}
+
+function publicUiCssDeclarationsForSelector(
+  selector: string,
+): string | undefined {
+  const rules = publicUiStylesSource.matchAll(
     /(?<selectors>[^{}]+)\{(?<declarations>[^{}]*)\}/gu,
   );
   for (const rule of rules) {
@@ -1673,12 +1695,14 @@ describe("renderer layout contract", () => {
       'window.matchMedia("(prefers-color-scheme: dark)")',
     );
     expect(terminalSource).toContain("terminal.options.theme =");
-    expect(cssRule(".terminal-panel")).toMatch(
-      /\bbackground:\s*var\(--terminal-background\)/u,
-    );
-    expect(stylesSource).toContain(
-      "background: var(--terminal-header-background);",
-    );
+    expect(
+      publicUiCssRule('[data-artemis-component="terminal-surface"]'),
+    ).toMatch(/\bbackground:\s*var\(--artemis-color-terminal-background\)/u);
+    expect(
+      publicUiCssRule('[data-artemis-component="terminal-header"]'),
+    ).toMatch(/\bbackground:\s*var\(--artemis-color-surface-raised\)/u);
+    expect(terminalSource).toContain('"--artemis-color-terminal-background"');
+    expect(terminalSource).toContain('"--artemis-color-terminal-foreground"');
     expect(mainProcessSource).toContain("nativeTheme.themeSource = theme");
     expect(mainProcessSource).toContain("window.setBackgroundColor");
   });
@@ -1694,34 +1718,32 @@ describe("renderer layout contract", () => {
     expect(relativeLuminance(background)).toBeLessThan(0.02);
     expect(contrastRatio(background, foreground)).toBeGreaterThanOrEqual(7);
 
-    const rootTheme = cssRule(":root");
-    expect(rootTheme).toContain(`--terminal-background: ${background};`);
-    expect(rootTheme).toContain(`--terminal-text: ${foreground};`);
-
     for (const selector of [
-      ".terminal-host .xterm-screen",
-      ".terminal-host .xterm-rows",
-      ".terminal-host .xterm-screen canvas",
-      ".terminal-host .xterm-helper-textarea",
-      ".terminal-host .xterm .xterm-viewport",
+      '[data-artemis-component="terminal-host"] .xterm-screen',
+      '[data-artemis-component="terminal-host"] .xterm-rows',
+      '[data-artemis-component="terminal-host"] .xterm-screen canvas',
+      '[data-artemis-component="terminal-host"] .xterm-helper-textarea',
+      '[data-artemis-component="terminal-host"] .xterm .xterm-viewport',
     ]) {
-      const declarations = cssDeclarationsForSelector(selector);
+      const declarations = publicUiCssDeclarationsForSelector(selector);
       expect
         .soft(declarations, `Missing CSS rule for ${selector}`)
         .toBeDefined();
       expect
         .soft(declarations ?? "", `Wrong background for ${selector}`)
-        .toMatch(/\bbackground(?:-color)?:\s*var\(--terminal-background\)/u);
+        .toMatch(
+          /\bbackground(?:-color)?:\s*var\(--artemis-color-terminal-background\)/u,
+        );
     }
 
     for (const selector of [
-      ".terminal-host .xterm-screen",
-      ".terminal-host .xterm-rows",
+      '[data-artemis-component="terminal-host"] .xterm-screen',
+      '[data-artemis-component="terminal-host"] .xterm-rows',
     ]) {
-      const declarations = cssDeclarationsForSelector(selector);
+      const declarations = publicUiCssDeclarationsForSelector(selector);
       expect
         .soft(declarations ?? "", `Wrong foreground for ${selector}`)
-        .toMatch(/\bcolor:\s*var\(--terminal-text\)/u);
+        .toMatch(/\bcolor:\s*var\(--artemis-color-terminal-foreground\)/u);
     }
   });
 
@@ -1734,6 +1756,16 @@ describe("renderer layout contract", () => {
     expect(terminalSource).not.toMatch(
       /client(?:Width|Height)\s*\/\s*\d+(?:\.\d+)?/u,
     );
+  });
+
+  it("keeps the completed terminal transcript visible after its process exits", () => {
+    expect(terminalSource).toContain(
+      "setDetail(`Process exited ${event.exitCode}`);",
+    );
+    expect(terminalSource).toMatch(
+      /\(state === "connecting" \|\|[\s\S]*state === "empty" \|\|[\s\S]*state === "error"\) && \(/u,
+    );
+    expect(terminalSource).not.toContain('state !== "ready"');
   });
 
   it("prefetches and caches Unstaged and Staged Review data for instant scope switching", () => {
@@ -1936,6 +1968,18 @@ describe("renderer layout contract", () => {
       appSource.slice(conversationLinkStart, conversationLinkEnd),
     ).toContain("openWorkspaceTab(file.viewer, { path: file.path });");
     expect(workspacePreviewSource).toContain("<webview");
+    expect(workspacePreviewSource).toContain("<BrowserSurface");
+    expect(workspacePreviewSource).toContain("<BrowserToolbar");
+    expect(workspacePreviewSource).toContain("<BrowserNavigationButton");
+    expect(workspacePreviewSource).toContain("<BrowserAddressInput");
+    expect(workspacePreviewSource).toContain("<BrowserViewport");
+    expect(workspacePreviewSource).not.toMatch(/[←→↻]/u);
+    expect(publicUiProfessionalSource).not.toMatch(
+      /window\.artemis|electron|node:/u,
+    );
+    expect(publicUiProfessionalSource).toContain(
+      "caller-owns-webview-navigation-session-and-security",
+    );
     expect(workspacePreviewSource).toContain("normalizeBrowserAddress");
     expect(workspacePreviewSource).toContain("browserNavigationSnapshot");
     expect(workspacePreviewSource).toContain('"dom-ready"');
@@ -2053,7 +2097,9 @@ describe("renderer layout contract", () => {
     );
     const reviewIndex = appSource.indexOf("<ReviewSurface");
     const terminalIndex = appSource.indexOf("<TerminalPanel");
-    const terminalPanel = cssRule(".terminal-panel");
+    const terminalPanel = publicUiCssRule(
+      '[data-artemis-component="terminal-surface"]',
+    );
     const resizer = publicUiCssRule(
       '[data-artemis-component="workspace-dock-resizer"]',
     );
@@ -2063,10 +2109,10 @@ describe("renderer layout contract", () => {
     expect(terminalIndex).toBeGreaterThan(workspaceContentIndex);
     expect(resizer).toMatch(/\bcursor:\s*col-resize/u);
     expect(resizer).toMatch(/\btouch-action:\s*none/u);
-    expect(terminalPanel).toMatch(/\bmin-width:/u);
-    expect(terminalPanel).toMatch(/\bheight:\s*100%/u);
-    expect(terminalPanel).not.toMatch(/\bheight:\s*190px/u);
-    expect(terminalPanel).not.toMatch(/\bborder-top:/u);
+    expect(terminalPanel).toMatch(/\bmin-inline-size:\s*0/u);
+    expect(terminalPanel).toMatch(/\bblock-size:\s*100%/u);
+    expect(terminalPanel).not.toMatch(/\bblock-size:\s*190px/u);
+    expect(terminalPanel).not.toMatch(/\bborder-block-start:/u);
   });
 
   it("keeps both sidebars compact, directly toggleable, and smoothly animated", () => {
@@ -2254,7 +2300,9 @@ describe("renderer layout contract", () => {
   });
 
   it("keeps PowerShell input legible and prevents an xterm horizontal scrollbar", () => {
-    const viewport = cssRule(".terminal-host .xterm .xterm-viewport");
+    const viewport = publicUiCssRule(
+      '[data-artemis-component="terminal-host"] .xterm .xterm-viewport',
+    );
 
     expect(terminalSource).toContain('brightYellow: "#6b5700"');
     expect(terminalSource).toContain('cursorStyle: "bar"');
