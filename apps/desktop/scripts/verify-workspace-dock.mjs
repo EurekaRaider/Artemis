@@ -42,6 +42,42 @@ function approximatelyEqual(left, right, tolerance = 1) {
   return Math.abs(left - right) <= tolerance;
 }
 
+function parseCssColor(value) {
+  const channels =
+    typeof value === "string"
+      ? value.match(/[\d.]+/gu)?.map((channel) => Number(channel))
+      : null;
+  if (!channels || channels.length < 3 || channels.some(Number.isNaN)) {
+    return null;
+  }
+  return {
+    alpha: channels[3] ?? 1,
+    blue: channels[2],
+    green: channels[1],
+    red: channels[0],
+  };
+}
+
+function relativeLuminance(color) {
+  const channel = (value) => {
+    const normalized = value / 255;
+    return normalized <= 0.04045
+      ? normalized / 12.92
+      : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+  return (
+    0.2126 * channel(color.red) +
+    0.7152 * channel(color.green) +
+    0.0722 * channel(color.blue)
+  );
+}
+
+function contrastRatio(first, second) {
+  const lighter = Math.max(relativeLuminance(first), relativeLuminance(second));
+  const darker = Math.min(relativeLuminance(first), relativeLuminance(second));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 async function createBrowserFailureUrl() {
   const port = await new Promise((resolvePort, reject) => {
     const server = createServer();
@@ -484,6 +520,29 @@ try {
         ),
       interaction.browserInteraction ?? null,
       "real back, forward, and reload buttons over two isolated documents",
+    );
+    const documentCanvas = interaction.browserInteraction?.documentCanvas;
+    const hostBackground = parseCssColor(documentCanvas?.hostBackground);
+    const bodyBackground = parseCssColor(documentCanvas?.bodyBackground);
+    const htmlBackground = parseCssColor(documentCanvas?.htmlBackground);
+    const bodyColor = parseCssColor(documentCanvas?.bodyColor);
+    const canvasContrast =
+      hostBackground && bodyColor
+        ? contrastRatio(hostBackground, bodyColor)
+        : null;
+    assert(
+      "browser-document-canvas-contrast",
+      documentCanvas?.text === "artemis-browser-two" &&
+        hostBackground?.red === 255 &&
+        hostBackground.green === 255 &&
+        hostBackground.blue === 255 &&
+        hostBackground.alpha === 1 &&
+        bodyBackground?.alpha === 0 &&
+        htmlBackground?.alpha === 0 &&
+        Number.isFinite(canvasContrast) &&
+        canvasContrast >= 4.5,
+      { canvasContrast, documentCanvas },
+      "transparent synthetic document composed over an opaque white host canvas at >=4.5:1 text contrast",
     );
     if (testCase.layout === "resizable") {
       assertOpenGeometry("mouse", interaction.mouse);

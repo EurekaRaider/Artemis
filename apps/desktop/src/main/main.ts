@@ -12126,6 +12126,7 @@ async function driveSmokeWorkspaceDockEvidence(
       !(frame instanceof HTMLElement) ||
       typeof frame.loadURL !== 'function' ||
       typeof frame.getURL !== 'function' ||
+      typeof frame.executeJavaScript !== 'function' ||
       !(surface instanceof HTMLElement) ||
       !(address instanceof HTMLInputElement) ||
       !(form instanceof HTMLFormElement) ||
@@ -12266,6 +12267,9 @@ async function driveSmokeWorkspaceDockEvidence(
         surface.getAttribute('data-state') === 'ready',
       'reload navigation',
     );
+    const documentCanvas = await frame.executeJavaScript(
+      "(() => { const html = getComputedStyle(document.documentElement); const body = getComputedStyle(document.body); return { bodyBackground: body.backgroundColor, bodyColor: body.color, htmlBackground: html.backgroundColor, text: document.body.textContent?.trim() ?? '' }; })()",
+    );
     recordSurface();
     observer.disconnect();
     frame.removeEventListener('did-start-loading', onStart);
@@ -12277,6 +12281,10 @@ async function driveSmokeWorkspaceDockEvidence(
       afterForward,
       beforeBack,
       controls,
+      documentCanvas: {
+        ...documentCanvas,
+        hostBackground: getComputedStyle(frame).backgroundColor,
+      },
       events,
       firstUrl,
       reloadUrl: frame.getURL(),

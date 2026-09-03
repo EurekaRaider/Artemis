@@ -7075,6 +7075,13 @@ button.sources-panel-entry.attachment:focus-visible {
   padding: 12px;
 }
 
+[data-artemis-component="browser-viewport"]
+  > [data-part="content"]
+  > .browser-frame {
+  background: #ffffff;
+  color-scheme: light;
+}
+
 .workspace-code-line {
   display: block;
   min-height: 19.5px;
