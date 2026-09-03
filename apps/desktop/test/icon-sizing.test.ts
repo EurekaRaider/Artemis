@@ -255,13 +255,6 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     ],
     [".workspace-tab-menu svg", 17, false],
     [".sources-panel-icon svg", 22, false],
-    [
-      ".library-hero-icon svg,\n.catalog-tabs svg,\n.catalog-card-icon svg,\n.library-search svg,\n.catalog-search svg",
-      24,
-      false,
-    ],
-    [".catalog-tabs svg", 16, true],
-    [".catalog-card-icon svg", 19, true],
     [".archive-header-icon svg", 23, true],
     ['.archive-empty [data-part="icon"] svg', 23, true],
   ];

@@ -1,0 +1,98 @@
+{
+  "dynamicClassConsumers": [
+    {
+      "classes": ["drop-before", "drop-after"],
+      "owner": "Desktop project and task drag ordering",
+      "reason": "The finite before/after edge is appended to both draggable row class lists at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "` drop-${projectDropTarget.edge}`"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "` drop-${threadDropTarget.edge}`"
+        },
+        {
+          "path": "apps/desktop/src/renderer/project-order.ts",
+          "contains": "export type ProjectDropEdge = \"before\" | \"after\";"
+        },
+        {
+          "path": "apps/desktop/src/renderer/thread-list-order.ts",
+          "contains": "export type ThreadDropEdge = \"before\" | \"after\";"
+        }
+      ]
+    },
+    {
+      "classes": ["composer-notice", "view-notice"],
+      "owner": "Desktop transient notices",
+      "reason": "TransientNotice appends the finite composer/view placement to the shared notice class.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "placement: \"composer\" | \"view\";"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "${placement}-notice"
+        }
+      ]
+    },
+    {
+      "classes": ["starting"],
+      "owner": "Desktop automation run status",
+      "reason": "Automation rows append the protocol-owned finite run state to the status dot class.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/AutomationPage.tsx",
+          "contains": "`automation-run-dot ${run.state}`"
+        },
+        {
+          "path": "packages/protocol/src/automation.ts",
+          "contains": "\"starting\","
+        }
+      ]
+    },
+    {
+      "classes": ["blocker", "handoff"],
+      "owner": "Desktop agent-team collaboration log",
+      "reason": "Agent-team messages append the protocol-owned finite message kind to the collaboration row class.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`agent-team-message ${message.kind}`}"
+        },
+        {
+          "path": "packages/protocol/src/schema.ts",
+          "contains": "kind: z.enum([\"finding\", \"request\", \"blocker\", \"handoff\"]),"
+        }
+      ]
+    }
+  ],
+  "rawComponentOverrides": [
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] [data-part=\"menu\"]",
+      "property": "z-index",
+      "value": "80",
+      "owner": "Desktop composer overlay stacking",
+      "reason": "The public select exposes placement but does not define a skin-controlled overlay layer token."
+    },
+    {
+      "atRules": [],
+      "selector": ".review-scope-select [data-artemis-component=\"select\"] [data-part=\"menu\"]",
+      "property": "z-index",
+      "value": "80",
+      "owner": "Desktop review overlay stacking",
+      "reason": "The public select exposes placement but does not define a skin-controlled overlay layer token."
+    },
+    {
+      "atRules": [],
+      "selector": "[data-artemis-component=\"browser-viewport\"] > [data-part=\"content\"] > .browser-frame",
+      "property": "background",
+      "value": "#ffffff",
+      "owner": "Desktop embedded browser viewport",
+      "reason": "The isolated web-content canvas intentionally starts white and is not a skin surface."
+    }
+  ]
+}
