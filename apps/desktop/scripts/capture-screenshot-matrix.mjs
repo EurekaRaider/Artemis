@@ -340,11 +340,14 @@ try {
     `Screenshot matrix startup budget failed:\n${startup.violations.join("\n")}`,
   );
   manifest.startupBudget = {
+    coldStartVariantId: startup.coldStartVariantId,
     stageMaximumMs: startup.stageMaximumMs,
+    warmStageMaximumMs: startup.warmStageMaximumMs,
     stageThresholdMaximumMs: startup.thresholds,
-    hardMaximumMs: startup.hardMaximumMs,
-    maximumOutlierVariants: startup.maximumOutlierVariants,
-    outlierVariants: startup.outlierVariants,
+    warmHardMaximumMs: startup.warmHardMaximumMs,
+    coldStartHardMaximumMs: startup.coldStartHardMaximumMs,
+    maximumWarmOutlierVariants: startup.maximumWarmOutlierVariants,
+    warmOutlierVariants: startup.warmOutlierVariants,
   };
 
   assert(

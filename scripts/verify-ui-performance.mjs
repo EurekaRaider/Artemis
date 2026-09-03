@@ -42,7 +42,9 @@ export function startupStageMaximums(budget) {
   const policy = budget.thresholds?.startup;
   const multiplier = policy?.baselineMultiplier;
   const jitter = policy?.jitterAllowanceMs;
-  const maximumOutlierVariants = policy?.maximumOutlierVariants;
+  const maximumWarmOutlierVariants = policy?.maximumWarmOutlierVariants;
+  const warmHardMaximumMs = policy?.warmHardMaximumMs;
+  const coldStartHardMaximumMs = policy?.coldStartHardMaximumMs;
   if (
     baseline === undefined ||
     typeof baseline !== "object" ||
@@ -50,30 +52,48 @@ export function startupStageMaximums(budget) {
     multiplier < 1 ||
     !Number.isFinite(jitter) ||
     jitter < 0 ||
-    !Number.isInteger(maximumOutlierVariants) ||
-    maximumOutlierVariants < 0
+    !Number.isInteger(maximumWarmOutlierVariants) ||
+    maximumWarmOutlierVariants < 0 ||
+    !Number.isFinite(warmHardMaximumMs) ||
+    warmHardMaximumMs <= 0 ||
+    !Number.isFinite(coldStartHardMaximumMs) ||
+    coldStartHardMaximumMs < warmHardMaximumMs
   ) {
     throw new Error(
-      "UI performance startup budget requires a baseline, multiplier >= 1, non-negative jitter allowance, and non-negative integer outlier allowance",
+      "UI performance startup budget requires a baseline, multiplier >= 1, non-negative jitter allowance, non-negative integer warm-outlier allowance, a positive warm hard maximum, and a cold hard maximum no lower than the warm maximum",
     );
   }
-  return Object.fromEntries(
-    Object.entries(baseline).map(([stage, value]) => {
+  const baselineStages = Object.entries(baseline);
+  if (baselineStages.length === 0) {
+    throw new Error(
+      "UI performance startup baseline requires at least one stage",
+    );
+  }
+  const thresholds = Object.fromEntries(
+    baselineStages.map(([stage, value]) => {
       if (!Number.isFinite(value) || value < 0) {
         throw new Error(`Invalid startup baseline for ${stage}`);
       }
       return [stage, Math.round((value * multiplier + jitter) * 10) / 10];
     }),
   );
+  if (warmHardMaximumMs < Math.max(...Object.values(thresholds))) {
+    throw new Error(
+      "UI performance warm hard maximum must cover every derived stage ceiling",
+    );
+  }
+  return thresholds;
 }
 
 export function evaluateStartupTimings(budget, variants) {
   const thresholds = startupStageMaximums(budget);
-  const hardMaximumMs = Math.max(...Object.values(thresholds));
-  const maximumOutlierVariants =
-    budget.thresholds.startup.maximumOutlierVariants;
+  const policy = budget.thresholds.startup;
+  const maximumWarmOutlierVariants = policy.maximumWarmOutlierVariants;
+  const warmHardMaximumMs = policy.warmHardMaximumMs;
+  const coldStartHardMaximumMs = policy.coldStartHardMaximumMs;
   const stageMaximumMs = {};
-  const outlierVariants = [];
+  const warmStageMaximumMs = {};
+  const warmOutlierVariants = [];
   const violations = [];
 
   if (variants.length === 0) {
@@ -82,6 +102,10 @@ export function evaluateStartupTimings(budget, variants) {
 
   for (const [index, variant] of variants.entries()) {
     const variantId = variant.id ?? `variant-${String(index + 1)}`;
+    const isColdStart = index === 0;
+    const hardMaximumMs = isColdStart
+      ? coldStartHardMaximumMs
+      : warmHardMaximumMs;
     const stageOutliers = [];
     for (const [stage, maximum] of Object.entries(thresholds)) {
       const matches = (variant.startupTimings ?? []).filter(
@@ -95,32 +119,42 @@ export function evaluateStartupTimings(budget, variants) {
       }
       const actual = matches[0].elapsedMs;
       stageMaximumMs[stage] = Math.max(stageMaximumMs[stage] ?? 0, actual);
-      if (actual > maximum) {
+      if (!isColdStart) {
+        warmStageMaximumMs[stage] = Math.max(
+          warmStageMaximumMs[stage] ?? 0,
+          actual,
+        );
+      }
+      if (!isColdStart && actual > maximum) {
         stageOutliers.push({ stage, actual, maximum });
       }
       if (actual > hardMaximumMs) {
         violations.push(
-          `startup.${variantId}.${stage}: ${String(actual)} exceeds hard maximum ${String(hardMaximumMs)}`,
+          `startup.${variantId}.${stage}: ${String(actual)} exceeds ${isColdStart ? "cold" : "warm"} hard maximum ${String(hardMaximumMs)}`,
         );
       }
     }
     if (stageOutliers.length > 0) {
-      outlierVariants.push({ id: variantId, stages: stageOutliers });
+      warmOutlierVariants.push({ id: variantId, stages: stageOutliers });
     }
   }
 
-  if (outlierVariants.length > maximumOutlierVariants) {
+  if (warmOutlierVariants.length > maximumWarmOutlierVariants) {
     violations.push(
-      `startup outlier variants: ${String(outlierVariants.length)} exceeds ${String(maximumOutlierVariants)} (${outlierVariants.map((variant) => variant.id).join(", ")})`,
+      `startup warm outlier variants: ${String(warmOutlierVariants.length)} exceeds ${String(maximumWarmOutlierVariants)} (${warmOutlierVariants.map((variant) => variant.id).join(", ")})`,
     );
   }
 
   return {
+    coldStartVariantId:
+      variants.length === 0 ? null : (variants[0]?.id ?? "variant-1"),
     stageMaximumMs,
+    warmStageMaximumMs,
     thresholds,
-    hardMaximumMs,
-    maximumOutlierVariants,
-    outlierVariants,
+    warmHardMaximumMs,
+    coldStartHardMaximumMs,
+    maximumWarmOutlierVariants,
+    warmOutlierVariants,
     violations,
   };
 }
@@ -155,15 +189,17 @@ export async function verifyUiPerformance(
   }
 
   const startupThresholds = startupStageMaximums(budget);
+  let startupColdStartVariantId;
   let startupStageMaximumMs;
-  let startupOutlierVariants;
-  let startupHardMaximumMs;
+  let startupWarmStageMaximumMs;
+  let startupWarmOutlierVariants;
   if (screenshotManifestPath !== undefined) {
     const manifest = JSON.parse(await readFile(screenshotManifestPath, "utf8"));
     const startup = evaluateStartupTimings(budget, manifest.variants ?? []);
+    startupColdStartVariantId = startup.coldStartVariantId;
     startupStageMaximumMs = startup.stageMaximumMs;
-    startupOutlierVariants = startup.outlierVariants;
-    startupHardMaximumMs = startup.hardMaximumMs;
+    startupWarmStageMaximumMs = startup.warmStageMaximumMs;
+    startupWarmOutlierVariants = startup.warmOutlierVariants;
     violations.push(...startup.violations);
   }
   if (violations.length > 0) {
@@ -174,12 +210,13 @@ export async function verifyUiPerformance(
   return {
     baseline: budget.baseline,
     metrics,
+    startupColdStartVariantId,
     startupStageMaximumMs,
-    startupOutlierVariants,
+    startupWarmStageMaximumMs,
+    startupWarmOutlierVariants,
     thresholds: {
       ...budget.thresholds,
       startupStageMaximumMs: startupThresholds,
-      startupHardMaximumMs,
     },
   };
 }

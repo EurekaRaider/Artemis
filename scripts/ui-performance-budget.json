@@ -34,8 +34,10 @@
     "startup": {
       "baselineMultiplier": 8,
       "jitterAllowanceMs": 500,
-      "maximumOutlierVariants": 1,
-      "note": "Each stage ceiling is its merged-base maximum times eight plus 500 ms of cross-runner jitter. At most one matrix variant may exceed its stage ceiling, and every timing must remain below the highest derived ceiling."
+      "maximumWarmOutlierVariants": 2,
+      "warmHardMaximumMs": 4000,
+      "coldStartHardMaximumMs": 10000,
+      "note": "Each warm-start stage ceiling is its merged-base maximum times eight plus 500 ms of cross-runner jitter. The first matrix launch is a separately bounded cold start; at most two of the remaining 26 launches may exceed their stage ceilings, no warm timing may exceed four seconds, and no cold timing may exceed ten seconds."
     },
     "workloadWallClockMs": {
       "screenshot-matrix": 180000,

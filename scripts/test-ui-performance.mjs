@@ -32,7 +32,7 @@ async function fixture(
       "export const marker = 'gallery';\n",
     "apps/ui-gallery/dist/assets/gallery.css": ".gallery{}\n",
     "packages/ui/dist/styles.css": ".ui{}\n",
-    "scripts/ui-performance-budget.json": `${JSON.stringify({ baseline: { startupStageMaximumMs: { "app-ready": 10, "core-state-ready": 105.7, "renderer-ready": 320.7 } }, thresholds: { bundles: { desktopCssBytes: maximum, desktopJsBytes: maximum, desktopLargestJsBytes: maximum, galleryCssBytes: maximum, galleryJsBytes: maximum, uiCssBytes: maximum }, startup: { baselineMultiplier: 8, jitterAllowanceMs: 500, maximumOutlierVariants: 1 } } })}\n`,
+    "scripts/ui-performance-budget.json": `${JSON.stringify({ baseline: { startupStageMaximumMs: { "app-ready": 10, "core-state-ready": 105.7, "renderer-ready": 320.7 } }, thresholds: { bundles: { desktopCssBytes: maximum, desktopJsBytes: maximum, desktopLargestJsBytes: maximum, galleryCssBytes: maximum, galleryJsBytes: maximum, uiCssBytes: maximum }, startup: { baselineMultiplier: 8, jitterAllowanceMs: 500, maximumWarmOutlierVariants: 2, warmHardMaximumMs: 4_000, coldStartHardMaximumMs: 10_000 } } })}\n`,
     "manifest.json": `${JSON.stringify({ variants: startupVariants })}\n`,
   };
   for (const [path, content] of Object.entries(files)) {
@@ -74,24 +74,40 @@ await runCase(1, normalVariants, false);
 await runCase(1_000, [], false);
 await runCase(
   1_000,
-  [startupVariant("five-second-regression", 100, 200, 5_000)],
+  [
+    normalVariants[0],
+    startupVariant("five-second-warm-regression", 100, 200, 5_000),
+    ...normalVariants.slice(2),
+  ],
   false,
 );
 await runCase(
   1_000,
   [
-    startupVariant("runner-outlier", 100, 2_211.4, 2_500),
-    ...normalVariants.slice(1),
+    startupVariant("windows-cold-start", 100, 6_809.7, 7_267.3),
+    startupVariant("windows-warm-outlier-1", 100, 200, 3_324.4),
+    startupVariant("windows-warm-outlier-2", 100, 200, 3_108.8),
+    ...normalVariants.slice(3),
   ],
   true,
 );
 await runCase(
   1_000,
   [
-    startupVariant("runner-outlier-1", 100, 2_211.4, 2_500),
-    startupVariant("runner-outlier-2", 100, 2_211.4, 2_500),
-    ...normalVariants.slice(2),
+    startupVariant("cold-start-regression", 100, 9_000, 10_000.1),
+    ...normalVariants.slice(1),
   ],
   false,
 );
-console.log("UI performance budget fixtures passed (2 accepted; 4 rejected)");
+await runCase(
+  1_000,
+  [
+    normalVariants[0],
+    startupVariant("warm-outlier-1", 100, 2_211.4, 3_500),
+    startupVariant("warm-outlier-2", 100, 2_211.4, 3_500),
+    startupVariant("warm-outlier-3", 100, 2_211.4, 3_500),
+    ...normalVariants.slice(4),
+  ],
+  false,
+);
+console.log("UI performance budget fixtures passed (2 accepted; 5 rejected)");

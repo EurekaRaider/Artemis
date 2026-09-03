@@ -12,12 +12,15 @@ head `fcf993c`. CI run `33759335470` passed the full macOS arm64 aggregate and
 isolated two timeline sampling boundaries on macOS x64 and Windows x64, both
 addressed at head `331448c`. CI run `33762336220` passed the full macOS arm64
 aggregate and confirmed the timeline fixes, then isolated one Windows startup
-outlier and the macOS x64 Goal workload circuit breaker. Both are addressed in
-the current local follow-up. The next exact PR head, fresh native macOS arm64,
-macOS x64 and Windows x64 CI, and merge are not yet complete. This ledger
-separates static prototype evidence, package/Gallery evidence, and production
-Electron evidence. It must not be used to turn a prototype, Gallery pass, or
-attribute-only resolver pass into a migrated production surface.
+outlier and the macOS x64 Goal workload circuit breaker, addressed at head
+`69bd71f`. CI run `33765644502` passed the full macOS arm64 aggregate and then
+proved that the remaining startup policy still conflated first cold launch with
+the 26 subsequent warm launches on macOS x64 and Windows x64. The current local
+follow-up separates those bounds. The next exact PR head, fresh native macOS
+arm64, macOS x64 and Windows x64 CI, and merge are not yet complete. This
+ledger separates static prototype evidence, package/Gallery evidence, and
+production Electron evidence. It must not be used to turn a prototype, Gallery
+pass, or attribute-only resolver pass into a migrated production surface.
 
 ## Inputs and evidence boundary
 
@@ -790,14 +793,16 @@ real class sinks, compound selectors, ID/data selectors, finite domains, and
 raw/token-only public-component declarations. Raw registrations cannot be
 bypassed by adding a token reference to a hardcoded color, dimension, or
 unitless stacking value. The performance gate records byte and startup budgets
-against merged base `3b02455`; every startup ceiling is now derived from the
+against merged base `3b02455`; each warm-stage ceiling is derived from the
 corresponding merged-base maximum times eight plus 500 ms of cross-runner
-jitter, instead of a multi-second absolute allowance. All 27 launch variants
-must meet their stage ceilings except at most one shared-runner outlier, and
-even that one variant must keep every stage below the highest derived ceiling
-of 3065.6 ms. Empty evidence, two outlier variants, and a five-second regression
-remain fail-closed. Implementation checkpoint `2a38040` measured Desktop CSS at
-287,911 bytes, Desktop JavaScript at
+jitter. All 27 launch variants
+are still measured, but the first post-build launch is now explicitly governed
+as a cold start with a 10,000 ms hard maximum. The remaining 26 warm launches
+retain their individual derived stage ceilings; at most two may exceed those
+ceilings, and no warm timing may exceed 4,000 ms. Empty evidence, three warm
+outliers, a five-second warm regression, and a greater-than-ten-second cold
+regression remain fail-closed. Implementation checkpoint `2a38040` measured
+Desktop CSS at 287,911 bytes, Desktop JavaScript at
 1,855,194 bytes, largest Desktop chunk at 853,244 bytes, Gallery CSS at 180,175
 bytes, Gallery JavaScript at 355,604 bytes, and public UI CSS at 151,849 bytes.
 Its observed startup maxima were 26.4 ms for app start, 80 ms for diagnostics,
@@ -880,6 +885,21 @@ showed Gallery CSS at about 185.44 kB versus 180,175 bytes on macOS because its
 fixed to LF rather than weakening the 182,000-byte package budget. Windows did
 not reach later workloads or its final package step, and x64 did not reach its
 last Desktop-skin/package workload; both still require fresh CI.
+
+Cross-platform-policy CI run `33765644502` passed its base job, Windows native
+sandbox integration, all three Gallery jobs, and the complete macOS arm64
+aggregate in 15 minutes 36 seconds. Windows Gallery built at the same 180.17 kB
+as LF platforms, confirming the CSS checkout fix without changing its budget.
+macOS x64 stopped when one warm `zh-CN-base` renderer launch measured 3107.7 ms,
+42.1 ms above the shared 3065.6 ms hard maximum. Windows recorded its first
+post-build `en-base` cold launch at 6724.9 ms for core readiness and 7267.3 ms
+for renderer readiness, followed by two sparse warm renderer outliers at
+3324.4 ms and 3108.8 ms. Separating the known first cold launch from the warm
+population preserves the merged-base-derived warm stage ceilings, bounds the
+cold launch at 10 seconds, permits no more than two of 26 warm outliers, and
+keeps a 4-second hard maximum on every warm timing. Both slower platforms
+stopped in the screenshot matrix, so no later workload or final Windows package
+result is claimed from this run.
 
 The final acceptance target is the exact clean 1.4.59 PR head. Its SHA and
 generated report paths belong in PR evidence rather than as a self-referential
