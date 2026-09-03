@@ -1,8 +1,8 @@
 # Discussion #76 visual migration ledger
 
-Status: MIG4 Terminal and Browser implementation head
-`0cce243333af7a6192e35493d9e363e518276da1` is independently approved on merged
-MIG3B base `ad28231944c80a52449a6755d3763e19fce33450`; the final 1.4.56 metadata head
+Status: MIG5A Settings, Resource Center, and MCP Editor implementation head
+`72f0325b33f5b6d2b0a56624e354a7ce28e7711a` is independently approved on merged
+MIG4 base `94d1c0d22ffdfc7ce84a3ef8fb4a4a3429f39913`; the final 1.4.57 metadata head
 is pending fresh CI and automated comments. This ledger separates static
 prototype evidence, package/Gallery evidence, and production Electron evidence.
 It must not be used to turn a prototype, Gallery pass, or attribute-only
@@ -10,7 +10,7 @@ resolver pass into a migrated production surface.
 
 ## Inputs and evidence boundary
 
-- Candidate base: `ad28231944c80a52449a6755d3763e19fce33450` (MIG3B merged).
+- Candidate base: `94d1c0d22ffdfc7ce84a3ef8fb4a4a3429f39913` (MIG4 merged).
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -26,7 +26,7 @@ resolver pass into a migrated production surface.
   `ui-prototype/contrast/prototype-contract-result.json`, and
   `ui-prototype/contrast/summary.json`.
 - The prototype directory remains read-only in a companion checkout and is not
-  present in this candidate base. MIG4 does not copy or modify it.
+  present in this candidate base. MIG5A does not copy or modify it.
 - v17's 70/70 generic card contract, 22/22 targeted historical-gap checks, and
   36 contrast combinations are HTML/Chrome specification evidence only. They do
   not prove React anatomy, Desktop integration, Electron geometry, platform
@@ -674,10 +674,46 @@ same sole Reviewer, who approved exact implementation head
 `0cce243333af7a6192e35493d9e363e518276da1`. Local root tests, typecheck,
 production build, format, package consumer, skin/CSS governance, and boundary
 suites pass; the final exact-head Electron matrix records 74 + 44 + 74 = 192
-assertions. Required CI passes all six jobs, including native Windows and
+assertions. Required CI passed all six jobs, including native Windows and
 macOS Electron runs. Per the final-head workflow, the 1.4.56 manifests, README,
-and this ledger update proceed through fresh CI and automated comments without
-another Validator/Reviewer pass.
+and this ledger update proceeded through fresh CI and automated comments
+without another Validator/Reviewer pass. PR #144 merged at
+`94d1c0d22ffdfc7ce84a3ef8fb4a4a3429f39913`.
+
+## MIG5A management surfaces candidate evidence
+
+MIG5A moves Settings, Resource Center, and MCP Editor presentation onto the
+public `@artemis/ui` management, form, action, notice, overlay, and navigation
+contracts while retaining provider credentials, connector authorization,
+resource trust, MCP sandbox/network policy, extension trust, and all mutation
+authority in Desktop. The public Tabs contract now exposes explicit horizontal
+and vertical orientation semantics and orientation-correct keyboard behavior;
+inactive tabpanels remain mounted, hidden, and linked bidirectionally for
+assistive technology.
+
+The Desktop adapters preserve native `disabled` state throughout Resource and
+MCP operations and use same-tick guards for submission and dangerous removal
+confirmation. Marketplace and import feedback presents canonical repository
+identity, source ownership, complete warnings, unsupported features, and safe
+import diagnostics without exposing local source paths. RTL uses logical CSS
+properties and direction-aware icon treatment. Synthetic privacy validation
+confirmed that a bearer credential exists only in its controlled password
+input while open, then disappears without entering unrelated DOM attributes,
+serialized markup, console output, or smoke audit JSON.
+
+The sole independent Validator/Reviewer approved exact implementation head
+`72f0325b33f5b6d2b0a56624e354a7ce28e7711a` with no blocking findings. Local
+root tests report 1511 core passes with 7 skips, while `@artemis/ui` reports 182
+passes and Gallery reports 134 passes. Typecheck, production build, format,
+public-package consumption, UI boundaries, skin conformance, and Gallery
+governance all pass. Exact-head strict-sandbox Electron evidence records
+Navigation 6 cases/174 assertions, Form controls 14/288, MCP Editor 26/326, and
+Feedback/Layout 8/180 across light, dark, RTL, narrow-width, and 200% cases.
+PR #145 passes all six required exact-head CI jobs, including the three-platform
+Gallery matrix, Desktop Electron/package boundary, and Windows native sandbox.
+Per the final-head workflow, the 1.4.57 manifests, README, and this ledger update
+proceed through fresh CI and automated comments without another
+Validator/Reviewer pass.
 
 ## Component and surface sequence
 
@@ -699,8 +735,8 @@ another Validator/Reviewer pass.
 | Conversation, Timeline, trusted-AI states                                 | surface            | `@artemis/ui` + Desktop   | users                             | message/timeline/status selectors                | MIG2      | State, scroll, interaction, performance, exact-head Electron | Merged at `a9dd2d4`                     |
 | Workspace, Dock, file/Markdown edit and preview                           | surface            | `@artemis/ui` + Desktop   | users                             | workspace/dock/editor selectors                  | MIG3A     | Tabs, resize, save/error, geometry, exact-head Electron      | Merged at `6fa4887`                     |
 | Review, Diff, Environment, Goal, Sources                                  | surface            | `@artemis/ui` + Desktop   | users                             | review/environment/source selectors              | MIG3B     | State, permission and overlay geometry matrix                | Merged at `ad28231`                     |
-| Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | PR #144 approved; 1.4.56 CI pending     |
-| Settings, Resource Center, MCP Editor                                     | surface            | `@artemis/ui` + Desktop   | users                             | feature-local renderer styles                    | MIG5A     | Form, permission, privacy and exact-head Electron matrix     | Pending                                 |
+| Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | Merged at `94d1c0d`                     |
+| Settings, Resource Center, MCP Editor                                     | surface            | `@artemis/ui` + Desktop   | users                             | feature-local renderer styles                    | MIG5A     | Form, permission, privacy and exact-head Electron matrix     | PR #145 approved; 1.4.57 CI pending     |
 | Archive, Usage, Automation                                                | surface            | `@artemis/ui` + Desktop   | users                             | secondary-page selectors                         | MIG5B     | Real-data, a11y, schedule and exact-head Electron matrix     | Pending                                 |
 | Convergence and governance cleanup                                        | surface/governance | Desktop + CI              | users/contributors                | remaining proven-unused legacy selectors         | MIG6      | Complete exact-head runtime/performance/platform matrix      | Pending                                 |
 
