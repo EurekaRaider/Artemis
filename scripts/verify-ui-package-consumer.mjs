@@ -407,14 +407,18 @@ if (!Object.isFrozen(WORKFLOW_COMPONENT_CONTRACTS)) throw new Error("workflow co
   run(process.execPath, ["workflow-consumer.mjs"], consumer);
   await writeFile(
     join(consumer, "professional-consumer.mjs"),
-    `import { createElement } from "react";
+    `import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { BrowserAddressForm, BrowserAddressInput, BrowserGoButton, BrowserSurface, BrowserViewport, PROFESSIONAL_COMPONENT_CONTRACTS, TerminalHeader, TerminalHost, TerminalSurface, TerminalViewport } from "@artemis/ui/professional";
 const html = [
   renderToStaticMarkup(createElement(TerminalSurface, { label: "Terminal", state: "ready" }, createElement(TerminalHeader, { detail: "zsh", heading: "Terminal" }), createElement(TerminalViewport, null, createElement(TerminalHost)))),
-  renderToStaticMarkup(createElement(BrowserSurface, { label: "Browser", state: "ready" }, createElement(BrowserAddressForm, { label: "Address" }, createElement(BrowserAddressInput, { label: "Address", value: "about:blank" }), createElement(BrowserGoButton, { label: "Go" })), createElement(BrowserViewport, { label: "Document" }, "Document"))),
+  renderToStaticMarkup(createElement(BrowserSurface, { label: "Browser", state: "ready" }, createElement(BrowserAddressForm, { label: "Address" }, createElement(BrowserAddressInput, { label: "Address", value: "about:blank" }), createElement(BrowserGoButton, { label: "Go" })), createElement(BrowserViewport, { label: "Document" }, createElement("div", { "data-consumer-browser-document": true }, "Document")))),
 ].join("");
 for (const marker of ["terminal-surface", "terminal-header", "terminal-viewport", "terminal-host", "browser-surface", "browser-address-form", "browser-address-input", "browser-go-button", "browser-viewport"]) if (!html.includes('data-artemis-component="' + marker + '"')) throw new Error("professional peer/component resolution failed: " + marker);
+const css = await readFile(fileURLToPath(import.meta.resolve("@artemis/ui/styles.css")), "utf8");
+if (!html.includes("data-consumer-browser-document") || !css.includes('[data-artemis-component="browser-viewport"]') || !css.includes('> [data-part="content"]') || !css.includes("> *") || css.includes(".browser-frame")) throw new Error("public Browser child layout depends on a consumer-private selector");
 if (!Object.isFrozen(PROFESSIONAL_COMPONENT_CONTRACTS)) throw new Error("professional contract is mutable");
 `,
     "utf8",

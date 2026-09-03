@@ -3111,7 +3111,9 @@ describe("default and synthetic stress skin conformance", () => {
     expect(
       document.head.querySelector("style[data-gallery-stress-skin]"),
     ).not.toBeNull();
-  }, 40_000);
+    // The complete 64-vertex traversal takes about 49 seconds on the hosted
+    // Windows runner. Keep the matrix fail-closed while allowing runner variance.
+  }, 90_000);
 
   it("binds every declared matrix case to a real behavior runner", () => {
     expect(conformanceMatrix.skins.stress).toEqual(

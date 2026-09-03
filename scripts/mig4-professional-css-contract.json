@@ -295,7 +295,7 @@
     }
   ],
   [
-    "normal|[data-artemis-component=\"browser-viewport\"] > [data-part=\"content\"] > .browser-frame",
+    "normal|[data-artemis-component=\"browser-viewport\"] > [data-part=\"content\"] > *",
     {
       "display": "flex",
       "flex": "1 1 auto",

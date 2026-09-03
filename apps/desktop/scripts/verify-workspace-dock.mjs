@@ -59,6 +59,7 @@ const cases = [
   {
     caseId: "wide-light-100",
     direction: "ltr",
+    layout: "resizable",
     locale: "en",
     scale: 1,
     theme: "light",
@@ -67,14 +68,16 @@ const cases = [
   {
     caseId: "compact-dark-200",
     direction: "ltr",
+    layout: "overlay",
     locale: "en",
     scale: 2,
     theme: "dark",
-    width: 2_000,
+    width: 1_600,
   },
   {
     caseId: "wide-dark-rtl-100",
     direction: "rtl",
+    layout: "resizable",
     locale: "ar",
     scale: 1,
     theme: "dark",
@@ -160,7 +163,7 @@ try {
         { state: "open", visible: true },
       );
       assert(
-        `${name}-resizer-pixel-aria`,
+        `${name}-resizer-semantic-contract`,
         snapshot?.resizer?.role === "separator" &&
           snapshot.resizer.state === "open" &&
           snapshot.resizer.value >= snapshot.resizer.minimum &&
@@ -168,18 +171,61 @@ try {
           typeof snapshot.resizer.label === "string" &&
           snapshot.resizer.label.length > 0 &&
           typeof snapshot.resizer.valueText === "string" &&
-          snapshot.resizer.valueText.endsWith(
-            `: ${snapshot.resizer.value}px`,
-          ) &&
-          approximatelyEqual(snapshot.resizer.value, snapshot.dock.width),
+          snapshot.resizer.valueText.endsWith(`: ${snapshot.resizer.value}px`),
         snapshot?.resizer ?? null,
-        "open vertical separator with exact clamped pixel value",
+        "open vertical separator with a clamped labelled pixel value",
       );
       assert(
         `${name}-conversation-minimum`,
         snapshot?.conversation?.width >= 320,
         snapshot?.conversation?.width ?? null,
         ">= 320",
+      );
+      assert(
+        `${name}-viewport-evidence`,
+        Number.isFinite(snapshot?.viewport?.innerWidth) &&
+          snapshot.viewport.innerWidth > 0 &&
+          Number.isFinite(snapshot.viewport.outerWidth) &&
+          snapshot.viewport.outerWidth > 0 &&
+          Number.isFinite(snapshot.viewport.devicePixelRatio) &&
+          snapshot.viewport.devicePixelRatio > 0,
+        snapshot?.viewport ?? null,
+        "positive inner/outer width and device pixel ratio",
+      );
+      if (testCase.layout === "overlay") {
+        assert(
+          `${name}-compact-overlay-contract`,
+          snapshot?.viewport?.compactMedia === true &&
+            snapshot.viewport.innerWidth <= 820 &&
+            snapshot?.resizer?.display === "none" &&
+            snapshot.resizer.width === 0 &&
+            approximatelyEqual(
+              snapshot?.dock?.width,
+              snapshot?.workspaceContent?.width,
+            ),
+          {
+            dockWidth: snapshot?.dock?.width ?? null,
+            resizer: snapshot?.resizer ?? null,
+            viewport: snapshot?.viewport ?? null,
+            workspaceWidth: snapshot?.workspaceContent?.width ?? null,
+          },
+          "<=820px overlay Dock spanning the workspace with hidden resizer",
+        );
+        return;
+      }
+      assert(
+        `${name}-resizer-pixel-geometry`,
+        snapshot?.viewport?.compactMedia === false &&
+          snapshot?.resizer?.display !== "none" &&
+          snapshot?.resizer?.visibility !== "hidden" &&
+          snapshot?.resizer?.width > 0 &&
+          approximatelyEqual(snapshot.resizer.value, snapshot.dock.width),
+        {
+          dockWidth: snapshot?.dock?.width ?? null,
+          resizer: snapshot?.resizer ?? null,
+          viewport: snapshot?.viewport ?? null,
+        },
+        "visible separator matching the Dock width outside compact media",
       );
       assert(
         `${name}-scrollbar-boundary`,
@@ -257,6 +303,12 @@ try {
       interaction !== null && typeof interaction === "object",
       interaction,
       "workspace interaction audit",
+    );
+    assert(
+      "responsive-layout-mode",
+      interaction.layout === testCase.layout,
+      interaction.layout,
+      testCase.layout,
     );
     assert(
       "logical-direction",
@@ -337,66 +389,132 @@ try {
       interaction.afterClose.browser ?? null,
       "non-zero >=320px Browser shell without horizontal overflow",
     );
-    assertOpenGeometry("mouse", interaction.mouse);
     assert(
-      "mouse-pointer-chain",
-      interaction.pointerProbe?.down === 1 &&
-        interaction.pointerProbe?.move >= 1 &&
-        interaction.pointerProbe?.up === 1,
-      interaction.pointerProbe ?? null,
-      { down: 1, move: ">= 1", up: 1 },
+      "browser-address-submit-loading-error",
+      interaction.browserInteraction?.controls?.go === 1 &&
+        interaction.browserInteraction?.controls?.submit === 1 &&
+        interaction.browserInteraction?.submission?.address ===
+          "http://127.0.0.1:1/artemis-mig4-error" &&
+        interaction.browserInteraction?.submission?.state === "error" &&
+        typeof interaction.browserInteraction?.submission?.errorText ===
+          "string" &&
+        interaction.browserInteraction.submission.errorText.length > 0 &&
+        Number.isFinite(
+          interaction.browserInteraction?.submission?.failure?.code,
+        ) &&
+        typeof interaction.browserInteraction?.submission?.failure
+          ?.description === "string" &&
+        interaction.browserInteraction.surfaceStates.includes("loading") &&
+        interaction.browserInteraction.surfaceStates.includes("error") &&
+        interaction.browserInteraction.surfaceStates.includes("ready"),
+      interaction.browserInteraction ?? null,
+      "one real form submission observed through loading and failed-load UI",
     );
     assert(
-      "mouse-resize-applied",
-      interaction.mouse.resizer.value >= interaction.afterClose.resizer.value &&
-        (interaction.mouse.resizer.value >
-          interaction.afterClose.resizer.value ||
-          interaction.mouse.resizer.value ===
-            interaction.mouse.resizer.maximum),
-      {
-        before: interaction.afterClose.resizer.value,
-        after: interaction.mouse.resizer.value,
-        maximum: interaction.mouse.resizer.maximum,
-      },
-      "increased or clamped at maximum",
-    );
-    assertOpenGeometry("arrow", interaction.arrow);
-    assert(
-      "keyboard-arrow-applied",
-      interaction.arrow.resizer.value <= interaction.mouse.resizer.value &&
-        (interaction.arrow.resizer.value < interaction.mouse.resizer.value ||
-          interaction.arrow.resizer.value ===
-            interaction.arrow.resizer.minimum),
-      {
-        before: interaction.mouse.resizer.value,
-        after: interaction.arrow.resizer.value,
-        minimum: interaction.arrow.resizer.minimum,
-      },
-      "decreased or clamped at minimum",
-    );
-    assertOpenGeometry("home", interaction.home);
-    const expectedHome = Math.round(
-      Math.min(
-        interaction.home.resizer.maximum,
-        Math.max(
-          interaction.home.resizer.minimum,
-          interaction.home.workspaceContent.width * 0.62,
+      "browser-back-forward-reload-chain",
+      interaction.browserInteraction?.controls?.back === 1 &&
+        interaction.browserInteraction?.controls?.forward === 1 &&
+        interaction.browserInteraction?.controls?.refresh === 1 &&
+        interaction.browserInteraction?.beforeBack ===
+          interaction.browserInteraction?.secondUrl &&
+        interaction.browserInteraction?.afterBack ===
+          interaction.browserInteraction?.firstUrl &&
+        interaction.browserInteraction?.afterForward ===
+          interaction.browserInteraction?.secondUrl &&
+        interaction.browserInteraction?.reloadUrl ===
+          interaction.browserInteraction?.secondUrl &&
+        interaction.browserInteraction?.events?.starts >= 3 &&
+        interaction.browserInteraction?.events?.stops >= 3 &&
+        interaction.browserInteraction?.events?.failures?.length >= 1 &&
+        interaction.browserInteraction?.events?.navigations?.includes(
+          interaction.browserInteraction?.firstUrl,
+        ) &&
+        interaction.browserInteraction?.events?.navigations?.includes(
+          interaction.browserInteraction?.secondUrl,
         ),
-      ),
+      interaction.browserInteraction ?? null,
+      "real back, forward, and reload buttons over two isolated documents",
     );
-    assert(
-      "keyboard-home-reset",
-      interaction.home.resizer.value === expectedHome,
-      interaction.home.resizer.value,
-      expectedHome,
-    );
-    assertOpenGeometry("end", interaction.end);
-    assert(
-      "keyboard-end-maximum",
-      interaction.end.resizer.value === interaction.end.resizer.maximum,
-      interaction.end.resizer.value,
-      interaction.end.resizer.maximum,
-    );
+    if (testCase.layout === "resizable") {
+      assertOpenGeometry("mouse", interaction.mouse);
+      assert(
+        "mouse-pointer-chain",
+        interaction.pointerProbe?.down === 1 &&
+          interaction.pointerProbe?.move >= 1 &&
+          interaction.pointerProbe?.up === 1,
+        interaction.pointerProbe ?? null,
+        { down: 1, move: ">= 1", up: 1 },
+      );
+      assert(
+        "mouse-resize-applied",
+        interaction.mouse.resizer.value >=
+          interaction.afterClose.resizer.value &&
+          (interaction.mouse.resizer.value >
+            interaction.afterClose.resizer.value ||
+            interaction.mouse.resizer.value ===
+              interaction.mouse.resizer.maximum),
+        {
+          before: interaction.afterClose.resizer.value,
+          after: interaction.mouse.resizer.value,
+          maximum: interaction.mouse.resizer.maximum,
+        },
+        "increased or clamped at maximum",
+      );
+      assertOpenGeometry("arrow", interaction.arrow);
+      assert(
+        "keyboard-arrow-applied",
+        interaction.arrow.resizer.value <= interaction.mouse.resizer.value &&
+          (interaction.arrow.resizer.value < interaction.mouse.resizer.value ||
+            interaction.arrow.resizer.value ===
+              interaction.arrow.resizer.minimum),
+        {
+          before: interaction.mouse.resizer.value,
+          after: interaction.arrow.resizer.value,
+          minimum: interaction.arrow.resizer.minimum,
+        },
+        "decreased or clamped at minimum",
+      );
+      assertOpenGeometry("home", interaction.home);
+      const expectedHome = Math.round(
+        Math.min(
+          interaction.home.resizer.maximum,
+          Math.max(
+            interaction.home.resizer.minimum,
+            interaction.home.workspaceContent.width * 0.62,
+          ),
+        ),
+      );
+      assert(
+        "keyboard-home-reset",
+        interaction.home.resizer.value === expectedHome,
+        interaction.home.resizer.value,
+        expectedHome,
+      );
+      assertOpenGeometry("end", interaction.end);
+      assert(
+        "keyboard-end-maximum",
+        interaction.end.resizer.value === interaction.end.resizer.maximum,
+        interaction.end.resizer.value,
+        interaction.end.resizer.maximum,
+      );
+    } else {
+      assert(
+        "compact-resizer-interactions-not-dispatched",
+        interaction.mouse === null &&
+          interaction.arrow === null &&
+          interaction.home === null &&
+          interaction.end === null &&
+          interaction.pointerProbe === null,
+        {
+          arrow: interaction.arrow,
+          end: interaction.end,
+          home: interaction.home,
+          mouse: interaction.mouse,
+          pointerProbe: interaction.pointerProbe,
+        },
+        "no pointer or keyboard resize against a hidden compact separator",
+      );
+    }
     assert(
       "dock-closed-contract",
       interaction.closed.dock.state === "closed" &&
@@ -433,9 +551,17 @@ try {
     if (testCase.scale === 2) {
       assert(
         "two-hundred-percent-layout",
-        audit.windowInnerWidth >= 980 && audit.windowInnerWidth <= 1_020,
-        audit.windowInnerWidth,
-        "980..1020 CSS pixels at scale 2",
+        audit.zoomFactor === 2 &&
+          audit.windowInnerWidth === interaction.initial.viewport.innerWidth &&
+          interaction.initial.viewport.compactMedia === true &&
+          audit.windowInnerWidth >= 320 &&
+          audit.windowInnerWidth <= 820,
+        {
+          auditWidth: audit.windowInnerWidth,
+          viewport: interaction.initial.viewport,
+          zoomFactor: audit.zoomFactor,
+        },
+        "320..820 CSS pixels in compact media at zoom factor 2",
       );
     }
 

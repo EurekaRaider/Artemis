@@ -3885,9 +3885,7 @@
     min-block-size: 0;
   }
 
-  [data-artemis-component="browser-viewport"]
-    > [data-part="content"]
-    > .browser-frame {
+  [data-artemis-component="browser-viewport"] > [data-part="content"] > * {
     display: flex;
     flex: 1 1 auto;
     min-inline-size: 0;
