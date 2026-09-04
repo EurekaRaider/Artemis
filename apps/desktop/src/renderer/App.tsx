@@ -129,6 +129,7 @@ import {
 } from "./MultiQuestionUserInputCard.js";
 import {
   indexAgentTeamTree,
+  sortAgentsByActivity,
   visibleAgentTeamMembers,
 } from "./agent-team-tree.js";
 
@@ -1817,18 +1818,11 @@ export function App() {
     setProjectsExpanded(next);
     setProjectsOpen(next);
   }, [projectsExpanded]);
-  const toggleProjectRow = useCallback((rowId: string, collapsed: boolean) => {
-    const projectId = rowId.replace(/^project:/, "");
-    setCollapsedProjectIds((current) => {
-      const next = new Set(current);
-      if (collapsed) next.add(projectId);
-      else next.delete(projectId);
-      return next;
-    });
-  }, []);
   const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const collapsedProjectIdsRef = useRef<Set<string>>(new Set());
+  const collapsedProjectIdsTouched = useRef(false);
   const [draggedProjectId, setDraggedProjectId] = useState<string>();
   const [projectDropTarget, setProjectDropTarget] = useState<{
     projectId: string;
@@ -1937,6 +1931,9 @@ export function App() {
   const projectOrderPersistence = useRef<
     ProjectOrderPersistenceQueue | undefined
   >(undefined);
+  const collapsedProjectIdsPersistence = useRef<
+    ProjectOrderPersistenceQueue | undefined
+  >(undefined);
   const projectThreadOrderPersistence = useRef(
     new Map<string, ProjectOrderPersistenceQueue>(),
   );
@@ -1959,6 +1956,61 @@ export function App() {
       },
     });
   }
+  if (!collapsedProjectIdsPersistence.current) {
+    collapsedProjectIdsPersistence.current = createProjectOrderPersistenceQueue(
+      {
+        save: (projectIds) => window.artemis.setCollapsedProjectIds(projectIds),
+        onPersisted: (projectIds) => {
+          const next = new Set(projectIds);
+          collapsedProjectIdsRef.current = next;
+          setCollapsedProjectIds(next);
+          setRuntimeSettings((current) =>
+            current ? { ...current, collapsedProjectIds: projectIds } : current,
+          );
+        },
+        onRejected: (projectIds, error) => {
+          const previous = new Set(projectIds);
+          collapsedProjectIdsRef.current = previous;
+          setCollapsedProjectIds(previous);
+          setRuntimeSettings((current) =>
+            current ? { ...current, collapsedProjectIds: projectIds } : current,
+          );
+          setToast({
+            error: true,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        },
+      },
+    );
+  }
+  const setProjectCollapsed = useCallback(
+    (projectId: string, collapsed: boolean) => {
+      collapsedProjectIdsTouched.current = true;
+      const previous = collapsedProjectIdsRef.current;
+      const next = new Set(previous);
+      if (collapsed) next.add(projectId);
+      else next.delete(projectId);
+      if (next.size === previous.size && next.has(projectId) === collapsed) {
+        return;
+      }
+      collapsedProjectIdsRef.current = next;
+      setCollapsedProjectIds(next);
+      setRuntimeSettings((current) =>
+        current ? { ...current, collapsedProjectIds: [...next] } : current,
+      );
+      void collapsedProjectIdsPersistence.current?.persist(
+        [...next],
+        [...previous],
+      );
+    },
+    [],
+  );
+  const setProjectRowCollapsed = useCallback(
+    (rowId: string, collapsed: boolean) => {
+      setProjectCollapsed(rowId.replace(/^project:/, ""), collapsed);
+    },
+    [setProjectCollapsed],
+  );
   const temporaryConversationsPersistence = useRef<
     BooleanPreferencePersistenceQueue | undefined
   >(undefined);
@@ -2200,14 +2252,15 @@ export function App() {
     setSkillMenuDismissed(false);
   }, [activeProjectId, activeThreadId]);
 
-  const toggleProjectHistory = useCallback((projectId: string) => {
-    setCollapsedProjectIds((current) => {
-      const next = new Set(current);
-      if (next.has(projectId)) next.delete(projectId);
-      else next.add(projectId);
-      return next;
-    });
-  }, []);
+  const toggleProjectHistory = useCallback(
+    (projectId: string) => {
+      setProjectCollapsed(
+        projectId,
+        !collapsedProjectIdsRef.current.has(projectId),
+      );
+    },
+    [setProjectCollapsed],
+  );
 
   const toggleTemporaryConversations = useCallback(() => {
     setTemporaryConversationsOpen(
@@ -2225,11 +2278,11 @@ export function App() {
         if (temporaryConversationsOpen) void toggleTemporaryConversations();
         return;
       }
-      toggleProjectRow(rowId, true);
+      setProjectRowCollapsed(rowId, true);
     },
     [
       temporaryConversationsOpen,
-      toggleProjectRow,
+      setProjectRowCollapsed,
       toggleTemporaryConversations,
     ],
   );
@@ -2244,11 +2297,11 @@ export function App() {
         if (!temporaryConversationsOpen) void toggleTemporaryConversations();
         return;
       }
-      toggleProjectRow(rowId, false);
+      setProjectRowCollapsed(rowId, false);
     },
     [
       temporaryConversationsOpen,
-      toggleProjectRow,
+      setProjectRowCollapsed,
       toggleTemporaryConversations,
     ],
   );
@@ -3486,8 +3539,23 @@ export function App() {
       .then((value) => {
         if (mounted) {
           projectOrderPersistence.current?.initialize(value.projectOrder ?? []);
+          const persistedCollapsed = new Set(value.collapsedProjectIds ?? []);
+          collapsedProjectIdsPersistence.current?.initialize([
+            ...persistedCollapsed,
+          ]);
+          if (!collapsedProjectIdsTouched.current) {
+            collapsedProjectIdsRef.current = persistedCollapsed;
+            setCollapsedProjectIds(persistedCollapsed);
+          }
           setApprovalPolicy(value.approvalPolicy);
-          setRuntimeSettings(value);
+          setRuntimeSettings(
+            collapsedProjectIdsTouched.current
+              ? {
+                  ...value,
+                  collapsedProjectIds: [...collapsedProjectIdsRef.current],
+                }
+              : value,
+          );
         }
       })
       .catch((error) => {
@@ -3970,7 +4038,7 @@ export function App() {
     [threadState?.agentTeams],
   );
   const environmentAgents = useMemo(
-    () => Object.values(threadState?.childAgents ?? {}),
+    () => sortAgentsByActivity(Object.values(threadState?.childAgents ?? {})),
     [threadState?.childAgents],
   );
   const environmentTeams = useMemo(
@@ -4231,6 +4299,13 @@ export function App() {
     () => deriveRunPresentation(activeEvents, clockMs, threadState?.status),
     [activeEvents, clockMs, threadState?.status],
   );
+  const statusDotStatus =
+    threadState?.status === "running" &&
+    threadState.activity?.phase === "queued"
+      ? "queued"
+      : runPresentation.status === "completed"
+        ? "idle"
+        : runPresentation.status;
   const taskPlan = useMemo(
     () => deriveTaskPlan(activeEvents, turnActive),
     [activeEvents, turnActive],
@@ -6454,9 +6529,7 @@ export function App() {
               actions={
                 <div className="header-actions">
                   <span className="status-pill">
-                    <span
-                      className={`status-dot ${runPresentation.status === "completed" ? "idle" : runPresentation.status}`}
-                    />
+                    <span className={`status-dot ${statusDotStatus}`} />
                     <span className="status-pill-label">
                       {runPresentation.status === "completed"
                         ? t.completed
@@ -6769,6 +6842,7 @@ export function App() {
                         branchActionsDisabled={projectBranchActionsDisabled}
                         locale={locale}
                         mode={mode}
+                        modeActionsDisabled={turnActive || busy}
                         onClearProject={() => {
                           discardNewConversationDraft();
                           beginTemporaryConversation();

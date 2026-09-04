@@ -798,6 +798,10 @@ body {
   background: var(--blue);
 }
 
+.status-dot.queued {
+  background: var(--muted-2);
+}
+
 .status-dot.waiting-approval,
 .status-dot.waiting-user-input {
   background: var(--warning);

@@ -23,6 +23,7 @@ interface ComposerContextBarProps {
   branchActionsDisabled: boolean;
   locale: Locale;
   mode: RunMode;
+  modeActionsDisabled: boolean;
   onClearProject(): void;
   onError(message: string): void;
   onModeChange(mode: RunMode): void;
@@ -251,6 +252,7 @@ export function ComposerContextBar({
   branchActionsDisabled,
   locale,
   mode,
+  modeActionsDisabled,
   onClearProject,
   onError,
   onModeChange,
@@ -748,7 +750,7 @@ export function ComposerContextBar({
         <ModeIcon />
         <CodexSelect<RunMode>
           ariaLabel={t.taskMode}
-          disabled={branchActionsDisabled}
+          disabled={modeActionsDisabled}
           onChange={onModeChange}
           options={[
             { value: "plan", label: t.plan },

@@ -79,7 +79,9 @@ describe("sub-agent control tools", () => {
     const child = {
       status: "running",
       lastActivityAt: now - 61_000,
-      longestObservationMilliseconds: 5_000,
+      recentObservationMilliseconds: [
+        300_000, 5_000, 5_000, 5_000, 5_000, 5_000,
+      ],
     };
 
     expect(childHealth(child)).toBe("suspect");
@@ -103,6 +105,68 @@ describe("sub-agent control tools", () => {
         lastActivityAt: now - 60 * 60_000,
       }),
     ).toBe("healthy");
+
+    host.dispose();
+  });
+
+  it("wakes wait_agent for child activity and team messages before its deadline", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "artemis-wait-agent-"));
+    cleanupPaths.push(workspace);
+    const host = new ArtemisAgentHost(
+      { request: async () => ({ approved: false }) },
+      { emit() {} },
+    );
+    await host.openThread({
+      threadId: "thread-wait",
+      workspacePath: workspace,
+      target: "local",
+    });
+    const internals = host as unknown as {
+      threads: Map<string, InspectableThread>;
+      concurrency: {
+        run<T>(kind: "child", task: () => Promise<T>): Promise<T>;
+      };
+    };
+    const thread = internals.threads.get("thread-wait")!;
+    thread.currentTurnId = "turn-1";
+    thread.currentMode = "execute";
+    thread.session.sendCustomMessage = async () => undefined;
+    internals.concurrency = {
+      run: <T>() => new Promise<T>(() => undefined),
+    };
+    const spawn = thread.executeTools.find(
+      (tool) => tool.name === "spawn_agent",
+    )!;
+    const child = await spawn.execute("spawn-1", {
+      label: "Observer",
+      task: "Report activity while queued.",
+    });
+    const agentId = String(child.details?.agentId);
+
+    vi.useFakeTimers();
+    const activityWait = host.waitForChildAgent("thread-wait", agentId, 300);
+    await host.steerChildAgent("thread-wait", agentId, "Check in now.");
+    await expect(activityWait).resolves.toMatchObject({
+      observationExpired: false,
+    });
+
+    const messageWait = host.waitForChildAgent("thread-wait", agentId, 300);
+    await host.sendAgentTeamMessage(
+      "thread-wait",
+      agentId,
+      "parent",
+      "blocker",
+      "Waiting on the parent.",
+    );
+    await expect(messageWait).resolves.toMatchObject({
+      observationExpired: false,
+    });
+
+    const deadlineWait = host.waitForChildAgent("thread-wait", agentId, 2);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await expect(deadlineWait).resolves.toMatchObject({
+      observationExpired: true,
+    });
 
     host.dispose();
   });

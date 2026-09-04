@@ -255,10 +255,11 @@ other everyday tasks.
 
 - **Project and task management** — add a repository from the Projects header;
   start projectless work from the Temporary chats header, collapse that section
-  with its state preserved across restarts, expand individual project histories,
-  drag projects into a preferred order that survives restart, and resize the
-  persisted top-aligned sidebar to fit long task names or reclaim workspace
-  space. Preview five tasks before expanding,
+  with its state preserved across restarts, and collapse individual project
+  histories with each project's state restored independently. Drag projects
+  into a preferred order that survives restart, and resize the persisted
+  top-aligned sidebar to fit long task names or reclaim workspace space. The
+  sidebar uses a 320ms shell-eased transition. Preview five tasks before expanding,
   and create, rename, search, archive, restore, fork, delete or switch tasks
   from the sidebar. Running and approval-waiting tasks stay at the top, ordered
   by the most recently submitted prompt when several are active. Sidebar action
@@ -306,16 +307,23 @@ other everyday tasks.
   attachments through the picker, drag/drop or clipboard; pasted images finish
   loading before the matching text submission captures its attachments; reuse prompt history;
   invoke `/goal`, `/init` and one or more `/skill` selections; switch mode with
-  `/plan`, `/execute` or `/review` anywhere in a message; choose the model and
-  thinking level. Copy completed user and assistant messages directly from the
-  timeline; cancelled or failed user turns can restore their visible text and
-  selected Skills to the composer for editing without replaying the turn.
+  `/plan`, `/execute` or `/review` anywhere in a message, or use the mode picker
+  between turns even while another task in the same project is active; choose
+  the model and thinking level. Copy completed user and assistant messages
+  directly from the timeline; cancelled or failed user turns can restore their
+  visible text and selected Skills to the composer for editing without replaying
+  the turn.
 - **Task environment** — open a compact header panel for Git changes, local
   repository and branch state from the active task checkout, branch search,
   local/remote switching, branch creation/publishing, commit/push actions, child
   Agents and teams, MCP usage, and attached task sources. Agents and teams keep
   stable identity-specific color and geometry marks across the timeline,
-  workspace tabs and environment panel. The panel auto-hides before it can
+  workspace tabs and environment panel; siblings are ordered by recent activity
+  with finished members naturally sinking below live work. Queued turns use a
+  static neutral indicator, reserving the blue breathing state for work that has
+  actually started. `wait_agent` wakes on child activity or team messages as
+  well as settlement and deadline, while health thresholds use only recent
+  observation durations. The panel auto-hides before it can
   overlap the centered timeline and restores itself when the workspace widens;
   its completed-turn status row follows the same safe area, while opening the
   workspace Dock keeps the header controls stationary through the animated
@@ -338,8 +346,9 @@ other everyday tasks.
   the same turn collapse into one counted summary with per-action details and
   denied requests remain individually inspectable.
 - **Progress and context** — `update_plan` produces visible multi-step progress
-  only while its turn remains active; run timing and context-window usage remain
-  visible. The context indicator distinguishes the current local estimate from
+  only while its turn remains active and advances as each step-status update is
+  emitted; run timing and context-window usage remain visible. The context
+  indicator distinguishes the current local estimate from
   the last provider-measured input, refreshes after tool results and preserves
   sub-percent ring movement for large context windows. Manual and automatic
   context compaction immediately add an in-progress timeline row with the same
@@ -1097,14 +1106,14 @@ requests and manual dispatches.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.59`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.60`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.59
-git push origin v1.4.59
+git tag v1.4.60
+git push origin v1.4.60
 ```
 
 ### Build and test matrix
@@ -1150,13 +1159,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.59` packaging configuration produces:
+The `1.4.60` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.59.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.59.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.59.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.60.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.60.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.60.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They
