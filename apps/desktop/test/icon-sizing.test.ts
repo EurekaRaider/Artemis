@@ -32,6 +32,10 @@ const resourceIconsSource = readFileSync(
   resolve(process.cwd(), "src/renderer/resource-icons.tsx"),
   "utf8",
 );
+const artemisIconsSource = readFileSync(
+  resolve(process.cwd(), "../../packages/ui/src/icons.tsx"),
+  "utf8",
+);
 const resourceCenterSource = readFileSync(
   resolve(process.cwd(), "src/renderer/ResourceCenter.tsx"),
   "utf8",
@@ -134,46 +138,46 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     });
   });
 
-  const SQUARE_ICONS: Array<[string, Tier, string]> = [
-    ["EnvironmentAddIcon", "lg", "0 0 20 20"],
-    ["EnvironmentBranchIcon", "lg", "0 0 20 20"],
-    ["EnvironmentChangesIcon", "lg", "0 0 20 20"],
-    ["EnvironmentCommitIcon", "lg", "0 0 20 20"],
-    ["EnvironmentGithubIcon", "lg", "0 0 20 20"],
-    ["EnvironmentSourcesIcon", "lg", "0 0 20 20"],
-    ["EnvironmentWebIcon", "lg", "0 0 20 20"],
-    ["EnvironmentLocalIcon", "lg", "0 0 21 21"],
-    ["EnvironmentExternalIcon", "base", "0 0 16 16"],
-    ["EnvironmentSearchIcon", "base", "0 0 16 16"],
-    ["EnvironmentCheckIcon", "base", "0 0 17 17"],
+  const SQUARE_ICONS: Array<[string, Tier]> = [
+    ["EnvironmentAddIcon", "lg"],
+    ["EnvironmentBranchIcon", "lg"],
+    ["EnvironmentChangesIcon", "lg"],
+    ["EnvironmentCommitIcon", "lg"],
+    ["EnvironmentCompareIcon", "lg"],
+    ["EnvironmentGithubIcon", "lg"],
+    ["EnvironmentPullRequestIcon", "lg"],
+    ["EnvironmentSourcesIcon", "lg"],
+    ["EnvironmentWebIcon", "lg"],
+    ["EnvironmentLocalIcon", "lg"],
+    ["EnvironmentExternalIcon", "base"],
+    ["EnvironmentSearchIcon", "base"],
+    ["EnvironmentCheckIcon", "base"],
   ];
 
   it.each(SQUARE_ICONS)(
-    "%s renders width/height at its tier with an unchanged viewBox",
-    (name: string, tier: Tier, viewBox: string) => {
+    "%s renders at its tier on the standard 24px grid",
+    (name: string, tier: Tier) => {
       const { container } = render(
         createElement(iconComponent(name), { "aria-hidden": "true" }),
       );
       const svg = container.querySelector("svg");
       expect(svg).not.toBeNull();
-      expect(svg?.getAttribute("viewBox")).toBe(viewBox);
+      expect(svg?.getAttribute("viewBox")).toBe("0 0 24 24");
       expect(svg?.getAttribute("width")).toBe(tierValue(tier));
       expect(svg?.getAttribute("height")).toBe(tierValue(tier));
     },
   );
 
-  it("EnvironmentChevronIcon pins width to lg and keeps height 21 (§9-4 non-square viewBox)", () => {
+  it("EnvironmentChevronIcon uses the standard square grid at lg", () => {
     const { container } = render(
       createElement(EnvironmentPanelIcons.EnvironmentChevronIcon, {
         "aria-hidden": "true",
       }),
     );
     const svg = container.querySelector("svg");
-    expect(svg?.getAttribute("viewBox")).toBe("0 0 20 21");
+    expect(svg?.getAttribute("viewBox")).toBe("0 0 24 24");
     expect(svg?.getAttribute("width")).toBe(tierValue("lg"));
-    // Sanctioned exemption: viewBox 0 0 20 21 is not square, so height stays
-    // 21 to preserve the 20:21 aspect ratio instead of squashing the glyph.
-    expect(svg?.getAttribute("height")).toBe("21");
+    expect(svg?.getAttribute("height")).toBe(tierValue("lg"));
   });
 
   const MIGRATED_RULES: Array<[string, Tier, number]> = [
@@ -225,24 +229,25 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(svg).toContain("block-size: 1em");
   });
 
-  it("keeps Resource Center line icons visible without private SVG CSS", () => {
-    for (const name of [
-      "SearchIcon",
-      "GearIcon",
-      "RefreshIcon",
-      "PlusIcon",
-      "TrashIcon",
-      "BackIcon",
+  it("routes Resource Center line icons through the standard catalog", () => {
+    for (const [name, icon] of [
+      ["SearchIcon", "search"],
+      ["GearIcon", "gear"],
+      ["RefreshIcon", "refresh"],
+      ["PlusIcon", "plus"],
+      ["TrashIcon", "trash"],
+      ["BackIcon", "chev-left"],
     ]) {
       const start = resourceCenterSource.indexOf(`function ${name}()`);
       const end = resourceCenterSource.indexOf("\nfunction ", start + 1);
       const component = resourceCenterSource.slice(start, end);
       expect(start).toBeGreaterThan(-1);
-      expect(component).toContain('stroke="currentColor"');
-      expect(component).toContain('strokeLinecap="round"');
-      expect(component).toContain('strokeLinejoin="round"');
-      expect(component).toContain('strokeWidth="1.55"');
+      expect(component).toContain(`<ArtemisIcon name="${icon}"`);
     }
+    expect(artemisIconsSource).toContain('stroke="currentColor"');
+    expect(artemisIconsSource).toContain('strokeLinecap="round"');
+    expect(artemisIconsSource).toContain('strokeLinejoin="round"');
+    expect(artemisIconsSource).toContain("strokeWidth={1.5}");
   });
 
   const UNMIGRATED_RULES: Array<[string, number, boolean]> = [
@@ -268,23 +273,12 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     },
   );
 
-  it("keeps every EnvironmentPanelIcons attribute value inside the tier set", () => {
-    const tierSet = new Set(TIER_ORDER.map((tier) => tierPx[tier]));
-    const widths = [...iconsSource.matchAll(/width="(\d+)"/g)].map((match) =>
-      Number(match[1]),
-    );
-    const heights = [...iconsSource.matchAll(/height="(\d+)"/g)].map((match) =>
-      Number(match[1]),
-    );
-    expect(widths.length).toBeGreaterThanOrEqual(12);
-    expect(heights.length).toBeGreaterThanOrEqual(12);
-    for (const px of widths) {
-      expect(tierSet.has(px)).toBe(true);
-    }
-    for (const px of heights) {
-      // 21 is the sanctioned Chevron exemption (§9-4).
-      expect(tierSet.has(px) || px === 21).toBe(true);
-    }
+  it("keeps EnvironmentPanelIcons on the shared standard catalog", () => {
+    expect(iconsSource).toContain('from "@artemis/ui/icons"');
+    expect(iconsSource).toContain("function EnvironmentBranchIcon");
+    expect(iconsSource).toContain("EnvironmentCompareIcon");
+    expect(iconsSource).toContain("EnvironmentPullRequestIcon");
+    expect(iconsSource).not.toContain("@phosphor-icons/react");
   });
 
   it("ships zero colored emoji across renderer sources", () => {
@@ -304,14 +298,18 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(total).toBe(10);
     expect(
       readFileSync(resolve(process.cwd(), "src/renderer/App.tsx"), "utf8"),
-    ).toContain('<MagicWandIcon aria-hidden="true" size={16} />');
+    ).toContain('<ArtemisIcon height={16} name="skill" width={16} />');
   });
 
-  it("keeps the renderer-layout resource icon source assertions intact", () => {
-    expect(resourceIconsSource).toContain("MagicWandIcon");
-    expect(resourceIconsSource).toContain("PlugsConnectedIcon");
-    expect(resourceIconsSource).toContain('weight="duotone"');
-    expect(stylesSource).toContain(
+  it("uses the Artemis prototype glyph catalog instead of substitute icons", () => {
+    expect(resourceIconsSource).toContain('from "@artemis/ui/icons"');
+    expect(resourceIconsSource).not.toContain("@phosphor-icons/react");
+    expect(artemisIconsSource).toContain(
+      "ui-prototype-v17:components.html#cat-icons",
+    );
+    expect(artemisIconsSource).toContain("data-artemis-icon={name}");
+    expect(stylesSource).not.toContain("--resource-icon-accent");
+    expect(stylesSource).not.toContain(
       ".resource-avatar[data-icon] .resource-semantic-icon path[opacity]",
     );
   });
@@ -322,8 +320,8 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     );
     const svg = container.querySelector("svg");
     expect(svg).not.toBeNull();
-    // Phosphor defaults to 1em — sizing is delegated entirely to CSS, so the
-    // tier tokens in styles.css stay the single source of rendered size.
+    // The Artemis icon catalog keeps 1em geometry so the tier tokens in
+    // styles.css remain the single source of rendered size.
     expect(svg?.getAttribute("width")).toBe("1em");
     expect(svg?.getAttribute("height")).toBe("1em");
     expect(svg?.getAttribute("aria-hidden")).toBe("true");

@@ -4,6 +4,7 @@ import { Button, Icon } from "@artemis/ui/actions";
 import { DataSurface } from "@artemis/ui/data";
 import { EmptyState } from "@artemis/ui/feedback";
 import { SearchField } from "@artemis/ui/forms";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
 
 import {
@@ -129,9 +130,7 @@ export function ArchivePage({
           description={t.archiveDescription}
           leading={
             <Icon className="archive-header-icon">
-              <svg viewBox="0 0 24 24">
-                <path d="M4 7.5h16v11H4zM3.5 4.5h17v3h-17zM9 11h6" />
-              </svg>
+              <ArtemisIcon name="archive" />
             </Icon>
           }
           title={t.archiveTitle}
@@ -209,11 +208,7 @@ export function ArchivePage({
                   ? t.archiveNoResultsDescription
                   : t.archiveEmptyDescription
               }
-              icon={
-                <svg viewBox="0 0 24 24">
-                  <path d="M4 7.5h16v11H4zM3.5 4.5h17v3h-17zM9 11h6" />
-                </svg>
-              }
+              icon={<ArtemisIcon name="archive" />}
               title={
                 isSearching ? t.archiveNoResultsTitle : t.archiveEmptyTitle
               }
