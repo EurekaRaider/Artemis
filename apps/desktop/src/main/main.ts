@@ -14509,7 +14509,9 @@ function createMainWindow(): BrowserWindow {
           view === "turn-changes-form-controls" ||
           view === "navigation-token-usage" ||
           view === "markdown-editor-navigation-toolbar" ||
-          view === "markdown-editor-navigation-preview";
+          view === "markdown-editor-navigation-preview" ||
+          (process.env.ARTEMIS_SMOKE_GOAL_FOCUS_PROBE === "1" &&
+            view.startsWith("goal-"));
         if (focusEvidenceView) {
           // Keep focus-evidence views on the active display. A macOS runner
           // cannot activate a window parked outside every screen, so moving
@@ -17051,7 +17053,11 @@ function createMainWindow(): BrowserWindow {
               y: 0,
             });
           }
-          if (smokeMode && requestedSmokeView?.startsWith("goal-")) {
+          if (
+            smokeMode &&
+            requestedSmokeView?.startsWith("goal-") &&
+            process.env.ARTEMIS_SMOKE_GOAL_FOCUS_PROBE === "1"
+          ) {
             window.webContents.focus();
             window.webContents.sendInputEvent({
               type: "keyDown",
@@ -17576,7 +17582,11 @@ function createMainWindow(): BrowserWindow {
                             ".goal-bar-actions button",
                           ),
                         ];
-                        const focusTarget = actionElements[0];
+                        const focusTarget = ${JSON.stringify(
+                          process.env.ARTEMIS_SMOKE_GOAL_FOCUS_PROBE === "1",
+                        )}
+                          ? actionElements[0]
+                          : null;
                         focusTarget?.focus({
                           preventScroll: true,
                           focusVisible: true,

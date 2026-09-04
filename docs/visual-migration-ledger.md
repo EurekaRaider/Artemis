@@ -229,16 +229,19 @@ owned by `@artemis/ui`. The Goal parity driver now verifies 105 sandboxed real
 Electron cases in three bounded, disjoint shards across six Goal states, two
 locales, light/dark, two widths, two zoom levels, eight editor states, and one
 native reduced-motion press. Every case retains a fresh user-data directory and
-independent Electron launch. The final manifest rejects missing or duplicate
-case indexes, shard HEAD or launch-mode disagreement, and duplicate case
-identifiers. It records the exact candidate HEAD and launch mode, has no
-`--no-sandbox` fallback, and checks screenshots, accessibility,
-action ordering, 28px controls, 14px icons, shared component identities,
-finite state/variant/tone attributes, resolved background/border/color/font,
-the fixed focus outline, plus 30 IconButton variant × state × size geometry
-probes with centered icons and contained state indicators. This is
-one migrated production consumer; CL2B and CL2C still own their distinct field
-and tab consumers.
+independent Electron launch. Concurrent cases do not claim the OS-global
+keyboard focus; after all three shards exit, one exclusive real Electron launch
+uses fresh user data to prove the active element and fixed focus outline. The
+final manifest requires both phases and rejects missing or duplicate case
+indexes, shard HEAD or launch-mode disagreement, duplicate case identifiers,
+focus inside a concurrent shard, or a missing or drifted exclusive focus probe.
+It records the exact candidate HEAD and launch mode, has no `--no-sandbox`
+fallback, and checks screenshots, accessibility, action ordering, 28px
+controls, 14px icons, shared component identities, finite state/variant/tone
+attributes, resolved background/border/color/font, the fixed focus outline,
+plus 30 IconButton variant × state × size geometry probes with centered icons
+and contained state indicators. This is one migrated production consumer; CL2B
+and CL2C still own their distinct field and tab consumers.
 
 The JavaScript subpath is independently bundled from an installed tarball: a
 Button-only entry excludes IconButton, Badge, and Status implementation markers.
@@ -977,7 +980,29 @@ timeout, and the 600-second aggregate budget, but distributes disjoint cases
 across three bounded workers. Each worker writes a separate manifest from its
 own throwaway user-data root; the final manifest requires identical candidate
 HEADs and complete indexes 0 through 104. A local host run completed all 105
-cases in about 97 seconds. Fresh exact-clean-head CI remains required.
+cases in about 97 seconds.
+
+Exact-head CI run `33828873690` on `c2ec144` passed the base job, including a
+real production audit report, Windows native sandbox integration, all three
+Gallery jobs, the full macOS arm64 aggregate, and the full macOS x64 aggregate.
+Windows reached Goal parity and completed the workload in 169,730.3 ms, but the
+merged result failed: shard 1 completed all 35 cases while shards 2 and 3 lost
+the fixed focus outline on `goal-blocked-en-light-1512-1` and
+`goal-blocked-zh-CN-light-1512-1`. Their audits still reported the intended
+button as active, but its computed outline style was `none`. Three concurrent
+Electron windows cannot simultaneously own Windows' single native keyboard
+focus, so per-shard `:focus-visible` assertions were competing with one another.
+Windows did not reach its later workload or final package-boundary inspection.
+
+The follow-up retains the complete 105-case matrix, every 45-second per-case
+timeout, and the unchanged 600-second aggregate budget. Concurrent shards now
+require their focus evidence to be null. Only after all three workers exit, one
+exclusive real Electron probe launches case 0 with its own fresh user data and
+must prove the active element plus the fixed `2px solid Highlight` floor. The
+version 5 merged manifest requires complete indexes 0 through 104 and the
+exclusive focus result on the same exact HEAD and sandboxed launch mode; it
+fails if a shard requests OS focus or if the probe is absent or drifts. Fresh
+exact-clean-head CI remains required.
 
 The final acceptance target is the exact clean 1.4.59 PR head. Its SHA and
 generated report paths belong in PR evidence rather than as a self-referential
