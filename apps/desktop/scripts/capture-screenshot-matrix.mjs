@@ -326,6 +326,7 @@ try {
       interactiveCount: accessibility.interactiveCount,
       issueCount: accessibility.issues.length,
       rendererSandbox: true,
+      resolvedTheme: accessibility.resolvedTheme,
       launchDurationMs: Number(launchDurationMs.toFixed(1)),
       startupTimings,
       actualViewport: {
@@ -357,7 +358,7 @@ try {
   manifest.visualEvidence = visualEvidence;
   for (const duplicate of visualEvidence.duplicateGroups) {
     console.log(
-      `Screenshot duplicate ${duplicate.screenshotSha256}: ${duplicate.variantIds.join(", ")}`,
+      `Screenshot duplicate ${duplicate.screenshotSha256}: ${duplicate.variantIds.join(", ")} (allowed only when no same-locale resolved-theme or physical-viewport pair is identical)`,
     );
   }
   assert(

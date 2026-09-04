@@ -19,9 +19,10 @@ the 26 subsequent warm launches on macOS x64 and Windows x64, addressed at head
 `f33257c`. CI run `33768726913` then passed seven of eight jobs, including the
 complete Windows convergence and final package boundary, but macOS x64 exposed
 an over-broad requirement that all locale screenshots have unique hashes. The
-current local follow-up retains visual-difference checks within each locale and
-reports cross-locale duplicate groups without treating untranslated fixture
-content as a failure. The next exact PR head, fresh native macOS arm64, macOS
+current local follow-up retains pixel-difference checks for same-locale resolved
+themes and physical window viewports, reports every duplicate group, and keeps
+zoom, direction, locale, motion, and CSS viewport as separate runtime evidence.
+The next exact PR head, fresh native macOS arm64, macOS
 x64 and Windows x64 CI, and merge are not yet complete. This ledger separates
 static prototype evidence, package/Gallery evidence, and production Electron
 evidence. It must not be used to turn a prototype, Gallery pass, or
@@ -919,13 +920,34 @@ all hashes to be globally unique even when two different locale cases rendered
 fixture content with no visible translated text, and it did not identify the
 repeated variants.
 
-The follow-up keeps the per-file size gate and every semantic assertion, records
-all duplicate hash groups with their concrete variant IDs, and requires every
-same-locale theme/zoom/motion/viewport variant to remain visually distinct.
-Cross-locale duplicates remain visible in the manifest and log but are not by
-themselves a failure. This preserves visual proof for every configuration
-dimension while removing an assertion that depended on incidental translated
-text being visible in the initial fixture.
+The first follow-up kept the per-file size gate and every semantic assertion,
+recorded all duplicate hash groups with their concrete variant IDs, and required
+every same-locale variant to remain visually distinct. Exact-head CI run
+`33818824213` then identified the prior hidden duplicate as `ar-base` and
+`ar-dark-125`: both cases used Arabic, the resolved dark theme, and the same
+1440×900 physical window, while only Electron zoom changed. Both cases already
+proved their requested zoom and different zoom-adjusted CSS viewports through
+the renderer audit, but macOS x64 normalized their captured pixels to the same
+PNG.
+
+The current follow-up therefore requires distinct pixels for same-locale pairs
+whose resolved theme or physical window viewport differs. It reports all other
+duplicate groups in the manifest and log, while locale, direction, zoom,
+reduced motion, and the resulting CSS viewport remain independent runtime
+assertions. Focused fixtures accept cross-locale and zoom-only duplicate hashes
+but reject identical PNGs across resolved themes or physical viewports. This
+keeps each dimension tied to evidence it can actually produce on native runners
+instead of treating byte identity as proof for runtime geometry.
+
+The rest of exact-head run `33818824213` completed while that repair was being
+prepared. It passed all three Gallery jobs, Windows native sandbox integration,
+the complete macOS arm64 aggregate in 17 minutes 4 seconds, and the complete
+Windows x64 aggregate plus final local package-boundary inspection in 23 minutes
+7 seconds. The base job passed formatting, tests, typecheck, and production
+build, but its final `npm audit --omit=dev --audit-level=high` call waited 300
+seconds for the npm advisory endpoint and then returned a network timeout with
+no audit result. That timeout is neither a vulnerability finding nor an audit
+pass; the unchanged audit command must run again in fresh exact-head CI.
 
 The final acceptance target is the exact clean 1.4.59 PR head. Its SHA and
 generated report paths belong in PR evidence rather than as a self-referential

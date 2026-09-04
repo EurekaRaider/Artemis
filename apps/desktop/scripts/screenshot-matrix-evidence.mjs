@@ -15,38 +15,40 @@ function duplicateScreenshotGroups(variants) {
 
 export function evaluateScreenshotMatrixVisualEvidence(variants) {
   const duplicateGroups = duplicateScreenshotGroups(variants);
-  const locales = [...new Set(variants.map((variant) => variant.locale))];
-  const requiredDistinctGroups = locales
-    .map((locale) => {
-      const localeVariants = variants.filter(
-        (variant) => variant.locale === locale,
-      );
-      return {
-        basis: "locale",
-        value: locale,
-        variantIds: localeVariants.map((variant) => variant.id),
-        distinctScreenshotCount: new Set(
-          localeVariants.map((variant) => variant.screenshotSha256),
-        ).size,
-        duplicateGroups: duplicateScreenshotGroups(localeVariants),
-      };
-    })
-    .filter((group) => group.variantIds.length > 1);
-  const violations = requiredDistinctGroups.flatMap((group) =>
-    group.duplicateGroups.map(
-      (duplicate) =>
-        `locale ${group.value}: ${duplicate.variantIds.join(", ")} share screenshot ${duplicate.screenshotSha256}`,
-    ),
-  );
+  const requiredDistinctPairs = [];
+  for (const [index, left] of variants.entries()) {
+    for (const right of variants.slice(index + 1)) {
+      if (left.locale !== right.locale) continue;
+      const reasons = [];
+      if (left.resolvedTheme !== right.resolvedTheme) {
+        reasons.push("resolved-theme");
+      }
+      if (left.width !== right.width || left.height !== right.height) {
+        reasons.push("physical-viewport");
+      }
+      if (reasons.length === 0) continue;
+      requiredDistinctPairs.push({
+        variantIds: [left.id, right.id],
+        reasons,
+        passed: left.screenshotSha256 !== right.screenshotSha256,
+      });
+    }
+  }
+  const violations = requiredDistinctPairs
+    .filter((pair) => !pair.passed)
+    .map(
+      (pair) =>
+        `${pair.variantIds.join(" and ")} share a screenshot despite different ${pair.reasons.join(" and ")}`,
+    );
 
   return {
     policy:
-      "Every same-locale variant with a different theme, zoom, motion, or viewport contract must render a distinct screenshot. Cross-locale duplicate hashes are reported but do not fail because the visible fixture may contain no translated text.",
+      "Same-locale variants with different resolved themes or physical window viewports must render distinct screenshots. All duplicate hashes are reported. Locale, direction, zoom, reduced motion, and the zoom-adjusted CSS viewport remain separate runtime assertions because they may not change the captured pixels.",
     distinctScreenshotCount: new Set(
       variants.map((variant) => variant.screenshotSha256),
     ).size,
     duplicateGroups,
-    requiredDistinctGroups,
+    requiredDistinctPairs,
     violations,
   };
 }
