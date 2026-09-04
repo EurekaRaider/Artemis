@@ -326,6 +326,8 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain(
       "document.querySelector('.right-sidebar-toggle')?.click()",
     );
+    expect(mainSource).toContain("workspaceDock?.getAnimations()");
+    expect(mainSource).toContain("animation.currentTime = duration / 2");
     expect(mainSource).toContain(
       "document.querySelector('.environment-trigger')?.click()",
     );

@@ -16650,6 +16650,8 @@ function createMainWindow(): BrowserWindow {
                     view === 'environment-dock-open' ||
                     view === 'environment-dock-workspace'
                   ) {
+                    const workspaceDockSelector =
+                      '[data-artemis-component="workspace-dock"]';
                     const bounds = (selector) => {
                       const rect = document
                         .querySelector(selector)
@@ -16661,31 +16663,54 @@ function createMainWindow(): BrowserWindow {
                     const before = {
                       status: bounds('.status-pill'),
                       environment: bounds('.environment-trigger'),
-                      dock: bounds(
-                        '[data-artemis-component="workspace-dock"]',
-                      ),
+                      dock: bounds(workspaceDockSelector),
                     };
+                    const workspaceDock = document.querySelector(
+                      workspaceDockSelector,
+                    );
                     document.querySelector('.right-sidebar-toggle')?.click();
-                    await wait(80);
+                    await new Promise((resolve) =>
+                      requestAnimationFrame(resolve),
+                    );
+                    const dockAnimations = (workspaceDock?.getAnimations() ?? [])
+                      .map((animation) => ({
+                        animation,
+                        duration: Number(
+                          animation.effect?.getComputedTiming().duration ?? 0,
+                        ),
+                        property: animation.transitionProperty ?? null,
+                      }))
+                      .filter(({ duration }) => duration > 0);
+                    for (const { animation, duration } of dockAnimations) {
+                      animation.pause();
+                      animation.currentTime = duration / 2;
+                    }
+                    await new Promise((resolve) =>
+                      requestAnimationFrame(resolve),
+                    );
                     const middle = {
                       status: bounds('.status-pill'),
                       environment: bounds('.environment-trigger'),
-                      dock: bounds(
-                        '[data-artemis-component="workspace-dock"]',
-                      ),
+                      dock: bounds(workspaceDockSelector),
                     };
-                    await wait(520);
+                    for (const { animation } of dockAnimations) {
+                      animation.finish();
+                    }
+                    await new Promise((resolve) =>
+                      requestAnimationFrame(resolve),
+                    );
                     const after = {
                       status: bounds('.status-pill'),
                       environment: bounds('.environment-trigger'),
-                      dock: bounds(
-                        '[data-artemis-component="workspace-dock"]',
-                      ),
+                      dock: bounds(workspaceDockSelector),
                     };
                     window.__artemisSmokeDockTransition = {
                       before,
                       middle,
                       after,
+                      animations: dockAnimations.map(
+                        ({ duration, property }) => ({ duration, property }),
+                      ),
                     };
                   }
                   if (view === 'environment-dock-open') {
