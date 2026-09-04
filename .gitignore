@@ -4,6 +4,7 @@ dist-electron/
 dist-renderer/
 release/
 artifacts/
+/ui-prototype/
 apps/desktop/release-*/
 apps/desktop/.packaging-electron-dist-direct-*/
 .testagent/
