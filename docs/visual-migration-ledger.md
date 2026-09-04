@@ -226,10 +226,13 @@ public `artemis.ui` background, border, color, typography, or fixed focus floor.
 status-to-tone mapping remains in Desktop, while the main edit action, all
 icon-only actions, status badge, progress status, and five-size icon wrapper are
 owned by `@artemis/ui`. The Goal parity driver now verifies 105 sandboxed real
-Electron cases across six Goal states, two locales, light/dark, two widths, two
-zoom levels, eight editor states, and one native reduced-motion press. It records
-the exact candidate HEAD and launch mode, has no `--no-sandbox` fallback, and
-checks screenshots, accessibility,
+Electron cases in three bounded, disjoint shards across six Goal states, two
+locales, light/dark, two widths, two zoom levels, eight editor states, and one
+native reduced-motion press. Every case retains a fresh user-data directory and
+independent Electron launch. The final manifest rejects missing or duplicate
+case indexes, shard HEAD or launch-mode disagreement, and duplicate case
+identifiers. It records the exact candidate HEAD and launch mode, has no
+`--no-sandbox` fallback, and checks screenshots, accessibility,
 action ordering, 28px controls, 14px icons, shared component identities,
 finite state/variant/tone attributes, resolved background/border/color/font,
 the fixed focus outline, plus 30 IconButton variant × state × size geometry
@@ -949,14 +952,40 @@ seconds for the npm advisory endpoint and then returned a network timeout with
 no audit result. That timeout is neither a vulnerability finding nor an audit
 pass; the unchanged audit command must run again in fresh exact-head CI.
 
+Exact-head run `33821282416` then passed the base job, Windows native sandbox
+integration, all three Gallery jobs, and the complete macOS arm64 aggregate.
+It exposed three independent final-run conditions: the macOS x64 Dock smoke
+sampled once during its animation, one Windows warm renderer launch exceeded
+the unchanged 4-second hard maximum, and the npm advisory endpoint again
+returned no audit report. The repaired Dock smoke now pauses the live Web
+Animation, seeks its midpoint, and proves start/midpoint/final geometry. The
+production audit now makes at most three 30-second no-retry requests, accepts
+only a real audit report, fails immediately on vulnerabilities, and still fails
+closed after repeated transport failures.
+
+Exact-head run `33823637536` on `b6bad9b` passed the base job including that
+production audit, Windows native integration, all three Gallery jobs, the full
+macOS arm64 aggregate, and the full Windows aggregate plus final package
+boundary. Its first macOS x64 attempt rejected three warm startup outliers,
+including a 4730.1 ms renderer timing against the unchanged 4000 ms hard
+maximum. The same-head, same-budget failed-job retry passed the startup matrix
+and reached Goal parity, where the serial 105-launch driver completed 94 cases
+before its 600,008.6 ms aggregate timeout. Because that second failure
+reproduced a runner-capacity limit after the startup matrix rather than a Goal
+assertion failure, the follow-up keeps all 105 cases, every 45-second per-case
+timeout, and the 600-second aggregate budget, but distributes disjoint cases
+across three bounded workers. Each worker writes a separate manifest from its
+own throwaway user-data root; the final manifest requires identical candidate
+HEADs and complete indexes 0 through 104. A local host run completed all 105
+cases in about 97 seconds. Fresh exact-clean-head CI remains required.
+
 The final acceptance target is the exact clean 1.4.59 PR head. Its SHA and
 generated report paths belong in PR evidence rather than as a self-referential
 value in this commit. CI must reproduce the aggregate audit on native macOS
 arm64, macOS x64, and Windows x64 runners; Windows must also inspect its final
 package. Per the review policy, MIG6 received no separate pre-PR validator and
-exactly one review after the PR existed. Fresh CI on the next repaired head
-remains the pending platform gate. This local evidence does not establish the
-still-pending final repaired-head native results, signing, notarization,
+exactly one review after the PR existed. This local evidence does not establish
+the still-pending final repaired-head native results, signing, notarization,
 stapling, clean-install/update/rollback behavior, real provider or hardware
 behavior, screen-reader acceptance, or soak stability. No release artifact was
 downloaded for checksum, ZIP, or DMG verification. SKIN1 has not started.

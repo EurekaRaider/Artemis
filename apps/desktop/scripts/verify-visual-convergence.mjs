@@ -128,7 +128,7 @@ const workloads = [
   {
     id: "goal-parity",
     budget: "goal-parity",
-    script: "verify-goal-parity.mjs",
+    script: "verify-goal-parity-shards.mjs",
   },
   ...(process.platform === "darwin"
     ? [

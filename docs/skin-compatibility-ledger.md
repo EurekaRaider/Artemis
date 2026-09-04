@@ -234,14 +234,16 @@ variant × state × size combination, and every Badge/Status tone. Desktop impor
 only the public stylesheet and action subpath; its legacy form reset is confined
 to `artemis.reset`, and its
 GoalBar adapter keeps `ThreadGoal` status-to-tone mapping outside the package.
-The 105-case real Electron Goal parity matrix has no `--no-sandbox` fallback,
-records the exact HEAD and sandboxed launch mode, and validates the resulting component
+The 105-case real Electron Goal parity matrix runs as three bounded, disjoint
+shards with no `--no-sandbox` fallback. Every case retains a fresh user-data
+directory; the merged manifest requires one exact HEAD, one sandboxed launch
+mode, and complete unique case indexes. It validates the resulting component
 identities, state/variant/tone attributes, computed 28px controls, 14px icons,
 26px status pills, background/border/color/font contracts, fixed focus outline,
 30 IconButton variant × state × size geometry probes, native pressed behavior
-under reduced motion, action order, screenshots, and accessibility across locale,
-theme, width, and zoom. It does not establish native Windows/Linux parity or
-migrate any other Desktop surface.
+under reduced motion, action order, screenshots, and accessibility across
+locale, theme, width, and zoom. It does not establish native Windows/Linux
+parity or migrate any other Desktop surface.
 
 Installed-package proof resolves the actions declarations and runtime through
 the public export. A Button-only browser bundle omits IconButton, Badge, and

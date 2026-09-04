@@ -20,7 +20,6 @@ const outputDirectory = resolve(
   process.argv[2] ?? join(tmpdir(), "artemis-goal-parity"),
 );
 const electronPath = createRequire(import.meta.url)("electron");
-const temporaryDirectory = await mkdtemp(join(tmpdir(), "artemis-goal-smoke-"));
 const headResult = spawnSync("git", ["rev-parse", "HEAD"], {
   cwd: resolve(appDirectory, "../.."),
   encoding: "utf8",
@@ -90,7 +89,7 @@ for (const locale of ["zh-CN", "en"]) {
     }
   }
 }
-const cases = stateDefinitions.flatMap((state) =>
+let cases = stateDefinitions.flatMap((state) =>
   dimensions.map((dimension) => ({
     ...state,
     ...dimension,
@@ -133,6 +132,24 @@ cases.push({
   reducedMotion: true,
   tone: "info",
 });
+const totalCaseCount = cases.length;
+const shardCount = Number(process.env.ARTEMIS_GOAL_PARITY_SHARD_COUNT ?? "1");
+const shardIndex = Number(process.env.ARTEMIS_GOAL_PARITY_SHARD_INDEX ?? "0");
+if (
+  !Number.isInteger(shardCount) ||
+  shardCount < 1 ||
+  !Number.isInteger(shardIndex) ||
+  shardIndex < 0 ||
+  shardIndex >= shardCount
+) {
+  throw new Error(
+    `Invalid Goal parity shard ${String(shardIndex)}/${String(shardCount)}.`,
+  );
+}
+cases = cases
+  .map((testCase, caseIndex) => ({ ...testCase, caseIndex }))
+  .filter((testCase) => testCase.caseIndex % shardCount === shardIndex);
+const temporaryDirectory = await mkdtemp(join(tmpdir(), "artemis-goal-smoke-"));
 const results = [];
 
 await mkdir(outputDirectory, { recursive: true });
@@ -140,6 +157,7 @@ try {
   for (const testCase of cases) {
     const {
       id,
+      caseIndex,
       view,
       actions,
       locale,
@@ -442,6 +460,7 @@ try {
     }
     results.push({
       id,
+      caseIndex,
       view,
       locale,
       theme,
@@ -463,18 +482,28 @@ try {
       },
     });
     console.log(
-      `Goal parity ${String(results.length)}/${String(cases.length)}: ${id}`,
+      `Goal parity shard ${String(shardIndex + 1)}/${String(shardCount)} ${String(results.length)}/${String(cases.length)}: ${id}`,
     );
   }
-  const manifestPath = join(outputDirectory, "manifest.json");
+  const manifestPath = join(
+    outputDirectory,
+    shardCount === 1
+      ? "manifest.json"
+      : `manifest.shard-${String(shardIndex)}.json`,
+  );
   await writeFile(
     manifestPath,
     `${JSON.stringify(
       {
-        format: "artemis-goal-parity",
-        version: 3,
+        format:
+          shardCount === 1
+            ? "artemis-goal-parity"
+            : "artemis-goal-parity-shard",
+        version: shardCount === 1 ? 3 : 1,
         candidateHead,
         launchMode: "renderer-sandbox",
+        totalCaseCount,
+        shard: { index: shardIndex, count: shardCount },
         caseCount: results.length,
         userDataIsolation: {
           directory: "user-data/<id> under the throwaway run root",
