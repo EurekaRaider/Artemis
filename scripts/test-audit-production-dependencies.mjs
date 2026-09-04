@@ -25,7 +25,7 @@ assert.deepEqual(auditArguments, [
   "--audit-level=high",
   "--json",
   "--fetch-retries=0",
-  "--fetch-timeout=30000",
+  "--fetch-timeout=300000",
 ]);
 assert.equal(classifyAuditResult({ status: 0, stdout: cleanReport }), "passed");
 assert.equal(
@@ -46,7 +46,7 @@ async function runFixture(results) {
     run: (_command, arguments_, options) => {
       calls += 1;
       assert.deepEqual(arguments_, auditArguments);
-      assert.equal(options.timeout, 45_000);
+      assert.equal(options.timeout, 315_000);
       return results[Math.min(calls - 1, results.length - 1)];
     },
     wait: async () => {},

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const maximumAttempts = 3;
-const fetchTimeoutMs = 30_000;
+const fetchTimeoutMs = 5 * 60_000;
 
 export const auditArguments = [
   "audit",
