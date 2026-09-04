@@ -175,7 +175,7 @@ try {
     // case x attempt, never directly at the throwaway run root's case level.
     const caseUserDataDirectory = (attempt) =>
       join(temporaryDirectory, "user-data", `${caseId}-attempt-${attempt}`);
-    const launch = (disableRendererSandbox, attempt) => {
+    const launch = (attempt) => {
       const userDataPreexisting = existsSync(caseUserDataDirectory(attempt));
       const result = spawnSync(
         electronPath,
@@ -186,7 +186,6 @@ try {
           "--disable-gpu-compositing",
           "--disable-gpu-sandbox",
           "--use-angle=swiftshader",
-          ...(disableRendererSandbox ? ["--no-sandbox"] : []),
         ],
         {
           cwd: appDirectory,
@@ -198,19 +197,7 @@ try {
       );
       return { result, userDataPreexisting };
     };
-    let launchOutcome = launch(false, 0);
-    if (
-      (launchOutcome.result.error || launchOutcome.result.status !== 0) &&
-      !process.env.CI
-    ) {
-      launchOutcome = launch(true, 1);
-    }
-    if (
-      (launchOutcome.result.error || launchOutcome.result.status !== 0) &&
-      !process.env.CI
-    ) {
-      launchOutcome = launch(false, 2);
-    }
+    const launchOutcome = launch(0);
     const launchResult = launchOutcome.result;
     if (launchResult.error || launchResult.status !== 0) {
       throw new Error(

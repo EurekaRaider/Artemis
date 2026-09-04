@@ -1,0 +1,299 @@
+{
+  "dynamicClassConsumers": [
+    {
+      "classNameSets": [
+        ["nested-project", "drop-before"],
+        ["nested-project", "drop-after"],
+        ["project-thread-row", "drop-before"],
+        ["project-thread-row", "drop-after"]
+      ],
+      "owner": "Desktop project and task drag ordering",
+      "reason": "The finite before/after edge is appended to both draggable row class lists at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "` drop-${projectDropTarget.edge}`"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "` drop-${threadDropTarget.edge}`"
+        },
+        {
+          "path": "apps/desktop/src/renderer/project-order.ts",
+          "contains": "export type ProjectDropEdge = \"before\" | \"after\";"
+        },
+        {
+          "path": "apps/desktop/src/renderer/thread-list-order.ts",
+          "contains": "export type ThreadDropEdge = \"before\" | \"after\";"
+        }
+      ]
+    },
+    {
+      "classNameSets": [["composer-notice"], ["view-notice"]],
+      "owner": "Desktop transient notices",
+      "reason": "TransientNotice appends the finite composer/view placement to the shared notice class.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "placement: \"composer\" | \"view\";"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "${placement}-notice"
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["automation-run-dot", "starting"],
+        ["automation-run-dot", "running"],
+        ["automation-run-dot", "waiting-approval"],
+        ["automation-run-dot", "completed"],
+        ["automation-run-dot", "failed"],
+        ["automation-run-dot", "skipped"]
+      ],
+      "owner": "Desktop automation run status",
+      "reason": "Automation rows append the protocol-owned finite run state to the status dot class.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/AutomationPage.tsx",
+          "contains": "`automation-run-dot ${run.state}`"
+        },
+        {
+          "path": "packages/protocol/src/automation.ts",
+          "contains": "export const automationRunStateSchema = z.enum(["
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["agent-team-message", "blocker"],
+        ["agent-team-message", "handoff"]
+      ],
+      "owner": "Desktop agent-team collaboration log",
+      "reason": "Agent-team messages append the protocol-owned finite message kind to the collaboration row class.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`agent-team-message ${message.kind}`}"
+        },
+        {
+          "path": "packages/protocol/src/schema.ts",
+          "contains": "kind: z.enum([\"finding\", \"request\", \"blocker\", \"handoff\"]),"
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["status-dot", "running"],
+        ["status-dot", "waiting-approval"],
+        ["status-dot", "waiting-user-input"],
+        ["status-dot", "failed"]
+      ],
+      "owner": "Desktop task status indicators",
+      "reason": "Task and presentation status unions are appended to the shared status-dot class at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`status-dot ${thread.status}`}"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`status-dot ${runPresentation.status === \"completed\" ? \"idle\" : runPresentation.status}`}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["tool-card", "running"],
+        ["tool-card", "failed"]
+      ],
+      "owner": "Desktop tool activity presentation",
+      "reason": "Tool-card state is a finite presentation state appended at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`tool-card ${view.state}${open ? \" open\" : \"\"}`}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [["turn-status", "running"]],
+      "owner": "Desktop active turn status",
+      "reason": "The finite run presentation status is appended to the turn-status class at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`turn-status ${runPresentation.status}`}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [["user-input-card", "pending"]],
+      "owner": "Desktop user-input cards",
+      "reason": "The protocol-owned input status is appended to the user-input-card class at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`user-input-card ${input.status}`}"
+        },
+        {
+          "path": "apps/desktop/src/renderer/MultiQuestionUserInputCard.tsx",
+          "contains": "className={`user-input-card multi-question ${input.status}`}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["child-agent-card", "suspect"],
+        ["child-agent-card", "stalled"],
+        ["child-agent-card", "cancelled"],
+        ["child-agent-panel", "cancelled"],
+        ["child-agent-panel", "unavailable"]
+      ],
+      "owner": "Desktop child-agent status surfaces",
+      "reason": "Child status and health finite domains are appended to card and panel classes at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`child-agent-card ${child.status} ${child.health ?? \"healthy\"}`}"
+        },
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`child-agent-panel ${child?.status ?? \"unavailable\"} ${health}`}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["review-line", "addition"],
+        ["review-line", "deletion"]
+      ],
+      "owner": "Public Review diff lines",
+      "reason": "ReviewDiffLine appends its finite line kind to the review-line class at runtime.",
+      "sources": [
+        {
+          "path": "packages/ui/src/workflow.tsx",
+          "contains": "className={classes(`review-line ${kind}`, className)}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["syntax-token", "keyword"],
+        ["syntax-token", "type"],
+        ["syntax-token", "function"],
+        ["syntax-token", "string"],
+        ["syntax-token", "comment"],
+        ["syntax-token", "number"],
+        ["syntax-token", "variable"],
+        ["syntax-token", "operator"],
+        ["syntax-token", "punctuation"]
+      ],
+      "owner": "Desktop workspace syntax preview",
+      "reason": "The finite tokenizer kind is appended to syntax-token spans at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/WorkspaceFileEditor.tsx",
+          "contains": "className={`syntax-token ${token.kind}`}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [["confirmation-dialog", "danger"]],
+      "owner": "Desktop confirmation dialog",
+      "reason": "The finite confirmation tone is appended to the dialog class at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/App.tsx",
+          "contains": "className={`confirmation-dialog ${confirmation.tone}`}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["token-usage-composition-marker", "output"],
+        ["token-usage-composition-marker", "cache-read"],
+        ["token-usage-composition-marker", "cache-write"]
+      ],
+      "owner": "Desktop token composition legend",
+      "reason": "The finite token category tone is appended to each composition marker at runtime.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/TokenUsagePage.tsx",
+          "contains": "className={`token-usage-composition-marker ${item.tone}`}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [
+        ["sources-panel-entry", "attachment"],
+        ["sources-panel-icon", "web"]
+      ],
+      "owner": "Public Sources surface composition",
+      "reason": "Desktop caller classes are composed with the public Source entry and icon base classes.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/SourcesPanel.tsx",
+          "contains": "<SourceEntryIcon className=\"web\">"
+        },
+        {
+          "path": "apps/desktop/src/renderer/SourcesPanel.tsx",
+          "contains": "className=\"attachment\""
+        },
+        {
+          "path": "packages/ui/src/workflow.tsx",
+          "contains": "className={classes(\"sources-panel-entry\", className)}"
+        },
+        {
+          "path": "packages/ui/src/workflow.tsx",
+          "contains": "className={classes(\"sources-panel-icon\", className)}"
+        }
+      ]
+    },
+    {
+      "classNameSets": [["external-link-icon", "favicon-loaded"]],
+      "owner": "Desktop Markdown external-link icons",
+      "reason": "The favicon-loaded state is added to the generated external-link icon after its image loads.",
+      "sources": [
+        {
+          "path": "apps/desktop/src/renderer/MarkdownContent.tsx",
+          "contains": "class=\"external-link-icon\" data-external-link-icon"
+        },
+        {
+          "path": "apps/desktop/src/renderer/MarkdownContent.tsx",
+          "contains": "iconRoot.classList.add(\"favicon-loaded\")"
+        }
+      ]
+    }
+  ],
+  "rawComponentOverrides": [
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] [data-part=\"menu\"]",
+      "property": "z-index",
+      "value": "80",
+      "important": false,
+      "owner": "Desktop composer overlay stacking",
+      "reason": "The public select exposes placement but does not define a skin-controlled overlay layer token."
+    },
+    {
+      "atRules": [],
+      "selector": ".review-scope-select [data-artemis-component=\"select\"] [data-part=\"menu\"]",
+      "property": "z-index",
+      "value": "80",
+      "important": false,
+      "owner": "Desktop review overlay stacking",
+      "reason": "The public select exposes placement but does not define a skin-controlled overlay layer token."
+    },
+    {
+      "atRules": [],
+      "selector": "[data-artemis-component=\"browser-viewport\"] > [data-part=\"content\"] > .browser-frame",
+      "property": "background",
+      "value": "#ffffff",
+      "important": false,
+      "owner": "Desktop embedded browser viewport",
+      "reason": "The isolated web-content canvas intentionally starts white and is not a skin surface."
+    }
+  ]
+}

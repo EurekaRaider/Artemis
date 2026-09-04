@@ -276,7 +276,7 @@ export function TokenUsagePage({
       tone: "cache-write",
       value: usageTotals.cacheWrite,
     },
-  ];
+  ] as const;
   const modelLabel = (model: (typeof usageByModel)[number]) =>
     model.key === UNATTRIBUTED_USAGE_MODEL
       ? t.unattributedModel

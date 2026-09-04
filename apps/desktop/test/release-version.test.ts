@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
-const releaseVersion = "1.4.58";
+const releaseVersion = "1.4.59";
 const workspacePaths = [
   "apps/desktop",
   "apps/ui-gallery",
@@ -25,7 +25,7 @@ function json(path: string): Record<string, unknown> {
 }
 
 describe("release version", () => {
-  it("keeps manifests, lockfile, MCP identity, theme, and README at v1.4.58", () => {
+  it("keeps manifests, lockfile, MCP identity, theme, and README at v1.4.59", () => {
     const manifests = [json("package.json")];
     for (const workspacePath of workspacePaths) {
       manifests.push(json(join(workspacePath, "package.json")));
@@ -65,13 +65,13 @@ describe("release version", () => {
       "utf8",
     );
     const readme = readFileSync(join(root, "README.md"), "utf8");
-    expect(mcp.match(/version: "1\.4\.58"/gu)).toHaveLength(3);
+    expect(mcp.match(/version: "1\.4\.59"/gu)).toHaveLength(3);
     expect(
       themeArtemisSource.match(
         /ARTEMIS_THEME_VERSION = "([^"]+)" as const;/u,
       )?.[1],
     ).toBe(releaseVersion);
-    expect(readme).toContain("The `1.4.58` packaging configuration produces:");
+    expect(readme).toContain("The `1.4.59` packaging configuration produces:");
     expect(new Set(readme.match(/\b1\.4\.\d+\b/gu) ?? [])).toEqual(
       new Set([releaseVersion]),
     );

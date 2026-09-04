@@ -14428,6 +14428,7 @@ function createMainWindow(): BrowserWindow {
   const smokePickedScreenshot = process.env.ARTEMIS_SMOKE_SCREENSHOT_PICKED;
   const smokeArtifacts = Boolean(smokeScreenshot || smokeAccessibility);
   const requestedSmokeWidth = Number(process.env.ARTEMIS_SMOKE_WINDOW_WIDTH);
+  const requestedSmokeHeight = Number(process.env.ARTEMIS_SMOKE_WINDOW_HEIGHT);
   const requestedSmokeResizeWidth = Number(
     process.env.ARTEMIS_SMOKE_RESIZE_WIDTH,
   );
@@ -14435,6 +14436,10 @@ function createMainWindow(): BrowserWindow {
     smokeMode && Number.isFinite(requestedSmokeWidth)
       ? Math.max(980, Math.min(2_000, Math.round(requestedSmokeWidth)))
       : 1_420;
+  const smokeHeight =
+    smokeMode && Number.isFinite(requestedSmokeHeight)
+      ? Math.max(680, Math.min(1_400, Math.round(requestedSmokeHeight)))
+      : 920;
   const requestedScale = Number(process.env.ARTEMIS_SMOKE_SCALE ?? "1");
   const smokeScale = [1, 1.25, 1.5, 2].includes(requestedScale)
     ? requestedScale
@@ -14458,7 +14463,7 @@ function createMainWindow(): BrowserWindow {
   } | null = null;
   const window = new BrowserWindow({
     width: smokeWidth,
-    height: 920,
+    height: smokeHeight,
     minWidth: 980,
     minHeight: 680,
     backgroundColor: windowBackgroundColor(),
@@ -14498,14 +14503,20 @@ function createMainWindow(): BrowserWindow {
     window.once("ready-to-show", () => {
       if (smokeScreenshot) {
         const view = process.env.ARTEMIS_SMOKE_VIEW ?? "";
-        if (
+        const focusEvidenceView =
           view.startsWith("form-controls-") ||
           view === "mcp-editor-form-controls" ||
-          view === "turn-changes-form-controls"
-        ) {
+          view === "turn-changes-form-controls" ||
+          view === "navigation-token-usage" ||
+          view === "markdown-editor-navigation-toolbar" ||
+          view === "markdown-editor-navigation-preview" ||
+          (process.env.ARTEMIS_SMOKE_GOAL_FOCUS_PROBE === "1" &&
+            view.startsWith("goal-"));
+        if (focusEvidenceView) {
           // Keep focus-evidence views on the active display. A macOS runner
           // cannot activate a window parked outside every screen, so moving
-          // these views offscreen makes real :focus-visible evidence
+          // these form and navigation views offscreen makes real
+          // :focus-visible evidence
           // impossible even when the renderer interaction is correct.
           window.center();
           window.show();
@@ -14798,15 +14809,21 @@ function createMainWindow(): BrowserWindow {
                     '[data-artemis-component="conversation-message"]' +
                       '[data-message-kind="assistant"] [data-part="actions"] button',
                   );
+                  const assistantActions = assistantAction?.closest(
+                    '[data-part="actions"]',
+                  );
+                  let actionOpacity = null;
                   if (assistantAction instanceof HTMLButtonElement) {
                     assistantAction.focus({ preventScroll: true });
+                    const actionOpacityDeadline = performance.now() + 1_000;
+                    do {
+                      actionOpacity = assistantActions
+                        ? getComputedStyle(assistantActions).opacity
+                        : null;
+                      if (Number(actionOpacity) >= 0.99) break;
+                      await wait(25);
+                    } while (performance.now() < actionOpacityDeadline);
                   }
-                  await wait(200);
-                  const actionOpacity = assistantAction
-                    ? getComputedStyle(
-                        assistantAction.closest('[data-part="actions"]'),
-                      ).opacity
-                    : null;
                   const agentButtons = [
                     ...document.querySelectorAll(
                       'button[data-artemis-component="agent-activity"]',
@@ -16635,6 +16652,8 @@ function createMainWindow(): BrowserWindow {
                     view === 'environment-dock-open' ||
                     view === 'environment-dock-workspace'
                   ) {
+                    const workspaceDockSelector =
+                      '[data-artemis-component="workspace-dock"]';
                     const bounds = (selector) => {
                       const rect = document
                         .querySelector(selector)
@@ -16646,31 +16665,54 @@ function createMainWindow(): BrowserWindow {
                     const before = {
                       status: bounds('.status-pill'),
                       environment: bounds('.environment-trigger'),
-                      dock: bounds(
-                        '[data-artemis-component="workspace-dock"]',
-                      ),
+                      dock: bounds(workspaceDockSelector),
                     };
+                    const workspaceDock = document.querySelector(
+                      workspaceDockSelector,
+                    );
                     document.querySelector('.right-sidebar-toggle')?.click();
-                    await wait(80);
+                    await new Promise((resolve) =>
+                      requestAnimationFrame(resolve),
+                    );
+                    const dockAnimations = (workspaceDock?.getAnimations() ?? [])
+                      .map((animation) => ({
+                        animation,
+                        duration: Number(
+                          animation.effect?.getComputedTiming().duration ?? 0,
+                        ),
+                        property: animation.transitionProperty ?? null,
+                      }))
+                      .filter(({ duration }) => duration > 0);
+                    for (const { animation, duration } of dockAnimations) {
+                      animation.pause();
+                      animation.currentTime = duration / 2;
+                    }
+                    await new Promise((resolve) =>
+                      requestAnimationFrame(resolve),
+                    );
                     const middle = {
                       status: bounds('.status-pill'),
                       environment: bounds('.environment-trigger'),
-                      dock: bounds(
-                        '[data-artemis-component="workspace-dock"]',
-                      ),
+                      dock: bounds(workspaceDockSelector),
                     };
-                    await wait(520);
+                    for (const { animation } of dockAnimations) {
+                      animation.finish();
+                    }
+                    await new Promise((resolve) =>
+                      requestAnimationFrame(resolve),
+                    );
                     const after = {
                       status: bounds('.status-pill'),
                       environment: bounds('.environment-trigger'),
-                      dock: bounds(
-                        '[data-artemis-component="workspace-dock"]',
-                      ),
+                      dock: bounds(workspaceDockSelector),
                     };
                     window.__artemisSmokeDockTransition = {
                       before,
                       middle,
                       after,
+                      animations: dockAnimations.map(
+                        ({ duration, property }) => ({ duration, property }),
+                      ),
                     };
                   }
                   if (view === 'environment-dock-open') {
@@ -17011,7 +17053,11 @@ function createMainWindow(): BrowserWindow {
               y: 0,
             });
           }
-          if (smokeMode && requestedSmokeView?.startsWith("goal-")) {
+          if (
+            smokeMode &&
+            requestedSmokeView?.startsWith("goal-") &&
+            process.env.ARTEMIS_SMOKE_GOAL_FOCUS_PROBE === "1"
+          ) {
             window.webContents.focus();
             window.webContents.sendInputEvent({
               type: "keyDown",
@@ -17258,7 +17304,14 @@ function createMainWindow(): BrowserWindow {
                   documentLanguage: document.documentElement.lang,
                   documentDirection: document.documentElement.dir,
                   title: document.title,
+                  themePreference:
+                    document.documentElement.dataset.theme ?? "system",
+                  resolvedTheme:
+                    document.documentElement.dataset.artemisTheme ?? null,
+                  contrastMode:
+                    document.documentElement.dataset.artemisContrast ?? null,
                   windowInnerWidth: window.innerWidth,
+                  windowInnerHeight: window.innerHeight,
                   workspaceWidth: workspaceBounds?.width ?? null,
                   environmentPanelOpen:
                     environmentTrigger?.getAttribute("aria-expanded") === "true",
@@ -17529,7 +17582,11 @@ function createMainWindow(): BrowserWindow {
                             ".goal-bar-actions button",
                           ),
                         ];
-                        const focusTarget = actionElements[0];
+                        const focusTarget = ${JSON.stringify(
+                          process.env.ARTEMIS_SMOKE_GOAL_FOCUS_PROBE === "1",
+                        )}
+                          ? actionElements[0]
+                          : null;
                         focusTarget?.focus({
                           preventScroll: true,
                           focusVisible: true,
@@ -19402,6 +19459,11 @@ function createMainWindow(): BrowserWindow {
               `${JSON.stringify(
                 {
                   ...result,
+                  requestedTheme:
+                    process.env.ARTEMIS_SMOKE_THEME === "light" ||
+                    process.env.ARTEMIS_SMOKE_THEME === "dark"
+                      ? process.env.ARTEMIS_SMOKE_THEME
+                      : "system",
                   rendererConsoleEntries: smokeRendererConsoleEntries,
                   runtimeSecurity: {
                     contextIsolation:
@@ -19508,11 +19570,15 @@ app
     );
     nativeTheme.on("updated", syncWindowBackgroundColors);
     const smokeTheme = process.env.ARTEMIS_SMOKE_THEME;
-    applyNativeTheme(
-      smokeMode && (smokeTheme === "light" || smokeTheme === "dark")
-        ? smokeTheme
-        : await settingsStore.themePreference(),
-    );
+    if (
+      smokeMode &&
+      (smokeTheme === "system" ||
+        smokeTheme === "light" ||
+        smokeTheme === "dark")
+    ) {
+      await settingsStore.setThemePreference(smokeTheme);
+    }
+    applyNativeTheme(await settingsStore.themePreference());
     languagePreference = await settingsStore.languagePreference();
     resolvedLocalePreference = resolveAppLocale(
       languagePreference,

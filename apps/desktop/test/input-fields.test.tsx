@@ -607,10 +607,14 @@ describe("avatar keyboard reachability (§5 file-键盘红测, fix ① sr-only)"
   });
 
   it("shows a focus ring on the public avatar button while the input is focused", () => {
-    const normalized = stylesSource.replace(/\s+/g, " ");
-    expect(normalized).toMatch(
-      /\.profile-avatar-input:focus-visible \+ \[data-artemis-component="button"\] \{[^}]*outline: 2px solid var\(--blue\)[^}]*outline-offset: 2px[^}]*\}/,
+    const block = cssRuleBlock(
+      stylesSource,
+      '.profile-avatar-input:focus-visible + [data-artemis-component="button"]',
     );
+    expect(block).toContain(
+      "outline: calc(var(--artemis-border-width-default) * 2) solid var(--blue)",
+    );
+    expect(block).toContain("outline-offset: calc(var(--artemis-space-1) / 2)");
   });
 
   it("keeps the native file input as the focusable activation target in the DOM", async () => {

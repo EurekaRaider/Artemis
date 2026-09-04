@@ -1,7 +1,13 @@
 # Artemis Skin v1 compatibility ledger
 
-Status: CL3 Feedback/Overlay/Layout candidate on merged CL2C base
-`5593e7b161167d6d14b0c733b387a3caecd819da`. This document records what is
+Status: Skin v1 compatibility remains fixed through merged MIG5B base
+`3b024552ab520d83982aaadf5185404d7b8325ce`. MIG6 is Draft PR #147. Its sole
+post-PR review completed on initial source head `ebe6741`; CI run `33768726913`
+passed the full macOS arm64 and Windows x64 convergence aggregates plus the
+Windows package boundary. Follow-up CI run `33818824213` repeated those arm64
+and Windows passes while macOS x64 identified the remaining screenshot-evidence
+case as a zoom-only duplicate now under repair. Fresh exact-head native CI and
+merge remain pending. SKIN1 has not started. This document records what is
 enforced now and which runtime behavior remains owned by later serialized
 milestones.
 
@@ -228,14 +234,20 @@ variant × state × size combination, and every Badge/Status tone. Desktop impor
 only the public stylesheet and action subpath; its legacy form reset is confined
 to `artemis.reset`, and its
 GoalBar adapter keeps `ThreadGoal` status-to-tone mapping outside the package.
-The 105-case real Electron Goal parity matrix has no `--no-sandbox` fallback,
-records the exact HEAD and sandboxed launch mode, and validates the resulting component
-identities, state/variant/tone attributes, computed 28px controls, 14px icons,
-26px status pills, background/border/color/font contracts, fixed focus outline,
-30 IconButton variant × state × size geometry probes, native pressed behavior
-under reduced motion, action order, screenshots, and accessibility across locale,
-theme, width, and zoom. It does not establish native Windows/Linux parity or
-migrate any other Desktop surface.
+The 105-case real Electron Goal parity matrix runs as three bounded, disjoint
+shards with no `--no-sandbox` fallback. Every case retains a fresh user-data
+directory; the merged manifest requires one exact HEAD, one sandboxed launch
+mode, and complete unique case indexes. Concurrent shards do not request the
+OS-global keyboard focus. After they exit, one exclusive real Electron launch
+with fresh user data must prove the active element and fixed focus outline; the
+merged manifest requires that probe on the same HEAD and launch mode. It
+validates the resulting component identities, state/variant/tone attributes,
+computed 28px controls, 14px icons, 26px status pills,
+background/border/color/font contracts, fixed focus outline, 30 IconButton
+variant × state × size geometry probes, native pressed behavior under reduced
+motion, action order, screenshots, and accessibility across locale, theme,
+width, and zoom. It does not establish native Windows/Linux parity or migrate
+any other Desktop surface.
 
 Installed-package proof resolves the actions declarations and runtime through
 the public export. A Button-only browser bundle omits IconButton, Badge, and
@@ -350,8 +362,8 @@ trusted.
 
 ## SKIN1 ownership after MIG6
 
-The following are explicitly outside CL0A-CL2A and all MIG PRs unless a new
-scope is approved:
+The following are explicitly outside CL0A-CL4 and MIG1-MIG6 unless a new scope
+is approved:
 
 - user installation, deletion, enablement, and selection;
 - `skinId` persistence or migration;
@@ -359,9 +371,13 @@ scope is approved:
 - marketplace, remote download, update, signing, or revocation;
 - arbitrary CSS, selector, JavaScript, React, or Electron extension points.
 
-They belong to the independent SKIN1 sequence after MIG6. A packable workspace
-tarball and an outside consumer proof are packaging tests, not publication or a
-user-install feature.
+They belong to the independent SKIN1 sequence after MIG6. The MIG6 candidate
+adds convergence governance and evidence only; it does not implement any item
+above. SKIN1 may start only after the exact MIG6 PR head passes native CI and
+merges. The one permitted post-PR review is already complete and remains scoped
+to initial head `ebe6741`; the combined repair will not receive a second review.
+A packable workspace tarball and an outside consumer proof are packaging tests,
+not publication or a user-install feature.
 
 ## Stop conditions and rollback
 

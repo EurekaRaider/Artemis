@@ -20,7 +20,6 @@ const outputDirectory = resolve(
   process.argv[2] ?? join(tmpdir(), "artemis-goal-parity"),
 );
 const electronPath = createRequire(import.meta.url)("electron");
-const temporaryDirectory = await mkdtemp(join(tmpdir(), "artemis-goal-smoke-"));
 const headResult = spawnSync("git", ["rev-parse", "HEAD"], {
   cwd: resolve(appDirectory, "../.."),
   encoding: "utf8",
@@ -90,7 +89,7 @@ for (const locale of ["zh-CN", "en"]) {
     }
   }
 }
-const cases = stateDefinitions.flatMap((state) =>
+let cases = stateDefinitions.flatMap((state) =>
   dimensions.map((dimension) => ({
     ...state,
     ...dimension,
@@ -133,6 +132,37 @@ cases.push({
   reducedMotion: true,
   tone: "info",
 });
+const totalCaseCount = cases.length;
+const shardCount = Number(process.env.ARTEMIS_GOAL_PARITY_SHARD_COUNT ?? "1");
+const shardIndex = Number(process.env.ARTEMIS_GOAL_PARITY_SHARD_INDEX ?? "0");
+const exclusiveFocusProbe =
+  process.env.ARTEMIS_GOAL_PARITY_EXCLUSIVE_FOCUS_PROBE === "1";
+if (
+  !Number.isInteger(shardCount) ||
+  shardCount < 1 ||
+  !Number.isInteger(shardIndex) ||
+  shardIndex < 0 ||
+  shardIndex >= shardCount
+) {
+  throw new Error(
+    `Invalid Goal parity shard ${String(shardIndex)}/${String(shardCount)}.`,
+  );
+}
+if (exclusiveFocusProbe && (shardCount !== 1 || shardIndex !== 0)) {
+  throw new Error("The exclusive Goal focus probe cannot be sharded.");
+}
+cases = cases
+  .map((testCase, caseIndex) => ({ ...testCase, caseIndex }))
+  .filter((testCase) => testCase.caseIndex % shardCount === shardIndex)
+  .filter((testCase) => !exclusiveFocusProbe || testCase.caseIndex === 0);
+if (exclusiveFocusProbe && cases.length !== 1) {
+  throw new Error("The exclusive Goal focus probe must select one case.");
+}
+// A single worker may safely own native keyboard focus. Sharded workers run
+// concurrently and deliberately leave that OS-global assertion to the
+// exclusive post-shard probe.
+const requireFocus = shardCount === 1;
+const temporaryDirectory = await mkdtemp(join(tmpdir(), "artemis-goal-smoke-"));
 const results = [];
 
 await mkdir(outputDirectory, { recursive: true });
@@ -140,6 +170,7 @@ try {
   for (const testCase of cases) {
     const {
       id,
+      caseIndex,
       view,
       actions,
       locale,
@@ -168,6 +199,7 @@ try {
       ARTEMIS_SMOKE_THEME: theme,
       ARTEMIS_SMOKE_VIEW: view,
       ARTEMIS_SMOKE_WINDOW_WIDTH: String(width),
+      ARTEMIS_SMOKE_GOAL_FOCUS_PROBE: requireFocus ? "1" : "0",
       ...(reducedMotion ? { ARTEMIS_SMOKE_GOAL_REDUCED_MOTION: "1" } : {}),
     };
     // Never inherit a live dev server: the smoke must exercise the built
@@ -276,6 +308,14 @@ try {
           : actual?.[field] === expected?.[field],
       );
     const quietStyle = shared?.contractStyles?.quiet;
+    const focusMatches = requireFocus
+      ? shared?.focus?.active === true &&
+        shared.focus.outlineColor === quietStyle?.focusOutlineColor &&
+        shared.focus.outlineStyle === quietStyle?.focusOutlineStyle &&
+        shared.focus.outlineWidth === quietStyle?.focusOutlineWidth &&
+        shared.focus.outlineStyle === "solid" &&
+        shared.focus.outlineWidth === "2px"
+      : shared?.focus === null;
     if (
       shared?.main?.component !== "button" ||
       shared.main.state !== "ready" ||
@@ -305,12 +345,7 @@ try {
           action.minBlockSize !== "28px" ||
           !visualMatches(action, quietStyle),
       ) ||
-      shared.focus?.active !== true ||
-      shared.focus.outlineColor !== quietStyle?.focusOutlineColor ||
-      shared.focus.outlineStyle !== quietStyle?.focusOutlineStyle ||
-      shared.focus.outlineWidth !== quietStyle?.focusOutlineWidth ||
-      shared.focus.outlineStyle !== "solid" ||
-      shared.focus.outlineWidth !== "2px"
+      !focusMatches
     ) {
       throw new Error(
         `${id} shared action component contract drifted: ${JSON.stringify({ shared, tone })}`,
@@ -442,6 +477,7 @@ try {
     }
     results.push({
       id,
+      caseIndex,
       view,
       locale,
       theme,
@@ -462,16 +498,36 @@ try {
         runRootUnexpectedEntries: unexpectedRunRootEntries,
       },
     });
+    console.log(
+      exclusiveFocusProbe
+        ? `Goal parity exclusive focus probe ${String(results.length)}/${String(cases.length)}: ${id}`
+        : `Goal parity shard ${String(shardIndex + 1)}/${String(shardCount)} ${String(results.length)}/${String(cases.length)}: ${id}`,
+    );
   }
-  const manifestPath = join(outputDirectory, "manifest.json");
+  const manifestPath = join(
+    outputDirectory,
+    exclusiveFocusProbe
+      ? "focus-probe.json"
+      : shardCount === 1
+        ? "manifest.json"
+        : `manifest.shard-${String(shardIndex)}.json`,
+  );
   await writeFile(
     manifestPath,
     `${JSON.stringify(
       {
-        format: "artemis-goal-parity",
-        version: 3,
+        format: exclusiveFocusProbe
+          ? "artemis-goal-parity-focus-probe"
+          : shardCount === 1
+            ? "artemis-goal-parity"
+            : "artemis-goal-parity-shard",
+        version: exclusiveFocusProbe ? 1 : shardCount === 1 ? 3 : 1,
         candidateHead,
         launchMode: "renderer-sandbox",
+        totalCaseCount,
+        ...(exclusiveFocusProbe
+          ? { focusProbe: { exclusive: true, caseIndex: 0 } }
+          : { shard: { index: shardIndex, count: shardCount } }),
         caseCount: results.length,
         userDataIsolation: {
           directory: "user-data/<id> under the throwaway run root",

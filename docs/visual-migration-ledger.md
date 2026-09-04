@@ -1,16 +1,40 @@
 # Discussion #76 visual migration ledger
 
-Status: MIG5B Archive, Token Usage, and Automation implementation head
-`1194e2bd0a289cee3c64d9bf36996d56004f8160` is independently approved on merged
-MIG5A base `e855865dec086be24321852999e5917becdc4d00`; the final 1.4.58 metadata head
-is pending fresh CI and automated comments. This ledger separates static
-prototype evidence, package/Gallery evidence, and production Electron evidence.
-It must not be used to turn a prototype, Gallery pass, or attribute-only
-resolver pass into a migrated production surface.
+Status: MIG6 convergence and governance Draft PR #147. MIG5B final 1.4.58 PR
+head `b67d208b7972e2083e8752c677c37f2328913e77` passed fresh CI and merged
+through PR #146 as squash commit
+`3b024552ab520d83982aaadf5185404d7b8325ce`. MIG6 opened at source head
+`ebe6741e2dc92222638bf4b22de07ce43d667b32`; its one permitted post-PR review
+completed on that SHA. Findings from that review and initial CI run
+`33750952835` were combined at repair head `10e46d8`. Its CI run `33756491896`
+then isolated one cross-runner startup-budget issue, addressed at follow-up
+head `fcf993c`. CI run `33759335470` passed the full macOS arm64 aggregate and
+isolated two timeline sampling boundaries on macOS x64 and Windows x64, both
+addressed at head `331448c`. CI run `33762336220` passed the full macOS arm64
+aggregate and confirmed the timeline fixes, then isolated one Windows startup
+outlier and the macOS x64 Goal workload circuit breaker, addressed at head
+`69bd71f`. CI run `33765644502` passed the full macOS arm64 aggregate and then
+proved that the remaining startup policy still conflated first cold launch with
+the 26 subsequent warm launches on macOS x64 and Windows x64, addressed at head
+`f33257c`. CI run `33768726913` then passed seven of eight jobs, including the
+complete Windows convergence and final package boundary, but macOS x64 exposed
+an over-broad requirement that all locale screenshots have unique hashes. The
+current local follow-up retains pixel-difference checks for same-locale resolved
+themes and physical window viewports, reports every duplicate group, and keeps
+zoom, direction, locale, motion, and CSS viewport as separate runtime evidence.
+The next exact PR head, fresh native macOS arm64, macOS
+x64 and Windows x64 CI, and merge are not yet complete. This ledger separates
+static prototype evidence, package/Gallery evidence, and production Electron
+evidence. It must not be used to turn a prototype, Gallery pass, or
+attribute-only resolver pass into a migrated production surface.
 
 ## Inputs and evidence boundary
 
-- Candidate base: `e855865dec086be24321852999e5917becdc4d00` (MIG5A merged).
+- MIG6 candidate base: `3b024552ab520d83982aaadf5185404d7b8325ce`
+  (MIG5B merged).
+- Draft PR #147 initial source head:
+  `ebe6741e2dc92222638bf4b22de07ce43d667b32`; the sole review is scoped to
+  this SHA, while final repaired-head CI remains pending.
 - Read-only v17 specification inputs:
   companion `ui-prototype/README.md`
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
@@ -202,16 +226,22 @@ public `artemis.ui` background, border, color, typography, or fixed focus floor.
 status-to-tone mapping remains in Desktop, while the main edit action, all
 icon-only actions, status badge, progress status, and five-size icon wrapper are
 owned by `@artemis/ui`. The Goal parity driver now verifies 105 sandboxed real
-Electron cases across six Goal states, two locales, light/dark, two widths, two
-zoom levels, eight editor states, and one native reduced-motion press. It records
-the exact candidate HEAD and launch mode, has no `--no-sandbox` fallback, and
-checks screenshots, accessibility,
-action ordering, 28px controls, 14px icons, shared component identities,
-finite state/variant/tone attributes, resolved background/border/color/font,
-the fixed focus outline, plus 30 IconButton variant × state × size geometry
-probes with centered icons and contained state indicators. This is
-one migrated production consumer; CL2B and CL2C still own their distinct field
-and tab consumers.
+Electron cases in three bounded, disjoint shards across six Goal states, two
+locales, light/dark, two widths, two zoom levels, eight editor states, and one
+native reduced-motion press. Every case retains a fresh user-data directory and
+independent Electron launch. Concurrent cases do not claim the OS-global
+keyboard focus; after all three shards exit, one exclusive real Electron launch
+uses fresh user data to prove the active element and fixed focus outline. The
+final manifest requires both phases and rejects missing or duplicate case
+indexes, shard HEAD or launch-mode disagreement, duplicate case identifiers,
+focus inside a concurrent shard, or a missing or drifted exclusive focus probe.
+It records the exact candidate HEAD and launch mode, has no `--no-sandbox`
+fallback, and checks screenshots, accessibility, action ordering, 28px
+controls, 14px icons, shared component identities, finite state/variant/tone
+attributes, resolved background/border/color/font, the fixed focus outline,
+plus 30 IconButton variant × state × size geometry probes with centered icons
+and contained state indicators. This is one migrated production consumer; CL2B
+and CL2C still own their distinct field and tab consumers.
 
 The JavaScript subpath is independently bundled from an installed tarball: a
 Button-only entry excludes IconButton, Badge, and Status implementation markers.
@@ -754,30 +784,261 @@ at 15 cases/270 assertions and Card/Heatmap at 2/38. Per the final-head workflow
 the 1.4.58 manifests, README, and this ledger update proceed through fresh CI
 and automated comments without another Validator/Reviewer pass.
 
+## MIG6 convergence candidate evidence
+
+MIG6 removes only selectors proven unreachable from the production renderer
+entry point. A TypeScript AST reachability pass now owns that decision and
+recognizes only real `className`, DOM class, and generated-markup sinks. It
+checks exact compound class combinations, production ID and data-attribute
+consumers, finite runtime class unions, and renderer reachability before CSS
+cleanup can be accepted. The candidate removes 65 proven-unused selector
+alternatives and replaces 22 hardcoded spacing or border values with existing
+Artemis tokens. Fifteen documented mappings register 45 exact runtime or
+cross-component class-name sets, including complete task, automation, child
+agent, review, syntax, token-usage, Sources, and external-link state domains.
+Three necessary public overrides remain exactly allowlisted, including
+`!important` state, owner, reason, and evidence: the Composer and Review select
+stacking contexts, plus the isolated Browser white canvas.
+
+The convergence gate includes four accepted and thirteen rejected fixtures for
+real class sinks, compound selectors, ID/data selectors, finite domains, and
+raw/token-only public-component declarations. Raw registrations cannot be
+bypassed by adding a token reference to a hardcoded color, dimension, or
+unitless stacking value. The performance gate records byte and startup budgets
+against merged base `3b02455`; each warm-stage ceiling is derived from the
+corresponding merged-base maximum times eight plus 500 ms of cross-runner
+jitter. All 27 launch variants
+are still measured, but the first post-build launch is now explicitly governed
+as a cold start with a 10,000 ms hard maximum. The remaining 26 warm launches
+retain their individual derived stage ceilings; at most two may exceed those
+ceilings, and no warm timing may exceed 4,000 ms. Empty evidence, three warm
+outliers, a five-second warm regression, and a greater-than-ten-second cold
+regression remain fail-closed. Implementation checkpoint `2a38040` measured
+Desktop CSS at 287,911 bytes, Desktop JavaScript at
+1,855,194 bytes, largest Desktop chunk at 853,244 bytes, Gallery CSS at 180,175
+bytes, Gallery JavaScript at 355,604 bytes, and public UI CSS at 151,849 bytes.
+Its observed startup maxima were 26.4 ms for app start, 80 ms for diagnostics,
+87.8 ms for core readiness, 152 ms for the window, 157.8 ms for update setup,
+and 290.7 ms for renderer readiness.
+
+The strict-sandbox macOS arm64 checkpoint audit passed a 27-case screenshot
+matrix spanning all 14 locales, LTR and RTL, system/light/dark themes,
+100/125/150/200 percent zoom, reduced motion, and desktop/narrow viewports. It
+also passed Timeline, Composer/feedback, Environment/Diff, Terminal/Browser,
+forms, navigation, MCP/Resources, secondary pages, Goal parity, Gallery, public
+package consumption, and an arm64 packaged-app inspection with the native PTY
+state preserved. Every fixture used isolated synthetic data, required context
+isolation with Node integration disabled, and rejected sandbox fallbacks. Root
+tests, typecheck, production build, formatting, UI boundaries, skin
+conformance, and bundle/startup budgets passed at that checkpoint.
+
+The sole post-PR review examined exact source head `ebe6741` and found six
+issues: CI was testing GitHub's synthetic merge SHA, Windows packaging omitted
+the native boundary verifier, selector evidence allowed unrelated strings and
+partial compounds, explicit light/dark smoke cases did not persist the matching
+application preference, startup ceilings were too permissive, and raw override
+identity did not include `!important` or mixed token/raw values. Initial CI run
+`33750952835` passed its base test/typecheck/build/format jobs, all three Gallery
+jobs, and Windows native sandbox verification. Its three visual-convergence
+jobs exposed two additional environment assumptions: Windows started at a
+1024×768 desktop and macOS runners reported reduced motion during the Dock
+animation case. The combined repair pins checkout and expected evidence to the
+PR source SHA, configures a 1920×1080 Windows desktop, runs the final Windows
+native-package verifier, forces and asserts normal motion for that animation,
+persists and observes the requested smoke theme, and closes all six review
+findings. Because the repair changes the source head, that one review remains
+evidence for `ebe6741` only; no second review will be started.
+
+Repair-head CI run `33756491896` then passed its base job, Windows native
+sandbox integration, all three Gallery jobs, and the full macOS arm64
+visual-convergence audit. It also confirmed the Windows desktop was actually
+1920×1080. macOS x64 and Windows reached the screenshot matrix but exceeded
+the first `4× baseline + 500 ms` cold-start ceilings: x64 `update-ready` was
+1367.8 ms against 1222 ms, and Windows `renderer-ready` was 2120.7 ms against
+1782.8 ms. The follow-up uses `8× baseline + 500 ms`, giving those observations
+about 42–45 percent headroom while keeping every derived ceiling below 3.1
+seconds; the 5-second regression fixture still fails. No functional, geometry,
+theme, or motion failure was reported before those budget stops. The later x64
+and Windows workloads, including the final Windows package step, were not
+reached and still require fresh CI on the follow-up head.
+
+Follow-up-head CI run `33759335470` confirmed the revised startup budgets on
+both slower runners. It passed the base job, Windows native sandbox integration,
+all three Gallery jobs, and the complete macOS arm64 visual-convergence audit
+in 16 minutes 7 seconds. macOS x64 and Windows both progressed beyond startup
+and reached the conversation Timeline. The x64 action-visibility sample caught
+opacity `0.96808` during its CSS transition against the required `0.99`; the
+Windows message-visibility sample measured `19.5390625` CSS pixels against a
+20-pixel boundary at device-pixel ratio 2. The follow-up now polls the actual
+action opacity for at most one second and still fails if it never reaches
+`0.99`. The geometry assertion retains the 20-CSS-pixel target while tolerating
+at most one physical pixel of cross-platform rounding (`19.5` CSS pixels at
+DPR 2). Later x64 and Windows workloads, including the final Windows package
+step, were not reached and require a fresh run on the new source head.
+
+Timeline-repair CI run `33762336220` passed its base job, Windows native sandbox
+integration, all three Gallery jobs, and the full macOS arm64 aggregate. The
+macOS x64 run passed every workload through secondary pages, including the
+repaired Timeline, but `goal-parity` hit its 360,000 ms aggregate circuit breaker
+at 360,007.9 ms. That workload performs 105 isolated Electron launches; the
+same exact head completed locally in 227,210.3 ms, and every individual launch
+retains its independent 45-second timeout. The follow-up raises only this
+workload's aggregate circuit breaker to 600,000 ms and records per-case progress
+for any future timeout.
+
+Windows stopped in its screenshot matrix when one `ar-dark-125` launch recorded
+`core-state-ready` at 2211.4 ms against the 1345.6 ms stage ceiling. The previous
+Windows run had passed the same startup matrix, so the follow-up keeps every
+derived ceiling unchanged and permits only one of 27 variants to exceed its
+stage ceiling while still requiring that launch to stay below 3065.6 ms. Two
+outliers and the five-second regression fixture fail. The Windows build also
+showed Gallery CSS at about 185.44 kB versus 180,175 bytes on macOS because its
+5,266 tracked source-CSS lines were checked out with CRLF. CSS checkout is now
+fixed to LF rather than weakening the 182,000-byte package budget. Windows did
+not reach later workloads or its final package step, and x64 did not reach its
+last Desktop-skin/package workload; both still require fresh CI.
+
+Cross-platform-policy CI run `33765644502` passed its base job, Windows native
+sandbox integration, all three Gallery jobs, and the complete macOS arm64
+aggregate in 15 minutes 36 seconds. Windows Gallery built at the same 180.17 kB
+as LF platforms, confirming the CSS checkout fix without changing its budget.
+macOS x64 stopped when one warm `zh-CN-base` renderer launch measured 3107.7 ms,
+42.1 ms above the shared 3065.6 ms hard maximum. Windows recorded its first
+post-build `en-base` cold launch at 6724.9 ms for core readiness and 7267.3 ms
+for renderer readiness, followed by two sparse warm renderer outliers at
+3324.4 ms and 3108.8 ms. Separating the known first cold launch from the warm
+population preserves the merged-base-derived warm stage ceilings, bounds the
+cold launch at 10 seconds, permits no more than two of 26 warm outliers, and
+keeps a 4-second hard maximum on every warm timing. Both slower platforms
+stopped in the screenshot matrix, so no later workload or final Windows package
+result is claimed from this run.
+
+Commit `f33257c` separates the first post-build cold launch from the 26 warm
+launches while preserving the merged-base-derived warm ceilings. Exact-head CI
+run `33768726913` passed its base job, Windows native sandbox integration, all
+three Gallery jobs, the complete macOS arm64 aggregate, and the complete
+Windows x64 aggregate. Windows also built and inspected the final local package
+boundary for the first time in this PR. macOS x64 passed every screenshot
+variant's semantic locale, direction, theme, zoom, reduced-motion, viewport,
+accessibility, console, and renderer-sandbox checks, then stopped because at
+least two of the 27 PNG hashes were identical. The prior assertion required
+all hashes to be globally unique even when two different locale cases rendered
+fixture content with no visible translated text, and it did not identify the
+repeated variants.
+
+The first follow-up kept the per-file size gate and every semantic assertion,
+recorded all duplicate hash groups with their concrete variant IDs, and required
+every same-locale variant to remain visually distinct. Exact-head CI run
+`33818824213` then identified the prior hidden duplicate as `ar-base` and
+`ar-dark-125`: both cases used Arabic, the resolved dark theme, and the same
+1440×900 physical window, while only Electron zoom changed. Both cases already
+proved their requested zoom and different zoom-adjusted CSS viewports through
+the renderer audit, but macOS x64 normalized their captured pixels to the same
+PNG.
+
+The current follow-up therefore requires distinct pixels for same-locale pairs
+whose resolved theme or physical window viewport differs. It reports all other
+duplicate groups in the manifest and log, while locale, direction, zoom,
+reduced motion, and the resulting CSS viewport remain independent runtime
+assertions. Focused fixtures accept cross-locale and zoom-only duplicate hashes
+but reject identical PNGs across resolved themes or physical viewports. This
+keeps each dimension tied to evidence it can actually produce on native runners
+instead of treating byte identity as proof for runtime geometry.
+
+The rest of exact-head run `33818824213` completed while that repair was being
+prepared. It passed all three Gallery jobs, Windows native sandbox integration,
+the complete macOS arm64 aggregate in 17 minutes 4 seconds, and the complete
+Windows x64 aggregate plus final local package-boundary inspection in 23 minutes
+7 seconds. The base job passed formatting, tests, typecheck, and production
+build, but its final `npm audit --omit=dev --audit-level=high` call waited 300
+seconds for the npm advisory endpoint and then returned a network timeout with
+no audit result. That timeout is neither a vulnerability finding nor an audit
+pass; the unchanged audit command must run again in fresh exact-head CI.
+
+Exact-head run `33821282416` then passed the base job, Windows native sandbox
+integration, all three Gallery jobs, and the complete macOS arm64 aggregate.
+It exposed three independent final-run conditions: the macOS x64 Dock smoke
+sampled once during its animation, one Windows warm renderer launch exceeded
+the unchanged 4-second hard maximum, and the npm advisory endpoint again
+returned no audit report. The repaired Dock smoke now pauses the live Web
+Animation, seeks its midpoint, and proves start/midpoint/final geometry. The
+production audit now makes at most three 30-second no-retry requests, accepts
+only a real audit report, fails immediately on vulnerabilities, and still fails
+closed after repeated transport failures.
+
+Exact-head run `33823637536` on `b6bad9b` passed the base job including that
+production audit, Windows native integration, all three Gallery jobs, the full
+macOS arm64 aggregate, and the full Windows aggregate plus final package
+boundary. Its first macOS x64 attempt rejected three warm startup outliers,
+including a 4730.1 ms renderer timing against the unchanged 4000 ms hard
+maximum. The same-head, same-budget failed-job retry passed the startup matrix
+and reached Goal parity, where the serial 105-launch driver completed 94 cases
+before its 600,008.6 ms aggregate timeout. Because that second failure
+reproduced a runner-capacity limit after the startup matrix rather than a Goal
+assertion failure, the follow-up keeps all 105 cases, every 45-second per-case
+timeout, and the 600-second aggregate budget, but distributes disjoint cases
+across three bounded workers. Each worker writes a separate manifest from its
+own throwaway user-data root; the final manifest requires identical candidate
+HEADs and complete indexes 0 through 104. A local host run completed all 105
+cases in about 97 seconds.
+
+Exact-head CI run `33828873690` on `c2ec144` passed the base job, including a
+real production audit report, Windows native sandbox integration, all three
+Gallery jobs, the full macOS arm64 aggregate, and the full macOS x64 aggregate.
+Windows reached Goal parity and completed the workload in 169,730.3 ms, but the
+merged result failed: shard 1 completed all 35 cases while shards 2 and 3 lost
+the fixed focus outline on `goal-blocked-en-light-1512-1` and
+`goal-blocked-zh-CN-light-1512-1`. Their audits still reported the intended
+button as active, but its computed outline style was `none`. Three concurrent
+Electron windows cannot simultaneously own Windows' single native keyboard
+focus, so per-shard `:focus-visible` assertions were competing with one another.
+Windows did not reach its later workload or final package-boundary inspection.
+
+The follow-up retains the complete 105-case matrix, every 45-second per-case
+timeout, and the unchanged 600-second aggregate budget. Concurrent shards now
+require their focus evidence to be null. Only after all three workers exit, one
+exclusive real Electron probe launches case 0 with its own fresh user data and
+must prove the active element plus the fixed `2px solid Highlight` floor. The
+version 5 merged manifest requires complete indexes 0 through 104 and the
+exclusive focus result on the same exact HEAD and sandboxed launch mode; it
+fails if a shard requests OS focus or if the probe is absent or drifts. Fresh
+exact-clean-head CI remains required.
+
+The final acceptance target is the exact clean 1.4.59 PR head. Its SHA and
+generated report paths belong in PR evidence rather than as a self-referential
+value in this commit. CI must reproduce the aggregate audit on native macOS
+arm64, macOS x64, and Windows x64 runners; Windows must also inspect its final
+package. Per the review policy, MIG6 received no separate pre-PR validator and
+exactly one review after the PR existed. This local evidence does not establish
+the still-pending final repaired-head native results, signing, notarization,
+stapling, clean-install/update/rollback behavior, real provider or hardware
+behavior, screen-reader acceptance, or soak stability. No release artifact was
+downloaded for checksum, ZIP, or DMG verification. SKIN1 has not started.
+
 ## Component and surface sequence
 
-| Scope                                                                     | Type               | Owner                     | Consumer                          | Legacy selector/source                           | Target PR | Electron evidence                                            | Status                                     |
-| ------------------------------------------------------------------------- | ------------------ | ------------------------- | --------------------------------- | ------------------------------------------------ | --------- | ------------------------------------------------------------ | ------------------------------------------ |
-| Manifest/token/integrity schemas, registry, validators, public artifacts  | token/package      | `@artemis/theme-contract` | theme packages and Gallery        | scattered root variables                         | CL0A      | N/A: no Desktop dependency or UI change                      | Merged at `244aacf`                        |
-| Public React/CSS boundary                                                 | package            | `@artemis/ui`             | Gallery, later Desktop            | no package boundary                              | CL0A      | N/A: no components or Desktop consumer                       | Merged at `244aacf`                        |
-| Neutral built-in skin data/CSS/integrity artifacts                        | token/package      | `@artemis/theme-artemis`  | Gallery                           | v17 role vocabulary only                         | CL0A      | N/A: no Desktop resolver                                     | Merged at `244aacf`; superseded by CL1A    |
-| Anatomy, states, events, ARIA, focus                                      | component          | `@artemis/ui`             | Gallery harness                   | v17 70 cards                                     | CL0B      | Gallery runtime required; Electron not yet production proof  | Merged at `facb262`                        |
-| Direction A Artemis values                                                | skin               | `@artemis/theme-artemis`  | Gallery and Desktop host          | v17 A light/dark/high                            | CL1A      | Gallery/browser; Desktop first-frame variables in CL1B       | Merged at `3457e0d`                        |
-| Resolver/registry and host attributes                                     | integration        | Desktop renderer glue     | Desktop                           | current `data-theme` bridge                      | CL1B      | Exact-head Electron state/Portal/xterm/package proof         | Merged at `70691d9`                        |
-| Default/stress/fallback conformance                                       | governance         | Gallery + validators      | CI                                | v17 A/B/C stress input                           | CL1C      | 64-vertex Gallery + exact-head Desktop matrix                | Merged at `38e40ae`                        |
-| Action and icon controls                                                  | component          | `@artemis/ui`             | Gallery + GoalBar                 | buttons, icon buttons, badge, status, icon sizes | CL2A      | 105-case sandboxed Goal parity Electron matrix               | Merged at `f0834dd`                        |
-| Field and selection controls                                              | component          | `@artemis/ui`             | Gallery + real Desktop            | field, search, select, checkbox, switch          | CL2B      | 14-case/288-assertion strict-sandbox Electron matrix         | Merged at `6fbbe14`                        |
-| Tabs and segmented controls                                               | component          | `@artemis/ui`             | Gallery + three Desktop consumers | tabs and segmented controls                      | CL2C      | 6-case/174-assertion strict-sandbox Electron matrix          | Merged at `5593e7b`                        |
-| Feedback, overlays, layout primitives                                     | component          | `@artemis/ui`             | Gallery + four Desktop surfaces   | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | 6-case strict-sandbox Electron matrix                        | Merged at `f6c1a36`                        |
-| Artemis-specific presentational patterns                                  | component          | `@artemis/ui`             | Desktop adapter layer             | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                          | Merged at `44634b9`                        |
-| Reference slice: shell, activity bar, sidebar, header, Composer, Approval | surface            | `@artemis/ui` + Desktop   | users                             | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom and state matrix         | Merged at `db17c67`                        |
-| Conversation, Timeline, trusted-AI states                                 | surface            | `@artemis/ui` + Desktop   | users                             | message/timeline/status selectors                | MIG2      | State, scroll, interaction, performance, exact-head Electron | Merged at `a9dd2d4`                        |
-| Workspace, Dock, file/Markdown edit and preview                           | surface            | `@artemis/ui` + Desktop   | users                             | workspace/dock/editor selectors                  | MIG3A     | Tabs, resize, save/error, geometry, exact-head Electron      | Merged at `6fa4887`                        |
-| Review, Diff, Environment, Goal, Sources                                  | surface            | `@artemis/ui` + Desktop   | users                             | review/environment/source selectors              | MIG3B     | State, permission and overlay geometry matrix                | Merged at `ad28231`                        |
-| Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | Merged at `94d1c0d`                        |
-| Settings, Resource Center, MCP Editor                                     | surface            | `@artemis/ui` + Desktop   | users                             | feature-local renderer styles                    | MIG5A     | Form, permission, privacy and exact-head Electron matrix     | Merged at `e855865`                        |
-| Archive, Usage, Automation                                                | surface            | `@artemis/ui` + Desktop   | users                             | secondary-page selectors                         | MIG5B     | Real-data, a11y, schedule and exact-head Electron matrix     | Implementation approved; 1.4.58 CI pending |
-| Convergence and governance cleanup                                        | surface/governance | Desktop + CI              | users/contributors                | remaining proven-unused legacy selectors         | MIG6      | Complete exact-head runtime/performance/platform matrix      | Pending                                    |
+| Scope                                                                     | Type               | Owner                     | Consumer                          | Legacy selector/source                           | Target PR | Electron evidence                                            | Status                                                       |
+| ------------------------------------------------------------------------- | ------------------ | ------------------------- | --------------------------------- | ------------------------------------------------ | --------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Manifest/token/integrity schemas, registry, validators, public artifacts  | token/package      | `@artemis/theme-contract` | theme packages and Gallery        | scattered root variables                         | CL0A      | N/A: no Desktop dependency or UI change                      | Merged at `244aacf`                                          |
+| Public React/CSS boundary                                                 | package            | `@artemis/ui`             | Gallery, later Desktop            | no package boundary                              | CL0A      | N/A: no components or Desktop consumer                       | Merged at `244aacf`                                          |
+| Neutral built-in skin data/CSS/integrity artifacts                        | token/package      | `@artemis/theme-artemis`  | Gallery                           | v17 role vocabulary only                         | CL0A      | N/A: no Desktop resolver                                     | Merged at `244aacf`; superseded by CL1A                      |
+| Anatomy, states, events, ARIA, focus                                      | component          | `@artemis/ui`             | Gallery harness                   | v17 70 cards                                     | CL0B      | Gallery runtime required; Electron not yet production proof  | Merged at `facb262`                                          |
+| Direction A Artemis values                                                | skin               | `@artemis/theme-artemis`  | Gallery and Desktop host          | v17 A light/dark/high                            | CL1A      | Gallery/browser; Desktop first-frame variables in CL1B       | Merged at `3457e0d`                                          |
+| Resolver/registry and host attributes                                     | integration        | Desktop renderer glue     | Desktop                           | current `data-theme` bridge                      | CL1B      | Exact-head Electron state/Portal/xterm/package proof         | Merged at `70691d9`                                          |
+| Default/stress/fallback conformance                                       | governance         | Gallery + validators      | CI                                | v17 A/B/C stress input                           | CL1C      | 64-vertex Gallery + exact-head Desktop matrix                | Merged at `38e40ae`                                          |
+| Action and icon controls                                                  | component          | `@artemis/ui`             | Gallery + GoalBar                 | buttons, icon buttons, badge, status, icon sizes | CL2A      | 105-case sandboxed Goal parity Electron matrix               | Merged at `f0834dd`                                          |
+| Field and selection controls                                              | component          | `@artemis/ui`             | Gallery + real Desktop            | field, search, select, checkbox, switch          | CL2B      | 14-case/288-assertion strict-sandbox Electron matrix         | Merged at `6fbbe14`                                          |
+| Tabs and segmented controls                                               | component          | `@artemis/ui`             | Gallery + three Desktop consumers | tabs and segmented controls                      | CL2C      | 6-case/174-assertion strict-sandbox Electron matrix          | Merged at `5593e7b`                                          |
+| Feedback, overlays, layout primitives                                     | component          | `@artemis/ui`             | Gallery + four Desktop surfaces   | dialog/menu/toast/tabs/tree/splitter/panels      | CL3       | 6-case strict-sandbox Electron matrix                        | Merged at `f6c1a36`                                          |
+| Artemis-specific presentational patterns                                  | component          | `@artemis/ui`             | Desktop adapter layer             | Composer, approval, UserInput, activity patterns | CL4       | Gallery cases first                                          | Merged at `44634b9`                                          |
+| Reference slice: shell, activity bar, sidebar, header, Composer, Approval | surface            | `@artemis/ui` + Desktop   | users                             | `App.tsx`, renderer `styles.css`                 | MIG1      | Exact-head light/dark/contrast/zoom and state matrix         | Merged at `db17c67`                                          |
+| Conversation, Timeline, trusted-AI states                                 | surface            | `@artemis/ui` + Desktop   | users                             | message/timeline/status selectors                | MIG2      | State, scroll, interaction, performance, exact-head Electron | Merged at `a9dd2d4`                                          |
+| Workspace, Dock, file/Markdown edit and preview                           | surface            | `@artemis/ui` + Desktop   | users                             | workspace/dock/editor selectors                  | MIG3A     | Tabs, resize, save/error, geometry, exact-head Electron      | Merged at `6fa4887`                                          |
+| Review, Diff, Environment, Goal, Sources                                  | surface            | `@artemis/ui` + Desktop   | users                             | review/environment/source selectors              | MIG3B     | State, permission and overlay geometry matrix                | Merged at `ad28231`                                          |
+| Terminal and Browser professional shells                                  | surface            | `@artemis/ui` + Desktop   | users                             | terminal/browser shell selectors                 | MIG4      | Native PTY and Browser isolation on each actual platform     | Merged at `94d1c0d`                                          |
+| Settings, Resource Center, MCP Editor                                     | surface            | `@artemis/ui` + Desktop   | users                             | feature-local renderer styles                    | MIG5A     | Form, permission, privacy and exact-head Electron matrix     | Merged at `e855865`                                          |
+| Archive, Usage, Automation                                                | surface            | `@artemis/ui` + Desktop   | users                             | secondary-page selectors                         | MIG5B     | Real-data, a11y, schedule and exact-head Electron matrix     | Merged at `3b02455` via PR #146                              |
+| Convergence and governance cleanup                                        | surface/governance | Desktop + CI              | users/contributors                | remaining proven-unused legacy selectors         | MIG6      | Complete exact-head runtime/performance/platform matrix      | Draft #147; platform repair/CI pending; sole review complete |
 
 ## Production behavior regression input
 

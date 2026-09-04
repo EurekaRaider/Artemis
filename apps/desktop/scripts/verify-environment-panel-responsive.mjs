@@ -45,6 +45,7 @@ async function runCase(
       "--disable-gpu",
       "--disable-gpu-compositing",
       "--disable-gpu-sandbox",
+      "--force-prefers-no-reduced-motion",
       "--use-angle=swiftshader",
     ],
     {
@@ -138,11 +139,19 @@ try {
     "Workspace Tab Dock transition evidence is missing.",
   );
   assert(
+    dock.feedbackLayout?.reducedMotion === false,
+    "Workspace Tab Dock animation case did not force no-preference motion.",
+  );
+  assert(
+    dock.dockTransition.animations?.some((animation) => animation.duration > 0),
+    `Workspace Tab Dock did not expose an active runtime transition: ${JSON.stringify(dock.dockTransition)}.`,
+  );
+  assert(
     dock.dockTransition.middle.dock.width >
       dock.dockTransition.before.dock.width &&
       dock.dockTransition.middle.dock.width <
         dock.dockTransition.after.dock.width,
-    "Workspace Tab Dock did not pass through an animated intermediate width.",
+    `Workspace Tab Dock did not pass through an animated intermediate width: ${JSON.stringify(dock.dockTransition)}.`,
   );
   assert(
     Math.abs(

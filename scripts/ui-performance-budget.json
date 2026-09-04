@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "baseline": {
+    "sourceHead": "3b024552ab520d83982aaadf5185404d7b8325ce",
+    "measurementHead": "1364af889a02c6adb51805bd14d4a438611447d1",
+    "platform": "darwin-arm64",
+    "note": "The measurement head differs from sourceHead only by the MIG5B ledger-close commit.",
+    "bundles": {
+      "desktopCssBytes": 300601,
+      "desktopJsBytes": 1855194,
+      "desktopLargestJsBytes": 853244,
+      "galleryCssBytes": 180175,
+      "galleryJsBytes": 355604,
+      "uiCssBytes": 151849
+    },
+    "startupStageMaximumMs": {
+      "app-ready": 37.5,
+      "diagnostics-ready": 92.9,
+      "core-state-ready": 105.7,
+      "window-created": 174.3,
+      "update-ready": 180.5,
+      "renderer-ready": 320.7
+    }
+  },
+  "thresholds": {
+    "bundles": {
+      "desktopCssBytes": 305000,
+      "desktopJsBytes": 1900000,
+      "desktopLargestJsBytes": 875000,
+      "galleryCssBytes": 182000,
+      "galleryJsBytes": 365000,
+      "uiCssBytes": 153000
+    },
+    "startup": {
+      "baselineMultiplier": 8,
+      "jitterAllowanceMs": 500,
+      "maximumWarmOutlierVariants": 2,
+      "warmHardMaximumMs": 4000,
+      "coldStartHardMaximumMs": 10000,
+      "note": "Each warm-start stage ceiling is its merged-base maximum times eight plus 500 ms of cross-runner jitter. The first matrix launch is a separately bounded cold start; at most two of the remaining 26 launches may exceed their stage ceilings, no warm timing may exceed four seconds, and no cold timing may exceed ten seconds."
+    },
+    "workloadWallClockMs": {
+      "screenshot-matrix": 180000,
+      "conversation-timeline": 180000,
+      "feedback-and-composer": 240000,
+      "large-diff-and-environment": 240000,
+      "terminal-and-browser": 240000,
+      "form-controls": 300000,
+      "navigation-controls": 240000,
+      "resource-center-mcp": 360000,
+      "secondary-pages": 300000,
+      "goal-parity": 600000,
+      "desktop-skin-gallery-package": 900000
+    }
+  }
+}
