@@ -6,6 +6,7 @@ import {
   type PromptAttachment,
   type TaskSourceState,
 } from "@artemis/protocol";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   SourceEntry,
   SourceEntryBody,
@@ -136,37 +137,15 @@ export function sourceLinkHost(url: string): string {
 }
 
 export function SourcesIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <circle cx="6" cy="12" r="2" />
-      <circle cx="18" cy="6" r="2" />
-      <circle cx="18" cy="18" r="2" />
-      <path d="m8 11 8-4m-8 6 8 4" />
-    </svg>
-  );
+  return <ArtemisIcon name="source" />;
 }
 
 function WebIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="8" />
-      <path d="M4 12h16M12 4c2.5 2.2 3.7 4.8 3.7 8s-1.2 5.8-3.7 8c-2.5-2.2-3.7-4.8-3.7-8S9.5 6.2 12 4Z" />
-    </svg>
-  );
+  return <ArtemisIcon name="web" />;
 }
 
 function AttachmentIcon({ image }: { image: boolean }) {
-  return image ? (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <rect height="16" rx="3" width="18" x="3" y="4" />
-      <circle cx="9" cy="10" r="2" />
-      <path d="m5 18 5-5 3 3 2-2 4 4" />
-    </svg>
-  ) : (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M6 3h8l4 4v14H6zM14 3v5h4" />
-    </svg>
-  );
+  return <ArtemisIcon name={image ? "image" : "file"} />;
 }
 
 function SourceCard({

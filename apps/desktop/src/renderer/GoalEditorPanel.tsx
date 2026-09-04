@@ -1,5 +1,5 @@
-import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
 import type { AppLocale, Thread, ThreadGoal } from "@artemis/protocol";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   GoalEditorFooter,
   GoalEditorInput,
@@ -367,7 +367,7 @@ export function GoalEditorPanel({
               title={copy.revert}
               type="button"
             >
-              <ArrowCounterClockwiseIcon aria-hidden="true" size={14} />
+              <ArtemisIcon height={14} name="refresh" width={14} />
             </button>
             <button
               className="primary-button"

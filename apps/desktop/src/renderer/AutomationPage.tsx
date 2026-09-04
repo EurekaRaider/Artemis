@@ -21,6 +21,7 @@ import {
 } from "react";
 import { Button, Status } from "@artemis/ui/actions";
 import { DataSurface } from "@artemis/ui/data";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   Dialog,
   EmptyState,
@@ -346,15 +347,12 @@ function TimePicker(props: {
         ref={trigger}
         type="button"
       >
-        <svg
-          aria-hidden="true"
+        <ArtemisIcon
           className="automation-time-clock"
-          fill="none"
-          viewBox="0 0 16 16"
-        >
-          <circle cx="8" cy="8" r="5.5" />
-          <path d="M8 4.8v3.5l2.25 1.35" />
-        </svg>
+          height={16}
+          name="clock"
+          width={16}
+        />
         <span className="automation-time-value">
           <span>{selectedHour}</span>
           <span aria-hidden="true" className="automation-time-colon">
@@ -362,14 +360,12 @@ function TimePicker(props: {
           </span>
           <span>{selectedMinute}</span>
         </span>
-        <svg
-          aria-hidden="true"
+        <ArtemisIcon
           className="automation-time-chevron"
-          fill="none"
-          viewBox="0 0 16 16"
-        >
-          <path d="m4.5 6.25 3.5 3.5 3.5-3.5" />
-        </svg>
+          height={16}
+          name="chevron"
+          width={16}
+        />
       </button>
       {open && (
         <div
@@ -751,9 +747,12 @@ export function AutomationPage(props: {
             className="automation-create-button"
             disabled={props.projects.length === 0}
             icon={
-              <svg className="automation-create-icon" viewBox="0 0 16 16">
-                <path d="M8 3.25v9.5M3.25 8h9.5" />
-              </svg>
+              <ArtemisIcon
+                className="automation-create-icon"
+                height={16}
+                name="plus"
+                width={16}
+              />
             }
             onClick={() =>
               setDraft(

@@ -7,9 +7,9 @@ import {
   useState,
   type CSSProperties,
   type FormEvent,
-  type ReactNode,
 } from "react";
 import type { AppLocale, Project, RunMode } from "@artemis/protocol";
+import { ArtemisIcon } from "@artemis/ui/icons";
 
 import type { ProjectGitInfo } from "../shared/api.js";
 import { legacyLocale } from "../shared/locales.js";
@@ -95,133 +95,32 @@ const labels = {
   },
 } satisfies Record<"en" | "zh-CN", Record<string, unknown>>;
 
-function ContextIcon({
-  children,
-  size = 18,
-}: {
-  children: ReactNode;
-  size?: number;
-}) {
-  return (
-    <svg
-      aria-hidden="true"
-      className="icon"
-      fill="none"
-      height={size}
-      viewBox="0 0 24 24"
-      width={size}
-    >
-      {children}
-    </svg>
-  );
-}
-
 function FolderIcon() {
-  return (
-    <ContextIcon>
-      <path
-        d="M3.5 6.5h6l2 2h9v9.2a1.8 1.8 0 0 1-1.8 1.8H5.3a1.8 1.8 0 0 1-1.8-1.8V6.5Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-      />
-    </ContextIcon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="folder" width={18} />;
 }
 
 function BranchIcon() {
-  return (
-    <ContextIcon>
-      <circle cx="7" cy="5" r="2" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="17" cy="5" r="2" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="7" cy="19" r="2" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M7 7v10m2-4h2.5A5.5 5.5 0 0 0 17 7.5V7"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.6"
-      />
-    </ContextIcon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="branch" width={18} />;
 }
 
 function SearchIcon() {
-  return (
-    <ContextIcon size={16}>
-      <circle
-        cx="10.7"
-        cy="10.7"
-        r="6.2"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <path
-        d="m15.4 15.4 4.1 4.1"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.6"
-      />
-    </ContextIcon>
-  );
+  return <ArtemisIcon className="icon" height={16} name="search" width={16} />;
 }
 
 function PlusIcon() {
-  return (
-    <ContextIcon>
-      <path
-        d="M12 5v14M5 12h14"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.8"
-      />
-    </ContextIcon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="plus" width={18} />;
 }
 
 function CloseIcon() {
-  return (
-    <ContextIcon>
-      <path
-        d="m7 7 10 10M17 7 7 17"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.7"
-      />
-    </ContextIcon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="close" width={18} />;
 }
 
 function ModeIcon() {
-  return (
-    <ContextIcon>
-      <path
-        d="M7 4.5h10a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path
-        d="m8.5 9 2.5 3-2.5 3m5-6h2"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </ContextIcon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="mode" width={18} />;
 }
 
 function CheckIcon() {
-  return (
-    <ContextIcon size={17}>
-      <path
-        d="m5 12.5 4.2 4.2L19 7"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </ContextIcon>
-  );
+  return <ArtemisIcon className="icon" height={17} name="check" width={17} />;
 }
 
 interface ContextMenuLayout extends CSSProperties {

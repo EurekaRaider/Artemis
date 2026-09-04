@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   WorkspaceContentState,
   WorkspaceFileHeader,
@@ -55,9 +56,11 @@ interface DirectoryTreeProps {
 
 function ChevronIcon({ open }: { open: boolean }) {
   return (
-    <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
-      <path d={open ? "m4.5 6 3.5 3.5L11.5 6" : "m6 4.5 3.5 3.5L6 11.5"} />
-    </svg>
+    <ArtemisIcon
+      height={16}
+      name={open ? "chevron" : "chev-right"}
+      width={16}
+    />
   );
 }
 
@@ -421,11 +424,7 @@ export function WorkspaceFilesPanel({
           loading={loadingDirectories.has("")}
           onFilterChange={setFilter}
           onRefresh={refresh}
-          refreshIcon={
-            <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20">
-              <path d="M15.5 7.5A6 6 0 1 0 16 11M15.5 3.5v4h-4" />
-            </svg>
-          }
+          refreshIcon={<ArtemisIcon height={20} name="refresh" width={20} />}
           refreshLabel={refreshLabel}
         >
           <DirectoryTree

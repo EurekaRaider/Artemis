@@ -20,11 +20,6 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  CaretRightIcon,
-  MagicWandIcon,
-  TargetIcon,
-} from "@phosphor-icons/react";
-import {
   ConversationEmptyState,
   ConversationMessage,
   ConversationSurface,
@@ -37,6 +32,7 @@ import {
   TurnExecutionDisclosure,
 } from "@artemis/ui/conversation";
 import { Dialog, LoadingState, Toast } from "@artemis/ui/feedback";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { PanelHeader, Toolbar } from "@artemis/ui/layout";
 import {
   ApprovalCard as ApprovalPatternCard,
@@ -990,128 +986,43 @@ function ArtemisMark() {
 
 function FolderIcon({ open = false }: { open?: boolean }) {
   return (
-    <Icon>
-      {open ? (
-        <>
-          <path
-            d="M3.5 10V6.5h6l2 2h6.8a1.7 1.7 0 0 1 1.7 1.7v.3"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.6"
-          />
-          <path
-            d="m4.7 18.5 2.4-8h13.4l-2.2 7.2a1.2 1.2 0 0 1-1.2.8H4.7Z"
-            stroke="currentColor"
-            strokeLinejoin="round"
-            strokeWidth="1.6"
-          />
-        </>
-      ) : (
-        <path
-          d="M3.5 6.5h6l2 2h9v9.2a1.8 1.8 0 0 1-1.8 1.8H5.3a1.8 1.8 0 0 1-1.8-1.8V6.5Z"
-          stroke="currentColor"
-          strokeLinejoin="round"
-          strokeWidth="1.6"
-        />
-      )}
-    </Icon>
+    <ArtemisIcon
+      className="icon"
+      height={18}
+      name={open ? "folder-open" : "folder"}
+      width={18}
+    />
   );
 }
 
 function PlusIcon() {
-  return (
-    <Icon>
-      <path
-        d="M12 5v14M5 12h14"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.8"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="plus" width={18} />;
 }
 
 function CloseIcon() {
-  return (
-    <Icon size={16}>
-      <path
-        d="m7 7 10 10M17 7 7 17"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.7"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={16} name="close" width={16} />;
 }
 
 function QueueIcon() {
-  return (
-    <Icon size={18}>
-      <path
-        d="M6 7h12M6 12h12M6 17h8M3.5 7h.1M3.5 12h.1M3.5 17h.1"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.8"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="queue" width={18} />;
 }
 
 function SteerIcon() {
-  return (
-    <Icon size={18}>
-      <path
-        d="M5 5.5v5a4 4 0 0 0 4 4h9m-3.5-3.5 3.5 3.5-3.5 3.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="steer" width={18} />;
 }
 
 function MoveToFrontIcon() {
   return (
-    <Icon size={18}>
-      <path
-        d="M12 18V6m-4 4 4-4 4 4M6 20h12"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.7"
-      />
-    </Icon>
+    <ArtemisIcon className="icon" height={18} name="move-front" width={18} />
   );
 }
 
 function TrashIcon() {
-  return (
-    <Icon size={18}>
-      <path
-        d="M5.5 7.5h13m-8.5-3h4l.7 2h-5.4l.7-2Zm-3 3 .7 12h8.6l.7-12M10 10.5v6m4-6v6"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="trash" width={18} />;
 }
 
 function EditIcon() {
-  return (
-    <Icon size={18}>
-      <path
-        d="m5 17.5 1.3-4.2L16.8 2.8a2.1 2.1 0 0 1 3 3L9.3 16.3 5 17.5Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-      <path d="m14.7 4.9 3 3" stroke="currentColor" strokeWidth="1.5" />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="edit" width={18} />;
 }
 
 function CopyIcon() {
@@ -1137,17 +1048,7 @@ function CopyIcon() {
 }
 
 function FileIcon() {
-  return (
-    <Icon size={24}>
-      <path
-        d="M6 3.5h8l4 4v13H6v-17Zm8 0v4h4M9 12h6m-6 4h6"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={24} name="file" width={24} />;
 }
 
 function isPromptImage(
@@ -1157,198 +1058,66 @@ function isPromptImage(
 }
 
 function SearchIcon() {
-  return (
-    <Icon size={16}>
-      <circle
-        cx="10.7"
-        cy="10.7"
-        r="6.2"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <path
-        d="m15.4 15.4 4.1 4.1"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.6"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={16} name="search" width={16} />;
 }
 
 function RefreshIcon() {
-  return (
-    <Icon size={16}>
-      <path
-        d="M19 8a7.5 7.5 0 1 0 .3 7.5M19 4.5V8h-3.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={16} name="refresh" width={16} />;
 }
 
 function ReviewEmptyIcon() {
   return (
-    <Icon size={46}>
-      <path
-        d="M7 3.5h7l4 4v13H7v-17Zm7 0v4h4"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.2"
-      />
-      <path
-        d="M9.5 12h5M12 9.5v5m-2.5 3h5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.4"
-      />
-    </Icon>
+    <ArtemisIcon className="icon" height={46} name="review-empty" width={46} />
   );
 }
 
 function ArchiveIcon() {
-  return (
-    <Icon>
-      <path
-        d="M4 8h16v11H4V8Zm-1-4h18v4H3V4Zm6 8h6"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.55"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="archive" width={18} />;
 }
 
 function ResourceIcon() {
   return (
-    <Icon>
-      <path
-        d="M8 3v5m8-5v5M6 8h12v2.5a6 6 0 0 1-12 0V8Z"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M12 16.5V21m-2.5 0h5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </Icon>
+    <ArtemisIcon className="icon" height={18} name="resource" width={18} />
   );
 }
 
 function TokenUsageIcon() {
   return (
-    <Icon>
-      <path
-        d="M5 19V11h3v8H5Zm5.5 0V5h3v14h-3Zm5.5 0V8h3v11h-3Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </Icon>
+    <ArtemisIcon className="icon" height={18} name="token-usage" width={18} />
   );
 }
 
 function AutomationIcon() {
   return (
-    <Icon>
-      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M12 7v5l3 2M8 3.5V2m8 1.5V2"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.5"
-      />
-    </Icon>
+    <ArtemisIcon className="icon" height={18} name="automation" width={18} />
   );
 }
 
 function SettingsIcon() {
   return (
-    <Icon size={17}>
-      <path
-        d="M9.7 3.4h4.6l.5 2a7.2 7.2 0 0 1 1.5.9l2-.6 2.3 4-1.5 1.5v1.7l1.5 1.5-2.3 4-2-.6a7.2 7.2 0 0 1-1.5.9l-.5 2H9.7l-.5-2a7.2 7.2 0 0 1-1.5-.9l-2 .6-2.3-4 1.5-1.5v-1.7L3.4 9.7l2.3-4 2 .6a7.2 7.2 0 0 1 1.5-.9l.5-2Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.45"
-      />
-      <circle
-        cx="12"
-        cy="12"
-        r="2.6"
-        stroke="currentColor"
-        strokeWidth="1.45"
-      />
-    </Icon>
+    <ArtemisIcon className="icon" height={17} name="settings" width={17} />
   );
 }
 
 function ReviewIcon() {
-  return (
-    <Icon>
-      <path
-        d="M7 4.5h10M7 9h10M7 13.5h6M5 3v18M19 3v18"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.5"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="review" width={18} />;
 }
 
 function LeftSidebarIcon() {
   return (
-    <Icon>
-      <rect
-        height="16"
-        rx="3"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        width="18"
-        x="3"
-        y="4"
-      />
-      <path d="M9 4v16" stroke="currentColor" strokeWidth="1.6" />
-    </Icon>
+    <ArtemisIcon className="icon" height={18} name="sidebar-l" width={18} />
   );
 }
 
 function RightSidebarIcon() {
   return (
-    <Icon>
-      <rect
-        height="16"
-        rx="3"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        width="18"
-        x="3"
-        y="4"
-      />
-      <path d="M15 4v16" stroke="currentColor" strokeWidth="1.6" />
-    </Icon>
+    <ArtemisIcon className="icon" height={18} name="sidebar-r" width={18} />
   );
 }
 
 function TerminalIcon() {
   return (
-    <Icon>
-      <path
-        d="m5 7 4.5 5L5 17m7 0h7"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-      />
-    </Icon>
+    <ArtemisIcon className="icon" height={18} name="terminal" width={18} />
   );
 }
 
@@ -1356,70 +1125,22 @@ function ToolActivityIcon({ kind }: { kind: ToolActivityKind }) {
   if (kind === "bash") return <TerminalIcon />;
   if (kind === "search") return <SearchIcon />;
   if (kind === "generic") return <ResourceIcon />;
-  if (kind === "write") {
-    return (
-      <Icon size={18}>
-        <path
-          d="m4.5 19.5 1-4 9.8-9.8a2 2 0 0 1 2.8 2.8l-9.8 9.8-3.8 1.2Zm9.4-12.4 3 3M5.5 15.5l2.8 2.8"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="1.55"
-        />
-      </Icon>
-    );
-  }
-  return (
-    <Icon size={18}>
-      <path
-        d="M4.5 5.3c2.8-.9 5.3-.5 7.5 1.2v12c-2.2-1.7-4.7-2.1-7.5-1.2v-12Zm15 0c-2.8-.9-5.3-.5-7.5 1.2v12c2.2-1.7 4.7-2.1 7.5-1.2v-12Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.45"
-      />
-    </Icon>
-  );
+  if (kind === "write") return <EditIcon />;
+  return <ArtemisIcon className="icon" height={18} name="file" width={18} />;
 }
 
 function BrowserIcon() {
-  return (
-    <Icon>
-      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M4.5 12h15M12 4c2 2.2 3 4.9 3 8s-1 5.8-3 8c-2-2.2-3-4.9-3-8s1-5.8 3-8Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="browser" width={18} />;
 }
 
 function MarkdownIcon() {
   return (
-    <Icon>
-      <path
-        d="M5 4.5h11l3 3V20H5V4.5Zm11 0V8h3M8 15v-4l2 2 2-2v4m3-4v4m-1.5-1.5L15 15l1.5-1.5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.4"
-      />
-    </Icon>
+    <ArtemisIcon className="icon" height={18} name="markdown" width={18} />
   );
 }
 
 function FilesIcon() {
-  return (
-    <Icon>
-      <path
-        d="M3.5 7.5h6l2-2h3l2 2h4v11h-17v-11Zm3-3h6l2 2"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="files" width={18} />;
 }
 
 function WorkspaceTabIcon({
@@ -1436,7 +1157,8 @@ function WorkspaceTabIcon({
   if (kind === "browser") return <BrowserIcon />;
   if (kind === "markdown") return <MarkdownIcon />;
   if (kind === "sources") return <SourcesIcon />;
-  if (kind === "goal") return <TargetIcon aria-hidden="true" size={16} />;
+  if (kind === "goal")
+    return <ArtemisIcon height={16} name="task" width={16} />;
   if (kind === "agent-team" || kind === "child-agent") {
     return <ChildAgentIcon identity={identity ?? kind} />;
   }
@@ -1455,67 +1177,25 @@ function WorkspaceTabIcon({
 }
 
 function ModeIcon() {
-  return (
-    <Icon>
-      <path
-        d="M7 4.5h10a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path
-        d="m8.5 9 2.5 3-2.5 3m5-6h2"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.5"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="mode" width={18} />;
 }
 
 function ModelIcon() {
-  return (
-    <Icon size={18}>
-      <path
-        d="M12 5a3 3 0 0 0-5.99.2A4 4 0 0 0 3.6 11a4 4 0 0 0 .55 6.4A4 4 0 0 0 12 18V5Zm0 0a3 3 0 0 1 5.99.2A4 4 0 0 1 20.4 11a4 4 0 0 1-.55 6.4A4 4 0 0 1 12 18m-3-8.5A4.5 4.5 0 0 0 12 13m3-3.5A4.5 4.5 0 0 1 12 13"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.45"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={18} name="model" width={18} />;
 }
 
 function ChevronIcon() {
-  return (
-    <Icon size={14}>
-      <path
-        d="m7 9 5 5 5-5"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.7"
-      />
-    </Icon>
-  );
+  return <ArtemisIcon className="icon" height={14} name="chevron" width={14} />;
 }
 
 function TabScrollIcon({ direction }: { direction: "left" | "right" }) {
   return (
-    <Icon size={16}>
-      <path
-        d={
-          direction === "left"
-            ? "m14.5 6.5-5.5 5.5 5.5 5.5"
-            : "m9.5 6.5 5.5 5.5-5.5 5.5"
-        }
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </Icon>
+    <ArtemisIcon
+      className="icon"
+      height={16}
+      name={direction === "left" ? "chev-left" : "chev-right"}
+      width={16}
+    />
   );
 }
 
@@ -1527,30 +1207,13 @@ function ApprovalIcon({
   warning?: boolean;
 }) {
   return (
-    <Icon size={19}>
-      <path
-        d="M12 3.4 20 7v5.7c0 4-3.1 6.7-8 8-4.9-1.3-8-4-8-8V7l8-3.6Z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.6"
-      />
-      {neutral ? null : warning ? (
-        <path
-          d="M12 8v5m0 3v.1"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeWidth="1.7"
-        />
-      ) : (
-        <path
-          d="m8.6 12.2 2.1 2.1 4.7-5"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="1.7"
-        />
-      )}
-    </Icon>
+    <ArtemisIcon
+      className="icon"
+      data-neutral={neutral || undefined}
+      height={19}
+      name={warning ? "warning" : "approval"}
+      width={19}
+    />
   );
 }
 
@@ -6620,7 +6283,7 @@ export function App() {
                           className="goal-pill"
                           title={activeThread.goal.objective}
                         >
-                          <TargetIcon aria-hidden="true" size={12} />
+                          <ArtemisIcon height={12} name="task" width={12} />
                           {t.goal}
                         </span>
                       )}
@@ -9885,7 +9548,7 @@ function ToolActivityGroupCard({
     <ToolActivity
       className={`tool-card ${view.state}${open ? " open" : ""}`}
       collapseLabel={disclosureLabels.collapse}
-      disclosureIcon={<CaretRightIcon size={14} />}
+      disclosureIcon={<ArtemisIcon height={14} name="chev-right" width={14} />}
       expandLabel={disclosureLabels.expand}
       expanded={open}
       icon={
@@ -10266,7 +9929,7 @@ function Timeline({
                         ) : plugin ? (
                           <ResourceIcon />
                         ) : (
-                          <MagicWandIcon aria-hidden="true" size={16} />
+                          <ArtemisIcon height={16} name="skill" width={16} />
                         )}
                       </span>
                       <strong>{skill?.name ?? name}</strong>

@@ -45,10 +45,9 @@ import type {
 import { legacyLocale } from "../shared/locales.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { McpServerEditor } from "./McpServerEditor.js";
-import { DownloadSimpleIcon, XIcon } from "@phosphor-icons/react";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   resourceIconName,
-  resourceIconPalette,
   SemanticResourceIcon,
   type ResourceIconKind,
   type ResourceIconName,
@@ -397,104 +396,27 @@ function CatalogIcon({ kind }: { kind: ResourceKind }) {
 }
 
 function SearchIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.55"
-      viewBox="0 0 24 24"
-    >
-      <circle cx="10.7" cy="10.7" r="6.2" />
-      <path d="m15.4 15.4 4.3 4.3" />
-    </svg>
-  );
+  return <ArtemisIcon name="search" />;
 }
 
 function GearIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.55"
-      viewBox="0 0 24 24"
-    >
-      <path d="M9.7 3.4h4.6l.5 2a7.2 7.2 0 0 1 1.3.8l2-.6 2.3 4-.1.1-1.5 1.4a7.1 7.1 0 0 1 0 1.8l1.6 1.5-2.3 4-2-.6a7.2 7.2 0 0 1-1.3.8l-.5 2H9.7l-.5-2a7.2 7.2 0 0 1-1.3-.8l-2 .6-2.3-4 1.6-1.5a7.1 7.1 0 0 1 0-1.8L3.6 9.6l2.3-4 2 .6a7.2 7.2 0 0 1 1.3-.8l.5-2Z" />
-      <circle cx="12" cy="12" r="2.6" />
-    </svg>
-  );
+  return <ArtemisIcon name="gear" />;
 }
 
 function RefreshIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.55"
-      viewBox="0 0 24 24"
-    >
-      <path d="M19.2 8.2A8 8 0 0 0 5.3 6.1L3.5 8" />
-      <path d="M3.5 4.5V8H7" />
-      <path d="M4.8 15.8a8 8 0 0 0 13.9 2.1l1.8-1.9" />
-      <path d="M20.5 19.5V16H17" />
-    </svg>
-  );
+  return <ArtemisIcon name="refresh" />;
 }
 
 function PlusIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.55"
-      viewBox="0 0 24 24"
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
+  return <ArtemisIcon name="plus" />;
 }
 
 function TrashIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.55"
-      viewBox="0 0 24 24"
-    >
-      <path d="M4.5 7h15M9 7V4.5h6V7M7 7l.8 13h8.4L17 7M10 10.5v6M14 10.5v6" />
-    </svg>
-  );
+  return <ArtemisIcon name="trash" />;
 }
 
 function BackIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.55"
-      viewBox="0 0 24 24"
-    >
-      <path d="m14.5 5-7 7 7 7" />
-    </svg>
-  );
+  return <ArtemisIcon name="chev-left" />;
 }
 
 function ResourceAvatar({
@@ -514,19 +436,9 @@ function ResourceAvatar({
   useEffect(() => setImageFailed(false), [iconDataUrl]);
   const semanticIcon = iconKey ?? resourceIconName(name, kind);
   const semanticVisible = !iconDataUrl || imageFailed;
-  const palette = resourceIconPalette(semanticIcon);
-  const style = {
-    ...(brandColor ? { "--resource-brand": brandColor } : {}),
-    ...(semanticVisible
-      ? {
-          "--resource-icon-bg": palette.background,
-          "--resource-icon-surface": palette.surface,
-          "--resource-icon-fg": palette.foreground,
-          "--resource-icon-accent": palette.accent,
-          "--resource-icon-border": palette.border,
-        }
-      : {}),
-  } as CSSProperties;
+  const style = brandColor
+    ? ({ "--resource-brand": brandColor } as CSSProperties)
+    : undefined;
   return (
     <span
       className="resource-avatar"
@@ -3517,7 +3429,7 @@ export function ResourceCenter({
               <Button
                 className="mcp-install-cancel"
                 disabled={operationPending}
-                icon={<XIcon aria-hidden="true" size={15} weight="bold" />}
+                icon={<ArtemisIcon height={15} name="close" width={15} />}
                 onClick={() => setMcpInstallDraft(undefined)}
               >
                 {t.cancel}
@@ -3525,13 +3437,7 @@ export function ResourceCenter({
               <Button
                 className="mcp-install-primary"
                 disabled={operationPending}
-                icon={
-                  <DownloadSimpleIcon
-                    aria-hidden="true"
-                    size={16}
-                    weight="bold"
-                  />
-                }
+                icon={<ArtemisIcon height={16} name="package" width={16} />}
                 type="submit"
                 variant="primary"
               >

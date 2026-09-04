@@ -30,6 +30,10 @@
       "types": "./dist/forms.d.ts",
       "import": "./dist/forms.js"
     },
+    "./icons": {
+      "types": "./dist/icons.d.ts",
+      "import": "./dist/icons.js"
+    },
     "./feedback": {
       "types": "./dist/feedback.d.ts",
       "import": "./dist/feedback.js"

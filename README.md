@@ -1102,7 +1102,9 @@ bounded subteam and must integrate it before completing.
 
 `.github/workflows/ci.yml` runs formatting, tests, typechecking, the production
 build and a high-severity production-dependency audit for pushes to `main`, pull
-requests and manual dispatches.
+requests and manual dispatches. Setting the repository variable
+`ARTEMIS_SKIP_PRODUCTION_AUDIT` to `true` explicitly skips only that external
+audit step; all other gates remain required.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
@@ -1126,11 +1128,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current core test suites contain **1509 passing tests** (7 skipped):
+The current core test suites contain **1514 passing tests** (7 skipped):
 
 | Protocol | Platform | Agent Host | Desktop | **Total** |
 | -------: | -------: | ---------: | ------: | --------: |
-|      117 |       24 |        144 |    1224 |  **1509** |
+|      117 |       24 |        144 |    1229 |  **1514** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory

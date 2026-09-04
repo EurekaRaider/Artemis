@@ -6,9 +6,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/icons/ArrowClockwise";
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/icons/ArrowLeft";
-import { ArrowRightIcon } from "@phosphor-icons/react/dist/icons/ArrowRight";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   BrowserAddressForm,
   BrowserAddressInput,
@@ -313,9 +311,9 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
             disabled={!webviewReady || !canGoBack}
             icon={
               rtl ? (
-                <ArrowRightIcon weight="bold" />
+                <ArtemisIcon name="chev-right" />
               ) : (
-                <ArrowLeftIcon weight="bold" />
+                <ArtemisIcon name="chev-left" />
               )
             }
             label={props.backLabel}
@@ -326,9 +324,9 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
             disabled={!webviewReady || !canGoForward}
             icon={
               rtl ? (
-                <ArrowLeftIcon weight="bold" />
+                <ArtemisIcon name="chev-left" />
               ) : (
-                <ArrowRightIcon weight="bold" />
+                <ArtemisIcon name="chev-right" />
               )
             }
             label={props.forwardLabel}
@@ -339,7 +337,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
           <BrowserNavigationButton
             className="browser-refresh-button"
             disabled={!webviewReady || (pageLoading && loading)}
-            icon={<ArrowClockwiseIcon weight="bold" />}
+            icon={<ArtemisIcon name="refresh" />}
             label={props.refreshLabel}
             onClick={reload}
           />

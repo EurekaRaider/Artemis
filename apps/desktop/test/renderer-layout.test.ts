@@ -531,9 +531,9 @@ describe("renderer layout contract", () => {
     expect(appSource).not.toContain("commandMenuOpen");
     expect(appSource).not.toContain('className="command-backdrop"');
     expect(stylesSource).not.toContain(".command-backdrop");
-    expect(settingsIconSource).toContain("<Icon size={17}>");
-    expect(settingsIconSource).toContain("<path");
-    expect(settingsIconSource).toContain("<circle");
+    expect(settingsIconSource).toContain('<ArtemisIcon className="icon"');
+    expect(settingsIconSource).toContain('name="settings"');
+    expect(settingsIconSource).toContain("height={17}");
     expect(sidebarFooterStart).toBeGreaterThan(-1);
     expect(sidebarFooterEnd).toBeGreaterThan(sidebarFooterStart);
     expect(sidebarFooterSource).not.toContain('className="avatar-button"');
@@ -2381,9 +2381,9 @@ describe("renderer layout contract", () => {
     const iconEnd = appSource.indexOf("function TokenUsageIcon()", iconStart);
     const icon = appSource.slice(iconStart, iconEnd);
 
-    expect(icon).toContain('d="M8 3v5m8-5v5M6 8h12');
-    expect(icon).toContain('d="M12 16.5V21m-2.5 0h5"');
-    expect(icon).not.toContain('<circle cx="6" cy="12"');
+    expect(icon).toContain('<ArtemisIcon className="icon"');
+    expect(icon).toContain('name="resource"');
+    expect(icon).not.toContain('name="source"');
   });
 
   it("keeps the Codex-style marketplace and manager on one centered grid", () => {
@@ -2881,10 +2881,11 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain(
       "data-icon={semanticVisible ? semanticIcon : undefined}",
     );
-    expect(resourceIconsSource).toContain("MagicWandIcon");
-    expect(resourceIconsSource).toContain("PlugsConnectedIcon");
-    expect(resourceIconsSource).toContain('weight="duotone"');
-    expect(stylesSource).toContain(
+    expect(resourceIconsSource).toContain('from "@artemis/ui/icons"');
+    expect(resourceIconsSource).toContain("ArtemisIcon");
+    expect(resourceIconsSource).not.toContain("@phosphor-icons/react");
+    expect(stylesSource).not.toContain("--resource-icon-accent");
+    expect(stylesSource).not.toContain(
       ".resource-avatar[data-icon] .resource-semantic-icon path[opacity]",
     );
     expect(resourceCenterSource).toContain("plugin.iconDataUrl");
@@ -3197,7 +3198,7 @@ describe("renderer layout contract", () => {
     expect(cssRule(".mcp-editor-validation ul")).not.toContain("padding-left");
     expect(cssRule(".resource-switch")).toContain("margin-inline-start: 5px");
     expect(cssRule(".resource-switch")).not.toContain("margin-left");
-    expect(mcpServerEditorSource).toContain("<ArrowLeftIcon");
+    expect(mcpServerEditorSource).toContain('<ArtemisIcon name="chev-left"');
     expect(mcpServerEditorSource).not.toContain("← {t.cancel}");
     expect(stylesSource).toContain(".mcp-editor-back svg");
   });

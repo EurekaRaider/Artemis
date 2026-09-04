@@ -13,12 +13,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
-  FileIcon,
-  GitPullRequestIcon,
-  ImageIcon,
-  SlidersHorizontalIcon,
-} from "@phosphor-icons/react";
-import {
   type AgentTeamState,
   type AppLocale,
   type ChildAgentState,
@@ -28,6 +22,7 @@ import {
   type TaskSourceState,
 } from "@artemis/protocol";
 import { Popover } from "@artemis/ui/feedback";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   EnvironmentControl,
   EnvironmentPanelSurface,
@@ -52,13 +47,13 @@ import {
   EnvironmentChangesIcon as CodexChangesIcon,
   EnvironmentCheckIcon,
   EnvironmentChevronIcon,
-  EnvironmentCommitIcon as CodexCommitIcon,
+  EnvironmentCommitIcon,
+  EnvironmentCompareIcon,
   EnvironmentExternalIcon,
-  EnvironmentGithubIcon,
   EnvironmentLocalIcon as CodexLocalIcon,
+  EnvironmentPullRequestIcon,
   EnvironmentSearchIcon,
   EnvironmentSourcesIcon,
-  EnvironmentWebIcon,
 } from "./EnvironmentPanelIcons.js";
 
 export const ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH = 720;
@@ -588,7 +583,7 @@ export function environmentGitAction(
 }
 
 function EnvironmentIcon() {
-  return <SlidersHorizontalIcon aria-hidden="true" size={20} />;
+  return <ArtemisIcon height={20} name="environment" width={20} />;
 }
 
 function BranchIcon() {
@@ -604,31 +599,27 @@ function LocalIcon() {
 }
 
 function McpIcon() {
-  return <EnvironmentSourcesIcon aria-hidden="true" />;
+  return <ArtemisIcon height={20} name="mcp" width={20} />;
 }
 
 function CompareIcon() {
-  return <EnvironmentGithubIcon aria-hidden="true" />;
+  return <EnvironmentCompareIcon />;
 }
 
 function PushIcon() {
-  return <CodexCommitIcon aria-hidden="true" />;
+  return <EnvironmentCommitIcon />;
 }
 
 function PullRequestIcon() {
-  return <GitPullRequestIcon aria-hidden="true" size={20} />;
+  return <EnvironmentPullRequestIcon />;
 }
 
 function WebSourceIcon() {
-  return <EnvironmentWebIcon aria-hidden="true" />;
+  return <ArtemisIcon height={20} name="web" width={20} />;
 }
 
 function SourceIcon({ image }: { image: boolean }) {
-  return image ? (
-    <ImageIcon aria-hidden="true" size={20} />
-  ) : (
-    <FileIcon aria-hidden="true" size={20} />
-  );
+  return <ArtemisIcon height={20} name={image ? "image" : "file"} width={20} />;
 }
 
 export function PullRequestChecksSummary({

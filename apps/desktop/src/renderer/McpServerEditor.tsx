@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/icons/ArrowLeft";
 import type { AppLocale } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
 import { InlineNotice } from "@artemis/ui/feedback";
 import { Select, Switch, TextField } from "@artemis/ui/forms";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   ManagementCard,
   ManagementHeader,
@@ -541,7 +541,7 @@ export function McpServerEditor({
             <Button
               className="mcp-editor-back"
               disabled={busy}
-              icon={<ArrowLeftIcon aria-hidden="true" weight="bold" />}
+              icon={<ArtemisIcon name="chev-left" />}
               onClick={onCancel}
               variant="quiet"
             >

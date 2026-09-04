@@ -1,10 +1,4 @@
-import {
-  PauseCircleIcon,
-  PencilSimpleLineIcon,
-  PlayCircleIcon,
-  TargetIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { PauseCircleIcon, PlayCircleIcon } from "@phosphor-icons/react";
 import type { AppLocale, ThreadGoal } from "@artemis/protocol";
 import {
   Badge,
@@ -13,6 +7,7 @@ import {
   Status,
   type ActionTone,
 } from "@artemis/ui/actions";
+import { ArtemisIcon } from "@artemis/ui/icons";
 
 const LABELS = {
   en: {
@@ -122,7 +117,7 @@ export function GoalBar({
         align="start"
         className="goal-bar-main"
         disabled={disabled}
-        icon={<TargetIcon weight="regular" />}
+        icon={<ArtemisIcon name="task" />}
         iconSize="sm"
         label={`${copy[goal.status]} ${objective} ${progress} — ${copy.edit}`}
         onClick={onEdit}
@@ -143,7 +138,7 @@ export function GoalBar({
       <div className="goal-bar-actions">
         <IconButton
           disabled={disabled}
-          icon={<TrashIcon />}
+          icon={<ArtemisIcon name="trash" />}
           iconSize="sm"
           label={copy.clear}
           onClick={onClear}
@@ -171,7 +166,7 @@ export function GoalBar({
         )}
         <IconButton
           disabled={disabled}
-          icon={<PencilSimpleLineIcon />}
+          icon={<ArtemisIcon name="edit" />}
           iconSize="sm"
           label={copy.edit}
           onClick={onEdit}
