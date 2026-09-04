@@ -60,6 +60,7 @@ interface PersistedSettings {
   profileAvatar?: string;
   projectOrder?: string[];
   projectThreadOrder?: Record<string, string[]>;
+  collapsedProjectIds?: string[];
   projectSidebarWidth?: number;
   temporaryConversationsOpen?: boolean;
   workspaceDockWidth?: number;
@@ -378,6 +379,20 @@ export class EncryptedSettingsStore {
 
   async projectThreadOrder(): Promise<Record<string, string[]>> {
     return structuredClone((await this.load()).projectThreadOrder ?? {});
+  }
+
+  async collapsedProjectIds(): Promise<string[]> {
+    return [...((await this.load()).collapsedProjectIds ?? [])];
+  }
+
+  async setCollapsedProjectIds(
+    projectIds: readonly string[],
+  ): Promise<string[]> {
+    const validated = validateProjectOrder(projectIds);
+    const settings = await this.load();
+    settings.collapsedProjectIds = validated;
+    await this.save(settings);
+    return [...validated];
   }
 
   async setProjectThreadOrder(
@@ -786,6 +801,15 @@ export class EncryptedSettingsStore {
           (() => {
             try {
               validateProjectThreadOrder(parsed.projectThreadOrder);
+              return false;
+            } catch {
+              return true;
+            }
+          })()) ||
+        (parsed.collapsedProjectIds !== undefined &&
+          (() => {
+            try {
+              validateProjectOrder(parsed.collapsedProjectIds);
               return false;
             } catch {
               return true;

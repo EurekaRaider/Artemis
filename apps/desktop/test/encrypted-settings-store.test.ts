@@ -84,6 +84,26 @@ describe("EncryptedSettingsStore", () => {
     ).rejects.toThrow("Project ID");
   });
 
+  it("persists the collapsed project disclosure state", async () => {
+    const { filePath, store } = await createStore();
+    await expect(store.collapsedProjectIds()).resolves.toEqual([]);
+    await expect(
+      store.setCollapsedProjectIds(["project-b", "project-c"]),
+    ).resolves.toEqual(["project-b", "project-c"]);
+
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.collapsedProjectIds()).resolves.toEqual([
+      "project-b",
+      "project-c",
+    ]);
+    await expect(
+      reopened.setCollapsedProjectIds(["project-b", "project-b"]),
+    ).rejects.toThrow("unique");
+  });
+
   it("persists a bounded local profile avatar and supports removal", async () => {
     const { filePath, store } = await createStore();
     const avatar = `data:image/webp;base64,${Buffer.from("avatar").toString("base64")}`;

@@ -864,7 +864,9 @@ interface ChildAgentExecution extends LaunchChildAgentInput {
   output: string;
   error?: string;
   pendingSteers: string[];
-  longestObservationMilliseconds: number;
+  recentObservationMilliseconds: number[];
+  activityVersion: number;
+  activityWaiters: Set<() => void>;
   subtreeIntegrated: boolean;
   subtreeSummary?: string;
   done: Promise<void>;
@@ -1673,9 +1675,13 @@ export class ArtemisAgentHost {
     if (child.status !== "running") {
       return "healthy";
     }
+    const recentObservationMaximum = Math.max(
+      0,
+      ...child.recentObservationMilliseconds.slice(-5),
+    );
     const suspectAfter = Math.max(
       CHILD_MIN_SUSPECT_SILENCE_MILLISECONDS,
-      child.longestObservationMilliseconds * 2,
+      recentObservationMaximum * 2,
     );
     const silenceMilliseconds = Date.now() - child.lastActivityAt;
     if (
@@ -1825,6 +1831,7 @@ export class ArtemisAgentHost {
     child: ChildAgentExecution,
     extra:
       Pick<ChildAgentPayload, "activityDelta"> | Record<string, never> = {},
+    notifyObservers = true,
   ): void {
     child.updatedAt = Date.now();
     const snapshot = this.childSnapshot(hosted, child);
@@ -1868,6 +1875,7 @@ export class ArtemisAgentHost {
       ...(snapshot.error ? { error: snapshot.error } : {}),
       ...extra,
     });
+    if (notifyObservers) this.notifyChild(child);
     if (hosted.team?.memberAgentIds.includes(child.agentId)) {
       hosted.team.memberVersions.set(
         child.agentId,
@@ -1875,6 +1883,12 @@ export class ArtemisAgentHost {
       );
       this.refreshTeamStatus(hosted);
     }
+  }
+
+  private notifyChild(child: ChildAgentExecution): void {
+    child.activityVersion += 1;
+    for (const resolve of child.activityWaiters) resolve();
+    child.activityWaiters.clear();
   }
 
   private teamPayload(team: AgentTeamExecution): AgentTeamStatusPayload {
@@ -2014,23 +2028,41 @@ export class ArtemisAgentHost {
   private async observeChild(
     child: ChildAgentExecution,
     observationMilliseconds: number,
-  ): Promise<boolean> {
-    if (isTerminalChildStatus(child.status)) return false;
+  ): Promise<{ observationExpired: boolean; elapsedMilliseconds: number }> {
+    const startedAt = Date.now();
+    if (isTerminalChildStatus(child.status)) {
+      return { observationExpired: false, elapsedMilliseconds: 0 };
+    }
+    const startVersion = child.activityVersion;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let wake: (() => void) | undefined;
+    const changed = new Promise<"changed">((resolve) => {
+      wake = () => resolve("changed");
+      child.activityWaiters.add(wake);
+    });
     const deadline = new Promise<"deadline">((resolve) => {
       timer = setTimeout(() => resolve("deadline"), observationMilliseconds);
     });
-    const result = await Promise.race([
-      child.done.then(() => "settled" as const),
-      deadline,
-    ]);
+    const result =
+      child.activityVersion !== startVersion
+        ? "changed"
+        : await Promise.race([
+            child.done.then(() => "settled" as const),
+            changed,
+            deadline,
+          ]);
     if (timer) clearTimeout(timer);
-    return result === "deadline" && !isTerminalChildStatus(child.status);
+    if (wake) child.activityWaiters.delete(wake);
+    return {
+      observationExpired:
+        result === "deadline" && !isTerminalChildStatus(child.status),
+      elapsedMilliseconds: Math.max(0, Date.now() - startedAt),
+    };
   }
 
   childAgentStatus(threadId: string, agentId: string): ChildAgentSnapshot {
     const { hosted, child } = this.requireChildAgent(threadId, agentId);
-    this.emitChild(hosted, child);
+    this.emitChild(hosted, child, {}, false);
     return this.childSnapshot(hosted, child);
   }
 
@@ -2048,16 +2080,13 @@ export class ArtemisAgentHost {
     }
     const { hosted, child } = this.requireChildAgent(threadId, agentId);
     const observationMilliseconds = deadlineSeconds * 1_000;
-    child.longestObservationMilliseconds = Math.max(
-      child.longestObservationMilliseconds,
-      observationMilliseconds,
-    );
-    const observationExpired = await this.observeChild(
-      child,
-      observationMilliseconds,
-    );
-    this.emitChild(hosted, child);
-    return this.childSnapshot(hosted, child, observationExpired);
+    const observation = await this.observeChild(child, observationMilliseconds);
+    child.recentObservationMilliseconds = [
+      ...child.recentObservationMilliseconds,
+      observation.elapsedMilliseconds,
+    ].slice(-5);
+    this.emitChild(hosted, child, {}, false);
+    return this.childSnapshot(hosted, child, observation.observationExpired);
   }
 
   async steerChildAgent(
@@ -2436,6 +2465,13 @@ export class ArtemisAgentHost {
         },
         { deliverAs: "steer" },
       );
+    }
+    if (senderAgentId !== ROOT_AGENT_ID) {
+      const sender = hosted.childAgents.get(senderAgentId);
+      if (sender) {
+        sender.lastActivityAt = Date.now();
+        this.emitChild(hosted, sender);
+      }
     }
     return message;
   }
@@ -4353,7 +4389,9 @@ export class ArtemisAgentHost {
         lastActivityAt: now,
         output: "",
         pendingSteers: [],
-        longestObservationMilliseconds: 0,
+        recentObservationMilliseconds: [],
+        activityVersion: 0,
+        activityWaiters: new Set(),
         subtreeIntegrated: false,
         done,
         settle,

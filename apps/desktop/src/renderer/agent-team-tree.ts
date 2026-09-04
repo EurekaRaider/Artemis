@@ -6,6 +6,36 @@ export interface AgentTeamTreeIndex {
   childrenByParent: Map<string, ChildAgentState[]>;
 }
 
+const TERMINAL_AGENT_STATUSES = new Set<ChildAgentState["status"]>([
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+function activityTime(agent: ChildAgentState): number {
+  const value = agent.lastActivityAt ?? agent.updatedAt ?? agent.startedAt;
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function compareAgentActivity(
+  left: ChildAgentState,
+  right: ChildAgentState,
+): number {
+  const terminalDifference =
+    Number(TERMINAL_AGENT_STATUSES.has(left.status)) -
+    Number(TERMINAL_AGENT_STATUSES.has(right.status));
+  if (terminalDifference !== 0) return terminalDifference;
+  return activityTime(right) - activityTime(left);
+}
+
+export function sortAgentsByActivity(
+  agents: readonly ChildAgentState[],
+): ChildAgentState[] {
+  return [...agents].sort(compareAgentActivity);
+}
+
 export function indexAgentTeamTree(
   members: readonly ChildAgentState[],
   memberAgentIds: readonly string[],
@@ -23,6 +53,9 @@ export function indexAgentTeamTree(
     const children = childrenByParent.get(parentAgentId) ?? [];
     children.push(member);
     childrenByParent.set(parentAgentId, children);
+  }
+  for (const children of childrenByParent.values()) {
+    children.sort(compareAgentActivity);
   }
   return { memberById, currentMembers, childrenByParent };
 }

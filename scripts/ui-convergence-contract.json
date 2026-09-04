@@ -85,7 +85,9 @@
     },
     {
       "classNameSets": [
+        ["status-dot", "idle"],
         ["status-dot", "running"],
+        ["status-dot", "queued"],
         ["status-dot", "waiting-approval"],
         ["status-dot", "waiting-user-input"],
         ["status-dot", "failed"]
@@ -99,7 +101,7 @@
         },
         {
           "path": "apps/desktop/src/renderer/App.tsx",
-          "contains": "className={`status-dot ${runPresentation.status === \"completed\" ? \"idle\" : runPresentation.status}`}"
+          "contains": "className={`status-dot ${statusDotStatus}`}"
         }
       ]
     },

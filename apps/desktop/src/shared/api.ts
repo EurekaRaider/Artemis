@@ -315,6 +315,7 @@ export interface SettingsSnapshot {
   profileAvatar?: string;
   projectOrder?: string[];
   projectThreadOrder?: Record<string, string[]>;
+  collapsedProjectIds?: string[];
   projectSidebarWidth?: number;
   temporaryConversationsOpen?: boolean;
   workspaceDockWidth?: number;
@@ -912,6 +913,7 @@ export interface ArtemisApi {
   setProfileAvatar(avatar?: string): Promise<SettingsSnapshot>;
   setProjectOrder(order: string[]): Promise<string[]>;
   setProjectThreadOrder(projectId: string, order: string[]): Promise<string[]>;
+  setCollapsedProjectIds(projectIds: string[]): Promise<string[]>;
   setWorkspaceDockWidth(width: number): Promise<number>;
   setProjectSidebarWidth(width: number): Promise<number>;
   setTemporaryConversationsOpen(open: boolean): Promise<boolean>;
@@ -1136,6 +1138,7 @@ export const IPC = {
   settingsProfileAvatarSet: "artemis:settings-profile-avatar-set",
   settingsProjectOrderSet: "artemis:settings-project-order-set",
   settingsProjectThreadOrderSet: "artemis:settings-project-thread-order-set",
+  settingsCollapsedProjectIdsSet: "artemis:settings-collapsed-project-ids-set",
   settingsProjectSidebarWidthSet: "artemis:settings-project-sidebar-width-set",
   settingsTemporaryConversationsOpenSet:
     "artemis:settings-temporary-conversations-open-set",

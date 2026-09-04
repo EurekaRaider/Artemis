@@ -10,6 +10,8 @@ function member(
   agentId: string,
   parentAgentId: string,
   depth: number,
+  lastActivityAt?: string,
+  status: ChildAgentState["status"] = "queued",
 ): ChildAgentState {
   return {
     type: "child-agent.status",
@@ -19,7 +21,8 @@ function member(
     depth,
     subtreeStatus: depth === 1 ? "running" : "leaf",
     directChildCount: depth === 1 ? 7 : 0,
-    status: "queued",
+    status,
+    ...(lastActivityAt ? { lastActivityAt } : {}),
   };
 }
 
@@ -49,5 +52,39 @@ describe("agent team tree", () => {
         new Set(roots.map((root) => root.agentId)),
       ),
     ).toHaveLength(64);
+  });
+
+  it("orders siblings by recent activity and sinks finished members", () => {
+    const older = member(
+      "older",
+      "parent",
+      1,
+      "2026-08-31T10:00:00.000Z",
+      "running",
+    );
+    const recent = member(
+      "recent",
+      "parent",
+      1,
+      "2026-08-31T10:05:00.000Z",
+      "running",
+    );
+    const finished = member(
+      "finished",
+      "parent",
+      1,
+      "2026-08-31T10:10:00.000Z",
+      "completed",
+    );
+    const index = indexAgentTeamTree(
+      [older, recent, finished],
+      [older.agentId, recent.agentId, finished.agentId],
+    );
+
+    expect(visibleAgentTeamMembers(index.childrenByParent, new Set())).toEqual([
+      recent,
+      older,
+      finished,
+    ]);
   });
 });
