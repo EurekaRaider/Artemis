@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { DummyAdapter, type InboundMessage } from "@artemis/im";
+import { DummyAdapter, type ChannelBinding, type InboundMessage } from "@artemis/im";
 
 import { IMService, type IMServiceHost } from "../src/main/im-service.js";
 import { AppStore } from "../src/main/store.js";
@@ -26,7 +26,14 @@ async function createStore(): Promise<AppStore> {
 }
 
 interface HostCall {
-  kind: "submit" | "followUp" | "createThread" | "notifyPairing" | "resolveApproval";
+  kind:
+    | "submit"
+    | "followUp"
+    | "createThread"
+    | "notifyPairing"
+    | "notifyPairingAwaiting"
+    | "notifyStatus"
+    | "resolveApproval";
   input: unknown;
 }
 
@@ -56,6 +63,12 @@ function makeHost(opts?: { threadStatus?: string }): {
       notifyPairing(input) {
         calls.push({ kind: "notifyPairing", input });
       },
+      notifyPairingAwaiting(info) {
+        calls.push({ kind: "notifyPairingAwaiting", input: info });
+      },
+      notifyIMStatusChanged() {
+        calls.push({ kind: "notifyStatus", input: null });
+      },
       resolveBrokerApproval(input) {
         calls.push({ kind: "resolveApproval", input });
       },
@@ -70,7 +83,11 @@ function setup(host: IMServiceHost, store: AppStore) {
   return { service, adapter };
 }
 
-function makeInbound(text: string, messageId?: string): InboundMessage {
+function makeInbound(
+  text: string,
+  messageId?: string,
+  attachments?: InboundMessage["attachments"],
+): InboundMessage {
   return {
     envelope: {
       adapter: "feishu-main",
@@ -82,7 +99,7 @@ function makeInbound(text: string, messageId?: string): InboundMessage {
       receivedAt: new Date().toISOString(),
     },
     text,
-    attachments: [],
+    attachments: attachments ?? [],
   };
 }
 
@@ -208,6 +225,27 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     expect((notify!.input as { code: string }).code).toMatch(/^\d{4}$/);
   });
 
+  it("配对码正确 → notifyPairingAwaiting 推送（设置面板主动刷新）", async () => {
+    const store = await createStore();
+    const { host, calls } = makeHost();
+    const { service } = setup(host, store);
+    await service.manager.handleInbound(makeInbound("hi"));
+    const challenge = service.manager.status().pairingChallenge!;
+    await service.manager.handleInbound(makeInbound(challenge.code));
+
+    const awaiting = calls.find((c) => c.kind === "notifyPairingAwaiting");
+    expect(awaiting).toBeDefined();
+    expect(awaiting!.input).toMatchObject({
+      adapter: "feishu-main",
+      channelId: "oc_a",
+      senderName: "张三",
+    });
+    // 待批准态已进入快照（设置面板刷新后能渲染批准/拒绝 UI）
+    expect(service.manager.status().pairingAwaiting).toMatchObject({
+      channelId: "oc_a",
+    });
+  });
+
   it("已绑定 + 线程空闲 → submitTurn（E1 形状）", async () => {
     const store = await createStore();
     const { host, calls } = makeHost();
@@ -223,6 +261,31 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     });
   });
 
+  it("D19：idle 线程收到纯图片（空文本）→ submitTurn 透传空文本 + 附件", async () => {
+    const store = await createStore();
+    const { host, calls } = makeHost();
+    const { service } = setup(host, store);
+    await pairChannel(service, store);
+
+    // 真机缺陷回归：适配器把图片占位符剥离为空串后，manager 路由层曾按
+    // 空文本丢弃；现在必须作为 message 到达 submitTurn（空文本 + 图片附件，
+    // startTaskTurn 允许该形状并给模型侧 requestText 兜底）。
+    await service.manager.handleInbound(
+      makeInbound("", undefined, [
+        { kind: "image", mime: "image/png", dataBase64: "aGk=" },
+      ]),
+    );
+    const submit = calls.find((c) => c.kind === "submit");
+    expect(submit).toBeDefined();
+    expect(submit!.input).toMatchObject({
+      threadId: "thread-existing-1",
+      text: "",
+    });
+    expect(
+      (submit!.input as { attachments?: unknown[] }).attachments,
+    ).toHaveLength(1);
+  });
+
   it("已绑定 + 线程 running → followUp（queueTurn 路径）", async () => {
     const store = await createStore();
     const { host, calls } = makeHost({ threadStatus: "running" });
@@ -234,7 +297,25 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     expect(calls.some((c) => c.kind === "submit")).toBe(false);
   });
 
-  it("已绑定 + 线程不存在 → 重建 [FS] 线程后 submit", async () => {
+  it("已绑定 + running + 图片附件 → followUp 携带 attachments（不丢图）", async () => {
+    const store = await createStore();
+    const { host, calls } = makeHost({ threadStatus: "running" });
+    const { service } = setup(host, store);
+    await pairChannel(service, store);
+
+    const msg = makeInbound("看下这张图");
+    msg.attachments = [{ kind: "image", mime: "image/png", dataBase64: "aGVsbG8=" }];
+    await service.manager.handleInbound(msg);
+    const followUp = calls.find((c) => c.kind === "followUp");
+    expect(followUp).toBeDefined();
+    expect(followUp!.input).toMatchObject({
+      threadId: "thread-existing-1",
+      text: "看下这张图",
+      attachments: [{ name: "image-1", mimeType: "image/png", data: "aGVsbG8=" }],
+    });
+  });
+
+  it("已绑定 + 线程不存在 → 重建「飞书 · 发送者」线程后 submit", async () => {
     const store = await createStore();
     const { host, calls } = makeHost();
     const { service } = setup(host, store);
@@ -251,7 +332,8 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     await service2.manager.handleInbound(makeInbound("hello"));
     const created = host2.calls.find((c) => c.kind === "createThread");
     expect(created).toBeDefined();
-    expect((created!.input as { title: string }).title).toContain("[FS]");
+    // [FS] 前缀真机反馈不直观 → 「飞书 · 姓名」
+    expect((created!.input as { title: string }).title).toContain("飞书 · ");
     const submit = host2.calls.find((c) => c.kind === "submit");
     expect(submit).toBeDefined();
     expect((submit!.input as { threadId: string }).threadId).toBe("thread-im-1");
@@ -298,11 +380,11 @@ describe("IMService 入站链路（plan §1.4/§3.1）", () => {
     service.onAgentEvent(binding.threadId, { type: "turn.completed", reason: "completed" });
     await new Promise((r) => setTimeout(r, 10)); // deliver 是 async
 
-    // summary 模式：tool_summary + text 两个事件（排除配对流程的 2 条渠道回复）
+    // summary 模式只发最终答复（工具统计已废弃——用户只关心结果；
+    // 排除配对流程的 2 条渠道回复）
     const outbound = adapter.sent.filter((s) => s.binding.threadId === binding.threadId);
-    expect(outbound).toHaveLength(2);
-    expect(outbound[0]?.event).toEqual({ kind: "tool_summary", total: 1, failures: 0 });
-    expect(outbound[1]?.event).toEqual({ kind: "text", text: "完成" });
+    expect(outbound).toHaveLength(1);
+    expect(outbound[0]?.event).toEqual({ kind: "text", text: "完成" });
   });
 
   it("出站事件：无绑定线程的事件被忽略", async () => {
@@ -444,5 +526,74 @@ describe("Phase 2 审批闭环（plan §2.1-2.3 出口）", () => {
     });
     await new Promise((r) => setTimeout(r, 10));
     expect(adapter.sent.length).toBe(before);
+  });
+});
+
+/** 带 TypingIndicator/TypingClearer 能力的 dummy：记录挂载与清除点 */
+class TypingAdapter extends DummyAdapter {
+  readonly typingTargets: (string | undefined)[] = [];
+  readonly clearedTargets: (string | undefined)[] = [];
+
+  async triggerTyping(binding: ChannelBinding): Promise<void> {
+    this.typingTargets.push(binding.lastInboundMessageId);
+  }
+
+  async clearTyping(binding: ChannelBinding): Promise<void> {
+    this.clearedTargets.push(binding.lastInboundMessageId);
+  }
+}
+
+describe("IMService Typing 表情（执行感知，对齐 ggcode TriggerTyping 时机）", () => {
+  it("入站受理即触发 triggerTyping，挂载到该条消息（不等 turn.started）", async () => {
+    const store = await createStore();
+    const { host, calls } = makeHost();
+    const service = new IMService({ store, host });
+    const adapter = new TypingAdapter("feishu-main");
+    service.registerAdapter(adapter);
+    await pairChannel(service, store);
+
+    await service.manager.handleInbound(makeInbound("跑个构建", "om_typing_1"));
+    await new Promise((r) => setTimeout(r, 10));
+
+    // 配对流程的两条消息不触发（走 pairing 分支，非 onInboundAccepted）
+    expect(adapter.typingTargets).toEqual(["om_typing_1"]);
+    expect(calls.some((c) => c.kind === "submit")).toBe(true);
+  });
+
+  it("turn.started 的兜底触发按消息 id 去重（不重复加表情）", async () => {
+    const store = await createStore();
+    const { host } = makeHost();
+    const service = new IMService({ store, host });
+    const adapter = new TypingAdapter("feishu-main");
+    service.registerAdapter(adapter);
+    const binding = await pairChannel(service, store);
+
+    service.onAgentEvent(binding.threadId, { type: "turn.started", mode: "execute" });
+    await new Promise((r) => setTimeout(r, 10));
+    // pairChannel 后绑定的 lastInboundMessageId 是回码消息；兜底触发恰好一次
+    expect(adapter.typingTargets).toHaveLength(1);
+  });
+
+  it("turn.completed/failed 后清除 Typing 表情（回复送达即清场）", async () => {
+    const store = await createStore();
+    const { host } = makeHost();
+    const service = new IMService({ store, host });
+    const adapter = new TypingAdapter("feishu-main");
+    service.registerAdapter(adapter);
+    const binding = await pairChannel(service, store);
+
+    service.onAgentEvent(binding.threadId, { type: "turn.started", mode: "execute" });
+    service.onAgentEvent(binding.threadId, {
+      type: "message.part.delta",
+      partId: "p1",
+      partType: "text",
+      delta: "完成",
+    });
+    expect(adapter.clearedTargets).toHaveLength(0); // turn 进行中不清理
+    service.onAgentEvent(binding.threadId, { type: "turn.completed", reason: "completed" });
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(adapter.clearedTargets).toHaveLength(1);
+    expect(adapter.clearedTargets[0]).toBe(binding.lastInboundMessageId);
   });
 });

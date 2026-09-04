@@ -24,9 +24,11 @@ import type {
   ApprovalCallbackSource,
   IMAdapter,
   InteractiveSender,
+  TypingClearer,
   TypingIndicator,
 } from "../adapter.js";
 import { splitMessageBytes } from "../split.js";
+import { decodeDataImageUrl, extractMediaFromText } from "../media.js";
 import type {
   ChannelBinding,
   InboundMessage,
@@ -57,7 +59,17 @@ export interface FeishuChannelLike {
   send(to: string, input: unknown, opts?: unknown): Promise<{ messageId: string }>;
   updateCard(messageId: string, card: object): Promise<void>;
   addReaction(messageId: string, emojiType: string): Promise<string>;
+  /** 只移除机器人自己加的指定表情（内部查自己的 reaction_id），无则返回 false */
+  removeReactionByEmoji(messageId: string, emojiType: string): Promise<boolean>;
   downloadResource(fileKey: string, type: string): Promise<Buffer>;
+  /**
+   * 下载「消息内资源」：GET im/v1/messages/{message_id}/resources/{file_key}?type=image。
+   * D16 真机缺陷：downloadResource 走的 im/v1/images/{image_key} 仅能下载机器人
+   * 自己上传的图片，用户发送的图片必须带 message_id 走本接口。官方 SDK
+   * LarkChannel 未内置该方法，由 defaultChannelFactory 基于 rawClient 补齐；
+   * 测试可注入假实现（缺省时回退 downloadResource）。
+   */
+  downloadMessageResource?(messageId: string, fileKey: string, type: string): Promise<Buffer>;
   botIdentity?: { openId: string; name: string };
 }
 
@@ -80,14 +92,48 @@ export interface LarkCardActionEvent {
   action: { value: unknown; tag: string };
 }
 
+/** rawClient 中本适配器用到的最小结构子类型（不依赖 SDK 内部类型细节） */
+interface RawMessageResourceClient {
+  im: {
+    v1: {
+      messageResource: {
+        get(payload: {
+          path: { message_id: string; file_key: string };
+          params: { type: string };
+        }): Promise<{ getReadableStream: () => AsyncIterable<unknown> }>;
+      };
+    };
+  };
+}
+
 function defaultChannelFactory(opts: Record<string, unknown>): FeishuChannelLike {
-  return new lark.LarkChannel(
+  const channel = new lark.LarkChannel(
     opts as unknown as ConstructorParameters<typeof lark.LarkChannel>[0],
-  ) as unknown as FeishuChannelLike;
+  ) as unknown as FeishuChannelLike & { rawClient?: RawMessageResourceClient };
+  // D16：补齐用户图片下载路径（官方 SDK 未内置，rawClient 为构造器公开属性）
+  if (channel.rawClient?.im?.v1?.messageResource) {
+    channel.downloadMessageResource = async (messageId, fileKey, type) => {
+      const r = await channel.rawClient!.im.v1.messageResource.get({
+        path: { message_id: messageId, file_key: fileKey },
+        params: { type },
+      });
+      const chunks: Buffer[] = [];
+      for await (const chunk of r.getReadableStream()) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array));
+      }
+      return Buffer.concat(chunks);
+    };
+  }
+  return channel;
 }
 
 export class FeishuAdapter
-  implements IMAdapter, TypingIndicator, InteractiveSender, ApprovalCallbackSource
+  implements
+    IMAdapter,
+    TypingIndicator,
+    TypingClearer,
+    InteractiveSender,
+    ApprovalCallbackSource
 {
   readonly name: string;
   readonly platform = "feishu" as const;
@@ -172,20 +218,31 @@ export class FeishuAdapter
     for (const res of msg.resources ?? []) {
       if (res.type !== "image") continue;
       try {
-        const data = await this.channel!.downloadResource(res.fileKey, "image");
+        // D16：用户发送的图片必须走「消息内资源」接口（带 message_id）；
+        // downloadResource（im/v1/images/{image_key}）仅适用于机器人自己上传的图片。
+        const data = this.channel!.downloadMessageResource
+          ? await this.channel!.downloadMessageResource(msg.messageId, res.fileKey, "image")
+          : await this.channel!.downloadResource(res.fileKey, "image");
         if (data.length > 0) {
           attachments.push({
             kind: "image",
             mime: sniffImageMime(data),
             dataBase64: data.toString("base64"),
           });
-          text = replaceImagePlaceholder(text, res.fileKey, "[图片]");
+          // 图片在会话气泡内联展示（task.source.added → readTaskSourceImage），
+          // 文本不再留 [图片] 标记——纯图片消息文本为空串（协议允许空文本+附件，
+          // 模型侧由 main 兜底 "Inspect the attached files."）
+          text = replaceImagePlaceholder(text, res.fileKey, "");
+        } else {
+          // 空响应与失败同权处理：占位符不得原样泄漏进 prompt / 线程 UI
+          console.warn(`[im:${this.name}] image download empty (${res.fileKey})`);
+          text = replaceImagePlaceholder(text, res.fileKey, "[图片下载失败]");
         }
       } catch (error) {
         // 单张图片下载失败不阻断整条消息，但必须可见（对齐 [G] debug.Log +
         // continue；静默吞错曾导致权限类失败在生产不可诊断）
         console.warn(
-          `[im:${this.name}] image download failed (${res.fileKey}): ${describeDownloadError(error)}`,
+          `[im:${this.name}] image download failed (${res.fileKey}): ${describeRequestError(error)}`,
         );
         text = replaceImagePlaceholder(text, res.fileKey, "[图片下载失败]");
       }
@@ -236,9 +293,24 @@ export class FeishuAdapter
     switch (event.kind) {
       case "text":
       case "status":
-      case "tool_detail":
-      case "tool_summary": {
-        const text = outboundText(event);
+      case "tool_detail": {
+        const raw = outboundText(event);
+        if (!raw) return;
+        // 出站富媒体（对齐 ggcode ExtractImagesFromText）：从要发出的文本里
+        // 提取图片/视频引用，剩余文本分片发送；SDK toBuffer 负责 URL 下载 /
+        // 本地路径读取（含 SSRF + 大小防护）
+        const { media, text } = extractMediaFromText(raw);
+        for (const item of media) {
+          if (item.kind === "video") {
+            await channel.send(binding.channelId, { video: { source: item.source } });
+          } else if (item.source.startsWith("data:image/")) {
+            const buf = decodeDataImageUrl(item.source);
+            if (buf) await channel.send(binding.channelId, { image: { source: buf } });
+            // 解码失败则静默丢弃该图片（文本已被清洗，无法恢复）
+          } else {
+            await channel.send(binding.channelId, { image: { source: item.source } });
+          }
+        }
         if (!text) return;
         // E13：包内字节安全分片兜底（SDK 的 textChunkLimit 按字符切）
         for (const chunk of splitMessageBytes(text, FEISHU_MAX_TEXT_BYTES)) {
@@ -289,25 +361,46 @@ export class FeishuAdapter
     });
   }
 
-  /** TypingIndicator（证据 E24）：给用户最新消息加 Typing 表情，同一条只加一次 */
+  /** TypingIndicator（证据 E24 / [G] TriggerTyping）：给用户最新消息加 Typing
+   *  表情作为"正在处理"的可视线索（飞书无原生 typing 指示），同一条只加一次。
+   *  失败必须可见：缺 im:message.reaction:write 权限时接口 403，静默吞错会让
+   *  该缺陷在生产不可诊断（D9 同款教训）。 */
   async triggerTyping(binding: ChannelBinding): Promise<void> {
     const channel = this.channel;
     const msgId = binding.lastInboundMessageId;
     if (!channel || !msgId || this.typingReacted.has(msgId)) return;
+    // 先打标再请求：入站受理与 turn.started 兜底会在毫秒级并发触发同一消息，
+    // await 后打标挡不住第二个在途请求（真机 231015 repeated request）。
+    // 失败不回滚打标：typing 是 best-effort，避免每条消息反复刷失败日志。
+    this.typingReacted.add(msgId);
     try {
       await channel.addReaction(msgId, "Typing");
-      this.typingReacted.add(msgId);
-    } catch {
-      // 表情失败不阻断 turn（对齐 [G] debug.Log + return nil）
+    } catch (error) {
+      console.warn(
+        `[im:${this.name}] typing reaction failed (${msgId}): ${describeRequestError(error)}`,
+      );
+    }
+  }
+
+  /** TypingClearer：turn 终态（回复送达）移除 Typing 表情。
+   *  removeReactionByEmoji 只删机器人自己加的那条；失败记日志不抛错
+   *  （删不掉只是表情残留，不影响消息流）。 */
+  async clearTyping(binding: ChannelBinding): Promise<void> {
+    const channel = this.channel;
+    const msgId = binding.lastInboundMessageId;
+    if (!channel || !msgId) return;
+    try {
+      await channel.removeReactionByEmoji(msgId, "Typing");
+    } catch (error) {
+      console.warn(
+        `[im:${this.name}] typing reaction remove failed (${msgId}): ${describeRequestError(error)}`,
+      );
     }
   }
 }
 
 function outboundText(
-  event: Extract<
-    OutboundEvent,
-    { kind: "text" | "status" | "tool_detail" | "tool_summary" }
-  >,
+  event: Extract<OutboundEvent, { kind: "text" | "status" | "tool_detail" }>,
 ): string {
   switch (event.kind) {
     case "text":
@@ -316,8 +409,6 @@ function outboundText(
       return event.status.trim();
     case "tool_detail":
       return `[${event.toolName}] ${event.detail}`.trim();
-    case "tool_summary":
-      return `共执行 ${event.total} 个工具${event.failures > 0 ? `，${event.failures} 个失败` : ""}`;
   }
 }
 
@@ -361,7 +452,7 @@ export function buildApprovalCard(
 }
 
 /** 提取 axios/飞书错误的可诊断信息：HTTP 状态 + 响应体片段（流式响应体则标注跳过） */
-function describeDownloadError(error: unknown): string {
+function describeRequestError(error: unknown): string {
   const err = error as {
     message?: string;
     response?: { status?: number; data?: unknown };

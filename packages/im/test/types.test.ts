@@ -16,9 +16,9 @@ describe("类型契约（plan §0.2）", () => {
     expectTypeOf<DummyAdapter>().toMatchTypeOf<IMAdapter>();
   });
 
-  it("OutboundEvent 联合类型可判别", () => {
+  it("OutboundEvent 联合类型可判别（tool_summary 已废弃——用户只关心最终结果）", () => {
     expectTypeOf<OutboundEvent["kind"]>().toEqualTypeOf<
-      "text" | "status" | "approval_request" | "approval_resolved" | "tool_summary" | "tool_detail"
+      "text" | "status" | "approval_request" | "approval_resolved" | "tool_detail"
     >();
   });
 

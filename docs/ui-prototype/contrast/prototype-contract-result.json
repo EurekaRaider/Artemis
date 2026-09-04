@@ -1,0 +1,1602 @@
+{
+ "version": "v17",
+ "ok": true,
+ "totalCards": 70,
+ "passedCards": 70,
+ "targetedCards": 22,
+ "failures": [],
+ "cardResults": {
+  "cat-overview-01": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-tokens-01": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-tokens-02": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-tokens-03": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-tokens-04": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-basic-01": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-basic-02": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-basic-03": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-basic-04": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-basic-05": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-basic-06": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-icons-01": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-icons-02": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "five-size-tiers",
+     "ok": true,
+     "detail": "xs/sm/base/lg/xl"
+    }
+   ]
+  },
+  "cat-icons-03": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "98-unique-icons",
+     "ok": true,
+     "detail": "count=98, unique=98"
+    }
+   ]
+  },
+  "cat-icons-04": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-input-01": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-input-02": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-input-03": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "password-field",
+     "ok": true,
+     "detail": "password"
+    },
+    {
+     "name": "url-field",
+     "ok": true,
+     "detail": "url"
+    },
+    {
+     "name": "number-field",
+     "ok": true,
+     "detail": "number"
+    },
+    {
+     "name": "date-field",
+     "ok": true,
+     "detail": "date"
+    },
+    {
+     "name": "file-field",
+     "ok": true,
+     "detail": "file"
+    }
+   ]
+  },
+  "cat-input-04": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-input-05": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-overlay-01": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-overlay-02": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-overlay-03": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-data-01": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "roving-arrow",
+     "ok": true,
+     "detail": "当前：文件"
+    },
+    {
+     "name": "end-selects-last",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-data-02": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "single-current-page",
+     "ok": true,
+     "detail": "当前区域：资源 · aria-current 仅在活动项"
+    }
+   ]
+  },
+  "cat-data-03": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "breadcrumb-current",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-data-04": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "dock-roving",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "empty-launcher",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "launcher-restores-tab",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "unavailable-does-not-open",
+     "ok": true,
+     "detail": "Unavailable：当前环境不支持"
+    }
+   ]
+  },
+  "cat-data-05": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "pixel-end-clamped",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "closed-not-tabbable",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-data-06": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-data-07": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "tree-roving",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "tree-select",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "menu-opens-and-focuses",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "menu-escape-restores-focus",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "three-levels-and-drop",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-data-08": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "tree-roving",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "tree-select",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "menu-opens-and-focuses",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "menu-escape-restores-focus",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "three-levels-and-drop",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-data-09": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "card-and-stat-variants",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-data-10": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-data-11": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-data-12": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "heatmap-and-terminal",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-data-13": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-data-14": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-data-15": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-state-01": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-state-02": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-state-03": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-state-04": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-sources-01": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "four-source-open-controls",
+     "ok": true,
+     "detail": "count=4"
+    },
+    {
+     "name": "loading-state",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "error-state",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-sources-02": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "web-error-retry",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "web-retry-recovers",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-sources-03": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "mcp-detail",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-sources-04": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-sources-05": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-sources-06": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "goal-dirty",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "goal-saving-busy",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "goal-saved",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "goal-error",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-sources-07": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "stale-busy",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "stale-recovered",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-sources-08": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "six-check-states",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "three-coverage-warnings",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "checks-dialog-focus",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "checks-focus-return",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-artemis-01": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-02": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-03": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-04": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-05": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-06": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-07": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-08": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-09": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-10": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-11": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "markdown-dual-dirty",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "markdown-shortcut-save",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "markdown-image-error",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "file-editor-nowrap",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "file-editor-plain-threshold",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "file-editor-shortcut-save",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-artemis-12": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-13": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "mcp-http-mode",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "mcp-validation",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "mcp-remove-confirm-focus",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "mcp-remove-focus-return",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "credential-lock-and-permissions",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-artemis-14": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-15": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "queue-move-front",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "queue-inline-edit",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "queue-busy",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-artemis-16": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-17": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-18": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": [
+    {
+     "name": "question-roving",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "tabpanel-wiring",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "independent-answer-progress",
+     "ok": true,
+     "detail": ""
+    }
+   ]
+  },
+  "cat-artemis-19": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-20": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  }
+ }
+}

@@ -1,0 +1,92 @@
+{
+ "ok": true,
+ "cases": [
+  {
+   "id": "aria-controls 换目标",
+   "expectChanged": true,
+   "changed": true,
+   "ok": true
+  },
+  {
+   "id": "aria-expanded 翻转",
+   "expectChanged": true,
+   "changed": true,
+   "ok": true
+  },
+  {
+   "id": "第二 class 状态变化",
+   "expectChanged": true,
+   "changed": true,
+   "ok": true
+  },
+  {
+   "id": "hidden 变化",
+   "expectChanged": true,
+   "changed": true,
+   "ok": true
+  },
+  {
+   "id": "disabled 变化",
+   "expectChanged": true,
+   "changed": true,
+   "ok": true
+  },
+  {
+   "id": "跨父容器交换",
+   "expectChanged": true,
+   "changed": true,
+   "ok": true
+  },
+  {
+   "id": "无操作对照（不得误报）",
+   "expectChanged": false,
+   "changed": false,
+   "ok": true
+  },
+  {
+   "id": "aria-selected 单次扫描翻转（评审反例A）",
+   "expectChanged": true,
+   "changed": true,
+   "flipped": true,
+   "ok": true
+  },
+  {
+   "id": "id/aria-label 分隔符碰撞（评审反例B）",
+   "expectChanged": true,
+   "changed": true,
+   "ok": true
+  },
+  {
+   "id": "深层 70 层 aria-label 变更（评审反例C，截断已取消）",
+   "expectChanged": true,
+   "changed": true,
+   "ok": true
+  },
+  {
+   "id": "contenteditable 翻转（评审反例D）",
+   "expectChanged": true,
+   "changed": true,
+   "ok": true
+  },
+  {
+   "id": "input.value 变更（评审反例E，property 权威）",
+   "expectChanged": true,
+   "changed": true,
+   "ok": true
+  },
+  {
+   "id": "chrome 内 aria-selected 翻转（组合反射，规范化不改串）",
+   "expectChanged": false,
+   "changed": false,
+   "ok": true
+  },
+  {
+   "id": "结构串 JSON.parse 可逆 + 规范化重序列化一致",
+   "expectChanged": false,
+   "parseOk": true,
+   "roundTrip": true,
+   "ok": true
+  }
+ ],
+ "failedCases": []
+}

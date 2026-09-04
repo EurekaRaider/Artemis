@@ -35,15 +35,8 @@ export interface AgentPayloadLike {
   approved?: boolean | undefined;
 }
 
-export interface TurnToolStats {
-  total: number;
-  failures: number;
-}
-
 /** verbose 模式工具详情的单行摘要长度上限 */
-const TOOL_DETAIL_LIMIT = 500;
-
-function summarizeInput(input: unknown): string {
+const TOOL_DETAIL_LIMIT = 500;function summarizeInput(input: unknown): string {
   if (input === undefined || input === null) return "";
   const raw = typeof input === "string" ? input : JSON.stringify(input);
   return raw.length > TOOL_DETAIL_LIMIT ? `${raw.slice(0, TOOL_DETAIL_LIMIT)}…` : raw;
@@ -109,26 +102,20 @@ export function translateAgentPayload(payload: AgentPayloadLike, mode: OutputMod
 /**
  * 跨事件的 turn 级翻译器：
  * - 聚合 message.part.delta 的 text part（thinking 不发 IM），
- *   turn.completed 时产出全量答复（summary/verbose）
- * - 统计工具调用，turn 边界产出 tool_summary（summary 模式）
+ *   turn.completed 时产出全量答复（summary 模式只发最终结果，
+ *   不附带工具统计——用户只关心结果；verbose 模式另有 tool_detail 流）
  * 用法：im-service 每个线程维护一个实例，turn.started 时重建。
  */
 export function createTurnTranslator(mode: OutputMode): {
   feed(payload: AgentPayloadLike): OutboundEvent[];
-  stats(): TurnToolStats;
 } {
   /** text part 聚合：partId → 已拼文本（Map 保插入序=流式到达序） */
   const textParts = new Map<string, string>();
   /** toolCallId → toolName（tool.completed 不带 toolName，回溯用） */
   const toolNames = new Map<string, string>();
-  let total = 0;
-  let failures = 0;
 
   function flushTurnEvents(payload: AgentPayloadLike): OutboundEvent[] {
     const events: OutboundEvent[] = [];
-    if (mode === "summary" && total > 0) {
-      events.push({ kind: "tool_summary", total, failures });
-    }
     if (payload.type === "turn.failed") {
       events.push(...translateAgentPayload(payload, mode));
       return events;
@@ -164,14 +151,12 @@ export function createTurnTranslator(mode: OutputMode): {
           return [];
         }
         case "tool.started": {
-          total += 1;
           if (payload.toolCallId && payload.toolName) {
             toolNames.set(payload.toolCallId, payload.toolName);
           }
           return translateAgentPayload(payload, mode);
         }
         case "tool.completed": {
-          if (payload.isError) failures += 1;
           const events = translateAgentPayload(payload, mode);
           // 回填 toolName（completed 事件不携带）
           if (payload.toolCallId && !payload.toolName) {
@@ -189,6 +174,5 @@ export function createTurnTranslator(mode: OutputMode): {
           return translateAgentPayload(payload, mode);
       }
     },
-    stats: () => ({ total, failures }),
   };
 }

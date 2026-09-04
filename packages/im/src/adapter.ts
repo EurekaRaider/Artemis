@@ -20,6 +20,12 @@ export interface TypingIndicator {
   triggerTyping(binding: ChannelBinding): Promise<void>;
 }
 
+/** Typing 表情清理：turn 终态（回复送达）移除 Typing reaction。
+ *  未实现则表情留存（ggcode 即如此）；实现方应只删机器人自己加的那条。 */
+export interface TypingClearer {
+  clearTyping(binding: ChannelBinding): Promise<void>;
+}
+
 export interface InteractiveSender {
   sendApprovalButtons(
     binding: ChannelBinding,
@@ -35,6 +41,10 @@ export interface ApprovalCallbackSource {
 
 export function isTypingIndicator(adapter: IMAdapter): adapter is IMAdapter & TypingIndicator {
   return typeof (adapter as Partial<TypingIndicator>).triggerTyping === "function";
+}
+
+export function isTypingClearer(adapter: IMAdapter): adapter is IMAdapter & TypingClearer {
+  return typeof (adapter as Partial<TypingClearer>).clearTyping === "function";
 }
 
 export function isInteractiveSender(adapter: IMAdapter): adapter is IMAdapter & InteractiveSender {

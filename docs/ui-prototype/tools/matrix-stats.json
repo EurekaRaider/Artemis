@@ -1,0 +1,204 @@
+{
+  "version": "v17",
+  "baseline": "d0b7b9fa20787c97c90cdb00a8fa827e275f5aef",
+  "baselineShort": "d0b7b9f",
+  "generatedBy": "prototype/tools/gen_matrix.py",
+  "denominator": 70,
+  "byStatus": {
+    "covered": 48,
+    "partial": 20,
+    "uncovered": 2
+  },
+  "percent": {
+    "covered": 69,
+    "partial": 28,
+    "uncovered": 3
+  },
+  "percentRule": "最大余数法凑整，三档之和恒等于 100；verify 断言 == 100",
+  "modules": [
+    {
+      "module": "tokens-design",
+      "label": "设计令牌与主题",
+      "cards": 5,
+      "covered": 5,
+      "partial": 0,
+      "uncovered": 0,
+      "status": "covered"
+    },
+    {
+      "module": "basic-controls",
+      "label": "基础控件",
+      "cards": 6,
+      "covered": 6,
+      "partial": 0,
+      "uncovered": 0,
+      "status": "covered"
+    },
+    {
+      "module": "iconography",
+      "label": "图标系统",
+      "cards": 4,
+      "covered": 2,
+      "partial": 2,
+      "uncovered": 0,
+      "status": "partial"
+    },
+    {
+      "module": "form-inputs",
+      "label": "输入与选择",
+      "cards": 5,
+      "covered": 4,
+      "partial": 1,
+      "uncovered": 0,
+      "status": "partial"
+    },
+    {
+      "module": "overlays",
+      "label": "浮层",
+      "cards": 3,
+      "covered": 3,
+      "partial": 0,
+      "uncovered": 0,
+      "status": "covered"
+    },
+    {
+      "module": "shell-navigation",
+      "label": "主壳与导航",
+      "cards": 8,
+      "covered": 1,
+      "partial": 6,
+      "uncovered": 1,
+      "status": "uncovered"
+    },
+    {
+      "module": "data-display",
+      "label": "数据容器",
+      "cards": 7,
+      "covered": 5,
+      "partial": 2,
+      "uncovered": 0,
+      "status": "partial"
+    },
+    {
+      "module": "feedback-states",
+      "label": "状态反馈",
+      "cards": 4,
+      "covered": 4,
+      "partial": 0,
+      "uncovered": 0,
+      "status": "covered"
+    },
+    {
+      "module": "sources-panel",
+      "label": "任务来源",
+      "cards": 5,
+      "covered": 2,
+      "partial": 3,
+      "uncovered": 0,
+      "status": "partial"
+    },
+    {
+      "module": "goal-editor",
+      "label": "目标编辑器",
+      "cards": 2,
+      "covered": 0,
+      "partial": 2,
+      "uncovered": 0,
+      "status": "partial"
+    },
+    {
+      "module": "environment",
+      "label": "环境与 PR checks",
+      "cards": 2,
+      "covered": 1,
+      "partial": 1,
+      "uncovered": 0,
+      "status": "partial"
+    },
+    {
+      "module": "composer",
+      "label": "输入区",
+      "cards": 3,
+      "covered": 3,
+      "partial": 0,
+      "uncovered": 0,
+      "status": "covered"
+    },
+    {
+      "module": "run-control",
+      "label": "运行模式与审批",
+      "cards": 2,
+      "covered": 2,
+      "partial": 0,
+      "uncovered": 0,
+      "status": "covered"
+    },
+    {
+      "module": "task-activity",
+      "label": "工具活动与计划",
+      "cards": 2,
+      "covered": 2,
+      "partial": 0,
+      "uncovered": 0,
+      "status": "covered"
+    },
+    {
+      "module": "agents",
+      "label": "Agent 团队",
+      "cards": 1,
+      "covered": 1,
+      "partial": 0,
+      "uncovered": 0,
+      "status": "covered"
+    },
+    {
+      "module": "workspace-panels",
+      "label": "工作区面板",
+      "cards": 2,
+      "covered": 1,
+      "partial": 1,
+      "uncovered": 0,
+      "status": "partial"
+    },
+    {
+      "module": "settings-mcp",
+      "label": "设置与 MCP",
+      "cards": 1,
+      "covered": 0,
+      "partial": 1,
+      "uncovered": 0,
+      "status": "partial"
+    },
+    {
+      "module": "session-messaging",
+      "label": "会话与消息",
+      "cards": 8,
+      "covered": 6,
+      "partial": 1,
+      "uncovered": 1,
+      "status": "uncovered"
+    }
+  ],
+  "moduleCount": 18,
+  "moduleStatus": {
+    "covered": 8,
+    "partial": 8,
+    "uncovered": 2
+  },
+  "counts": {
+    "covered": 48,
+    "partial": 20,
+    "uncovered": 2
+  },
+  "integrity": {
+    "denominatorEqualsRows": true,
+    "moduleCardsSum": 70,
+    "statusSum": 70
+  },
+  "prototypeContracts": {
+    "passedCards": 70,
+    "totalCards": 70,
+    "targetedCards": 22,
+    "result": "contrast/prototype-contract-result.json"
+  }
+}

@@ -1,0 +1,504 @@
+{
+ "chrome": "Google Chrome 151.0.7922.174 ",
+ "combos": 36,
+ "manifestExact": true,
+ "manifestMissing": [],
+ "manifestExtra": [],
+ "fixtures": {
+  "ok": true,
+  "cases": [
+   {
+    "id": "fx-solid-ctl",
+    "scannerRatio": 7.58,
+    "renderedMin": 1.4,
+    "renderedMax": 7.58,
+    "need": 4.5,
+    "ok": true,
+    "worstColRatio": 7.33,
+    "confirm": "good-case"
+   },
+   {
+    "id": "fx-op-chain",
+    "scannerRatio": 14.59,
+    "renderedMin": 1.18,
+    "renderedMax": 14.74,
+    "need": 4.5,
+    "ok": true,
+    "worstColRatio": 12.63,
+    "confirm": "good-case"
+   },
+   {
+    "id": "fx-grad-pass",
+    "scannerRatio": 16.18,
+    "renderedMin": 1.2,
+    "renderedMax": 16.93,
+    "need": 4.5,
+    "ok": true,
+    "worstColRatio": 5.14,
+    "confirm": "good-case"
+   },
+   {
+    "id": "fx-grad-bad",
+    "scannerRatio": 2.71,
+    "renderedMin": 1.27,
+    "renderedMax": 4.24,
+    "need": 4.5,
+    "ok": true,
+    "worstColRatio": 2.64,
+    "confirm": "glyph-core"
+   },
+   {
+    "id": "fx-grad-alpha",
+    "scannerRatio": 5.53,
+    "renderedMin": 1.23,
+    "renderedMax": 5.8,
+    "need": 4.5,
+    "ok": true,
+    "worstColRatio": 4.54,
+    "confirm": "good-case"
+   },
+   {
+    "id": "fx-op-grad",
+    "scannerRatio": 6.85,
+    "renderedMin": 1.36,
+    "renderedMax": 7.06,
+    "need": 4.5,
+    "ok": true,
+    "worstColRatio": 6.58,
+    "confirm": "good-case"
+   },
+   {
+    "id": "fx-grad-mid",
+    "scannerRatio": 1,
+    "renderedMin": 1.28,
+    "renderedMax": 4.36,
+    "need": 4.5,
+    "ok": true,
+    "worstColRatio": null,
+    "confirm": "fused+mask"
+   },
+   {
+    "id": "fx-grad-narrow",
+    "scannerRatio": 1,
+    "renderedMin": 1.14,
+    "renderedMax": 4.62,
+    "need": 4.5,
+    "ok": true,
+    "worstColRatio": 1.39,
+    "confirm": "glyph-core"
+   },
+   {
+    "id": "fx-space-trap",
+    "scannerRatio": 1,
+    "renderedMin": 1.21,
+    "renderedMax": 4.62,
+    "need": 4.5,
+    "ok": true,
+    "worstColRatio": null,
+    "confirm": "mask-no-glyph(空格/间隙→fail-closed)"
+   },
+   {
+    "id": "fx-cap-wide",
+    "expectIndet": true,
+    "capped": true,
+    "scannerRatio": 14.48,
+    "ok": true,
+    "note": "INDETERMINATE_SAMPLING_CAP 用例：裁剪触发必须被标记（fail-closed）"
+   },
+   {
+    "id": "fx-cap-multi",
+    "expectIndet": true,
+    "capped": true,
+    "scannerRatio": 12.06,
+    "ok": true,
+    "note": "INDETERMINATE_SAMPLING_CAP 用例：裁剪触发必须被标记（fail-closed）"
+   },
+   {
+    "id": "fx-empty-cov",
+    "emptyCov": true,
+    "scannerRatio": 14.48,
+    "need": 4.5,
+    "ok": true,
+    "note": "空覆盖安全用例：无字形列，扫描器安全跳过且未误报"
+   },
+   {
+    "id": "fx-group-op",
+    "scannerRatio": 3.98,
+    "renderedMin": 1.27,
+    "renderedMax": 4.0,
+    "need": 4.5,
+    "ok": true,
+    "worstColRatio": 3.91,
+    "confirm": "glyph-core"
+   }
+  ],
+  "error": null
+ },
+ "critical": 0,
+ "totalFailures": 0,
+ "totalCountMismatches": 0,
+ "verdict": "PASS",
+ "coverageStatement": "方向 × 主题 × 对比度 × 三种扫描场景（default/open/hover）＝36 组合；非『全状态矩阵』。",
+ "rows": [
+  {
+   "file": "a-dark-high-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "a-dark-high-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "a-dark-high-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 949,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "a-dark-normal-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "a-dark-normal-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": "EQUIV_DECLARED（投影后等价类 0 内与 a-dark-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
+  },
+  {
+   "file": "a-dark-normal-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 947,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "a-light-high-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "a-light-high-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "a-light-high-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 949,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "a-light-normal-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "a-light-normal-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": "EQUIV_DECLARED（投影后等价类 1 内与 a-light-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
+  },
+  {
+   "file": "a-light-normal-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 947,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "b-dark-high-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "b-dark-high-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "b-dark-high-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 947,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "b-dark-normal-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "b-dark-normal-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": "EQUIV_DECLARED（投影后等价类 2 内与 b-dark-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
+  },
+  {
+   "file": "b-dark-normal-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 947,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "b-light-high-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "b-light-high-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "b-light-high-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 947,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "b-light-normal-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "b-light-normal-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": "EQUIV_DECLARED（投影后等价类 3 内与 b-light-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
+  },
+  {
+   "file": "b-light-normal-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 949,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "c-dark-high-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "c-dark-high-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "c-dark-high-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 949,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "c-dark-normal-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "c-dark-normal-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": "EQUIV_DECLARED（投影后等价类 4 内与 c-dark-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
+  },
+  {
+   "file": "c-dark-normal-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 949,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "c-light-high-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "c-light-high-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "c-light-high-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 949,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "c-light-normal-default.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 935,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  },
+  {
+   "file": "c-light-normal-hover.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 939,
+   "failList": [],
+   "countsBad": [],
+   "detail": "EQUIV_DECLARED（投影后等价类 5 内与 c-light-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
+  },
+  {
+   "file": "c-light-normal-open.json",
+   "status": "PASS",
+   "failures": 0,
+   "countMismatches": 0,
+   "checked": 949,
+   "failList": [],
+   "countsBad": [],
+   "detail": ""
+  }
+ ]
+}

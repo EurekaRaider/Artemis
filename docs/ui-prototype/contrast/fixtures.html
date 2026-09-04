@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>对比度模型 fixtures · 三趟真截图像素对照（v12）</title>
+<style>
+  * { transition: none !important; animation: none !important; }
+  body { margin: 20px; background: #fff; color: #111; font: 14px/1.5 -apple-system, "PingFang SC", sans-serif; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  p.tip { color: #333; margin: 0 0 14px; font-size: 12px; }
+  .row { margin-bottom: 12px; }
+  .lbl { font-size: 11px; color: #333; margin-bottom: 3px; }
+  .fx { display: flex; align-items: center; width: 420px; height: 44px; padding: 0 16px;
+        font-size: 14px; border-radius: 6px; white-space: nowrap; }
+  #fx-solid-ctl  { background: #475569; color: #fff; }
+  #fx-op-chain   { background: #fff; color: #111; }
+  #fx-grad-pass  { background-image: linear-gradient(90deg, #f8fafc 0%, #e2e8f0 100%); color: #0f172a; }
+  #fx-grad-bad   { background-image: linear-gradient(90deg, #94a3b8 0%, #1e293b 100%); color: #fff; }
+  #fx-grad-alpha { background-color: #b91c1c; background-image: linear-gradient(90deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.16) 100%); color: #fff; }
+  #fx-op-grad    { background-image: linear-gradient(90deg, #1e3a8a 0%, #312e81 100%); color: #fff; }
+  #fx-grad-mid   { background-image: linear-gradient(90deg, #000 0%, #fff 100%); color: #767676; font-size: 18.5px; }
+  #fx-group-op   { background: rgb(16,65,185); color: rgb(138,231,126); font-size: 18.5px; }
+  .notext .fx-t { visibility: hidden; }
+  /* R11② 第三趟：高对比字形 mask——只改 color，布局与正常趟完全一致 */
+  body.mask .fx-t { color: #ff00ff !important; }
+</style>
+</head>
+<body>
+<h1>对比度模型 fixtures（三趟真截图像素对照 v12）</h1>
+<p class="tip">必须 FAIL：fx-grad-bad / fx-grad-mid / fx-grad-narrow / fx-group-op；必须拒绝确认：fx-space-trap（R11② 字间空白 fail-closed）；fx-cap-wide / fx-cap-multi 必须标记 INDETERMINATE_SAMPLING_CAP；其余必须 PASS 且模型≈像素；fx-empty-cov 空覆盖安全用例须 PASS。</p>
+
+<div class="row"><div class="lbl">对照 · 不透明实底</div>
+  <div class="fx" id="fx-solid-ctl" data-fx="fx-solid-ctl" data-bad="0"><span class="fx-t">Aa 渲染像素对照示例</span></div></div>
+<div class="row"><div class="lbl">opacity 0.9 链</div>
+  <div style="opacity:0.9"><div class="fx" id="fx-op-chain" data-fx="fx-op-chain" data-bad="0"><span class="fx-t">Aa 渲染像素对照示例</span></div></div></div>
+<div class="row"><div class="lbl">渐变 · 双浅 stop</div>
+  <div class="fx" id="fx-grad-pass" data-fx="fx-grad-pass" data-bad="0"><span class="fx-t">Aa 渲染像素对照示例</span></div></div>
+<div class="row"><div class="lbl">渐变 · 早 stop 低对比（必须 FAIL）</div>
+  <div class="fx" id="fx-grad-bad" data-fx="fx-grad-bad" data-bad="1"><span class="fx-t">Aa 渲染像素对照示例</span></div></div>
+<div class="row"><div class="lbl">渐变 · 半透明 stop × 不透明底色</div>
+  <div class="fx" id="fx-grad-alpha" data-fx="fx-grad-alpha" data-bad="0"><span class="fx-t">Aa 渲染像素对照示例</span></div></div>
+<div class="row"><div class="lbl">opacity 0.85 × 渐变</div>
+  <div style="opacity:0.85"><div class="fx" id="fx-op-grad" data-fx="fx-op-grad" data-bad="0"><span class="fx-t">Aa 渲染像素对照示例</span></div></div></div>
+<div class="row"><div class="lbl">渐变中段跨过前景亮度（必须 FAIL：端点 PASS 陷阱）</div>
+  <div class="fx" id="fx-grad-mid" data-fx="fx-grad-mid" data-bad="1"><span class="fx-t">Aa 渲染像素对照示例长文延伸</span></div></div>
+<div class="row"><div class="lbl">渐变窄色带 10.25%–10.75%（必须 FAIL：固定采样点漏检型）</div>
+  <div class="fx" id="fx-grad-narrow" data-fx="fx-grad-narrow" data-bad="1" style="background-image:linear-gradient(90deg,#000 0%,#000 10%,#767676 10.25%,#767676 10.75%,#000 11%,#000 100%);color:#767676;font-size:18.5px;"><span class="fx-t">Aa 渲染像素对照示例</span></div></div>
+<div class="row"><div class="lbl">字间空白陷阱（R11②）：低对比带只在中段空格下——必须拒绝确认（fail-closed）</div>
+  <div class="fx" id="fx-space-trap" data-fx="fx-space-trap" data-bad="1" data-unconfirmed="1" style="width:560px;background:linear-gradient(90deg,#000 0%,#000 20%,#767676 26%,#767676 32%,#000 38%,#000 100%);color:#767676;font-size:18.5px;font-family:Menlo,monospace;"><span class="fx-t">AAAA&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;BBBB</span></div></div>
+<div class="row"><div class="lbl">裁剪触发 · 覆盖宽 &gt;4096px（必须标记 INDETERMINATE_SAMPLING_CAP）</div>
+  <div class="fx" id="fx-cap-wide" data-fx="fx-cap-wide" data-bad="0" data-indet="1" style="width:4600px;background-image:linear-gradient(90deg,#f8fafc 0%,#e2e8f0 100%);color:#0f172a;"><span class="fx-t"></span></div></div>
+<div class="row"><div class="lbl">裁剪触发 · 多层渐变笛卡尔积（必须标记 INDETERMINATE_SAMPLING_CAP）</div>
+  <div id="fx-cap-multi-wrap" style="opacity:0.9;"><div class="fx" id="fx-cap-multi" data-fx="fx-cap-multi" data-bad="0" data-indet="1" style="color:#0f172a;background-color:transparent;"><span class="fx-t">Aa 渲染像素对照示例</span></div></div></div>
+<div class="row"><div class="lbl">空覆盖安全用例 · 空白文本 + 好渐变（须 PASS：无字形不误报不崩溃）</div>
+  <div class="fx" id="fx-empty-cov" data-fx="fx-empty-cov" data-bad="0" data-empty="1" style="background-image:linear-gradient(90deg,#f8fafc 0%,#e2e8f0 100%);color:#0f172a;"><span class="fx-t">&nbsp;&nbsp;&nbsp;</span></div></div>
+<div class="row"><div class="lbl">组级 opacity 包住文字+不透明背景（必须 FAIL）</div>
+  <div style="background: rgb(12,5,49);"><div style="opacity:0.726595;">
+    <div class="fx" id="fx-group-op" data-fx="fx-group-op" data-bad="1"><span class="fx-t">Aa 渲染像素对照示例</span></div>
+  </div></div></div>
+
+<script src="scanner.js"></script>
+<script>
+/* driver：只输出 rects + 扫描器探针值；像素判定由 runner 解码截图完成（独立于扫描器公式） */
+(function () {
+  function ready(fn){ document.readyState !== "loading" ? fn() : document.addEventListener("DOMContentLoaded", fn); }
+  ready(function () {
+    var notext = false, mask = false;
+    try {
+      var hp = new URLSearchParams(location.hash.slice(1));
+      notext = hp.get("notext") === "1";
+      mask = hp.get("mask") === "1";
+    } catch (e) {}
+    if (notext) document.body.classList.add("notext");   // 立即生效，不等待 DOMContentLoaded
+    if (mask) document.body.classList.add("mask");       // R11② 高对比字形 mask 趟
+
+    /* R11④ 裁剪触发用例的构造：>4096px 覆盖文本 + 双层 65-stop 渐变（浅灰域，不产生真实失败） */
+    function injectCapFixtures() {
+      var cw = document.getElementById("fx-cap-wide");
+      if (cw) {
+        var t = "";
+        for (var i = 0; i < 340; i++) t += "宽";
+        cw.querySelector(".fx-t").textContent = t;
+      }
+      function stops(n) {
+        var a = [];
+        for (var i = 0; i < n; i++) {
+          var v = 240 + Math.round(15 * i / (n - 1));
+          a.push("rgb(" + v + "," + v + "," + v + ") " + (i * 100 / (n - 1)) + "%");
+        }
+        return "linear-gradient(90deg," + a.join(",") + ")";
+      }
+      var cm = document.getElementById("fx-cap-multi");
+      var w = document.getElementById("fx-cap-multi-wrap");
+      if (cm) {
+        cm.style.backgroundImage = stops(65);
+        /* 覆盖区铺满容器：否则 inCov 过滤后每层样本不足，笛卡尔积到不了 4096 */
+        var t2 = "";
+        for (var i = 0; i < 40; i++) t2 += "宽";
+        cm.querySelector(".fx-t").textContent = t2;
+      }
+      if (w) w.style.backgroundImage = stops(65);
+    }
+    var out = { cases: [], scannerError: null };
+    try {
+      if (!window.ContrastScanner) throw new Error("scanner missing");
+      injectCapFixtures();
+      var payload = ContrastScanner.run("fixtures");
+      out.scannerError = payload.meta.scannerError;
+      out.failures = payload.failures.map(function (f) { return f.el; });
+      [].slice.call(document.querySelectorAll("[data-fx]")).forEach(function (el) {
+        /* R11④：逐用例归因裁剪标记（probe 前清零，probe 后读取） */
+        window.__samplingCapped = false;
+        var rec = ContrastScanner.probe(el);
+        var capped = !!window.__samplingCapped;
+        var r = el.getBoundingClientRect();
+        var ts = el.querySelector(".fx-t"), tr = ts.getBoundingClientRect();
+        out.cases.push({
+          id: el.getAttribute("data-fx"),
+          bad: el.getAttribute("data-bad") === "1",
+          emptyCov: el.getAttribute("data-empty") === "1",
+          expectUnconfirmed: el.getAttribute("data-unconfirmed") === "1",
+          expectIndet: el.getAttribute("data-indet") === "1",
+          capped: capped,
+          x: Math.round(r.left + window.scrollX), y: Math.round(r.top + window.scrollY),
+          w: Math.round(r.width), h: Math.round(r.height),
+          textRect: { x: Math.round(tr.left + window.scrollX), y: Math.round(tr.top + window.scrollY),
+                      w: Math.round(tr.width), h: Math.round(tr.height) },
+          worstX: (function(){
+                    var t = rec ? rec.t : null;
+                    if (t === null || t === undefined) {
+                      // 非渐变用例：worstT 落覆盖区中点，让 worstX 列可验证
+                      var tr0 = el.querySelector(".fx-t").getBoundingClientRect();
+                      var mid = (tr0.left + tr0.right) / 2 + window.scrollX;
+                      t = r.width > 0 ? (mid - (r.left + window.scrollX)) / r.width : 0.5;
+                    }
+                    return Math.round(r.left + window.scrollX + t * r.width);
+                  })(),
+          scannerRatio: rec ? rec.ratio : null, need: rec ? rec.need : 4.5,
+          scannerPass: rec ? !!rec._pass : false
+        });
+      });
+    } catch (e) {
+      out.scannerError = String((e && e.message) || e);
+    }
+    var host = document.createElement("div"); host.id = "FX_OUT";
+    host.setAttribute("data-json", encodeURIComponent(JSON.stringify(out)));
+    document.body.appendChild(host);
+  });
+})();
+</script>
+</body>
+</html>

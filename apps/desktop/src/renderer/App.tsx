@@ -38,6 +38,7 @@ import {
   type PromptImage,
   type Project,
   type RunMode,
+  type TaskSourceState,
   type ThinkingLevel,
   type Thread,
   type ThreadViewState,
@@ -338,6 +339,8 @@ const copy = {
     resizeProjectsSidebar: "Resize conversations sidebar",
     temporaryConversations: "Temporary chats",
     temporaryConversation: "Temporary chat",
+    threadIMConnected: "Feishu connected",
+    threadIMDisconnected: "Feishu disconnected",
     automations: "Automations",
     tasks: "Tasks",
     newTask: "New task",
@@ -618,6 +621,8 @@ const copy = {
     resizeProjectsSidebar: "调整会话侧栏宽度",
     temporaryConversations: "临时会话",
     temporaryConversation: "临时会话",
+    threadIMConnected: "飞书已连接",
+    threadIMDisconnected: "飞书未连接",
     automations: "定时任务",
     tasks: "任务",
     newTask: "新任务",
@@ -1698,6 +1703,39 @@ export function App() {
   );
   const projectTreeElement = useRef<HTMLDivElement>(null);
   const [treeActiveRowId, setTreeActiveRowId] = useState<string>();
+  // IM 绑定线程的适配器健康（threadId → 飞书是否仍连接）：会话条徽标用。
+  // 可选调用 + catch：测试 stub 未实现 getIMStatus/onIMStatusChanged 时静默降级。
+  const [imThreadHealth, setImThreadHealth] = useState<Record<string, boolean>>({});
+  const refreshIMThreadHealth = useCallback(() => {
+    void window.artemis
+      .getIMStatus?.()
+      .then((snapshot) => {
+        const health: Record<string, boolean> = {};
+        for (const binding of snapshot.bindings) {
+          const adapter = snapshot.adapters.find((a) => a.name === binding.adapter);
+          if (adapter) health[binding.threadId] = adapter.healthy;
+        }
+        setImThreadHealth(health);
+      })
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    refreshIMThreadHealth();
+    return window.artemis.onIMStatusChanged?.(() => refreshIMThreadHealth());
+  }, [refreshIMThreadHealth]);
+  // 主进程侧创建 IM 线程（配对批准/绑定线程消失重建）→ 刷新抽屉会话列表与徽标。
+  // getSnapshot 仅挂载时拉取；不订阅则新会话直到重启都不可见（对齐 automation
+  // 事件的快照刷新模式，D20）。
+  useEffect(
+    () =>
+      window.artemis.onIMThreadCreated?.(() => {
+        void window.artemis.getSnapshot().then((refreshed) => {
+          setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        });
+        refreshIMThreadHealth();
+      }),
+    [refreshIMThreadHealth],
+  );
   const focusProjectTreeRow = useCallback((rowId: string) => {
     setTreeActiveRowId(rowId);
     projectTreeElement.current
@@ -5966,14 +6004,34 @@ export function App() {
                                       className={`status-dot ${thread.status}`}
                                     />
                                   )}
-                                  <span
-                                    className="thread-title"
-                                    onPointerEnter={prepareThreadTitleScroll}
-                                    title={visibleThreadTitle(thread.title)}
-                                  >
-                                    <span className="thread-title-text">
-                                      {visibleThreadTitle(thread.title)}
+                                  <span className="thread-title-wrap">
+                                    <span
+                                      className="thread-title"
+                                      onPointerEnter={prepareThreadTitleScroll}
+                                      title={visibleThreadTitle(thread.title)}
+                                    >
+                                      <span className="thread-title-text">
+                                        {visibleThreadTitle(thread.title)}
+                                      </span>
                                     </span>
+                                    {imThreadHealth[thread.id] !== undefined && (
+                                      <span
+                                        className={`thread-im-flag ${
+                                          imThreadHealth[thread.id] ? "ok" : "bad"
+                                        }`}
+                                        title={
+                                          imThreadHealth[thread.id]
+                                            ? t.threadIMConnected
+                                            : t.threadIMDisconnected
+                                        }
+                                      >
+                                        <span
+                                          aria-hidden="true"
+                                          className="thread-im-flag-dot"
+                                        />
+                                        飞书
+                                      </span>
+                                    )}
                                   </span>
                                 </button>
                                 <button
@@ -6194,14 +6252,34 @@ export function App() {
                         {thread.status !== "idle" && (
                           <span className={`status-dot ${thread.status}`} />
                         )}
-                        <span
-                          className="thread-title"
-                          onPointerEnter={prepareThreadTitleScroll}
-                          title={visibleThreadTitle(thread.title)}
-                        >
-                          <span className="thread-title-text">
-                            {visibleThreadTitle(thread.title)}
+                        <span className="thread-title-wrap">
+                          <span
+                            className="thread-title"
+                            onPointerEnter={prepareThreadTitleScroll}
+                            title={visibleThreadTitle(thread.title)}
+                          >
+                            <span className="thread-title-text">
+                              {visibleThreadTitle(thread.title)}
+                            </span>
                           </span>
+                          {imThreadHealth[thread.id] !== undefined && (
+                            <span
+                              className={`thread-im-flag ${
+                                imThreadHealth[thread.id] ? "ok" : "bad"
+                              }`}
+                              title={
+                                imThreadHealth[thread.id]
+                                  ? t.threadIMConnected
+                                  : t.threadIMDisconnected
+                              }
+                            >
+                              <span
+                                aria-hidden="true"
+                                className="thread-im-flag-dot"
+                              />
+                              飞书
+                            </span>
+                          )}
                         </span>
                       </button>
                       <button
@@ -6561,6 +6639,7 @@ export function App() {
                         void undoTurnChanges(turnId)
                       }
                       state={threadState!}
+                      threadId={activeThreadId}
                     />
                   )}
                   {activeThread &&
@@ -9914,10 +9993,76 @@ function TurnChangeSetCard({
   );
 }
 
+/** 用户气泡内联图片缩略图：字节按需经 readTaskSourceImage 取回（Source 存储）。 */
+/** 用户气泡内联图片缩略图：字节按需经 readTaskSourceImage 取回（Source 存储）。
+ * 字段与 TaskSourceState 的 image 变体对齐（exactOptionalPropertyTypes 下需精确匹配）。 */
+interface UserMessageImageSource {
+  type: "task.source.added";
+  sourceId: string;
+  name: string;
+  mimeType: string;
+  kind: "image";
+  turnId?: string;
+  timestamp: string;
+}
+
+function UserMessageImages({
+  sources,
+  threadId,
+}: {
+  sources: readonly UserMessageImageSource[];
+  threadId: string;
+}) {
+  const [images, setImages] = useState<
+    Record<string, Extract<PromptImage, { data: string }>>
+  >({});
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(
+      sources.map(async (source) => {
+        try {
+          return [
+            source.sourceId,
+            await window.artemis.readTaskSourceImage(threadId, source.sourceId),
+          ] as const;
+        } catch {
+          return undefined;
+        }
+      }),
+    ).then((loaded) => {
+      if (cancelled) return;
+      setImages(
+        Object.fromEntries(loaded.filter((entry) => entry !== undefined)),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sources, threadId]);
+  if (sources.length === 0) return null;
+  return (
+    <div className="user-message-images">
+      {sources.map((source) => {
+        const image = images[source.sourceId];
+        return image ? (
+          <img
+            alt={source.name}
+            className="user-message-image"
+            draggable={false}
+            key={source.sourceId}
+            src={`data:${image.mimeType};base64,${image.data}`}
+          />
+        ) : null;
+      })}
+    </div>
+  );
+}
+
 function Timeline({
   installedPlugins,
   installedSkills,
   state,
+  threadId,
   locale,
   onExternalLink,
   onFileLink,
@@ -9933,6 +10078,8 @@ function Timeline({
   installedPlugins: readonly InstalledCodexPlugin[];
   installedSkills: readonly InstalledSkill[];
   state: ThreadViewState;
+  /** 当前线程 id：用户气泡内联缩略图需要它读取 task source 图片 */
+  threadId: string | undefined;
   locale: Locale;
   onExternalLink: (href: string) => void;
   onFileLink: (href: string) => void;
@@ -10052,6 +10199,19 @@ function Timeline({
       const editable =
         onEditUserMessage !== undefined &&
         (turn?.status === "cancelled" || turn?.status === "failed");
+      // 本 turn 附带的图片（飞书/桌面发送的附件）在气泡内直接显示缩略图，
+      // 字节按需在读取时从 task source 存储取回
+      const imageSources =
+        turn && threadId
+          ? state.taskSourceOrder
+              .map((sourceId) => state.taskSources[sourceId])
+              .filter(
+                (source): source is UserMessageImageSource =>
+                  source !== undefined &&
+                  source.kind === "image" &&
+                  source.turnId === turn.id,
+              )
+          : [];
       return (
         <article className="user-message" key={entry}>
           <div className="message-actions">
@@ -10107,6 +10267,12 @@ function Timeline({
                 );
               })}
             </div>
+          )}
+          {imageSources.length > 0 && threadId && (
+            <UserMessageImages
+              sources={imageSources}
+              threadId={threadId}
+            />
           )}
           {visibleText && (
             <div className="user-message-text">{visibleText}</div>

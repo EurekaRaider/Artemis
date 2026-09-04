@@ -95,8 +95,6 @@ const labels = {
     imFeishuAppSecret: "Feishu App Secret",
     imFeishuSave: "Save and connect",
     imFeishuSaved: "Feishu credential saved",
-    imFeishuWizard:
-      "Setup: 1) create a custom app in the Feishu developer console; 2) enable im:message, im:message:send_as_bot, im:resource scopes; 3) set event transport to long connection; 4) subscribe im.message.receive_v1; 5) add card.action.trigger under Callback Configuration (not Event Subscriptions); 6) publish a version.",
     imBindings: "Bindings",
     imNoBindings: "No channel bound.",
     imMute: "Mute",
@@ -107,6 +105,39 @@ const labels = {
       "Enter this 4-digit code in the Feishu chat to finish pairing.",
     imPairingApprove: "Approve",
     imPairingReject: "Reject",
+    tabIM: "Messaging",
+    imChannelFeishu: "Feishu",
+    imChannelDingtalk: "DingTalk",
+    imChannelWecom: "WeCom",
+    imComingSoon: "Coming soon",
+    imStatusNotConfigured: "Not configured",
+    imStatusConnected: "Connected",
+    imStatusOffline: "Offline",
+    imCredentialTitle: "Credentials",
+    imCredentialSavedHint:
+      "Credential saved. It stays encrypted on this device and is never shown again.",
+    imReplaceCredentials: "Replace credentials",
+    imReplaceHint:
+      "Saving new credentials replaces the current ones and reconnects the bot.",
+    imShow: "Show",
+    imHide: "Hide",
+    imGuideTitle: "Feishu developer console checklist",
+    imGuide1: "Create a custom app in the Feishu developer console.",
+    imGuide2: "Grant these scopes:",
+    imGuide3: "Set the event transport mode to long connection.",
+    imGuide4: "Subscribe to this event:",
+    imGuide5:
+      "Add this callback under “Callback Configuration”, not under Event Subscriptions:",
+    imGuide6: "Create an app version and publish it.",
+    imCopy: "Copy",
+    imCopied: "Copied",
+    imOutputVerbose: "Full output",
+    imOutputSummary: "Summary output",
+    imOutputQuiet: "Quiet",
+    imMutedBadge: "Muted",
+    imUnbindConfirm: "Unbind this channel?",
+    imConfirmUnbind: "Confirm unbind",
+    imKeepBinding: "Keep",
     customProviders: "Custom providers",
     provider: "Provider ID",
     providerName: "Provider display name",
@@ -308,8 +339,6 @@ const labels = {
     imFeishuAppSecret: "飞书 App Secret",
     imFeishuSave: "保存并连接",
     imFeishuSaved: "飞书凭据已保存",
-    imFeishuWizard:
-      "配置步骤：1) 在飞书开发者后台创建企业自建应用；2) 开通 im:message、im:message:send_as_bot、im:resource 权限；3) 事件连接模式选「长连接」；4) 事件订阅添加 im.message.receive_v1；5) 在「回调配置」（不是事件订阅）添加 card.action.trigger；6) 创建版本并发布。",
     imBindings: "绑定",
     imNoBindings: "暂无绑定频道。",
     imMute: "静音",
@@ -319,6 +348,36 @@ const labels = {
     imPairingHint: "在飞书会话中回复这个 4 位配对码完成配对。",
     imPairingApprove: "批准",
     imPairingReject: "拒绝",
+    tabIM: "消息接入",
+    imChannelFeishu: "飞书",
+    imChannelDingtalk: "钉钉",
+    imChannelWecom: "企业微信",
+    imComingSoon: "即将支持",
+    imStatusNotConfigured: "未配置",
+    imStatusConnected: "已连接",
+    imStatusOffline: "未连接",
+    imCredentialTitle: "凭据",
+    imCredentialSavedHint: "凭据已加密保存在本机，不会回显。",
+    imReplaceCredentials: "更换凭据",
+    imReplaceHint: "保存新凭据会覆盖当前凭据并重新连接机器人。",
+    imShow: "显示",
+    imHide: "隐藏",
+    imGuideTitle: "飞书开发者后台配置清单",
+    imGuide1: "在飞书开发者后台创建企业自建应用。",
+    imGuide2: "开通以下权限：",
+    imGuide3: "事件订阅方式选择「长连接」。",
+    imGuide4: "订阅事件：",
+    imGuide5: "在「回调配置」（不是事件订阅）添加：",
+    imGuide6: "创建版本并发布。",
+    imCopy: "复制",
+    imCopied: "已复制",
+    imOutputVerbose: "完整输出",
+    imOutputSummary: "摘要输出",
+    imOutputQuiet: "静默",
+    imMutedBadge: "已静音",
+    imUnbindConfirm: "确认解绑该频道？",
+    imConfirmUnbind: "确认解绑",
+    imKeepBinding: "取消",
     customProviders: "自定义 Provider",
     provider: "Provider ID",
     providerName: "Provider 显示名称",
@@ -469,7 +528,12 @@ type ProviderThinkingLevel = NonNullable<
 >;
 
 type SettingsTab =
-  "general" | "providers" | "agents" | "capabilities" | "maintenance";
+  | "general"
+  | "providers"
+  | "im"
+  | "agents"
+  | "capabilities"
+  | "maintenance";
 
 function modelKey(providerId: string, modelId: string): string {
   return `${encodeURIComponent(providerId)}:${encodeURIComponent(modelId)}`;
@@ -627,6 +691,14 @@ export function SettingsPanel({
   const [imSnapshot, setImSnapshot] = useState<IMSettingsSnapshot | null>(null);
   const [imAppId, setImAppId] = useState("");
   const [imAppSecret, setImAppSecret] = useState("");
+  const [imSecretVisible, setImSecretVisible] = useState(false);
+  const [imReplaceOpen, setImReplaceOpen] = useState(false);
+  const [imGuideOpen, setImGuideOpen] = useState<boolean | null>(null);
+  const [imCopiedKey, setImCopiedKey] = useState<string | null>(null);
+  const [imUnbindTarget, setImUnbindTarget] = useState<{
+    adapter: string;
+    channelId: string;
+  } | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -638,9 +710,12 @@ export function SettingsPanel({
     };
     refresh();
     const unsubscribe = window.artemis.onIMPairingRequested(() => refresh());
+    // 配对码正确进入待批准态等 IM 侧状态变化 → 主动刷新配对区块
+    const unsubscribeChanged = window.artemis.onIMStatusChanged?.(() => refresh());
     return () => {
       mounted = false;
       unsubscribe();
+      unsubscribeChanged?.();
     };
   }, []);
 
@@ -827,10 +902,26 @@ export function SettingsPanel({
         appId: imAppId.trim(),
         appSecret: imAppSecret.trim(),
       });
+      setImAppId("");
       setImAppSecret("");
+      setImSecretVisible(false);
+      setImReplaceOpen(false);
       setImSnapshot(await window.artemis.getIMStatus());
       setMessage(t.imFeishuSaved);
     });
+  }
+
+  async function imCopyValue(key: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setImCopiedKey(key);
+      window.setTimeout(
+        () => setImCopiedKey((current) => (current === key ? null : current)),
+        1600,
+      );
+    } catch {
+      // Clipboard permission denied — the value stays visible on screen.
+    }
   }
 
   async function imToggleMute(adapter: string, muted: boolean) {
@@ -1099,6 +1190,97 @@ export function SettingsPanel({
     }
   }
 
+  const feishuAdapter = imSnapshot?.adapters.find(
+    (adapter) => adapter.platform === "feishu",
+  );
+  const feishuBindings = (imSnapshot?.bindings ?? []).filter(
+    (binding) => binding.platform === "feishu",
+  );
+  const imPairingActive = Boolean(
+    imSnapshot?.pairingChallenge || imSnapshot?.pairingAwaiting,
+  );
+  const feishuState = !feishuAdapter
+    ? "idle"
+    : feishuAdapter.healthy
+      ? "ok"
+      : "bad";
+  const feishuStateLabel = !imSnapshot
+    ? t.loading
+    : feishuAdapter
+      ? feishuAdapter.healthy
+        ? t.imStatusConnected
+        : t.imStatusOffline
+      : t.imStatusNotConfigured;
+  const guideOpen = imGuideOpen ?? !feishuAdapter;
+  const imOutputModeLabels = {
+    verbose: t.imOutputVerbose,
+    summary: t.imOutputSummary,
+    quiet: t.imOutputQuiet,
+  } as const;
+
+  const imCredentialForm = (
+    <div className="im-credentials-form">
+      <div className="im-field">
+        <span className="im-field-label">{t.imFeishuAppId}</span>
+        <input
+          className="im-field-input"
+          disabled={busy}
+          onChange={(event) => setImAppId(event.currentTarget.value)}
+          placeholder="cli_a…"
+          spellCheck={false}
+          type="text"
+          value={imAppId}
+        />
+      </div>
+      <div className="im-field">
+        <span className="im-field-label">{t.imFeishuAppSecret}</span>
+        <div className="im-field-secret">
+          <input
+            autoComplete="off"
+            className="im-field-input"
+            disabled={busy}
+            onChange={(event) => setImAppSecret(event.currentTarget.value)}
+            type={imSecretVisible ? "text" : "password"}
+            value={imAppSecret}
+          />
+          <button
+            className="im-secret-toggle"
+            disabled={busy || !imAppSecret}
+            onClick={() => setImSecretVisible((visible) => !visible)}
+            type="button"
+          >
+            {imSecretVisible ? t.imHide : t.imShow}
+          </button>
+        </div>
+      </div>
+      <button
+        className="settings-primary-action"
+        disabled={busy || !imAppId.trim() || !imAppSecret.trim()}
+        onClick={() => void imSaveFeishu()}
+        type="button"
+      >
+        {t.imFeishuSave}
+      </button>
+    </div>
+  );
+
+  function imScopeChip(value: string) {
+    const copied = imCopiedKey === value;
+    return (
+      <button
+        aria-label={`${t.imCopy} ${value}`}
+        className={copied ? "im-chip copied" : "im-chip"}
+        disabled={busy}
+        key={value}
+        onClick={() => void imCopyValue(value, value)}
+        type="button"
+      >
+        <code>{value}</code>
+        <span aria-hidden="true">⧉</span>
+      </button>
+    );
+  }
+
   return (
     <div className="settings-backdrop" onMouseDown={onClose}>
       <section
@@ -1123,6 +1305,7 @@ export function SettingsPanel({
                 [
                   ["general", t.tabGeneral],
                   ["providers", t.tabProviders],
+                  ["im", t.tabIM],
                   ["agents", t.tabAgents],
                   ["capabilities", t.tabCapabilities],
                   ["maintenance", t.tabMaintenance],
@@ -1390,130 +1573,6 @@ export function SettingsPanel({
                   </section>
 
                   <section className="settings-section">
-                    <h3>{t.imSection}</h3>
-                    <p className="settings-security">{t.imSectionHint}</p>
-
-                    {imSnapshot?.pairingChallenge && (
-                      <div className="settings-field">
-                        <span>{t.imPairingTitle}</span>
-                        <strong aria-label="pairing-code">
-                          {imSnapshot.pairingChallenge.code}
-                        </strong>
-                        <p className="settings-security">{t.imPairingHint}</p>
-                      </div>
-                    )}
-                    {imSnapshot?.pairingAwaiting && (
-                      <div className="settings-field">
-                        <span>
-                          {t.imPairingTitle}: {imSnapshot.pairingAwaiting.senderName} (
-                          {imSnapshot.pairingAwaiting.channelId})
-                        </span>
-                        <div>
-                          <button
-                            className="settings-secondary-action"
-                            disabled={busy}
-                            onClick={() => void imApprovePairing()}
-                            type="button"
-                          >
-                            {t.imPairingApprove}
-                          </button>
-                          <button
-                            className="settings-secondary-action"
-                            disabled={busy}
-                            onClick={() => void imRejectPairing()}
-                            type="button"
-                          >
-                            {t.imPairingReject}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="settings-field">
-                      <span>{t.imFeishuAppId}</span>
-                      <input
-                        disabled={busy}
-                        onChange={(event) => setImAppId(event.currentTarget.value)}
-                        type="text"
-                        value={imAppId}
-                      />
-                    </div>
-                    <div className="settings-field">
-                      <span>{t.imFeishuAppSecret}</span>
-                      <input
-                        autoComplete="off"
-                        disabled={busy}
-                        onChange={(event) => setImAppSecret(event.currentTarget.value)}
-                        type="password"
-                        value={imAppSecret}
-                      />
-                    </div>
-                    <button
-                      className="settings-secondary-action"
-                      disabled={busy || !imAppId.trim() || !imAppSecret.trim()}
-                      onClick={() => void imSaveFeishu()}
-                      type="button"
-                    >
-                      {t.imFeishuSave}
-                    </button>
-                    <p className="settings-security">{t.imFeishuWizard}</p>
-
-                    <div className="settings-field">
-                      <span>{t.imAdapters}</span>
-                      {imSnapshot && imSnapshot.adapters.length > 0 ? (
-                        <ul>
-                          {imSnapshot.adapters.map((adapter) => (
-                            <li key={adapter.name}>
-                              {adapter.name} · {adapter.platform} ·{" "}
-                              {adapter.healthy
-                                ? t.imAdapterHealthy
-                                : t.imAdapterOffline}
-                              {adapter.lastError ? ` · ${adapter.lastError}` : ""}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="settings-security">{t.imNoAdapters}</p>
-                      )}
-                    </div>
-
-                    <div className="settings-field">
-                      <span>{t.imBindings}</span>
-                      {imSnapshot && imSnapshot.bindings.length > 0 ? (
-                        <ul>
-                          {imSnapshot.bindings.map((binding) => (
-                            <li key={`${binding.adapter}:${binding.channelId}`}>
-                              {binding.channelId} · {binding.outputMode}
-                              <button
-                                className="settings-secondary-action"
-                                disabled={busy}
-                                onClick={() =>
-                                  void imToggleMute(binding.adapter, !binding.muted)
-                                }
-                                type="button"
-                              >
-                                {binding.muted ? t.imUnmute : t.imMute}
-                              </button>
-                              <button
-                                className="settings-secondary-action"
-                                disabled={busy}
-                                onClick={() =>
-                                  void imUnbind(binding.adapter, binding.channelId)
-                                }
-                                type="button"
-                              >
-                                {t.imUnbind}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="settings-security">{t.imNoBindings}</p>
-                      )}
-                    </div>
-                  </section>
-
-                  <section className="settings-section">
                     <h3>{t.language}</h3>
                     <div className="settings-field">
                       <span>{t.language}</span>
@@ -1557,6 +1616,306 @@ export function SettingsPanel({
                     <p className="settings-security">{t.themeHint}</p>
                   </section>
                 </>
+              )}
+
+              {activeTab === "im" && (
+                <section aria-label={t.tabIM} className="settings-section im-section">
+                  <div className="im-layout">
+                    <nav aria-label={t.tabIM} className="im-channel-list">
+                      <div className="im-channel-card selected">
+                        <span className="im-channel-title">
+                          {t.imChannelFeishu}
+                          <span
+                            aria-hidden="true"
+                            className={`im-dot ${feishuState}`}
+                          />
+                        </span>
+                        <span className="im-channel-status">
+                          {feishuStateLabel}
+                        </span>
+                      </div>
+                      <div aria-disabled="true" className="im-channel-card upcoming">
+                        <span className="im-channel-title">
+                          {t.imChannelDingtalk}
+                        </span>
+                        <span className="im-channel-status">{t.imComingSoon}</span>
+                      </div>
+                      <div aria-disabled="true" className="im-channel-card upcoming">
+                        <span className="im-channel-title">
+                          {t.imChannelWecom}
+                        </span>
+                        <span className="im-channel-status">{t.imComingSoon}</span>
+                      </div>
+                    </nav>
+                    <div className="im-detail">
+                      <header className="im-detail-header">
+                        <div>
+                          <h3>{t.imSection}</h3>
+                          <p className="im-detail-hint">{t.imSectionHint}</p>
+                        </div>
+                        <span className="im-status-pill">
+                          <span
+                            aria-hidden="true"
+                            className={`im-dot ${feishuState}`}
+                          />
+                          {feishuStateLabel}
+                        </span>
+                      </header>
+
+                      {imPairingActive && (
+                        <div className="im-pairing-card">
+                          {imSnapshot?.pairingChallenge && (
+                            <div className="im-pairing-code-block">
+                              <span className="im-pairing-label">
+                                {t.imPairingTitle}
+                              </span>
+                              <div className="im-pairing-code">
+                                <strong>
+                                  {imSnapshot.pairingChallenge.code}
+                                </strong>
+                                <button
+                                  className="settings-secondary-action"
+                                  onClick={() =>
+                                    void imCopyValue(
+                                      "pairing",
+                                      imSnapshot.pairingChallenge?.code ?? "",
+                                    )
+                                  }
+                                  type="button"
+                                >
+                                  {imCopiedKey === "pairing"
+                                    ? t.imCopied
+                                    : t.imCopy}
+                                </button>
+                              </div>
+                              <p className="im-pairing-hint">{t.imPairingHint}</p>
+                            </div>
+                          )}
+                          {imSnapshot?.pairingAwaiting && (
+                            <div className="im-pairing-request">
+                              <span className="im-pairing-requester">
+                                {imSnapshot.pairingAwaiting.senderName}
+                                <code>
+                                  {imSnapshot.pairingAwaiting.channelId}
+                                </code>
+                              </span>
+                              <span className="im-request-actions">
+                                <button
+                                  className="settings-primary-action"
+                                  disabled={busy}
+                                  onClick={() => void imApprovePairing()}
+                                  type="button"
+                                >
+                                  {t.imPairingApprove}
+                                </button>
+                                <button
+                                  className="settings-secondary-action"
+                                  disabled={busy}
+                                  onClick={() => void imRejectPairing()}
+                                  type="button"
+                                >
+                                  {t.imPairingReject}
+                                </button>
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="im-block">
+                        <h4>{t.imCredentialTitle}</h4>
+                        {feishuAdapter && !imReplaceOpen ? (
+                          <div className="im-saved-credential">
+                            <p className="im-muted">{t.imCredentialSavedHint}</p>
+                            <button
+                              className="settings-secondary-action"
+                              disabled={busy}
+                              onClick={() => setImReplaceOpen(true)}
+                              type="button"
+                            >
+                              {t.imReplaceCredentials}
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            {feishuAdapter && (
+                              <p className="im-muted">{t.imReplaceHint}</p>
+                            )}
+                            {imCredentialForm}
+                          </>
+                        )}
+                      </div>
+
+                      <div className="im-block">
+                        <h4>{t.imAdapters}</h4>
+                        {imSnapshot && imSnapshot.adapters.length > 0 ? (
+                          imSnapshot.adapters.map((adapter) => (
+                            <div className="im-adapter-row" key={adapter.name}>
+                              <span
+                                aria-hidden="true"
+                                className={`im-dot ${adapter.healthy ? "ok" : "bad"}`}
+                              />
+                              <span className="im-adapter-name">{adapter.name}</span>
+                              <span className="im-adapter-status">
+                                {adapter.lastError ||
+                                  (adapter.healthy
+                                    ? t.imAdapterHealthy
+                                    : t.imAdapterOffline)}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="im-muted">{t.imNoAdapters}</p>
+                        )}
+                      </div>
+
+                      <div className="im-block">
+                        <h4>{t.imBindings}</h4>
+                        {feishuBindings.length > 0 ? (
+                          <ul className="im-binding-list">
+                            {feishuBindings.map((binding) => (
+                              <li
+                                className={
+                                  binding.muted
+                                    ? "im-binding-row muted"
+                                    : "im-binding-row"
+                                }
+                                key={`${binding.adapter}:${binding.channelId}`}
+                              >
+                                <div className="im-binding-main">
+                                  <code className="im-channel-id">
+                                    {binding.channelId}
+                                  </code>
+                                  <span className="im-binding-meta">
+                                    {imOutputModeLabels[binding.outputMode]}
+                                    {binding.muted
+                                      ? ` · ${t.imMutedBadge}`
+                                      : ""}
+                                  </span>
+                                </div>
+                                <div className="im-binding-actions">
+                                  {imUnbindTarget?.adapter ===
+                                    binding.adapter &&
+                                  imUnbindTarget.channelId ===
+                                    binding.channelId ? (
+                                    <>
+                                      <span className="im-unbind-confirm">
+                                        {t.imUnbindConfirm}
+                                      </span>
+                                      <button
+                                        className="im-danger-button"
+                                        disabled={busy}
+                                        onClick={() => {
+                                          void imUnbind(
+                                            binding.adapter,
+                                            binding.channelId,
+                                          );
+                                          setImUnbindTarget(null);
+                                        }}
+                                        type="button"
+                                      >
+                                        {t.imConfirmUnbind}
+                                      </button>
+                                      <button
+                                        className="settings-secondary-action"
+                                        disabled={busy}
+                                        onClick={() => setImUnbindTarget(null)}
+                                        type="button"
+                                      >
+                                        {t.imKeepBinding}
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        className="settings-secondary-action"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          void imToggleMute(
+                                            binding.adapter,
+                                            !binding.muted,
+                                          )
+                                        }
+                                        type="button"
+                                      >
+                                        {binding.muted
+                                          ? t.imUnmute
+                                          : t.imMute}
+                                      </button>
+                                      <button
+                                        className="im-text-danger"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          setImUnbindTarget({
+                                            adapter: binding.adapter,
+                                            channelId: binding.channelId,
+                                          })
+                                        }
+                                        type="button"
+                                      >
+                                        {t.imUnbind}
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="im-muted">{t.imNoBindings}</p>
+                        )}
+                      </div>
+
+                      <div className="im-block">
+                        <button
+                          aria-expanded={guideOpen}
+                          className="im-guide-toggle"
+                          onClick={() => setImGuideOpen(!guideOpen)}
+                          type="button"
+                        >
+                          <span>{t.imGuideTitle}</span>
+                          <span aria-hidden="true" className="im-guide-caret">
+                            {guideOpen ? "▾" : "▸"}
+                          </span>
+                        </button>
+                        {guideOpen && (
+                          <ol className="im-guide">
+                            <li>
+                              <p>{t.imGuide1}</p>
+                            </li>
+                            <li>
+                              <p>{t.imGuide2}</p>
+                              <div className="im-chips">
+                                {imScopeChip("im:message")}
+                                {imScopeChip("im:message:send_as_bot")}
+                                {imScopeChip("im:message.reaction:write")}
+                                {imScopeChip("im:resource")}
+                              </div>
+                            </li>
+                            <li>
+                              <p>{t.imGuide3}</p>
+                            </li>
+                            <li>
+                              <p>{t.imGuide4}</p>
+                              <div className="im-chips">
+                                {imScopeChip("im.message.receive_v1")}
+                              </div>
+                            </li>
+                            <li className="im-guide-warning">
+                              <p>{t.imGuide5}</p>
+                              <div className="im-chips">
+                                {imScopeChip("card.action.trigger")}
+                              </div>
+                            </li>
+                            <li>
+                              <p>{t.imGuide6}</p>
+                            </li>
+                          </ol>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </section>
               )}
 
               {activeTab === "providers" && providerConfigTab === "custom" && (

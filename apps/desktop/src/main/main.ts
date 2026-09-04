@@ -2796,12 +2796,25 @@ function emitPayload(
     timestamp,
   );
   mainWindow?.webContents.send(IPC.agentEvent, event);
-  applyPayloadSideEffects(threadId, preparedPayload);
-  accountGoalPayload(turnId, preparedPayload);
-  scheduleTurnChangeSetCompletion(threadId, turnId, preparedPayload);
-  // IM 出站订阅（E5）：与 UI 消费同一事件源，翻译后发给绑定的 IM 频道
-  imService?.onAgentEvent(threadId, preparedPayload);
+  fanOutPersistedPayload(threadId, turnId, preparedPayload);
   return event;
+}
+
+/**
+ * 事件持久化后的尾部扇出：单发（emitPayload）与批量（emitPayloadBatch）
+ * 两条路径必须共用，否则任一侧漏掉 IM 出站订阅（E5）都会让绑定频道收不到
+ * 模型回复——agent worker 的流式事件全部走批量路径。
+ */
+function fanOutPersistedPayload(
+  threadId: string,
+  turnId: string | undefined,
+  payload: AgentPayload,
+): void {
+  applyPayloadSideEffects(threadId, payload);
+  accountGoalPayload(turnId, payload);
+  scheduleTurnChangeSetCompletion(threadId, turnId, payload);
+  // IM 出站订阅（E5）：与 UI 消费同一事件源，翻译后发给绑定的 IM 频道
+  imService?.onAgentEvent(threadId, payload);
 }
 
 function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
@@ -2838,9 +2851,7 @@ function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
   );
   mainWindow?.webContents.send(IPC.agentEvents, persisted);
   for (const event of durableEvents) {
-    applyPayloadSideEffects(threadId, event.payload);
-    accountGoalPayload(event.turnId, event.payload);
-    scheduleTurnChangeSetCompletion(threadId, event.turnId, event.payload);
+    fanOutPersistedPayload(event.threadId, event.turnId, event.payload);
   }
   return persisted;
 }
@@ -5378,7 +5389,9 @@ async function startTaskTurn(
     await emitInitialTurn(
       thread.id,
       turnId,
-      requestText,
+      // 显示层用原始文本：IM 纯图片消息文本为空时气泡只显示图片，
+      // 不落模型兜底文案（requestText 只进 turn.prompt）
+      text,
       input.mode,
       attachments,
       source === "user",
@@ -15510,7 +15523,12 @@ app
           await startTaskTurn({ threadId: input.threadId, text: input.text, mode: "execute",
             ...(input.attachments ? { attachments: input.attachments } : {}) });
         },
-        followUp: async (input: { threadId: string; text: string }) => {
+        followUp: async (input: {
+          threadId: string;
+          text: string;
+          attachments?: { name: string; mimeType: "image/png" | "image/jpeg" | "image/webp" | "image/gif"; data: string }[];
+        }) => {
+          // turn.follow-up 原生支持 attachments：运行中发来的图片随消息入队
           await queueTurn("turn.follow-up", input);
         },
         createThread: async (input: { title: string; workspaceKey: string }) => {
@@ -15523,6 +15541,12 @@ app
             input.title,
           );
           if (!thread) throw new Error("IM thread creation was cancelled.");
+          // D20：主进程侧建的 IM 线程（配对批准/绑定线程消失重建）必须推送渲染层。
+          // 快照只在挂载时拉取；不推送则删会话后重发消息，主进程已重建线程并跑完
+          // turn、飞书已收到回复，抽屉却始终不出现新会话（真机缺陷）。
+          mainWindow?.webContents.send(IPC.imThreadCreated, {
+            threadId: thread.id,
+          });
           return { threadId: thread.id };
         },
         getThreadStatus: (threadId: string) => {
@@ -15551,6 +15575,14 @@ app
             });
             notification.show();
           }
+        },
+        notifyPairingAwaiting: (info: { adapter: string; channelId: string; senderName: string }) => {
+          console.warn(`[im] pairing awaiting approval from ${info.channelId} (${info.senderName})`);
+          mainWindow?.webContents.send(IPC.imStatusChanged);
+        },
+        notifyIMStatusChanged: () => {
+          // 适配器连接/断链 → 会话条 IM 徽标等消费方刷新
+          mainWindow?.webContents.send(IPC.imStatusChanged);
         },
         resolveBrokerApproval: (input: {
           approvalId: string;

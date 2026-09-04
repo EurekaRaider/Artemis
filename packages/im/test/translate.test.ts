@@ -110,15 +110,14 @@ describe("createTurnTranslator turn 级聚合（用户症状回归：答复必�
     expect(events).toEqual([{ kind: "text", text: "半截答复" }]);
   });
 
-  it("summary：工具计数在 turn 边界产出 tool_summary（tool.started/completed 真实事件名）", () => {
+  it("summary：工具调用不产出任何工具统计，只发最终答复（用户只关心结果）", () => {
     const t = createTurnTranslator("summary");
     t.feed({ type: "tool.started", toolCallId: "tc1", toolName: "shell" });
     t.feed({ type: "tool.started", toolCallId: "tc2", toolName: "read" });
     t.feed({ type: "tool.completed", toolCallId: "tc1", output: "ok", isError: true });
     t.feed({ type: "message.part.delta", partId: "p1", partType: "text", delta: "done" });
     const events = t.feed({ type: "turn.completed", reason: "completed" });
-    expect(events[0]).toEqual({ kind: "tool_summary", total: 2, failures: 1 });
-    expect(events[1]).toEqual({ kind: "text", text: "done" });
+    expect(events).toEqual([{ kind: "text", text: "done" }]);
   });
 
   it("tool.completed 的 tool_detail 能回溯 toolName（started 映射 toolCallId）", () => {
@@ -128,12 +127,12 @@ describe("createTurnTranslator turn 级聚合（用户症状回归：答复必�
     expect(events[0]).toMatchObject({ kind: "tool_detail", toolName: "shell", detail: "ok" });
   });
 
-  it("verbose 不产出 tool_summary", () => {
+  it("verbose：turn 边界只发聚合文本（工具统计已废弃，工具细节由 tool_detail 流承载）", () => {
     const t = createTurnTranslator("verbose");
     t.feed({ type: "tool.started", toolCallId: "tc1", toolName: "shell" });
     t.feed({ type: "message.part.delta", partId: "p1", partType: "text", delta: "done" });
     const events = t.feed({ type: "turn.completed", reason: "completed" });
-    expect(events.every((e) => e.kind !== "tool_summary")).toBe(true);
+    expect(events).toEqual([{ kind: "text", text: "done" }]);
   });
 
   it("message.superseded 丢弃被替换 part 的文本（重试不重复）", () => {
@@ -146,7 +145,7 @@ describe("createTurnTranslator turn 级聚合（用户症状回归：答复必�
     expect(events).toEqual([{ kind: "text", text: "最终答复" }]);
   });
 
-  it("无工具调用不产出 tool_summary", () => {
+  it("无工具调用时 turn 边界只发聚合文本", () => {
     const t = createTurnTranslator("summary");
     t.feed({ type: "message.part.delta", partId: "p1", partType: "text", delta: "done" });
     const events = t.feed({ type: "turn.completed", reason: "completed" });

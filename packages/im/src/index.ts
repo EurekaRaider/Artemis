@@ -14,11 +14,13 @@ export type {
 export {
   isApprovalCallbackSource,
   isInteractiveSender,
+  isTypingClearer,
   isTypingIndicator,
   type AdapterContext,
   type ApprovalCallbackSource,
   type IMAdapter,
   type InteractiveSender,
+  type TypingClearer,
   type TypingIndicator,
 } from "./adapter.js";
 
@@ -36,10 +38,16 @@ export {
 } from "./pairing.js";
 export { splitMessageBytes, utf8ByteLength } from "./split.js";
 export {
+  decodeDataImageUrl,
+  extractMediaFromText,
+  isLocalMediaPath,
+  type ExtractedMedia,
+  type ExtractedMediaKind,
+} from "./media.js";
+export {
   createTurnTranslator,
   translateAgentPayload,
   type AgentPayloadLike,
-  type TurnToolStats,
 } from "./translate.js";
 export {
   IMManager,

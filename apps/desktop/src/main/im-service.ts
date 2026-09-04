@@ -8,6 +8,7 @@ import {
   FeishuAdapter,
   IMManager,
   isInteractiveSender,
+  isTypingClearer,
   isTypingIndicator,
   type ChannelBinding,
   type InboundMessage,
@@ -20,23 +21,37 @@ import {
 import { AppStoreBindingStore } from "./im-bindings-store.js";
 import type { AppStore } from "./store.js";
 
+/** 对齐 packages/protocol 的 promptImageSchema（E7）：name/mimeType/data(base64) */
+export interface IMPromptImageAttachment {
+  name: string;
+  mimeType: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+  data: string;
+}
+
 /** im-service 依赖的宿主接缝（main.ts 注入真实实现，测试注入假实现）。 */
 export interface IMServiceHost {
   /** 提交 turn（main.ts 的 startTaskTurn 路径；IM 侧硬编码 mode:"execute"，决策 7） */
   submitTurn(input: {
     threadId: string;
     text: string;
-    /** 对齐 packages/protocol 的 promptImageSchema（E7）：name/mimeType/data(base64) */
-    attachments?: { name: string; mimeType: "image/png" | "image/jpeg" | "image/webp" | "image/gif"; data: string }[];
+    attachments?: IMPromptImageAttachment[];
   }): Promise<void>;
-  /** 线程运行中追加消息（queueTurn 的 turn.follow-up 路径） */
-  followUp(input: { threadId: string; text: string }): Promise<void>;
+  /** 线程运行中追加消息（queueTurn 的 turn.follow-up 路径；协议原生支持 attachments） */
+  followUp(input: {
+    threadId: string;
+    text: string;
+    attachments?: IMPromptImageAttachment[];
+  }): Promise<void>;
   /** 为 IM 渠道创建可见线程（标题带平台前缀，决策 2） */
   createThread(input: { title: string; workspaceKey: string }): Promise<{ threadId: string }>;
   /** 线程当前状态（决定 prompt 还是 follow-up；线程消失时重建） */
   getThreadStatus(threadId: string): "running" | "waiting-approval" | "idle" | "not-found";
   /** 配对挑战通知桌面（弹配对卡） */
   notifyPairing(challenge: { code: string; adapter: string; channelId: string }): void;
+  /** 配对码正确进入待批准态——推送桌面刷新设置面板（批准/拒绝 UI） */
+  notifyPairingAwaiting(info: { adapter: string; channelId: string; senderName: string }): void;
+  /** 适配器连接/断链——推送桌面刷新（会话条 IM 徽标等） */
+  notifyIMStatusChanged(): void;
     /** 审批决议回 broker（Phase 2）。nonce 来自 approval.requested 事件，
    *  经 pendingApprovals.consume 防重放校验（E3 形状自带）。 */
   resolveBrokerApproval(input: {
@@ -86,6 +101,12 @@ export interface IMAgentEventPayload {
   approved?: boolean | undefined;
 }
 
+/** IM 线程标题：飞书来源一眼可辨（原 [FS] 前缀真机反馈不直观） */
+function imThreadTitle(senderName: string): string {
+  const who = senderName.trim() || "飞书会话";
+  return `飞书 · ${who}`;
+}
+
 export class IMService {
   readonly manager: IMManager;
   private readonly host: IMServiceHost;
@@ -110,6 +131,12 @@ export class IMService {
           adapter: challenge.adapter,
           channelId: challenge.channelId,
         });
+      },
+      onPairingAwaitingApproval: (info) => {
+        this.host.notifyPairingAwaiting(info);
+      },
+      onAdapterStateChange: () => {
+        this.host.notifyIMStatusChanged();
       },
       onInboundAccepted: (msg, binding) => {
         // submitTurn 可能抛错（如图片超 promptImageSchema 上限）——必须记日志，
@@ -207,7 +234,8 @@ export class IMService {
       translator = createTurnTranslator(binding.outputMode);
       this.turnTranslators.set(threadId, translator);
       // Typing 表情（E24）：turn 开始给用户最新消息加 Typing reaction，
-      // 一次即可（表情不过期，无需续命）
+      // 一次即可（表情不过期，无需续命）。入站受理时已即时触发过一次，
+      // 适配器按消息 id 去重，这里兜底覆盖受理到 turn 启动之间的缝隙。
       const adapter = this.adapters.get(binding.adapter);
       if (adapter && isTypingIndicator(adapter)) {
         void adapter.triggerTyping(binding).catch(() => undefined);
@@ -218,6 +246,12 @@ export class IMService {
     }
     if (payload.type === "turn.completed" || payload.type === "turn.failed") {
       this.turnTranslators.delete(threadId);
+      // 回复送达后清除用户消息上的 Typing 表情（能力存在时；
+      // 清除失败仅表情残留，不影响消息流）
+      const adapter = this.adapters.get(binding.adapter);
+      if (adapter && isTypingClearer(adapter)) {
+        void adapter.clearTyping(binding).catch(() => undefined);
+      }
     }
   }
 
@@ -230,12 +264,12 @@ export class IMService {
     return this.bindingStore.remove(adapter, channelId);
   }
 
-  /** 桌面批准配对：建 [FS] 可见线程 + 写绑定（决策 2/3）。 */
+  /** 桌面批准配对：建「飞书 · 发送者」可见线程 + 写绑定（决策 2/3）。 */
   async approvePairing(workspaceKey: string): Promise<ChannelBinding | null> {
     const awaiting = this.manager.status().pairingAwaiting;
     if (!awaiting) return null;
     const created = await this.host.createThread({
-      title: `[FS] ${awaiting.senderName}`,
+      title: imThreadTitle(awaiting.senderName),
       workspaceKey,
     });
     const binding = this.manager.approvePairing({
@@ -278,22 +312,14 @@ export class IMService {
     msg: InboundMessage,
     binding: ChannelBinding,
   ): Promise<void> {
-    const status = this.host.getThreadStatus(binding.threadId);
-    if (status === "running" || status === "waiting-approval") {
-      await this.host.followUp({ threadId: binding.threadId, text: msg.text });
-      return;
-    }
-    let threadId = binding.threadId;
-    if (status === "not-found") {
-      // 线程消失（重启/归档）→ 以绑定工作区重建可见线程（决策 2）
-      const created = await this.host.createThread({
-        title: `[FS] ${msg.envelope.senderName}`,
-        workspaceKey: binding.workspaceKey,
-      });
-      this.bindingStore.update(binding.adapter, binding.channelId, {
-        threadId: created.threadId,
-      });
-      threadId = created.threadId;
+    // Typing 表情即时反馈（E24，对齐 ggcode TriggerTyping 时机）：消息受理即
+    // 挂到用户这条消息上，不等 turn.started——飞书端"发送后立刻能看到正在处理"。
+    // 适配器按消息 id 去重，turn.started 处的兜底触发不会重复加表情。
+    const typingAdapter = this.adapters.get(binding.adapter);
+    if (typingAdapter && isTypingIndicator(typingAdapter)) {
+      void typingAdapter
+        .triggerTyping({ ...binding, lastInboundMessageId: msg.envelope.messageId })
+        .catch(() => undefined);
     }
     const attachments = msg.attachments
       .filter((a) => a.kind === "image")
@@ -302,6 +328,34 @@ export class IMService {
         mimeType: a.mime as "image/png" | "image/jpeg" | "image/webp" | "image/gif",
         data: a.dataBase64,
       }));
+    const status = this.host.getThreadStatus(binding.threadId);
+    if (status === "running" || status === "waiting-approval") {
+      // turn.follow-up 协议要求 text 非空（schema min(1)）——纯图片消息
+      // 文本已被剥离为空串时给模型侧最小标记（仅入队文本，不进气泡显示）
+      const followUpText =
+        msg.text.trim() || (attachments.length > 0 ? "[图片]" : "");
+      if (!followUpText) return;
+      // turn.follow-up 协议原生支持 attachments（host-messages.ts），
+      // 运行中发来的图片不能丢
+      await this.host.followUp({
+        threadId: binding.threadId,
+        text: followUpText,
+        ...(attachments.length > 0 ? { attachments } : {}),
+      });
+      return;
+    }
+    let threadId = binding.threadId;
+    if (status === "not-found") {
+      // 线程消失（重启/归档）→ 以绑定工作区重建可见线程（决策 2）
+      const created = await this.host.createThread({
+        title: imThreadTitle(msg.envelope.senderName),
+        workspaceKey: binding.workspaceKey,
+      });
+      this.bindingStore.update(binding.adapter, binding.channelId, {
+        threadId: created.threadId,
+      });
+      threadId = created.threadId;
+    }
     await this.host.submitTurn({
       threadId,
       text: msg.text,

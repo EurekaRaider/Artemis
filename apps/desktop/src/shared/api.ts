@@ -854,6 +854,13 @@ export interface ArtemisApi {
     domain?: "feishu" | "lark";
   }): Promise<void>;
   onIMPairingRequested(listener: (challenge: IMPairingSnapshot) => void): () => void;
+  /** IM 状态变更推送（配对进入待批准态等）。可选：旧 renderer 测试 stub 可缺省。 */
+  onIMStatusChanged?(listener: () => void): () => void;
+  /** 主进程侧创建 IM 线程（配对批准/绑定线程消失重建）→ 渲染层刷新会话列表。
+   *  快照只在挂载时拉取，不订阅则新会话直到重启都不可见。可选：旧 stub 可缺省。 */
+  onIMThreadCreated?(
+    listener: (payload: { threadId: string }) => void,
+  ): () => void;
   listAutomationRuns(
     automationId: string,
     limit?: number,
@@ -1155,6 +1162,8 @@ export const IPC = {
   imRejectPairing: "artemis:im-reject-pairing",
   imSaveFeishuCredential: "artemis:im-save-feishu-credential",
   imPairingRequested: "artemis:im-pairing-requested",
+  imStatusChanged: "artemis:im-status-changed",
+  imThreadCreated: "artemis:im-thread-created",
   automationEvent: "artemis:automation-event",
   automationThreadOpen: "artemis:automation-thread-open",
   reviewDiff: "artemis:review-diff",

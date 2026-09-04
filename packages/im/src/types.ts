@@ -39,7 +39,6 @@ export type OutboundEvent =
       risk: string;
     }
   | { kind: "approval_resolved"; approvalId: string; approved: boolean; respondedBy?: string }
-  | { kind: "tool_summary"; total: number; failures: number } // summary 模式用
   | { kind: "tool_detail"; toolName: string; detail: string; isError?: boolean }; // verbose 模式用
 
 export interface ChannelBinding {

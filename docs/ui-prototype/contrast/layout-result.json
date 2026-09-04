@@ -1,0 +1,222 @@
+{
+ "ok": true,
+ "cases": [
+  {
+   "ok": true,
+   "viewport": {
+    "width": 1440,
+    "height": 813,
+    "dpr": 1
+   },
+   "checks": [
+    {
+     "name": "no-horizontal-overflow",
+     "ok": true,
+     "detail": "1440 <= 1440"
+    },
+    {
+     "name": "composer-inside-conversation",
+     "ok": true,
+     "detail": "composer={\"x\":318,\"y\":640.5,\"width\":388.96875,\"height\":154.5,\"top\":640.5,\"right\":706.96875,\"bottom\":795,\"left\":318}"
+    },
+    {
+     "name": "toolbar-inside-composer",
+     "ok": true,
+     "detail": "toolbar={\"x\":333,\"y\":755,\"width\":358.96875,\"height\":28,\"top\":755,\"right\":691.96875,\"bottom\":783,\"left\":333}"
+    },
+    {
+     "name": "toolbar-control-1",
+     "ok": true,
+     "detail": "添加附件"
+    },
+    {
+     "name": "toolbar-control-2",
+     "ok": true,
+     "detail": "智能审批"
+    },
+    {
+     "name": "toolbar-control-3",
+     "ok": true,
+     "detail": "GLM · 自动"
+    },
+    {
+     "name": "toolbar-control-4",
+     "ok": true,
+     "detail": "停止"
+    },
+    {
+     "name": "toolbar-control-5",
+     "ok": true,
+     "detail": "发送"
+    },
+    {
+     "name": "resizer-pixel-range",
+     "ok": true,
+     "detail": "440 <= 708 <= 815"
+    },
+    {
+     "name": "resizer-controls",
+     "ok": true,
+     "detail": "conversation workspaceDock"
+    },
+    {
+     "name": "closed-resizer-not-tabbable",
+     "ok": true,
+     "detail": "open=true, tabindex=0"
+    },
+    {
+     "name": "launcher-has-four-tools",
+     "ok": true,
+     "detail": "4"
+    }
+   ],
+   "failures": [],
+   "case": "normal"
+  },
+  {
+   "ok": true,
+   "viewport": {
+    "width": 1440,
+    "height": 813,
+    "dpr": 2
+   },
+   "checks": [
+    {
+     "name": "no-horizontal-overflow",
+     "ok": true,
+     "detail": "1440 <= 1440"
+    },
+    {
+     "name": "composer-inside-conversation",
+     "ok": true,
+     "detail": "composer={\"x\":318,\"y\":641,\"width\":388.9609375,\"height\":154,\"top\":641,\"right\":706.9609375,\"bottom\":795,\"left\":318}"
+    },
+    {
+     "name": "toolbar-inside-composer",
+     "ok": true,
+     "detail": "toolbar={\"x\":333,\"y\":755,\"width\":358.9609375,\"height\":28,\"top\":755,\"right\":691.9609375,\"bottom\":783,\"left\":333}"
+    },
+    {
+     "name": "toolbar-control-1",
+     "ok": true,
+     "detail": "添加附件"
+    },
+    {
+     "name": "toolbar-control-2",
+     "ok": true,
+     "detail": "智能审批"
+    },
+    {
+     "name": "toolbar-control-3",
+     "ok": true,
+     "detail": "GLM · 自动"
+    },
+    {
+     "name": "toolbar-control-4",
+     "ok": true,
+     "detail": "停止"
+    },
+    {
+     "name": "toolbar-control-5",
+     "ok": true,
+     "detail": "发送"
+    },
+    {
+     "name": "resizer-pixel-range",
+     "ok": true,
+     "detail": "440 <= 708 <= 815"
+    },
+    {
+     "name": "resizer-controls",
+     "ok": true,
+     "detail": "conversation workspaceDock"
+    },
+    {
+     "name": "closed-resizer-not-tabbable",
+     "ok": true,
+     "detail": "open=true, tabindex=0"
+    },
+    {
+     "name": "launcher-has-four-tools",
+     "ok": true,
+     "detail": "4"
+    }
+   ],
+   "failures": [],
+   "case": "zoom200"
+  },
+  {
+   "ok": true,
+   "viewport": {
+    "width": 1440,
+    "height": 813,
+    "dpr": 1
+   },
+   "checks": [
+    {
+     "name": "no-horizontal-overflow",
+     "ok": true,
+     "detail": "1440 <= 1440"
+    },
+    {
+     "name": "composer-inside-conversation",
+     "ok": true,
+     "detail": "composer={\"x\":409,\"y\":640.5,\"width\":920,\"height\":154.5,\"top\":640.5,\"right\":1329,\"bottom\":795,\"left\":409}"
+    },
+    {
+     "name": "toolbar-inside-composer",
+     "ok": true,
+     "detail": "toolbar={\"x\":424,\"y\":755,\"width\":890,\"height\":28,\"top\":755,\"right\":1314,\"bottom\":783,\"left\":424}"
+    },
+    {
+     "name": "toolbar-control-1",
+     "ok": true,
+     "detail": "添加附件"
+    },
+    {
+     "name": "toolbar-control-2",
+     "ok": true,
+     "detail": "智能审批"
+    },
+    {
+     "name": "toolbar-control-3",
+     "ok": true,
+     "detail": "GLM · 自动"
+    },
+    {
+     "name": "toolbar-control-4",
+     "ok": true,
+     "detail": "停止"
+    },
+    {
+     "name": "toolbar-control-5",
+     "ok": true,
+     "detail": "发送"
+    },
+    {
+     "name": "resizer-pixel-range",
+     "ok": true,
+     "detail": "440 <= 708 <= 815"
+    },
+    {
+     "name": "resizer-controls",
+     "ok": true,
+     "detail": "conversation workspaceDock"
+    },
+    {
+     "name": "closed-resizer-not-tabbable",
+     "ok": true,
+     "detail": "open=false, tabindex=-1"
+    },
+    {
+     "name": "launcher-has-four-tools",
+     "ok": true,
+     "detail": "4"
+    }
+   ],
+   "failures": [],
+   "case": "closed"
+  }
+ ],
+ "failures": []
+}

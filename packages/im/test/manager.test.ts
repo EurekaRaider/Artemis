@@ -5,7 +5,12 @@ import { MemoryBindingStore } from "../src/bindings.js";
 import { IMManager, type InboundResult } from "../src/manager.js";
 import type { ChannelBinding, InboundMessage, OutboundEvent } from "../src/types.js";
 
-function makeMessage(overrides?: Partial<InboundMessage["envelope"]> & { text?: string }): InboundMessage {
+function makeMessage(
+  overrides?: Partial<InboundMessage["envelope"]> & {
+    text?: string;
+    attachments?: InboundMessage["attachments"];
+  },
+): InboundMessage {
   return {
     envelope: {
       adapter: "feishu-main",
@@ -18,7 +23,7 @@ function makeMessage(overrides?: Partial<InboundMessage["envelope"]> & { text?: 
       ...overrides,
     },
     text: overrides?.text ?? "你好",
-    attachments: [],
+    attachments: overrides?.attachments ?? [],
   };
 }
 
@@ -80,6 +85,39 @@ describe("IMManager 状态流转（plan §0.7/§2.4）", () => {
     expect(r.handled).toBe("message");
     expect(accepted).toHaveLength(1);
     expect(accepted[0]?.text).toBe("列出当前目录");
+  });
+
+  it("D19：纯附件消息（空文本+图片）不被路由层丢弃，进入 onInboundAccepted", async () => {
+    const accepted: InboundMessage[] = [];
+    const { manager } = setup({
+      generatePairingCode: () => "1234",
+      onInboundAccepted: (msg) => accepted.push(msg),
+    });
+    await pairChannel(manager, "oc_a");
+    // 真机缺陷回归：适配器把图片占位符剥离为空串后（显示层只见图），
+    // 路由层若仍按空文本丢弃，纯图片消息将永远进不了任何线程。
+    const r = await manager.handleInbound(
+      makeMessage({
+        text: "",
+        attachments: [{ kind: "image", mime: "image/png", dataBase64: "aGk=" }],
+      }),
+    );
+    expect(r.handled).toBe("message");
+    expect(accepted).toHaveLength(1);
+    expect(accepted[0]?.text).toBe("");
+    expect(accepted[0]?.attachments).toHaveLength(1);
+  });
+
+  it("D19：空文本且无附件仍丢弃（不可被纯附件放行误伤）", async () => {
+    const accepted: InboundMessage[] = [];
+    const { manager } = setup({
+      generatePairingCode: () => "1234",
+      onInboundAccepted: (msg) => accepted.push(msg),
+    });
+    await pairChannel(manager, "oc_a");
+    const r = await manager.handleInbound(makeMessage({ text: "" }));
+    expect(r.handled).toBe("dropped");
+    expect(accepted).toHaveLength(0);
   });
 
   it("重复 messageId 只处理一次（dedup）", async () => {

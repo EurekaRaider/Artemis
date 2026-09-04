@@ -55,6 +55,8 @@ export interface IMManagerDeps {
   onReply?: (binding: ChannelBinding, event: OutboundEvent) => void;
   /** 配对流程回复（渠道尚无绑定，按 envelope 直接回发，对齐 [G] 适配器自回模式） */
   onReplyToChannel?: (envelope: { adapter: string; channelId: string }, text: string) => void;
+  /** 适配器健康状态变化（连接/断链）→ 宿主推送 UI 刷新会话条徽标 */
+  onAdapterStateChange?: (state: AdapterState) => void;
 }
 
 const SINGLE_ACTIVE_BINDING_REFUSAL =
@@ -176,7 +178,14 @@ export class IMManager {
     const hasPending = [...this.pendingApprovals.values()].some(
       (p) => p.adapter === binding.adapter && p.channelId === binding.channelId,
     );
-    const route = routeInboundText(msg.text, hasPending);
+    let route = routeInboundText(msg.text, hasPending);
+    if (route.kind === "empty" && msg.attachments.length > 0) {
+      // 纯附件消息（如飞书纯图片，适配器已把占位符剥离为空串）不是空消息：
+      // 对齐 [G] feishu_adapter.go:354 语义——仅文本与附件都为空才丢弃。
+      // 改走 message 路径以复用单活跃绑定守卫（真机缺陷回归：空文本在路由层
+      // 被丢弃，图片再也无法进入任何线程）。
+      route = { kind: "message", text: "" };
+    }
 
     switch (route.kind) {
       case "empty":
@@ -325,13 +334,15 @@ export class IMManager {
     const adapter = this.adapters.get(name);
     const existing = this.adapterStates.get(name);
     const lastError = patch.lastError ?? existing?.lastError;
-    this.adapterStates.set(name, {
+    const state: AdapterState = {
       name,
       platform: adapter?.platform ?? existing?.platform ?? "dummy",
       healthy: patch.healthy ?? existing?.healthy ?? false,
       status: patch.status ?? existing?.status ?? "unknown",
       ...(lastError !== undefined ? { lastError } : {}),
       updatedAt: new Date(this.now()).toISOString(),
-    });
+    };
+    this.adapterStates.set(name, state);
+    this.deps.onAdapterStateChange?.(state);
   }
 }

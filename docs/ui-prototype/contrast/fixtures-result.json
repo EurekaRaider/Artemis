@@ -1,0 +1,132 @@
+{
+ "ok": true,
+ "badFlagged": true,
+ "unexpected": [],
+ "cases": [
+  {
+   "id": "fx-solid-ctl",
+   "scannerRatio": 7.58,
+   "renderedMin": 1.4,
+   "renderedMax": 7.58,
+   "need": 4.5,
+   "ok": true,
+   "worstColRatio": 7.33,
+   "confirm": "good-case"
+  },
+  {
+   "id": "fx-op-chain",
+   "scannerRatio": 14.59,
+   "renderedMin": 1.18,
+   "renderedMax": 14.74,
+   "need": 4.5,
+   "ok": true,
+   "worstColRatio": 12.63,
+   "confirm": "good-case"
+  },
+  {
+   "id": "fx-grad-pass",
+   "scannerRatio": 16.18,
+   "renderedMin": 1.2,
+   "renderedMax": 16.93,
+   "need": 4.5,
+   "ok": true,
+   "worstColRatio": 5.14,
+   "confirm": "good-case"
+  },
+  {
+   "id": "fx-grad-bad",
+   "scannerRatio": 2.71,
+   "renderedMin": 1.27,
+   "renderedMax": 4.24,
+   "need": 4.5,
+   "ok": true,
+   "worstColRatio": 2.64,
+   "confirm": "glyph-core"
+  },
+  {
+   "id": "fx-grad-alpha",
+   "scannerRatio": 5.53,
+   "renderedMin": 1.23,
+   "renderedMax": 5.8,
+   "need": 4.5,
+   "ok": true,
+   "worstColRatio": 4.54,
+   "confirm": "good-case"
+  },
+  {
+   "id": "fx-op-grad",
+   "scannerRatio": 6.85,
+   "renderedMin": 1.36,
+   "renderedMax": 7.06,
+   "need": 4.5,
+   "ok": true,
+   "worstColRatio": 6.58,
+   "confirm": "good-case"
+  },
+  {
+   "id": "fx-grad-mid",
+   "scannerRatio": 1,
+   "renderedMin": 1.28,
+   "renderedMax": 4.36,
+   "need": 4.5,
+   "ok": true,
+   "worstColRatio": null,
+   "confirm": "fused+mask"
+  },
+  {
+   "id": "fx-grad-narrow",
+   "scannerRatio": 1,
+   "renderedMin": 1.14,
+   "renderedMax": 4.62,
+   "need": 4.5,
+   "ok": true,
+   "worstColRatio": 1.39,
+   "confirm": "glyph-core"
+  },
+  {
+   "id": "fx-space-trap",
+   "scannerRatio": 1,
+   "renderedMin": 1.21,
+   "renderedMax": 4.62,
+   "need": 4.5,
+   "ok": true,
+   "worstColRatio": null,
+   "confirm": "mask-no-glyph(空格/间隙→fail-closed)"
+  },
+  {
+   "id": "fx-cap-wide",
+   "expectIndet": true,
+   "capped": true,
+   "scannerRatio": 14.48,
+   "ok": true,
+   "note": "INDETERMINATE_SAMPLING_CAP 用例：裁剪触发必须被标记（fail-closed）"
+  },
+  {
+   "id": "fx-cap-multi",
+   "expectIndet": true,
+   "capped": true,
+   "scannerRatio": 12.06,
+   "ok": true,
+   "note": "INDETERMINATE_SAMPLING_CAP 用例：裁剪触发必须被标记（fail-closed）"
+  },
+  {
+   "id": "fx-empty-cov",
+   "emptyCov": true,
+   "scannerRatio": 14.48,
+   "need": 4.5,
+   "ok": true,
+   "note": "空覆盖安全用例：无字形列，扫描器安全跳过且未误报"
+  },
+  {
+   "id": "fx-group-op",
+   "scannerRatio": 3.98,
+   "renderedMin": 1.27,
+   "renderedMax": 4.0,
+   "need": 4.5,
+   "ok": true,
+   "worstColRatio": 3.91,
+   "confirm": "glyph-core"
+  }
+ ],
+ "method": "三趟截图（正常/文字隐藏/高对比字形mask）PNG 解码：列级采样（背景=隐藏趟列中位、字形核 ≥85%maxdist 中位）；反例在 worstX 列定向确认；融合确认须 mask 趟证明字形占用，空格/间隙 fail-closed"
+}

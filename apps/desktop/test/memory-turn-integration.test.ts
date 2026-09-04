@@ -86,7 +86,9 @@ describe("memory turn integration contract", () => {
     expect(userEvent).toContain("text");
     expect(userEvent).not.toContain("memoryContext");
     expect(turnStart).toContain("emitInitialTurn(\n      thread.id,");
-    expect(turnStart).toContain("requestText,\n      input.mode,");
+    // 显示层用原始文本（IM 纯图片消息空文本只显示图片）；
+    // 模型侧的 requestText 兜底文案不进持久化用户消息
+    expect(turnStart).toContain("text,\n      input.mode,");
     expect(agentCommand).toContain("text: requestText");
     expect(agentCommand).toContain("memoryContext");
   });

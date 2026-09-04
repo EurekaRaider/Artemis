@@ -139,6 +139,19 @@ const api: ArtemisApi = {
     ipcRenderer.on(IPC.imPairingRequested, handler);
     return () => ipcRenderer.removeListener(IPC.imPairingRequested, handler);
   },
+  onIMStatusChanged(listener) {
+    const handler = (_event: Electron.IpcRendererEvent) => listener();
+    ipcRenderer.on(IPC.imStatusChanged, handler);
+    return () => ipcRenderer.removeListener(IPC.imStatusChanged, handler);
+  },
+  onIMThreadCreated(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      value: Parameters<typeof listener>[0],
+    ) => listener(value);
+    ipcRenderer.on(IPC.imThreadCreated, handler);
+    return () => ipcRenderer.removeListener(IPC.imThreadCreated, handler);
+  },
   listAutomationRuns: (automationId, limit) =>
     ipcRenderer.invoke(IPC.automationRunList, automationId, limit),
   saveAutomation: (input) => ipcRenderer.invoke(IPC.automationSave, input),
