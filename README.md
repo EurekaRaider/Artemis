@@ -13,7 +13,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
   <a href="https://github.com/EurekaRaider/Artemis/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/EurekaRaider/Artemis/actions/workflows/ci.yml/badge.svg" /></a>
   <a href="https://www.electronjs.org/"><img alt="Electron 43" src="https://img.shields.io/badge/Electron-43-47848F?logo=electron&logoColor=white" /></a>
   <a href="https://react.dev/"><img alt="React 19" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white" /></a>
-  <a href="https://pi.dev/"><img alt="Pi 0.84.3" src="https://img.shields.io/badge/Agent_core-Pi_0.84.3-8257E5" /></a>
+  <a href="https://pi.dev/"><img alt="Pi 0.85.0" src="https://img.shields.io/badge/Agent_core-Pi_0.85.0-8257E5" /></a>
 </p>
 
 <p>
@@ -1077,6 +1077,10 @@ verification and the remaining real-platform acceptance checks.
 ![Artemis system architecture](docs/images/artemis-system-architecture.png)
 
 <sub>[Open the architecture source](docs/diagrams/artemis-system-architecture.html)</sub>
+
+Desktop and Agent Host pin Pi to `0.85.0`. Both explicitly include
+`@earendil-works/pi-server` because this Pi release's public SDK imports that
+package without declaring it as a runtime dependency.
 
 <details>
 <summary><strong>Inspect architecture invariants</strong></summary>
