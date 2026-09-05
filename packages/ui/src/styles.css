@@ -4349,8 +4349,7 @@
 
   [data-artemis-component="terminal-host"] .xterm-screen canvas,
   [data-artemis-component="terminal-host"] .xterm-helper-textarea {
-    color: var(--artemis-color-terminal-foreground);
-    background: var(--artemis-color-terminal-background);
+    background: transparent;
   }
 
   [data-artemis-component="terminal-host"] .xterm .xterm-viewport {

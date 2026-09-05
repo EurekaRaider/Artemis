@@ -49,9 +49,25 @@ const terminalThemes = {
     background: "#ffffff",
     foreground: "#1f2023",
     cursor: "#326fcb",
+    cursorAccent: "#ffffff",
+    black: "#1f2023",
+    red: "#a12622",
+    green: "#216e39",
     yellow: "#795e00",
+    blue: "#2457a7",
+    magenta: "#7540a0",
+    cyan: "#176873",
+    white: "#555860",
+    brightBlack: "#60646d",
+    brightRed: "#b32624",
+    brightGreen: "#26763e",
     brightYellow: "#6b5700",
+    brightBlue: "#285db0",
+    brightMagenta: "#8145ad",
+    brightCyan: "#1a707a",
+    brightWhite: "#33363c",
     selectionBackground: "#c9dcf8",
+    selectionForeground: "#1f2023",
   },
 } as const;
 
@@ -78,10 +94,6 @@ function resolveTerminalElementTheme(
     "--artemis-color-terminal-foreground",
     fallback.foreground,
   );
-  const selectionForeground =
-    "selectionForeground" in fallback
-      ? fallback.selectionForeground
-      : fallback.foreground;
   return {
     ...fallback,
     background,
@@ -94,7 +106,7 @@ function resolveTerminalElementTheme(
     ),
     selectionForeground: color(
       "--artemis-color-selection-text",
-      selectionForeground,
+      fallback.selectionForeground,
     ),
   };
 }
@@ -134,6 +146,7 @@ export function TerminalPanel({
         'ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
       fontSize: 12,
       lineHeight: 1.15,
+      minimumContrastRatio: 4.5,
       scrollback: 10_000,
       theme: resolveTerminalElementTheme(
         element,

@@ -47,7 +47,9 @@
   ],
   [
     "normal|[data-artemis-component=\"terminal-header\"] > [data-part=\"detail\"]",
-    { "text-align": "end" }
+    {
+      "text-align": "end"
+    }
   ],
   [
     "normal|[data-artemis-component=\"terminal-viewport\"]",
@@ -91,8 +93,7 @@
   [
     "normal|[data-artemis-component=\"terminal-host\"] .xterm-screen canvas, [data-artemis-component=\"terminal-host\"] .xterm-helper-textarea",
     {
-      "color": "var(--artemis-color-terminal-foreground)",
-      "background": "var(--artemis-color-terminal-background)"
+      "background": "transparent"
     }
   ],
   [
@@ -119,7 +120,9 @@
   ],
   [
     "normal|[data-artemis-component=\"terminal-state\"][data-state=\"error\"]",
-    { "color": "var(--artemis-color-status-danger)" }
+    {
+      "color": "var(--artemis-color-status-danger)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"browser-surface\"]",
@@ -193,19 +196,30 @@
   ],
   [
     "normal|[data-artemis-component=\"browser-navigation-button\"] > [data-part=\"icon\"] > *",
-    { "inline-size": "1rem", "block-size": "1rem" }
+    {
+      "inline-size": "1rem",
+      "block-size": "1rem"
+    }
   ],
   [
     "normal|[data-artemis-component=\"browser-navigation-button\"]:hover:not(:disabled), [data-artemis-component=\"browser-go-button\"]:hover:not(:disabled)",
-    { "background": "var(--artemis-color-interaction-hover)" }
+    {
+      "background": "var(--artemis-color-interaction-hover)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"browser-navigation-button\"]:focus-visible, [data-artemis-component=\"browser-go-button\"]:focus-visible",
-    { "outline": "2px solid Highlight", "outline-offset": "2px" }
+    {
+      "outline": "2px solid Highlight",
+      "outline-offset": "2px"
+    }
   ],
   [
     "normal|[data-artemis-component=\"browser-navigation-button\"]:disabled, [data-artemis-component=\"browser-go-button\"]:disabled, [data-artemis-component=\"browser-address-input\"]:disabled",
-    { "cursor": "default", "opacity": "var(--artemis-opacity-disabled)" }
+    {
+      "cursor": "default",
+      "opacity": "var(--artemis-opacity-disabled)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"browser-address-form\"]",

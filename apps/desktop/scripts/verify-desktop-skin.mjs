@@ -1,3 +1,4 @@
+import { terminalContrastSnapshot } from "./terminal-contrast.mjs";
 import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -245,6 +246,7 @@ import {
   completeDesktopSkinTokenSnapshot,
 } from ${JSON.stringify(paths.resolver)};
 
+const terminalContrastSnapshot = ${terminalContrastSnapshot.toString()};
 const consoleEntries = [];
 for (const level of ["warn", "error"]) {
   const original = console[level].bind(console);
@@ -531,6 +533,7 @@ const snapshot = () => {
       ),
       terminalPromptReceived:
         preload?.terminalData().includes("Artemis>") ?? false,
+      terminalReadability: terminalContrastSnapshot(),
       semanticTerminalPalettePresent:
         terminalBackgroundToken.length > 0 &&
         terminalForegroundToken.length > 0 &&
@@ -1651,7 +1654,7 @@ async function driveElectron() {
       'document.querySelector(".xterm-helper-textarea")?.focus()',
     );
     await connection.send("Input.insertText", {
-      text: "export PS1='Ar''temis> '; clear",
+      text: "export PS1='Ar''temis> '; clear; for c in 30 31 32 33 34 35 36 37 90 91 92 93 94 95 96 97; do printf '\\033[%smANSI_%s readable\\033[0m\\n' \"$c\" \"$c\"; done; printf '\\033[38;2;20;20;22mTRUECOLOR_DARK\\033[0m\\n\\033[38;2;255;255;255mTRUECOLOR_LIGHT\\033[0m\\n\\033[30;40mSAME_FOREGROUND_BACKGROUND\\033[0m\\n'",
     });
     await connection.send("Input.dispatchKeyEvent", {
       type: "rawKeyDown",
@@ -1962,6 +1965,9 @@ async function driveElectron() {
           snapshot.state.xtermRowsSame &&
           snapshot.state.terminalPromptReceived &&
           snapshot.state.semanticTerminalPalettePresent &&
+          snapshot.state.terminalReadability.samples > 0 &&
+          snapshot.state.terminalReadability.minimum >= 4.45 &&
+          snapshot.state.terminalReadability.transparentLayers &&
           snapshot.state.inputValue === expectedInput &&
           snapshot.state.selectionStart === expectedSelection[0] &&
           snapshot.state.selectionEnd === expectedSelection[1] &&

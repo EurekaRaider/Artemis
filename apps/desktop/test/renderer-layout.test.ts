@@ -1729,7 +1729,7 @@ describe("renderer layout contract", () => {
     expect(mainProcessSource).toContain("window.setBackgroundColor");
   });
 
-  it("keeps DOM and canvas xterm internals deep and high-contrast, not only its outer panel", () => {
+  it("keeps xterm text themed and overlay canvases transparent", () => {
     const darkTheme = terminalSource.match(
       /\bdark:\s*\{(?<declarations>[^}]*)\}/u,
     )?.groups?.declarations;
@@ -1743,8 +1743,6 @@ describe("renderer layout contract", () => {
     for (const selector of [
       '[data-artemis-component="terminal-host"] .xterm-screen',
       '[data-artemis-component="terminal-host"] .xterm-rows',
-      '[data-artemis-component="terminal-host"] .xterm-screen canvas',
-      '[data-artemis-component="terminal-host"] .xterm-helper-textarea',
       '[data-artemis-component="terminal-host"] .xterm .xterm-viewport',
     ]) {
       const declarations = publicUiCssDeclarationsForSelector(selector);
@@ -1756,6 +1754,15 @@ describe("renderer layout contract", () => {
         .toMatch(
           /\bbackground(?:-color)?:\s*var\(--artemis-color-terminal-background\)/u,
         );
+    }
+
+    for (const selector of [
+      '[data-artemis-component="terminal-host"] .xterm-screen canvas',
+      '[data-artemis-component="terminal-host"] .xterm-helper-textarea',
+    ]) {
+      expect(publicUiCssDeclarationsForSelector(selector)).toMatch(
+        /\bbackground:\s*transparent\s*;/u,
+      );
     }
 
     for (const selector of [
