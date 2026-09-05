@@ -11900,6 +11900,20 @@ async function driveSmokeNavigationControlsEvidence(
   if (process.platform === "darwin") app.focus({ steal: true });
   window.focus();
   contents.focus();
+  // macOS activation is asynchronous; CDP can otherwise deliver to a DOM
+  // target while its native window is inactive, invalidating keyboard evidence.
+  let documentFocused = false;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    documentFocused = await evaluate<boolean>("document.hasFocus()");
+    if (documentFocused) break;
+    if (process.platform === "darwin") app.focus({ steal: true });
+    window.focus();
+    contents.focus();
+    await wait(50);
+  }
+  if (!documentFocused) {
+    throw new Error("Navigation smoke window could not acquire native focus.");
+  }
   let focused = false;
   for (let presses = 0; presses < 300; presses += 1) {
     focused = await evaluate<boolean>(
