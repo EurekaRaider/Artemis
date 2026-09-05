@@ -3,8 +3,7 @@
 Current specification: [Discussion #151 implementation](discussion-151/README.md),
 v69 attachment, 82 exact source files and 73 catalog cards. The clean product
 baseline `bdded70d937b54aad615f0f87de57d5fb31271b8` passed a fresh real Electron
-desktop-skin run on 2026-09-05. Production comparisons and candidate acceptance
-are tracked separately in that implementation record.
+desktop-skin run on 2026-09-05. Candidate `60c8a8ad9bb9a80b251e43d519228830e5cce379` passed full repository validation, 26 production/prototype comparisons (328 measured geometry values, zero CSS-pixel difference), all 11 native workloads, the 64-vertex skin matrix and isolated IM smoke on macOS arm64. [Current acceptance](discussion-151/acceptance.json) records report hashes and explicit visual, real-account and platform boundaries. Historical evidence below remains separate.
 
 ## Historical Discussion #76 record
 

@@ -1,0 +1,292 @@
+{
+  "discussion": 151,
+  "prototypeVersion": "v69",
+  "implementationHead": "60c8a8ad9bb9a80b251e43d519228830e5cce379",
+  "platform": "darwin-arm64",
+  "status": "local-candidate-passed",
+  "completedAt": "2026-09-05T19:35:34.388Z",
+  "discussionUpdatedAt": "2026-09-05T12:56:59Z",
+  "prototypeFiles": 82,
+  "catalogCards": 73,
+  "prototypeChecks": {
+    "library": 12,
+    "workspace": 34,
+    "sourceFilesMatchAttachment": true
+  },
+  "validationSteps": [
+    {
+      "id": "test",
+      "exitCode": 0,
+      "durationMs": 120021
+    },
+    {
+      "id": "typecheck",
+      "exitCode": 0,
+      "durationMs": 2595
+    },
+    {
+      "id": "build",
+      "exitCode": 0,
+      "durationMs": 3449
+    },
+    {
+      "id": "parity",
+      "exitCode": 0,
+      "durationMs": 29305
+    },
+    {
+      "id": "convergence",
+      "exitCode": 0,
+      "durationMs": 489092
+    },
+    {
+      "id": "im",
+      "exitCode": 0,
+      "durationMs": 42353
+    },
+    {
+      "id": "format",
+      "exitCode": 0,
+      "durationMs": 4094
+    }
+  ],
+  "unitTests": {
+    "gateway": 60,
+    "protocol": 121,
+    "platform": 24,
+    "agentHost": 147,
+    "themeContract": 14,
+    "ui": 292,
+    "themeArtemis": 5,
+    "gallery": 142,
+    "desktop": 1283,
+    "skipped": 7
+  },
+  "prototypeComparison": {
+    "checks": 26,
+    "geometryAssertions": 328,
+    "maximumCssPixelDelta": 0,
+    "allowedCssPixelDelta": 0.5,
+    "javascriptErrors": 0,
+    "desktopContentSizes": [
+      "1440x900",
+      "1280x900",
+      "1024x900",
+      "980x900",
+      "980x680"
+    ],
+    "scope": "Activity bar, sidebar, workspace header, conversation, Composer/context/input/toolbar; nine Dock containers and tab bars; six settings panel/header/body/navigation geometries; four core surface backgrounds in light/dark and normal/high contrast.",
+    "boundary": "This is measured shared geometry and background equality, not whole-page bitmap equality or a per-card screenshot assertion. Real task/account data, required control/focus contrast, non-color selection cues and professional colors remain semantic differences; the terminal follows the user-requested light theme."
+  },
+  "nativeWorkloads": [
+    {
+      "id": "screenshot-matrix",
+      "status": "passed",
+      "durationMs": 35174.9,
+      "maximumMs": 180000
+    },
+    {
+      "id": "conversation-timeline",
+      "status": "passed",
+      "durationMs": 10754.7,
+      "maximumMs": 180000
+    },
+    {
+      "id": "feedback-and-composer",
+      "status": "passed",
+      "durationMs": 28495.1,
+      "maximumMs": 240000
+    },
+    {
+      "id": "large-diff-and-environment",
+      "status": "passed",
+      "durationMs": 38217,
+      "maximumMs": 240000
+    },
+    {
+      "id": "terminal-and-browser",
+      "status": "passed",
+      "durationMs": 24990.7,
+      "maximumMs": 240000
+    },
+    {
+      "id": "form-controls",
+      "status": "passed",
+      "durationMs": 32904.5,
+      "maximumMs": 300000
+    },
+    {
+      "id": "navigation-controls",
+      "status": "passed",
+      "durationMs": 28472.6,
+      "maximumMs": 240000
+    },
+    {
+      "id": "resource-center-mcp",
+      "status": "passed",
+      "durationMs": 71557.2,
+      "maximumMs": 360000
+    },
+    {
+      "id": "secondary-pages",
+      "status": "passed",
+      "durationMs": 36147.3,
+      "maximumMs": 300000
+    },
+    {
+      "id": "goal-parity",
+      "status": "passed",
+      "durationMs": 80774.5,
+      "maximumMs": 600000
+    },
+    {
+      "id": "desktop-skin-gallery-package",
+      "status": "passed",
+      "durationMs": 101246.8,
+      "maximumMs": 900000
+    }
+  ],
+  "imChecks": 21,
+  "skinMatrixVertices": 64,
+  "noSandboxFallback": true,
+  "performance": {
+    "baseline": {
+      "sourceHead": "3b024552ab520d83982aaadf5185404d7b8325ce",
+      "measurementHead": "1364af889a02c6adb51805bd14d4a438611447d1",
+      "platform": "darwin-arm64",
+      "note": "The measurement head differs from sourceHead only by the MIG5B ledger-close commit.",
+      "bundles": {
+        "desktopCssBytes": 300601,
+        "desktopJsBytes": 1855194,
+        "desktopLargestJsBytes": 853244,
+        "galleryCssBytes": 180175,
+        "galleryJsBytes": 355604,
+        "uiCssBytes": 151849
+      },
+      "startupStageMaximumMs": {
+        "app-ready": 37.5,
+        "diagnostics-ready": 92.9,
+        "core-state-ready": 105.7,
+        "window-created": 174.3,
+        "update-ready": 180.5,
+        "renderer-ready": 320.7
+      }
+    },
+    "metrics": {
+      "desktopCssBytes": 304933,
+      "desktopJsBytes": 1770462,
+      "desktopLargestJsBytes": 821484,
+      "galleryCssBytes": 164073,
+      "galleryJsBytes": 356821,
+      "uiCssBytes": 135351
+    },
+    "startupColdStartVariantId": "en-base",
+    "startupStageMaximumMs": {
+      "app-ready": 28.2,
+      "diagnostics-ready": 84.2,
+      "core-state-ready": 95.9,
+      "window-created": 163.2,
+      "update-ready": 168.9,
+      "renderer-ready": 314.5
+    },
+    "startupWarmStageMaximumMs": {
+      "app-ready": 28.2,
+      "diagnostics-ready": 84.2,
+      "core-state-ready": 95.9,
+      "window-created": 163.2,
+      "update-ready": 168.9,
+      "renderer-ready": 314.5
+    },
+    "startupWarmOutlierVariants": [],
+    "thresholds": {
+      "bundles": {
+        "desktopCssBytes": 305000,
+        "desktopJsBytes": 1900000,
+        "desktopLargestJsBytes": 875000,
+        "galleryCssBytes": 182000,
+        "galleryJsBytes": 365000,
+        "uiCssBytes": 153000
+      },
+      "startup": {
+        "baselineMultiplier": 8,
+        "jitterAllowanceMs": 500,
+        "maximumWarmOutlierVariants": 2,
+        "warmHardMaximumMs": 4000,
+        "coldStartHardMaximumMs": 10000,
+        "note": "Each warm-start stage ceiling is its merged-base maximum times eight plus 500 ms of cross-runner jitter. The first matrix launch is a separately bounded cold start; at most two of the remaining 26 launches may exceed their stage ceilings, no warm timing may exceed four seconds, and no cold timing may exceed ten seconds."
+      },
+      "workloadWallClockMs": {
+        "screenshot-matrix": 180000,
+        "conversation-timeline": 180000,
+        "feedback-and-composer": 240000,
+        "large-diff-and-environment": 240000,
+        "terminal-and-browser": 240000,
+        "form-controls": 300000,
+        "navigation-controls": 240000,
+        "resource-center-mcp": 360000,
+        "secondary-pages": 300000,
+        "goal-parity": 600000,
+        "desktop-skin-gallery-package": 900000
+      },
+      "startupStageMaximumMs": {
+        "app-ready": 800,
+        "diagnostics-ready": 1243.2,
+        "core-state-ready": 1345.6,
+        "window-created": 1894.4,
+        "update-ready": 1944,
+        "renderer-ready": 3065.6
+      }
+    }
+  },
+  "package": {
+    "archive": "mac-arm64/Artemis.app/Contents/Resources/app.asar",
+    "archiveBytes": 260583379,
+    "archiveSha256": "6d9ecbe29a80d29ee564c9d3ee4f06479e0d9c5befea8cc142cbcea3b4f1f01e",
+    "archiveFindings": [],
+    "unpackedPresent": true,
+    "unpackedFindings": [],
+    "resourceFindings": []
+  },
+  "evidence": [
+    {
+      "path": "artifacts/discussion-151/validation-results.json",
+      "bytes": 506,
+      "sha256": "66b14a1ba7384dbf7cecafc7f91654edffdebead9404c14c3a543a270d7cda37"
+    },
+    {
+      "path": "artifacts/discussion-151/parity/metrics.json",
+      "bytes": 1253405,
+      "sha256": "3227510f61e109781e6ad6be5d58e1e37d30d72f8983c61ece8d1de6d1954ddc"
+    },
+    {
+      "path": "artifacts/discussion-151/convergence/visual-convergence-audit.json",
+      "bytes": 26888,
+      "sha256": "b8e583a90cf5a3cdf327b64ff0b4a67e39d394a034139b6fad8c6dbfff96c450"
+    },
+    {
+      "path": "artifacts/discussion-151/convergence/desktop-skin-gallery-package/desktop-skin-audit.json",
+      "bytes": 372192,
+      "sha256": "56fcc5f5bec49f7f1c8dccd7a5a4cfa902cff5eab4feb3ed5ff429ce2ae2981a"
+    },
+    {
+      "path": "artifacts/discussion-151/im/result.json",
+      "bytes": 4067,
+      "sha256": "cccaa9d4983d28366b9a72857c85b86c4dd490b4eac3ff1eb461d4cf32d263c4"
+    }
+  ],
+  "notVerified": [
+    "Real Feishu tenant pairing/tasks and offline/sleep/restart recovery",
+    "macOS x64 and Windows native candidates",
+    "Signing, notarization, stapling, update/rollback and final Windows installation-path ACLs"
+  ],
+  "publication": "Local implementation commits only; no remote PR, push or release.",
+  "diffCheck": {
+    "authoredSources": "passed",
+    "frozenAttachmentTrailingWhitespace": [
+      "docs/ui-prototype/components.html:424",
+      "docs/ui-prototype/contrast/REPORT.md:4",
+      "docs/ui-prototype/contrast/run-headless.zsh:178"
+    ],
+    "reason": "Preserve all 82 attachment sources byte for byte."
+  }
+}
