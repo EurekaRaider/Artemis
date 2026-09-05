@@ -615,7 +615,10 @@ try {
   const settingsPairs = {
     panel: [".settings-panel", ".settings-panel"],
     surface: [".settings-panel", '[data-artemis-component="settings-surface"]'],
-    header: [".settings-header", ".settings-header"],
+    header: [
+      ".settings-header",
+      '[data-artemis-component="settings-surface"] > [data-part="header"]',
+    ],
     body: [
       ".settings-body",
       '[data-artemis-component="settings-surface"] > [data-part="body"]',
