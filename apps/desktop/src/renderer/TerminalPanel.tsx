@@ -9,7 +9,7 @@ import {
   TerminalSurface,
   TerminalViewport,
 } from "@artemis/ui/professional";
-import "@xterm/xterm/css/xterm.css";
+import "./terminal.css";
 
 interface TerminalPanelProps {
   threadId: string | undefined;

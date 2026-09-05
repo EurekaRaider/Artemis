@@ -33,6 +33,8 @@ export function terminalContrastSnapshot() {
     samples: samples.length,
     minimum: Math.min(...contrasts),
     background: getComputedStyle(host).backgroundColor,
+    viewportBackground: getComputedStyle(host.querySelector(".xterm-viewport"))
+      .backgroundColor,
     transparentLayers: [
       ...host.querySelectorAll("canvas, .xterm-helper-textarea"),
     ].every((node) => rgba(getComputedStyle(node).backgroundColor)[3] === 0),

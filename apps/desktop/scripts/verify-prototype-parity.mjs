@@ -561,6 +561,21 @@ try {
       .getByRole("button", { name: label, exact: true })
       .click();
     await captureDock(name);
+    if (name === "terminal") {
+      const backgrounds = await product
+        .locator(".terminal-host")
+        .evaluate((host) => [
+          getComputedStyle(host).backgroundColor,
+          getComputedStyle(host.querySelector(".xterm-viewport"))
+            .backgroundColor,
+        ]);
+      assert.equal(
+        backgrounds[0],
+        backgrounds[1],
+        "Terminal viewport follows the visible terminal background",
+      );
+      checks.push("Terminal viewport background");
+    }
   }
   await product
     .locator(".workspace-heading")

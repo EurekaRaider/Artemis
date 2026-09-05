@@ -1968,6 +1968,8 @@ async function driveElectron() {
           snapshot.state.terminalReadability.samples > 0 &&
           snapshot.state.terminalReadability.minimum >= 4.45 &&
           snapshot.state.terminalReadability.transparentLayers &&
+          snapshot.state.terminalReadability.viewportBackground ===
+            snapshot.state.terminalReadability.background &&
           snapshot.state.inputValue === expectedInput &&
           snapshot.state.selectionStart === expectedSelection[0] &&
           snapshot.state.selectionEnd === expectedSelection[1] &&

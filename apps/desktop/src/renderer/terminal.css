@@ -1,0 +1,2 @@
+/* Vendor defaults precede the public terminal theme in the shared cascade. */
+@import "@xterm/xterm/css/xterm.css" layer(artemis.reset);

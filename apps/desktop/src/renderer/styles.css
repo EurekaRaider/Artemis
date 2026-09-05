@@ -7,7 +7,6 @@
   font-family: var(--ui-font);
   font-synthesis: none;
   --bg: var(--artemis-color-canvas);
-  --codex-sidebar-bg: var(--artemis-color-background-sidebar);
   --codex-workspace-bg: var(--artemis-color-surface-base);
   --panel: var(--artemis-color-surface-raised);
   --panel-2: var(--artemis-color-surface-base);
@@ -177,7 +176,6 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 }
 
 .sidebar {
-  --codex-sidebar-bg: var(--artemis-color-background-sidebar);
   --panel: var(--artemis-color-surface-raised);
   --panel-2: var(--artemis-color-surface-base);
   --panel-3: var(--artemis-color-surface-sunken);
@@ -6764,6 +6762,7 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .settings-panel {
+  max-block-size: calc(100dvh - 52px);
   height: min(720px, 90dvh);
   max-width: 1040px;
   overflow: hidden;
