@@ -392,11 +392,32 @@ try {
     globalThis.__productWindow.setContentSize(1440, 900 + chromeInset);
     globalThis.__referenceWindow.setContentSize(1440, 900);
   }, chromeInset);
+  async function chooseTheme(theme) {
+    await product
+      .locator(".activity-bar")
+      .getByRole("button", { name: "设置", exact: true })
+      .click();
+    await product.locator("#settings-tab-general-button").click();
+    await product
+      .getByRole("combobox", { name: "界面主题", exact: true })
+      .click();
+    await product
+      .getByRole("option", {
+        name: theme === "dark" ? "深色" : "浅色",
+        exact: true,
+      })
+      .click();
+    await product.waitForFunction(
+      (theme) => document.documentElement.dataset.artemisTheme === theme,
+      theme,
+    );
+    await product.locator(".settings-header").getByRole("button").click();
+  }
   const productMedia = await product.context().newCDPSession(product);
   result.appearances = {};
   for (const theme of ["light", "dark"]) {
     for (const contrast of ["normal", "high"]) {
-      await product.evaluate((theme) => window.artemis.setTheme(theme), theme);
+      await chooseTheme(theme);
       await productMedia.send("Emulation.setEmulatedMedia", {
         features: [
           {
@@ -448,7 +469,7 @@ try {
       checks.push(`Appearance ${theme}/${contrast}`);
     }
   }
-  await product.evaluate(() => window.artemis.setTheme("light"));
+  await chooseTheme("light");
   await productMedia.send("Emulation.setEmulatedMedia", {
     features: [{ name: "prefers-contrast", value: "no-preference" }],
   });
