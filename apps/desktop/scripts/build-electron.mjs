@@ -3,13 +3,14 @@ import { rm } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { build } from "esbuild";
+import { packageGateway } from "../../../scripts/package-gateway.mjs";
 
 import { ensureNodePtySpawnHelpersExecutable } from "./node-pty-permissions.mjs";
 
 const require = createRequire(import.meta.url);
 const packageBuild = process.env.ARTEMIS_PACKAGE_BUILD === "1";
 const esmRequireBridge = {
-  js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);',
+  js: 'import { createRequire as artemisBundleCreateRequire } from "node:module"; const require = artemisBundleCreateRequire(import.meta.url);',
 };
 
 if (process.platform === "darwin") {
@@ -18,6 +19,7 @@ if (process.platform === "darwin") {
 }
 
 await rm("dist-electron", { recursive: true, force: true });
+await packageGateway("dist-electron/artemis-gateway.tar.gz");
 
 const shared = {
   bundle: true,
@@ -43,6 +45,7 @@ await Promise.all([
   build({
     ...shared,
     entryPoints: ["src/main/main.ts"],
+    banner: esmRequireBridge,
     format: "esm",
     outfile: "dist-electron/main.js",
   }),

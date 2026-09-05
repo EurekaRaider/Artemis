@@ -3391,6 +3391,20 @@ export function App() {
       receiveAgentEvents([event]);
     });
     const unsubscribeBatch = window.artemis.onAgentEvents(receiveAgentEvents);
+    const unsubscribeImTasks = window.artemis.onImTaskCreated?.((thread) => {
+      setSnapshot((current) =>
+        current
+          ? {
+              ...current,
+              threads: current.threads.some(
+                (candidate) => candidate.id === thread.id,
+              )
+                ? current.threads
+                : [thread, ...current.threads],
+            }
+          : current,
+      );
+    });
     const unsubscribeActivities = window.artemis.onAgentActivities(
       (events: AgentHostEvent[]) => {
         setLiveChildActivities((current) => {
@@ -3423,6 +3437,7 @@ export function App() {
       mounted = false;
       unsubscribe();
       unsubscribeBatch();
+      unsubscribeImTasks?.();
       unsubscribeActivities();
       if (pendingAgentFrame.current !== undefined) {
         window.cancelAnimationFrame(pendingAgentFrame.current);

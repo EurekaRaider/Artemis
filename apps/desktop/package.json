@@ -41,6 +41,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@artemis/gateway": "1.4.61",
     "@artemis/agent-host": "1.4.61",
     "@artemis/platform": "1.4.61",
     "@artemis/protocol": "1.4.61",

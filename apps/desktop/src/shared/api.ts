@@ -1,3 +1,4 @@
+import type { ImSettings, ImStatus, ImManagement } from "@artemis/protocol";
 import type {
   AgentEvent,
   AgentHostEvent,
@@ -737,6 +738,12 @@ export interface ProjectGitPushResult {
 }
 
 export interface ArtemisApi {
+  onImTaskCreated(listener: (thread: Thread) => void): () => void;
+  getImStatus(): Promise<
+    ImStatus & { connections?: unknown[]; spaces?: unknown[] }
+  >;
+  saveImSettings(settings: ImSettings): Promise<ImStatus>;
+  manageIm(input: ImManagement): Promise<unknown>;
   getSnapshot(): Promise<DesktopSnapshot>;
   getThreadEvents(threadId: string): Promise<AgentEvent[]>;
   getTokenUsageEvents(): Promise<AgentEvent[]>;
@@ -1048,6 +1055,10 @@ export interface ArtemisApi {
 }
 
 export const IPC = {
+  imTaskCreated: "artemis:im-task-created",
+  imStatus: "artemis:im-status",
+  imSave: "artemis:im-save",
+  imManage: "artemis:im-manage",
   snapshot: "artemis:snapshot",
   threadEvents: "artemis:thread-events",
   tokenUsageEvents: "artemis:token-usage-events",

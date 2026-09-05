@@ -1,3 +1,4 @@
+import { ImSettingsPanel } from "./ImSettingsPanel.js";
 import {
   useEffect,
   useMemo,
@@ -458,7 +459,7 @@ type ProviderThinkingLevel = NonNullable<
 >;
 
 type SettingsTab =
-  "general" | "providers" | "agents" | "capabilities" | "maintenance";
+  "general" | "providers" | "agents" | "capabilities" | "im" | "maintenance";
 
 function modelKey(providerId: string, modelId: string): string {
   return `${encodeURIComponent(providerId)}:${encodeURIComponent(modelId)}`;
@@ -1041,6 +1042,7 @@ export function SettingsPanel({
     agents: t.tabAgents,
     capabilities: t.tabCapabilities,
     maintenance: t.tabMaintenance,
+    im: locale.startsWith("zh") ? "IM 连接" : "IM connections",
   };
 
   return (
@@ -1102,6 +1104,12 @@ export function SettingsPanel({
                     value: "capabilities",
                   },
                   {
+                    id: "settings-tab-im-button",
+                    label: activeTabLabel.im,
+                    panelId: "settings-tab-im",
+                    value: "im",
+                  },
+                  {
                     id: "settings-tab-maintenance-button",
                     label: t.tabMaintenance,
                     panelId: "settings-tab-maintenance",
@@ -1124,6 +1132,7 @@ export function SettingsPanel({
                 "agents",
                 "capabilities",
                 "maintenance",
+                "im",
               ] as const
             )
               .filter((tab) => tab !== activeTab)
@@ -1155,6 +1164,7 @@ export function SettingsPanel({
               id={`settings-tab-${activeTab}`}
               role="tabpanel"
             >
+              {activeTab === "im" && <ImSettingsPanel locale={locale} />}
               {activeTab === "providers" && (
                 <>
                   <Tabs<"builtin" | "custom">

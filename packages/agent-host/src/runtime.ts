@@ -1,3 +1,13 @@
+import {
+  createRemoteTools,
+  createRemoteChildTools,
+  isRemoteToolAllowed,
+  remoteResourceOverrides,
+} from "./remote-tools.js";
+import type {
+  RemoteExecutionProfile,
+  RemoteOperation,
+} from "@artemis/protocol";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -796,6 +806,7 @@ export interface AgentHostSink {
 }
 
 export interface OpenThreadRequest {
+  remoteExecution?: RemoteExecutionProfile;
   threadId: string;
   workspacePath: string;
   target: WorkspaceTarget;
@@ -2707,6 +2718,26 @@ export class ArtemisAgentHost {
         : {};
     }
 
+    const invokeRemoteOperation = async (
+      operation: RemoteOperation,
+      callId: string,
+    ) => {
+      const hosted = this.requireActiveThread(request.threadId);
+      const result = await this.broker.request({
+        kind: "remote.operation",
+        approvalId: callId,
+        threadId: request.threadId,
+        turnId: hosted.currentTurnId!,
+        mode: hosted.currentMode!,
+        operation,
+      });
+      if (!result.approved)
+        throw new Error(result.error ?? "Remote operation was denied.");
+      return result.data;
+    };
+    const remoteTools = request.remoteExecution
+      ? createRemoteTools(invokeRemoteOperation)
+      : [];
     const readTool = defineTool({
       name: "read",
       label: "Read file",
@@ -4522,6 +4553,7 @@ export class ArtemisAgentHost {
                     }),
                     "child",
                   ),
+                  ...(request.remoteExecution ? remoteResourceOverrides() : {}),
                 });
                 await childResourceLoader.reload();
                 const modelRuntime = await this.getModelRuntime();
@@ -4547,6 +4579,19 @@ export class ArtemisAgentHost {
                   actorAgentId: agentId,
                   writePaths: child.writePaths,
                 }));
+                const childRemoteTools = request.remoteExecution
+                  ? createRemoteChildTools(
+                      invokeRemoteOperation,
+                      (path) =>
+                        input.mode === "execute" &&
+                        writePathAllowed(
+                          child.writePaths,
+                          normalizedWritePaths(request.workspacePath, [
+                            path,
+                          ])[0]!,
+                        ),
+                    )
+                  : [];
                 const childOfficeDocumentTool = createOfficeDocumentTool(
                   () => ({
                     actorAgentId: agentId,
@@ -4579,6 +4624,7 @@ export class ArtemisAgentHost {
                   resourceLoader: childResourceLoader,
                   noTools: "builtin",
                   customTools: [
+                    ...childRemoteTools,
                     readTool,
                     webSearchTool,
                     childWriteTool,
@@ -4596,6 +4642,7 @@ export class ArtemisAgentHost {
                     ...childMcpTools,
                   ],
                   tools: [
+                    ...childRemoteTools.map((tool) => tool.name),
                     "read",
                     "web_search",
                     "write",
@@ -4613,6 +4660,18 @@ export class ArtemisAgentHost {
                     ...childMcpTools.map((tool) => tool.name),
                   ],
                 });
+                if (request.remoteExecution)
+                  created.session.setActiveToolsByName(
+                    created.session
+                      .getActiveToolNames()
+                      .filter((name) =>
+                        isRemoteToolAllowed(
+                          name,
+                          input.mode,
+                          request.remoteExecution!.shell,
+                        ),
+                      ),
+                  );
                 child.session = created.session;
                 this.promptCache.registerSession(child.session.sessionId, {
                   scope: "child",
@@ -4622,6 +4681,9 @@ export class ArtemisAgentHost {
                 child.session.agent.state.tools =
                   child.session.agent.state.tools.filter(
                     (tool) =>
+                      childRemoteTools.some(
+                        (candidate) => candidate.name === tool.name,
+                      ) ||
                       tool.name === "read" ||
                       tool.name === "web_search" ||
                       tool.name === "spawn_agent" ||
@@ -4859,6 +4921,7 @@ export class ArtemisAgentHost {
             : {}),
         };
       }),
+      ...(request.remoteExecution ? remoteResourceOverrides() : {}),
     });
     await resourceLoader.reload();
     const { session } = await createAgentSession({
@@ -4870,6 +4933,7 @@ export class ArtemisAgentHost {
       resourceLoader,
       noTools: "builtin",
       customTools: [
+        ...remoteTools,
         readTool,
         webSearchTool,
         localFileReadTool,
@@ -4902,6 +4966,7 @@ export class ArtemisAgentHost {
         ...extensionTools,
       ],
       tools: [
+        ...remoteTools.map((tool) => tool.name),
         "read",
         "web_search",
         "local_file_read",
@@ -5043,6 +5108,7 @@ export class ArtemisAgentHost {
     }
     const executeTools = session.agent.state.tools.filter(
       (tool) =>
+        remoteTools.some((candidate) => candidate.name === tool.name) ||
         tool.name === "read" ||
         tool.name === "web_search" ||
         tool.name === "local_file_read" ||
@@ -5112,6 +5178,23 @@ export class ArtemisAgentHost {
       adapter: undefined,
       unsubscribe: () => {},
     };
+    if (request.remoteExecution) {
+      const remoteSessionTools = session.agent.state.tools.filter((tool) =>
+        remoteTools.some((candidate) => candidate.name === tool.name),
+      );
+      hosted.executeTools = hosted.executeTools.filter((tool) =>
+        isRemoteToolAllowed(
+          tool.name,
+          "execute",
+          request.remoteExecution!.shell,
+        ),
+      );
+      hosted.delegatedTools = [
+        ...hosted.delegatedTools,
+        ...remoteSessionTools,
+      ].filter((tool) => isRemoteToolAllowed(tool.name, "plan", false));
+      session.agent.state.tools = hosted.delegatedTools;
+    }
     hosted.unsubscribe = session.subscribe((event) => {
       if (
         hosted.currentTurnId &&

@@ -1,3 +1,4 @@
+import type { RemoteExecutionProfile, RemoteOperation } from "./im.js";
 import type {
   AgentPayload,
   ApprovalResolution,
@@ -143,6 +144,7 @@ export type AgentHostCommand =
     }
   | {
       type: "thread.open";
+      remoteExecution?: RemoteExecutionProfile;
       requestId: string;
       threadId: string;
       workspacePath: string;
@@ -251,6 +253,14 @@ export type AgentHostCommand =
     };
 
 export type BrokerExecutionRequest =
+  | {
+      kind: "remote.operation";
+      approvalId: string;
+      threadId: string;
+      turnId: string;
+      mode: RunMode;
+      operation: RemoteOperation;
+    }
   | {
       kind: "goal.get";
       approvalId: string;

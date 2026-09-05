@@ -1,7 +1,9 @@
+import { ImService } from "./im-service.js";
+import { imManagementSchema } from "@artemis/protocol";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { watch, type FSWatcher } from "node:fs";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { userInfo } from "node:os";
 import { monitorEventLoopDelay, type IntervalHistogram } from "node:perf_hooks";
 import {
@@ -664,6 +666,7 @@ function memoryStore(path: string, maxBytes: number): MemoryStore {
   }
   return existing;
 }
+let imService: ImService | undefined;
 const openedThreads = new Set<string>();
 const openingThreads = new Map<string, Promise<void>>();
 const activeTurns = new Map<string, string>();
@@ -2790,6 +2793,7 @@ function emitPayload(
     preparedPayload,
     timestamp,
   );
+  imService?.observe([event]);
   mainWindow?.webContents.send(IPC.agentEvent, event);
   applyPayloadSideEffects(threadId, preparedPayload);
   accountGoalPayload(turnId, preparedPayload);
@@ -2829,6 +2833,7 @@ function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
       payload: event.payload,
     })),
   );
+  imService?.observe(persisted);
   mainWindow?.webContents.send(IPC.agentEvents, persisted);
   for (const event of durableEvents) {
     applyPayloadSideEffects(threadId, event.payload);
@@ -3828,6 +3833,9 @@ async function openAgentThread(
     }
     const data = await agentProcess.request<{ sessionFile?: string }>({
       type: "thread.open",
+      ...(imService?.profile(thread.id)
+        ? { remoteExecution: imService.profile(thread.id)! }
+        : {}),
       requestId: randomUUID(),
       threadId: thread.id,
       workspacePath,
@@ -3858,7 +3866,78 @@ async function handleBrokerRequest(
   if (!agentProcess || !store) {
     return;
   }
+  if (imService?.profile(request.threadId)) {
+    try {
+      imService.authorizeThread(request.threadId, request.mode);
+      if (
+        activeTurns.get(request.threadId) !== request.turnId ||
+        store.getThread(request.threadId)?.mode !== request.mode ||
+        cancellingTurns.has(request.threadId)
+      )
+        throw new Error("Remote operation requires the current active turn.");
+      if (request.kind !== "remote.operation" && request.kind !== "user.input")
+        throw new Error(
+          "This tool is not in the owner's remote permission profile.",
+        );
+    } catch (error) {
+      rejectBrokerRequest(
+        workerRequestId,
+        request,
+        error instanceof Error ? error.message : String(error),
+      );
+      return;
+    }
+  }
   switch (request.kind) {
+    case "remote.operation": {
+      try {
+        if (!imService) throw new Error("IM service is unavailable.");
+        const grant = imService.authorizeOperation(
+          request.threadId,
+          request.operation,
+          request.mode,
+        );
+        if (request.operation.action !== "read" && grant.approval === "ask") {
+          const nonce = randomUUID();
+          pendingApprovals.register({
+            approvalId: request.approvalId,
+            nonce,
+            allowedScopes: ["once"],
+            value: {
+              workerRequestId,
+              request,
+              projectId: store.getThread(request.threadId)!.projectId!,
+              fingerprint: request.approvalId,
+            },
+          });
+          emitPayload(request.threadId, request.turnId, {
+            type: "approval.requested",
+            approvalId: request.approvalId,
+            nonce,
+            summary: JSON.stringify(request.operation).slice(0, 2000),
+            paths: [],
+            network: [],
+            risk: request.operation.action === "shell" ? "high" : "medium",
+            allowedScopes: ["once"],
+            source: "policy",
+          });
+        } else
+          await executeApprovedRemote(workerRequestId, request, {
+            approvalId: request.approvalId,
+            nonce: randomUUID(),
+            approved: true,
+            scope: "once",
+            source: "policy",
+          });
+      } catch (error) {
+        rejectBrokerRequest(
+          workerRequestId,
+          request,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+      return;
+    }
     case "goal.get":
     case "goal.create":
     case "goal.update":
@@ -5036,6 +5115,47 @@ async function executeApprovedExtension(
   }
 }
 
+async function executeApprovedRemote(
+  workerRequestId: string,
+  request: Extract<BrokerExecutionRequest, { kind: "remote.operation" }>,
+  resolution: ApprovalResolution,
+): Promise<void> {
+  if (!agentProcess || !imService) return;
+  try {
+    if (
+      activeTurns.get(request.threadId) !== request.turnId ||
+      store?.getThread(request.threadId)?.mode !== request.mode ||
+      cancellingTurns.has(request.threadId)
+    )
+      throw new Error("Remote turn has ended or is being cancelled.");
+    const result = await imService.operate(
+      request.threadId,
+      request.operation,
+      request.mode,
+      request.approvalId,
+    );
+    emitPayload(request.threadId, request.turnId, {
+      type: "approval.resolved",
+      approvalId: resolution.approvalId,
+      nonce: resolution.nonce,
+      approved: true,
+      scope: "once",
+    });
+    agentProcess.post({
+      type: "broker.resolve",
+      requestId: workerRequestId,
+      resolution,
+      result,
+    });
+  } catch (error) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
 async function resolveApproval(resolution: ApprovalResolution): Promise<void> {
   if (!agentProcess || !store) {
     throw new Error("Application is not ready.");
@@ -5069,7 +5189,13 @@ async function resolveApproval(resolution: ApprovalResolution): Promise<void> {
       createdAt: new Date().toISOString(),
     });
   }
-  if (pending.request.kind === "shell.execute") {
+  if (pending.request.kind === "remote.operation") {
+    await executeApprovedRemote(
+      pending.workerRequestId,
+      pending.request,
+      resolution,
+    );
+  } else if (pending.request.kind === "shell.execute") {
     await executeApprovedShell(
       pending.workerRequestId,
       pending.request,
@@ -5115,6 +5241,7 @@ async function resolveApproval(resolution: ApprovalResolution): Promise<void> {
 async function createTaskThread(
   input: CreateThreadInput,
   title?: string,
+  taskId?: string,
 ): Promise<Thread | undefined> {
   if (!store) {
     throw new Error("Application store is not ready.");
@@ -5133,7 +5260,7 @@ async function createTaskThread(
   const defaults = await settingsStore?.runtimeConfiguration();
   const now = new Date().toISOString();
   const thread: Thread = {
-    id: randomUUID(),
+    id: taskId ?? randomUUID(),
     ...(command.projectId ? { projectId: command.projectId } : {}),
     title: title ?? mainText(currentLocale(), "waitingForTask"),
     mode: command.mode,
@@ -5216,6 +5343,18 @@ async function createTaskThread(
 
 async function startTaskTurn(
   input: StartTurnInput,
+  options: Parameters<typeof startTaskTurnUnchecked>[1] = {},
+): Promise<StartTurnResult> {
+  const release = imService?.reserveStart(input.threadId, input.mode);
+  try {
+    return await startTaskTurnUnchecked(input, options);
+  } finally {
+    release?.();
+  }
+}
+
+async function startTaskTurnUnchecked(
+  input: StartTurnInput,
   options: {
     source?: "user" | "goal-continuation";
     expectedGoalId?: string;
@@ -5231,6 +5370,7 @@ async function startTaskTurn(
   if (!thread) {
     throw new Error(`Thread not found: ${input.threadId}`);
   }
+  imService?.authorizeThread(thread.id, input.mode);
   if (thread.archived) {
     throw new Error("Archived tasks cannot start a turn.");
   }
@@ -5329,6 +5469,10 @@ async function startTaskTurn(
     },
   );
   const memoryPromise = (async (): Promise<string | undefined> => {
+    if (imService?.profile(thread.id)) {
+      trace.memoryEndedAt = Date.now();
+      return undefined;
+    }
     try {
       const projectMemoryPromise = context.temporary
         ? Promise.resolve({ content: "" })
@@ -5795,6 +5939,7 @@ function automationRunNotification(
 }
 
 async function cancelTaskTurn(threadId: string): Promise<void> {
+  imService?.cancelOperations(threadId);
   if (!agentProcess || !store) {
     throw new Error("Application is not ready.");
   }
@@ -5969,6 +6114,29 @@ function registerIpc(): void {
     return store.listPromptHistory();
   });
 
+  ipcMain.handle(IPC.imStatus, () => {
+    if (!imService) throw new Error("IM service is not ready.");
+    return imService.status();
+  });
+  ipcMain.handle(IPC.imSave, (_event, input: unknown) => {
+    if (!imService) throw new Error("IM service is not ready.");
+    return imService.save(input);
+  });
+  ipcMain.handle(IPC.imManage, async (_event, input: unknown) => {
+    if (!imService) throw new Error("IM service is not ready.");
+    const action = imManagementSchema.parse(input);
+    if (action.action === "export-gateway") {
+      if (!mainWindow) throw new Error("Desktop window is not ready.");
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: "Export Artemis Gateway", defaultPath: "artemis-gateway.tar.gz",
+        filters: [{ name: "Gateway package", extensions: ["tar.gz"] }],
+      });
+      if (result.canceled || !result.filePath) return undefined;
+      await copyFile(join(app.getAppPath(), "dist-electron", "artemis-gateway.tar.gz"), result.filePath);
+      return result.filePath;
+    }
+    return imService.manage(action);
+  });
   ipcMain.handle(IPC.settingsGet, () => getSettingsSnapshot());
   ipcMain.handle(
     IPC.settingsProfileAvatarSet,
@@ -8804,6 +8972,7 @@ function registerIpc(): void {
       await turnChangeSetService?.deleteThread(threadId);
       await taskSourceImages().deleteThread(threadId);
       store.deleteThread(threadId);
+      imService?.deleteThread(threadId);
       await cleanupGoalObjective(goalObjective);
     },
   );
@@ -19567,6 +19736,77 @@ app
       join(app.getPath("userData"), "settings.json"),
       safeStorage,
     );
+    imService = new ImService(
+      app.getPath("userData"),
+      safeStorage,
+      {
+        projects: () =>
+          store!.snapshot(
+            currentLocale(),
+            currentPlatform(),
+            getPlatformContract().sandbox,
+            { includeEvents: false },
+          ).projects,
+        threads: () => store!.listThreads(),
+        thread: (id) => store!.getThread(id),
+        events: (id) => store!.getThreadEvents(id),
+        ready: () => !!store && !!agentProcess,
+        create: async (id, projectId, mode, title) => {
+          const existing = store!.getThread(id);
+          if (existing) return existing;
+          const thread = await createTaskThread(
+            { projectId, mode, target: "local" },
+            title,
+            id,
+          );
+          if (!thread) throw new Error("Task was not created.");
+          mainWindow?.webContents.send(IPC.imTaskCreated, thread);
+          return thread;
+        },
+        close: async (id) => {
+          if (openedThreads.has(id) && agentProcess) {
+            await agentProcess.request({
+              type: "thread.close",
+              requestId: randomUUID(),
+              threadId: id,
+            });
+            openedThreads.delete(id);
+          }
+        },
+        start: async (id, text, mode, attachments) => {
+          await startTaskTurn({ threadId: id, text, mode, attachments });
+        },
+        queue: async (id, text, attachments) => {
+          await queueTurn("turn.follow-up", {
+            threadId: id,
+            text,
+            attachments,
+          });
+        },
+        cancel: async (id) => {
+          await cancelTaskTurn(id);
+        },
+        approve: resolveApproval,
+        answer: (resolution) => {
+          const parsed = userInputResolutionSchema.parse(resolution);
+          if (isMultiQuestionUserInputResolution(parsed)) {
+            completeMultiUserInputQuestion(
+              parsed.requestId,
+              parsed.nonce,
+              parsed.questionId,
+              "user",
+              parsed.customAnswer !== undefined
+                ? { customAnswer: parsed.customAnswer }
+                : parsed.selectedOptionLabel !== undefined
+                  ? { selectedOptionLabel: parsed.selectedOptionLabel }
+                  : {},
+            );
+          } else completeUserInput(parsed, "user");
+        },
+      },
+      process.platform === "win32" ? windowsSandboxHelperPath() : undefined,
+    );
+    imService.start();
     const systemMemory = process.getSystemMemoryInfo();
     agentCapacityController = new AgentCapacityController(
       await settingsStore.agentConcurrencyPreference(),
@@ -19843,6 +20083,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  imService?.stop();
   for (const pending of pendingUserInputs.cancelWhere(() => true)) {
     if (pending.value.timeout !== undefined) {
       clearTimeout(pending.value.timeout);

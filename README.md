@@ -1024,6 +1024,22 @@ bounded subteam and must integrate it before completing.
 
 </details>
 
+### IM access and cross-platform collaboration
+
+Settings → **IM connections** starts the bundled Gateway and registers this device
+with one click, without source code, Node.js, npm or terminal commands. Connect
+WeCom, Feishu or Slack, pair your account and choose project permissions. Slack uses
+Socket Mode, an importable app manifest and automatic workspace/bot discovery.
+Advanced setup can export a prebuilt Gateway for a shared server (Node.js 24+).
+Feishu callbacks and public file-download links require a reachable HTTPS Gateway. The feature is disabled by default and requires Artemis to be running.
+Dedicated remote sessions use local grants and native sandboxed tools; existing
+desktop tasks and Terminal keep their current permission contracts.
+
+The Gateway supports durable delivery, private approvals, explicitly shared group
+spaces and assignments between independently authorized Artemis devices. See
+[IM deployment and collaboration](docs/im-gateway.md) for configuration, commands,
+verification and the remaining real-platform acceptance checks.
+
 ### Diagnostics and update recovery
 
 - bounded local diagnostics cover main-process errors, Renderer crashes/hangs

@@ -19,6 +19,8 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+/data/gateway.sqlite*
+/packages/gateway/data/gateway.sqlite*
 apps/desktop/resources/google-oauth-client.json
 /smoke-*.png
 /MGSuite-slides-read-bug-report.md

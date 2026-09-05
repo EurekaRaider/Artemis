@@ -5,3 +5,4 @@ export * from "./office.js";
 export * from "./pi-adapter.js";
 export * from "./reducer.js";
 export * from "./schema.js";
+export * from "./im.js";

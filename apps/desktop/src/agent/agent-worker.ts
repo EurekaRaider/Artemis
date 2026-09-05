@@ -118,6 +118,9 @@ async function handle(command: AgentHostCommand): Promise<void> {
           threadId: command.threadId,
           workspacePath: command.workspacePath,
           target: command.target,
+          ...(command.remoteExecution
+            ? { remoteExecution: command.remoteExecution }
+            : {}),
           ...(command.sessionFile ? { sessionFile: command.sessionFile } : {}),
           ...(command.selection ? { selection: command.selection } : {}),
           ...(command.contextWindow

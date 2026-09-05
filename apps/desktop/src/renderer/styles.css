@@ -9252,3 +9252,63 @@ kbd {
   :is([data-artemis-component="workspace-file-tree-row"], .review-file-path) {
   unicode-bidi: isolate;
 }
+
+.im-settings {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.im-actions,
+.im-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.im-project {
+  padding-block: 12px;
+}
+.im-grant-fields {
+  display: grid;
+  gap: 12px;
+  padding: 12px 0 0 24px;
+}
+.im-identifier {
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.im-settings details > summary {
+  cursor: pointer;
+  padding-block: 12px;
+}
+.im-settings p {
+  overflow-wrap: anywhere;
+}
+.im-setup-steps,
+.im-test-steps {
+  display: grid;
+  gap: 16px;
+  padding-inline-start: 24px;
+}
+.im-setup-steps {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  list-style: none;
+  padding-inline-start: 0;
+}
+.im-setup-steps li {
+  margin-block: 0;
+}
+.im-setup-steps p {
+  margin-block: 6px;
+}
+.im-step-status {
+  margin-inline-start: 12px;
+}
+.im-command {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.im-settings li {
+  margin-block: 8px;
+}

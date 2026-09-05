@@ -9,6 +9,17 @@ import { IPC, type ArtemisApi } from "../shared/api.js";
 import { readPromptAttachmentsFromFiles } from "./prompt-attachments.js";
 
 const api: ArtemisApi = {
+  onImTaskCreated(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      thread: import("@artemis/protocol").Thread,
+    ) => listener(thread);
+    ipcRenderer.on(IPC.imTaskCreated, handler);
+    return () => ipcRenderer.removeListener(IPC.imTaskCreated, handler);
+  },
+  getImStatus: () => ipcRenderer.invoke(IPC.imStatus),
+  saveImSettings: (settings) => ipcRenderer.invoke(IPC.imSave, settings),
+  manageIm: (input) => ipcRenderer.invoke(IPC.imManage, input),
   getSnapshot: () => ipcRenderer.invoke(IPC.snapshot),
   getThreadEvents: (threadId) => ipcRenderer.invoke(IPC.threadEvents, threadId),
   getTokenUsageEvents: () => ipcRenderer.invoke(IPC.tokenUsageEvents),
