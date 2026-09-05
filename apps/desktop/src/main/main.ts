@@ -16527,6 +16527,7 @@ function createMainWindow(): BrowserWindow {
                   // trigger before exercising its sources, branches or actions.
                   if (
                     !view.startsWith('environment-feedback') &&
+                    view !== 'environment' &&
                     view !== 'environment-dock' &&
                     view !== 'environment-dock-open'
                   ) {

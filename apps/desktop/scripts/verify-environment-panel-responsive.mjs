@@ -297,11 +297,20 @@ try {
   );
   assert(
     !narrow.environmentPanelOpen,
-    "Narrow window did not auto-hide the environment panel.",
+    "Narrow window must start with the environment panel closed.",
   );
   assert(
     !narrow.environmentPanel?.visible,
     "Narrow window environment panel remains visible.",
+  );
+
+  const narrowOpen = await runCase("narrow-open", 980, "environment-open");
+  assert(
+    narrowOpen.environmentPanelOpen &&
+      narrowOpen.environmentPanel?.visible &&
+      narrowOpen.environmentPanel.left >= 0 &&
+      narrowOpen.environmentPanel.right <= narrowOpen.windowInnerWidth,
+    "Explicitly opened narrow environment panel must remain inside the viewport.",
   );
 
   const stages = wide.startupTimings.map((timing) => timing.stage);
