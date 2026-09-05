@@ -1,5 +1,5 @@
 {
- "chrome": "Google Chrome 151.0.7922.174 ",
+ "chrome": "Google Chrome 152.0.7977.76 ",
  "combos": 36,
  "manifestExact": true,
  "manifestMissing": [],
@@ -145,7 +145,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -155,7 +155,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -165,7 +165,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 949,
+   "checked": 1985,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -175,7 +175,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -185,7 +185,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": "EQUIV_DECLARED（投影后等价类 0 内与 a-dark-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
@@ -195,7 +195,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 947,
+   "checked": 1985,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -205,7 +205,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -215,7 +215,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -225,7 +225,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 949,
+   "checked": 1985,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -235,7 +235,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -245,7 +245,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": "EQUIV_DECLARED（投影后等价类 1 内与 a-light-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
@@ -255,7 +255,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 947,
+   "checked": 1985,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -265,7 +265,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -275,7 +275,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -285,7 +285,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 947,
+   "checked": 1985,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -295,7 +295,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -305,7 +305,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": "EQUIV_DECLARED（投影后等价类 2 内与 b-dark-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
@@ -315,7 +315,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 947,
+   "checked": 1985,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -325,7 +325,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -335,7 +335,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -345,7 +345,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 947,
+   "checked": 1985,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -355,7 +355,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -365,7 +365,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": "EQUIV_DECLARED（投影后等价类 3 内与 b-light-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
@@ -375,7 +375,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 949,
+   "checked": 1985,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -385,7 +385,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -395,7 +395,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -405,7 +405,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 949,
+   "checked": 1985,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -415,7 +415,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -425,7 +425,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": "EQUIV_DECLARED（投影后等价类 4 内与 c-dark-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
@@ -435,7 +435,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 949,
+   "checked": 1987,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -445,7 +445,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -455,7 +455,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -465,7 +465,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 949,
+   "checked": 1987,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -475,7 +475,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 935,
+   "checked": 1968,
    "failList": [],
    "countsBad": [],
    "detail": ""
@@ -485,7 +485,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 939,
+   "checked": 1972,
    "failList": [],
    "countsBad": [],
    "detail": "EQUIV_DECLARED（投影后等价类 5 内与 c-light-high-hover 投影后相同：投影后等价：hover 态内容在剥离①已审查豁免条目（占位符/禁用/装饰）的 ratio/fg/bg 颜色、②侧栏组合自反 chrome（dirSeg/themeSeg/contrastSeg，data-struct-chrome 标记）内部反映请求组合身份的 aria-selected/tabindex 后相同；非豁免内容与豁免 identity/reason 差异仍判 EQUIV_STALE（R13 认可方向 + R15② chrome 披露））"
@@ -495,7 +495,7 @@
    "status": "PASS",
    "failures": 0,
    "countMismatches": 0,
-   "checked": 949,
+   "checked": 1985,
    "failList": [],
    "countsBad": [],
    "detail": ""

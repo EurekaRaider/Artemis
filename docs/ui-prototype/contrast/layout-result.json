@@ -17,12 +17,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":318,\"y\":640.5,\"width\":388.96875,\"height\":154.5,\"top\":640.5,\"right\":706.96875,\"bottom\":795,\"left\":318}"
+     "detail": "composer={\"x\":318,\"y\":599.5,\"width\":388.96875,\"height\":167.5,\"top\":599.5,\"right\":706.96875,\"bottom\":767,\"left\":318}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":333,\"y\":755,\"width\":358.96875,\"height\":28,\"top\":755,\"right\":691.96875,\"bottom\":783,\"left\":333}"
+     "detail": "toolbar={\"x\":333,\"y\":727,\"width\":358.96875,\"height\":28,\"top\":727,\"right\":691.96875,\"bottom\":755,\"left\":333}"
     },
     {
      "name": "toolbar-control-1",
@@ -89,12 +89,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":318,\"y\":641,\"width\":388.9609375,\"height\":154,\"top\":641,\"right\":706.9609375,\"bottom\":795,\"left\":318}"
+     "detail": "composer={\"x\":318,\"y\":600,\"width\":388.9609375,\"height\":167,\"top\":600,\"right\":706.9609375,\"bottom\":767,\"left\":318}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":333,\"y\":755,\"width\":358.9609375,\"height\":28,\"top\":755,\"right\":691.9609375,\"bottom\":783,\"left\":333}"
+     "detail": "toolbar={\"x\":333,\"y\":727,\"width\":358.9609375,\"height\":28,\"top\":727,\"right\":691.9609375,\"bottom\":755,\"left\":333}"
     },
     {
      "name": "toolbar-control-1",
@@ -161,12 +161,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":409,\"y\":640.5,\"width\":920,\"height\":154.5,\"top\":640.5,\"right\":1329,\"bottom\":795,\"left\":409}"
+     "detail": "composer={\"x\":409,\"y\":599.5,\"width\":920,\"height\":167.5,\"top\":599.5,\"right\":1329,\"bottom\":767,\"left\":409}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":424,\"y\":755,\"width\":890,\"height\":28,\"top\":755,\"right\":1314,\"bottom\":783,\"left\":424}"
+     "detail": "toolbar={\"x\":424,\"y\":727,\"width\":890,\"height\":28,\"top\":727,\"right\":1314,\"bottom\":755,\"left\":424}"
     },
     {
      "name": "toolbar-control-1",

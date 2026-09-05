@@ -87,27 +87,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 svg { flex:none; }
 
-/* ============ macOS 原生拖拽区（28px，非自绘标题栏） ============ */
-.darwin-drag {
-  height:28px; flex:none; display:flex; align-items:center;
-  padding:0 12px; user-select:none;
-  background:var(--bg);
-  border-bottom:1px solid var(--border-soft);
-}
-.darwin-drag .lights { display:flex; gap:8px; }
-.darwin-drag .lights i { width:12px; height:12px; border-radius:50%; display:block; }
-.darwin-drag .lights i:nth-child(1){background:var(--traffic-red);}
-.darwin-drag .lights i:nth-child(2){background:var(--traffic-yellow);}
-.darwin-drag .lights i:nth-child(3){background:var(--traffic-green);}
-.darwin-drag .hint { margin-left:12px; font-size:10px; color:var(--text-3); }
-.darwin-drag .sp { flex:1; }
-.demo-theme {
-  display:flex; align-items:center; gap:5px; height:20px; padding:0 9px;
-  border-radius:999px; font-size:10px; color:var(--text-3);
-  transition:background var(--t-quick), color var(--t-quick);
-}
-.demo-theme:hover { background:var(--hover); color:var(--text); }
-
 /* ============ app-shell 网格：46 + 252 + 1fr ============ */
 .app-shell {
   height:calc(100dvh - 28px);
@@ -163,13 +142,6 @@ body.sidebar-collapsed .project-sidebar-resizer { display:none; }
 .sidebar-search:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
 .sidebar-search input { flex:1; border:none; background:none; outline:none; font:inherit; font-size:12px; color:var(--text); }
 .sidebar-search input::placeholder { color:var(--text-3); }
-.sidebar-new {
-  width:26px; height:26px; border-radius:7px; display:grid; place-items:center;
-  color:var(--text-2); flex:none;
-  transition:background var(--t-quick), color var(--t-quick), transform var(--t-quick);
-}
-.sidebar-new:hover { background:var(--hover); color:var(--text); }
-.sidebar-new:active { transform:scale(0.94); }
 
 .project-tree { flex:1; min-height:0; overflow-y:auto; padding:2px 8px 8px; }
 .project-tree::-webkit-scrollbar { width:8px; }
@@ -208,6 +180,31 @@ body.sidebar-collapsed .project-sidebar-resizer { display:none; }
 .thread.running .st { display:inline; }
 .pulse { width:6px; height:6px; border-radius:50%; background:var(--warning); animation:pulse 1.6s var(--ease) infinite; }
 @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.35;transform:scale(.7);} }
+
+/* 会话行「更多」+ 菜单（对齐真实 thread-action/thread-menu；菜单沿用 components.html tree-menu 语言） */
+.thread-wrap { position:relative; display:flex; align-items:center; }
+.thread-wrap .thread { flex:1; min-width:0; }
+.thread-more { flex:none; width:20px; height:20px; margin-left:2px; border-radius:6px; display:none; place-items:center; font-size:11px; letter-spacing:1px; color:var(--text-3); transition:background var(--t-quick), color var(--t-quick); }
+.thread-wrap:hover .thread-more, .thread-more:focus-visible { display:grid; }
+.thread-more:hover { background:var(--border-soft); color:var(--text); }
+.thread-menu { position:absolute; right:4px; top:calc(100% + 3px); z-index:24; display:none; min-width:128px; padding:4px; border:1px solid var(--border); border-radius:var(--r-control); background:var(--raised); box-shadow:var(--shadow-overlay); }
+.thread-menu.open { display:grid; gap:1px; }
+.thread-menu button { text-align:left; padding:6px 9px; border-radius:6px; font-size:11.5px; color:var(--text); }
+.thread-menu button:hover { background:var(--hover); }
+.thread-menu button.danger { color:var(--danger); }
+/* IM 绑定徽标（对齐真实 thread-im-flag：绿点=已连接 / 红点=断链，title 提示） */
+.im-flag { flex:none; display:inline-flex; align-items:center; gap:4px; height:16px; padding:0 6px; border-radius:99px; background:var(--sunken); border:1px solid var(--border-soft); font-size:10px; font-weight:540; color:var(--text-3); }
+.im-flag .im-flag-dot { width:6px; height:6px; border-radius:50%; }
+.im-flag.ok .im-flag-dot { background:var(--success); }
+.im-flag.bad .im-flag-dot { background:var(--danger); }
+.im-flag.bad { color:var(--danger); background:var(--danger-soft); border-color:var(--danger-soft); }
+/* 侧栏头（对齐真实 sidebar-header：「任务」标签 + 搜索，无独立新建按钮） */
+.sidebar-title { flex:none; font-size:12px; font-weight:620; color:var(--text-2); }
+.sidebar-header-actions { flex:1; display:flex; min-width:0; }
+/* 版本徽标（对齐真实 sidebar-footer app-version：点击进设置） */
+.app-version { flex:none; font-size:10.5px; color:var(--text-3); padding:2px 8px; border-radius:99px; border:1px solid var(--border-soft); transition:color var(--t-quick), border-color var(--t-quick); }
+.app-version:hover { color:var(--text); border-color:var(--border); }
+
 
 .sidebar-footer { flex:none; border-top:1px solid var(--border-soft); padding:8px 10px 8px 14px; display:flex; align-items:center; gap:8px; }
 .local-badge { display:flex; align-items:center; gap:7px; min-width:0; }
@@ -707,17 +704,6 @@ body[data-dock="open"] .dock-resizer { display:block; }
 </head>
 <body data-view="workspace" data-dock="open" data-empty="0">
 
-<!-- macOS 原生拖拽区（真实结构: app-shell[data-platform=darwin] 的 28px padding-top） -->
-<div class="darwin-drag" aria-hidden="false">
-  <span class="lights" title="原生窗口控件（非自绘）"><i></i><i></i><i></i></span>
-  <span class="hint">原生拖拽区 28px · 演示用</span>
-  <span class="sp"></span>
-  <button class="demo-theme" id="themeToggle" aria-label="切换浅色 / 深色主题（演示控件）">
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg>
-    <span id="themeLabel">深色</span>
-  </button>
-</div>
-
 <div class="app-shell">
 
   <!-- 活动栏 46px: 项目/插件/使用量/定时/归档 + 设置 -->
@@ -728,16 +714,16 @@ body[data-dock="open"] .dock-resizer { display:block; }
     <button class="activity-button active" data-goto="workspace" aria-label="项目" title="项目">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z"/></svg>
     </button>
-    <button class="activity-button" data-goto="resources" aria-label="插件" title="插件">
+    <button class="activity-button" data-goto="resources" aria-label="MCP 与 Skills" title="MCP 与 Skills">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M3.5 9.5h17M8 14h4"/></svg>
     </button>
-    <button class="activity-button" data-goto="token-usage" aria-label="使用量" title="使用量">
+    <button class="activity-button" data-goto="token-usage" aria-label="Token 用量" title="Token 用量">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M5 19v-8M12 19V5M19 19v-5"/></svg>
     </button>
     <button class="activity-button" data-goto="automations" aria-label="定时任务" title="定时任务">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></svg>
     </button>
-    <button class="activity-button" data-goto="archive" aria-label="已归档对话" title="已归档对话">
+    <button class="activity-button" data-goto="archive" aria-label="归档" title="归档">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="5" rx="1.5"/><path d="M5.5 9v9A1.5 1.5 0 0 0 7 19.5h10a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"/></svg>
     </button>
     <div class="activity-spacer"></div>
@@ -749,13 +735,13 @@ body[data-dock="open"] .dock-resizer { display:block; }
   <!-- 项目侧栏: 搜索+新建 → 三层树 → 账号 -->
   <aside class="sidebar" aria-label="项目侧栏">
     <div class="sidebar-header">
-      <label class="sidebar-search">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
-        <input type="text" placeholder="搜索会话">
-      </label>
-      <button class="sidebar-new" aria-label="新建会话" title="新建会话">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
+      <span class="sidebar-title">任务</span>
+      <div class="sidebar-header-actions">
+        <label class="sidebar-search">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+          <input type="text" placeholder="搜索任务" aria-label="搜索任务">
+        </label>
+      </div>
     </div>
     <div class="project-tree">
       <button class="group-row" aria-expanded="true">
@@ -774,9 +760,18 @@ body[data-dock="open"] .dock-resizer { display:block; }
           </span>
         </button>
         <div class="thread-list">
-          <button class="thread active"><span class="dot"></span><span class="tt">UI 设计语言改版</span><span class="st"><span class="pulse"></span></span></button>
-          <button class="thread running"><span class="dot"></span><span class="tt">修复 Windows 打包 ACL</span><span class="st">运行中</span></button>
-          <button class="thread"><span class="dot"></span><span class="tt">Seatbelt 策略回归</span></button>
+          <div class="thread-wrap">
+            <button class="thread active"><span class="dot"></span><span class="tt">UI 设计语言改版</span><span class="st"><span class="pulse"></span></span></button>
+            <button class="thread-more" aria-label="更多操作" title="更多操作">···</button>
+          </div>
+          <div class="thread-wrap">
+            <button class="thread running"><span class="dot"></span><span class="tt">修复 Windows 打包 ACL</span><span class="st">运行中</span></button>
+            <button class="thread-more" aria-label="更多操作" title="更多操作">···</button>
+          </div>
+          <div class="thread-wrap">
+            <button class="thread"><span class="dot"></span><span class="tt">Seatbelt 策略回归</span></button>
+            <button class="thread-more" aria-label="更多操作" title="更多操作">···</button>
+          </div>
         </div>
       </div>
       <div class="project-item">
@@ -790,7 +785,10 @@ body[data-dock="open"] .dock-resizer { display:block; }
           </span>
         </button>
         <div class="thread-list">
-          <button class="thread"><span class="dot"></span><span class="tt">令牌契约 A2 校验</span></button>
+          <div class="thread-wrap">
+            <button class="thread"><span class="dot"></span><span class="tt">令牌契约 A2 校验</span></button>
+            <button class="thread-more" aria-label="更多操作" title="更多操作">···</button>
+          </div>
         </div>
       </div>
       <button class="group-row" aria-expanded="true" style="margin-top:6px">
@@ -799,18 +797,28 @@ body[data-dock="open"] .dock-resizer { display:block; }
         <span class="group-add" role="button" aria-label="新建临时会话" title="新建临时会话"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
       </button>
       <div class="thread-list">
-        <button class="thread"><span class="dot"></span><span class="tt">desktop-organizer 清理</span></button>
+        <div class="thread-wrap">
+          <button class="thread"><span class="dot"></span><span class="tt">desktop-organizer 清理</span></button>
+          <button class="thread-more" aria-label="更多操作" title="更多操作">···</button>
+        </div>
+        <!-- IM 绑定线程（feat/im-feishu：标题「飞书 · 发送者」，徽标绿点=已连接/红点=断链） -->
+        <div class="thread-wrap">
+          <button class="thread"><span class="dot"></span><span class="tt">飞书 · 张三</span><span class="im-flag ok" title="飞书已连接"><span class="im-flag-dot"></span>飞书</span></button>
+          <button class="thread-more" aria-label="更多操作" title="更多操作">···</button>
+        </div>
+        <div class="thread-wrap">
+          <button class="thread"><span class="dot"></span><span class="tt">飞书 · 李四</span><span class="im-flag bad" title="飞书未连接"><span class="im-flag-dot"></span>飞书</span></button>
+          <button class="thread-more" aria-label="更多操作" title="更多操作">···</button>
+        </div>
       </div>
     </div>
     <div class="sidebar-footer">
       <span class="local-badge">
         <span class="avatar">N</span>
-        <span class="local-name"><b>本地</b> · artemis</span>
+        <span class="local-name"><b>nicky</b></span>
       </span>
       <span class="foot-sp"></span>
-      <button class="icon-btn" style="width:24px;height:24px" aria-label="账号与偏好" title="账号与偏好">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c1.4-3.2 4-4.8 7-4.8s5.6 1.6 7 4.8"/></svg>
-      </button>
+      <button class="app-version" id="versionChip" aria-label="当前版本 v1.4.40" title="当前版本 v1.4.40">v1.4.40</button>
     </div>
   </aside>
 
@@ -1023,7 +1031,7 @@ body[data-dock="open"] .dock-resizer { display:block; }
             <div class="dock-tabs" id="dockTabs">
               <button class="dock-tab active" id="dockTabReview" data-tab="review" role="tab" aria-selected="true" aria-controls="dockPanelReview" tabindex="0">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4M8.5 11h5"/></svg>
-                代码审查
+                审查
                 <span class="x" data-close="review" role="button" aria-label="关闭"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
               </button>
               <button class="dock-tab" id="dockTabTerminal" data-tab="terminal" role="tab" aria-selected="false" aria-controls="dockPanelTerminal" tabindex="-1">
@@ -1474,7 +1482,7 @@ body[data-dock="open"] .dock-resizer { display:block; }
       var name = b.getAttribute("data-launch");
       $("#dockEmpty").hidden = true;
       if (!$('.dock-tab[data-tab="' + name + '"]')) {
-        var labels = { review: "代码审查", terminal: "终端", browser: "浏览器", files: "文件" };
+        var labels = { review: "审查", terminal: "终端", browser: "浏览器", files: "文件" };
         var el = document.createElement("button");
         el.className = "dock-tab";
         el.setAttribute("data-tab", name);
@@ -1516,6 +1524,36 @@ body[data-dock="open"] .dock-resizer { display:block; }
     envT.classList.toggle("active", open);
   });
   document.addEventListener("click", function (e) { if (!envP.contains(e.target) && e.target !== envT) { envP.classList.remove("open"); envT.classList.remove("active"); } });
+
+  /* ---------- 会话行「更多」菜单（对齐真实 thread-action/thread-menu：重命名/分叉/归档/删除对话） ---------- */
+  var threadMenu = document.createElement("div");
+  threadMenu.className = "thread-menu";
+  threadMenu.setAttribute("role", "menu");
+  threadMenu.innerHTML =
+    '<button role="menuitem" data-toast="已进入重命名（演示）">重命名</button>' +
+    '<button role="menuitem" data-toast="已分叉对话（演示）">分叉</button>' +
+    '<button role="menuitem" data-toast="已归档对话（演示）">归档</button>' +
+    '<button role="menuitem" class="danger" data-toast="已删除对话（演示）">删除对话</button>';
+  document.body.appendChild(threadMenu);
+  function closeThreadMenu() { threadMenu.classList.remove("open"); }
+  $$(".thread-more").forEach(function (btn) {
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var wrap = btn.closest(".thread-wrap");
+      if (!wrap) return;
+      var reopen = !threadMenu.classList.contains("open") || threadMenu.parentElement !== wrap;
+      closeThreadMenu();
+      if (reopen) {
+        wrap.appendChild(threadMenu);
+        threadMenu.classList.add("open");
+        threadMenu.querySelector("button").focus();
+      }
+    });
+  });
+  threadMenu.addEventListener("click", function (e) { if (e.target.closest("button")) closeThreadMenu(); });
+  document.addEventListener("click", function (e) { if (!threadMenu.contains(e.target) && !e.target.closest(".thread-more")) closeThreadMenu(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeThreadMenu(); });
+
 
   /* ---------- 运行模式下拉 ---------- */
   var modeS = $("#modeSelect"), modeM = $("#modeMenu");
@@ -1662,6 +1700,8 @@ body[data-dock="open"] .dock-resizer { display:block; }
   /* 设置弹窗 */
   var backdrop = $("#settingsBackdrop");
   $("#settingsBtn").addEventListener("click", function () { backdrop.classList.add("open"); });
+  /* 版本徽标（对齐真实 app-version：点击进设置-更新与诊断） */
+  $("#versionChip").addEventListener("click", function () { backdrop.classList.add("open"); });
   $("#settingsClose").addEventListener("click", function () { backdrop.classList.remove("open"); });
   backdrop.addEventListener("mousedown", function (e) { if (e.target === backdrop) backdrop.classList.remove("open"); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") backdrop.classList.remove("open"); });
@@ -1676,14 +1716,12 @@ body[data-dock="open"] .dock-resizer { display:block; }
     });
   });
 
-  /* 主题 */
+  /* 主题（页面内切换控件已移除，仅设置弹窗分段控件与 #theme= hash） */
   function setTheme(t) {
     document.documentElement.setAttribute("data-theme", t);
-    $("#themeLabel").textContent = t === "light" ? "深色" : "浅色";
     ["segSys", "segLight", "segDark"].forEach(function (id) { $("#" + id).classList.remove("active"); });
     $("#" + (t === "light" ? "segLight" : "segDark")).classList.add("active");
   }
-  $("#themeToggle").addEventListener("click", function () { setTheme(document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light"); });
   $("#segLight").addEventListener("click", function () { setTheme("light"); });
   $("#segDark").addEventListener("click", function () { setTheme("dark"); });
   $("#segSys").addEventListener("click", function () { ["segSys","segLight","segDark"].forEach(function (id) { $("#" + id).classList.remove("active"); }); $("#segSys").classList.add("active"); });

@@ -6,7 +6,7 @@
 > 重新生成：`python3 tools/gen_matrix.py --version v17 --baseline d0b7b9fa20787c97c90cdb00a8fa827e275f5aef`
 > 校验：`python3 tools/gen_matrix.py --verify --version v17 --baseline d0b7b9fa20787c97c90cdb00a8fa827e275f5aef`
 
-**双口径，禁止混淆。** 生产 TS/Electron 账本的 70 卡中 20 卡 partial、2 卡 uncovered，缺口仍如实列在第四节；与此同时，HTML 原型契约已经 70/70 通过，其中 22 张历史 partial/uncovered 卡有定向交互断言。
+**双口径，禁止混淆。** 生产 TS/Electron 账本的 70 卡中 20 卡 partial、2 卡 uncovered，缺口仍如实列在第四节；与此同时，HTML 原型契约已经 70/70 通过，其中 23 张卡有定向交互断言（历史 partial/uncovered 22 张 + v19 新增 13c 胶囊 1 张）。
 
 **校验边界：** runner 的 T8 执行 HTML 卡片的状态、交互、键盘和 ARIA 契约；`--verify` 读取并校验该结果，同时验证生产账本格式、计数和精确词边界锚点。HTML 通过不等于生产 TS 组件已经实现。
 
@@ -41,7 +41,7 @@
 | `cat-icons-04` | ic4 | Agent 团队标记 | 图标系统 | `childAgentMarkForIdentity` | `apps/desktop/src/renderer/ChildAgentIcon.tsx:25` | default | 静态标记网格（8 形态 × 12 色） | 无 | 装饰性标记 | covered | — |
 | `cat-input-01` | 04 | 文本框 | 输入与选择 | `input,` | `apps/desktop/src/renderer/styles.css:226` | default、error、disabled | 输入文本；错误/禁用态演示 | Tab 聚焦 | label 关联；aria-invalid + 错误文案 | covered | — |
 | `cat-input-02` | 04b | 搜索框 | 输入与选择 | `.sidebar-search` | `apps/desktop/src/renderer/styles.css:427` | default | 输入搜索词 | Tab 聚焦 | aria-label=搜索 | covered | — |
-| `cat-input-03` | 04c | 字段类型 | 输入与选择 | `password` | `apps/desktop/src/renderer/SettingsPanel.tsx:1151` | default | 五类字段输入演示 | Tab 聚焦 | label 关联 | partial | 五类字段（password/url/number/date/file）在基线均有生产对应（date=AutomationPage.tsx:972、file=SettingsPanel.tsx:1265，均引入于 0acb259）；PR9C 提案转 covered |
+| `cat-input-03` | 04c | 字段类型 | 输入与选择 | `password` | `apps/desktop/src/renderer/SettingsPanel.tsx:1151` | default | 五类字段输入演示 | Tab 聚焦 | label 关联 | partial | password/url/number 在基线有对应；date/file 字段类型无生产对应 |
 | `cat-input-04` | 05 | 下拉选择 | 输入与选择 | `function CodexSelect` | `apps/desktop/src/renderer/CodexSelect.tsx:98` | default、disabled | 点击展开；选项选择 | ↑↓ 移动，Enter 选择，Esc 关闭 | aria-haspopup/aria-expanded；listbox+option+aria-selected | covered | — |
 | `cat-input-05` | 06 | 开关与复选 | 输入与选择 | `.resource-switch` | `apps/desktop/src/renderer/styles.css:9769` | default、disabled | 切换开关/勾选复选 | Tab + Space | 原生 checkbox 语义 | covered | — |
 | `cat-overlay-01` | 07 | 对话框 | 浮层 | `aria-modal` | `apps/desktop/src/renderer/App.tsx:8348` | default | 打开/确认/取消/遮罩关闭 | Tab 框内循环；Esc 关闭；焦点回触发器 | role=dialog + aria-modal | covered | — |
@@ -76,7 +76,7 @@
 | `cat-sources-08` | S8 | 环境来源集成 + PR checks | 环境与 PR checks | `pr-check` | `apps/desktop/src/renderer/EnvironmentPanel.tsx:1629` | default、loading、error | PR summary 六态；三种 coverage warning；checks dialog；stale retry | Tab；Enter/Space 打开 checks；Esc 关闭并恢复焦点 | dialog + aria-expanded；passed/pending/failed/skipped/cancelled/none 文本；警告列表 | partial | 正式 PR checks 行为内聚在大型 EnvironmentPanel，尚未抽成可复用 TS 组件与独立 RTL 状态矩阵 |
 | `cat-artemis-01` | 13a | 运行模式 | 运行模式与审批 | `approval-policy-menu` | `apps/desktop/src/renderer/App.tsx:7046` | default | 点击展开策略菜单 | 菜单键盘导航 | aria-haspopup/aria-expanded | covered | — |
 | `cat-artemis-02` | 13b | 工具活动 | 工具活动与计划 | `ToolActivityGroupCard` | `apps/desktop/src/renderer/App.tsx:9360` | default、loading | 点标题折叠/展开 | 标题可聚焦，Enter 切换 | aria-expanded；步骤状态点 | covered | — |
-| `cat-artemis-03` | 13c | 任务计划 | 工具活动与计划 | `export function TaskPlanProgress` | `apps/desktop/src/renderer/TaskPlanProgress.tsx:85` | default、loading | 静态步骤进度展示 | 无 | 步骤完成/进行中视觉（基线组件渲染） | covered | — |
+| `cat-artemis-03` | 13c | 任务计划胶囊 | 工具活动与计划 | `export function TaskPlanProgress` | `apps/desktop/src/renderer/TaskPlanProgress.tsx:85` | default、error | 胶囊悬停 175ms 上浮步骤浮窗；点击/聚焦固定；完成后 2.5s 自动隐藏 | 聚焦展开 · Esc 关闭 | aria-expanded/aria-controls + 步骤标记 role=img aria-label | covered | — |
 | `cat-artemis-04` | 13d | 模型选择 | 会话与消息 | `model-picker` | `apps/desktop/src/renderer/App.tsx:7163` | default | 点击展开模型列表 | 列表键盘导航 | aria-haspopup/expanded | covered | — |
 | `cat-artemis-05` | 13e | 输入区 | 输入区 | `composer` | `apps/desktop/src/renderer/App.tsx:6568` | default | textarea 输入自适应高 | 原生 textarea 聚焦 | aria-label 标注 | covered | — |
 | `cat-artemis-06` | 13f | 上下文环 | 会话与消息 | `export function ContextUsageIndicator` | `apps/desktop/src/renderer/ContextUsageIndicator.tsx:78` | default | 静态三档用量环展示 | 无 | role=img + aria-label 百分比；高用量转警告色 | covered | — |
@@ -151,7 +151,7 @@ v17 HTML 已由 T8 覆盖以下卡片；这里列的是 current main 正式实�
 
 ## 五、统计
 
-HTML 原型契约：**70/70**；历史缺口定向卡：**22/22**；证据：`contrast/prototype-contract-result.json`。
+HTML 原型契约：**70/70**；定向交互断言卡：**23**（历史缺口 22 + v19 13c 胶囊 1）；证据：`contrast/prototype-contract-result.json`。
 
 | 覆盖状态 | 卡数 | 占比 |
 |---|---|---|

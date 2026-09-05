@@ -108,6 +108,8 @@
 body { margin: 0; background: var(--bg); color: var(--text); font: var(--fs)/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; -webkit-font-smoothing: antialiased; transition: background var(--t-med), color var(--t-med); }
 
 /* ============ 顶栏：方向 + 主题 + 对比 ============ */
+/* 浮层层级阶梯（低位→高位）：卡片内局部浮层 1-15 · 下拉菜单 30 · tooltip 50 ·
+   吸顶顶栏 60 · 卡片 popover 60 · 模态遮罩 100 · Toast 200。新增浮层按此归位。 */
 header.top { position: sticky; top: 0; z-index: 60; background: var(--bg); border-bottom: 1px solid var(--border-soft); padding: 12px 22px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 header.top h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: var(--title-ls); font-family: var(--font-display); }
 header.top .spacer { flex: 1; }
@@ -128,6 +130,20 @@ nav.side a { display: flex; align-items: center; gap: 8px; padding: 6px 9px; bor
 nav.side a:hover { background: var(--surface-3); color: var(--text); }
 nav.side a.active { background: var(--surface-3); color: var(--text); font-weight: 550; }
 nav.side a .n { margin-left: auto; font-size: 10px; color: var(--text-3); }
+/* 两级导航：分类组头（可折叠）+ 自动生成的组件项 */
+nav.side .nav-cat { display: flex; align-items: center; gap: 7px; width: 100%; border: 0; background: transparent; font: inherit; font-size: 12px; font-weight: 600; color: var(--text-2); padding: 6px 9px; margin-top: 16px; border-radius: var(--r-sm); cursor: pointer; transition: background var(--t-quick), color var(--t-quick); }
+nav.side .nav-cat:first-of-type { margin-top: 0; }
+nav.side .nav-cat:hover { background: var(--surface-3); color: var(--text); }
+nav.side .nav-cat:active { transform: scale(0.98); }
+nav.side .nav-cat .chev { width: 8px; height: 8px; color: var(--text-3); stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--t-quick); flex: none; }
+nav.side .grp.collapsed .nav-cat .chev { transform: rotate(-90deg); }
+nav.side .nav-cat .n { margin-left: auto; font-size: 10px; font-weight: 400; color: var(--text-3); font-variant-numeric: tabular-nums; }
+nav.side .grp { display: flex; flex-direction: column; }
+nav.side .nav-items { display: flex; flex-direction: column; gap: 1px; padding: 3px 0 6px; }
+nav.side .grp.collapsed .nav-items { display: none; }
+nav.side .nav-items a { padding: 3.5px 9px 3.5px 24px; font-size: 12px; line-height: 1.5; }
+nav.side .nav-items a::after { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); margin-left: auto; opacity: 0; transform: scale(0.6); transition: opacity var(--t-quick), transform var(--t-quick); flex: none; }
+nav.side .nav-items a.active::after { opacity: 1; transform: scale(1); }
 main { flex: 1; min-width: 0; padding: 24px 28px 120px; }
 
 section.cat { margin-bottom: 40px; scroll-margin-top: 70px; }
@@ -136,7 +152,7 @@ section.cat > p.sub { margin: 0 0 16px; font-size: 12.5px; color: var(--text-2);
 section.cat > h2 .cnt { font-size: 11px; color: var(--accent-text); font-weight: 650; margin-left: 7px; font-family: inherit; }
 
 /* 组件卡 */
-.spec { border: 1px solid var(--border-soft); border-radius: var(--r-card); background: var(--surface); margin-bottom: 12px; }
+.spec { border: 1px solid var(--border-soft); border-radius: var(--r-card); background: var(--surface); margin-bottom: 12px; scroll-margin-top: 70px; }
 .spec-h { padding: 11px 16px 9px; border-bottom: 1px solid var(--border-soft); margin: 0 10px; padding-left: 6px; padding-right: 6px; display: flex; align-items: baseline; gap: 10px; }
 .spec-h .no { font-size: 11px; color: var(--accent-text); font-weight: 650; font-variant-numeric: tabular-nums; }
 .spec-h .name { font-size: 13.5px; font-weight: 600; }
@@ -145,6 +161,12 @@ section.cat > h2 .cnt { font-size: 11px; color: var(--accent-text); font-weight:
 .spec-b { padding: 18px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
 .spec-b.col { flex-direction: column; align-items: stretch; }
 .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+/* 组件文档块：构成 / 事件 / 行为 三行结构化说明（指导后续开发用） */
+.spec-d { padding: 11px 16px 13px; border-bottom: 1px solid var(--border-soft); display: grid; gap: 6px; }
+.sd-row { display: flex; gap: 10px; font-size: 11.5px; line-height: 1.65; }
+.sd-row .sd-k { flex: 0 0 auto; height: fit-content; padding: 1px 7px; margin-top: 2px; border-radius: 5px; background: var(--surface-3); color: var(--text-2); font-weight: 600; font-size: 10.5px; letter-spacing: 0.02em; text-align: center; }
+.sd-row .sd-v { color: var(--text-2); min-width: 0; flex: 1; }
+.sd-row .sd-v code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; background: var(--surface-3); padding: 0 4px; border-radius: 4px; }
 
 /* ============ 组件样式（令牌驱动，三方向自动适配） ============ */
 .btn { font: inherit; font-size: var(--fs); font-weight: 520; padding: var(--sp-btn-y) var(--sp-btn-x); border-radius: var(--r-sm); border: 1px solid transparent; cursor: pointer; transition: background var(--t-quick), border-color var(--t-quick), color var(--t-quick), opacity var(--t-quick), transform var(--t-quick); display: inline-flex; align-items: center; gap: 7px; }
@@ -259,6 +281,8 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .toolbar-button:hover { background: var(--surface-3); color: var(--text); }
 .toolbar-button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
 .toolbar-button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
+/* 工具栏 · 反馈补齐 */
+.toolbar-button:active:not(:disabled) { transform: scale(0.96); }
 .toolbar-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
 .lst { width: 100%; border: 1px solid var(--border-soft); border-radius: var(--r-md); overflow: hidden; background: var(--surface); }
 .list-row { display: flex; align-items: center; gap: 10px; padding: 0 12px; height: var(--row-h); border-bottom: 1px solid var(--border-soft); cursor: pointer; font-size: var(--fs); transition: background var(--t-quick); }
@@ -278,7 +302,9 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .scroll-area::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 999px; border: 2px solid var(--surface); }
 .split { display: flex; width: 100%; height: 180px; border: 1px solid var(--border-soft); border-radius: var(--r-md); overflow: hidden; background: var(--surface); }
 .split-pane { display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 12px; overflow: hidden; }
+.split-pane[hidden], .split-sep[hidden] { display: none !important; } /* display:flex 规则会压过 UA 的 [hidden]，需显式守卫 */
 .split-a { background: var(--surface); }
+.split-mid { background: var(--surface-3); }
 .split-b { background: var(--surface-2); flex: 1; }
 .split-sep { flex: 0 0 7px; cursor: col-resize; background: transparent; border: 0; padding: 0; position: relative; transition: background var(--t-quick); }
 .split-sep::after { content: ""; position: absolute; left: 3px; top: 0; bottom: 0; width: 1px; background: var(--border-soft); }
@@ -372,6 +398,7 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
   50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--danger) 0%, transparent); }
 }
 .uc-result { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--text-3); padding: 11px 14px; border: 1px solid var(--border-soft); border-radius: var(--r-md); background: var(--surface-2); }
+.spec-b.col .uc-result + .uc-result { margin-top: 0; } /* 纵向满宽排布时间距走 spec-b 的 gap，避免与 margin 叠加 */
 .uc-result + .uc-result { margin-top: 8px; }
 .uc-result strong { color: var(--text); font-weight: 600; }
 .approval { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: 12px 14px; width: 100%; max-width: 440px; }
@@ -391,6 +418,10 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .seg-ctl { display: inline-flex; background: var(--surface-3); border-radius: var(--r-sm); padding: 2px; gap: 2px; }
 .seg-ctl button { border: 0; background: transparent; color: var(--text-2); font: inherit; font-size: 12.5px; padding: 5px 13px; border-radius: calc(var(--r-sm) - 2px); cursor: pointer; }
 .seg-ctl button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.12); font-weight: 550; }
+/* 分段控件 · 反馈补齐 */
+.seg-ctl button { transition: background var(--t-quick), box-shadow var(--t-quick), transform var(--t-quick); }
+.seg-ctl button:hover { background: color-mix(in srgb, var(--surface) 55%, var(--surface-3)); }
+.seg-ctl button:active:not(:disabled) { transform: scale(0.96); }
 .search-field { position: relative; min-width: 220px; }
 .search-field input { padding-left: 31px; }
 .search-field .sic { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
@@ -417,6 +448,13 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .dock-tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 .dock-tab .dt-x { border: 0; background: transparent; color: var(--text-3); cursor: pointer; padding: 0 2px; border-radius: 3px; font-size: 11px; }
 .dock-tab .dt-x:hover { color: var(--danger-text); }
+/* 图标+文字模式：.dt-ic 默认隐藏，.dock-tabs.icon-mode 或单页签 .icon-mode 时显示 */
+.dock-tab .dt-ic { display: none; }
+.dock-tab .dt-ic svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.dock-tabs.icon-mode .dock-tab .dt-ic, .dock-tab.icon-mode .dt-ic { display: inline-flex; color: var(--text-3); }
+.dock-tabs.icon-mode .dock-tab.active .dt-ic { color: var(--accent-text); }
+/* 动态 Dock 标签 · 反馈补齐 */
+.dock-tab:not(.active):hover { background: var(--surface-3); }
 /* 卡片 / 统计卡 */
 .card { border: 1px solid var(--border-soft); border-radius: var(--r-card); background: var(--surface); padding: 16px; width: 100%; max-width: 280px; }
 .card .c-t { font-size: 13.5px; font-weight: 600; margin-bottom: 5px; }
@@ -478,6 +516,8 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .tool-act { border: 1px solid var(--border-soft); border-radius: var(--r-md); background: var(--surface); width: 100%; max-width: 440px; overflow: hidden; }
 .tool-act-h { display: flex; align-items: center; gap: 9px; padding: 9px 13px; cursor: pointer; font-size: 12.5px; }
 .tool-act-h:hover { background: var(--surface-2); }
+/* 工具活动 · 反馈补齐 */
+.tool-act-h:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--focus-ring); }
 .tool-act-h .ta-chev { transition: transform var(--t-quick); color: var(--text-3); }
 .tool-act.open .tool-act-h .ta-chev { transform: rotate(90deg); }
 .tool-act-b { max-height: 0; overflow: hidden; transition: max-height var(--t-med); }
@@ -488,20 +528,34 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .tool-step.run .ts-dot { background: var(--accent); animation: pulse 1.2s infinite; }
 @keyframes pulse { 50% { opacity: 0.4; } }
 .tool-step .ts-t { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--text-3); margin-left: auto; }
-.task-plan { border: 1px solid var(--border-soft); border-radius: var(--r-md); background: var(--surface); width: 100%; max-width: 440px; padding: 11px 13px; }
-.task-step { display: flex; gap: 10px; align-items: flex-start; padding: 5px 0; font-size: 12.5px; }
-.task-step .tk-ic { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-3); margin-top: 1px; }
-.task-step.done .tk-ic { background: var(--success); border-color: var(--success); color: var(--on-success, #fff); }
-.task-step.run .tk-ic { border-color: var(--accent-text); color: var(--accent-text); animation: tk-breathe 1.6s ease-in-out infinite; }
-@keyframes tk-breathe {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
-  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 0%, transparent); }
-}
-.task-step.run .tk-t { position: relative; }
-.task-step.run .tk-t::after { content: ""; display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: 2px; animation: tk-dot 1.6s ease-in-out infinite; }
-@keyframes tk-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.7); } }
-.task-step.done .tk-t { color: var(--text-3); text-decoration: line-through; }
-.task-step.run .tk-t { color: var(--text); font-weight: 550; }
+/* 任务计划胶囊（对齐真实实现 TaskPlanProgress.tsx / styles.css .task-plan-*：
+   胶囊触发器「第 n / 总数 步」+ 悬停意图 175ms 上浮步骤浮窗；点击/聚焦固定；
+   Esc、指针移出、点外关闭；全部完成后 2.5s 自动隐藏。令牌映射 panel-3→surface-3、
+   muted→text-2、muted-2→text-3、blue→accent、hover→surface-3。） */
+.plan-stage { width: 100%; border: 1px dashed var(--border-soft); border-radius: var(--r-md); background: var(--surface-2); padding: 200px 16px 18px; display: flex; justify-content: center; position: relative; }
+.plan-stage .plan-hint { position: absolute; top: 12px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--text-3); pointer-events: none; }
+.task-plan-progress { align-items: center; display: flex; justify-content: center; position: relative; width: fit-content; z-index: 15; }
+.task-plan-progress.plan-gone { display: none; }
+.task-plan-trigger { align-items: center; background: var(--surface-3); border: 1px solid var(--border); border-radius: calc(var(--row-h) / 2); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16); color: var(--text-2); cursor: pointer; display: inline-flex; font: inherit; font-size: var(--fs); font-weight: 550; gap: 9px; height: var(--row-h); letter-spacing: -0.01em; padding: 0 14px; transition: background var(--t-quick), color var(--t-quick); }
+.task-plan-trigger:hover, .task-plan-trigger[aria-expanded="true"] { background: color-mix(in srgb, var(--surface-3) 82%, var(--text)); color: var(--text); }
+.task-plan-trigger:focus-visible { outline: none; box-shadow: 0 0 0 3.5px var(--focus-ring); }
+.task-plan-trigger .plan-num { font-variant-numeric: tabular-nums; }
+.task-plan-list { animation: plan-pop var(--t-quick); background: color-mix(in srgb, var(--surface) 96%, transparent); border: 1px solid var(--border); border-radius: var(--r-lg); bottom: calc(100% + 8px); box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34); left: 50%; list-style: none; margin: 0; max-height: min(320px, 46vh); overflow: auto; padding: 7px; position: absolute; transform: translateX(-50%); width: min(520px, 72vw); z-index: 1; }
+@keyframes plan-pop { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.task-plan-step { align-items: flex-start; border-radius: var(--r-sm); color: var(--text-2); display: flex; font-size: calc(var(--fs) - 1px); gap: 10px; line-height: 1.45; min-height: 34px; padding: 7px 9px; }
+.task-plan-step.in_progress { background: var(--surface-3); color: var(--text); }
+.task-plan-step.completed { color: color-mix(in srgb, var(--text-2) 78%, var(--text)); }
+.task-plan-step.failed { color: var(--danger-text); }
+.task-plan-step > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.task-step-marker { align-items: center; border: 1.5px solid var(--text-3); border-radius: 50%; color: var(--text-2); display: inline-flex; flex: 0 0 auto; height: 16px; justify-content: center; margin-top: 1px; width: 16px; }
+.task-step-marker.pending { background: transparent; }
+.task-step-marker.in_progress { animation: plan-breathe 1.6s ease-in-out infinite; border-color: color-mix(in srgb, var(--accent) 34%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); position: relative; }
+.task-step-marker.in_progress::after { content: ""; position: absolute; inset: 3.5px; border-radius: 50%; background: var(--accent); animation: plan-dot-pulse 1.6s ease-in-out infinite; }
+@keyframes plan-breathe { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 38%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent); } }
+@keyframes plan-dot-pulse { 0%, 100% { transform: scale(0.72); opacity: 0.65; } 50% { transform: scale(1); opacity: 1; } }
+.task-step-marker.completed { background: color-mix(in srgb, var(--success) 16%, transparent); border-color: var(--success); color: var(--success-text); }
+.task-step-marker.completed svg { height: 11px; width: 11px; }
+.task-step-marker.failed { border-color: var(--danger); color: var(--danger-text); font-size: 10px; font-weight: 700; }
 
 /* ============ 批次①：规范标尺 / 字段 / Agent Team / prompt history ============ */
 .type-scale { width: 100%; }
@@ -520,8 +574,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .agent-row.lead { background: var(--surface-2); }
 .agent-row.child-a { padding-left: 34px; position: relative; }
 .agent-row.child-a::before { content: ""; position: absolute; left: 20px; top: 0; bottom: 0; width: 1px; background: var(--border-soft); }
-.agent-row .ag-av { width: 24px; height: 24px; border-radius: 6px; background: var(--accent); color: var(--accent-contrast); display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 600; flex-shrink: 0; }
-.agent-row.child-a .ag-av { background: var(--surface-3); color: var(--text-2); }
+.agent-row .ag-av { width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: color-mix(in srgb, var(--accent) 12%, transparent); color: color-mix(in srgb, var(--accent) 66%, var(--text)); }
+.agent-row .ag-av svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.agent-row .ag-av .filldot { fill: currentColor; stroke: none; }
+.agent-row.child-a .ag-av.mark-teal { background: color-mix(in srgb, #1fc9ae 12%, transparent); color: color-mix(in srgb, #1fc9ae 60%, var(--text)); }
+.agent-row.child-a .ag-av.mark-amber { background: color-mix(in srgb, #f2a93b 14%, transparent); color: color-mix(in srgb, #f2a93b 64%, var(--text)); }
 .agent-row .ag-n { font-size: 12.5px; font-weight: 550; }
 .agent-row .ag-role { font-size: 11px; color: var(--text-3); }
 .agent-row .ag-st { margin-left: auto; }
@@ -553,6 +610,9 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .md-bar { display: flex; gap: 2px; padding: 5px; border-bottom: 1px solid var(--border-soft); background: var(--surface-2); }
 .md-bar .md-tab { border: 0; background: transparent; font: inherit; font-size: 11.5px; padding: 4px 11px; border-radius: 6px; color: var(--text-2); cursor: pointer; }
 .md-bar .md-tab[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.08); font-weight: 550; }
+/* Markdown 编辑与预览 · 反馈补齐 */
+.md-bar .md-tab { transition: background var(--t-quick); }
+.md-bar .md-tab:hover { background: var(--surface-3); }
 .md-body { display: grid; grid-template-columns: 1fr 1fr; min-height: 120px; }
 .md-edit { border-right: 1px solid var(--border-soft); padding: 11px; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; line-height: 1.65; color: var(--text-2); white-space: pre-wrap; background: var(--surface-2); }
 .md-view { padding: 11px 13px; font-size: 12.5px; line-height: 1.6; }
@@ -583,26 +643,44 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 
 /* ====== v13 新增：来源与环境（cat-sources） ====== */
 .src-card { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--border-soft); border-radius: var(--r-md); background: var(--surface); margin-bottom: 6px; }
-.src-card .src-icon { font-size: 16px; flex-shrink: 0; }
+.src-card .src-icon { flex-shrink: 0; display: inline-flex; color: var(--text-3); }
+.src-card .src-icon svg { width: 15px; height: 15px; }
 .src-card .src-body { flex: 1; min-width: 0; }
 .src-card .src-body strong { display: block; font-size: 12.5px; }
 .src-card .src-body small { display: block; font-size: 11px; color: var(--text-3); margin-top: 1px; }
 .src-group { border: 1px solid var(--border-soft); border-radius: var(--r-md); background: var(--surface); overflow: hidden; }
 .src-group-head { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); }
-.src-group-head strong { font-size: 12.5px; }
+.src-group-head strong { font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
+.src-group-head strong svg { color: var(--text-3); }
 .src-group-head small { display: block; font-size: 11px; color: var(--text-3); margin-top: 2px; }
-.src-links { list-style: none; margin: 0; padding: 6px 0; }
-.src-links li { padding: 4px 12px; font-size: 12px; }
+/* 来源条目（v23 重设计）：图标 + 标题/副标题两行 + 右侧计数/箭头，行卡式悬停 */
+.src-links { list-style: none; margin: 0; padding: 5px 6px 6px; display: flex; flex-direction: column; gap: 3px; }
+.src-links li { padding: 0; font-size: 12px; }
 .src-links a { color: var(--accent-text); text-decoration: none; }
 .src-links a:hover { text-decoration: underline; }
+.src-links .src-link { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; padding: 7px 9px; border: 1px solid transparent; border-radius: var(--r-sm); background: transparent; color: var(--text); font: inherit; font-size: 12px; cursor: pointer; transition: background var(--t-quick), border-color var(--t-quick); }
+.src-links .src-link:hover, .src-links .src-link:focus-visible { background: var(--surface-2); border-color: var(--border-soft); }
+.src-links .src-link:active { transform: scale(0.99); }
+.src-links .src-link .sl-ic { flex: none; display: inline-flex; color: var(--text-3); }
+.src-links .src-link:hover .sl-ic, .src-links .src-link:focus-visible .sl-ic { color: var(--text-2); }
+.src-links .src-link .sl-ic svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.src-links .src-link .sl-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.src-links .src-link .sl-title { font-weight: 520; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-links .src-link .sl-sub { font-size: 10.5px; color: var(--text-3); font-family: ui-monospace, "SF Mono", Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-links .src-link.web .sl-title { color: var(--accent-text); }
+.src-links .src-link.mcp .sl-title { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; }
+.src-links .src-link .sl-count { flex: none; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--text-2); background: var(--surface-3); border-radius: 999px; padding: 1px 8px; }
+.src-links .src-link .sl-arrow { flex: none; width: 12px; height: 12px; color: var(--text-3); opacity: 0; transform: translateX(-3px); transition: opacity var(--t-quick), transform var(--t-quick), color var(--t-quick); stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.src-links .src-link:hover .sl-arrow, .src-links .src-link:focus-visible .sl-arrow { opacity: 1; transform: none; color: var(--accent-text); }
 .src-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 16px; color: var(--text-3); }
-.src-empty-icon { font-size: 24px; opacity: 0.4; }
+.src-empty-icon { opacity: 0.4; }
+.src-empty-icon svg { width: 26px; height: 26px; }
 .src-empty p { font-size: 12.5px; margin: 0; }
 .src-mini { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px; background: var(--surface-3); border-radius: 999px; }
 .goal-editor { border: 1px solid var(--border-soft); border-radius: var(--r-md); background: var(--surface); overflow: hidden; }
 .goal-input { width: 100%; border: none; background: transparent; padding: 10px 12px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 60px; color: var(--text); }
 .goal-input:focus { outline: none; }
-.goal-meta { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-top: 1px solid var(--border-soft); }
+.goal-meta { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-top: 1px solid var(--border-soft); }
 .goal-updated { font-size: 11px; color: var(--text-3); }
 .goal-actions { display: flex; gap: 6px; align-items: center; }
 .icon-btn { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--border-soft); border-radius: var(--r-sm); background: var(--surface); cursor: pointer; font-size: 13px; color: var(--text-2); transition: all var(--t-quick); }
@@ -627,29 +705,44 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .demo-toolbar { display:flex; align-items:center; gap:6px; flex-wrap:wrap; width:100%; }
 .demo-state { min-height:24px; display:flex; align-items:center; gap:6px; color:var(--text-2); font-size:11.5px; }
 .demo-state[role="alert"] { color:var(--danger-text); }
-.focus-target:focus-visible, .src-open:focus-visible, .tree-menu button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.focus-target:focus-visible, .src-open:focus-visible, .tree-menu .tm-item:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .dock-contract { display:grid; grid-template-columns:minmax(0,1fr) minmax(210px,.72fr); gap:10px; width:100%; }
 .dock-launcher { border:1px dashed var(--border); border-radius:var(--r-md); padding:10px; display:grid; grid-template-columns:repeat(2,minmax(86px,1fr)); gap:7px; align-content:start; }
-.dock-launcher .launch-btn { min-height:34px; border:1px solid var(--border-soft); border-radius:var(--r-sm); background:var(--surface); color:var(--text); font-size:11.5px; }
+.dock-launcher .launch-btn { min-height:34px; border:1px solid var(--border-soft); border-radius:var(--r-sm); background:var(--surface); color:var(--text); font-size:11.5px; display:inline-flex; align-items:center; gap:7px; justify-content:center; }
+/* 启动器图标随 Dock 显示模式显隐（与页签 .dt-ic 同步） */
+.dock-launcher .launch-btn .lb-ic { display:none; }
+.dock-launcher.icon-mode .launch-btn .lb-ic { display:inline-flex; color:var(--text-3); }
+.dock-launcher .launch-btn .lb-ic svg { width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.dock-launcher.icon-mode .launch-btn:hover .lb-ic { color:var(--text); }
 .dock-launcher .launch-btn:hover, .dock-launcher .launch-btn:focus-visible { background:var(--hover); border-color:var(--accent); }
 .dock-launcher .launch-btn[aria-disabled="true"] { opacity:.48; cursor:not-allowed; }
 .dock-launcher .launch-note { grid-column:1/-1; font-size:10.5px; color:var(--text-3); }
 .split.closed .split-sep { pointer-events:none; opacity:.35; }
 .split-controls { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-.tree-contract { position:relative; width:min(100%,420px); }
+.tree-contract { position:relative; width:min(100%,420px); overflow: visible; } /* 覆盖 .lst 的 overflow:hidden，让 tree-menu 浮层逃出圆角容器 */
 .list-row.level-2 { padding-left:24px; }
 .list-row.level-3 { padding-left:46px; }
 .list-row.drop-before { box-shadow:inset 0 2px 0 var(--accent); }
 .list-row.drop-after { box-shadow:inset 0 -2px 0 var(--accent); }
 .running-mark { width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); flex:0 0 auto; }
-.tree-menu { position:absolute; right:8px; z-index:4; display:none; min-width:140px; padding:4px; border:1px solid var(--border); border-radius:var(--r-sm); background:var(--surface); box-shadow:var(--shadow-float); }
-.tree-menu.open { display:grid; }
-.tree-menu button { text-align:left; padding:6px 8px; border-radius:6px; color:var(--text); font-size:11.5px; }
+/* 树行操作菜单：头部目标行信息 + 图标项 + 快捷键提示 + 危险项分区（v21 重设计） */
+.tree-menu { position:absolute; right:8px; z-index:4; display:none; min-width:216px; padding:5px; border:1px solid var(--border); border-radius:var(--r-md); background:var(--surface); box-shadow:var(--shadow-overlay); }
+.tree-menu.open { display:grid; gap:1px; }
+.tree-menu .tm-head { padding:7px 9px 7px; border-bottom:1px solid var(--border-soft); margin-bottom:3px; display:flex; flex-direction:column; gap:1px; }
+.tree-menu .tm-head b { font-size:12px; font-weight:600; color:var(--text); max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tree-menu .tm-head small { font-size:10.5px; color:var(--text-3); }
+.tree-menu .tm-item { display:flex; align-items:center; gap:9px; text-align:left; padding:6px 9px; border-radius:var(--r-sm); border:0; background:transparent; color:var(--text-2); font:inherit; font-size:12px; cursor:pointer; transition:background var(--t-quick), color var(--t-quick); }
+.tree-menu .tm-item:hover { background:var(--surface-3); color:var(--text); }
+.tree-menu .tm-item svg { width:14px; height:14px; stroke: currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; color:var(--text-3); flex:0 0 auto; transition:color var(--t-quick); }
+.tree-menu .tm-item:hover svg { color:var(--text-2); }
+.tree-menu .tm-item kbd { margin-left:auto; font-family:ui-monospace, "SF Mono", Menlo, monospace; font-size:10px; color:var(--text-3); background:var(--surface-3); border:1px solid var(--border-soft); border-radius:4px; padding:0 4px; line-height:1.5; flex:0 0 auto; }
+.tree-menu .tm-item.danger { color:var(--danger-text); }
+.tree-menu .tm-item.danger svg, .tree-menu .tm-item.danger kbd { color:var(--danger-text); border-color:color-mix(in srgb, var(--danger) 22%, transparent); }
+.tree-menu .tm-item.danger:hover { background:color-mix(in srgb, var(--danger) 10%, transparent); color:var(--danger-text); }
+.tree-menu .tm-sep { height:1px; background:var(--border-soft); margin:3px 6px; }
 .src-card { position:relative; }
-.src-body strong, .src-body small, .src-links button span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.src-body strong, .src-body small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .src-open { flex:0 0 auto; min-height:28px; padding:4px 8px; border:1px solid var(--border-soft); border-radius:var(--r-sm); background:var(--surface-2); color:var(--text); font-size:11px; }
-.src-links button { width:100%; display:flex; align-items:center; gap:8px; text-align:left; padding:5px 12px; background:var(--surface); color:var(--text); font-size:12px; }
-.src-links button:hover, .src-links button:focus-visible { background:var(--hover); }
 .src-feedback { width:100%; padding:7px 10px; border-radius:var(--r-sm); background:var(--surface-3); color:var(--text-2); font-size:11.5px; }
 .src-feedback.error { color:var(--danger-text); border:1px solid color-mix(in srgb,var(--danger) 45%,transparent); }
 .goal-editor[aria-busy="true"] .goal-input { opacity:.58; }
@@ -686,6 +779,45 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .queued-item[aria-busy="true"] { opacity:.56; }
 .qi-edit-input { min-width:0; border:1px solid var(--border); border-radius:var(--r-sm); background:var(--surface); color:var(--text); padding:5px 7px; }
 .prototype-boundary { border-left:3px solid var(--warning); padding-left:9px; color:var(--text-2); font-size:11.5px; }
+
+/* ============ 交互反馈补齐：所有可点击元素必有 hover + 按压反馈 ============ */
+.seg button:hover { background: color-mix(in srgb, var(--surface) 55%, var(--surface-3)); color: var(--text); }
+.seg button:active:not(:disabled) { transform: scale(0.96); }
+.tree-toggle:hover { color: var(--text); background: var(--surface-3); }
+.tree-toggle:active { transform: scale(0.9) rotate(-90deg); }
+.tree-toggle[aria-expanded="true"]:active { transform: scale(0.9); }
+.src-card .src-open { border: 1px solid var(--border-soft); background: var(--surface); color: var(--text-2); font: inherit; font-size: 11.5px; padding: 3px 10px; border-radius: var(--r-sm); cursor: pointer; transition: all var(--t-quick); }
+.src-card .src-open:hover { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+.src-card .src-open:active { transform: scale(0.95); }
+.pr-check { border: 0; background: transparent; font: inherit; cursor: pointer; text-align: left; transition: background var(--t-quick); }
+.pr-check:hover { background: var(--surface-2); }
+.pr-check:active { transform: scale(0.98); }
+.mode-pill { transition: background var(--t-quick), color var(--t-quick), border-color var(--t-quick); }
+.mode-pill:hover { color: var(--text); border-color: var(--border); background: var(--surface-3); }
+.mode-pill:active { transform: scale(0.97); }
+.ph-row .ph-re:active { transform: scale(0.94); }
+.uq-dot:hover { transform: scale(1.5); background: var(--text-3); }
+.uq-dot.cur:hover { background: var(--accent); }
+.uq-dot:active { transform: scale(0.8); }
+.icon-btn:active:not(:disabled) { transform: scale(0.92); }
+.dock-tab .dt-x:active { transform: scale(0.85); }
+.dock-launcher .launch-btn:active { transform: scale(0.97); }
+button:active { transition-duration: 60ms; }
+/* 面板头图标钮 / 发送钮 / 树菜单项 按压反馈 · 质量批补齐 */
+.ph-btn:active:not(:disabled) { transform: scale(0.94); }
+.send-btn:active:not(:disabled) { transform: scale(0.94); }
+.tree-menu .tm-item:active { transform: scale(0.98); background: var(--surface-3); }
+/* Dock 启动器文字距边 · 质量批补齐 */
+.dock-launcher .launch-btn { padding: 0 10px; }
+/* 树折叠相位 · 质量批补齐：子行显隐跟随行 aria-expanded，与箭头旋转同步（JS 内联写值不再决定可见性） */
+#treeDemo .list-row[aria-expanded="false"] ~ .list-row.child { display: none; }
+#treeDemo .list-row[aria-expanded="true"] ~ .list-row.child { display: flex !important; }
+/* hover 可见性 · 质量批补齐：方向 A/B 的 --accent-hover 与 --accent 同值导致主操作钮 hover 无视觉变化；激活态钮 hover 被后位规则覆盖 */
+.btn-primary:hover:not(:disabled) { filter: brightness(1.07); }
+.send-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.toolbar-button.active:hover { background: var(--surface-2); }
+.act-btn.active:hover { background: color-mix(in srgb, var(--surface-3) 82%, var(--text) 7%); }
+.dock-tab.active:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.16); }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
 @media (max-width: 820px) { nav.side { display: none; } }
@@ -736,9 +868,14 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
     <!-- 概览：方向对比 -->
     <section class="cat" id="cat-overview">
       <h2>方向对比 <span class="cnt">同一信息架构 · 仅换令牌</span></h2>
-      <p class="sub">三方向共用一套组件与布局，只在 <b>中性色温 / 强调色 / 密度 / 材质 / 层级</b> 五个维度上做差异——这正是阶段 0 要求的比较方式。点顶部 A/B/C 切换。</p>
+      <p class="sub">三方向共用一套组件与布局，只在 <b>中性色温 / 强调色 / 密度 / 材质 / 层级</b> 五个维度上做差异，这正是阶段 0 要求的比较方式。点顶部 A/B/C 切换。</p>
       <div class="dir-meta" id="dirMeta"></div>
       <div class="spec" data-card="cat-overview-01"><div class="spec-h"><span class="no">◎</span><span class="name">同组件三方向速览</span><span class="en">切换顶部方向标签观察令牌差异</span><span class="src">tokens.css</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">并列 <code>.btn</code> 两变体 · <code>.badge</code> · <code>.switch</code> · <code>.cbx</code> · <code>.input</code> 各一；尾部三枚 <code>code</code> 回读 <code>--r-sm</code> · <code>--accent</code> · <code>--row-h</code> 读数</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">本卡无脚本；顶栏方向切换（click 与 ←/→ 键）经 MutationObserver 触发 <code>refreshMeta()</code> 刷新三处读数</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">三方向共用同一 HTML，仅 <code>data-direction</code> 换令牌；圆角 · 强调色 · 行高读数即时更新，用于验证令牌驱动有效</span></div>
+        </div>
         <div class="spec-b">
           <button class="btn btn-primary">主要操作</button>
           <button class="btn btn-secondary">次要</button>
@@ -757,6 +894,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       <p class="sub">中性底 + 单一品牌强调 + 状态色只表达状态。文字对比度全部 ≥4.5。</p>
       <div class="grid" id="tokenGrid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));"></div>
       <div class="spec" data-card="cat-tokens-01"><div class="spec-h"><span class="no">t0a</span><span class="name">字体排印</span><span class="en">Typography scale</span><span class="src">type scale</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.type-scale</code> 六行 <code>.type-row</code>：每行 <code>.ty-tag</code>（88px 等宽）加 <code>.ty-demo</code>；字号 23/17/15/13.5/11.5px，标题档 650 · headline 600</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无脚本监听；<code>.ty-demo</code> 字体走 <code>var(--font-display)</code>，切到方向 C 标题自动换衬线</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">六档即排印全集：正文与控件标签用 body 档，元信息用 caption 档，code 与哈希用 mono 档；行间以 <code>var(--border-soft)</code> 分隔</span></div>
+        </div>
         <div class="spec-b col"><div class="type-scale">
             <div class="type-row"><span class="ty-tag">display 24</span><span class="ty-demo" style="font-size:23px;font-weight:650">设计语言</span></div>
             <div class="type-row"><span class="ty-tag">title 17</span><span class="ty-demo" style="font-size:17px;font-weight:650">组件与状态</span></div>
@@ -768,6 +910,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-tokens-02"><div class="spec-h"><span class="no">t0b</span><span class="name">间距与密度</span><span class="en">Spacing / Density scale</span><span class="src">--sp-* / --row-h</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">五条 <code>.space-row</code>：<code>.sp-name</code> 88px 等宽标注 · <code>.sp-bar</code> 高 14px 以 accent 30% 着色 · <code>.sp-val</code> 读数，容器 max-width 440px</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无脚本监听；条宽经 <code>calc(var(--sp-btn-y)*3)</code> 等 CSS 计算随令牌即时变化</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">密度随方向切换：A 档 9/15/9px · 行高 36px，B 档 6/11/6px · 30px，C 档 11/18/11px · 42px；卡片内距固定 16px</span></div>
+        </div>
         <div class="spec-b col"><div style="width:100%;max-width:440px">
             <div class="space-row"><span class="sp-name">sp-btn-y</span><span class="sp-bar" style="width:calc(var(--sp-btn-y)*3)"></span><span class="sp-val" id="spBtnY">9px</span></div>
             <div class="space-row"><span class="sp-name">sp-btn-x</span><span class="sp-bar" style="width:calc(var(--sp-btn-x)*3)"></span><span class="sp-val" id="spBtnX">15px</span></div>
@@ -779,6 +926,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-tokens-03"><div class="spec-h"><span class="no">t1</span><span class="name">圆角与阴影</span><span class="en">Radius · Elevation（阴影仅浮层）</span><span class="src">--r-* / --shadow-overlay</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">五枚 56×56 色块演示 <code>--r-sm</code> · <code>--r-md</code> · <code>--r-card</code> · <code>--r-composer</code> 四档圆角；末枚为浮层样例，带 <code>var(--shadow-overlay)</code></span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无脚本监听；圆角与阴影令牌随方向切换自动重算</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">阴影仅浮层合法，静态卡片零阴影；A 档 8/10/16/18px · B 档 4/5/8/8px · C 档 10/14/22/24px，逐级同心递增</span></div>
+        </div>
         <div class="spec-b col"><div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
             <div style="width:56px;height:56px;background:var(--surface-3);border-radius:var(--r-sm);display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px;font-size:9.5px;color:var(--text-3)">sm</div>
             <div style="width:56px;height:56px;background:var(--surface-3);border-radius:var(--r-md);display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px;font-size:9.5px;color:var(--text-3)">md</div>
@@ -790,6 +942,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-tokens-04"><div class="spec-h"><span class="no">t2</span><span class="name">动效节奏</span><span class="en">Motion · 三档缓动</span><span class="src">--t-quick / --t-med</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>#motionBtn</code> 播放按钮加 <code>#motionBar</code> 演示条：高 5px · 底 <code>var(--surface-3)</code> · 填充 <code>var(--accent)</code> · 圆角 999px</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v"><code>#motionBtn</code> click：先把条宽置 0（无过渡），下一帧以 <code>width 900ms cubic-bezier(0.32,0.72,0,1)</code> 播放到 100%</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">全局节奏仅两档 <code>--t-quick</code> 180ms 与 <code>--t-med</code> 320ms，共用同一曲线；<code>prefers-reduced-motion</code> 时过渡全部降为 0.01ms</span></div>
+        </div>
         <div class="spec-b col"><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
             <button class="btn btn-secondary" id="motionBtn" style="font-size:12px">播放动效</button>
             <div style="flex:1;min-width:200px;height:5px;background:var(--surface-3);border-radius:999px;overflow:hidden"><i id="motionBar" style="display:block;height:100%;width:0;background:var(--accent);border-radius:inherit"></i></div>
@@ -804,6 +961,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       <h2>基础</h2>
       <p class="sub">按钮（圆角矩形）、徽章（pill 唯一合法用途）、反馈。</p>
       <div class="spec" data-card="cat-basic-01"><div class="spec-h"><span class="no">01</span><span class="name">按钮变体与状态</span><span class="en">Primary / Secondary / Ghost / Danger / disabled / loading</span><span class="src">.btn*</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.btn</code>：内距 <code>var(--sp-btn-y) var(--sp-btn-x)</code> · 圆角 <code>var(--r-sm)</code> · 字重 520；四色变体加 <code>.btn-icon</code> 图标档 32×32</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">hover 换底色（primary 到 <code>var(--accent-hover)</code>）· 按压 scale(0.97) · <code>:focus-visible</code> 出 3.5px <code>var(--focus-ring)</code></span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">disabled 透明度 0.42 且指针禁用；<code>.loading</code> 加 <code>pointer-events:none</code>，13px <code>.spin</code> 圆环以 0.7s 线性旋转示意加载</span></div>
+        </div>
         <div class="spec-b">
           <button class="btn btn-primary">主要操作</button>
           <button class="btn btn-secondary">次要操作</button>
@@ -815,6 +977,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
       <div class="spec" data-card="cat-basic-02"><div class="spec-h"><span class="no">02</span><span class="name">徽章</span><span class="en">pill 仅用于标签/状态</span><span class="src">.badge</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.badge</code> 胶囊：圆角 999px · 字号 11px · 字重 550 · 内距 2.5px 9px；色档 <code>.blue</code> · <code>.green</code> · <code>.gray</code>，前两档可含 5px <code>.dot</code> 状态圆点</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">纯静态展示，无监听事件，无 hover 反馈（徽章为非交互元素）</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">pill 圆角仅徽章与状态标签合法；<code>.blue</code> 底为 accent 14% 混合配 <code>var(--accent-text)</code> 字色，<code>.green</code> 为 success 15% 混合</span></div>
+        </div>
         <div class="spec-b">
           <span class="badge blue"><span class="dot"></span>运行中</span>
           <span class="badge green"><span class="dot"></span>已完成</span>
@@ -823,6 +990,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
       <div class="spec" data-card="cat-basic-03"><div class="spec-h"><span class="no">01b</span><span class="name">图标按钮</span><span class="en">Icon button</span><span class="src">.toolbar-button / .ph-btn</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.ph-btn</code> 图标按钮，基准 24×24（本演示放大 30×30），内嵌 <code>.ic</code> SVG，圆角比 <code>--r-sm</code> 小 2px；每枚必带 <code>aria-label</code></span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">hover 换 <code>var(--surface-3)</code> 底与 <code>var(--text)</code> 前景；<code>:focus-visible</code> 出 3px <code>var(--focus-ring)</code>；click 未绑定动作</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">禁用演示以 opacity 0.42 压暗；纯图形按钮靠 <code>aria-label</code> 向读屏命名，键盘焦点环不可省略</span></div>
+        </div>
         <div class="spec-b"><button class="ph-btn" aria-label="新建" style="width:30px;height:30px"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
           <button class="ph-btn" aria-label="搜索" style="width:30px;height:30px"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
           <button class="ph-btn" aria-label="设置" style="width:30px;height:30px"><svg class="ic" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
@@ -831,11 +1003,21 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-basic-04"><div class="spec-h"><span class="no">01c</span><span class="name">头像</span><span class="en">Avatar</span><span class="src">.avatar</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.avatar</code> 圆形 30×30（<code>.lg</code> 40×40）：底 <code>var(--accent)</code> · 字 <code>var(--accent-contrast)</code> · 字号 12 与 15px · 字重 600；末枚演示渐变底白字</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">静态展示，无监听事件与 hover 反馈</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">圆形仅限图形化头像与状态点，其余控件一律圆角矩形；文字缩写居中，两字符形态用于长名截断</span></div>
+        </div>
         <div class="spec-b"><span class="avatar">A</span><span class="avatar lg">Ar</span><span class="avatar" style="background:linear-gradient(135deg,#66707c,#454e58);color:#fff">C</span>
           <span style="font-size:12px;color:var(--text-3)">图形化头像 · 圆角矩形外的合法圆形元素</span></div>
       </div>
 
       <div class="spec" data-card="cat-basic-05"><div class="spec-h"><span class="no">01d</span><span class="name">分段控件</span><span class="en">Segmented</span><span class="src">.segmented-control</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.seg-ctl</code> 容器（<code>var(--surface-3)</code> 底 · 内距 2px · gap 2px）内三枚按钮；选中 <code>aria-pressed="true"</code> 换 surface 底加浅阴影与 550 字重</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">组内按钮各绑 click 互斥更新 <code>aria-pressed</code>；容器 <code>role="group"</code> 加 <code>aria-label</code> 命名；hover 有底色过渡 · 按压 scale(0.96)</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">同一时刻仅一枚选中；Tab 依 DOM 顺序遍历全部按钮，视觉为 pill 组内的圆角矩形块，非 pill 本体</span></div>
+        </div>
         <div class="spec-b"><div class="seg-ctl" role="group" aria-label="视图模式" id="segCtl">
             <button aria-pressed="true">列表</button><button aria-pressed="false">网格</button><button aria-pressed="false">时间线</button>
           </div>
@@ -843,6 +1025,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-basic-06"><div class="spec-h"><span class="no">03</span><span class="name">快捷键 · 提示 · 进度</span><span class="en">kbd / tooltip / progress</span><span class="src">.kbd / .tip / .prog</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">三件套：<code>.kbd</code> 键帽（等宽 11px · 底边框 2px）· <code>.tip</code> 提示（<code>var(--text)</code> 底反色字 · 圆角 7px）· <code>.prog</code> 进度条（高 5px · <code>var(--accent)</code> 填充）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v"><code>.tip-wrap</code> 的 hover 与 <code>:focus-within</code> 显示提示；<code>#progBtn</code> click 推进进度；<code>.kbd</code> 仅展示不监听按键</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v"><code>#progBtn</code> 每点加 15%，达到 100 后再点回落到 10 重新累加；条宽经 <code>var(--t-med)</code> 过渡，提示经 180ms 淡入上移</span></div>
+        </div>
         <div class="spec-b">
           <span style="display:inline-flex;gap:5px;align-items:center;font-size:12.5px;color:var(--text-2)">保存 <span class="kbd">⌘</span><span class="kbd">S</span></span>
           <span class="tip-wrap"><button class="btn btn-secondary">悬停看提示</button><span class="tip">这是一个提示信息</span></span>
@@ -858,6 +1045,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       <h2>图标 Iconography</h2>
       <p class="sub">统一规范：24px 网格 · 内容区留 2px 出血 · stroke 1.5 · 圆角端点/圆角连接 · 仅 currentColor 单色。</p>
       <div class="spec" data-card="cat-icons-01"><div class="spec-h"><span class="no">ic1</span><span class="name">图标网格与规范</span><span class="en">24px grid · stroke 1.5 · round caps</span><span class="src">.ic</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">三枚 <code>.ic-grid-demo</code> 网格样板（两条 linear-gradient 重复 25% 网格线 · 圆角 4px）内放 <code>.ic.lg</code> 20px 图标，配规范说明块</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无监听事件，网格底纹为纯 CSS 绘制</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">全部图标画在 24×24 viewBox · stroke 1.5 · 圆角端点与连接 · 仅 <code>currentColor</code> 单色；内容区留 2px 出血，不混用填充与描边</span></div>
+        </div>
         <div class="spec-b">
           <span class="ic-grid-demo"><svg class="ic lg" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
           <span class="ic-grid-demo"><svg class="ic lg" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
@@ -870,6 +1062,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
       <div class="spec" data-card="cat-icons-02"><div class="spec-h"><span class="no">ic2</span><span class="name">尺寸档</span><span class="en">xs 12 / sm 14 / base 16 / lg 20 / xl 24</span><span class="src">.ic.xs…xl</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">同一搜索图标五档纵排：<code>.ic.xs</code> · <code>.sm</code> · 默认 · <code>.lg</code> · <code>.xl</code> 对应 12/14/16/20/24px，各配 10px 数字标注</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无脚本监听；五档尺寸由类名静态控制，不随交互变化</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">默认 16px；紧凑位（行内元信息 · 徽章内）用 xs 与 sm，xl 24 仅独立展示位；五档封闭，不新增中间尺寸</span></div>
+        </div>
         <div class="spec-b" style="align-items:flex-end">
           <span style="display:inline-flex;flex-direction:column;align-items:center;gap:5px"><svg class="ic xs" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span style="font-size:10px;color:var(--text-3)">12</span></span>
           <span style="display:inline-flex;flex-direction:column;align-items:center;gap:5px"><svg class="ic sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span style="font-size:10px;color:var(--text-3)">14</span></span>
@@ -880,6 +1077,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
             <div class="spec" data-card="cat-icons-03"><div class="spec-h"><span class="no">ic3</span><span class="name">自主设计图标库</span><span class="en">98 个 · 核心 30 + 扩展 18 + 环境/资源 50</span><span class="src">design system icons</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.icon-lib</code> 网格（auto-fill · minmax(96px,1fr) · gap 8px）内 <code>.icon-cell</code>：图标 20px 加 <code>.ic-name</code> 10px 等宽名；<code>.ext</code> 虚线框标扩展组</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">单元格 hover 上浮 1px 并换 <code>var(--surface-2)</code> 底；cursor 为 default，无 click 行为</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">98 个图标分核心 30 · 扩展 18 · 环境与资源 50 三组；命名即迁移映射，如 <code>folder</code> 对应侧栏项目 · <code>steer</code> 对应插入当前任务</span></div>
+        </div>
         <div class="spec-b col">
           <div class="icon-lib">
           <div class="icon-cell"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 6.5a2 2 0 012-2h4l2 2.5h7a2 2 0 012 2v8a2 2 0 01-2 2h-13a2 2 0 01-2-2v-10.5z"/></svg><span class="ic-name">folder</span></div>
@@ -992,6 +1194,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-icons-04"><div class="spec-h"><span class="no">ic4</span><span class="name">Agent 团队标记</span><span class="en">ChildAgentIcon · 身份哈希驱动 8 形态 × 12 色</span><span class="src">ChildAgentIcon.tsx</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">八枚 <code>.icon-cell</code> 演示 8 形态：六边十字 · 菱形核 · 圆轨道 · 盾闪电 · 四格方块 · 三角内框 · 胶囊波纹 · 花形核；viewBox <code>0 0 20 20</code>，底形 opacity 0.32</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">单元格 hover 上浮 1px；每格 <code>title</code> 写明形态编号与名称，悬停可查</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">形态 8 种与颜色 12 色由 <code>identity</code> 哈希推导，个体标记稳定不变；主 Agent 用 <code>agents</code> 图标，子 Agent 以此标记区分</span></div>
+        </div>
         <div class="spec-b col">
           <div class="icon-lib">
           <div class="icon-cell" style="color:#4f86ff" title="子 Agent 形态 0 · 六边·十字"><svg class="ic" viewBox="0 0 20 20" style="color:#4f86ff"><path d="M10 1.5 17.4 5.75v8.5L10 18.5l-7.4-4.25v-8.5Z" opacity="0.32"/><path d="M6.4 10h7.2M10 6.4v7.2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"/></svg><span class="ic-name" title="agent-mark-0"></span></div>
@@ -1016,6 +1223,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       <h2>输入与选择</h2>
       <p class="sub">文本框、下拉（键盘）、开关（品牌蓝）、复选。</p>
       <div class="spec" data-card="cat-input-01"><div class="spec-h"><span class="no">04</span><span class="name">文本框</span><span class="en">Input / Textarea / 错误 / 禁用</span><span class="src">.input / .textarea</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.field</code>（label 加控件 · gap 5px）内 <code>.input</code> 与 <code>.textarea</code>：圆角 <code>var(--r-sm)</code> · 内距 <code>var(--sp-field-y)</code> 11px · <code>var(--border)</code> 描边</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">focus 描边转 <code>var(--accent)</code> 并出 3.5px <code>var(--focus-ring)</code>；hover 描边加深为 <code>var(--text-3)</code></span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v"><code>aria-invalid</code> 时描边变 <code>var(--danger)</code>，<code>.err</code> 文案用 <code>var(--danger-text)</code>；禁用态透明度 0.5 底 <code>var(--surface-2)</code>；textarea 可纵拉伸最小 64px</span></div>
+        </div>
         <div class="spec-b">
           <div class="field"><label for="i1">项目名称</label><input class="input" id="i1" placeholder="输入名称"></div>
           <div class="field"><label for="i2">邮箱</label><input class="input" id="i2" aria-invalid="true" value="not-an-email"><span class="err"><svg class="ic xs" viewBox="0 0 24 24"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg>格式不正确</span></div>
@@ -1025,11 +1237,21 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
       
       <div class="spec" data-card="cat-input-02"><div class="spec-h"><span class="no">04b</span><span class="name">搜索框</span><span class="en">Search field · ⌘K</span><span class="src">.sidebar-search</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.search-field</code>（min-width 220px）内 <code>.sic</code> 前置图标（absolute 定位 · left 10px · 垂直居中）加 <code>.input</code>，输入框左边距 31px 避让图标</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">输入框带 <code>aria-label="搜索"</code> 与 placeholder；本演示未绑定过滤逻辑；<code>⌘K</code> 为应用层全局快捷键，本页不监听</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">图标 <code>pointer-events:none</code> 不拦截指针，点击图标区域即聚焦输入框；键盘与聚焦样式同 <code>.input</code> 基线</span></div>
+        </div>
         <div class="spec-b"><div class="search-field"><span class="sic"><svg class="ic sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span><input class="input" placeholder="搜索项目或任务…" aria-label="搜索"></div>
           <span style="font-size:12px;color:var(--text-2)">快捷键 <span class="kbd">⌘</span><span class="kbd">K</span></span></div>
       </div>
 
       <div class="spec" data-card="cat-input-03"><div class="spec-h"><span class="no">04c</span><span class="name">字段类型</span><span class="en">password / URL / number / date / file</span><span class="src">.input[type=*]</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">五个 <code>.field</code> 并排：<code>type="password"</code> · <code>url</code> · <code>number</code> · <code>date</code> · <code>file</code>，统一套 <code>.input</code> 皮肤</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">交互交给原生控件（日期面板 · 数字步进 · 文件选择器），无自定义脚本监听</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">number 档限 min 1 与 max 10；url 档配 <code>inputmode="url"</code> 唤起对应键盘；file 档内距压缩为 6px 11px 保持同高</span></div>
+        </div>
         <div class="spec-b"><div class="field"><label for="fp">密码</label><input class="input" id="fp" type="password" value="••••••••" aria-label="密码"></div>
           <div class="field"><label for="fu">URL</label><input class="input" id="fu" type="url" placeholder="https://" inputmode="url"></div>
           <div class="field"><label for="fn">数量</label><input class="input" id="fn" type="number" value="3" min="1" max="10"></div>
@@ -1038,6 +1260,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-input-04"><div class="spec-h"><span class="no">05</span><span class="name">下拉选择</span><span class="en">Select · ↑↓ Enter Esc</span><span class="src">.select-trig + .menu</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.select-trig</code> 触发器（min-width 180px · 右端 <code>.chev</code>）加 <code>.menu</code>（role=listbox · z-index 30 · max-height 240px）与 <code>.m-opt</code> 选项</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">触发器 click 展开，keydown 支持 ↓ 与 Enter 和 Space；菜单内 ↑↓ 移动 · Enter 与 Space 选定 · Esc 关闭；document click 点外收起</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">展开时 <code>aria-expanded="true"</code> · 菜单 <code>aria-hidden="false"</code> · 选项进 Tab 序并聚焦首项；选定后回写文本并归还焦点，<code>aria-selected</code> 互斥；禁用项被导航排除</span></div>
+        </div>
         <div class="spec-b">
           <div class="select-wrap">
             <button class="select-trig" id="sel1" aria-haspopup="listbox" aria-expanded="false"><span class="val">选择运行模式</span><span class="chev">▾</span></button>
@@ -1051,6 +1278,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
       <div class="spec" data-card="cat-input-05"><div class="spec-h"><span class="no">06</span><span class="name">开关与复选</span><span class="en">Switch（品牌蓝）/ Checkbox</span><span class="src">.resource-switch / .settings-checkbox</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.switch</code>（隐藏原生 input · <code>.track</code> 38×23px 胶囊 · 19px 圆钮）与 <code>.cbx</code>（17×17px <code>.box</code> · 内嵌 11px 对钩 SVG）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">label 整体可点切换；input <code>:focus-visible</code> 时轨道与方框出 3.5px <code>var(--focus-ring)</code></span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">开关选中轨道变 <code>var(--accent)</code> 品牌蓝 · 圆钮位移 15px；复选选中方框实底 accent · 对钩由 scale(0.5) 弹到 1；均用 <code>var(--t-quick)</code> 过渡 · 禁用态透明度 0.42</span></div>
+        </div>
         <div class="spec-b">
           <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="sw-lbl">启用通知</span></label>
           <label class="switch"><input type="checkbox"><span class="track"></span><span class="sw-lbl">自动保存</span></label>
@@ -1066,6 +1298,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       <h2>浮层</h2>
       <p class="sub">阴影仅此处。对话框焦点陷阱 + 恢复；关闭的浮层移出无障碍树。</p>
       <div class="spec" data-card="cat-overlay-01"><div class="spec-h"><span class="no">07</span><span class="name">对话框</span><span class="en">Dialog · 焦点陷阱 + 恢复</span><span class="src">SettingsPanel 弹窗</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>#overlay</code> 遮罩（32% 黑加模糊 · z-index 100）内 <code>#dialog</code>：role=dialog · aria-modal=true · 宽至多 440px · 圆角 <code>var(--r-card)</code></span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">两个触发按钮 click 打开；框内 keydown 处理 Esc 与 Tab；遮罩自身 click 关闭；<code>[data-close]</code> 与确认按钮 click 关闭</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">打开 30ms 后焦点入输入框，Tab 在框内首尾循环成焦点陷阱，关闭后焦点还回触发器；危险模式改写标题 · 描述与确认钮为 <code>.btn-danger</code>，确认后弹信息 Toast</span></div>
+        </div>
         <div class="spec-b">
           <button class="btn btn-primary" id="openDlg">打开对话框</button>
           <button class="btn btn-danger" id="openDangerDlg">危险确认</button>
@@ -1073,6 +1310,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
       <div class="spec" data-card="cat-overlay-02"><div class="spec-h"><span class="no">08</span><span class="name">Popover</span><span class="en">锚定浮层 · Esc 关闭</span><span class="src">workspace-header env</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.pop-wrap</code> 内 <code>#envTrig</code> 按钮（aria-haspopup · aria-expanded）与 <code>#envPop</code>：role=dialog · 按钮上方 8px · z-index 60</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">触发器 click 切换开合；document click 点外关闭；触发器 keydown Esc 关闭</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">展开加 <code>.open</code> 经 180ms 淡入上移，关闭态 <code>visibility:hidden</code> 移出无障碍树；行 <code>.pop-row</code> hover 换 <code>var(--surface-3)</code>；内容常驻 DOM 仅切换可见性</span></div>
+        </div>
         <div class="spec-b">
           <div class="pop-wrap">
             <button class="btn btn-secondary" id="envTrig" aria-haspopup="true" aria-expanded="false"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>main · 已同步</button>
@@ -1086,6 +1328,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
       <div class="spec" data-card="cat-overlay-03"><div class="spec-h"><span class="no">09</span><span class="name">Toast</span><span class="en">aria-live polite / assertive</span><span class="src">App.tsx notice</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>#toastHost</code>（fixed 底部居中 · z-index 200）动态插入 <code>.toast</code>：<code>var(--text)</code> 底反色字 · 圆角 <code>var(--r-md)</code> · 浮层阴影；错误档换 danger 实底白字</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">两按钮 click 触发；信息档 <code>role="status"</code> 加 <code>aria-live="polite"</code>，错误档 <code>role="alert"</code> 加 <code>aria-live="assertive"</code></span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">插入后下一帧加 <code>.show</code> 上移淡入，3000ms 后撤出该类，再经 320ms 过渡删除节点；多条并存时纵向堆叠</span></div>
+        </div>
         <div class="spec-b">
           <button class="btn btn-secondary" id="toastInfo">信息提示</button>
           <button class="btn btn-secondary" id="toastErr">错误提示</button>
@@ -1099,6 +1346,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       <h2>数据容器</h2>
       <p class="sub">Split Pane（像素 ARIA + 钳制）、Toolbar、List Row/Tree、Scroll Area。</p>
       <div class="spec" data-card="cat-data-01"><div class="spec-h"><span class="no">09a</span><span class="name">标签页</span><span class="en">Tabs · role=tab</span><span class="src">.workspace-tab-bar</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.tabs[role=tablist]</code> 三枚 <code>.tab[role=tab]</code>，各带 <code>aria-controls</code> 指向面板；激活样式直接键于 <code>aria-selected="true"</code></span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">click 选中但不移焦点；<code>ArrowLeft/Right</code> 循环移动 · <code>Home/End</code> 跳首尾，移动即选中并聚焦，同步 <code>tabindex</code> 0 与 -1</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">roving tabindex：仅活动页可 Tab 进入；每次变更写 <code>#tabsState</code>（<code>role=status</code> · <code>aria-live=polite</code>）回读「当前：标签名」</span></div>
+        </div>
         <div class="spec-b"><div class="tabs" role="tablist" aria-label="视图切换" id="tabsDemo">
             <button class="tab" id="tab-chat" role="tab" aria-selected="true" aria-controls="panel-chat" tabindex="0">对话</button>
             <button class="tab" id="tab-files" role="tab" aria-selected="false" aria-controls="panel-files" tabindex="-1">文件</button>
@@ -1107,6 +1359,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-data-02"><div class="spec-h"><span class="no">09b</span><span class="name">活动栏按钮</span><span class="en">Activity button · 侧栏导航</span><span class="src">.activity-bar</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">纵排 <code>.act-bar[role=navigation]</code> 内四枚 36×36 <code>.act-btn</code> 纯图标钮，靠 <code>aria-label</code> 命名；容器圆角 <code>var(--r-md)</code></span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">click 互斥切换：先清全部 <code>active</code> 与 <code>aria-current</code> 再点亮点击项；hover 换 <code>var(--surface-3)</code> 底</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">活动项以 <code>::before</code> 在左侧出 3px <code>var(--accent)</code> 指示条并着 <code>var(--accent-text)</code>；<code>aria-current="page"</code> 全栏唯一，<code>#activityState</code> 回读区域名</span></div>
+        </div>
         <div class="spec-b"><div class="act-bar" role="navigation" aria-label="主导航">
             <button class="act-btn active" aria-label="项目" aria-current="page" aria-controls="activityState"><svg class="ic" viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></button>
             <button class="act-btn" aria-label="资源" aria-controls="activityState"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
@@ -1117,37 +1374,61 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-data-03"><div class="spec-h"><span class="no">09c</span><span class="name">面包屑</span><span class="en">Breadcrumb</span><span class="src">.breadcrumb</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>nav.crumb[aria-label=面包屑]</code>：链接加 <code>.sep</code> 斜杠加末位 <code>.cur</code>，字号 12.5px · 间距 6px</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">链接 hover 变 <code>var(--accent-text)</code>；本卡无脚本监听</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">仅末级标 <code>aria-current="page"</code> 且字重 550 用 <code>var(--text)</code>；祖先链接保持 <code>var(--text-2)</code> 供跳转</span></div>
+        </div>
         <div class="spec-b"><nav class="crumb" aria-label="面包屑"><a href="#">项目</a><span class="sep">/</span><a href="#">Artemis 桌面端</a><span class="sep">/</span><span class="cur" aria-current="page">设计语言原型</span></nav></div>
       </div>
 
-      <div class="spec" data-card="cat-data-04"><div class="spec-h"><span class="no">09d</span><span class="name">动态 Dock 标签</span><span class="en">Dock tabs · 可关闭</span><span class="src">.workspace-tool-dock</span></div>
-        <div class="spec-b col"><div class="dock-contract">
+      <div class="spec" data-card="cat-data-04"><div class="spec-h"><span class="no">09d</span><span class="name">动态 Dock 标签</span><span class="en">Dock tabs · 可关闭 · 纯文字 / 图标+文字</span><span class="src">.workspace-tool-dock</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.dock-tabs[role=tablist]</code> 内 <code>.dock-tab[role=tab]</code> 带 <code>data-dock-name</code>、可选图标 <code>.dt-ic</code> 与关闭钮 <code>.dt-x</code>；双显示模式：<code>.icon-mode</code> 下显示「图标+文字」（页签与空态启动器 <code>.lb-ic</code> 同步切换），默认纯文字；下方 <code>.dock-launcher</code> 两列空态启动器</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">页签复用 <code>wireTabs</code> roving（方向键 · Home/End）；<code>.dt-x</code> click 关闭页签并 <code>stopPropagation</code>；启动器 click 复用既有页签或新建（新建自动携带该工具图标）；<code>[data-dock-mode]</code> click 切换显示模式并同步 <code>aria-pressed</code></span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">图标经 <code>.dock-tabs.icon-mode .dt-ic</code> 显隐，活动页签图标用 <code>var(--accent-text)</code>；关闭活动页后焦点移交余项原位次；全部关闭时隐藏 <code>.dock-tabs</code> 并给启动器置 <code>data-empty</code> 显示空态；<code>aria-disabled</code> 启动项仅回读不建页</span></div>
+        </div>
+        <div class="spec-b col">
+          <div class="demo-toolbar" role="group" aria-label="Dock 显示模式"><button class="btn btn-secondary compact" data-dock-mode="text" aria-pressed="true">纯文字</button><button class="btn btn-secondary compact" data-dock-mode="icontext" aria-pressed="false">图标+文字</button><span class="demo-state" id="dockModeState" role="status">显示模式：纯文字</span></div>
+          <div class="dock-contract">
           <div><div class="dock-tabs" role="tablist" aria-label="工具面板" id="dockTabs">
-            <button class="dock-tab active" role="tab" aria-selected="true" tabindex="0" data-dock-name="审查">审查<span class="dt-x" aria-label="关闭审查">✕</span></button>
-            <button class="dock-tab" role="tab" aria-selected="false" tabindex="-1" data-dock-name="终端">终端<span class="dt-x" aria-label="关闭终端">✕</span></button>
-            <button class="dock-tab" role="tab" aria-selected="false" tabindex="-1" data-dock-name="浏览器">浏览器<span class="dt-x" aria-label="关闭浏览器">✕</span></button>
-            <button class="dock-tab" role="tab" aria-selected="false" tabindex="-1" data-dock-name="文件">文件<span class="dt-x" aria-label="关闭文件">✕</span></button>
+            <button class="dock-tab active" role="tab" aria-selected="true" tabindex="0" data-dock-name="审查"><span class="dt-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="m9 11.5 2 2 4-4"/></svg></span>审查<span class="dt-x" aria-label="关闭审查">×</span></button>
+            <button class="dock-tab" role="tab" aria-selected="false" tabindex="-1" data-dock-name="终端"><span class="dt-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8l4 4-4 4"/><path d="M12 16h7"/></svg></span>终端<span class="dt-x" aria-label="关闭终端">×</span></button>
+            <button class="dock-tab" role="tab" aria-selected="false" tabindex="-1" data-dock-name="浏览器"><span class="dt-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span>浏览器<span class="dt-x" aria-label="关闭浏览器">×</span></button>
+            <button class="dock-tab" role="tab" aria-selected="false" tabindex="-1" data-dock-name="文件"><span class="dt-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></span>文件<span class="dt-x" aria-label="关闭文件">×</span></button>
           </div><div class="demo-state" id="dockState" role="status">当前：审查</div></div>
           <div class="dock-launcher" id="dockLauncher" aria-label="Dock 空态启动器">
-            <button class="launch-btn" data-launch="审查">Review</button><button class="launch-btn" data-launch="终端">Terminal</button>
-            <button class="launch-btn" data-launch="浏览器">Browser</button><button class="launch-btn" data-launch="文件">Files</button>
-            <button class="launch-btn" aria-disabled="true" data-launch="不可用">Unavailable</button>
+            <button class="launch-btn" data-launch="审查"><span class="lb-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="m9 11.5 2 2 4-4"/></svg></span>Review</button><button class="launch-btn" data-launch="终端"><span class="lb-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8l4 4-4 4"/><path d="M12 16h7"/></svg></span>Terminal</button>
+            <button class="launch-btn" data-launch="浏览器"><span class="lb-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span>Browser</button><button class="launch-btn" data-launch="文件"><span class="lb-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></span>Files</button>
+            <button class="launch-btn" aria-disabled="true" data-launch="不可用"><span class="lb-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.5 5.5l13 13"/></svg></span>Unavailable</button>
             <span class="launch-note">全部关闭后显示；Tab 顺序固定；不可用项保留解释但不执行。</span>
           </div></div>
           <div class="contract-note">标签使用 roving tabindex 与方向键；关闭活动标签后焦点转移；空态启动器覆盖 hover / focus / disabled-unavailable。</div></div>
       </div>
 
       <div class="spec" data-card="cat-data-05"><div class="spec-h"><span class="no">10</span><span class="name">可调整分栏</span><span class="en">Split Pane · separator</span><span class="src">resizeWorkspaceDock</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.split</code> 高 180px：<code>.split-a/.split-mid/.split-b</code> 面板加 7px <code>.split-sep[role=separator]</code>（<code>::after</code> 居中 1px 发丝线）；<code>[data-split-mode]</code> 切换 2 栏 / 3 栏（3 栏加入 <code>#splitMid</code> 与第二分隔条 <code>#splitSep2</code>）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">各分隔条独立 <code>ArrowLeft/Right</code> ±24px · <code>Home</code> 回默认（左 190px / 中 150px）· <code>End</code> 到最大；pointerdown 经 <code>setPointerCapture</code> 拖拽（宽度按面板左缘计算）；<code>#splitClamp</code> 测钳制</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">每条分隔条控制其左侧面板，宽度钳制 120px 到容器宽减 140px，同步各自 <code>aria-valuenow</code> 四项与 <code>#splitState</code>（含当前模式）；切回 2 栏时中栏与第二分隔条 <code>hidden</code>；<code>#splitClose</code> 切 closed 态并把两条 separator 一并移出 Tab 序</span></div>
+        </div>
         <div class="spec-b col">
           <div class="split" id="splitDemo">
             <div class="split-pane split-a" id="splitA" style="width:38%">左面板 <span id="splitPct" style="margin-left:6px">38%</span></div>
-            <button class="split-sep" id="splitSep" role="separator" aria-orientation="vertical" aria-label="调整分栏宽度" aria-controls="splitA splitB" aria-valuenow="190" aria-valuemin="120" aria-valuemax="360" aria-valuetext="左面板 38%" tabindex="0"></button>
+            <button class="split-sep" id="splitSep" role="separator" aria-orientation="vertical" aria-label="调整左栏宽度" aria-controls="splitA splitMid splitB" aria-valuenow="190" aria-valuemin="120" aria-valuemax="360" aria-valuetext="左面板 38%" tabindex="0"></button>
+            <div class="split-pane split-mid" id="splitMid" hidden>中面板 <span id="splitMidPct" style="margin-left:6px">30%</span></div>
+            <button class="split-sep" id="splitSep2" role="separator" aria-orientation="vertical" aria-label="调整中栏宽度" aria-controls="splitMid splitB" aria-valuenow="150" aria-valuemin="120" aria-valuemax="360" aria-valuetext="中面板 30%" tabindex="0" hidden></button>
             <div class="split-pane split-b" id="splitB">右面板</div>
           </div>
-          <div class="split-controls"><button class="btn btn-ghost compact" id="splitClose">关闭分栏</button><button class="btn btn-ghost compact" id="splitClamp">测试越界钳制</button><span class="demo-state" id="splitState" role="status">像素 ARIA · ←/→ 24px · Home 默认 · End 最大</span></div>
+          <div class="split-controls"><button class="btn btn-secondary compact" data-split-mode="2" aria-pressed="true">2 栏</button><button class="btn btn-secondary compact" data-split-mode="3" aria-pressed="false">3 栏</button><button class="btn btn-ghost compact" id="splitClose">关闭分栏</button><button class="btn btn-ghost compact" id="splitClamp">测试越界钳制</button><span class="demo-state" id="splitState" role="status">像素 ARIA · ←/→ 24px · Home 默认 · End 最大</span></div>
         </div>
       </div>
       <div class="spec" data-card="cat-data-06"><div class="spec-h"><span class="no">11</span><span class="name">工具栏</span><span class="en">Toolbar</span><span class="src">.toolbar-button</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.toolbar[role=toolbar]</code>：28px 高 <code>.toolbar-button</code> 加 1×18px <code>.toolbar-sep</code>；视图钮以 <code>aria-pressed</code> 表达开关组</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">hover 换 <code>var(--surface-3)</code> 底；<code>:focus-visible</code> 出 3px <code>var(--focus-ring)</code>；按压 scale(0.96)；本卡无脚本监听</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v"><code>.active</code> 钮用 <code>var(--surface)</code> 底加 1px 微影表达当前视图；disabled 钮保留占位不可触发</span></div>
+        </div>
         <div class="spec-b">
           <div class="toolbar" role="toolbar" aria-label="编辑器操作">
             <button class="toolbar-button active" aria-pressed="true"><svg class="ic" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>列表</button>
@@ -1159,17 +1440,34 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
       <div class="spec" data-card="cat-data-07"><div class="spec-h"><span class="no">11b</span><span class="name">侧栏树行</span><span class="en">Tree row · 单行行内操作</span><span class="src">.project-thread-row</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>#rowTreeDemo[role=tree]</code> 三行 <code>.list-row[role=treeitem]</code>：<code>aria-level</code> 1/2/3 对应内距 12/24/46px；<code>#rowTreeMenu[role=menu]</code> 为 <code>.tm-head</code> 目标行信息 + 图标项 <code>.tm-item</code>（<code>kbd</code> 快捷键提示 · <code>.tm-sep</code> 分区 · <code>.danger</code> 危险项）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">行 click 选中；<code>ArrowUp/Down</code> 循环移焦 · <code>Enter/Space</code> 选中；<code>.tree-more</code> click 开菜单并聚焦首项；菜单内 <code>ArrowUp/Down</code> 循环 · <code>Escape</code> 关闭并还焦点；<code>pointerdown</code> 落在菜单与触发钮之外即关闭</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v"><code>.lr-act</code> 默认透明，行 hover 或 <code>:focus-within</code> 才显；<code>.drop-before</code> 顶边 2px accent 内阴影标落点；菜单项 click 执行后回读 <code>#rowTreeState</code> 并归还焦点给更多钮</span></div>
+        </div>
         <div class="spec-b">
           <div class="lst tree-contract" id="rowTreeDemo" role="tree" aria-label="任务树行状态">
             <div class="list-row" role="treeitem" aria-level="1" tabindex="0"><span class="lr-ic"><svg class="ic" viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></span><span class="lr-t">Artemis</span><span class="lr-m">3</span></div>
             <div class="list-row level-2 drop-before" role="treeitem" aria-level="2" tabindex="-1" data-drop="before"><span class="lr-ic"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-9-9"/></svg></span><span class="lr-t">设计语言原型</span><span class="running-mark" aria-label="运行中"></span><span class="lr-act"><button class="ph-btn tree-more" aria-haspopup="menu" aria-expanded="false" aria-label="设计语言原型更多操作"><svg class="ic" aria-hidden="true" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/></svg></button></span></div>
             <div class="list-row level-3 selected" role="treeitem" aria-level="3" tabindex="-1" aria-selected="true"><span class="lr-ic"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg></span><span class="lr-t">组件库 Gallery</span><span class="lr-m">1h</span></div>
-            <div class="tree-menu" id="rowTreeMenu" role="menu"><button role="menuitem">重命名</button><button role="menuitem">移动到顶部</button><button role="menuitem">归档</button></div>
+            <div class="tree-menu" id="rowTreeMenu" role="menu" aria-label="设计语言原型 行操作">
+              <div class="tm-head"><b>设计语言原型</b><small>level 2 · 运行中</small></div>
+              <button class="tm-item" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><span>重命名</span><kbd>F2</kbd></button>
+              <button class="tm-item" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg><span>移动到顶部</span></button>
+              <div class="tm-sep" role="separator"></div>
+              <button class="tm-item" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg><span>归档</span></button>
+              <button class="tm-item danger" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg><span>删除对话</span><kbd>Del</kbd></button>
+            </div>
           </div>
-          <span class="demo-state" id="rowTreeState" role="status">三级层级 · drop-before · active-running · 菜单 Esc 恢复焦点</span>
+          <span class="demo-state" id="rowTreeState" role="status">三级层级 · drop-before · active-running · 菜单 Esc 或点外关闭并恢复焦点</span>
         </div>
       </div>
       <div class="spec" data-card="cat-data-08"><div class="spec-h"><span class="no">12</span><span class="name">列表行 + 树</span><span class="en">List Row / Tree</span><span class="src">.project-thread-row</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>#treeDemo[role=tree]</code>：level 1 行带 <code>.tree-toggle</code>，子行 <code>.child.level-2/3</code>；<code>.tree-contract</code> 放开 overflow 供菜单浮出</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v"><code>.tree-toggle</code> click 同步钮与行的 <code>aria-expanded</code>；行 <code>ArrowUp/Down</code> 循环移焦 · <code>Enter/Space</code> 选中并写 <code>aria-selected</code></span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">折叠时后续 <code>.child</code> 兄弟逐行 <code>display:none</code>；钮收起态 <code>rotate(-90deg)</code>；选中行加 <code>.selected</code> 底色；<code>.drop-after</code> 底边 2px accent 内阴影</span></div>
+        </div>
         <div class="spec-b">
           <div class="lst tree-contract" role="tree" aria-label="项目线程" id="treeDemo">
             <div class="list-row" role="treeitem" aria-expanded="true" aria-level="1" tabindex="0">
@@ -1187,18 +1485,35 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
               <span class="lr-ic"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg></span>
               <span class="lr-t">组件库 Gallery</span><span class="lr-m">1 小时前</span>
             </div>
-            <div class="tree-menu" id="treeMenu" role="menu"><button role="menuitem">在新任务打开</button><button role="menuitem">置顶</button><button role="menuitem">归档</button></div>
+            <div class="tree-menu" id="treeMenu" role="menu" aria-label="设计语言原型 行操作">
+              <div class="tm-head"><b>设计语言原型</b><small>level 2 · 运行中</small></div>
+              <button class="tm-item" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4L10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg><span>在新任务打开</span></button>
+              <button class="tm-item" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/><path d="M9 3h6l-1 7 3 3H7l3-3z"/></svg><span>置顶</span></button>
+              <div class="tm-sep" role="separator"></div>
+              <button class="tm-item" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg><span>归档</span></button>
+              <button class="tm-item danger" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg><span>删除对话</span><kbd>Del</kbd></button>
+            </div>
           </div>
           <span class="demo-state" id="treeState" role="status">ArrowUp/Down 移动 · Enter 选择 · 三级 aria-level · drop-after</span>
         </div>
       </div>
       <div class="spec" data-card="cat-data-09"><div class="spec-h"><span class="no">12a</span><span class="name">卡片 + 统计卡</span><span class="en">Card / Stat card</span><span class="src">.card / .stat-card</span></div>
-        <div class="spec-b"><div class="card"><div class="c-t">卡片标题</div><div class="c-d">静态卡片零阴影，仅发丝边框——这是修正后的层级规则。</div></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.card</code> 圆角 <code>var(--r-card)</code> · 内距 16px · <code>.c-t</code> 13.5px 600 加 <code>.c-d</code>；<code>.stat-card</code> 由 <code>.s-v/.s-l/.s-t</code> 组成</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">纯静态展示，无脚本监听，无悬停反馈（非交互卡片）</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">静态卡片零阴影仅发丝边框；<code>.s-v</code> 24px · 650 · <code>tabular-nums</code>；趋势 <code>.s-t.up</code> 用 <code>var(--success-text)</code>，持平内联 <code>var(--text-3)</code></span></div>
+        </div>
+        <div class="spec-b"><div class="card"><div class="c-t">卡片标题</div><div class="c-d">静态卡片零阴影，仅发丝边框，这是修正后的层级规则。</div></div>
           <div class="stat-card"><div class="s-v">1,284</div><div class="s-l">本月任务</div><div class="s-t up">↑ 12% 较上月</div></div>
           <div class="stat-card"><div class="s-v">98.2%</div><div class="s-l">成功率</div><div class="s-t" style="color:var(--text-3)">持平</div></div></div>
       </div>
 
       <div class="spec" data-card="cat-data-10"><div class="spec-h"><span class="no">12b</span><span class="name">差异 Diff</span><span class="en">代码增删</span><span class="src">.diff</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.diff</code> 等宽 11.5px：每条 <code>.diff-line</code> 含 30px 行号 <code>.dl-g</code>（<code>user-select:none</code>）加 <code>.dl-c</code> 代码文本</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">纯静态展示，无脚本监听，行内容不可交互</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v"><code>.add</code> 行底 <code>color-mix(success 12%)</code> 配 <code>var(--success-text)</code> · <code>.del</code> 11% 配 <code>var(--danger-text)</code> · <code>.ctx</code> 用 <code>var(--text-2)</code></span></div>
+        </div>
         <div class="spec-b col"><div class="diff">
             <div class="diff-line ctx"><span class="dl-g">12</span><span class="dl-c">  color: var(--text);</span></div>
             <div class="diff-line del"><span class="dl-g">13</span><span class="dl-c">- background: #111214;</span></div>
@@ -1208,6 +1523,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-data-11"><div class="spec-h"><span class="no">12c</span><span class="name">表格</span><span class="en">Table</span><span class="src">.table</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.table</code> 包全宽 <code>table</code>：<code>th</code> 底 <code>var(--surface-2)</code> · 11.5px · 600；<code>td</code> 内距 8px 13px</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v"><code>tbody tr:hover</code> 换 <code>var(--surface-2)</code> 底；本卡无脚本监听</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">末行 <code>td</code> 去底边框；状态列用 <code>.badge green/blue</code>，键盘列以 ✓ 标记可达性</span></div>
+        </div>
         <div class="spec-b col"><div class="table"><table><thead><tr><th>组件</th><th>状态</th><th>键盘</th><th>对比度</th></tr></thead>
             <tbody>
               <tr><td>Button</td><td><span class="badge green">完整</span></td><td>✓</td><td>7.2</td></tr>
@@ -1217,23 +1537,43 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-data-12"><div class="spec-h"><span class="no">12d</span><span class="name">热力图 + 终端</span><span class="en">Heatmap / Terminal</span><span class="src">.heatmap / .terminal</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.heatmap</code> 14 列栅格 · gap 3px · 56 枚 <code>.hm-cell</code>；<code>.terminal</code> 固定深底 #101014 · 等宽 11.5px</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">载入即伪随机上色：阈值 0.62 以上格填 <code>var(--accent)</code>，透明度按强度 0.25 到 0.95 分八档</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v"><code>MutationObserver</code> 监听根节点 <code>data-direction/data-theme</code> 变更整图重建；终端不随主题切换，<code>.t-cursor</code> 以 1s 步进闪烁</span></div>
+        </div>
         <div class="spec-b col"><div class="heatmap" id="heatmapDemo" aria-label="活动热力图"></div>
-          <div class="terminal"><span class="t-p">$</span> artemis build --direction b<br><span class="t-c">ℹ</span> 编译令牌…<br><span class="t-ok">✓</span> 完成，耗时 0.8s<br><span class="t-p">$</span> <span class="t-cursor"></span></div>
+          <div class="terminal"><span class="t-p">$</span> artemis build --direction b<br><span class="t-c"><svg class="ic xs" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-2px"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg></span> 编译令牌…<br><span class="t-ok">✓</span> 完成，耗时 0.8s<br><span class="t-p">$</span> <span class="t-cursor"></span></div>
           <span style="font-size:12px;color:var(--text-3)">终端默认深色（产品决策，不随主题）</span></div>
       </div>
 
       <div class="spec" data-card="cat-data-13"><div class="spec-h"><span class="no">12e</span><span class="name">状态胶囊</span><span class="en">Status pill · pill 合法用途</span><span class="src">.status-pill</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">三枚 <code>.status-pill</code>：<code>ok/warn/err</code> 变体 · 内距 3px 11px · 圆角 999px · 1px 边框 · 字重 550</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">纯静态展示，无脚本监听，仅作状态呈现</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">边框与底色由 <code>color-mix</code> 以 40% 与 9% 透明度从状态令牌派生，文字用对应 <code>--success/warning/danger-text</code></span></div>
+        </div>
         <div class="spec-b"><span class="status-pill ok">● 运行正常</span>
           <span class="status-pill warn">● 需要注意</span>
           <span class="status-pill err">● 已中断</span></div>
       </div>
 
       <div class="spec" data-card="cat-data-14"><div class="spec-h"><span class="no">12f</span><span class="name">消息</span><span class="en">Messages · 用户气泡/助手流式</span><span class="src">.msg</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">助手行 <code>.msg</code>：28px 圆 <code>.m-av</code> 加 <code>.m-who</code>/<code>.m-text</code>；用户行 <code>.msg.user</code> 整体右对齐</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">纯静态展示，无脚本监听，仅演示消息形态</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">用户 <code>.m-text</code> 底 <code>var(--surface-3)</code> · 圆角 12/12/3/12px · 最宽 78%；助手消息无气泡底，13px 行高 1.6</span></div>
+        </div>
         <div class="spec-b col"><div class="msg"><span class="m-av">A</span><div class="m-body"><div class="m-who">Artemis · 刚刚</div><div class="m-text">已完成组件层四批，覆盖基础原子、浮层、数据容器与专属模式。</div></div></div>
           <div class="msg user"><div class="m-body" style="display:flex;justify-content:flex-end"><div class="m-text">很好，继续保持这个节奏。</div></div></div></div>
       </div>
 
       <div class="spec" data-card="cat-data-15"><div class="spec-h"><span class="no">13</span><span class="name">面板头 + 滚动区</span><span class="en">Panel Header / Scroll Area</span><span class="src">.panel-header</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.panel</code> 内 <code>.panel-header</code>（<code>var(--surface-2)</code> 底 · <code>.ph-a</code> 右置操作）加 150px 高 <code>.scroll-area</code></span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v"><code>.ph-btn</code> hover 换底 · <code>:focus-visible</code> 出 3px <code>var(--focus-ring)</code>；<code>.scroll-area</code> 带 <code>tabindex=0</code> 与 <code>aria-label</code> 可聚焦滚动</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">滚动条自定义 9px：thumb <code>var(--surface-3)</code> · 圆角 999px · 2px 同底描边；行内文件名等宽 12px 配增删计数着色</span></div>
+        </div>
         <div class="spec-b col">
           <div class="panel">
             <div class="panel-header"><span class="ph-t">文件变更</span><span class="badge gray">4 项</span>
@@ -1254,12 +1594,22 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
     <!-- 状态 -->
     <section class="cat" id="cat-state">
       <h2>状态</h2>
-      <p class="sub">空状态、加载骨架、错误与提示——评审要求覆盖的状态面。</p>
+      <p class="sub">空状态、加载骨架、错误与提示，覆盖评审要求的状态面。</p>
       <div class="spec" data-card="cat-state-01"><div class="spec-h"><span class="no">s1</span><span class="name">空状态</span><span class="en">Empty state</span><span class="src">.empty-state</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.empty-state</code> 纵向居中 · 虚线 1.5px 边框 · 内距 34px 20px；含 <code>.es-ic</code> 图标 · <code>.es-t</code> 标题 13.5px · <code>.es-d</code> 说明 12px · <code>.btn-primary</code> 主钮</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">本卡无脚本；唯一交互为按钮 click，未绑定处理器；悬停与按压反馈走全局 <code>.btn</code> 规则</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">标题走 <code>--text</code> 主色 · 说明走 <code>--text-3</code> 形成两级弱化；虚线框界定空区域，行动点承担唯一前进操作</span></div>
+        </div>
         <div class="spec-b col"><div class="empty-state"><span class="es-ic"><svg class="ic lg" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-9-9"/><path d="M9 12h6M12 9v6"/></svg></span><span class="es-t">暂无任务</span><span class="es-d">从下方输入框创建第一个任务，或选择一个模板开始</span><button class="btn btn-primary" style="font-size:12px">新建任务</button></div></div>
       </div>
 
       <div class="spec" data-card="cat-state-02"><div class="spec-h"><span class="no">s2</span><span class="name">加载骨架</span><span class="en">Skeleton · shimmer</span><span class="src">.skeleton</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">外层 flex 列容器宽 100% 上限 400px · 间距 9px；四条 <code>.skeleton</code> 高 15/13/13/34px · 宽 55%/90%/78%/100%，末条圆角 10px</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无交互与脚本；动画纯 CSS 驱动，<code>shimmer</code> 1.4s 无限循环，<code>prefers-reduced-motion</code> 下降为 0.01ms</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">渐变在 <code>--surface-3</code> 与 <code>--surface-2</code> 间横移 200% 模拟加载；四条对位标题 · 正文两行 · 输入框的占位结构</span></div>
+        </div>
         <div class="spec-b col"><div style="width:100%;max-width:400px;display:flex;flex-direction:column;gap:9px">
             <div class="skeleton" style="height:15px;width:55%"></div>
             <div class="skeleton" style="height:13px;width:90%"></div>
@@ -1269,10 +1619,20 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-state-03"><div class="spec-h"><span class="no">s3</span><span class="name">错误横幅</span><span class="en">Error banner · role=alert</span><span class="src">.error-banner</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.error-banner</code> 横排 · danger 10% 底 · danger 30% 边框 · 圆角 <code>var(--r-md)</code> · 内距 10px 13px；警示图标加文案 · 右侧 <code>.btn-ghost</code> 重试钮</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">容器 <code>role="alert"</code>，出现即以 assertive 优先级播报；重试钮 click 本页未绑定处理器，焦点环与按压走全局 <code>.btn</code></span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">文案同时给出失败原因与恢复动作；重试钮以 margin-left:auto 推至右端并染 <code>--danger-text</code>；悬停补 surface-3 底</span></div>
+        </div>
         <div class="spec-b col"><div class="error-banner" role="alert"><svg class="ic" viewBox="0 0 24 24"><path d="M12 8v5M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg>保存失败：网络连接已断开，请检查后重试。<button class="btn btn-ghost" style="margin-left:auto;font-size:11.5px;padding:3px 10px;color:var(--danger-text)">重试</button></div></div>
       </div>
 
       <div class="spec" data-card="cat-state-04"><div class="spec-h"><span class="no">s4</span><span class="name">内联提示</span><span class="en">Inline notice</span><span class="src">.inline-notice</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.inline-notice</code> 横排 · accent 8% 底 · accent 25% 边框 · 宽上限 400px；信息图标走 <code>--accent-text</code>，正文 12px <code>--text-2</code></span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无交互与脚本；静态常驻且非 live region，不进入焦点序</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">与 error-banner 分工：此为预防性说明用 accent 色系，错误播报归 role=alert；图标 <code>flex-shrink:0</code> 不随换行压缩</span></div>
+        </div>
         <div class="spec-b col"><div class="inline-notice"><svg class="ic sm" viewBox="0 0 24 24" style="color:var(--accent-text);flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg><span>此设置将影响所有项目。修改前建议先了解各选项的作用域。</span></div></div>
       </div>
 
@@ -1283,39 +1643,78 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       <h2>来源与环境（v17 · 对齐 main @ d0b7b9f）</h2>
       <p class="sub">对齐 <code style="font-size:11px">SourcesPanel.tsx / GoalEditorPanel.tsx / EnvironmentPanel sources+PR checks</code>：任务来源聚合、目标编辑器、环境来源集成、PR 检查摘要。</p>
       <div class="spec" data-card="cat-sources-01"><div class="spec-h"><span class="no">S1</span><span class="name">来源卡片（四类型）</span><span class="en">SourcesPanel · file/image/web/MCP</span><span class="src">SourcesPanel.tsx</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">四张 <code>.src-card</code>（file · image · web · MCP）：<code>.src-icon</code> 图标 · <code>.src-body</code> 主副文本 · <code>.src-open</code> 打开钮 · <code>.badge</code> 状态；底部工具条切三态</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v"><code>data-open-source</code> click 回写状态条；工具条 click 切 <code>aria-busy</code>；状态条带 <code>role=status</code> · <code>aria-live=polite</code>，失败态改 <code>role=alert</code></span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">徽章表达 blue 已添加 · gray 草稿 · green 已添加；超长文件名省略号截断由 title 保全名；loading 置本卡 aria-busy=true，error 联动显示网页组错误条，ready 复原</span></div>
+        </div>
         <div class="spec-b col">
-          <div class="src-card"><span class="src-icon" aria-hidden="true">📄</span><span class="src-body"><strong title="report-with-a-very-long-accessibility-audit-name.pdf">report-with-a-very-long-accessibility-audit-name.pdf</strong><small>文件 · 已添加到任务 · 2 分钟前</small></span><button class="src-open" data-open-source="report.pdf" aria-label="打开来源 report.pdf">打开</button><span class="badge blue"><span class="dot"></span>已添加</span></div>
-          <div class="src-card"><span class="src-icon" aria-hidden="true">🖼️</span><span class="src-body"><strong>screenshot.png</strong><small>图片 · 已附加到下一条消息</small></span><button class="src-open" data-open-source="screenshot.png" aria-label="打开来源 screenshot.png">打开</button><span class="badge gray"><span class="dot"></span>草稿</span></div>
-          <div class="src-card"><span class="src-icon" aria-hidden="true">🌐</span><span class="src-body"><strong>3 次搜索 · 8 个网页结果</strong><small>engine: exa · 查询: "Artemis UI"</small></span><button class="src-open" data-open-source="web" aria-label="打开网页搜索来源">打开</button><span class="badge green"><span class="dot"></span>已添加</span></div>
-          <div class="src-card"><span class="src-icon" aria-hidden="true">🔧</span><span class="src-body"><strong>5 次调用 · 2 个工具</strong><small title="codegraph_search / codegraph_trace / codegraph_callers">codegraph_search / codegraph_trace / codegraph_callers</small></span><button class="src-open" data-open-source="mcp" aria-label="打开 MCP 来源">打开</button><span class="badge green"><span class="dot"></span>已添加</span></div>
+          <div class="src-card"><span class="src-icon" aria-hidden="true"><svg class="ic sm" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg></span><span class="src-body"><strong title="report-with-a-very-long-accessibility-audit-name.pdf">report-with-a-very-long-accessibility-audit-name.pdf</strong><small>文件 · 已添加到任务 · 2 分钟前</small></span><button class="src-open" data-open-source="report.pdf" aria-label="打开来源 report.pdf">打开</button><span class="badge blue"><span class="dot"></span>已添加</span></div>
+          <div class="src-card"><span class="src-icon" aria-hidden="true"><svg class="ic sm" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5L5 21"/></svg></span><span class="src-body"><strong>screenshot.png</strong><small>图片 · 已附加到下一条消息</small></span><button class="src-open" data-open-source="screenshot.png" aria-label="打开来源 screenshot.png">打开</button><span class="badge gray"><span class="dot"></span>草稿</span></div>
+          <div class="src-card"><span class="src-icon" aria-hidden="true"><svg class="ic sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span><span class="src-body"><strong>3 次搜索 · 8 个网页结果</strong><small>engine: exa · 查询: "Artemis UI"</small></span><button class="src-open" data-open-source="web" aria-label="打开网页搜索来源">打开</button><span class="badge green"><span class="dot"></span>已添加</span></div>
+          <div class="src-card"><span class="src-icon" aria-hidden="true"><svg class="ic sm" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span><span class="src-body"><strong>5 次调用 · 2 个工具</strong><small title="codegraph_search / codegraph_trace / codegraph_callers">codegraph_search / codegraph_trace / codegraph_callers</small></span><button class="src-open" data-open-source="mcp" aria-label="打开 MCP 来源">打开</button><span class="badge green"><span class="dot"></span>已添加</span></div>
           <div class="demo-toolbar"><button class="btn btn-ghost compact" id="sourcesLoading">加载态</button><button class="btn btn-ghost compact" id="sourcesError">失败态</button><button class="btn btn-ghost compact" id="sourcesReady">恢复</button><span class="demo-state" id="sourcesState" role="status" aria-live="polite">来源已就绪</span></div>
         </div>
       </div>
       <div class="spec" data-card="cat-sources-02"><div class="spec-h"><span class="no">S2</span><span class="name">网页搜索来源组</span><span class="en">WebSearchSourceGroup · query + links</span><span class="src">SourcesPanel.tsx</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.src-group</code> 组头（搜索语句 · 3 次搜索 8 个结果统计）加 <code>ul.src-links</code> 三条 <code>.src-link.web</code> 行卡：地球图标 · 标题（accent-text）· 域名副标题（等宽 10.5px）· 悬停外链箭头；下方 <code>.src-feedback.error</code> 错误条内置重试钮</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">结果钮 <code>data-open-source</code> click 回写状态条，hover 与 focus-visible 变 <code>--hover</code> 底；错误条 <code>role=alert</code>；重试钮 click 隐藏自身并回报成功</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">错误条默认 hidden，由卡片 S1 失败态显示；重试后立即恢复且不自动重现；链接文本省略号截断，全名存于 aria-label</span></div>
+        </div>
         <div class="spec-b">
-          <div class="src-group"><div class="src-group-head"><strong>🌐 搜索: "Codex vs Claude"</strong><small>3 次搜索 · 8 个网页结果</small></div>
-            <ul class="src-links"><li><button data-open-source="https://example.test/codex" aria-label="打开来源 Codex review"><span>Codex review: OpenAI's new agent</span></button></li><li><button data-open-source="https://example.test/claude" aria-label="打开来源 Claude Code best practices"><span>Claude Code best practices</span></button></li><li><button data-open-source="https://example.test/agents" aria-label="打开来源 Terminal agents comparison"><span>Terminal agents comparison 2025</span></button></li></ul></div>
+          <div class="src-group"><div class="src-group-head"><strong><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg> 搜索: "Codex vs Claude"</strong><small>3 次搜索 · 8 个网页结果</small></div>
+            <ul class="src-links">
+              <li><button class="src-link web" data-open-source="https://example.test/codex" aria-label="打开来源 Codex review"><span class="sl-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span><span class="sl-body"><span class="sl-title">Codex review: OpenAI's new agent</span><span class="sl-sub">example.test/codex</span></span><svg class="sl-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4L10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></button></li>
+              <li><button class="src-link web" data-open-source="https://example.test/claude" aria-label="打开来源 Claude Code best practices"><span class="sl-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span><span class="sl-body"><span class="sl-title">Claude Code best practices</span><span class="sl-sub">example.test/claude</span></span><svg class="sl-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4L10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></button></li>
+              <li><button class="src-link web" data-open-source="https://example.test/agents" aria-label="打开来源 Terminal agents comparison"><span class="sl-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span><span class="sl-body"><span class="sl-title">Terminal agents comparison 2025</span><span class="sl-sub">example.test/agents</span></span><svg class="sl-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4L10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></button></li>
+            </ul></div>
           <div class="src-feedback error" id="webSourceError" role="alert" hidden>网页搜索失败。<button class="btn btn-ghost compact" id="webSourceRetry">重试</button></div>
         </div>
       </div>
       <div class="spec" data-card="cat-sources-03"><div class="spec-h"><span class="no">S3</span><span class="name">MCP 调用来源组</span><span class="en">MCP source group · calls × tools</span><span class="src">SourcesPanel.tsx</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.src-group</code> 组头「MCP 工具调用」带 12 次调用 · 4 个工具统计；<code>.src-links</code> 四条 <code>.src-link.mcp</code> 行卡：扳手图标 · 等宽工具名 · 职责副标题 · 右侧 <code>.sl-count</code> 计数胶囊；底部 <code>#mcpSourceDetail</code> 带 <code>role=status</code></span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v"><code>data-mcp-call</code> click 将「调用详情：工具名」写入 <code>#mcpSourceDetail</code> 以 polite 播报；列表钮 hover 与 focus-visible 变 <code>--hover</code> 底</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">条目格式为工具名 × 次数；详情文案声明长输出策略：保留完整 title 仅做视觉截断；本组无失败分支，纯查询展示</span></div>
+        </div>
         <div class="spec-b">
-          <div class="src-group"><div class="src-group-head"><strong>🔧 MCP 工具调用</strong><small>12 次调用 · 4 个工具</small></div>
-            <ul class="src-links"><li><button data-mcp-call="codegraph_search" aria-label="查看 MCP 调用 codegraph_search"><span>codegraph_search × 5</span></button></li><li><button data-mcp-call="codegraph_trace" aria-label="查看 MCP 调用 codegraph_trace"><span>codegraph_trace × 3</span></button></li><li><button data-mcp-call="codegraph_callers" aria-label="查看 MCP 调用 codegraph_callers"><span>codegraph_callers × 2</span></button></li><li><button data-mcp-call="codegraph_context" aria-label="查看 MCP 调用 codegraph_context"><span>codegraph_context × 2</span></button></li></ul></div>
+          <div class="src-group"><div class="src-group-head"><strong><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> MCP 工具调用</strong><small>12 次调用 · 4 个工具</small></div>
+            <ul class="src-links">
+              <li><button class="src-link mcp" data-mcp-call="codegraph_search" aria-label="查看 MCP 调用 codegraph_search"><span class="sl-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span><span class="sl-body"><span class="sl-title">codegraph_search</span><span class="sl-sub">符号检索</span></span><span class="sl-count">× 5</span></button></li>
+              <li><button class="src-link mcp" data-mcp-call="codegraph_trace" aria-label="查看 MCP 调用 codegraph_trace"><span class="sl-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span><span class="sl-body"><span class="sl-title">codegraph_trace</span><span class="sl-sub">调用链追踪</span></span><span class="sl-count">× 3</span></button></li>
+              <li><button class="src-link mcp" data-mcp-call="codegraph_callers" aria-label="查看 MCP 调用 codegraph_callers"><span class="sl-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span><span class="sl-body"><span class="sl-title">codegraph_callers</span><span class="sl-sub">反向引用</span></span><span class="sl-count">× 2</span></button></li>
+              <li><button class="src-link mcp" data-mcp-call="codegraph_context" aria-label="查看 MCP 调用 codegraph_context"><span class="sl-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span><span class="sl-body"><span class="sl-title">codegraph_context</span><span class="sl-sub">上下文提取</span></span><span class="sl-count">× 2</span></button></li>
+            </ul></div>
           <div class="src-feedback" id="mcpSourceDetail" role="status">选择调用查看详情；长输出将截断并保留 title。</div>
         </div>
       </div>
       <div class="spec" data-card="cat-sources-04"><div class="spec-h"><span class="no">S4</span><span class="name">来源空态</span><span class="en">SourcesPanel empty state</span><span class="src">SourcesPanel.tsx</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.src-empty</code> 纵向居中 · 内距 28px 16px · 全 <code>--text-3</code>；<code>.src-empty-icon</code> 26px 图标 opacity 0.4 加单句 12.5px 文案</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无交互与脚本；图标 <code>aria-hidden</code> 装饰并标注 <code>data-cx-exempt</code>，朗读仅由 p 文案承担</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">较通用 <code>.empty-state</code> 更轻：无虚线框与行动按钮，仅声明「尚未添加来源」一个事实；定位面板内嵌空态</span></div>
+        </div>
         <div class="spec-b">
-          <div class="src-empty"><span class="src-empty-icon" data-cx-exempt="装饰性空态图标（emoji 非文本内容）" aria-hidden="true">📎</span><p>当前任务尚未添加来源。</p></div>
+          <div class="src-empty"><span class="src-empty-icon" data-cx-exempt="装饰性空态图标" aria-hidden="true"><svg class="ic lg" viewBox="0 0 24 24"><path d="M21 12l-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8L12 5.4a3.8 3.8 0 0 1 5.4 5.4l-7.2 7.2a2 2 0 0 1-2.9-2.9l6.5-6.5"/></svg></span><p>当前任务尚未添加来源。</p></div>
         </div>
       </div>
       <div class="spec" data-card="cat-sources-05"><div class="spec-h"><span class="no">S5</span><span class="name">来源归属标签</span><span class="en">parentAgent / usedBy</span><span class="src">SourcesPanel.tsx</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">单张 <code>.src-card</code>：<code>.src-body</code> 主文本「8 个网页结果」加副文本使用 Agent 信息；尾部 <code>.badge blue</code> 标注「子代理」</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无脚本监听；本卡不含 <code>.src-open</code> 打开钮，徽章与文本均非交互</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">归属以副文本（使用 Agent · 父 Agent）与徽章双重表达；对应 SourcesPanel 的 parentAgent 与 usedBy 字段语义</span></div>
+        </div>
         <div class="spec-b">
-          <div class="src-card"><span class="src-icon">🌐</span><span class="src-body"><strong>8 个网页结果</strong><small>使用 Agent: 研究子代理 · 父 Agent</small></span><span class="badge blue"><span class="dot"></span>子代理</span></div>
+          <div class="src-card"><span class="src-icon"><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span><span class="src-body"><strong>8 个网页结果</strong><small>使用 Agent: 研究子代理 · 父 Agent</small></span><span class="badge blue"><span class="dot"></span>子代理</span></div>
         </div>
       </div>
       <div class="spec" data-card="cat-sources-06"><div class="spec-h"><span class="no">S6</span><span class="name">目标编辑器</span><span class="en">GoalEditorPanel · textarea + revert/save + stale</span><span class="src">GoalEditorPanel.tsx</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.goal-editor</code> 外框包 <code>textarea.goal-input</code>（rows=3 · 最小高 60px）· <code>#goalStatus</code> 状态行 · meta 行含时间 · <code>icon-btn</code> 还原 · 主钮保存</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">input 判定 dirty；⌘/Ctrl+Enter 与保存钮均提交；状态行 <code>role=status</code> · <code>aria-live=polite</code>；容器 <code>aria-busy</code> 于 loading/saving 置 true</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">偏离初值即加 <code>.dirty</code>（左缘 3px accent）；提交 80ms 后回落已保存；工具条切 loading/load-error/save-error/ready，error 态转 danger 色；还原钮回滚</span></div>
+        </div>
         <div class="spec-b col">
           <div class="goal-editor" id="goalEditor" aria-busy="false"><textarea class="goal-input" id="goalInput" placeholder="目标" rows="3">重构 Artemis 桌面端 UI，建立自有设计语言体系。</textarea>
             <div class="goal-status" id="goalStatus" role="status" aria-live="polite">已加载</div><div class="goal-meta"><span class="goal-updated">刚刚更新</span><span class="goal-actions"><button class="icon-btn" id="goalRevert" title="还原" aria-label="还原目标">↺</button><button class="btn btn-primary compact" id="goalSave">保存</button></span></div></div>
@@ -1323,15 +1722,25 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
       <div class="spec" data-card="cat-sources-07"><div class="spec-h"><span class="no">S7</span><span class="name">目标编辑器 stale 冲突</span><span class="en">GoalEditorPanel stale alert</span><span class="src">GoalEditorPanel.tsx</span></div>
-        <div class="spec-b">
-          <div class="goal-editor stale" id="goalStale"><p class="alert-warn" role="alert">⚠ 此目标已在其他位置发生变化。</p>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.goal-editor.stale</code>（卡体纵向满宽）顶置 <code>p.alert-warn</code>（warning 12% 底）带 <code>role=alert</code>；<code>.goal-meta</code>（8px 14px 内距）单行排布时间状态 · 重新加载次钮 · 保存主钮（disabled），文字与按钮不贴边</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v"><code>#goalStaleRetry</code> click 置容器 <code>aria-busy=true</code>；保存钮初始 disabled 不可触发；alert 文案以 assertive 优先级播报冲突</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">重新加载 80ms 后移除 <code>.stale</code>，状态行改「已载入最新修订」并启用保存；冲突期保存被禁，强制先同步后改写</span></div>
+        </div>
+        <div class="spec-b col">
+          <div class="goal-editor stale" id="goalStale"><p class="alert-warn" role="alert"><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-3px;margin-right:4px"><path d="M10.3 4.3L2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z"/><path d="M12 10v4M12 17.5v.5"/></svg>此目标已在其他位置发生变化。</p>
             <div class="goal-meta"><span class="goal-updated" id="goalStaleState">5 分钟前更新 · 需重新加载</span><span class="goal-actions"><button class="btn btn-secondary compact" id="goalStaleRetry">重新加载</button><button class="btn btn-primary compact" id="goalStaleSave" disabled>保存</button></span></div></div>
         </div>
       </div>
       <div class="spec" data-card="cat-sources-08"><div class="spec-h"><span class="no">S8</span><span class="name">环境来源集成 + PR checks</span><span class="en">EnvironmentPanel sources block + PR check summary</span><span class="src">EnvironmentPanel.tsx</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.env-sources</code>（来源头加添加钮 · 三枚 <code>.src-mini</code> 汇总胶囊）· <code>.pr-state-grid</code> 六枚 <code>.pr-check</code> · 三条 <code>.coverage-warning</code> · <code>#checksDialog</code></span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v"><code>.pr-check</code> click 回写 summary；<code>#openChecks</code> 带 <code>aria-haspopup=dialog</code>，开对话框并移焦；Escape 与关闭钮还原焦点；<code>#prState</code> 带 <code>role=status</code></span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">六态图标 pass 实底 success · failed 实底 danger · 其余四态灰阶；对话框初始 hidden；<code>#prStaleRetry</code> 置 aria-busy 于 80ms 后回报已刷新；三条覆盖警告常驻</span></div>
+        </div>
         <div class="spec-b">
           <div class="env-sources"><div class="env-block"><strong>来源</strong><button class="btn btn-secondary compact">添加来源</button></div>
-            <div class="env-src-list"><span class="src-mini">📄 report.pdf</span><span class="src-mini">🌐 8 网页</span><span class="src-mini">🔧 5 调用</span></div></div>
+            <div class="env-src-list"><span class="src-mini"><svg class="ic xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg> report.pdf</span><span class="src-mini"><svg class="ic xs" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg> 8 网页</span><span class="src-mini"><svg class="ic xs" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> 5 调用</span></div></div>
           <div class="pr-state-grid" id="prStates"><button class="pr-check" data-pr-state="passed"><span class="pr-icon pass">✓</span><span>passed</span></button><button class="pr-check" data-pr-state="pending"><span class="pr-icon pending">◌</span><span>pending</span></button><button class="pr-check" data-pr-state="failed"><span class="pr-icon failed">!</span><span>failed</span></button><button class="pr-check" data-pr-state="skipped"><span class="pr-icon skipped">–</span><span>skipped</span></button><button class="pr-check" data-pr-state="cancelled"><span class="pr-icon cancelled">×</span><span>cancelled</span></button><button class="pr-check" data-pr-state="none"><span class="pr-icon none">·</span><span>none</span></button></div>
           <div class="coverage-list" aria-label="PR 覆盖警告三态"><span class="coverage-warning">working-tree 未覆盖</span><span class="coverage-warning">unpushed 未覆盖</span><span class="coverage-warning">head-mismatch 未覆盖</span></div>
           <div class="demo-toolbar"><button class="btn btn-secondary compact" id="openChecks" aria-haspopup="dialog" aria-expanded="false">打开 checks 详情</button><button class="btn btn-ghost compact" id="prStaleRetry">stale 重试</button><span class="demo-state" id="prState" role="status">六态摘要可选</span></div>
@@ -1343,6 +1752,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       <h2>Artemis 专属</h2>
       <p class="sub">对齐 <code style="font-size:11px">d0b7b9f</code>：Composer、queued steer、slash、UserInputCard、审批。</p>
       <div class="spec" data-card="cat-artemis-01"><div class="spec-h"><span class="no">13a</span><span class="name">运行模式</span><span class="en">Run mode · 审批策略</span><span class="src">.approval-policy-menu</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.mode-pill</code> 触发钮（内联 12.5px 字号 · 7px 13px 内距）：星形 icon + 当前模式文本 + ▾ 指示；尾随 <code>.badge blue/gray</code> 两枚策略标签</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">钮带 aria-haspopup="listbox" 与 aria-expanded；hover 换 <code>--surface-3</code> 底 · :active 缩放 0.97 · focus-visible 显焦点环</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">静态策略展示无菜单脚本（可切换版本见 14 号 Composer 卡）；表达「自动执行 / 需逐项审批」两档审批语义</span></div>
+        </div>
         <div class="spec-b"><div class="select-wrap">
             <button class="mode-pill" id="runMode" aria-haspopup="listbox" aria-expanded="false" style="font-size:12.5px;padding:7px 13px"><svg class="ic sm" viewBox="0 0 24 24"><path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/></svg><span>自动执行</span><span style="font-size:9px;color:var(--text-3)">▾</span></button>
           </div>
@@ -1351,6 +1765,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-artemis-02"><div class="spec-h"><span class="no">13b</span><span class="name">工具活动</span><span class="en">Tool activity · 可折叠</span><span class="src">.tool-activity</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.tool-act</code>（max-width 440px）= <code>.tool-act-h</code> 标题行 + <code>.tool-act-b</code> 步骤区；每步 <code>.tool-step done/run</code> 带 6px <code>.ts-dot</code> 点与 <code>.ts-t</code> 耗时</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">标题行 role=button · tabindex=0，click 切 <code>.open</code> 并同步 aria-expanded；hover 标题转 <code>--surface-2</code> 底；<code>.run</code> 状态点 1.2s pulse 脉冲</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v"><code>.tool-act-b</code> 以 max-height 0 到 200px 过渡展开（var(--t-med)），箭头旋转 90°（var(--t-quick)）；完成步绿点 · 运行步 accent 点脉冲</span></div>
+        </div>
         <div class="spec-b col"><div class="tool-act open" id="toolAct">
             <div class="tool-act-h" role="button" tabindex="0" aria-expanded="true"><svg class="ic xs ta-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg><svg class="ic sm" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>使用了 3 个工具</div>
             <div class="tool-act-b">
@@ -1362,16 +1781,33 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
           <span style="font-size:12px;color:var(--text-3)">点标题折叠/展开 · 运行中脉冲</span></div>
       </div>
 
-      <div class="spec" data-card="cat-artemis-03"><div class="spec-h"><span class="no">13c</span><span class="name">任务计划</span><span class="en">Task plan · 步骤进度</span><span class="src">.task-plan</span></div>
-        <div class="spec-b col"><div class="task-plan">
-            <div class="task-step done"><span class="tk-ic">✓</span><span class="tk-t">分析现有设计语言</span></div>
-            <div class="task-step done"><span class="tk-ic">✓</span><span class="tk-t">定义三方向令牌</span></div>
-            <div class="task-step run"><span class="tk-ic">3</span><span class="tk-t">构建组件层（进行中）</span></div>
-            <div class="task-step"><span class="tk-ic">4</span><span class="tk-t">页面级整合</span></div>
-          </div></div>
+      <div class="spec" data-card="cat-artemis-03"><div class="spec-h"><span class="no">13c</span><span class="name">任务计划胶囊</span><span class="en">Task plan capsule · hover 浮窗执行步骤</span><span class="src">TaskPlanProgress.tsx</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.plan-stage</code> 内 <code>.task-plan-progress</code>：胶囊 trigger + 绝对定位 <code>.task-plan-list</code>（宽 min(520px,72vw) · 高限 min(320px,46vh)）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">pointerenter 悬停 175ms 意图后展开；click 与 focus 立即展开；Escape · pointerleave · 卡外按下 · 失焦均关闭；aria-expanded 同步</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">步骤四态 pending/in_progress/completed/failed（in_progress 为脉动呼吸环：光环 1.6s 扩散加中心点搏动，替代旋转弧）；演示钮切 run/failed/done；完成后收浮窗，2.5s 隐藏胶囊；planState role=status 播报</span></div>
+        </div>
+        <div class="spec-b col">
+          <div class="plan-stage">
+            <span class="plan-hint" aria-hidden="true">会话底部演示区 · 悬停 / 聚焦胶囊 175ms 后上浮执行步骤（对齐真实交互）</span>
+            <div class="task-plan-progress" id="planProgress">
+              <ol aria-label="任务步骤" class="task-plan-list" id="planList" hidden></ol>
+              <button aria-controls="planList" aria-expanded="false" class="task-plan-trigger" id="planTrigger" type="button">
+                <span class="task-step-marker pending" id="planMarker" role="img" aria-label="尚未开始"></span>
+                <span class="plan-num" id="planLabel">第 3 / 5 步</span>
+              </button>
+            </div>
+          </div>
+          <div class="demo-toolbar" role="group" aria-label="任务计划状态"><button class="btn btn-ghost compact" data-plan-state="run" aria-pressed="true">进行中 3/5</button><button class="btn btn-ghost compact" data-plan-state="failed" aria-pressed="false">步骤失败</button><button class="btn btn-ghost compact" data-plan-state="done" aria-pressed="false">全部完成</button><span class="demo-state" id="planState" role="status" aria-live="polite">悬停或聚焦胶囊查看 5 个执行步骤</span></div>
+        </div>
       </div>
 
       <div class="spec" data-card="cat-artemis-04"><div class="spec-h"><span class="no">13d</span><span class="name">模型选择</span><span class="en">Model picker</span><span class="src">.model-picker</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.select-trig</code>（min-width 180px · 右内距 32px 容 ▾）：同心圆 icon + <code>.val</code> 当前模型名 + <code>.chev</code> 箭头</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">aria-haspopup=listbox · aria-expanded=false；hover 边框升为 <code>--text-3</code>；focus-visible 加 accent 边与 3.5px <code>--focus-ring</code></span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">静态演示触发态（无菜单脚本）；<code>.val</code> nowrap 并以省略号截断，防长模型名溢出</span></div>
+        </div>
         <div class="spec-b"><div class="select-wrap">
             <button class="select-trig" id="modelSel" aria-haspopup="listbox" aria-expanded="false"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" opacity="0.45"/><circle cx="12" cy="12" r="4.5" opacity="0.7"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg><span class="val">Claude Sonnet 4.6</span><span class="chev">▾</span></button>
           </div>
@@ -1379,10 +1815,20 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-artemis-05"><div class="spec-h"><span class="no">13e</span><span class="name">输入区</span><span class="en">Composer input · 自适应高</span><span class="src">.composer-input</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.composer</code> 去阴影内联版内单层 <code>.composer-input</code> 加 rows=1 textarea（CSS max-height 120px · resize:none）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">input 事件自适应：height 置 auto 后取 scrollHeight 回填，封顶 120px；<code>textarea:focus</code> 规则清除默认描边</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">多行输入逐行增高，超 120px 转内部滚动；placeholder 明示「最高 120px」高度契约</span></div>
+        </div>
         <div class="spec-b col"><div class="composer" style="box-shadow:none;border-color:var(--border-soft)"><div class="composer-input"><textarea placeholder="独立输入区：多行自适应，最高 120px" rows="1" aria-label="独立输入区" id="soloTa" style="min-height:22px"></textarea></div></div></div>
       </div>
 
       <div class="spec" data-card="cat-artemis-06"><div class="spec-h"><span class="no">13f</span><span class="name">上下文环</span><span class="en">Context ring · 用量指示</span><span class="src">.ctx-ring</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">22px <code>svg.ctx-ring</code>（rotate -90° 起点置顶）：<code>.bg-c</code> 轨道弧 + <code>.fg-c</code> 进度弧，stroke-width 2.5 · 周长 56.5（r=9）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无脚本监听；每环 role=img 且 aria-label 报百分比；<code>.fg-c</code> 的 dashoffset 变化以 var(--t-med) 过渡</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">dashoffset 42.4/22.6/5.7 对应 25%/60%/90% 三档；90% 档行内 stroke 转 <code>--warning</code> 表高用量告警，其余为 accent</span></div>
+        </div>
         <div class="spec-b"><div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
             <svg class="ctx-ring" viewBox="0 0 22 22" role="img" aria-label="用量 25%"><circle class="bg-c" cx="11" cy="11" r="9"/><circle class="fg-c" cx="11" cy="11" r="9" stroke-dasharray="56.5" stroke-dashoffset="42.4"/></svg>
             <svg class="ctx-ring" viewBox="0 0 22 22" role="img" aria-label="用量 60%"><circle class="bg-c" cx="11" cy="11" r="9"/><circle class="fg-c" cx="11" cy="11" r="9" stroke-dasharray="56.5" stroke-dashoffset="22.6"/></svg>
@@ -1392,21 +1838,36 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-artemis-07"><div class="spec-h"><span class="no">13g</span><span class="name">附件芯片</span><span class="en">Attachment chip · 可移除</span><span class="src">.ctx-chip</span></div>
-        <div class="spec-b"><span class="ctx-chip">设计稿.fig<button aria-label="移除">✕</button></span>
-          <span class="ctx-chip">需求文档.pdf<button aria-label="移除">✕</button></span>
-          <span class="ctx-chip"><svg class="ic xs" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>截图.png<button aria-label="移除">✕</button></span>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.ctx-chip</code>（<code>--surface-3</code> 底 · 3px 8px 内距）内为文件名或缩略 <code>svg</code> 加移除 <code>button</code>（aria-label=移除）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">独立卡内移除钮 click 即删整枚芯片（选择器排除 14 号卡 <code>#attachRow</code>）；hover 钮色转 <code>--danger-text</code></span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">图片附件带缩略图 · 文档仅文件名；删除即时生效无确认，与 Composer 内附件行为一致</span></div>
+        </div>
+        <div class="spec-b"><span class="ctx-chip">设计稿.fig<button aria-label="移除">×</button></span>
+          <span class="ctx-chip">需求文档.pdf<button aria-label="移除">×</button></span>
+          <span class="ctx-chip"><svg class="ic xs" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>截图.png<button aria-label="移除">×</button></span>
           <span style="font-size:12px;color:var(--text-3)">图片带缩略图 · 文档带文件名</span></div>
       </div>
 
       <div class="spec" data-card="cat-artemis-08"><div class="spec-h"><span class="no">13h</span><span class="name">Agent 团队</span><span class="en">Agent team / Child agent · 层级</span><span class="src">.agent-team-tree</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.agent-team</code>（max-width 480px）三行 <code>.agent-row</code>：主 <code>.lead</code>（<code>--surface-2</code> 底）与两 <code>.child-a</code>（左缩进 34px 加 <code>::before</code> 1px 连接线）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">纯静态展示无脚本监听；行尾 <code>.ag-st</code> 徽章（badge blue/green）标运行中或完成</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">层级由缩进与连接线表达；26px <code>.ag-av</code> 身份标记头像（对齐 ChildAgentIcon 语言）：主 Agent 六边形节点 accent 淡底 · 检索子代理放大镜 teal 淡底 · 实现子代理代码括号 amber 淡底，字形色经 <code>color-mix</code> 随主题自适应；<code>.ag-role</code> 11px 三级色职责说明</span></div>
+        </div>
         <div class="spec-b col"><div class="agent-team">
-            <div class="agent-row lead"><span class="ag-av">A</span><div><div class="ag-n">主 Agent</div><div class="ag-role">协调任务</div></div><span class="badge blue ag-st">运行中</span></div>
-            <div class="agent-row child-a"><span class="ag-av">B</span><div><div class="ag-n">子 Agent · 检索</div><div class="ag-role">读取设计与源码</div></div><span class="badge green ag-st">完成</span></div>
-            <div class="agent-row child-a"><span class="ag-av">C</span><div><div class="ag-n">子 Agent · 实现</div><div class="ag-role">编写组件</div></div><span class="badge blue ag-st">运行中</span></div>
+            <div class="agent-row lead"><span class="ag-av" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 1.5 17.4 5.75v8.5L10 18.5l-7.4-4.25v-8.5z"/><circle class="filldot" cx="10" cy="10" r="2.2"/></svg></span><div><div class="ag-n">主 Agent</div><div class="ag-role">协调任务</div></div><span class="badge blue ag-st">运行中</span></div>
+            <div class="agent-row child-a"><span class="ag-av mark-teal" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg></span><div><div class="ag-n">子 Agent · 检索</div><div class="ag-role">读取设计与源码</div></div><span class="badge green ag-st">完成</span></div>
+            <div class="agent-row child-a"><span class="ag-av mark-amber" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 7l-5 5 5 5"/><path d="M15 7l5 5-5 5"/></svg></span><div><div class="ag-n">子 Agent · 实现</div><div class="ag-role">编写组件</div></div><span class="badge blue ag-st">运行中</span></div>
           </div></div>
       </div>
 
       <div class="spec" data-card="cat-artemis-09"><div class="spec-h"><span class="no">13i</span><span class="name">提示历史</span><span class="en">Prompt history · 复用</span><span class="src">.prompt-history</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.prompt-hist</code>（max-width 440px）三行 <code>.ph-row</code>：时钟 icon + <code>.ph-txt</code>（nowrap 省略号截断）+ <code>.ph-re</code> 复用钮 + <code>.ph-time</code> 相对时间</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">行 hover 转 <code>--surface-2</code> 并显出 opacity 0 的复用钮（background 过渡 var(--t-quick)）；钮 :active 缩放 0.94；复用钮本页未挂 click 脚本</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">复用钮仅 hover 可见以降噪；时间戳 2m/18m/1h 表相对时序；行间以 <code>--border-soft</code> 分隔</span></div>
+        </div>
         <div class="spec-b col"><div class="prompt-hist">
             <div class="ph-row"><svg class="ic sm" viewBox="0 0 24 24" style="color:var(--text-3)"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="ph-txt">把按钮的对比度调到 4.5 以上</span><button class="ph-re">复用</button><span class="ph-time">2m</span></div>
             <div class="ph-row"><svg class="ic sm" viewBox="0 0 24 24" style="color:var(--text-3)"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="ph-txt">检查深色主题下浮层阴影</span><button class="ph-re">复用</button><span class="ph-time">18m</span></div>
@@ -1415,6 +1876,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-artemis-10"><div class="spec-h"><span class="no">13j</span><span class="name">Browser 地址栏</span><span class="en">前进/后退/刷新/加载/错误</span><span class="src">WorkspacePreviewPanel</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.browser-bar</code>（max-width 520px）三枚 28px <code>.bnav</code> · <code>.browser-url</code>（锁+input）· 130px <code>.browser-view</code> 预览区与 2px <code>.bv-load</code> 加载条</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">地址框 Enter 触发 navigate；后退/前进 click 沿 navStack 移动；刷新重放加载；<code>.browser-url</code> focus-within 显 accent 边与焦点环</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">导航先截断前进栈再入栈；加载条 0 到 70%，700ms 到 100%，再 400ms 收零并报「已加载 url」；navIdx=0 时后退禁用 · 处于栈尾前进禁用；刷新不改变历史栈</span></div>
+        </div>
         <div class="spec-b col"><div class="browser-bar">
             <button class="bnav" id="navBack" disabled aria-label="后退"><svg class="ic" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
             <button class="bnav" id="navFwd" disabled aria-label="前进"><svg class="ic" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
@@ -1425,7 +1891,12 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
           <span style="font-size:12px;color:var(--text-3)">改地址回车=导航 · 刷新=加载条 · 前进/后退随历史启停</span></div>
       </div>
 
-      <div class="spec" data-card="cat-artemis-11"><div class="spec-h"><span class="no">13k</span><span class="name">Markdown 编辑与预览</span><span class="en">File/Markdown · 编辑↔预览</span><span class="src">MarkdownReaderPanel</span></div>
+      <div class="spec" data-card="cat-artemis-11"><div class="spec-h"><span class="no">13k</span><span class="name">Markdown 编辑与预览</span><span class="en">File/Markdown · 编辑与预览</span><span class="src">MarkdownReaderPanel</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.md-panel</code>（max-width 560px）：<code>.md-bar</code> 双 tab · <code>.md-body</code> 编辑/预览 · <code>.md-savebar</code> · <code>.file-editor-demo</code>（wrap=off 源码区）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">tab click 切 source/rich（aria-pressed）；<code>#mdEdit</code> input 置 dirty；Ctrl/Cmd+S 落盘；<code>#codePlain</code> 切 plain（250KB）</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">状态流转 已保存 到 未保存（dirty 黄字）到 正在保存… 80ms 后回 已保存；error 红字报文件名；plain 表示超 250KB 关高亮；两编辑器共用 ⌘/Ctrl+S 快捷保存契约</span></div>
+        </div>
         <div class="spec-b col"><div class="md-panel">
             <div class="md-bar" role="group" aria-label="Markdown 模式">
               <button class="md-tab" aria-pressed="false" data-md="source">源码</button>
@@ -1444,6 +1915,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-artemis-12"><div class="spec-h"><span class="no">13l</span><span class="name">环境操作对话框</span><span class="en">branch / commit / push</span><span class="src">Environment dialogs</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.env-ops</code> 三枚 <code>.btn btn-secondary</code>（提交更改 · 推送到远端 · 切换分支），复用页首 <code>#overlay</code> 加 <code>#dialog</code> 公共对话框</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">各钮 click 经 envDlg 改写标题 · 描述 · 确认文案后 openDialog；对话框 Escape · 遮罩 click · data-close 钮均可关闭；Tab 焦点循环限制在框内</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">打开 30ms 后聚焦 <code>#dlgInput</code>；关闭后焦点回触发钮；确认关闭并 toast「已确认」；描述携带量词（4 个变更文件 · 3 个提交）</span></div>
+        </div>
         <div class="spec-b"><div class="env-ops">
             <button class="btn btn-secondary" id="envCommit" style="font-size:12px">提交更改</button>
             <button class="btn btn-secondary" id="envPush" style="font-size:12px">推送到远端</button>
@@ -1453,10 +1929,15 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-artemis-13"><div class="spec-h"><span class="no">13m</span><span class="name">设置复杂表单</span><span class="en">Settings / MCP · 分组 + 权限</span><span class="src">SettingsPanel</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>#mcpEditor</code> form（novalidate · aria-busy）：<code>.mcp-grid</code> 字段组 · <code>.mcp-locked</code> 锁条 · <code>.sf-row</code> 权限行 · <code>.mcp-errors</code>（role=alert）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">stdio/http 切换钮以 aria-pressed 联动；submit 走校验；「移除…」开 <code>.checks-dialog</code> 并聚焦，取消 click 回焦移除钮；网络与完全权限为 <code>.switch</code> checkbox</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">http 显 auth · 命令换 https URL · 自动勾网络；名称或命令空报必填，http 非 https:// 报错；保存 80ms busy 后「已保存」；移除需确认，确认后保存钮禁用</span></div>
+        </div>
         <div class="spec-b col"><form class="mcp-editor" id="mcpEditor" novalidate aria-busy="false">
           <div class="demo-toolbar" role="group" aria-label="MCP 传输类型"><button type="button" class="btn btn-secondary compact" data-mcp-kind="stdio" aria-pressed="true">stdio</button><button type="button" class="btn btn-secondary compact" data-mcp-kind="http" aria-pressed="false">streamable-http</button><span class="badge green" id="mcpModeBadge">新建</span></div>
           <div class="mcp-grid"><div class="field"><label for="mcpName">名称</label><input class="input" id="mcpName" value="codegraph"></div><div class="field"><label for="mcpCommand">命令 / URL</label><input class="input" id="mcpCommand" value="npx codegraph-mcp"></div><div class="field full" id="mcpAuthField" hidden><label for="mcpAuth">Authorization</label><input class="input" id="mcpAuth" placeholder="Bearer token"></div><div class="field full"><label for="mcpArgs">参数</label><input class="input" id="mcpArgs" value="--stdio"></div></div>
-          <div class="mcp-locked" id="mcpCredentialLock">🔒 凭据不会显示或导出；编辑时留空表示保持原值。</div>
+          <div class="mcp-locked" id="mcpCredentialLock"><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true" style="flex:none"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>凭据不会显示或导出；编辑时留空表示保持原值。</span></div>
           <div class="sf-row"><div class="sf-l"><div class="sf-t">文件系统访问</div><div class="sf-d">仅任务工作区 + 私有运行目录</div></div><div class="sf-c"><span class="badge green">沙箱</span></div></div>
           <div class="sf-row"><div class="sf-l"><div class="sf-t">网络访问</div><div class="sf-d">按服务器单独授权</div></div><div class="sf-c"><label class="switch"><input id="mcpNetwork" type="checkbox"><span class="track"></span></label></div></div>
           <div class="sf-row"><div class="sf-l"><div class="sf-t">完全本地权限</div><div class="sf-d">仅对可信服务器显式开启</div></div><div class="sf-c"><label class="switch"><input id="mcpFullAccess" type="checkbox"><span class="track"></span></label></div></div>
@@ -1466,6 +1947,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
       </div>
 
       <div class="spec" data-card="cat-artemis-14"><div class="spec-h"><span class="no">14</span><span class="name">Composer</span><span class="en">输入 + 上下文 + 附件 dropzone + 运行模式</span><span class="src">.composer-drop-overlay</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>#composerDemo</code>：<code>.drop-overlay</code> · 输入 textarea · <code>.composer-ctx</code> 芯片行 · <code>.composer-bar</code>（mode-pill · 附件钮 · 发送钮）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">textarea input 联动发送钮与环弧；「模拟拖拽」加 <code>.dragging</code> 1400ms；modePill click 切模式；附件钮追加芯片</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">环用量 = min(95, 42+字数/8) 并回写 aria-label；输入高封顶 120px；拖拽显虚线描边与蒙层；芯片耗尽后 toast「最多 5 个附件」</span></div>
+        </div>
         <div class="spec-b col">
           <div class="composer" id="composerDemo">
             <div class="drop-overlay"><svg class="ic lg" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><strong>拖入附件</strong><small>支持图片、文档，最多 5 个</small></div>
@@ -1483,6 +1969,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
       <div class="spec" data-card="cat-artemis-15"><div class="spec-h"><span class="no">15</span><span class="name">排队消息 steer</span><span class="en">queued-message-bar · role=status</span><span class="src">App.tsx:5955</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.queued-bar</code>（role=status）含 <code>.queued-head</code> 与 <code>ol.queued-list</code>；每项 <code>.qi-n</code> 序号 · <code>.qi-t</code> 文本 · 五枚 <code>.qi-btn</code> · <code>.qi-edit-row</code> 编辑行</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">steer/front/edit/busy/del 五钮 click 分发；编辑框 Escape 取消 · Ctrl/Cmd+Enter 保存；移到最前后回焦该项 front 钮；busy 态按钮文字切「解除 busy」</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">steer 插入当前并移除队项 · front 置顶重排序号 · del 移除 · 编辑替换文本（空值不落库）· busy 切 aria-busy 并禁其余钮；变动后重写计数与标题</span></div>
+        </div>
         <div class="spec-b col">
           <div class="queued-bar" role="status" aria-label="2 条排队消息" id="queueDemo">
             <div class="queued-head"><svg class="ic sm" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>2 条排队消息（当前任务后执行）</div>
@@ -1494,6 +1985,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
       <div class="spec" data-card="cat-artemis-16"><div class="spec-h"><span class="no">16</span><span class="name">斜杠命令菜单</span><span class="en">slash-command-menu · ↑↓</span><span class="src">App.tsx:6121</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.slash-menu</code>（role=listbox · tabindex=0 · max-width 340px）三枚 <code>.slash-item</code>（role=option）：<code>.sc-cmd</code> 命令 · 名称 · <code>.sc-d</code> 分类</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">ArrowDown/ArrowUp 移动 focused 项并同步 aria-selected；Enter 或 click 选中并 toast「已选择 /命令」</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">初始首项 /design 带 focused 与 aria-selected=true；聚焦与 hover 同享 <code>--surface-3</code> 底；命令名走 accent 色 · 分类右对齐三级色</span></div>
+        </div>
         <div class="spec-b">
           <div class="slash-menu" role="listbox" aria-label="已安装技能" id="slashMenu" tabindex="0">
             <button class="slash-item focused" role="option" aria-selected="true"><span class="sc-cmd">/design</span><span>设计语言</span><span class="sc-d">原型</span></button>
@@ -1504,6 +2000,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
       <div class="spec" data-card="cat-artemis-17"><div class="spec-h"><span class="no">17</span><span class="name">用户输入请求</span><span class="en">UserInputCard</span><span class="src">request_user_input</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.uinput-card</code>（左 3px accent 边）：<code>.uc-q</code> 问题 + 三 <code>.uinput-opt</code>（<code>.uo-k</code> 编号块）+ <code>.uopt-edit</code> 编辑行 + <code>.uc-timeout</code> 倒计时</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">普通选项 click 即答；自定义项 click 隐藏按钮 · 展开编辑行并聚焦输入框；Enter 提交 · Escape 还原按钮；倒计时 M:SS 每秒递减（Math.ceil）</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">作答插 <code>.uc-result</code> · 隐藏倒计时 · 加 <code>.done</code> 锁选项（opacity .45）并停表；≤60s 转 warn · ≤15s 转 danger 脉冲；0 回卷 5:00</span></div>
+        </div>
         <div class="spec-b">
           <div class="uinput-card">
             <div class="uc-q">选择部署目标环境</div>
@@ -1516,6 +2017,11 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
             <div class="spec" data-card="cat-artemis-18"><div class="spec-h"><span class="no">17b</span><span class="name">多组问答</span><span class="en">UserInputCard · 单卡滑动切换</span><span class="src">request_user_input（多组）</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">单卡三区：<code>.uc-progress</code>（3px 进度条）· <code>.uq-track</code> 三 slide（tabpanel）· <code>.uq-nav</code>（箭头 + <code>.uq-dots</code> tablist）</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">点 click 或卡级 ←/→ 切题；点组支持 Arrow/Home/End roving tabindex 并聚焦；选项 click 记答并刷新进度条与计数</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">轨道 translateX(-idx*100%) 滑动（var(--t-med)）卡高恒定；当前点 16px accent 条 · 已答绿点 · 端点箭头 disabled；切题重置独立 5 分钟计时</span></div>
+        </div>
         <div class="spec-b">
           <div class="uinput-card" id="multiInput">
             <div class="uc-progress"><span id="uqTitle">配置发布 · 第 1/3 题</span><span class="ucp-bar"><i id="ucpBar" style="width:0%"></i></span><span id="ucpTxt">已答 0/3</span></div>
@@ -1548,12 +2054,22 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
         </div>
       </div>
 <div class="spec" data-card="cat-artemis-19"><div class="spec-h"><span class="no">17c</span><span class="name">输入结果态</span><span class="en">UserInputCard · timed-out / resolved</span><span class="src">user-input.result</span></div>
-        <div class="spec-b">
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">两枚 <code>.uc-result</code>（<code>--surface-2</code> 底 · 11px 14px 内距）纵向满宽堆叠，左右边缘水平对齐：说明 <code>span</code> 加结论 <code>strong</code></span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">静态样例无监听；17 号卡作答或超时会动态插入同构 <code>.uc-result.dynamic</code> 节点</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">超时态文案「5 分钟未选择，已采用模型推荐项」· 手选态「已选择」；结论加粗承载主信息，卡片进入结果态后锁定不再交互</span></div>
+        </div>
+        <div class="spec-b col">
           <div class="uc-result"><span>5 分钟未选择，已采用模型推荐项</span><strong>预发布环境（推荐）</strong></div>
           <div class="uc-result"><span>已选择</span><strong>生产环境</strong></div>
         </div>
       </div>
             <div class="spec" data-card="cat-artemis-20"><div class="spec-h"><span class="no">18</span><span class="name">审批卡</span><span class="en">Approval · 命令确认</span><span class="src">approval-policy</span></div>
+        <div class="spec-d">
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.approval</code>（max-width 440px）：<code>.ap-h</code> 警示头（icon <code>--warning-text</code>）· <code>.ap-cmd</code> 等宽命令块 · <code>.ap-act</code> 三档钮</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">按钮继承 <code>.btn</code> 全套 hover/active/focus-visible 反馈；本卡静态演示未挂 click 处理</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">三档决策：允许一次（primary）· 始终允许（secondary）· 拒绝（ghost）；命令块 nowrap 加 overflow-x:auto 不折行</span></div>
+        </div>
         <div class="spec-b">
           <div class="approval">
             <div class="ap-h"><svg class="ic sm" viewBox="0 0 24 24" style="color:var(--warning-text)"><path d="M12 9v4M12 16.5v.5"/><path d="M10.3 3.8L2.6 17a2 2 0 001.7 3h15.4a2 2 0 001.7-3L13.7 3.8a2 2 0 00-3.4 0z"/></svg>需要确认的命令执行</div>
@@ -1671,17 +2187,59 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
   renderTokens();
   new MutationObserver(function () { renderTokens(); refreshMeta(); }).observe(root, { attributes: true, attributeFilter: ["data-theme", "data-contrast", "data-direction"] });
 
-  /* ===== 侧栏滚动高亮 ===== */
-  var navLinks = Array.prototype.slice.call(document.querySelectorAll("nav.side a"));
-  var cats = navLinks.map(function (a) { return document.querySelector(a.getAttribute("href")); });
-  var io = new IntersectionObserver(function (es) {
-    es.forEach(function (en) {
-      if (en.isIntersecting) {
-        navLinks.forEach(function (a) { a.classList.toggle("active", a.getAttribute("href") === "#" + en.target.id); });
-      }
+  /* ===== 两级侧栏导航：分类组（可折叠）+ 组件项（按卡片自动生成，与卡片集自动同步）===== */
+  var navSide = document.querySelector("nav.side");
+  document.querySelectorAll(".spec[data-card]").forEach(function (spec) { spec.id = spec.dataset.card; });
+  /* 滚动高亮仅在用户首次滚动后启用（锚点跳转同样触发 scroll）：初始批 IO 回调的触发时机
+     在不同运行间不定，会污染扫描器结构指纹造成等价类时序毛刺；初始高亮由构建期同步落在首卡 */
+  var navUser = false;
+  window.addEventListener("scroll", function () { navUser = true; }, { passive: true, once: true });
+  var navIO = new IntersectionObserver(function (entries) {
+    if (!navUser) return;
+    entries.forEach(function (en) {
+      if (!en.isIntersecting) return;
+      var id = en.target.id, cat = en.target.closest(".cat");
+      navSide.querySelectorAll(".nav-items a").forEach(function (a) {
+        a.classList.toggle("active", a.getAttribute("href") === "#" + id);
+      });
+      navSide.querySelectorAll(".grp").forEach(function (g) {
+        if (cat && g.dataset.cat === cat.id) g.classList.remove("collapsed");
+      });
     });
-  }, { rootMargin: "-30% 0px -60% 0px" });
-  cats.forEach(function (c) { if (c) io.observe(c); });
+  }, { rootMargin: "-20% 0px -70% 0px" });
+  navSide.innerHTML = "";
+  document.querySelectorAll("section.cat").forEach(function (cat) {
+    var grp = document.createElement("div");
+    grp.className = "grp"; grp.dataset.cat = cat.id;
+    var h2 = cat.querySelector("h2");
+    var title = ((h2.childNodes[0] || {}).textContent || h2.textContent).trim();
+    var cards = cat.querySelectorAll(".spec[data-card]");
+    var head = document.createElement("button");
+    head.type = "button"; head.className = "nav-cat"; head.setAttribute("aria-expanded", "true");
+    head.innerHTML = '<svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+    var label = document.createElement("span"); label.textContent = title; head.appendChild(label);
+    var count = document.createElement("span"); count.className = "n"; count.textContent = String(cards.length); head.appendChild(count);
+    head.addEventListener("click", function () {
+      var collapsed = grp.classList.toggle("collapsed");
+      head.setAttribute("aria-expanded", String(!collapsed));
+    });
+    var items = document.createElement("div"); items.className = "nav-items";
+    cards.forEach(function (spec) {
+      var a = document.createElement("a");
+      var name = spec.querySelector(".name"), en2 = spec.querySelector(".en");
+      a.href = "#" + spec.id;
+      a.textContent = name ? name.textContent.trim() : spec.dataset.card;
+      if (name) a.title = name.textContent.trim() + (en2 ? " · " + en2.textContent.trim() : "");
+      items.appendChild(a);
+      navIO.observe(spec);
+    });
+    grp.appendChild(head); grp.appendChild(items);
+    navSide.appendChild(grp);
+  });
+  /* 初始高亮同步落在首卡（与 IO 初始回调的选择一致）：避免 IO 回调时序不同导致
+     扫描器结构指纹跨组合捕获到不同 active 状态（EQUIV_STALE 时序毛刺） */
+  var navFirst = navSide.querySelector(".nav-items a");
+  if (navFirst) navFirst.classList.add("active");
 
   /* ===== 下拉 ===== */
   var trig = document.getElementById("sel1"), menu = document.getElementById("sel1Menu");
@@ -1762,36 +2320,55 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
   document.getElementById("toastInfo").addEventListener("click", function () { showToast("已保存更改", false); });
   document.getElementById("toastErr").addEventListener("click", function () { showToast("操作失败，请重试", true); });
 
-  /* ===== Split Pane ===== */
+  /* ===== Split Pane（2 栏 / 3 栏，每条分隔条控制其左侧面板） ===== */
   var splitDemo = document.getElementById("splitDemo"), splitA = document.getElementById("splitA"), splitSep = document.getElementById("splitSep"), splitPct = document.getElementById("splitPct"), splitState = document.getElementById("splitState");
-  var splitOpen = true, splitDefault = 190;
+  var splitMid = document.getElementById("splitMid"), splitSep2 = document.getElementById("splitSep2"), splitMidPct = document.getElementById("splitMidPct");
+  var splitOpen = true, splitDefault = 190, splitMidDefault = 150, splitThree = false;
   function splitLimits() { var w = Math.max(480, Math.round(splitDemo.getBoundingClientRect().width || 500)); return { min:120, max:Math.max(120, w - 140), width:w }; }
-  function setSplitPx(px) {
-    var lim = splitLimits(); px = Math.round(Math.min(Math.max(px, lim.min), lim.max));
-    splitA.style.width = px + "px"; var pct = Math.round(px / lim.width * 100); splitPct.textContent = pct + "%";
-    splitSep.setAttribute("aria-valuenow", String(px)); splitSep.setAttribute("aria-valuemin", String(lim.min)); splitSep.setAttribute("aria-valuemax", String(lim.max)); splitSep.setAttribute("aria-valuetext", "左面板 " + pct + "%");
-    splitState.textContent = "左面板 " + px + "px（" + pct + "%）"; return px;
+  function makeSplitCtl(sep, pane, pctEl, name, def) {
+    function setPx(px) {
+      var lim = splitLimits(); px = Math.round(Math.min(Math.max(px, lim.min), lim.max));
+      pane.style.width = px + "px"; var pct = Math.round(px / lim.width * 100);
+      if (pctEl) pctEl.textContent = pct + "%";
+      sep.setAttribute("aria-valuenow", String(px)); sep.setAttribute("aria-valuemin", String(lim.min)); sep.setAttribute("aria-valuemax", String(lim.max)); sep.setAttribute("aria-valuetext", name + " " + pct + "%");
+      splitState.textContent = name + " " + px + "px（" + pct + "%）· " + (splitThree ? "3 栏模式" : "2 栏模式");
+      return px;
+    }
+    sep.addEventListener("keydown", function (e) {
+      var now = Number(sep.getAttribute("aria-valuenow")) || def, lim = splitLimits();
+      if (e.key === "ArrowLeft") { e.preventDefault(); setPx(now - 24); }
+      if (e.key === "ArrowRight") { e.preventDefault(); setPx(now + 24); }
+      if (e.key === "Home") { e.preventDefault(); setPx(def); }
+      if (e.key === "End") { e.preventDefault(); setPx(lim.max); }
+    });
+    sep.addEventListener("pointerdown", function (e) {
+      e.preventDefault(); sep.classList.add("dragging");
+      try { sep.setPointerCapture(e.pointerId); } catch (_) {}
+      var rect = pane.getBoundingClientRect();
+      var move = function (ev) { setPx(ev.clientX - rect.left); };
+      var up = function () { sep.classList.remove("dragging"); sep.removeEventListener("pointermove", move); sep.removeEventListener("pointerup", up); };
+      sep.addEventListener("pointermove", move); sep.addEventListener("pointerup", up);
+    });
+    return { setPx: setPx };
   }
-  splitSep.addEventListener("keydown", function (e) {
-    var now = Number(splitSep.getAttribute("aria-valuenow")) || splitDefault, lim = splitLimits();
-    if (e.key === "ArrowLeft") { e.preventDefault(); setSplitPx(now - 24); }
-    if (e.key === "ArrowRight") { e.preventDefault(); setSplitPx(now + 24); }
-    if (e.key === "Home") { e.preventDefault(); setSplitPx(splitDefault); }
-    if (e.key === "End") { e.preventDefault(); setSplitPx(lim.max); }
-  });
-  splitSep.addEventListener("pointerdown", function (e) {
-    e.preventDefault(); splitSep.classList.add("dragging");
-    try { splitSep.setPointerCapture(e.pointerId); } catch (_) {}
-    var rect = splitDemo.getBoundingClientRect();
-    var move = function (ev) { setSplitPx(ev.clientX - rect.left); };
-    var up = function () { splitSep.classList.remove("dragging"); splitSep.removeEventListener("pointermove", move); splitSep.removeEventListener("pointerup", up); };
-    splitSep.addEventListener("pointermove", move); splitSep.addEventListener("pointerup", up);
+  var splitCtlA = makeSplitCtl(splitSep, splitA, splitPct, "左面板", splitDefault);
+  var splitCtlM = makeSplitCtl(splitSep2, splitMid, splitMidPct, "中面板", splitMidDefault);
+  document.querySelectorAll("[data-split-mode]").forEach(function (btn) {   /* 2 栏 / 3 栏切换 */
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("[data-split-mode]").forEach(function (other) { other.setAttribute("aria-pressed", String(other === btn)); });
+      splitThree = btn.dataset.splitMode === "3";
+      splitMid.hidden = !splitThree; splitSep2.hidden = !splitThree;
+      if (splitThree) { splitCtlM.setPx(splitMidDefault); splitState.textContent = "已切换 3 栏 · 左/中两条分隔条均可拖拽或键盘调整"; }
+      else splitState.textContent = "已切换 2 栏 · 中栏与第二分隔条已隐藏";
+    });
   });
   document.getElementById("splitClose").addEventListener("click", function () {
-    splitOpen = !splitOpen; splitDemo.classList.toggle("closed", !splitOpen); splitSep.tabIndex = splitOpen ? 0 : -1; splitSep.setAttribute("aria-disabled", String(!splitOpen)); this.textContent = splitOpen ? "关闭分栏" : "打开分栏"; splitState.textContent = splitOpen ? "分栏已打开" : "分栏已关闭；separator 已移出 Tab 顺序";
+    splitOpen = !splitOpen; splitDemo.classList.toggle("closed", !splitOpen);
+    [splitSep, splitSep2].forEach(function (s) { s.tabIndex = splitOpen ? 0 : -1; s.setAttribute("aria-disabled", String(!splitOpen)); });
+    this.textContent = splitOpen ? "关闭分栏" : "打开分栏"; splitState.textContent = splitOpen ? "分栏已打开" : "分栏已关闭；separator 已移出 Tab 顺序";
   });
-  document.getElementById("splitClamp").addEventListener("click", function () { var lim = splitLimits(); setSplitPx(lim.max + 999); });
-  setSplitPx(splitDefault);
+  document.getElementById("splitClamp").addEventListener("click", function () { var lim = splitLimits(); splitCtlA.setPx(lim.max + 999); });
+  splitCtlA.setPx(splitDefault);
 
   /* ===== 树 ===== */
   document.querySelectorAll("#treeDemo .tree-toggle").forEach(function (t) {
@@ -1808,7 +2385,29 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
     function focusRow(i, select) { i = (i + rows.length) % rows.length; rows.forEach(function (r,j) { r.tabIndex = j === i ? 0 : -1; if (select) { r.classList.toggle("selected",j===i); r.setAttribute("aria-selected",String(j===i)); } }); rows[i].focus(); if (state) state.textContent = "焦点：" + rows[i].querySelector(".lr-t").textContent + " · level " + rows[i].getAttribute("aria-level"); }
     rows.forEach(function (r,i) { r.addEventListener("click", function (e) { if (!e.target.closest("button")) focusRow(i,true); }); r.addEventListener("keydown", function(e) { if(e.key==="ArrowDown"){e.preventDefault();focusRow(i+1,false);} if(e.key==="ArrowUp"){e.preventDefault();focusRow(i-1,false);} if(e.key==="Enter"||e.key===" "){e.preventDefault();focusRow(i,true);} }); });
     tree.querySelectorAll(".tree-more").forEach(function (b) { b.addEventListener("click", function(e){e.stopPropagation(); lastMore=b; var open=!menu.classList.contains("open"); menu.classList.toggle("open",open); b.setAttribute("aria-expanded",String(open)); if(open){var rect=b.closest(".list-row").offsetTop;menu.style.top=(rect+28)+"px";menu.querySelector("button").focus();}}); });
-    if (menu) menu.addEventListener("keydown", function(e){if(e.key==="Escape"){e.preventDefault();menu.classList.remove("open");if(lastMore){lastMore.setAttribute("aria-expanded","false");lastMore.focus();}}});
+    if (menu) {
+      var items = Array.prototype.slice.call(menu.querySelectorAll(".tm-item"));
+      function closeMenu(returnFocus) {
+        menu.classList.remove("open");
+        if (lastMore) { lastMore.setAttribute("aria-expanded", "false"); if (returnFocus && menu.contains(document.activeElement)) lastMore.focus(); }
+      }
+      menu.addEventListener("keydown", function(e){
+        if(e.key==="Escape"){ e.preventDefault(); closeMenu(true); }
+        if(e.key==="ArrowDown"||e.key==="ArrowUp"){ e.preventDefault(); var i=items.indexOf(document.activeElement); items[(i+(e.key==="ArrowDown"?1:items.length-1)+items.length)%items.length].focus(); }
+      });
+      items.forEach(function (item) {
+        item.addEventListener("click", function () {
+          var label = (item.querySelector("span") || item).textContent.trim();
+          closeMenu(true);
+          if (state) state.textContent = "已执行「" + label + "」· 焦点已归还更多钮（演示回读）";
+        });
+      });
+      document.addEventListener("pointerdown", function (e) {   /* 点外关闭：菜单与触发钮之外的 pointerdown 一律收起 */
+        if (!menu.classList.contains("open")) return;
+        if (menu.contains(e.target) || (lastMore && lastMore.contains(e.target))) return;
+        closeMenu(true);
+      });
+    }
   }
   wireTree(document.getElementById("treeDemo"), "treeState", "treeMenu");
   wireTree(document.getElementById("rowTreeDemo"), "rowTreeState", "rowTreeMenu");
@@ -1827,7 +2426,7 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
   document.getElementById("attachBtn").addEventListener("click", function () {
     if (ai >= attachNames.length) { showToast("最多 5 个附件", false); return; }
     var chip = document.createElement("span"); chip.className = "ctx-chip";
-    chip.innerHTML = attachNames[ai] + '<button aria-label="移除附件">✕</button>';
+    chip.innerHTML = attachNames[ai] + '<button aria-label="移除附件">×</button>';
     chip.querySelector("button").addEventListener("click", function () { chip.remove(); ai--; });
     attachRow.appendChild(chip); ai++;
   });
@@ -1906,14 +2505,29 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
   wireTabs(document.getElementById("tabsDemo"),document.getElementById("tabsState"),function(t){return t.textContent.trim();});
   /* ===== dock tabs：关闭/焦点转移/空态启动器 ===== */
   var dockTabs = document.getElementById("dockTabs"), dockState = document.getElementById("dockState"), dockLauncher = document.getElementById("dockLauncher");
+  var DOCK_ICONS = {
+    "审查": '<span class="dt-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="m9 11.5 2 2 4-4"/></svg></span>',
+    "终端": '<span class="dt-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 8l4 4-4 4"/><path d="M12 16h7"/></svg></span>',
+    "浏览器": '<span class="dt-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span>',
+    "文件": '<span class="dt-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></span>'
+  };
   var selectDock = wireTabs(dockTabs,dockState,function(t){return t.dataset.dockName;});
   function dockEmpty(){var empty=!dockTabs.querySelector('[role="tab"]');dockTabs.hidden=empty;dockLauncher.setAttribute("data-empty",String(empty));dockState.textContent=empty?"Dock 空态：请选择启动器":dockState.textContent;}
+  document.querySelectorAll("[data-dock-mode]").forEach(function (btn) {   /* 显示模式切换：纯文字 / 图标+文字 */
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("[data-dock-mode]").forEach(function (other) { other.setAttribute("aria-pressed", String(other === btn)); });
+      var iconMode = btn.dataset.dockMode === "icontext";
+      dockTabs.classList.toggle("icon-mode", iconMode);
+      dockLauncher.classList.toggle("icon-mode", iconMode);
+      document.getElementById("dockModeState").textContent = "显示模式：" + (iconMode ? "图标+文字" : "纯文字");
+    });
+  });
   dockTabs.addEventListener("click", function (e) {
     var x = e.target.closest(".dt-x"); if (!x) return; e.stopPropagation();
     var tab = x.closest(".dock-tab"), list=Array.prototype.slice.call(dockTabs.querySelectorAll('[role="tab"]')), i=list.indexOf(tab), wasActive=tab.getAttribute("aria-selected")==="true"; tab.remove();
     var rest=Array.prototype.slice.call(dockTabs.querySelectorAll('[role="tab"]')); if(wasActive&&rest.length)selectDock(rest[Math.min(i,rest.length-1)],true); dockEmpty();
   });
-  dockLauncher.addEventListener("click",function(e){var b=e.target.closest(".launch-btn");if(!b)return;if(b.getAttribute("aria-disabled")==="true"){dockState.textContent="Unavailable：当前环境不支持";return;}var name=b.dataset.launch,existing=Array.prototype.find.call(dockTabs.querySelectorAll('[role="tab"]'),function(t){return t.dataset.dockName===name;});if(!existing){existing=document.createElement("button");existing.className="dock-tab";existing.setAttribute("role","tab");existing.dataset.dockName=name;existing.innerHTML=name+'<span class="dt-x" aria-label="关闭'+name+'">✕</span>';dockTabs.appendChild(existing);}dockTabs.hidden=false;selectDock(existing,true);dockEmpty();});
+  dockLauncher.addEventListener("click",function(e){var b=e.target.closest(".launch-btn");if(!b)return;if(b.getAttribute("aria-disabled")==="true"){dockState.textContent="Unavailable：当前环境不支持";return;}var name=b.dataset.launch,existing=Array.prototype.find.call(dockTabs.querySelectorAll('[role="tab"]'),function(t){return t.dataset.dockName===name;});if(!existing){existing=document.createElement("button");existing.className="dock-tab";existing.setAttribute("role","tab");existing.dataset.dockName=name;existing.innerHTML=(DOCK_ICONS[name]||"")+name+'<span class="dt-x" aria-label="关闭'+name+'">×</span>';dockTabs.appendChild(existing);}dockTabs.hidden=false;selectDock(existing,true);dockEmpty();});
   /* ===== segmented ===== */
   document.querySelectorAll("#segCtl button").forEach(function (b) {
     b.addEventListener("click", function () {
@@ -1962,6 +2576,77 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
     var open = toolAct.classList.toggle("open");
     toolAct.querySelector(".tool-act-h").setAttribute("aria-expanded", String(open));
   });
+
+  /* ===== 任务计划胶囊（对齐 TaskPlanProgress.tsx：175ms 悬停意图；点击/聚焦固定；Esc/移出/点外关闭；完成后 2.5s 隐藏） ===== */
+  var planRoot = document.getElementById("planProgress"), planTrig = document.getElementById("planTrigger"),
+      planList = document.getElementById("planList"), planMarker = document.getElementById("planMarker"),
+      planLabel = document.getElementById("planLabel"), planStateEl = document.getElementById("planState");
+  var PLAN_DELAY = 175;
+  var PLAN_STEPS = ["梳理真实胶囊的交互与样式", "映射设计令牌（surface / text 体系）", "实现胶囊与步骤浮窗组件", "键盘与指针交互契约", "对比度矩阵与 README 回写"];
+  var PLAN_STATUS_LABELS = { pending: "尚未开始", in_progress: "正在进行", completed: "已完成", failed: "失败" };
+  var PLAN_CASES = {
+    run: { idx: 2, status: ["completed", "completed", "in_progress", "pending", "pending"], note: "进行中 · 当前第 3 步" },
+    failed: { idx: 2, status: ["completed", "completed", "failed", "pending", "pending"], note: "第 3 步失败 · 失败标记保持可见" },
+    done: { idx: 4, status: ["completed", "completed", "completed", "completed", "completed"], note: "全部完成 · 2.5 秒后自动隐藏胶囊" }
+  };
+  var planTimer, planHideTimer;
+  function planVisibleStatus(status, current) { return current && status === "pending" ? "in_progress" : status; }
+  function planMarkerInner(status) {
+    if (status === "completed") return '<svg aria-hidden="true" fill="none" viewBox="0 0 16 16"><path d="m4.1 8.2 2.5 2.5 5.4-5.6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7"/></svg>';
+    if (status === "failed") return '<span aria-hidden="true">!</span>';
+    return "";
+  }
+  function planSetOpen(open) {
+    planTrig.setAttribute("aria-expanded", String(open));
+    planList.hidden = !open;
+  }
+  function planCancelSchedule() { if (planTimer !== undefined) { window.clearTimeout(planTimer); planTimer = undefined; } }
+  function planRender(name) {
+    var c = PLAN_CASES[name]; if (!c) return;
+    planCancelSchedule();
+    if (planHideTimer !== undefined) { window.clearTimeout(planHideTimer); planHideTimer = undefined; }
+    planRoot.classList.remove("plan-gone");
+    planList.innerHTML = "";
+    c.status.forEach(function (status, index) {
+      var visible = planVisibleStatus(status, index === c.idx);
+      var li = document.createElement("li");
+      li.className = "task-plan-step " + visible;
+      li.innerHTML = '<span class="task-step-marker ' + visible + '" role="img" aria-label="' + PLAN_STATUS_LABELS[visible] + '">' + planMarkerInner(visible) + "</span><span>" + PLAN_STEPS[index] + "</span>";
+      planList.appendChild(li);
+    });
+    var current = planVisibleStatus(c.status[c.idx], true);
+    planMarker.className = "task-step-marker " + current;
+    planMarker.setAttribute("aria-label", PLAN_STATUS_LABELS[current]);
+    planMarker.innerHTML = planMarkerInner(current);
+    planLabel.textContent = "第 " + (c.idx + 1) + " / " + c.status.length + " 步";
+    planStateEl.textContent = c.note;
+    if (name === "done") {
+      planSetOpen(false);
+      planHideTimer = window.setTimeout(function () { planRoot.classList.add("plan-gone"); planStateEl.textContent = "胶囊已自动隐藏 · 点击「进行中」恢复"; }, 2500);
+    }
+  }
+  window.__planSet = planRender;                    // 契约/演示直达任意状态
+  planTrig.addEventListener("pointerenter", function () {
+    if (planRoot.classList.contains("plan-gone")) return;
+    planCancelSchedule();
+    planTimer = window.setTimeout(function () { planTimer = undefined; planSetOpen(true); }, PLAN_DELAY);
+  });
+  planTrig.addEventListener("pointerleave", planCancelSchedule);
+  planTrig.addEventListener("click", function () { planCancelSchedule(); planSetOpen(true); });
+  planTrig.addEventListener("focus", function () { planCancelSchedule(); planSetOpen(true); });
+  planRoot.addEventListener("pointerleave", function () { planCancelSchedule(); planSetOpen(false); });
+  planRoot.addEventListener("blur", function (event) {
+    if (!planRoot.contains(event.relatedTarget)) { planCancelSchedule(); planSetOpen(false); }
+  }, true);
+  document.addEventListener("pointerdown", function (event) { if (!planRoot.contains(event.target)) { planCancelSchedule(); planSetOpen(false); } });
+  document.addEventListener("keydown", function (event) { if (event.key === "Escape") planSetOpen(false); });
+  document.querySelectorAll("[data-plan-state]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("[data-plan-state]").forEach(function (other) { other.setAttribute("aria-pressed", String(other === btn)); });
+      planRender(btn.dataset.planState);
+    });
+  });
+  planRender("run");
 
   /* ===== 动效节奏播放 ===== */
   var motionBtn = document.getElementById("motionBtn"), motionBar = document.getElementById("motionBar");

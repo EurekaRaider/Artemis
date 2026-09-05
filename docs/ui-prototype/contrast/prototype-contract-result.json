@@ -3,7 +3,7 @@
  "ok": true,
  "totalCards": 70,
  "passedCards": 70,
- "targetedCards": 22,
+ "targetedCards": 23,
  "failures": [],
  "cardResults": {
   "cat-overview-01": {
@@ -1201,7 +1201,48 @@
      "ok": true
     }
    ],
-   "targeted": []
+   "targeted": [
+    {
+     "name": "hover-intent-opens",
+     "ok": true,
+     "detail": "175ms 悬停意图后浮窗展开"
+    },
+    {
+     "name": "leave-closes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "focus-opens",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "escape-closes",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "marker-status-set",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "failed-step-state",
+     "ok": true,
+     "detail": ""
+    },
+    {
+     "name": "complete-autohide",
+     "ok": true,
+     "detail": "全部完成后 2.5s 自动隐藏"
+    },
+    {
+     "name": "restore-running",
+     "ok": true,
+     "detail": ""
+    }
+   ]
   },
   "cat-artemis-04": {
    "ok": true,

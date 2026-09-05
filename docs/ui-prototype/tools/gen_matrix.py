@@ -391,7 +391,9 @@ def build_markdown(map_data: dict, stats: dict, version: str, baseline: str) -> 
         f"{by['partial']} 卡 partial、{by['uncovered']} 卡 uncovered，"
         "缺口仍如实列在第四节；与此同时，HTML 原型契约已经 "
         f"{stats['prototype_contract']['passedCards']}/{stats['prototype_contract']['totalCards']} 通过，"
-        f"其中 {stats['prototype_contract']['targetedCards']} 张历史 partial/uncovered 卡有定向交互断言。"
+        f"其中 {stats['prototype_contract']['targetedCards']} 张卡有定向交互断言"
+        f"（历史 partial/uncovered {by['partial'] + by['uncovered']} 张 + v19 新增 13c 胶囊 "
+        f"{stats['prototype_contract']['targetedCards'] - by['partial'] - by['uncovered']} 张）。"
     )
     ap("")
     ap(
@@ -493,7 +495,9 @@ def build_markdown(map_data: dict, stats: dict, version: str, baseline: str) -> 
     ap("")
     ap(
         f"HTML 原型契约：**{stats['prototype_contract']['passedCards']}/{stats['prototype_contract']['totalCards']}**；"
-        f"历史缺口定向卡：**{stats['prototype_contract']['targetedCards']}/22**；"
+        f"定向交互断言卡：**{stats['prototype_contract']['targetedCards']}**"
+        f"（历史缺口 {by['partial'] + by['uncovered']} + v19 13c 胶囊 "
+        f"{stats['prototype_contract']['targetedCards'] - by['partial'] - by['uncovered']}）；"
         f"证据：`{stats['prototype_contract']['result']}`。"
     )
     ap("")
