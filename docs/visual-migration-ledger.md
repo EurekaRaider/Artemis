@@ -1,4 +1,15 @@
-# Discussion #76 visual migration ledger
+# Artemis visual migration ledger
+
+Current specification: [Discussion #151 implementation](discussion-151/README.md),
+v69 attachment, 82 exact source files and 73 catalog cards. The clean product
+baseline `bdded70d937b54aad615f0f87de57d5fb31271b8` passed a fresh real Electron
+desktop-skin run on 2026-09-05. Production comparisons and candidate acceptance
+are tracked separately in that implementation record.
+
+## Historical Discussion #76 record
+
+The following entries describe their historical candidates and must not be read
+as the current #151 candidate's status or evidence.
 
 Status: MIG6 convergence and governance Draft PR #147. MIG5B final 1.4.58 PR
 head `b67d208b7972e2083e8752c677c37f2328913e77` passed fresh CI and merged

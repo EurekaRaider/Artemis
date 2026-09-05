@@ -7364,13 +7364,7 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .archive-page {
-  background:
-    radial-gradient(
-      circle at 8% -8%,
-      color-mix(in srgb, var(--blue) 7%, transparent),
-      transparent 32%
-    ),
-    var(--codex-workspace-bg);
+  background: var(--artemis-color-surface-base);
   display: flex;
   flex: 1;
   height: 100%;
