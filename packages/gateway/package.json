@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@artemis/protocol": "1.4.62",
+    "@larksuiteoapi/node-sdk": "1.73.3",
     "ws": "8.21.1",
     "zod": "4.4.3"
   },

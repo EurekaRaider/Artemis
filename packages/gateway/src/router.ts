@@ -16,6 +16,8 @@ import {
 } from "@artemis/protocol";
 import { GatewayStore, digest } from "./store.js";
 import { splitImText } from "./channels.js";
+import type { FeishuTyping } from "./feishu-typing.js";
+import type { FeishuApprovalCard } from "./feishu-approval.js";
 
 export interface Delivery {
   conversation: ImConversation;
@@ -23,6 +25,7 @@ export interface Delivery {
   invocationId?: string;
   taskId?: string;
   cardKey?: string;
+  approval?: ImReply["approval"];
 }
 interface IdentityBinding {
   identity: ImIdentity;
@@ -57,7 +60,7 @@ export class GatewayRouter {
         "outgoing",
         `${id}:${index}`,
         delivery.conversation.connectionId,
-        { ...delivery, text },
+        { ...delivery, text, ...(index > 0 ? { approval: undefined } : {}) },
       ),
     );
   }
@@ -410,6 +413,11 @@ export class GatewayRouter {
   }
   receiveReply(deviceId: string, input: unknown): void {
     const parsedReply = imReplySchema.parse(input);
+    if (
+      parsedReply.approval &&
+      (parsedReply.visibility !== "owner" || !parsedReply.taskId)
+    )
+      throw new Error("Approval cards must target the task owner.");
     const reply = { ...parsedReply, id: `${deviceId}:${parsedReply.id}` };
     const request = this.store.get<RemoteInvocationContext>(
       "invocations",
@@ -422,6 +430,52 @@ export class GatewayRouter {
     this.store.transaction(() => {
       if (this.store.get("replies", replyKey)) return;
       this.store.put("replies", replyKey, reply);
+      if (reply.approval?.resolved) {
+        const key = `${request.identity.connectionId}:${reply.approval.token}`;
+        const card = this.store.get<FeishuApprovalCard>("approval-cards", key);
+        if (card && card.invocationId !== request.id)
+          throw new Error(
+            "Approval result does not belong to this invocation.",
+          );
+        this.store.put("approval-results", key, reply.approval);
+        if (card)
+          this.store.put("approval-cards", key, {
+            ...card,
+            approval: reply.approval,
+            consumed: true,
+            closed: false,
+          });
+      }
+      if (
+        request.identity.channel === "feishu" &&
+        reply.taskId &&
+        (reply.started || reply.status || reply.final)
+      ) {
+        const taskKey = `${deviceId}:${reply.taskId}`;
+        const key = `${request.identity.connectionId}:${request.messageId}`;
+        for (const prior of this.store.list<FeishuTyping>("feishu-typing")) {
+          if (
+            prior.taskKey === taskKey &&
+            prior.messageId !== request.messageId
+          )
+            this.store.put(
+              "feishu-typing",
+              `${prior.connectionId}:${prior.messageId}`,
+              { ...prior, active: false },
+            );
+        }
+        this.store.put("feishu-typing", key, {
+          ...this.store.get<FeishuTyping>("feishu-typing", key),
+          connectionId: request.identity.connectionId,
+          messageId: request.messageId,
+          invocationId: request.id,
+          conversation: request.conversation,
+          taskKey,
+          active:
+            !reply.final && (reply.status === "running" || !!reply.started),
+          expiresAt: Date.now() + 300000,
+        } satisfies FeishuTyping);
+      }
       const space = request.conversation.spaceId
         ? this.store.get<CollaborationSpace>(
             "spaces",
@@ -472,6 +526,7 @@ export class GatewayRouter {
             text: reply.text,
             invocationId: request.id,
             ...(reply.taskId ? { taskId: reply.taskId } : {}),
+            ...(reply.approval ? { approval: reply.approval } : {}),
           });
         else
           this.queueDelivery(reply.id, {

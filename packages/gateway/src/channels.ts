@@ -6,6 +6,7 @@ import {
   channelEventSchema,
   type ChannelEvent,
   type ImConversation,
+  type ImReply,
 } from "@artemis/protocol";
 import { sameSecret } from "./store.js";
 
@@ -19,37 +20,55 @@ const base = {
   tenantId: z.string().min(1).max(256),
   enabled: z.boolean(),
 };
-export const channelConnectionSchema = z.discriminatedUnion("channel", [
-  z
-    .object({
-      ...base,
-      channel: z.literal("wecom"),
-      botId: z.string().min(1),
-      secret: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      ...base,
-      channel: z.literal("feishu"),
-      appId: z.string().min(1),
-      botOpenId: z.string().min(1),
-      appSecret: z.string().min(1),
-      verificationToken: z.string().min(1),
-      encryptKey: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      ...base,
-      channel: z.literal("slack"),
-      appId: z.string().min(1),
-      botUserId: z.string().min(1),
-      botToken: z.string().startsWith("xoxb-").max(1024),
-      appToken: z.string().startsWith("xapp-").max(1024),
-    })
-    .strict(),
-]);
+export const channelConnectionSchema = z
+  .discriminatedUnion("channel", [
+    z
+      .object({
+        ...base,
+        channel: z.literal("wecom"),
+        botId: z.string().min(1),
+        secret: z.string().min(1),
+      })
+      .strict(),
+    z
+      .object({
+        ...base,
+        channel: z.literal("feishu"),
+        appId: z.string().min(1),
+        botOpenId: z.string().min(1),
+        appSecret: z.string().min(1),
+        transport: z.enum(["webhook", "websocket"]).optional(),
+        domain: z.enum(["feishu", "lark"]).optional(),
+        verificationToken: z.string().min(1).optional(),
+        encryptKey: z.string().min(1).optional(),
+      })
+      .strict(),
+    z
+      .object({
+        ...base,
+        channel: z.literal("slack"),
+        appId: z.string().min(1),
+        botUserId: z.string().min(1),
+        botToken: z.string().startsWith("xoxb-").max(1024),
+        appToken: z.string().startsWith("xapp-").max(1024),
+      })
+      .strict(),
+  ])
+  .superRefine((connection, context) => {
+    if (
+      connection.channel === "feishu" &&
+      connection.transport !== "websocket"
+    ) {
+      for (const key of ["verificationToken", "encryptKey"] as const) {
+        if (!connection[key])
+          context.addIssue({
+            code: "custom",
+            path: [key],
+            message: "Required for Feishu HTTPS callbacks.",
+          });
+      }
+    }
+  });
 export type ChannelConnection = z.infer<typeof channelConnectionSchema>;
 export interface ChannelStatus {
   id: string;
@@ -74,6 +93,17 @@ export interface ChannelAdapter {
     idempotencyKey: string,
     messageId?: string,
   ): Promise<string>;
+  approvalCard?(
+    conversation: ImConversation,
+    text: string,
+    idempotencyKey: string,
+    approval: NonNullable<ImReply["approval"]>,
+  ): Promise<string>;
+  typing?(
+    messageId: string,
+    active: boolean,
+    reactionId?: string,
+  ): Promise<string | undefined>;
   attachment(
     event: ChannelEvent,
     index: number,
@@ -221,6 +251,12 @@ export function verifyFeishu(
   headers: IncomingHttpHeaders,
   now = Date.now(),
 ): Record<string, any> {
+  if (
+    connection.transport === "websocket" ||
+    !connection.encryptKey ||
+    !connection.verificationToken
+  )
+    throw new Error("Feishu HTTPS callback transport is not configured.");
   const timestamp = string(headers["x-lark-request-timestamp"]),
     nonce = string(headers["x-lark-request-nonce"]),
     signature = string(headers["x-lark-signature"]);
@@ -283,16 +319,54 @@ export function normalizeFeishu(
     message.mentions.some(
       (item: any) => item.id?.open_id === connection.botOpenId,
     );
-  if (header.event_type === "card.action.trigger") {
-    text = string(record(record(event.action).value).command);
-    messageId = string(header.event_id);
-    userId = string(record(event.operator).open_id);
-    chatId = string(record(event.context).open_chat_id);
-    mentioned = true;
-  } else if (header.event_type !== "im.message.receive_v1") return undefined;
-  for (const mention of Array.isArray(message.mentions) ? message.mentions : [])
-    text = text.replaceAll(string(mention.key), "");
+  // Card actions use the issued-card identity and single-use receiver, never arbitrary commands.
+  if (header.event_type !== "im.message.receive_v1") return undefined;
   const attachments: ChannelEvent["attachments"] = [];
+  if (message.message_type === "post") {
+    // The event normally carries the selected locale directly. Older clients
+    // wrap it in a locale key; select one rendition, never duplicate every locale.
+    const post = Array.isArray(content.content)
+      ? content
+      : (Object.values(content)
+          .map(record)
+          .find((item) => Array.isArray(item.content)) ?? {});
+    const lines = [string(post.title)];
+    for (const row of Array.isArray(post.content) ? post.content : []) {
+      if (!Array.isArray(row)) continue;
+      lines.push(
+        row
+          .map((value) => {
+            const node = record(value);
+            if (
+              node.tag === "img" &&
+              string(node.image_key) &&
+              !attachments.some((item) => item.resourceId === node.image_key)
+            )
+              attachments.push({
+                kind: "image",
+                name: `image-${attachments.length + 1}.png`,
+                resourceId: node.image_key,
+              });
+            if (node.tag === "at")
+              return node.user_id === connection.botOpenId
+                ? ""
+                : string(node.user_name);
+            if (node.tag === "a")
+              return [string(node.text), string(node.href)]
+                .filter(Boolean)
+                .join(" ");
+            return node.tag === "text" || node.tag === "md"
+              ? string(node.text)
+              : "";
+          })
+          .join(""),
+      );
+    }
+    text = lines.filter(Boolean).join("\n");
+  }
+  for (const mention of Array.isArray(message.mentions) ? message.mentions : [])
+    if (mention.id?.open_id === connection.botOpenId && string(mention.key))
+      text = text.replaceAll(mention.key, "");
   if (message.message_type === "image" && string(content.image_key))
     attachments.push({
       kind: "image",
@@ -363,8 +437,13 @@ export class FeishuAdapter implements ChannelAdapter {
   constructor(
     readonly config: Extract<ChannelConnection, { channel: "feishu" }>,
   ) {}
+  protected get apiOrigin(): string {
+    return this.config.domain === "lark"
+      ? "https://open.larksuite.com"
+      : "https://open.feishu.cn";
+  }
   start(): void {
-    if (!this.config.enabled) return;
+    if (!this.config.enabled || !this.stopped) return;
     this.stopped = false;
     const check = () => {
       void this.accessToken()
@@ -401,7 +480,7 @@ export class FeishuAdapter implements ChannelAdapter {
   private async accessToken(): Promise<string> {
     if (this.token && this.tokenExpires > Date.now()) return this.token;
     const response = await fetch(
-      "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+      `${this.apiOrigin}/open-apis/auth/v3/tenant_access_token/internal`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -458,6 +537,105 @@ export class FeishuAdapter implements ChannelAdapter {
       messageId,
     );
   }
+  async approvalCard(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    approval: NonNullable<ImReply["approval"]>,
+  ): Promise<string> {
+    if (conversation.kind !== "direct")
+      throw new Error("Approval cards require a direct conversation.");
+    return this.message(
+      conversation,
+      {
+        config: { wide_screen_mode: true, update_multi: true },
+        header: {
+          template: "orange",
+          title: { tag: "plain_text", content: "Artemis · 请求批准" },
+        },
+        elements: [
+          { tag: "div", text: { tag: "plain_text", content: text } },
+          {
+            tag: "action",
+            actions: (["yes", "no"] as const).map((decision) => ({
+              tag: "button",
+              type: decision === "yes" ? "primary" : "default",
+              text: {
+                tag: "plain_text",
+                content: decision === "yes" ? "仅批准一次" : "拒绝",
+              },
+              value: { artemisApprovalToken: approval.token, decision },
+            })),
+          },
+        ],
+      },
+      "interactive",
+      key,
+    );
+  }
+  async typing(
+    messageId: string,
+    active: boolean,
+    reactionId?: string,
+  ): Promise<string | undefined> {
+    const url = `${this.apiOrigin}/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/reactions`;
+    const headers = {
+      Authorization: `Bearer ${await this.accessToken()}`,
+      "Content-Type": "application/json",
+    };
+    const request = async (path: string, init?: RequestInit) => {
+      const response = await fetch(path, {
+        ...init,
+        headers,
+        signal: AbortSignal.timeout(10000),
+      });
+      const body = record(await response.json());
+      if (!response.ok || body.code !== 0)
+        throw new Error(
+          "Feishu Typing unavailable. Check message reaction permissions.",
+        );
+      return record(body.data);
+    };
+    if (!reactionId || !active) {
+      reactionId = undefined;
+      // Recover an acknowledged-lost reaction after a network failure/restart.
+      // Only the current bot's Typing reaction is eligible for cleanup.
+      let page = "";
+      do {
+        const data = await request(
+          `${url}?reaction_type=Typing&page_size=50${page ? `&page_token=${encodeURIComponent(page)}` : ""}`,
+        );
+        const own = (Array.isArray(data.items) ? data.items : [])
+          .map(record)
+          .find(
+            (item) =>
+              record(item.operator).operator_type === "app" &&
+              record(item.operator).operator_id === this.config.appId &&
+              record(item.reaction_type).emoji_type === "Typing",
+          );
+        reactionId = own ? string(own.reaction_id) : undefined;
+        page = data.has_more ? string(data.page_token) : "";
+      } while (!reactionId && page);
+    }
+    if (active)
+      return (
+        reactionId ||
+        string(
+          (
+            await request(url, {
+              method: "POST",
+              body: JSON.stringify({ reaction_type: { emoji_type: "Typing" } }),
+            })
+          ).reaction_id,
+        ) ||
+        undefined
+      );
+    if (reactionId)
+      await request(`${url}/${encodeURIComponent(reactionId)}`, {
+        method: "DELETE",
+      });
+    return undefined;
+  }
   private async message(
     conversation: ImConversation,
     content: unknown,
@@ -470,8 +648,8 @@ export class FeishuAdapter implements ChannelAdapter {
     try {
       response = await fetch(
         messageId
-          ? `https://open.feishu.cn/open-apis/im/v1/messages/${encodeURIComponent(messageId)}`
-          : "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id",
+          ? `${this.apiOrigin}/open-apis/im/v1/messages/${encodeURIComponent(messageId)}`
+          : `${this.apiOrigin}/open-apis/im/v1/messages?receive_id_type=chat_id`,
         {
           method: messageId ? "PATCH" : "POST",
           headers: {
@@ -524,7 +702,7 @@ export class FeishuAdapter implements ChannelAdapter {
     const item = event.attachments[index];
     if (!item) throw new Error("Attachment does not exist.");
     const response = await fetch(
-      `https://open.feishu.cn/open-apis/im/v1/messages/${encodeURIComponent(event.messageId)}/resources/${encodeURIComponent(item.resourceId)}?type=${item.kind}`,
+      `${this.apiOrigin}/open-apis/im/v1/messages/${encodeURIComponent(event.messageId)}/resources/${encodeURIComponent(item.resourceId)}?type=${item.kind}`,
       {
         headers: { Authorization: `Bearer ${await this.accessToken()}` },
         signal: AbortSignal.timeout(30000),

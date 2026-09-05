@@ -19,6 +19,12 @@ import {
 import { GatewayStore, sameSecret, digest } from "./store.js";
 import { GatewayRouter, type Delivery } from "./router.js";
 import { resolveSlackConnection, SlackAdapter } from "./slack.js";
+import { FeishuSocketAdapter } from "./feishu-socket.js";
+import type { FeishuTyping } from "./feishu-typing.js";
+import {
+  normalizeFeishuApproval,
+  type FeishuApprovalCard,
+} from "./feishu-approval.js";
 import {
   ChannelRateLimit,
   ChannelUnavailable,
@@ -127,6 +133,30 @@ export class ArtemisGateway {
       this.startMediaJobs();
     }
   }
+  private receiveFeishuCard(connectionId: string, value: unknown): boolean {
+    const raw = value as {
+      event?: { action?: { value?: { artemisApprovalToken?: string } } };
+    };
+    const key = `${connectionId}:${raw?.event?.action?.value?.artemisApprovalToken ?? ""}`;
+    const card = this.store.get<FeishuApprovalCard>("approval-cards", key);
+    if (
+      !card ||
+      card.identity.connectionId !== connectionId ||
+      !this.router.canDeliver({
+        conversation: card.conversation,
+        invocationId: card.invocationId,
+        text: "",
+      })
+    )
+      return false;
+    const event = normalizeFeishuApproval(value, card);
+    if (!event) return false;
+    this.store.transaction(() => {
+      this.router.ingest(event);
+      this.store.put("approval-cards", key, { ...card, consumed: true });
+    });
+    return true;
+  }
   private startMediaJobs(): void {
     for (const item of this.store.pending<ChannelEvent>("media")) {
       if (this.mediaJobs.size >= 4) break;
@@ -188,7 +218,11 @@ export class ArtemisGateway {
         ? new WecomAdapter(config, receive)
         : config.channel === "slack"
           ? new SlackAdapter(config, receive)
-          : new FeishuAdapter(config));
+          : config.transport === "websocket"
+            ? new FeishuSocketAdapter(config, receive, undefined, (value) => {
+                return this.receiveFeishuCard(config.id, value);
+              })
+            : new FeishuAdapter(config));
     this.adapters.set(config.id, adapter);
     adapter.start();
   }
@@ -210,10 +244,11 @@ export class ArtemisGateway {
   }
   async close(): Promise<void> {
     clearInterval(this.timer);
-    for (const adapter of this.adapters.values()) adapter.stop();
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
     while (this.delivering)
       await new Promise((resolve) => setTimeout(resolve, 10));
+    await this.updateTyping(true);
+    for (const adapter of this.adapters.values()) adapter.stop();
     await Promise.allSettled(this.mediaJobs.values());
     this.store.close();
   }
@@ -281,7 +316,11 @@ export class ArtemisGateway {
       const config = channelConnectionSchema.parse(
         this.store.unseal(entry.sealed),
       );
-      if (config.channel !== "feishu" || !config.enabled)
+      if (
+        config.channel !== "feishu" ||
+        !config.enabled ||
+        config.transport === "websocket"
+      )
         throw new Error("Channel is disabled.");
       const event = verifyFeishu(
         config,
@@ -290,6 +329,18 @@ export class ArtemisGateway {
       );
       if (event.type === "url_verification") {
         respond(response, 200, { challenge: event.challenge });
+        return;
+      }
+      if (event.header?.event_type === "card.action.trigger") {
+        const accepted = this.receiveFeishuCard(config.id, event);
+        respond(response, 200, {
+          toast: {
+            type: accepted ? "success" : "error",
+            content: accepted
+              ? "已提交，请在任务中查看处理结果。"
+              : "确认无效、已处理或已过期，请在本人单聊或桌面处理。",
+          },
+        });
         return;
       }
       const normalized = normalizeFeishu(config, event);
@@ -335,7 +386,10 @@ export class ArtemisGateway {
           if (
             current.channel !== config.channel ||
             current.tenantId !== config.tenantId ||
-            applicationId(current) !== applicationId(config)
+            applicationId(current) !== applicationId(config) ||
+            (current.channel === "feishu" &&
+              config.channel === "feishu" &&
+              (current.domain ?? "feishu") !== (config.domain ?? "feishu"))
           )
             throw new Error(
               "连接 ID 已绑定到指定平台、企业和机器人。更换机器人请使用新的连接 ID，避免历史消息被送到另一个账号。",
@@ -439,6 +493,29 @@ export class ArtemisGateway {
               "SELECT state,COUNT(*) AS count FROM queue WHERE bucket='outgoing' GROUP BY state",
             )
             .all(),
+          ingress: this.store.db
+            .prepare(
+              "SELECT bucket,state,COUNT(*) AS count FROM queue WHERE bucket IN ('incoming','media','device') GROUP BY bucket,state",
+            )
+            .all(),
+          interactionErrors: [
+            ...this.store
+              .list<FeishuTyping>("feishu-typing")
+              .filter((item) => item.error)
+              .map((item) => ({
+                connectionId: item.connectionId,
+                kind: "typing",
+                error: item.error,
+              })),
+            ...this.store
+              .list<FeishuApprovalCard>("approval-cards")
+              .filter((item) => item.retryAt && !item.closed)
+              .map((item) => ({
+                connectionId: item.identity.connectionId,
+                kind: "approval",
+                error: "审批卡片更新待重试，请检查消息更新权限和网络。",
+              })),
+          ],
         });
         return;
       }
@@ -513,6 +590,11 @@ export class ArtemisGateway {
             : undefined;
           return {
             ...status,
+            ...(config?.channel === "feishu" && config.transport !== "websocket"
+              ? {
+                  callbackPath: `/channels/feishu/${encodeURIComponent(config.id)}`,
+                }
+              : {}),
             configuration: config
               ? Object.fromEntries(
                   [
@@ -522,6 +604,8 @@ export class ArtemisGateway {
                     "botId",
                     "appId",
                     "botOpenId",
+                    "transport",
+                    "domain",
                   ].flatMap((key) =>
                     key in config
                       ? [[key, config[key as keyof ChannelConnection]]]
@@ -786,11 +870,18 @@ export class ArtemisGateway {
     try {
       this.router.processIncoming();
       this.startMediaJobs();
+      await this.updateTyping();
+      await this.closeApprovalCards();
       this.store.db
         .prepare(
           "DELETE FROM state WHERE namespace IN ('media-cache','artifacts') AND json_extract(value,'$.expiresAt')<=?",
         )
         .run(Date.now());
+      this.store.db
+        .prepare(
+          "DELETE FROM state WHERE namespace='approval-results' AND json_extract(value,'$.expiresAt')<?",
+        )
+        .run(Date.now() - 7 * 86400000);
       const ready = [...this.adapters.entries()]
         .filter(([, adapter]) => adapter.status().state === "connected")
         .flatMap(([id]) => this.store.outgoing<Delivery>(id));
@@ -820,7 +911,78 @@ export class ArtemisGateway {
               )
             : undefined;
           let messageId: string | undefined;
-          if (cardKey && adapter.statusCard) {
+          const approval = item.payload.approval;
+          if (approval && adapter.approvalCard && item.payload.invocationId) {
+            const request = this.store.get<RemoteInvocationContext>(
+              "invocations",
+              item.payload.invocationId,
+            )!;
+            const approvalKey = `${item.recipient}:${approval.token}`;
+            const issued = this.store.get<FeishuApprovalCard>(
+              "approval-cards",
+              approvalKey,
+            );
+            if (
+              !approval.resolved &&
+              this.store.get("approval-results", approvalKey)
+            ) {
+              this.store.mark("outgoing", item.id, "done");
+              continue;
+            }
+            if (approval.resolved || approval.expiresAt <= Date.now()) {
+              // A terminal update has no buttons. Persist its closed state before
+              // attempting the patch, so callbacks cannot race a slow platform API.
+              if (issued) {
+                // The router has already invalidated callbacks at receipt time.
+                if (!issued.approval.resolved)
+                  this.store.put("approval-cards", approvalKey, {
+                    ...issued,
+                    approval,
+                    consumed: true,
+                    closed: false,
+                  });
+              } else {
+                messageId = await adapter.send(
+                  item.payload.conversation,
+                  item.payload.text,
+                  `${item.id}:text`,
+                );
+              }
+            } else if (!issued) {
+              let interactive = false;
+              try {
+                messageId = await adapter.approvalCard(
+                  item.payload.conversation,
+                  item.payload.text,
+                  item.id,
+                  approval,
+                );
+                interactive = true;
+              } catch (error) {
+                if (
+                  error instanceof ChannelRateLimit ||
+                  error instanceof ChannelUnavailable ||
+                  error instanceof DeliveryUncertain
+                )
+                  throw error;
+                messageId = await adapter.send(
+                  item.payload.conversation,
+                  `按钮卡片不可用，请使用下方文字指令。\n${item.payload.text}`,
+                  `${item.id}:text`,
+                );
+              }
+              // Keep persistence outside the confirmed-card-rejection fallback.
+              // A storage failure after a successful send must not send again.
+              if (interactive && messageId)
+                this.store.put("approval-cards", approvalKey, {
+                  approval,
+                  identity: request.identity,
+                  conversation: item.payload.conversation,
+                  invocationId: request.id,
+                  messageId,
+                } satisfies FeishuApprovalCard);
+            }
+          } else if (cardKey && adapter.statusCard) {
             try {
               const current =
                 card && card.createdAt > Date.now() - 13 * 86400000
@@ -893,6 +1055,107 @@ export class ArtemisGateway {
       }
     } finally {
       this.delivering = false;
+    }
+  }
+  private async closeApprovalCards(): Promise<void> {
+    for (const card of this.store.list<FeishuApprovalCard>("approval-cards")) {
+      const key = `${card.identity.connectionId}:${card.approval.token}`;
+      if (card.approval.expiresAt < Date.now() - 7 * 86400000) {
+        this.store.delete("approval-cards", key);
+        continue;
+      }
+      const revoked = !this.router.canDeliver({
+        conversation: card.conversation,
+        invocationId: card.invocationId,
+        text: "",
+      });
+      const expired = card.approval.expiresAt <= Date.now();
+      if (
+        (!card.consumed && !expired && !revoked) ||
+        card.closed ||
+        (card.retryAt ?? 0) > Date.now()
+      )
+        continue;
+      const adapter = this.adapters.get(card.identity.connectionId);
+      if (!adapter?.statusCard || adapter.status().state !== "connected")
+        continue;
+      const text = revoked
+        ? "授权已撤销，请在桌面查看。"
+        : card.approval.resolved === "approved"
+          ? "已批准一次。"
+          : card.approval.resolved === "denied"
+            ? "已拒绝。"
+            : expired
+              ? "审批已过期，请在桌面查看。"
+              : "已提交，等待桌面确认。";
+      try {
+        await adapter.statusCard(
+          card.conversation,
+          text,
+          `${key}:closed`,
+          card.messageId,
+        );
+        const current = this.store.get<FeishuApprovalCard>(
+          "approval-cards",
+          key,
+        );
+        if (!current) continue;
+        this.store.put("approval-cards", key, {
+          ...current,
+          consumed: true,
+          closed: current.approval.resolved === card.approval.resolved,
+          retryAt: undefined,
+        });
+      } catch {
+        // Patching a known message is idempotent. Failed updates remain pending;
+        // identity, expiry and desktop one-shot checks already deny reuse.
+        this.store.put("approval-cards", key, {
+          ...(this.store.get<FeishuApprovalCard>("approval-cards", key) ??
+            card),
+          retryAt: Date.now() + 30000,
+        });
+      }
+    }
+  }
+  private async updateTyping(stopping = false): Promise<void> {
+    for (const activity of this.store.list<FeishuTyping>("feishu-typing")) {
+      const key = `${activity.connectionId}:${activity.messageId}`;
+      const adapter = this.adapters.get(activity.connectionId);
+      if (!adapter?.typing) {
+        this.store.delete("feishu-typing", key);
+        continue;
+      }
+      const active =
+        !stopping &&
+        activity.active &&
+        activity.expiresAt > Date.now() &&
+        adapter.status().state !== "disabled" &&
+        this.router.canDeliver({ ...activity, text: "" });
+      if (active && activity.reactionId) continue;
+      if (!stopping && (activity.retryAt ?? 0) > Date.now()) continue;
+      try {
+        const reactionId = await adapter.typing(
+          activity.messageId,
+          active,
+          activity.reactionId,
+        );
+        const current = this.store.get<FeishuTyping>("feishu-typing", key);
+        if (active || current?.active !== activity.active)
+          this.store.put("feishu-typing", key, {
+            ...(current ?? activity),
+            reactionId,
+            error: undefined,
+            retryAt: undefined,
+          });
+        else this.store.delete("feishu-typing", key);
+      } catch {
+        this.store.put("feishu-typing", key, {
+          ...(this.store.get<FeishuTyping>("feishu-typing", key) ?? activity),
+          ...(stopping ? { active: false } : {}),
+          retryAt: Date.now() + 30000,
+          error: "Typing 更新失败，请检查消息表情权限和网络。",
+        });
+      }
     }
   }
 }

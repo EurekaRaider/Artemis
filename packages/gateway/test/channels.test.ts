@@ -25,6 +25,87 @@ const config: Extract<ChannelConnection, { channel: "feishu" }> = {
   enabled: true,
 };
 describe("Channel trust boundary", () => {
+  it("extracts one rich-post rendition and message image resources while preserving human mentions", () => {
+    const event = normalizeFeishu(config, {
+      header: { event_type: "im.message.receive_v1" },
+      event: {
+        sender: { sender_type: "user", sender_id: { open_id: "alice" } },
+        message: {
+          message_id: "post",
+          chat_id: "chat",
+          chat_type: "p2p",
+          message_type: "post",
+          content: JSON.stringify({
+            zh_cn: {
+              title: "检查",
+              content: [
+                [
+                  { tag: "text", text: "@_user_1 你好 @_user_2" },
+                  { tag: "img", image_key: "image" },
+                ],
+                [{ tag: "img", image_key: "image" }],
+              ],
+            },
+            en_us: { title: "duplicate", content: [] },
+          }),
+          mentions: [
+            { key: "@_user_1", id: { open_id: "own-bot" } },
+            { key: "@_user_2", id: { open_id: "bob" } },
+          ],
+        },
+      },
+    });
+    expect(event).toMatchObject({
+      messageId: "post",
+      text: "检查\n 你好 @_user_2",
+      attachments: [
+        { kind: "image", name: "image-1.png", resourceId: "image" },
+      ],
+    });
+  });
+  it("recovers only the current app's Typing reaction before cleanup", async () => {
+    const requests: string[] = [];
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (url, init) => {
+        requests.push(`${init?.method ?? "GET"} ${url}`);
+        return Response.json(
+          String(url).includes("tenant_access_token")
+            ? { code: 0, tenant_access_token: "test", expire: 7200 }
+            : init?.method === "DELETE"
+              ? { code: 0, data: {} }
+              : {
+                  code: 0,
+                  data: {
+                    has_more: false,
+                    items: [
+                      {
+                        reaction_id: "someone-else",
+                        operator: {
+                          operator_type: "app",
+                          operator_id: "other",
+                        },
+                        reaction_type: { emoji_type: "Typing" },
+                      },
+                      {
+                        reaction_id: "own",
+                        operator: { operator_type: "app", operator_id: "app" },
+                        reaction_type: { emoji_type: "Typing" },
+                      },
+                    ],
+                  },
+                },
+        );
+      });
+    try {
+      await new FeishuAdapter(config).typing("message", false);
+      expect(requests.at(-1)).toBe(
+        "DELETE https://open.feishu.cn/open-apis/im/v1/messages/message/reactions/own",
+      );
+    } finally {
+      fetch.mockRestore();
+    }
+  });
   it("treats an unavailable token service as unsent and retryable", async () => {
     const fetch = vi
       .spyOn(globalThis, "fetch")

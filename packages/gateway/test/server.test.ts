@@ -112,6 +112,68 @@ async function fixture(withCards = false) {
   };
 }
 describe("Gateway lifecycle and delivery authorization", () => {
+  it("excludes HTTPS ingress while a Feishu socket owns the connection and preserves identity on transport rollback", async () => {
+    const f = await fixture();
+    const config = {
+      id: "feishu",
+      name: "Feishu",
+      channel: "feishu",
+      tenantId: "tenant",
+      appId: "app",
+      botOpenId: "bot",
+      appSecret: "secret",
+      enabled: true,
+      transport: "websocket",
+      domain: "lark",
+    };
+    const save = (value: unknown) =>
+      fetch(`${f.url}/v1/admin/connections`, {
+        method: "PUT",
+        headers: { authorization: `Bearer ${"a".repeat(32)}` },
+        body: JSON.stringify(value),
+      });
+    expect((await save(config)).ok).toBe(true);
+    expect(
+      (
+        await fetch(`${f.url}/channels/feishu/feishu`, {
+          method: "POST",
+          body: JSON.stringify({
+            type: "url_verification",
+            challenge: "challenge",
+            token: "token",
+          }),
+        })
+      ).ok,
+    ).toBe(false);
+    const status = await (
+      await fetch(`${f.url}/v1/device/status`, { headers: f.headers })
+    ).json();
+    expect(
+      status.connections.find((c: any) => c.id === "feishu").configuration,
+    ).toMatchObject({ transport: "websocket", domain: "lark" });
+    expect(JSON.stringify(status)).not.toContain('"appSecret"');
+    expect((await save({ ...config, id: "duplicate" })).ok).toBe(false);
+    expect((await save({ ...config, appId: "other" })).ok).toBe(false);
+    expect(
+      (
+        await save({
+          ...config,
+          transport: "webhook",
+          verificationToken: "token",
+          encryptKey: "encrypt",
+        })
+      ).ok,
+    ).toBe(true);
+    const challenge = await fetch(`${f.url}/channels/feishu/feishu`, {
+      method: "POST",
+      body: JSON.stringify({
+        type: "url_verification",
+        challenge: "challenge",
+        token: "token",
+      }),
+    });
+    expect(await challenge.json()).toEqual({ challenge: "challenge" });
+  });
   it("exposes only public credential identifiers and confirms pending pairing through the owning device API", async () => {
     const f = await fixture();
     const post = (path: string, body: unknown, headers = f.headers) =>

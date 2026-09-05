@@ -1,9 +1,17 @@
 import { build } from "esbuild";
 import { create } from "tar";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isBuiltin } from "node:module";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export async function packageGateway(destination) {
@@ -22,7 +30,7 @@ export async function packageGateway(destination) {
       metafile: true,
       external: ["bufferutil", "utf-8-validate"],
       banner: {
-        js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);',
+        js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); const __dirname = import.meta.dirname;',
       },
     });
     const code = await readFile(join(temporary, "gateway.mjs"), "utf8");
@@ -33,22 +41,8 @@ export async function packageGateway(destination) {
         .some(
           (i) =>
             i.external &&
-            !i.path.startsWith("node:") &&
-            ![
-              "bufferutil",
-              "utf-8-validate",
-              "events",
-              "http",
-              "https",
-              "net",
-              "tls",
-              "crypto",
-              "stream",
-              "url",
-              "zlib",
-              "buffer",
-              "util",
-            ].includes(i.path),
+            !isBuiltin(i.path) &&
+            !["bufferutil", "utf-8-validate"].includes(i.path),
         )
     )
       throw new Error(
@@ -58,14 +52,39 @@ export async function packageGateway(destination) {
       join(temporary, "README.md"),
       await readFile(join(root, "packages/gateway/DEPLOY.md")),
     );
+    const dependencyRoots = new Set(
+      Object.keys(result.metafile.inputs).flatMap((path) => {
+        const match = /^(.*node_modules\/(?:@[^/]+\/)?[^/]+)\//u.exec(path);
+        return match ? [match[1]] : [];
+      }),
+    );
+    const licenses = [];
+    for (const directory of [...dependencyRoots].sort()) {
+      const files = (await readdir(join(root, directory))).filter((name) =>
+        /^(licen[cs]e|copying|notice)(\.|$)/iu.test(name),
+      );
+      if (!files.length) {
+        const readme = await readFile(
+          join(root, directory, "README.md"),
+          "utf8",
+        );
+        const license = /^(?:#+ )?License[^\n]*\n(?:[-=]+\n)?([\s\S]*)/imu.exec(
+          readme,
+        )?.[1];
+        if (!license)
+          throw new Error(
+            `Bundled dependency has no license text: ${directory}`,
+          );
+        licenses.push(`${directory}/README.md - License\n${license}`);
+      }
+      for (const file of files.sort())
+        licenses.push(
+          `${directory}/${file}\n${await readFile(join(root, directory, file), "utf8")}`,
+        );
+    }
     await writeFile(
       join(temporary, "THIRD-PARTY-LICENSES.txt"),
-      (
-        await Promise.all([
-          readFile(join(root, "node_modules/ws/LICENSE"), "utf8"),
-          readFile(join(root, "node_modules/zod/LICENSE"), "utf8"),
-        ])
-      ).join("\n\n"),
+      licenses.join("\n\n"),
     );
     await mkdir(dirname(destination), { recursive: true });
     await create(

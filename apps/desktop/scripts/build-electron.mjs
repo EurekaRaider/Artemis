@@ -10,7 +10,7 @@ import { ensureNodePtySpawnHelpersExecutable } from "./node-pty-permissions.mjs"
 const require = createRequire(import.meta.url);
 const packageBuild = process.env.ARTEMIS_PACKAGE_BUILD === "1";
 const esmRequireBridge = {
-  js: 'import { createRequire as artemisBundleCreateRequire } from "node:module"; const require = artemisBundleCreateRequire(import.meta.url);',
+  js: 'import { createRequire as artemisBundleCreateRequire } from "node:module"; const require = artemisBundleCreateRequire(import.meta.url); const __dirname = import.meta.dirname;',
 };
 
 if (process.platform === "darwin") {

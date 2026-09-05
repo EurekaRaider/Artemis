@@ -8,7 +8,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { basename, join, relative, isAbsolute } from "node:path";
+import { basename, dirname, join, relative, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { z } from "zod";
 import {
@@ -39,6 +39,7 @@ import {
 } from "@artemis/protocol";
 import type { SafeStorageAdapter } from "./encrypted-settings-store.js";
 import { LocalImGateway } from "./im-local-gateway.js";
+import { readLegacyImSettings } from "./im-legacy-import.js";
 import { loadPromptAttachments } from "./prompt-attachments.js";
 import {
   buildRemoteShellLaunch,
@@ -115,6 +116,14 @@ export class ImService {
   private identities: ImIdentity[] = [];
   private pairingRequests: NonNullable<ImStatus["pairingRequests"]> = [];
   private channelStatus: unknown[] = [];
+  private readonly legacyImports = new Map<
+    string,
+    {
+      expiresAt: number;
+      gatewayUrl: string;
+      config: ReturnType<typeof readLegacyImSettings>[number];
+    }
+  >();
   private spaces: unknown[] = [];
   private reconciled = false;
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -383,6 +392,34 @@ export class ImService {
   }
   async manage(input: ImManagement): Promise<unknown> {
     const action = imManagementSchema.parse(input);
+    if (action.action === "preview-legacy")
+      throw new Error("Legacy import requires the desktop file dialog.");
+    if (action.action === "import-legacy") {
+      const pending = this.legacyImports.get(action.importId);
+      if (
+        !pending ||
+        pending.expiresAt <= Date.now() ||
+        pending.gatewayUrl !== this.config.gatewayUrl
+      )
+        throw new Error("导入预览已失效，请重新选择旧设置文件。");
+      const id = `feishu-import-${randomUUID()}`;
+      await this.manage({
+        action: "admin",
+        operation: "connections",
+        ...(action.adminToken ? { adminToken: action.adminToken } : {}),
+        configuration: {
+          ...pending.config,
+          id,
+          channel: "feishu",
+          transport: "websocket",
+          enabled: true,
+          tenantId: action.tenantId,
+          botOpenId: action.botOpenId,
+        },
+      });
+      this.legacyImports.delete(action.importId);
+      return { id, requiresPairing: true, requiresProjectGrant: true };
+    }
     if (action.action === "setup-local") {
       this.localSetup ??= this.setupLocalGateway().finally(() => {
         this.localSetup = undefined;
@@ -502,6 +539,52 @@ export class ImService {
         requireConfirmation: action.requireConfirmation,
       })
     ).json();
+  }
+  async previewLegacyIm(path: string) {
+    this.legacyImports.clear();
+    const configs = readLegacyImSettings(
+      await readFile(path, "utf8"),
+      this.secure,
+    );
+    let legacyBindings: number | undefined;
+    let database: DatabaseSync | undefined;
+    try {
+      database = new DatabaseSync(join(dirname(path), "artemis.sqlite"), {
+        readOnly: true,
+      });
+      if (
+        database
+          .prepare(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='im_bindings'",
+          )
+          .get()
+      )
+        legacyBindings = Number(
+          database.prepare("SELECT COUNT(*) AS count FROM im_bindings").get()
+            ?.count ?? 0,
+        );
+    } catch {
+      /* A detached settings export may have no adjacent legacy database. */
+    } finally {
+      database?.close();
+    }
+    return {
+      legacyBindings,
+      connections: configs.map((config) => {
+        const importId = randomUUID();
+        this.legacyImports.set(importId, {
+          config,
+          expiresAt: Date.now() + 300000,
+          gatewayUrl: this.config.gatewayUrl,
+        });
+        return {
+          importId,
+          name: config.name,
+          appId: config.appId,
+          domain: config.domain,
+        };
+      }),
+    };
   }
   private grant(binding: Binding) {
     if (this.leaseUntil <= Date.now())
@@ -821,6 +904,7 @@ export class ImService {
     outcome?: ImReply["outcome"],
     started = false,
     status?: ImReply["status"],
+    approval?: ImReply["approval"],
   ): void {
     const reply: ImReply = {
       version: 1,
@@ -835,6 +919,7 @@ export class ImService {
         : {}),
       ...(outcome ? { outcome } : {}),
       ...(taskId ? { taskId } : {}),
+      ...(approval ? { approval } : {}),
     };
     this.put("outbox", reply.id, reply);
   }
@@ -1068,6 +1153,12 @@ export class ImService {
           scope: "once",
           source: "user",
         });
+        this.replyApprovalResult(
+          binding,
+          action,
+          parts[0] === "yes",
+          request.id,
+        );
         this.remove("actions", action.token);
       } else if (command === "answer" && p.type === "user-input.requested") {
         if (p.kind === "multi-question") {
@@ -1442,6 +1533,12 @@ export class ImService {
         false,
         "owner",
         event.eventId,
+        undefined,
+        false,
+        undefined,
+        payload.type === "approval.requested"
+          ? { token: action.token, expiresAt: action.expiresAt }
+          : undefined,
       );
       this.reply(
         binding.request,
@@ -1489,6 +1586,13 @@ export class ImService {
             payload.kind !== "multi-question")
         ) {
           resolvedAction = true;
+          if (payload.type === "approval.resolved")
+            this.replyApprovalResult(
+              binding,
+              action,
+              payload.approved,
+              event.eventId,
+            );
           this.remove("actions", action.token);
         }
       }
@@ -1547,6 +1651,29 @@ export class ImService {
             : "completed",
       );
     }
+  }
+  private replyApprovalResult(
+    binding: Binding,
+    action: PendingAction,
+    approved: boolean,
+    id: string,
+  ): void {
+    this.reply(
+      binding.request,
+      `任务 ${action.threadId}\n${approved ? "已批准一次。" : "已拒绝。"}`,
+      action.threadId,
+      false,
+      "owner",
+      `${id}:approval-result`,
+      undefined,
+      false,
+      undefined,
+      {
+        token: action.token,
+        expiresAt: action.expiresAt,
+        resolved: approved ? "approved" : "denied",
+      },
+    );
   }
   private finalText(
     threadId: string,
@@ -1635,7 +1762,18 @@ export class ImService {
       .array(imPairingRequestSchema)
       .parse(status.pairingRequests ?? []);
     this.channelStatus = Array.isArray(status.connections)
-      ? status.connections
+      ? status.connections.map((connection: Record<string, unknown>) => ({
+          ...connection,
+          ...(typeof connection.callbackPath === "string" &&
+          /^\/channels\/feishu\/[\w-]+$/u.test(connection.callbackPath)
+            ? {
+                callbackUrl: new URL(
+                  connection.callbackPath,
+                  assertImGatewayUrl(this.config.gatewayUrl).origin,
+                ).href,
+              }
+            : {}),
+        }))
       : [];
     this.spaces = Array.isArray(status.spaces) ? status.spaces : [];
   }

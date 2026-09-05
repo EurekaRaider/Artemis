@@ -43,6 +43,7 @@ export const imPairingRequestSchema = z
 export type ImPairingRequest = z.infer<typeof imPairingRequestSchema>;
 
 export interface ImConnectionStatus {
+  callbackUrl?: string;
   id: string;
   name: string;
   channel: ImIdentity["channel"];
@@ -50,7 +51,17 @@ export interface ImConnectionStatus {
   error?: string;
   // Only public identifiers, never saved secrets.
   configuration?: Partial<
-    Record<"id" | "name" | "tenantId" | "botId" | "appId" | "botOpenId", string>
+    Record<
+      | "id"
+      | "name"
+      | "tenantId"
+      | "botId"
+      | "appId"
+      | "botOpenId"
+      | "transport"
+      | "domain",
+      string
+    >
   >;
 }
 export function imConversationKey(conversation: ImConversation): string {
@@ -154,6 +165,14 @@ export const imReplySchema = z
     invocationId: id,
     text,
     taskId: id.optional(),
+    approval: z
+      .object({
+        token: z.string().uuid(),
+        expiresAt: z.number().int().positive(),
+        resolved: z.enum(["approved", "denied"]).optional(),
+      })
+      .strict()
+      .optional(),
     visibility: z.enum(["conversation", "owner"]).default("conversation"),
     final: z.boolean().default(false),
     started: z.boolean().optional(),
@@ -300,6 +319,17 @@ export const remoteOperationSchema = z.discriminatedUnion("action", [
 ]);
 export type RemoteOperation = z.infer<typeof remoteOperationSchema>;
 export const imManagementSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("preview-legacy") }).strict(),
+  z
+    .object({
+      action: z.literal("import-legacy"),
+      importId: z.string().uuid(),
+      tenantId: id,
+      botOpenId: id,
+      legacyStopped: z.literal(true),
+      adminToken: z.string().min(32).max(1024).optional(),
+    })
+    .strict(),
   z.object({ action: z.literal("setup-local") }).strict(),
   z.object({ action: z.literal("export-gateway") }).strict(),
   z

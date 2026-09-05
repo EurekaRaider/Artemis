@@ -6132,6 +6132,17 @@ function registerIpc(): void {
   ipcMain.handle(IPC.imManage, async (_event, input: unknown) => {
     if (!imService) throw new Error("IM service is not ready.");
     const action = imManagementSchema.parse(input);
+    if (action.action === "preview-legacy") {
+      if (!mainWindow) throw new Error("Desktop window is not ready.");
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: "选择旧版 Artemis settings.json",
+        properties: ["openFile"],
+        filters: [{ name: "Artemis settings", extensions: ["json"] }],
+      });
+      return result.canceled || !result.filePaths[0]
+        ? undefined
+        : imService.previewLegacyIm(result.filePaths[0]);
+    }
     if (action.action === "export-gateway") {
       if (!mainWindow) throw new Error("Desktop window is not ready.");
       const result = await dialog.showSaveDialog(mainWindow, {
