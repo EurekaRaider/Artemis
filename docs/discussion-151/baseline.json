@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "head": "bdded70d937b54aad615f0f87de57d5fb31271b8",
+  "screenshots": [
+    {
+      "name": "01-default.png",
+      "bytes": 71340,
+      "sha256": "8c3e4813385af5d9379d0163df88e5df262e54ee8b1a5b131563f1bdae241efa"
+    },
+    {
+      "name": "02-stress.png",
+      "bytes": 91001,
+      "sha256": "d256649c226ffd0b59baf18ced265973678eaf303d2ec799d4869c615ee81bd9"
+    },
+    {
+      "name": "05-reference-slice-1440x900.png",
+      "bytes": 57154,
+      "sha256": "d131cdc6ec0c932386f99034a0312f9fc72c80ef82c668d781ff8246e7d92f28"
+    },
+    {
+      "name": "03-returned-default.png",
+      "bytes": 89722,
+      "sha256": "2555d47a1acde8f66cf7c3a330e204552acd708f32ea81d303aa1712efe67dee"
+    },
+    {
+      "name": "04-fallback-default.png",
+      "bytes": 89575,
+      "sha256": "fc5cd3b81ff6482f198013309e0ac6452794dfe9c408feb214f876c776adb481"
+    }
+  ]
+}

@@ -490,7 +490,8 @@
     ids.forEach(function(id){
       var sec=document.getElementById(id);if(!sec)return;
       var actual=sec.querySelectorAll(".spec").length;
-      var link=document.querySelector('nav a[href="#'+id+'"] .n');
+      /* v20 两级导航：计数徽标在 .grp[data-cat] .nav-cat .n；旧单级布局回退 nav a[href] .n */
+      var link=document.querySelector('nav .grp[data-cat="'+id+'"] .nav-cat .n')||document.querySelector('nav a[href="#'+id+'"] .n');
       var claimed=link?parseInt(link.textContent,10):null;
       out.sections.push({id:id,actual:actual,sidebarLabel:claimed,match:claimed===actual});
     });

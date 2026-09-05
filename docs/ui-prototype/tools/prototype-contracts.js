@@ -29,7 +29,7 @@
       generic.push({ name: "visible-title", ok: Boolean((spec.querySelector(".name") || {}).textContent) });
       cardResults[id] = { ok: generic.every(function (item) { return item.ok; }), generic: generic, targeted: [] };
     });
-    if (specs.length !== 70) failures.push("catalog / card-count: expected 70, got " + specs.length);
+    if (specs.length !== 73) failures.push("catalog / card-count: expected 73, got " + specs.length);
     if (new Set(ids).size !== ids.length) failures.push("catalog / duplicate-card-id");
     var domIds = qa("[id]").map(function (el) { return el.id; });
     if (new Set(domIds).size !== domIds.length) failures.push("catalog / duplicate-dom-id");
@@ -37,7 +37,7 @@
     var sizeCard = q('[data-card="cat-icons-02"]');
     assert("cat-icons-02", "five-size-tiers", ["xs", "sm", "lg", "xl"].every(function (c) { return sizeCard.querySelector("svg.ic." + c); }) && sizeCard.querySelector("svg.ic:not(.xs):not(.sm):not(.lg):not(.xl)"), "xs/sm/base/lg/xl");
     var iconNames = qa('[data-card="cat-icons-03"] .ic-name').map(function (n) { return n.textContent.trim(); });
-    assert("cat-icons-03", "98-unique-icons", iconNames.length === 98 && new Set(iconNames).size === 98, "count=" + iconNames.length + ", unique=" + new Set(iconNames).size);
+    assert("cat-icons-03", "100-unique-icons", iconNames.length === 100 && new Set(iconNames).size === 100, "count=" + iconNames.length + ", unique=" + new Set(iconNames).size);
 
     var typeCard = q('[data-card="cat-input-03"]');
     ["password", "url", "number", "date", "file"].forEach(function (type) { assert("cat-input-03", type + "-field", Boolean(typeCard.querySelector('input[type="' + type + '"]')), type); });
@@ -101,6 +101,18 @@
     q("#openChecks").click(); await wait(0); assert("cat-sources-08", "checks-dialog-focus", !q("#checksDialog").hidden && document.activeElement === q("#checksDialog"));
     key(q("#checksDialog"), "Escape"); assert("cat-sources-08", "checks-focus-return", q("#checksDialog").hidden && document.activeElement === q("#openChecks"));
 
+    var planTrig = q("#planTrigger"), planListEl = q("#planList"), planRootEl = q("#planProgress");
+    planTrig.dispatchEvent(new PointerEvent("pointerenter"));
+    await wait(220); assert("cat-artemis-03", "hover-intent-opens", planTrig.getAttribute("aria-expanded") === "true" && !planListEl.hidden, "175ms 悬停意图后浮窗展开");
+    planRootEl.dispatchEvent(new PointerEvent("pointerleave"));
+    assert("cat-artemis-03", "leave-closes", planTrig.getAttribute("aria-expanded") === "false" && planListEl.hidden);
+    planTrig.focus(); assert("cat-artemis-03", "focus-opens", planTrig.getAttribute("aria-expanded") === "true" && !planListEl.hidden);
+    key(document, "Escape"); assert("cat-artemis-03", "escape-closes", planTrig.getAttribute("aria-expanded") === "false" && planListEl.hidden);
+    assert("cat-artemis-03", "marker-status-set", ["pending", "in_progress", "completed"].every(function (s) { return planListEl.querySelector(".task-step-marker." + s); }) && planListEl.querySelectorAll(".task-plan-step").length === 5);
+    window.__planSet("failed"); assert("cat-artemis-03", "failed-step-state", planListEl.querySelectorAll(".task-plan-step.failed").length === 1 && q("#planMarker").classList.contains("failed"));
+    window.__planSet("done"); await wait(2600); assert("cat-artemis-03", "complete-autohide", planRootEl.classList.contains("plan-gone"), "全部完成后 2.5s 自动隐藏");
+    window.__planSet("run"); assert("cat-artemis-03", "restore-running", !planRootEl.classList.contains("plan-gone") && q("#planLabel").textContent === "第 3 / 5 步");
+
     q('[data-md="source"]').click(); var md = q("#mdEdit"); input(md);
     assert("cat-artemis-11", "markdown-dual-dirty", !md.hidden && /未保存/.test(q("#mdStatus").textContent));
     key(md, "s", { ctrlKey: true }); await wait(100); assert("cat-artemis-11", "markdown-shortcut-save", /已保存/.test(q("#mdStatus").textContent));
@@ -131,11 +143,11 @@
       cardResults[card].ok = cardResults[card].ok && targetResults[card].every(function (item) { return item.ok; });
     });
     var targetedCards = Object.keys(targetResults);
-    if (targetedCards.length !== 22) failures.push("catalog / targeted-card-count: expected 22, got " + targetedCards.length);
+    if (targetedCards.length !== 23) failures.push("catalog / targeted-card-count: expected 23, got " + targetedCards.length);
     var passedCards = Object.keys(cardResults).filter(function (card) { return cardResults[card].ok; }).length;
     return {
       version: "v17",
-      ok: failures.length === 0 && passedCards === 70,
+      ok: failures.length === 0 && passedCards === 73,
       totalCards: specs.length,
       passedCards: passedCards,
       targetedCards: targetedCards.length,

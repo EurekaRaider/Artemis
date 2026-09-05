@@ -1,0 +1,13 @@
+{
+  "name": "@artemis/ui-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline Artemis component library and workspace showcase",
+  "scripts": {
+    "test": "node tools/library-check.mjs && node tools/workspace-check.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.60.0"
+  }
+}

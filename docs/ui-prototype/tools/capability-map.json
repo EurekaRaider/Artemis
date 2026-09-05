@@ -10,7 +10,7 @@
     "runner": "prototype/tools/prototype-contracts.js",
     "result": "prototype/contrast/prototype-contract-result.json",
     "expectedCards": 70,
-    "expectedTargetedCards": 22
+    "expectedTargetedCards": 23
   },
   "cards": [
     {
@@ -976,18 +976,18 @@
     {
       "card": "cat-artemis-03",
       "no": "13c",
-      "title": "任务计划",
+      "title": "任务计划胶囊",
       "module": "task-activity",
       "symbol": "export function TaskPlanProgress",
       "file": "apps/desktop/src/renderer/TaskPlanProgress.tsx",
       "line": 85,
       "states": [
         "default",
-        "loading"
+        "error"
       ],
-      "interaction": "静态步骤进度展示",
-      "keyboard": "无",
-      "aria": "步骤完成/进行中视觉（基线组件渲染）",
+      "interaction": "胶囊悬停 175ms 上浮步骤浮窗；点击/聚焦固定；完成后 2.5s 自动隐藏",
+      "keyboard": "聚焦展开 · Esc 关闭",
+      "aria": "aria-expanded/aria-controls + 步骤标记 role=img aria-label",
       "status": "covered",
       "gaps": []
     },

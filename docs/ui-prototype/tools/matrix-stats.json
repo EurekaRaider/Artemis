@@ -198,7 +198,7 @@
   "prototypeContracts": {
     "passedCards": 70,
     "totalCards": 70,
-    "targetedCards": 22,
+    "targetedCards": 23,
     "result": "contrast/prototype-contract-result.json"
   }
 }

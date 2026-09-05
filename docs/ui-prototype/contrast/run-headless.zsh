@@ -7,7 +7,7 @@ source "$VF"
 : "${VERSION:?VERSION 未定义}" "${BASELINE:?BASELINE 未定义}"
 # Artemis components.html 对比度矩阵驱动 · fail-closed v17
 # v17（原型完成门禁）:
-#   - T8 执行 70 张卡片通用契约与 22 个历史 partial/uncovered 定向交互契约
+#   - T8 执行 70 张卡片通用契约与 23 个定向交互契约（22 历史 partial/uncovered + v19 13c 任务计划胶囊）
 #   - T9 执行主页面 normal / 200% zoom / Dock closed 布局与 ARIA 审计
 # 变更（回应第六轮评审）:
 #   - 运行前清理旧结果；无 SCAN_OUT / 出现 scannerError / 断言缺失一律判 FAIL 并非零退出
@@ -88,7 +88,7 @@ TMP="$(mktemp -d /tmp/artemis-contrast.XXXXXX)"
 node - "$ROOT" "$TMP" <<'NODE'
 const fs = require("fs");
 const [root, tmp] = process.argv.slice(2);
-let html = fs.readFileSync(root + "/components.html", "utf8");
+let html = require(root + "/tools/inline-assets.cjs").inlineAssets(root + "/components.html");
 const scanner = fs.readFileSync(root + "/contrast/scanner.js", "utf8");
 const boot = `
 <script>
@@ -100,10 +100,14 @@ const boot = `
     var s = hp.get("s") || "default";
     var miss = [];
     function doOpen() {
+      /* 任务计划胶囊浮窗（v19：点击固定展开，供 open 场景扫描步骤文本对比度）。
+         必须最先点击：click 冒泡到 document 会触发下拉的「点外关闭」监听，
+         放在菜单之后会把已打开的 .menu 关掉（menu.open<1）。 */
+      var planBtn = document.querySelector("#planTrigger"); if (planBtn) planBtn.click();
       ["#openDlg", "#toastInfo", "#toastErr"].forEach(function (sel) {
         var b = document.querySelector(sel); if (b) b.click();
       });
-      document.querySelectorAll(".select-trig").forEach(function (t, i) { if (i < 4) t.click(); });
+      var select = document.querySelector("#sel1"); if (select) select.click();
       /* Toast：show 类由 rAF 追加且 3s 自毁——构造静态等价节点供扫描，语义/底色一致 */
       try {
         var host = document.getElementById("toastHost");
@@ -125,10 +129,10 @@ const boot = `
         }
         if (s === "hover") {
           var css = [];
-          document.querySelectorAll("style").forEach(function (tag) {
-            tag.textContent.split("}").forEach(function (chunk) {
-              var sel = chunk.split("{")[0];
-              if (sel.includes(":hover")) css.push(chunk + "}");
+          // Keep grouping rules (including @scope) intact when forcing hover states.
+          Array.from(document.styleSheets).forEach(function (sheet) {
+            Array.from(sheet.cssRules).forEach(function (rule) {
+              if (rule.cssText.includes(":hover")) css.push(rule.cssText);
             });
           });
           var st = document.createElement("style");
@@ -143,6 +147,8 @@ const boot = `
           if (!document.querySelector(".overlay.open")) miss.push("dialog");
           if (document.querySelectorAll(".menu.open").length < 1) miss.push("menu.open<1");
           if (!document.querySelector("#toastHost .toast.show")) miss.push("toast.show");
+          var planList = document.querySelector("#planList");
+          if (planList && planList.hidden) miss.push("planList.hidden");
         }
         finish();
       }
@@ -169,7 +175,7 @@ for d in $DIRECTIONS; do for t in $THEMES; do for c in $CONTRASTS; do for s in $
   NONCE="n${RANDOM}${RANDOM}${RANDOM}"
   "$CHROME" --headless --disable-gpu --window-size=1440,900 --virtual-time-budget=10000 \
     --dump-dom "file://$TMP/harness.html#d=$d&t=$t&c=$c&s=$s&n=$NONCE" > "$TMP/out.html" 2>/dev/null
-  python3 - "$TMP/out.html" "$OUT/$NAME.json" "$d" "$t" "$c" "$s" "$NONCE" <<'PY'
+  python3 - "$TMP/out.html" "$OUT/$NAME.json" "$d" "$t" "$c" "$s" "$NONCE" <<'PY' 
 import sys, re, json, urllib.parse
 src_path, dst = sys.argv[1], sys.argv[2]
 exp_d, exp_t, exp_c, exp_s, exp_nonce = sys.argv[3:8]
@@ -403,13 +409,13 @@ sys.exit(0 if ok else 5)
 PY
 ST_RC=$?
 
-# ---- T8 原型契约：70 卡片全部具备完整骨架，历史 20 partial + 2 uncovered 逐项执行交互 ----
+# ---- T8 原型契约：70 卡片全部具备完整骨架，历史 20 partial + 2 uncovered + 13c 任务计划胶囊逐项执行交互 ----
 CONTRACT_JSON="$ROOT/contrast/prototype-contract-result.json"
 rm -f "$CONTRACT_JSON"
 node - "$ROOT" "$TMP" <<'NODECONTRACT'
 const fs = require("fs");
 const [root, tmp] = process.argv.slice(2);
-let html = fs.readFileSync(root + "/components.html", "utf8");
+let html = require(root + "/tools/inline-assets.cjs").inlineAssets(root + "/components.html");
 const contracts = fs.readFileSync(root + "/tools/prototype-contracts.js", "utf8");
 const boot = `<script>${contracts}<\/script><script>
 setTimeout(async function () {
@@ -434,7 +440,7 @@ if not m:
 else:
     result = json.loads(urllib.parse.unquote(m.group(1)))
 json.dump(result, open(out, "w"), ensure_ascii=False, indent=1)
-ok = result.get("ok") is True and result.get("totalCards") == 70 and result.get("passedCards") == 70 and result.get("targetedCards") == 22
+ok = result.get("ok") is True and result.get("totalCards") == 70 and result.get("passedCards") == 70 and result.get("targetedCards") == 23
 print("T8 原型契约", "PASS" if ok else "FAIL", "cards=%s/%s targeted=%s failures=%s" % (result.get("passedCards"), result.get("totalCards"), result.get("targetedCards"), len(result.get("failures", []))))
 if not ok:
     print("  " + "\n  ".join(result.get("failures", [])[:20]))
@@ -725,6 +731,8 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
   T5DIR="$(mktemp -d /tmp/artemis-nobrowser.XXXXXX)"
   cp -r "$ROOT/contrast" "$T5DIR/contrast"
   cp "$ROOT/components.html" "$ROOT/apple-inspired-ui.html" "$T5DIR/"
+  cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T5DIR/"
+  cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T5DIR/"
   cp "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T5DIR/"
   cp -r "$ROOT/tools" "$T5DIR/tools"
   RUN_SELFTESTS=0 CHROME=/usr/bin/true "$T5DIR/contrast/run-headless.zsh" >/dev/null 2>&1
@@ -736,14 +744,25 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
     echo "T5 无浏览器退出码断言: PASS（exit=$T5_ACTUAL）"
   fi
 
+  # T6/T7 的 verify 需要显式 --repo：临时目录向上找不到 .git。
+  # 从原位置向上解析真实仓库根（与 gen_matrix.resolve_repo 无显式参数时同逻辑，.git 目录或
+  # worktree 指针文件均可；旧的 --repo "$ROOT/.." 假设 prototype 直连仓库根，docs/ 布局下必挂）。
+  REPO_ROOT="$ROOT"
+  while [ -n "$REPO_ROOT" ] && [ "$REPO_ROOT" != "/" ] && [ ! -e "$REPO_ROOT/.git" ]; do REPO_ROOT="${REPO_ROOT%/*}"; done
+  if [ -z "$REPO_ROOT" ] || [ ! -e "$REPO_ROOT/.git" ]; then REPO_ROOT=""; fi
+
   # T6 解压布局自测（R16①）：zip 顶层= prototype/，复制到临时根后直接运行入口
   T6DIR="$(mktemp -d /tmp/artemis-layout-nested.XXXXXX)"
   mkdir -p "$T6DIR/prototype"
   cp -r "$ROOT/contrast" "$ROOT/tools" "$T6DIR/prototype/"
   cp "$ROOT/components.html" "$ROOT/apple-inspired-ui.html" "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T6DIR/prototype/"
+  cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T6DIR/prototype/"
+  cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T6DIR/prototype/"
   RUN_SELFTESTS=0 CHROME="$CHROME" "$T6DIR/prototype/contrast/run-headless.zsh" >/dev/null 2>&1
   T6_RC=$?
-  (cd "$T6DIR/prototype" && python3 tools/gen_matrix.py --verify --version "$VERSION" --baseline "$BASELINE" --repo "$ROOT/..") >/dev/null 2>&1 || T6_RC=1
+  if [ -n "$REPO_ROOT" ]; then
+    (cd "$T6DIR/prototype" && python3 tools/gen_matrix.py --verify --version "$VERSION" --baseline "$BASELINE" --repo "$REPO_ROOT") >/dev/null 2>&1 || T6_RC=1
+  fi
   rm -rf "$T6DIR"
   if [ "$T6_RC" -ne 0 ]; then echo "T6 解压布局（prototype/ 顶层）: FAIL"; SELF_FAIL=$((SELF_FAIL+1)); else echo "T6 解压布局（prototype/ 顶层）: PASS"; fi
 
@@ -751,9 +770,13 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
   T7DIR="$(mktemp -d /tmp/artemis-layout-flat.XXXXXX)"
   cp -r "$ROOT/contrast" "$ROOT/tools" "$T7DIR/"
   cp "$ROOT/components.html" "$ROOT/apple-inspired-ui.html" "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T7DIR/"
+  cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T7DIR/"
+  cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T7DIR/"
   RUN_SELFTESTS=0 CHROME="$CHROME" "$T7DIR/contrast/run-headless.zsh" >/dev/null 2>&1
   T7_RC=$?
-  (cd "$T7DIR" && python3 tools/gen_matrix.py --verify --version "$VERSION" --baseline "$BASELINE" --repo "$ROOT/..") >/dev/null 2>&1 || T7_RC=1
+  if [ -n "$REPO_ROOT" ]; then
+    (cd "$T7DIR" && python3 tools/gen_matrix.py --verify --version "$VERSION" --baseline "$BASELINE" --repo "$REPO_ROOT") >/dev/null 2>&1 || T7_RC=1
+  fi
   rm -rf "$T7DIR"
   if [ "$T7_RC" -ne 0 ]; then echo "T7 平铺布局（无 prototype/ 嵌套）: FAIL"; SELF_FAIL=$((SELF_FAIL+1)); else echo "T7 平铺布局（无 prototype/ 嵌套）: PASS"; fi
 fi
