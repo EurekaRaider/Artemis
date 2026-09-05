@@ -17,12 +17,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":318,\"y\":599.5,\"width\":388.96875,\"height\":167.5,\"top\":599.5,\"right\":706.96875,\"bottom\":767,\"left\":318}"
+     "detail": "composer={\"x\":318,\"y\":575,\"width\":388.96875,\"height\":220,\"top\":575,\"right\":706.96875,\"bottom\":795,\"left\":318}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":333,\"y\":727,\"width\":358.96875,\"height\":28,\"top\":727,\"right\":691.96875,\"bottom\":755,\"left\":333}"
+     "detail": "toolbar={\"x\":331,\"y\":719,\"width\":362.96875,\"height\":66,\"top\":719,\"right\":693.96875,\"bottom\":785,\"left\":331}"
     },
     {
      "name": "toolbar-control-1",
@@ -37,15 +37,30 @@
     {
      "name": "toolbar-control-3",
      "ok": true,
-     "detail": "GLM · 自动"
+     "detail": "（收起浮层，跳过边界）智能审批低风险自动通过，高风险先询问"
     },
     {
      "name": "toolbar-control-4",
      "ok": true,
-     "detail": "停止"
+     "detail": "（收起浮层，跳过边界）请求批准外部更改或网络访问前始终询问"
     },
     {
      "name": "toolbar-control-5",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）完全访问本会话允许全部本地操作"
+    },
+    {
+     "name": "toolbar-control-6",
+     "ok": true,
+     "detail": "GLM · 自动"
+    },
+    {
+     "name": "toolbar-control-7",
+     "ok": true,
+     "detail": "停止"
+    },
+    {
+     "name": "toolbar-control-8",
      "ok": true,
      "detail": "发送"
     },
@@ -89,12 +104,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":318,\"y\":600,\"width\":388.9609375,\"height\":167,\"top\":600,\"right\":706.9609375,\"bottom\":767,\"left\":318}"
+     "detail": "composer={\"x\":318,\"y\":575,\"width\":388.9609375,\"height\":220,\"top\":575,\"right\":706.9609375,\"bottom\":795,\"left\":318}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":333,\"y\":727,\"width\":358.9609375,\"height\":28,\"top\":727,\"right\":691.9609375,\"bottom\":755,\"left\":333}"
+     "detail": "toolbar={\"x\":331,\"y\":719,\"width\":362.9609375,\"height\":66,\"top\":719,\"right\":693.9609375,\"bottom\":785,\"left\":331}"
     },
     {
      "name": "toolbar-control-1",
@@ -109,15 +124,30 @@
     {
      "name": "toolbar-control-3",
      "ok": true,
-     "detail": "GLM · 自动"
+     "detail": "（收起浮层，跳过边界）智能审批低风险自动通过，高风险先询问"
     },
     {
      "name": "toolbar-control-4",
      "ok": true,
-     "detail": "停止"
+     "detail": "（收起浮层，跳过边界）请求批准外部更改或网络访问前始终询问"
     },
     {
      "name": "toolbar-control-5",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）完全访问本会话允许全部本地操作"
+    },
+    {
+     "name": "toolbar-control-6",
+     "ok": true,
+     "detail": "GLM · 自动"
+    },
+    {
+     "name": "toolbar-control-7",
+     "ok": true,
+     "detail": "停止"
+    },
+    {
+     "name": "toolbar-control-8",
      "ok": true,
      "detail": "发送"
     },
@@ -161,12 +191,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":409,\"y\":599.5,\"width\":920,\"height\":167.5,\"top\":599.5,\"right\":1329,\"bottom\":767,\"left\":409}"
+     "detail": "composer={\"x\":409,\"y\":609,\"width\":920,\"height\":186,\"top\":609,\"right\":1329,\"bottom\":795,\"left\":409}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":424,\"y\":727,\"width\":890,\"height\":28,\"top\":727,\"right\":1314,\"bottom\":755,\"left\":424}"
+     "detail": "toolbar={\"x\":422,\"y\":753,\"width\":894,\"height\":32,\"top\":753,\"right\":1316,\"bottom\":785,\"left\":422}"
     },
     {
      "name": "toolbar-control-1",
@@ -181,15 +211,30 @@
     {
      "name": "toolbar-control-3",
      "ok": true,
-     "detail": "GLM · 自动"
+     "detail": "（收起浮层，跳过边界）智能审批低风险自动通过，高风险先询问"
     },
     {
      "name": "toolbar-control-4",
      "ok": true,
-     "detail": "停止"
+     "detail": "（收起浮层，跳过边界）请求批准外部更改或网络访问前始终询问"
     },
     {
      "name": "toolbar-control-5",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）完全访问本会话允许全部本地操作"
+    },
+    {
+     "name": "toolbar-control-6",
+     "ok": true,
+     "detail": "GLM · 自动"
+    },
+    {
+     "name": "toolbar-control-7",
+     "ok": true,
+     "detail": "停止"
+    },
+    {
+     "name": "toolbar-control-8",
      "ok": true,
      "detail": "发送"
     },

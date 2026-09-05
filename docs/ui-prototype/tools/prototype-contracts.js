@@ -29,7 +29,7 @@
       generic.push({ name: "visible-title", ok: Boolean((spec.querySelector(".name") || {}).textContent) });
       cardResults[id] = { ok: generic.every(function (item) { return item.ok; }), generic: generic, targeted: [] };
     });
-    if (specs.length !== 70) failures.push("catalog / card-count: expected 70, got " + specs.length);
+    if (specs.length !== 73) failures.push("catalog / card-count: expected 73, got " + specs.length);
     if (new Set(ids).size !== ids.length) failures.push("catalog / duplicate-card-id");
     var domIds = qa("[id]").map(function (el) { return el.id; });
     if (new Set(domIds).size !== domIds.length) failures.push("catalog / duplicate-dom-id");
@@ -37,7 +37,7 @@
     var sizeCard = q('[data-card="cat-icons-02"]');
     assert("cat-icons-02", "five-size-tiers", ["xs", "sm", "lg", "xl"].every(function (c) { return sizeCard.querySelector("svg.ic." + c); }) && sizeCard.querySelector("svg.ic:not(.xs):not(.sm):not(.lg):not(.xl)"), "xs/sm/base/lg/xl");
     var iconNames = qa('[data-card="cat-icons-03"] .ic-name').map(function (n) { return n.textContent.trim(); });
-    assert("cat-icons-03", "98-unique-icons", iconNames.length === 98 && new Set(iconNames).size === 98, "count=" + iconNames.length + ", unique=" + new Set(iconNames).size);
+    assert("cat-icons-03", "100-unique-icons", iconNames.length === 100 && new Set(iconNames).size === 100, "count=" + iconNames.length + ", unique=" + new Set(iconNames).size);
 
     var typeCard = q('[data-card="cat-input-03"]');
     ["password", "url", "number", "date", "file"].forEach(function (type) { assert("cat-input-03", type + "-field", Boolean(typeCard.querySelector('input[type="' + type + '"]')), type); });
@@ -147,7 +147,7 @@
     var passedCards = Object.keys(cardResults).filter(function (card) { return cardResults[card].ok; }).length;
     return {
       version: "v17",
-      ok: failures.length === 0 && passedCards === 70,
+      ok: failures.length === 0 && passedCards === 73,
       totalCards: specs.length,
       passedCards: passedCards,
       targetedCards: targetedCards.length,

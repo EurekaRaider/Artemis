@@ -1,0 +1,248 @@
+/* Shared by components.html and apple-inspired-ui.html. Component library is the design source. */
+/* ============ 共享动效与圆角语义 ============ */
+:root {
+  --t-quick: 180ms cubic-bezier(0.32, 0.72, 0, 1);
+  --t-med: 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+/* ============ 方向 A · Apple-inspired（舒适密度 同心圆角 轻毛玻璃） ============ */
+[data-direction="a"] {
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 12px;
+  --r-card: 16px;
+  --r-composer: 18px;
+  --sp-btn-y: 9px;
+  --sp-btn-x: 15px;
+  --sp-field-y: 9px;
+  --row-h: 36px;
+  --fs: 13.5px;
+  --surface-material: var(--surface);
+  --overlay-blur: blur(6px);
+  --font-display: inherit;
+  --title-ls: -0.01em;
+}
+[data-direction="a"][data-theme="light"] {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-2: #f5f5f7;
+  --surface-3: #ececee;
+  --text: #1d1d1f;
+  --text-2: #5a5a60;
+  --text-3: #68686c;
+  --border: rgba(0, 0, 0, 0.12);
+  --border-soft: rgba(0, 0, 0, 0.07);
+  --accent: #0071e3;
+  --accent-strong: #0060c9;
+  --accent-contrast: #ffffff;
+  --accent-text: #0056ae;
+  --success: #23843b;
+  --warning: #b25000;
+  --danger: #d70015;
+  --success-text: #1d6c30;
+  --on-success: #ffffff;
+  --danger-solid: #d70015;
+  --danger-text: #c80014;
+  --warning-text: #ab4d00;
+  --accent-hover: #0071e3;
+  --focus-ring: rgba(0, 113, 227, 0.35);
+  --shadow-overlay:
+    0 12px 40px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.06);
+  color-scheme: light;
+}
+[data-direction="a"][data-theme="dark"] {
+  --bg: #1d1d1f;
+  --surface: #232325;
+  --surface-2: #2c2c2e;
+  --surface-3: #3a3a3c;
+  --text: #f5f5f7;
+  --text-2: #bcbcc1;
+  --text-3: #a6a6aa;
+  --border: rgba(255, 255, 255, 0.16);
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --accent: #2077c9;
+  --accent-strong: #2f8ad8;
+  --accent-contrast: #ffffff;
+  --accent-text: #89b7e2;
+  --success: #30d158;
+  --warning: #ffd60a;
+  --danger: #ff453a;
+  --success-text: #30d158;
+  --on-success: #0e1510;
+  --danger-solid: #d63a31;
+  --danger-text: #ff8179;
+  --warning-text: #ffd60a;
+  --accent-hover: #2076c7;
+  --focus-ring: rgba(41, 151, 255, 0.5);
+  --shadow-overlay:
+    0 12px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+/* ============ 方向 B · Studio Precision（紧凑 直角 高对比描边 实底） ============ */
+[data-direction="b"] {
+  --r-sm: 4px;
+  --r-md: 5px;
+  --r-lg: 6px;
+  --r-card: 8px;
+  --r-composer: 8px;
+  --sp-btn-y: 6px;
+  --sp-btn-x: 11px;
+  --sp-field-y: 6px;
+  --row-h: 30px;
+  --fs: 12.5px;
+  --surface-material: var(--surface);
+  --overlay-blur: none;
+  --font-display: inherit;
+  --title-ls: 0;
+}
+[data-direction="b"][data-theme="light"] {
+  --bg: #f6f7f8;
+  --surface: #ffffff;
+  --surface-2: #eef0f2;
+  --surface-3: #e3e6ea;
+  --text: #16181d;
+  --text-2: #494f58;
+  --text-3: #61656c;
+  --border: rgba(22, 24, 29, 0.18);
+  --border-soft: rgba(22, 24, 29, 0.1);
+  --accent: #3a6ea8;
+  --accent-strong: #2f5c8f;
+  --accent-contrast: #ffffff;
+  --accent-text: #2e5886;
+  --success: #1f8455;
+  --warning: #a3450c;
+  --danger: #d32030;
+  --success-text: #196c46;
+  --on-success: #ffffff;
+  --danger-solid: #d32030;
+  --danger-text: #c41e2d;
+  --warning-text: #a3450c;
+  --accent-hover: #3a6ea8;
+  --focus-ring: rgba(58, 110, 168, 0.4);
+  --shadow-overlay:
+    0 8px 24px rgba(20, 20, 26, 0.12), 0 1px 4px rgba(20, 20, 26, 0.08);
+  color-scheme: light;
+}
+[data-direction="b"][data-theme="dark"] {
+  --bg: #0f1114;
+  --surface: #16191d;
+  --surface-2: #1c2025;
+  --surface-3: #24292f;
+  --text: #f0f2f5;
+  --text-2: #b7bcc4;
+  --text-3: #90969e;
+  --border: rgba(255, 255, 255, 0.2);
+  --border-soft: rgba(255, 255, 255, 0.1);
+  --accent: #5e9bd8;
+  --accent-strong: #79b0e6;
+  --accent-contrast: #0b1523;
+  --accent-text: #7caedf;
+  --success: #3fcf8e;
+  --warning: #f5b83d;
+  --danger: #f2555a;
+  --success-text: #3fcf8e;
+  --on-success: #07130d;
+  --danger-solid: #ca474b;
+  --danger-text: #f36166;
+  --warning-text: #f5b83d;
+  --accent-hover: #5e9bd8;
+  --focus-ring: rgba(94, 155, 216, 0.55);
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.6), 0 1px 4px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+/* ============ 方向 C · Warm Editorial（宽松 大圆角 暖米 衬线标题） ============ */
+[data-direction="c"] {
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-card: 22px;
+  --r-composer: 24px;
+  --sp-btn-y: 11px;
+  --sp-btn-x: 18px;
+  --sp-field-y: 11px;
+  --row-h: 42px;
+  --fs: 14px;
+  --surface-material: var(--surface);
+  --overlay-blur: blur(8px);
+  --font-display: "New York", ui-serif, Georgia, "Songti SC", serif;
+  --title-ls: -0.02em;
+}
+[data-direction="c"][data-theme="light"] {
+  --bg: #f7f4ef;
+  --surface: #fffdfb;
+  --surface-2: #f2eee7;
+  --surface-3: #e8e2d8;
+  --text: #201c18;
+  --text-2: #575047;
+  --text-3: #69625a;
+  --border: rgba(60, 48, 36, 0.14);
+  --border-soft: rgba(60, 48, 36, 0.08);
+  --accent: #ba583c;
+  --accent-strong: #a04a30;
+  --accent-contrast: #ffffff;
+  --accent-text: #8a412c;
+  --success: #4a7c59;
+  --warning: #a06a1c;
+  --danger: #b3402f;
+  --success-text: #3e684a;
+  --on-success: #ffffff;
+  --danger-solid: #b3402f;
+  --danger-text: #ad3e2d;
+  --warning-text: #875a18;
+  --accent-hover: #b8573b;
+  --focus-ring: rgba(193, 92, 63, 0.35);
+  --shadow-overlay:
+    0 14px 44px rgba(60, 48, 36, 0.14), 0 2px 8px rgba(60, 48, 36, 0.05);
+  color-scheme: light;
+}
+[data-direction="c"][data-theme="dark"] {
+  --bg: #1f1c19;
+  --surface: #27231f;
+  --surface-2: #2e2a25;
+  --surface-3: #38332d;
+  --text: #f3efe9;
+  --text-2: #cabfb4;
+  --text-3: #a59d94;
+  --border: rgba(240, 230, 218, 0.16);
+  --border-soft: rgba(240, 230, 218, 0.09);
+  --accent: #a4654e;
+  --accent-strong: #b57760;
+  --accent-contrast: #ffffff;
+  --accent-text: #c9a497;
+  --success: #7fb98a;
+  --warning: #d9a84e;
+  --danger: #e07a5f;
+  --success-text: #7fb98a;
+  --on-success: #12140f;
+  --danger-solid: #ae5f4a;
+  --danger-text: #e3856d;
+  --warning-text: #d9a84e;
+  --accent-hover: #a2644d;
+  --focus-ring: rgba(224, 138, 107, 0.5);
+  --shadow-overlay:
+    0 14px 44px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+/* increased-contrast（三方向通用） */
+[data-contrast="high"][data-theme="light"] {
+  --text-2: #3a3a3c;
+  --text-3: #55555c;
+  --border: rgba(0, 0, 0, 0.3);
+  --border-soft: rgba(0, 0, 0, 0.18);
+}
+[data-contrast="high"][data-theme="dark"] {
+  --text-2: #dcdce0;
+  --text-3: #bdbdc2;
+  --border: rgba(255, 255, 255, 0.36);
+  --border-soft: rgba(255, 255, 255, 0.22);
+}
+
+:root {
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC",
+    sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --z-menu: 30;
+  --z-popover: 60;
+  --z-dialog: 100;
+  --z-toast: 200;
+}

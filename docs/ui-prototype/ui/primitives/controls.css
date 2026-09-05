@@ -1,0 +1,336 @@
+/* Shared controls. ui-* classes are the public styling API; legacy classes are adapters only. */
+.ui-button.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  box-sizing: border-box;
+  height: auto;
+  min-height: 32px;
+  padding: var(--sp-btn-y) var(--sp-btn-x);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  color: var(--text);
+  font: 520 var(--fs)/1.25 var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--t-quick),
+    color var(--t-quick),
+    border-color var(--t-quick),
+    transform var(--t-quick);
+}
+.ui-button.ui-button:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+.ui-button.ui-button[data-variant="primary"] {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: transparent;
+}
+.ui-button.ui-button[data-variant="primary"]:hover:not(:disabled) {
+  background: var(--accent-hover);
+  filter: brightness(1.04);
+}
+.ui-button.ui-button[data-variant="ghost"] {
+  background: transparent;
+  color: var(--text-2);
+  border-color: transparent;
+}
+.ui-button.ui-button[data-variant="ghost"]:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.ui-button.ui-button[data-variant="ghost"][data-tone="danger"] {
+  color: var(--danger-text);
+}
+.ui-button.ui-button[data-variant="ghost"][data-tone="danger"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger-text) 10%, transparent);
+  color: var(--danger-text);
+}
+.ui-button.ui-button[data-variant="danger"] {
+  background: var(--danger-solid);
+  color: #fff;
+  border-color: transparent;
+}
+.ui-button.ui-button[data-size="compact"] {
+  min-height: 28px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.ui-button.ui-button[data-icon-only] {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  flex-shrink: 0;
+}
+.ui-button.ui-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.ui-button.ui-button:disabled,
+.ui-button.ui-button[aria-disabled="true"] {
+  opacity: 0.42;
+  cursor: not-allowed;
+  transform: none;
+  filter: none;
+}
+.ui-button.ui-button[aria-busy="true"] {
+  cursor: progress;
+}
+.ui-button.ui-button:focus-visible,
+.ui-field.ui-field:focus-visible,
+.ui-tab.ui-tab:focus-visible,
+.ui-menu-item:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.ui-field.ui-field {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  padding: var(--sp-field-y) 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font: 400 var(--fs)/1.5 var(--font-ui);
+  transition:
+    border-color var(--t-quick),
+    box-shadow var(--t-quick);
+}
+.ui-field.ui-field::placeholder {
+  color: var(--text-3);
+}
+.ui-field.ui-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--surface-2);
+}
+.ui-field.ui-field[aria-invalid="true"] {
+  border-color: var(--danger-text);
+}
+select.ui-field.ui-field {
+  appearance: auto;
+  cursor: pointer;
+  padding-right: 8px;
+}
+.ui-field.ui-field[data-size="compact"] {
+  padding: 5px 9px;
+  font-size: 12px;
+}
+.ui-tabs {
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+}
+.ui-tab.ui-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  height: auto;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  font: 500 12px/1.4 var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background var(--t-quick),
+    color var(--t-quick),
+    border-color var(--t-quick);
+}
+.ui-tab.ui-tab:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.ui-tab.ui-tab[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border-soft);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+}
+.ui-tab.ui-tab:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.ui-tab .ui-tab-close {
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
+  color: var(--text-3);
+}
+.ui-tab .ui-tab-close:hover {
+  background: var(--surface-3);
+  color: var(--danger-text);
+}
+.ui-tab svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.ui-floating.ui-floating {
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-material);
+  color: var(--text);
+  box-shadow: var(--shadow-overlay);
+  backdrop-filter: var(--overlay-blur);
+  -webkit-backdrop-filter: var(--overlay-blur);
+  z-index: var(--z-popover);
+  transition:
+    opacity var(--t-quick),
+    transform var(--t-quick);
+}
+.ui-floating.ui-floating:not(.open) {
+  visibility: hidden;
+  pointer-events: none;
+}
+.ui-floating.ui-floating.open {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+.ui-menu-item.ui-menu-item {
+  color: var(--text);
+  border-radius: calc(var(--r-sm) - 2px);
+}
+.ui-menu-item.ui-menu-item:hover,
+.ui-menu-item.ui-menu-item:focus {
+  background: var(--surface-3);
+}
+.ui-menu-item.ui-menu-item[aria-selected="true"] {
+  color: var(--accent-text);
+}
+.ui-menu-item.ui-menu-item:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.ui-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+.ui-toast {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  z-index: var(--z-toast);
+  max-width: calc(100vw - 32px);
+  border-radius: var(--r-md);
+  padding: 9px 16px;
+  color: var(--bg);
+  background: var(--text);
+  font: 12.5px/1.5 var(--font-ui);
+  opacity: 0;
+  transition:
+    opacity var(--t-med),
+    transform var(--t-med);
+}
+.ui-toast.show {
+  opacity: 1;
+  transform: translateX(-50%);
+}
+.ui-toast.error {
+  color: #fff;
+  background: var(--danger-solid);
+}
+[data-ui-hidden="true"] {
+  display: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-button,
+  .ui-field,
+  .ui-tab,
+  .ui-floating,
+  .ui-toast {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+/* Native checkbox-backed and button-backed switches share the same track geometry. */
+label.ui-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  position: relative;
+  cursor: pointer;
+}
+.ui-switch > .track,
+button.ui-switch {
+  box-sizing: border-box;
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 23px;
+  flex: none;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  padding: 0;
+  background: var(--surface-3);
+  transition: background var(--t-quick);
+  cursor: pointer;
+}
+.ui-switch > .track::after,
+button.ui-switch::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 19px;
+  height: 19px;
+  margin: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.22);
+  transition: transform var(--t-quick);
+}
+.ui-switch input:checked + .track,
+button.ui-switch[aria-checked="true"] {
+  background: var(--accent);
+  border-color: transparent;
+}
+.ui-switch input:checked + .track::after,
+button.ui-switch[aria-checked="true"]::after {
+  transform: translateX(15px);
+}
+button.ui-switch:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+button.ui-switch:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.settings-tabs .ui-tab {
+  justify-content: flex-start;
+  text-align: left;
+}
+.ui-button.ui-button[data-variant="primary"]:hover:not(:disabled) {
+  color: var(--accent-contrast);
+}
+.ui-button.ui-button[data-variant="danger"]:hover:not(:disabled) {
+  background: var(--danger-solid);
+  color: #fff;
+  filter: brightness(0.96);
+}

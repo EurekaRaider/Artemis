@@ -1,0 +1,347 @@
+{
+  "generatedAt": "2026-09-05T03:03:37.777846+00:00",
+  "scope": "Static browser prototype only",
+  "library": {
+    "ok": true,
+    "checks": [
+      "catalog has all 70 cards and no duplicate IDs",
+      "existing catalog behavior contracts",
+      "dialog variants and environment actions retain shared controls",
+      "shared select keyboard and focus restore",
+      "nested dialog preserves environment and consumes one Escape",
+      "settings focus and vertical keyboard navigation",
+      "multiple independent instances, idempotent mount, destroy and remount",
+      "button factory renders text safely and keeps native disabled behavior",
+      "goal save failure preserves draft; destroy ignores late save",
+      "primary and danger hover colors retain their contrasting text",
+      "theme parity across both consumers",
+      "single-file offline export resolves every script and stylesheet"
+    ],
+    "errors": []
+  },
+  "workspace": {
+    "ok": true,
+    "checks": [
+      "defaults and component order",
+      "panel review",
+      "panel terminal",
+      "panel browser",
+      "panel files",
+      "panel goal",
+      "panel sources",
+      "panel markdown",
+      "panel team",
+      "panel agent",
+      "goal edit/save/revert",
+      "file selection/edit/save",
+      "review filtering and selection",
+      "browser address and history",
+      "tab keyboard, close all, reopen",
+      "environment groups and commit dialog",
+      "settings general",
+      "settings providers",
+      "settings im",
+      "settings agents",
+      "settings capabilities",
+      "settings maintenance",
+      "settings keyboard/focus return",
+      "resource panel switching",
+      "viewport 1440",
+      "viewport 1280",
+      "viewport 1024",
+      "viewport 980",
+      "viewport 768",
+      "viewport 390",
+      "minimum desktop height and task tree",
+      "main view token-usage",
+      "main view automations",
+      "main view archive"
+    ],
+    "errors": []
+  },
+  "catalog": {
+    "totalCards": 70,
+    "passedCards": 70,
+    "targetedCards": 23
+  },
+  "contrast": {
+    "chrome": "Google Chrome 152.0.7977.76 ",
+    "combos": 36,
+    "manifestExact": true,
+    "critical": 0,
+    "totalFailures": 0,
+    "totalCountMismatches": 0,
+    "verdict": "PASS",
+    "coverageStatement": "方向 × 主题 × 对比度 × 三种扫描场景（default/open/hover）＝36 组合；非『全状态矩阵』。"
+  },
+  "fixtures": {
+    "ok": true,
+    "cases": 13
+  },
+  "structure": {
+    "ok": true,
+    "cases": 14
+  },
+  "layout": {
+    "ok": true,
+    "cases": [
+      {
+        "ok": true,
+        "viewport": {
+          "width": 1440,
+          "height": 813,
+          "dpr": 1
+        },
+        "checks": [
+          {
+            "name": "no-horizontal-overflow",
+            "ok": true,
+            "detail": "1440 <= 1440"
+          },
+          {
+            "name": "composer-inside-conversation",
+            "ok": true,
+            "detail": "composer={\"x\":318,\"y\":604.75,\"width\":388.96875,\"height\":190.25,\"top\":604.75,\"right\":706.96875,\"bottom\":795,\"left\":318}"
+          },
+          {
+            "name": "toolbar-inside-composer",
+            "ok": true,
+            "detail": "toolbar={\"x\":333,\"y\":717,\"width\":358.96875,\"height\":66,\"top\":717,\"right\":691.96875,\"bottom\":783,\"left\":333}"
+          },
+          {
+            "name": "toolbar-control-1",
+            "ok": true,
+            "detail": "添加附件"
+          },
+          {
+            "name": "toolbar-control-2",
+            "ok": true,
+            "detail": "智能审批"
+          },
+          {
+            "name": "toolbar-control-3",
+            "ok": true,
+            "detail": "GLM · 自动"
+          },
+          {
+            "name": "toolbar-control-4",
+            "ok": true,
+            "detail": "停止"
+          },
+          {
+            "name": "toolbar-control-5",
+            "ok": true,
+            "detail": "发送"
+          },
+          {
+            "name": "resizer-pixel-range",
+            "ok": true,
+            "detail": "440 <= 708 <= 815"
+          },
+          {
+            "name": "resizer-controls",
+            "ok": true,
+            "detail": "conversation workspaceDock"
+          },
+          {
+            "name": "closed-resizer-not-tabbable",
+            "ok": true,
+            "detail": "open=true, tabindex=0"
+          },
+          {
+            "name": "launcher-has-four-tools",
+            "ok": true,
+            "detail": "4"
+          }
+        ],
+        "failures": [],
+        "case": "normal"
+      },
+      {
+        "ok": true,
+        "viewport": {
+          "width": 1440,
+          "height": 813,
+          "dpr": 2
+        },
+        "checks": [
+          {
+            "name": "no-horizontal-overflow",
+            "ok": true,
+            "detail": "1440 <= 1440"
+          },
+          {
+            "name": "composer-inside-conversation",
+            "ok": true,
+            "detail": "composer={\"x\":318,\"y\":604.75,\"width\":388.9609375,\"height\":190.25,\"top\":604.75,\"right\":706.9609375,\"bottom\":795,\"left\":318}"
+          },
+          {
+            "name": "toolbar-inside-composer",
+            "ok": true,
+            "detail": "toolbar={\"x\":333,\"y\":717,\"width\":358.9609375,\"height\":66,\"top\":717,\"right\":691.9609375,\"bottom\":783,\"left\":333}"
+          },
+          {
+            "name": "toolbar-control-1",
+            "ok": true,
+            "detail": "添加附件"
+          },
+          {
+            "name": "toolbar-control-2",
+            "ok": true,
+            "detail": "智能审批"
+          },
+          {
+            "name": "toolbar-control-3",
+            "ok": true,
+            "detail": "GLM · 自动"
+          },
+          {
+            "name": "toolbar-control-4",
+            "ok": true,
+            "detail": "停止"
+          },
+          {
+            "name": "toolbar-control-5",
+            "ok": true,
+            "detail": "发送"
+          },
+          {
+            "name": "resizer-pixel-range",
+            "ok": true,
+            "detail": "440 <= 708 <= 815"
+          },
+          {
+            "name": "resizer-controls",
+            "ok": true,
+            "detail": "conversation workspaceDock"
+          },
+          {
+            "name": "closed-resizer-not-tabbable",
+            "ok": true,
+            "detail": "open=true, tabindex=0"
+          },
+          {
+            "name": "launcher-has-four-tools",
+            "ok": true,
+            "detail": "4"
+          }
+        ],
+        "failures": [],
+        "case": "zoom200"
+      },
+      {
+        "ok": true,
+        "viewport": {
+          "width": 1440,
+          "height": 813,
+          "dpr": 1
+        },
+        "checks": [
+          {
+            "name": "no-horizontal-overflow",
+            "ok": true,
+            "detail": "1440 <= 1440"
+          },
+          {
+            "name": "composer-inside-conversation",
+            "ok": true,
+            "detail": "composer={\"x\":409,\"y\":638.75,\"width\":920,\"height\":156.25,\"top\":638.75,\"right\":1329,\"bottom\":795,\"left\":409}"
+          },
+          {
+            "name": "toolbar-inside-composer",
+            "ok": true,
+            "detail": "toolbar={\"x\":424,\"y\":751,\"width\":890,\"height\":32,\"top\":751,\"right\":1314,\"bottom\":783,\"left\":424}"
+          },
+          {
+            "name": "toolbar-control-1",
+            "ok": true,
+            "detail": "添加附件"
+          },
+          {
+            "name": "toolbar-control-2",
+            "ok": true,
+            "detail": "智能审批"
+          },
+          {
+            "name": "toolbar-control-3",
+            "ok": true,
+            "detail": "GLM · 自动"
+          },
+          {
+            "name": "toolbar-control-4",
+            "ok": true,
+            "detail": "停止"
+          },
+          {
+            "name": "toolbar-control-5",
+            "ok": true,
+            "detail": "发送"
+          },
+          {
+            "name": "resizer-pixel-range",
+            "ok": true,
+            "detail": "440 <= 708 <= 815"
+          },
+          {
+            "name": "resizer-controls",
+            "ok": true,
+            "detail": "conversation workspaceDock"
+          },
+          {
+            "name": "closed-resizer-not-tabbable",
+            "ok": true,
+            "detail": "open=false, tabindex=-1"
+          },
+          {
+            "name": "launcher-has-four-tools",
+            "ok": true,
+            "detail": "4"
+          }
+        ],
+        "failures": [],
+        "case": "closed"
+      }
+    ],
+    "failures": []
+  },
+  "runnerT1ThroughT7": {
+    "run": false,
+    "reason": "RUN_SELFTESTS=0; pixel and structure fixture checks still ran."
+  },
+  "finalSourceSha256": {
+    "apple-inspired-ui.html": "7d18fb90d20af620e8a041cf7260c53c867bbb7fbcb7d28502f48597a87d5c9e",
+    "components.html": "5e7e2bf3d72de021d2b31b94d87d9c4faad2b5352ce5841f85f0508dc523dec2",
+    "showcase/showcase.css": "2eb17ca1d49b7adb03ad4dd9ec343aa9ad397e2fe33c6541282e82e92acf8a2d",
+    "showcase/showcase.js": "1d0188aada097bdc3675cbcfe5fb3baf6b11396c626c863dd4f64e80a70439ce",
+    "ui/artemis/catalog.css": "135e1cbc58f91fda72b0adde4822e48756dcbf86a05bdeaeeadde6f8ca0f20a5",
+    "ui/artemis/patterns.js": "c5a98bedc1ce59944000e5d61ec85ec7cbf616f146eafd9c13063c394e77a4f4",
+    "ui/artemis/task-plan.css": "621f886f25afdef63f3bb1d48ec76c7c9aa1e8089d20541d815373e03ca9645d",
+    "ui/compat.css": "2bdc516da4336f311d70f2805f6e75b5d9c1726e74d83f04d602f8b095868ab3",
+    "ui/index.css": "bce77981a25ac304c16d45d2a91300e778e62227775e1180300e62403c039a9b",
+    "ui/index.js": "4e71138e02f45f6ade8681f66a629831a4cdc0ab0fda9ef57b53e032b48cd09a",
+    "ui/primitives/controls.css": "778724c1579581dbd369284b17722d8093505023cffab3efb6eddb11f249db22",
+    "ui/tokens.css": "e73cab553f5d092607881fb0479b3e9e7abece28c72676c2daecc1b49d6de44c",
+    "workspace/fixtures.js": "a7912c84320494600dc53b4b59a6c1cdeaa2ab56887465fc360708c28684d9a6",
+    "workspace/workspace.css": "d23793dd5b2285fb47175e427be5306d8d5199a37debe65265a0fd61403bd2de",
+    "workspace/workspace.js": "09f98f5e0f3c8557887d8f8c4dbff1d8a833f270b5a46e4fe6edfbb895972052",
+    "workspace-composition.css": "e6948a8711dbc34d552b40ca1a1d1644eaf041d28a9dae5b245b417f5966c626"
+  },
+  "contrastSnapshotSha256": {
+    "apple-inspired-ui.html": "eae01ea3083bc4eda1f0e69f9abe598d475c38142b4cdefba77da343ccfd9275",
+    "components.html": "5e7e2bf3d72de021d2b31b94d87d9c4faad2b5352ce5841f85f0508dc523dec2",
+    "showcase/showcase.css": "2eb17ca1d49b7adb03ad4dd9ec343aa9ad397e2fe33c6541282e82e92acf8a2d",
+    "showcase/showcase.js": "3178373ad67599935713f5b39932f4ccdc7f881a1b68572acf1e016185c6a97b",
+    "ui/artemis/catalog.css": "135e1cbc58f91fda72b0adde4822e48756dcbf86a05bdeaeeadde6f8ca0f20a5",
+    "ui/artemis/patterns.js": "c5a98bedc1ce59944000e5d61ec85ec7cbf616f146eafd9c13063c394e77a4f4",
+    "ui/artemis/task-plan.css": "621f886f25afdef63f3bb1d48ec76c7c9aa1e8089d20541d815373e03ca9645d",
+    "ui/compat.css": "2bdc516da4336f311d70f2805f6e75b5d9c1726e74d83f04d602f8b095868ab3",
+    "ui/index.css": "bce77981a25ac304c16d45d2a91300e778e62227775e1180300e62403c039a9b",
+    "ui/index.js": "5e2884d2054b839ed54c74e4d369c42dd8adae90064e974f88bf0ee3b14137d7",
+    "ui/primitives/controls.css": "778724c1579581dbd369284b17722d8093505023cffab3efb6eddb11f249db22",
+    "ui/tokens.css": "e73cab553f5d092607881fb0479b3e9e7abece28c72676c2daecc1b49d6de44c",
+    "workspace/fixtures.js": "a7912c84320494600dc53b4b59a6c1cdeaa2ab56887465fc360708c28684d9a6",
+    "workspace/workspace.css": "d23793dd5b2285fb47175e427be5306d8d5199a37debe65265a0fd61403bd2de",
+    "workspace/workspace.js": "4ecb2f7c8c3091f2096414e169cfc857f8a44c2f8693d3efdf824a3b4336a7de",
+    "workspace-composition.css": "e6948a8711dbc34d552b40ca1a1d1644eaf041d28a9dae5b245b417f5966c626"
+  }
+}

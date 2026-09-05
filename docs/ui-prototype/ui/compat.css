@@ -1,0 +1,34 @@
+/* Temporary aliases for the existing workspace composition. No second theme palette. */
+html[data-direction] {
+  --ui-font: var(--font-ui);
+  --mono-font: var(--font-mono);
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --shell-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-standard: var(--t-med);
+  --r-control: var(--r-sm);
+  --r-input: var(--r-md);
+  --r-panel: var(--r-card);
+  --on-accent: var(--accent-contrast);
+  --sunken: var(--surface-2);
+  --panel-2: var(--surface);
+  --panel-3: var(--surface-3);
+  --raised: var(--surface);
+  --bg-sidebar: var(--surface-2);
+  --bg-activity: var(--surface-3);
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, transparent);
+  --success-soft: color-mix(in srgb, var(--success) 14%, transparent);
+  --warning-soft: color-mix(in srgb, var(--warning) 14%, transparent);
+  --danger-soft: color-mix(in srgb, var(--danger) 10%, transparent);
+  --hover: color-mix(in srgb, var(--text) 5%, transparent);
+  /* Real app --selected is a neutral lift (#292b30 / #dfdfdc), one step above --hover;
+     hover and selected even share the token in context menus. Accent-tint here made
+     adjacent touching row highlights read as glued-together blocks. */
+  --selected: color-mix(in srgb, var(--text) 8%, transparent);
+  --material: var(--surface-material);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-composer: none;
+  --terminal-bg: #1d1d1f;
+  --terminal-fg: #e8e8ed;
+  --diff-add-bg: color-mix(in srgb, var(--success) 10%, transparent);
+  --diff-del-bg: color-mix(in srgb, var(--danger) 10%, transparent);
+}

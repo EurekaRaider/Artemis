@@ -1,0 +1,456 @@
+{
+  "version": 1,
+  "scope": "Static prototype library; does not imply React/Electron production migration.",
+  "cards": [
+    {
+      "card": "cat-overview-01",
+      "name": "同组件三方向速览",
+      "style": "ui/artemis/catalog.css",
+      "status": "specification"
+    },
+    {
+      "card": "cat-tokens-01",
+      "name": "字体排印",
+      "style": "ui/artemis/catalog.css",
+      "status": "specification"
+    },
+    {
+      "card": "cat-tokens-02",
+      "name": "间距与密度",
+      "style": "ui/artemis/catalog.css",
+      "status": "specification"
+    },
+    {
+      "card": "cat-tokens-03",
+      "name": "圆角与阴影",
+      "style": "ui/artemis/catalog.css",
+      "status": "specification"
+    },
+    {
+      "card": "cat-tokens-04",
+      "name": "动效节奏",
+      "style": "ui/artemis/catalog.css",
+      "status": "specification"
+    },
+    {
+      "card": "cat-basic-01",
+      "name": "按钮变体与状态",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "button / .ui-button",
+      "workspace": "全页操作按钮"
+    },
+    {
+      "card": "cat-basic-02",
+      "name": "徽章",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-basic-03",
+      "name": "图标按钮",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "button({iconOnly:true})",
+      "workspace": "顶栏、Composer、面板工具栏"
+    },
+    {
+      "card": "cat-basic-04",
+      "name": "头像",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-basic-05",
+      "name": "分段控件",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-basic-06",
+      "name": "快捷键 · 提示 · 进度",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-icons-01",
+      "name": "图标网格与规范",
+      "style": "ui/artemis/catalog.css",
+      "status": "specification"
+    },
+    {
+      "card": "cat-icons-02",
+      "name": "尺寸档",
+      "style": "ui/artemis/catalog.css",
+      "status": "specification"
+    },
+    {
+      "card": "cat-icons-03",
+      "name": "自主设计图标库",
+      "style": "ui/artemis/catalog.css",
+      "status": "specification"
+    },
+    {
+      "card": "cat-icons-04",
+      "name": "Agent 团队标记",
+      "style": "ui/artemis/catalog.css",
+      "status": "specification"
+    },
+    {
+      "card": "cat-input-01",
+      "name": "文本框",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": ".ui-field",
+      "workspace": "设置表单"
+    },
+    {
+      "card": "cat-input-02",
+      "name": "搜索框",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-input-03",
+      "name": "字段类型",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": ".ui-field",
+      "workspace": "设置表单"
+    },
+    {
+      "card": "cat-input-04",
+      "name": "下拉选择",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "menu",
+      "workspace": "运行模式、审批策略、项目、分支、模型"
+    },
+    {
+      "card": "cat-input-05",
+      "name": "开关与复选",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "toggle / .ui-switch",
+      "workspace": "设置页"
+    },
+    {
+      "card": "cat-overlay-01",
+      "name": "对话框",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "dialog",
+      "workspace": "设置、提交表单"
+    },
+    {
+      "card": "cat-overlay-02",
+      "name": "Popover",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "floating",
+      "workspace": "环境浮层"
+    },
+    {
+      "card": "cat-overlay-03",
+      "name": "Toast",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "toast",
+      "workspace": "全页反馈"
+    },
+    {
+      "card": "cat-data-01",
+      "name": "标签页",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "tabs",
+      "workspace": "设置分类、资源分类"
+    },
+    {
+      "card": "cat-data-02",
+      "name": "活动栏按钮",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-data-03",
+      "name": "面包屑",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-data-04",
+      "name": "动态 Dock 标签",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "tabs / tab",
+      "workspace": "9 类 Dock 面板"
+    },
+    {
+      "card": "cat-data-05",
+      "name": "可调整分栏",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "splitPane",
+      "workspace": "侧栏和 Dock 调宽"
+    },
+    {
+      "card": "cat-data-06",
+      "name": "工具栏",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-data-07",
+      "name": "侧栏树行",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-data-08",
+      "name": "列表行 + 树",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-data-09",
+      "name": "卡片 + 统计卡",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-data-10",
+      "name": "差异 Diff",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-data-11",
+      "name": "表格",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-data-12",
+      "name": "热力图 + 终端",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-data-13",
+      "name": "状态胶囊",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-data-14",
+      "name": "消息",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-data-15",
+      "name": "面板头 + 滚动区",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-state-01",
+      "name": "空状态",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-state-02",
+      "name": "加载骨架",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-state-03",
+      "name": "错误横幅",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-state-04",
+      "name": "内联提示",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-sources-01",
+      "name": "来源卡片（四类型）",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-sources-02",
+      "name": "网页搜索来源组",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-sources-03",
+      "name": "MCP 调用来源组",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-sources-04",
+      "name": "来源空态",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-sources-05",
+      "name": "来源归属标签",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-sources-06",
+      "name": "目标编辑器",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "ArtemisPatterns.goalEditor",
+      "workspace": "目标面板"
+    },
+    {
+      "card": "cat-sources-07",
+      "name": "目标编辑器 stale 冲突",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-sources-08",
+      "name": "环境来源集成 + PR checks",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-01",
+      "name": "运行模式",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-02",
+      "name": "工具活动",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "disclosure",
+      "workspace": "会话工具卡"
+    },
+    {
+      "card": "cat-artemis-03",
+      "name": "任务计划胶囊",
+      "style": "ui/artemis/catalog.css",
+      "status": "shared-runtime",
+      "api": "ArtemisPatterns.taskPlan",
+      "workspace": "Composer 上方任务计划"
+    },
+    {
+      "card": "cat-artemis-04",
+      "name": "模型选择",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-05",
+      "name": "输入区",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-06",
+      "name": "上下文环",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-07",
+      "name": "附件芯片",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-08",
+      "name": "Agent 团队",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-09",
+      "name": "提示历史",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-10",
+      "name": "Browser 地址栏",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-11",
+      "name": "Markdown 编辑与预览",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-12",
+      "name": "环境操作对话框",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-13",
+      "name": "设置复杂表单",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-14",
+      "name": "Composer",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-15",
+      "name": "排队消息 steer",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-16",
+      "name": "斜杠命令菜单",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-17",
+      "name": "用户输入请求",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-18",
+      "name": "多组问答",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-19",
+      "name": "输入结果态",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    },
+    {
+      "card": "cat-artemis-20",
+      "name": "审批卡",
+      "style": "ui/artemis/catalog.css",
+      "status": "anatomy-and-demo"
+    }
+  ]
+}

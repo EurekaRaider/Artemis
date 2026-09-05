@@ -88,7 +88,7 @@ TMP="$(mktemp -d /tmp/artemis-contrast.XXXXXX)"
 node - "$ROOT" "$TMP" <<'NODE'
 const fs = require("fs");
 const [root, tmp] = process.argv.slice(2);
-let html = fs.readFileSync(root + "/components.html", "utf8");
+let html = require(root + "/tools/inline-assets.cjs").inlineAssets(root + "/components.html");
 const scanner = fs.readFileSync(root + "/contrast/scanner.js", "utf8");
 const boot = `
 <script>
@@ -107,7 +107,7 @@ const boot = `
       ["#openDlg", "#toastInfo", "#toastErr"].forEach(function (sel) {
         var b = document.querySelector(sel); if (b) b.click();
       });
-      document.querySelectorAll(".select-trig").forEach(function (t, i) { if (i < 4) t.click(); });
+      var select = document.querySelector("#sel1"); if (select) select.click();
       /* Toast：show 类由 rAF 追加且 3s 自毁——构造静态等价节点供扫描，语义/底色一致 */
       try {
         var host = document.getElementById("toastHost");
@@ -129,10 +129,10 @@ const boot = `
         }
         if (s === "hover") {
           var css = [];
-          document.querySelectorAll("style").forEach(function (tag) {
-            tag.textContent.split("}").forEach(function (chunk) {
-              var sel = chunk.split("{")[0];
-              if (sel.includes(":hover")) css.push(chunk + "}");
+          // Keep grouping rules (including @scope) intact when forcing hover states.
+          Array.from(document.styleSheets).forEach(function (sheet) {
+            Array.from(sheet.cssRules).forEach(function (rule) {
+              if (rule.cssText.includes(":hover")) css.push(rule.cssText);
             });
           });
           var st = document.createElement("style");
@@ -415,7 +415,7 @@ rm -f "$CONTRACT_JSON"
 node - "$ROOT" "$TMP" <<'NODECONTRACT'
 const fs = require("fs");
 const [root, tmp] = process.argv.slice(2);
-let html = fs.readFileSync(root + "/components.html", "utf8");
+let html = require(root + "/tools/inline-assets.cjs").inlineAssets(root + "/components.html");
 const contracts = fs.readFileSync(root + "/tools/prototype-contracts.js", "utf8");
 const boot = `<script>${contracts}<\/script><script>
 setTimeout(async function () {
@@ -731,6 +731,8 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
   T5DIR="$(mktemp -d /tmp/artemis-nobrowser.XXXXXX)"
   cp -r "$ROOT/contrast" "$T5DIR/contrast"
   cp "$ROOT/components.html" "$ROOT/apple-inspired-ui.html" "$T5DIR/"
+  cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T5DIR/"
+  cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T5DIR/"
   cp "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T5DIR/"
   cp -r "$ROOT/tools" "$T5DIR/tools"
   RUN_SELFTESTS=0 CHROME=/usr/bin/true "$T5DIR/contrast/run-headless.zsh" >/dev/null 2>&1
@@ -754,6 +756,8 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
   mkdir -p "$T6DIR/prototype"
   cp -r "$ROOT/contrast" "$ROOT/tools" "$T6DIR/prototype/"
   cp "$ROOT/components.html" "$ROOT/apple-inspired-ui.html" "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T6DIR/prototype/"
+  cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T6DIR/prototype/"
+  cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T6DIR/prototype/"
   RUN_SELFTESTS=0 CHROME="$CHROME" "$T6DIR/prototype/contrast/run-headless.zsh" >/dev/null 2>&1
   T6_RC=$?
   if [ -n "$REPO_ROOT" ]; then
@@ -766,6 +770,8 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
   T7DIR="$(mktemp -d /tmp/artemis-layout-flat.XXXXXX)"
   cp -r "$ROOT/contrast" "$ROOT/tools" "$T7DIR/"
   cp "$ROOT/components.html" "$ROOT/apple-inspired-ui.html" "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T7DIR/"
+  cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T7DIR/"
+  cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T7DIR/"
   RUN_SELFTESTS=0 CHROME="$CHROME" "$T7DIR/contrast/run-headless.zsh" >/dev/null 2>&1
   T7_RC=$?
   if [ -n "$REPO_ROOT" ]; then
