@@ -1087,7 +1087,7 @@ async function verifyReferenceSliceGeometry(connection) {
   const contentWidths = [935, 943, 949];
   const contentWidthCases = [];
   for (const contentWidth of contentWidths) {
-    const workspaceFrameInlineChrome = 4;
+    const workspaceFrameInlineChrome = 0;
     const requestedViewportWidth =
       46 + initialSidebarWidth + workspaceFrameInlineChrome + contentWidth;
     await setReferenceSliceViewport(connection, requestedViewportWidth, 900);
