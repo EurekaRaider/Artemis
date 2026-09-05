@@ -4,7 +4,7 @@ import { Popover } from "@artemis/ui/feedback";
 
 export type ImChannel = ImConnectionStatus["channel"];
 export type ImView =
-  ImChannel | "gateway" | "pairing" | "permissions" | "spaces";
+  ImChannel | "gateway" | "pairing" | "permissions" | "spaces" | "setup-guide";
 export type ImTranslate = (cn: string, en: string) => string;
 export const IM_CHANNELS = ["wecom", "feishu", "slack"] as const;
 export function imChannelLabel(channel: ImChannel, t: ImTranslate) {
@@ -16,7 +16,7 @@ export function imChannelLabel(channel: ImChannel, t: ImTranslate) {
 }
 export function imChannelConstraint(channel: ImChannel, t: ImTranslate) {
   return channel === "feishu"
-    ? t("需公网 HTTPS 回调 · 团队服务", "Public HTTPS callback · Team Gateway")
+    ? t("长连接或 HTTPS 回调", "Long connection or HTTPS callback")
     : channel === "wecom"
       ? t("长连接 · 无需公网地址", "Long connection · No public URL")
       : t("Socket Mode · Manifest 导入", "Socket Mode · Import manifest");
@@ -34,6 +34,36 @@ export function imConnectionLabel(
         : state === "disabled"
           ? t("已停用", "Disabled")
           : t("未配置", "Not configured");
+}
+export function imConnectionHealth(connections: readonly ImConnectionStatus[]) {
+  const failed = connections.filter((c) => c.state === "error").length;
+  const connecting = connections.some((c) => c.state === "connecting");
+  const connected = connections.some((c) => c.state === "connected");
+  return {
+    total: connections.length,
+    failed,
+    state: failed
+      ? "error"
+      : connecting
+        ? "connecting"
+        : connected
+          ? "connected"
+          : connections.length
+            ? "disabled"
+            : undefined,
+  } as const;
+}
+export function imConnectionSummary(
+  connections: readonly ImConnectionStatus[],
+  t: ImTranslate,
+) {
+  const { total, failed } = imConnectionHealth(connections);
+  return failed
+    ? t(
+        `${total} 个连接，${failed} 个异常`,
+        `${total} connections, ${failed} failed`,
+      )
+    : t(`${total} 个连接`, `${total} connections`);
 }
 export function ImNavigation({
   view,
@@ -57,6 +87,7 @@ export function ImNavigation({
     { id: "pairing", label: t("配对与账号", "Pairing & accounts") },
     { id: "permissions", label: t("项目授权", "Project permissions") },
     { id: "spaces", label: t("群协作空间", "Group spaces") },
+    { id: "setup-guide", label: t("设置指引", "Setup guide") },
   ] as const;
   const options = [
     ...IM_CHANNELS.map((id) => ({ id, label: imChannelLabel(id, t) })),
@@ -108,9 +139,7 @@ export function ImNavigation({
           const channelConnections = connections.filter(
             (c) => c.channel === item.id,
           );
-          const connection =
-            channelConnections.find((c) => c.state === "connected") ??
-            channelConnections[0];
+          const health = imConnectionHealth(channelConnections);
           return (
             <div className="im-nav-item" key={item.id} role="presentation">
               {!compact && (index === 0 || index === 3) && (
@@ -126,6 +155,11 @@ export function ImNavigation({
                 role="tab"
                 aria-selected={view === item.id}
                 aria-controls={`im-panel-${item.id}`}
+                title={
+                  channel
+                    ? `${imConnectionSummary(channelConnections, t)} · ${imConnectionLabel(health.state, t)}`
+                    : undefined
+                }
                 tabIndex={view === item.id ? 0 : -1}
                 onClick={() => onSelect(item.id)}
               >
@@ -134,13 +168,13 @@ export function ImNavigation({
                     <span
                       aria-hidden="true"
                       className="im-dot"
-                      data-state={connection?.state}
+                      data-state={health.state}
                     />
                   )}
                   {item.label}
                 </span>
                 {channel && !compact && (
-                  <small>{imConnectionLabel(connection?.state, t)}</small>
+                  <small>{imConnectionSummary(channelConnections, t)}</small>
                 )}
               </button>
             </div>

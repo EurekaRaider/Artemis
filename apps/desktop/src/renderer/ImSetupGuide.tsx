@@ -148,8 +148,8 @@ export function ImGatewayInstructions({
       </Button>
       <p>
         {t(
-          "企业微信和 Slack 可直接连接，无需公网地址。服务随 Artemis 启动和退出；接收远程任务时请保持电脑唤醒、Artemis 运行。项目权限在第 5 步由你选择。",
-          "WeCom and Slack connect without a public URL. The service runs with Artemis; keep this computer awake and Artemis open for remote tasks. Choose project permissions in step 5.",
+          "企业微信、飞书长连接和 Slack 可直接连接，无需公网地址。服务随 Artemis 启动和退出；接收远程任务时请保持电脑唤醒、Artemis 运行。项目权限在第 5 步由你选择。",
+          "WeCom, Feishu long connections and Slack connect without a public URL. The service runs with Artemis; keep this computer awake and Artemis open for remote tasks. Choose project permissions in step 5.",
         )}
       </p>
       <details>
@@ -161,8 +161,8 @@ export function ImGatewayInstructions({
         </summary>
         <p>
           {t(
-            "团队已有 Gateway 时，填写管理员提供的 HTTPS 地址和管理凭据。飞书需要公网 HTTPS 回调，请使用独立部署。",
-            "For an existing team Gateway, use the HTTPS URL and administrator token supplied by your administrator. Feishu requires a public HTTPS callback and a separate deployment.",
+            "团队已有 Gateway 时，填写管理员提供的 HTTPS 地址和管理凭据。飞书选择 HTTPS 回调方式时，仍需要公网回调地址。",
+            "For an existing team Gateway, use the HTTPS URL and administrator token supplied by your administrator. Feishu's HTTPS callback transport still needs a public callback URL.",
           )}
         </p>
         <div className="im-actions">

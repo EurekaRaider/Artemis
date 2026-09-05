@@ -30,6 +30,8 @@ import {
   imChannelLabel,
   imChannelConstraint,
   imConnectionLabel,
+  imConnectionHealth,
+  imConnectionSummary,
   type ImView,
   type ImChannel,
 } from "./ImNavigation";
@@ -40,6 +42,7 @@ import {
 } from "./ImAccountControls";
 
 import { ImDiagnostics } from "./ImDiagnostics";
+import { ImLegacyImport } from "./ImLegacyImport";
 
 const PUBLIC_BOT_FIELDS = [
   "id",
@@ -48,6 +51,8 @@ const PUBLIC_BOT_FIELDS = [
   "botId",
   "appId",
   "botOpenId",
+  "transport",
+  "domain",
 ] as const;
 type BotMetadata = Partial<Record<(typeof PUBLIC_BOT_FIELDS)[number], string>>;
 
@@ -405,6 +410,11 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
       }
     : savedMetadata[channel];
   const savedCredentials = !!credentialMetadata;
+  const feishuTransport =
+    fields.transport ??
+    credentialMetadata?.transport ??
+    (savedCredentials ? "webhook" : "websocket");
+  const feishuDomain = fields.domain ?? credentialMetadata?.domain ?? "feishu";
   const local = !!status?.localGateway;
   const accounts = (requestsOnly = false) => (
     <ImAccounts
@@ -463,8 +473,9 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                 "appId",
                 "botOpenId",
                 "appSecret",
-                "verificationToken",
-                "encryptKey",
+                ...(feishuTransport === "webhook"
+                  ? ["verificationToken", "encryptKey"]
+                  : []),
               ]),
         ];
   if (!settings)
@@ -499,6 +510,7 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
         : !hasBot
           ? t("等待机器人连接", "Waiting for a bot")
           : stateLabels[status?.state ?? "connecting"];
+  const health = imConnectionHealth(connections);
   return (
     <div
       ref={panelRef}
@@ -511,10 +523,18 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
         <span className="im-status-pill" role="status">
           <span
             className="im-dot"
-            data-state={settings.enabled ? status?.state : "disabled"}
+            data-state={
+              settings.enabled
+                ? health.failed
+                  ? "error"
+                  : status?.state
+                : "disabled"
+            }
             aria-hidden="true"
           />
           {summary}
+          {connections.length > 0 &&
+            ` · ${imConnectionSummary(connections, t)}`}
         </span>
         <Switch
           label={t("启用 IM 连接", "Enable IM connection")}
@@ -614,7 +634,14 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
             compact={compact}
             t={t}
           />
-          {[...IM_CHANNELS, "gateway", "pairing", "permissions", "spaces"]
+          {[
+            ...IM_CHANNELS,
+            "gateway",
+            "pairing",
+            "permissions",
+            "spaces",
+            "setup-guide",
+          ]
             .filter((id) => id !== view)
             .map((id) => (
               <div
@@ -632,6 +659,13 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
             aria-labelledby={`im-nav-${view}`}
             tabIndex={0}
           >
+            {view === "setup-guide" && (
+              <ImSetupGuide
+                locale={locale}
+                {...(status ? { status } : {})}
+                onNavigate={navigateStep}
+              />
+            )}
             <Button
               className="im-guide-link"
               disabled={busy}
@@ -876,8 +910,62 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                         </>
                       )}
                     </div>
+                    <p className="im-credential-location">
+                      {local
+                        ? t(
+                            "凭据加密保存在本机内置 Gateway。",
+                            "Credentials are encrypted in this computer's built-in Gateway.",
+                          )
+                        : t(
+                            "凭据加密保存在团队 Gateway。",
+                            "Credentials are encrypted in the team Gateway.",
+                          )}
+                    </p>
                     {(!savedCredentials || editingCredentials) && (
                       <>
+                        {channel === "feishu" && (
+                          <>
+                            <Select
+                              label={t("接入方式", "Transport")}
+                              value={feishuTransport}
+                              options={[
+                                {
+                                  value: "websocket",
+                                  label: t(
+                                    "长连接（无需公网地址）",
+                                    "Long connection (no public URL)",
+                                  ),
+                                },
+                                {
+                                  value: "webhook",
+                                  label: t("HTTPS 回调", "HTTPS callback"),
+                                },
+                              ]}
+                              disabled={busy}
+                              onValueChange={(transport) =>
+                                setFields((previous) => ({
+                                  ...previous,
+                                  transport,
+                                }))
+                              }
+                            />
+                            <Select
+                              label={t("应用区域", "App region")}
+                              value={feishuDomain}
+                              options={[
+                                { value: "feishu", label: t("飞书", "Feishu") },
+                                { value: "lark", label: "Lark" },
+                              ]}
+                              disabled={busy}
+                              onValueChange={(domain) =>
+                                setFields((previous) => ({
+                                  ...previous,
+                                  domain,
+                                }))
+                              }
+                            />
+                          </>
+                        )}
                         {fieldNames
                           .filter(
                             (field) =>
@@ -918,7 +1006,9 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                             busy ||
                             (!local && !adminToken) ||
                             !settings.deviceId ||
-                            (local && channel === "feishu") ||
+                            (local &&
+                              channel === "feishu" &&
+                              feishuTransport === "webhook") ||
                             !fieldNames
                               .filter(
                                 (key) =>
@@ -938,6 +1028,12 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                                 configuration: {
                                   channel,
                                   enabled: true,
+                                  ...(channel === "feishu"
+                                    ? {
+                                        transport: feishuTransport,
+                                        domain: feishuDomain,
+                                      }
+                                    : {}),
                                   ...Object.fromEntries(
                                     fieldNames
                                       .filter(
@@ -961,13 +1057,21 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                               setConnectionId(savedId);
                               setSavedMetadata((previous) => ({
                                 ...previous,
-                                [channel]: Object.fromEntries(
-                                  PUBLIC_BOT_FIELDS.flatMap((key) =>
-                                    fields[key]
-                                      ? [[key, fields[key]!.trim()]]
-                                      : [],
+                                [channel]: {
+                                  ...Object.fromEntries(
+                                    PUBLIC_BOT_FIELDS.flatMap((key) =>
+                                      fields[key]
+                                        ? [[key, fields[key]!.trim()]]
+                                        : [],
+                                    ),
                                   ),
-                                ),
+                                  ...(channel === "feishu"
+                                    ? {
+                                        transport: feishuTransport,
+                                        domain: feishuDomain,
+                                      }
+                                    : {}),
+                                },
                               }));
                               setFields({});
                               setEditingCredentials(false);
@@ -1024,44 +1128,75 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                       </>
                     )}
                   </div>
-                  {channel === "feishu" && local && (
+                  {channel === "feishu" && feishuTransport === "websocket" && (
                     <InlineNotice tone="info">
                       {t(
-                        "飞书需要公网 HTTPS 回调；请在第 1 步导出并部署独立 Gateway，或连接团队服务后再配置。",
-                        "Feishu needs a public HTTPS callback. Export and deploy a standalone Gateway in step 1, or connect to your team service first.",
+                        "在飞书开放平台选择“使用长连接接收事件”，订阅 im.message.receive_v1 并发布应用。此连接不会同时接收 HTTPS 回调。",
+                        "Select long connection delivery in the Feishu console, subscribe to im.message.receive_v1 and publish the app. This connection does not also accept HTTPS callbacks.",
                       )}
                     </InlineNotice>
                   )}
-                  {channel === "feishu" && !local && (
-                    <div className="im-actions">
-                      <p className="im-identifier">
-                        {t("事件回调地址：", "Event callback URL: ")}
-                        {settings.gatewayUrl.replace(/\/$/u, "")}
-                        /channels/feishu/
-                        {credentialMetadata?.id ||
-                          fields.id ||
-                          t("连接ID", "CONNECTION_ID")}
-                      </p>
-                      <Button
-                        disabled={
-                          !settings.gatewayUrl ||
-                          !(credentialMetadata?.id || fields.id)
-                        }
-                        onClick={() =>
-                          void run(async () => {
-                            await navigator.clipboard.writeText(
-                              `${settings.gatewayUrl.replace(/\/$/u, "")}/channels/feishu/${credentialMetadata?.id || fields.id}`,
-                            );
-                            setMessage(
-                              t("事件回调地址已复制。", "Callback URL copied."),
-                            );
-                          })
-                        }
-                      >
-                        {t("复制回调地址", "Copy callback URL")}
-                      </Button>
-                    </div>
+                  {channel === "feishu" && (
+                    <ImLegacyImport
+                      key={settings.deviceId}
+                      local={local}
+                      busy={busy}
+                      ready={!!settings.deviceId}
+                      run={run}
+                      t={t}
+                      imported={async () => {
+                        await refresh();
+                        setMessage(
+                          t(
+                            "旧机器人配置已导入。请在“配对与账号”重新配对，并在“项目授权”选择可执行项目。",
+                            "Legacy bot imported. Pair again in Pairing & accounts, then grant a project in Project permissions.",
+                          ),
+                        );
+                      }}
+                    />
                   )}
+                  {channel === "feishu" &&
+                    feishuTransport === "webhook" &&
+                    local && (
+                      <InlineNotice tone="info">
+                        {t(
+                          "飞书需要公网 HTTPS 回调；请在第 1 步导出并部署独立 Gateway，或连接团队服务后再配置。",
+                          "Feishu needs a public HTTPS callback. Export and deploy a standalone Gateway in step 1, or connect to your team service first.",
+                        )}
+                      </InlineNotice>
+                    )}
+                  {channel === "feishu" &&
+                    feishuTransport === "webhook" &&
+                    !local &&
+                    selectedConnection?.callbackUrl && (
+                      <div className="im-actions">
+                        <p className="im-identifier">
+                          {t("事件回调地址：", "Event callback URL: ")}
+                          {selectedConnection.callbackUrl}
+                        </p>
+                        <Button
+                          disabled={
+                            !settings.gatewayUrl ||
+                            !(credentialMetadata?.id || fields.id)
+                          }
+                          onClick={() =>
+                            void run(async () => {
+                              await navigator.clipboard.writeText(
+                                selectedConnection.callbackUrl!,
+                              );
+                              setMessage(
+                                t(
+                                  "事件回调地址已复制。",
+                                  "Callback URL copied.",
+                                ),
+                              );
+                            })
+                          }
+                        >
+                          {t("复制回调地址", "Copy callback URL")}
+                        </Button>
+                      </div>
+                    )}
                   <h4>{t("连接状态", "Connection status")}</h4>
                   {!channelConnections.length && (
                     <p>
@@ -1158,22 +1293,32 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                           )}
                         </li>
                         <li>
-                          {t(
-                            "在应用的事件与回调配置中设置 Verification Token 和 Encrypt Key。填写下面的所有字段，先保存机器人配置。",
-                            "Configure Verification Token and Encrypt Key in the app's event/callback settings. Fill in all fields below and save the bot configuration first.",
-                          )}
+                          {feishuTransport === "websocket"
+                            ? t(
+                                "选择“使用长连接接收事件”，填写应用凭据和身份字段后保存。先停止旧版桌面直连，确保同一机器人只有一个订阅。",
+                                "Select long connection delivery, enter the app credentials and identity fields, and save. Stop the legacy desktop connection so only one subscription owns this bot.",
+                              )
+                            : t(
+                                "在应用的事件与回调配置中设置 Verification Token 和 Encrypt Key。填写下面的所有字段，先保存机器人配置。",
+                                "Configure Verification Token and Encrypt Key in the app's event/callback settings. Fill in all fields below and save the bot configuration first.",
+                              )}
                         </li>
                         <li>
                           {t(
-                            "把下方事件回调地址复制到飞书开放平台，订阅 im.message.receive_v1。按实际用途开启单聊消息、群聊 @ 消息、发送及更新消息、图片/文件资源权限，发布版本并将自己加入可用范围。",
-                            "Copy the callback URL below into Feishu and subscribe to im.message.receive_v1. Enable the required private-message, group-mention, send/update-message and image/file resource permissions, publish the version and include yourself in its availability.",
+                            "订阅 im.message.receive_v1 和 card.action.trigger；使用 HTTPS 时复制保存后显示的回调地址。按用途开启单聊、群聊 @、发送和更新消息、图片/文件资源、消息表情读写权限，发布版本并将自己加入可用范围。",
+                            "Subscribe to im.message.receive_v1 and card.action.trigger; for HTTPS, copy the callback URL shown after saving. Enable private/group-mention, send/update-message, image/file resource and message-reaction read/write permissions, publish and include yourself in the app's availability.",
                           )}
                         </li>
                         <li>
-                          {t(
-                            "连接状态只确认应用凭证可用；是否收到消息，要在第 4、6 步通过真实单聊验证。",
-                            "Connection status confirms the app credentials. Steps 4 and 6 verify real message delivery.",
-                          )}
+                          {feishuTransport === "websocket"
+                            ? t(
+                                "长连接状态反映平台握手与重连结果。仍需通过真实单聊完成本人配对和项目授权。",
+                                "Long connection status reflects the platform handshake and reconnect state. Verify a real private chat, pair your identity and grant a project.",
+                              )
+                            : t(
+                                "连接状态只确认应用凭证可用；是否收到消息，要在第 4、6 步通过真实单聊验证。",
+                                "Connection status confirms the app credentials. Steps 4 and 6 verify real message delivery.",
+                              )}
                         </li>
                       </ol>
                     )}

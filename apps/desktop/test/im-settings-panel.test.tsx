@@ -19,7 +19,10 @@ import {
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 import { ImSettingsPanel } from "../src/renderer/ImSettingsPanel.js";
 import { ImPairingCode } from "../src/renderer/ImAccountControls.js";
-import { ImNavigation } from "../src/renderer/ImNavigation.js";
+import {
+  ImNavigation,
+  imConnectionHealth,
+} from "../src/renderer/ImNavigation.js";
 import { ImDiagnostics } from "../src/renderer/ImDiagnostics.js";
 
 const identity = {
@@ -121,6 +124,54 @@ const nav = (name: string) =>
   screen.getByRole("tab", { name: new RegExp(name) });
 
 describe("production IM settings", () => {
+  it("keeps connection counts separate from partial failure and offers the existing guide in General", async () => {
+    const f = fixture();
+    const failed = {
+      ...connection,
+      id: "failed-bot",
+      name: "Offline bot",
+      state: "error" as const,
+    };
+    f.set({
+      connections: [connection, failed],
+      state: "connected",
+      settings: { ...f.get().settings, enabled: true },
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    expect(imConnectionHealth([connection, failed])).toEqual({
+      total: 2,
+      failed: 1,
+      state: "error",
+    });
+    expect(document.querySelector(".im-status-pill")).toHaveTextContent(
+      "2 个连接，1 个异常",
+    );
+    expect(nav("企业微信").querySelector(".im-dot")).toHaveAttribute(
+      "data-state",
+      "error",
+    );
+    await user.click(nav("设置指引"));
+    expect(screen.getByRole("list", { name: "IM 设置步骤" })).toBeVisible();
+    expect(f.get().identities).toEqual([identity]);
+  });
+  it("defaults a new Feishu bot to a long connection without callback secrets", async () => {
+    fixture();
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(nav("飞书"));
+    expect(screen.getByLabelText("接入方式")).toHaveTextContent("长连接");
+    expect(
+      screen.queryByLabelText("Verification Token"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Encrypt Key")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "复制回调地址" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("凭据加密保存在团队 Gateway。")).toBeVisible();
+  });
   it("keeps a first successful credential save distinct from a failed status refresh", async () => {
     const f = fixture();
     f.set({ identities: [], connections: [] });
@@ -191,7 +242,7 @@ describe("production IM settings", () => {
       await screen.findByRole("list", { name: "IM 设置步骤" }),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(6);
-    expect(screen.getByText("需公网 HTTPS 回调 · 团队服务")).toBeVisible();
+    expect(screen.getByText("长连接或 HTTPS 回调")).toBeVisible();
     expect(screen.getByRole("switch", { name: "启用 IM 连接" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "1. 准备 Gateway" }));
     await user.click(screen.getByRole("button", { name: "一键启动并注册" }));
@@ -214,7 +265,7 @@ describe("production IM settings", () => {
     expect(
       await screen.findByRole("heading", { name: "应用凭据" }),
     ).toBeVisible();
-    expect(screen.getAllByRole("tab")).toHaveLength(7);
+    expect(screen.getAllByRole("tab")).toHaveLength(8);
     expect(screen.getAllByRole("switch")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "重看设置指引" }));
     expect(
@@ -237,7 +288,7 @@ describe("production IM settings", () => {
     expect(nav("飞书")).toHaveFocus();
     expect(nav("飞书")).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{End}");
-    expect(nav("群协作空间")).toHaveFocus();
+    expect(nav("设置指引")).toHaveFocus();
     await user.keyboard("{Home}");
     expect(nav("企业微信")).toHaveFocus();
   });
@@ -541,7 +592,7 @@ describe("pairing code lifecycle", () => {
       ).toHaveFocus(),
     );
     await user.keyboard("{End}{Enter}");
-    expect(select).toHaveBeenCalledWith("spaces");
+    expect(select).toHaveBeenCalledWith("setup-guide");
     await user.click(screen.getByRole("tab", { name: /通用/ }));
     await user.keyboard("{Escape}");
     await waitFor(() =>

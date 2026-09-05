@@ -7133,8 +7133,8 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .settings-panel {
-  height: min(760px, calc(100% - 48px));
-  max-width: 920px;
+  height: min(720px, calc(100% - 48px));
+  max-width: 1040px;
   overflow: hidden;
   padding: 0;
   width: calc(100% - 48px);
@@ -9385,7 +9385,7 @@ kbd {
 }
 .im-layout {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
+  grid-template-columns: 170px minmax(0, 1fr);
   gap: 16px;
   flex: 1;
   min-height: 0;
@@ -9396,7 +9396,7 @@ kbd {
   gap: 4px;
   align-self: start;
   min-width: 0;
-  border-inline-end: 1px solid var(--border);
+  border-inline-end: 1px solid var(--border-soft);
   padding-inline-end: 10px;
 }
 .im-nav-item {
@@ -9410,13 +9410,14 @@ kbd {
 }
 .im-channel-card {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
   text-align: start;
   width: 100%;
-  white-space: normal;
-  min-height: 38px;
+  white-space: nowrap;
+  min-height: 34px;
 }
 .im-channel-card > span {
   display: flex;
@@ -9427,7 +9428,8 @@ kbd {
   color: var(--muted);
   font-weight: normal;
   font-size: 11px;
-  padding-inline-start: 14px;
+  padding-inline-start: 0;
+  font-variant-numeric: tabular-nums;
 }
 .im-channel-card[aria-selected="true"],
 .im-common-trigger[aria-selected="true"] {
@@ -9464,7 +9466,7 @@ kbd {
 }
 .im-block {
   padding-block: 12px;
-  border-block: 1px solid var(--border);
+  border-block: 1px solid var(--border-soft);
 }
 .im-block-header {
   display: flex;
@@ -9546,7 +9548,7 @@ kbd {
   column-gap: 8px;
   margin: 0;
   padding: 6px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
   align-items: center;
 }
 .im-setup-steps button {
@@ -9601,7 +9603,7 @@ kbd {
   flex-direction: row;
   align-items: stretch;
   border-inline-end: 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
   padding: 0 0 8px;
 }
 .im-settings[data-compact="true"] .im-nav-item {

@@ -17,6 +17,20 @@ const diagnosticSchema = z.object({
     z.object({ conversation: imConversationSchema, lastSeenAt: z.number() }),
   ),
   deliveries: z.array(z.object({ state: z.string(), count: z.number() })),
+  ingress: z
+    .array(
+      z.object({ bucket: z.string(), state: z.string(), count: z.number() }),
+    )
+    .default([]),
+  interactionErrors: z
+    .array(
+      z.object({
+        connectionId: z.string(),
+        kind: z.string(),
+        error: z.string(),
+      }),
+    )
+    .default([]),
   spaces: z.array(
     z.object({
       id: z.string(),
@@ -83,6 +97,19 @@ export function ImDiagnostics({
             <p key={delivery.state}>
               {delivery.state} · {delivery.count}
             </p>
+          ))}
+          {parsed.data.ingress.map((queue) => (
+            <p key={`${queue.bucket}:${queue.state}`}>
+              {queue.bucket} · {queue.state} · {queue.count}
+            </p>
+          ))}
+          {parsed.data.interactionErrors.map((issue, index) => (
+            <InlineNotice
+              tone="warning"
+              key={`${issue.connectionId}:${issue.kind}:${index}`}
+            >
+              {issue.connectionId} · {issue.error}
+            </InlineNotice>
           ))}
           {parsed.data.spaces.map((space) => (
             <Button
