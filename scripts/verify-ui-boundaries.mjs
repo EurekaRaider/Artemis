@@ -688,9 +688,14 @@ export function htmlResourceReferences(source) {
   return references;
 }
 
-function cssValueReferences(value, includeStrings) {
+function cssValueReferences(value, importPrelude) {
   const references = [];
-  const ast = parseCssValue(value, { context: "value" });
+  const ast = parseCssValue(
+    value,
+    importPrelude
+      ? { context: "atrulePrelude", atrule: "import" }
+      : { context: "value" },
+  );
   walkCssValue(ast, {
     enter(node) {
       const containingFunction = this.function?.name?.toLowerCase();
@@ -700,7 +705,7 @@ function cssValueReferences(value, includeStrings) {
           containingFunction === "-webkit-image-set");
       if (
         node.type === "Url" ||
-        (node.type === "String" && includeStrings) ||
+        (node.type === "String" && importPrelude) ||
         imageSetString
       ) {
         references.push(node.value);

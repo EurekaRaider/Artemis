@@ -345,6 +345,12 @@ await runCase(
   true,
 );
 await runCase(
+  "safe Desktop CSS nested-layer import",
+  "apps/desktop/src/renderer/safe.css",
+  '@import "./base.css" layer(artemis.reset);\n',
+  true,
+);
+await runCase(
   "safe Desktop CSS image-set resources",
   "apps/desktop/src/renderer/safe.css",
   '.safe { background-image: image-set("./icon.png" 1x, url("./icon@2x.png") 2x); }\n.safe-webkit { background-image: -webkit-image-set("./icon.png" 1x); }\n',
@@ -788,6 +794,12 @@ await runCase(
   "Desktop CSS imports Gallery",
   "apps/desktop/src/renderer/unsafe.css",
   '@import "../../../ui-gallery/src/gallery.css";\n',
+  false,
+);
+await runCase(
+  "Desktop CSS nested-layer import cannot conceal Gallery",
+  "apps/desktop/src/renderer/unsafe.css",
+  '@import url("../../../ui-gallery/src/gallery.css") layer(artemis.reset) screen and (width > 10px);\n',
   false,
 );
 await runCase(
@@ -1346,11 +1358,11 @@ await runThemeContractTypeCase(
   "process",
 );
 
-if (acceptedCases !== 23 || rejectedCases !== 113) {
+if (acceptedCases !== 24 || rejectedCases !== 114) {
   throw new Error(
     `Unexpected boundary test count: ${acceptedCases} accepted, ${rejectedCases} rejected`,
   );
 }
 console.log(
-  "UI boundary fixture tests passed (23 safe cases; 113/113 violations rejected)",
+  "UI boundary fixture tests passed (24 safe cases; 114/114 violations rejected)",
 );
