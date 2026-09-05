@@ -398,9 +398,7 @@ try {
       .getByRole("button", { name: "设置", exact: true })
       .click();
     await product.locator("#settings-tab-general-button").click();
-    await product
-      .getByRole("combobox", { name: "界面主题", exact: true })
-      .click();
+    await product.getByRole("button", { name: /^界面主题/ }).click();
     await product
       .getByRole("option", {
         name: theme === "dark" ? "深色" : "浅色",
@@ -538,7 +536,20 @@ try {
       reference: await measure(reference, 0),
       product: await measure(product, 1),
     };
+    for (const part of ["dock", "tabBar"]) {
+      for (const dimension of ["x", "y", "width", "height"]) {
+        const pair = result.docks[name];
+        const actual =
+          pair.product[part].rect[dimension] -
+          (dimension === "y" ? chromeInset : 0);
+        assert.ok(
+          Math.abs(pair.reference[part].rect[dimension] - actual) <= 0.5,
+          `${name} ${part}.${dimension}`,
+        );
+      }
+    }
   }
+  await captureDock("files");
   for (const [name, label] of [
     ["review", "审查"],
     ["terminal", "终端"],
