@@ -962,8 +962,8 @@ async function verifyReferenceSliceGeometry(connection) {
   const compactInitial = await referenceSliceGeometry(connection);
   const initialSidebarWidth = Math.round(compactInitial.sidebar.width);
   assert(
-    initialSidebarWidth === 252,
-    `Compact resize fixture started at ${String(initialSidebarWidth)}px instead of 252px: ${JSON.stringify(compactInitial)}`,
+    initialSidebarWidth === 220,
+    `Compact resize fixture started at ${String(initialSidebarWidth)}px instead of 220px: ${JSON.stringify(compactInitial)}`,
   );
   await evaluate(
     connection,
@@ -1267,8 +1267,9 @@ async function verifyReferenceSliceGeometry(connection) {
     before.viewport.width === 1440 &&
       before.viewport.height === 900 &&
       Math.abs(before.activity.width - 46) <= 1 &&
-      Math.abs(before.sidebar.width - 252) <= 1 &&
-      Math.abs(before.workspace.width - 1142) <= 1 &&
+      Math.abs(before.sidebar.width - initialSidebarWidth) <= 1 &&
+      Math.abs(before.workspace.width - (1440 - 46 - initialSidebarWidth)) <=
+        1 &&
       before.headerControls.every(
         ({ geometry: control }) =>
           control &&
