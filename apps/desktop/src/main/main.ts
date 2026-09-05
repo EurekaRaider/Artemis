@@ -16523,6 +16523,19 @@ function createMainWindow(): BrowserWindow {
                 if (view.startsWith('environment')) {
                   document.querySelector('.thread-select')?.click();
                   await wait(600);
+                  // v69 starts with the environment closed. Open it through its
+                  // trigger before exercising its sources, branches or actions.
+                  if (
+                    !view.startsWith('environment-feedback') &&
+                    view !== 'environment-dock' &&
+                    view !== 'environment-dock-open'
+                  ) {
+                    const trigger = document.querySelector('.environment-trigger');
+                    if (trigger?.getAttribute('aria-expanded') !== 'true') {
+                      trigger?.click();
+                      await wait(500);
+                    }
+                  }
                   if (view === 'environment-open') {
                     const trigger = document.querySelector('.environment-trigger');
                     if (trigger?.getAttribute('aria-expanded') !== 'true') {
