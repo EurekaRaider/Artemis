@@ -330,7 +330,15 @@ body {
   font-size: 12px;
   font-weight: 600;
   height: 56px;
-  padding: 0 10px 0 18px;
+  padding: 0 10px;
+}
+
+.sidebar-header [data-part="content"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 .sidebar-header-actions {
@@ -338,22 +346,24 @@ body {
   display: flex;
   gap: 3px;
   min-width: 0;
+  width: 100%;
 }
 
 .sidebar-search {
   align-items: center;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: 7px;
   color: var(--muted-2);
   display: flex;
   height: 28px;
-  justify-content: center;
+  justify-content: flex-start;
   overflow: hidden;
   transition:
     background 120ms ease,
     border-color 120ms ease,
     width 160ms ease;
-  width: 28px;
+  width: 100%;
+  padding: 0 7px;
 }
 
 .sidebar-search:focus-within,
@@ -362,7 +372,7 @@ body {
   border-color: var(--border);
   justify-content: flex-start;
   padding: 0 7px;
-  width: 136px;
+  width: 100%;
 }
 
 .sidebar-search input {
@@ -370,10 +380,11 @@ body {
   border: 0;
   height: 26px;
   min-width: 0;
-  opacity: 0;
+  opacity: 1;
   outline: 0;
   padding: 0;
-  width: 0;
+  width: 100%;
+  margin-inline-start: 6px;
 }
 
 .sidebar-search:focus-within input,
@@ -4360,7 +4371,7 @@ button.environment-row:disabled {
   border: 1px solid var(--border);
   border-radius: 12px;
   bottom: calc(100% + 8px);
-  box-shadow: 0 18px 48px rgb(0 0 0 / 34%);
+  box-shadow: var(--artemis-shadow-overlay);
   left: 50%;
   list-style: none;
   margin: 0;
@@ -4456,16 +4467,13 @@ button.environment-row:disabled {
 
 .composer-context {
   align-items: center;
-  background: var(--panel);
-  border: 1px solid var(--border-soft);
-  border-bottom: 0;
-  border-radius: 14px 14px 0 0;
+  background: transparent;
   display: flex;
   gap: 8px;
-  margin: 0 20px 1px;
-  min-height: 43px;
+  margin: 0;
+  min-height: 28px;
   overflow: visible;
-  padding: 0 13px 1px;
+  padding: 0;
   position: relative;
   z-index: 10;
 }
@@ -4590,7 +4598,7 @@ button.environment-row:disabled {
 
 .composer-context-search {
   align-items: center;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
   color: var(--muted-2);
   display: flex;
   gap: 8px;
@@ -4712,7 +4720,7 @@ button.environment-row:disabled {
 }
 
 .composer-context-menu-actions {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-soft);
   padding-top: 7px;
 }
 
@@ -5181,11 +5189,21 @@ button.environment-row:disabled {
   border: 0;
   line-height: 1.5;
   max-height: 180px;
-  min-height: 68px;
+  min-height: 52px;
   outline: 0;
-  padding: 3px 5px 8px;
+  padding: 0;
   resize: none;
   width: 100%;
+}
+
+.composer-input {
+  margin-block-start: 8px;
+  padding: 9px 12px 8px;
+  border-radius: var(--artemis-radius-input);
+  min-width: 0;
+}
+.composer-input:focus-within {
+  box-shadow: 0 0 0 1px var(--artemis-color-focus-ring);
 }
 
 .composer-drop-overlay {
@@ -8037,6 +8055,13 @@ button.sources-panel-entry.attachment:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 7px;
+}
+
+@media (max-height: 600px) {
+  .composer-input {
+    margin-block-start: 4px;
+    padding: 3px 5px 4px;
+  }
 }
 
 @media (max-width: 820px) {

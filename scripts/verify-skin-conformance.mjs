@@ -2138,6 +2138,21 @@ const MIG1_EXPECTED_CSS_RULES = [
     },
   ],
   [
+    'normal|[data-artemis-component="composer-surface"] > [data-part="context"]',
+    {
+      margin:
+        "calc(-1 * var(--artemis-space-3)) calc(-1 * var(--artemis-space-3)) 0",
+      padding: "var(--artemis-space-2) var(--artemis-space-3)",
+      background: "var(--artemis-color-surface-sunken)",
+      "border-block-end":
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
+      "border-start-start-radius":
+        "calc(var(--artemis-radius-composer) - var(--artemis-border-width-default))",
+      "border-start-end-radius":
+        "calc(var(--artemis-radius-composer) - var(--artemis-border-width-default))",
+    },
+  ],
+  [
     'compact-width|[data-artemis-component="application-shell"]',
     {
       "--_artemis-application-shell-rail-size": "44px",

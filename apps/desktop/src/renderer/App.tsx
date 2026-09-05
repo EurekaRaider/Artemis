@@ -6515,27 +6515,6 @@ export function App() {
                       />
                     )}
                     <>
-                      <ComposerContextBar
-                        {...(activeProject ? { activeProject } : {})}
-                        branchActionsDisabled={projectBranchActionsDisabled}
-                        locale={locale}
-                        mode={mode}
-                        modeActionsDisabled={turnActive || busy}
-                        onClearProject={() => {
-                          discardNewConversationDraft();
-                          beginTemporaryConversation();
-                        }}
-                        onError={(message) =>
-                          setToast({ error: true, message })
-                        }
-                        onModeChange={setMode}
-                        onOpenProject={openProject}
-                        onSelectProject={(project) => {
-                          discardNewConversationDraft();
-                          beginNewConversation(project.id);
-                        }}
-                        projects={projects}
-                      />
                       {!snapshot.sandbox.available && (
                         <div className="sandbox-notice">
                           <Icon size={16}>
@@ -6710,6 +6689,29 @@ export function App() {
                         />
                       )}
                       <ComposerSurface
+                        context={
+                          <ComposerContextBar
+                            {...(activeProject ? { activeProject } : {})}
+                            branchActionsDisabled={projectBranchActionsDisabled}
+                            locale={locale}
+                            mode={mode}
+                            modeActionsDisabled={turnActive || busy}
+                            onClearProject={() => {
+                              discardNewConversationDraft();
+                              beginTemporaryConversation();
+                            }}
+                            onError={(message) =>
+                              setToast({ error: true, message })
+                            }
+                            onModeChange={setMode}
+                            onOpenProject={openProject}
+                            onSelectProject={(project) => {
+                              discardNewConversationDraft();
+                              beginNewConversation(project.id);
+                            }}
+                            projects={projects}
+                          />
+                        }
                         className="composer"
                         label={t.prompt}
                         onDragEnter={handleAttachmentDragEnter}
@@ -7024,140 +7026,144 @@ export function App() {
                             ))}
                           </div>
                         )}
-                        <textarea
-                          aria-activedescendant={
-                            skillCommandMenuOpen &&
-                            slashCommandSuggestions.length > 0
-                              ? `skill-command-option-${activeSlashSuggestion}`
-                              : undefined
-                          }
-                          aria-autocomplete="list"
-                          aria-controls={
-                            skillCommandMenuOpen
-                              ? "skill-command-menu"
-                              : undefined
-                          }
-                          aria-expanded={skillCommandMenuOpen}
-                          aria-label={t.prompt}
-                          onChange={(event) => {
-                            const value = event.target.value;
-                            setPrompt(value);
-                            setSkillMenuDismissed(false);
-                            promptHistoryNavigation.current = {
-                              index: -1,
-                              draft: value,
-                            };
-                          }}
-                          onKeyDown={(event) => {
-                            if (
-                              event.key === "Tab" &&
-                              event.shiftKey &&
-                              !event.nativeEvent.isComposing &&
-                              !turnActive &&
-                              !busy
-                            ) {
-                              event.preventDefault();
-                              setMode((current) => nextRunMode(current));
-                              return;
-                            }
-                            if (
+                        <div className="composer-input">
+                          <textarea
+                            aria-activedescendant={
                               skillCommandMenuOpen &&
-                              slashCommandSuggestions.length > 0 &&
-                              !event.nativeEvent.isComposing
-                            ) {
-                              if (event.key === "ArrowDown") {
-                                event.preventDefault();
-                                setActiveSlashSuggestion(
-                                  (current) =>
-                                    (current + 1) %
-                                    slashCommandSuggestions.length,
-                                );
-                                return;
-                              }
-                              if (event.key === "ArrowUp") {
-                                event.preventDefault();
-                                setActiveSlashSuggestion(
-                                  (current) =>
-                                    (current -
-                                      1 +
-                                      slashCommandSuggestions.length) %
-                                    slashCommandSuggestions.length,
-                                );
-                                return;
-                              }
-                              if (event.key === "Enter" && !event.shiftKey) {
-                                event.preventDefault();
-                                const suggestion =
-                                  slashCommandSuggestions[
-                                    activeSlashSuggestion
-                                  ];
-                                if (suggestion?.kind === "goal") {
-                                  selectComposerCommand("/goal ");
-                                } else if (suggestion?.kind === "compact") {
-                                  selectComposerCommand("/compact");
-                                } else if (suggestion?.kind === "init") {
-                                  selectComposerCommand("/init");
-                                } else if (
-                                  suggestion?.kind === "plan" ||
-                                  suggestion?.kind === "execute" ||
-                                  suggestion?.kind === "review"
-                                ) {
-                                  selectComposerCommand(`/${suggestion.kind} `);
-                                } else if (suggestion?.kind === "skill") {
-                                  selectSkillCommand(suggestion.skill);
-                                }
-                                return;
-                              }
+                              slashCommandSuggestions.length > 0
+                                ? `skill-command-option-${activeSlashSuggestion}`
+                                : undefined
                             }
-                            if (
-                              skillCommandMenuOpen &&
-                              event.key === "Escape"
-                            ) {
-                              event.preventDefault();
-                              setSkillMenuDismissed(true);
-                              return;
+                            aria-autocomplete="list"
+                            aria-controls={
+                              skillCommandMenuOpen
+                                ? "skill-command-menu"
+                                : undefined
                             }
-                            if (
-                              !skillCommandMenuOpen &&
-                              !event.nativeEvent.isComposing &&
-                              (event.key === "ArrowUp" ||
-                                event.key === "ArrowDown")
-                            ) {
-                              const navigation = navigatePromptHistory(
-                                activePromptHistory,
-                                prompt,
-                                promptHistoryNavigation.current,
-                                event.key === "ArrowUp" ? "previous" : "next",
-                              );
-                              if (navigation) {
+                            aria-expanded={skillCommandMenuOpen}
+                            aria-label={t.prompt}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setPrompt(value);
+                              setSkillMenuDismissed(false);
+                              promptHistoryNavigation.current = {
+                                index: -1,
+                                draft: value,
+                              };
+                            }}
+                            onKeyDown={(event) => {
+                              if (
+                                event.key === "Tab" &&
+                                event.shiftKey &&
+                                !event.nativeEvent.isComposing &&
+                                !turnActive &&
+                                !busy
+                              ) {
                                 event.preventDefault();
-                                promptHistoryNavigation.current = navigation;
-                                setPrompt(navigation.value);
-                                setSkillMenuDismissed(true);
-                                window.requestAnimationFrame(() => {
-                                  promptInput.current?.setSelectionRange(
-                                    navigation.value.length,
-                                    navigation.value.length,
+                                setMode((current) => nextRunMode(current));
+                                return;
+                              }
+                              if (
+                                skillCommandMenuOpen &&
+                                slashCommandSuggestions.length > 0 &&
+                                !event.nativeEvent.isComposing
+                              ) {
+                                if (event.key === "ArrowDown") {
+                                  event.preventDefault();
+                                  setActiveSlashSuggestion(
+                                    (current) =>
+                                      (current + 1) %
+                                      slashCommandSuggestions.length,
                                   );
-                                });
+                                  return;
+                                }
+                                if (event.key === "ArrowUp") {
+                                  event.preventDefault();
+                                  setActiveSlashSuggestion(
+                                    (current) =>
+                                      (current -
+                                        1 +
+                                        slashCommandSuggestions.length) %
+                                      slashCommandSuggestions.length,
+                                  );
+                                  return;
+                                }
+                                if (event.key === "Enter" && !event.shiftKey) {
+                                  event.preventDefault();
+                                  const suggestion =
+                                    slashCommandSuggestions[
+                                      activeSlashSuggestion
+                                    ];
+                                  if (suggestion?.kind === "goal") {
+                                    selectComposerCommand("/goal ");
+                                  } else if (suggestion?.kind === "compact") {
+                                    selectComposerCommand("/compact");
+                                  } else if (suggestion?.kind === "init") {
+                                    selectComposerCommand("/init");
+                                  } else if (
+                                    suggestion?.kind === "plan" ||
+                                    suggestion?.kind === "execute" ||
+                                    suggestion?.kind === "review"
+                                  ) {
+                                    selectComposerCommand(
+                                      `/${suggestion.kind} `,
+                                    );
+                                  } else if (suggestion?.kind === "skill") {
+                                    selectSkillCommand(suggestion.skill);
+                                  }
+                                  return;
+                                }
+                              }
+                              if (
+                                skillCommandMenuOpen &&
+                                event.key === "Escape"
+                              ) {
+                                event.preventDefault();
+                                setSkillMenuDismissed(true);
                                 return;
                               }
-                            }
-                            if (
-                              event.key === "Enter" &&
-                              !event.shiftKey &&
-                              !event.nativeEvent.isComposing
-                            ) {
-                              event.preventDefault();
-                              void sendPrompt();
-                            }
-                          }}
-                          onPaste={handleAttachmentPaste}
-                          placeholder={t.prompt}
-                          ref={promptInput}
-                          rows={3}
-                          value={prompt}
-                        />
+                              if (
+                                !skillCommandMenuOpen &&
+                                !event.nativeEvent.isComposing &&
+                                (event.key === "ArrowUp" ||
+                                  event.key === "ArrowDown")
+                              ) {
+                                const navigation = navigatePromptHistory(
+                                  activePromptHistory,
+                                  prompt,
+                                  promptHistoryNavigation.current,
+                                  event.key === "ArrowUp" ? "previous" : "next",
+                                );
+                                if (navigation) {
+                                  event.preventDefault();
+                                  promptHistoryNavigation.current = navigation;
+                                  setPrompt(navigation.value);
+                                  setSkillMenuDismissed(true);
+                                  window.requestAnimationFrame(() => {
+                                    promptInput.current?.setSelectionRange(
+                                      navigation.value.length,
+                                      navigation.value.length,
+                                    );
+                                  });
+                                  return;
+                                }
+                              }
+                              if (
+                                event.key === "Enter" &&
+                                !event.shiftKey &&
+                                !event.nativeEvent.isComposing
+                              ) {
+                                event.preventDefault();
+                                void sendPrompt();
+                              }
+                            }}
+                            onPaste={handleAttachmentPaste}
+                            placeholder={t.prompt}
+                            ref={promptInput}
+                            rows={3}
+                            value={prompt}
+                          />
+                        </div>
                         <div className="composer-toolbar">
                           <div className="composer-leading">
                             <button

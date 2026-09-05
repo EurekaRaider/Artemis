@@ -689,7 +689,12 @@ describe("renderer layout contract", () => {
     expect(composerSurface).toMatch(
       /border:\s*var\(--artemis-border-width-default\) solid[\s\S]*var\(--artemis-color-border-default\)/u,
     );
-    expect(cssRule(".composer-context")).toContain("margin: 0 20px 1px");
+    expect(cssRule(".composer-context")).toContain("margin: 0;");
+    expect(
+      publicUiCssRule(
+        '[data-artemis-component="composer-surface"] > [data-part="context"]',
+      ),
+    ).toContain("background: var(--artemis-color-surface-sunken)");
   });
 
   it("keeps context menus inside the resized conversation", () => {

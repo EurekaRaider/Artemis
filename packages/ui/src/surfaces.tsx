@@ -35,6 +35,7 @@ export const SURFACE_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-color-background-sidebar",
   "--artemis-color-background-activity",
   "--artemis-color-surface-composer",
+  "--artemis-color-surface-sunken",
   "--artemis-color-interaction-hover",
   "--artemis-color-interaction-selected",
   "--artemis-color-text-primary",
@@ -168,6 +169,7 @@ export const SURFACE_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     uiContractVersion: 1,
     name: "composer-surface",
     parts: ["root"],
+    optionalParts: ["context"],
     states: ["ready"],
     accessibility: ["named-region"],
     interaction: ["caller-owned-input-actions-and-drop-target"],
@@ -414,10 +416,12 @@ export interface ComposerSurfaceProps extends Omit<
 > {
   readonly children: ReactNode;
   readonly label: string;
+  readonly context?: ReactNode;
 }
 
 export function ComposerSurface({
   children,
+  context,
   label,
   ...attributes
 }: ComposerSurfaceProps) {
@@ -430,6 +434,7 @@ export function ComposerSurface({
       data-part="root"
       data-state="ready"
     >
+      {context ? <div data-part="context">{context}</div> : null}
       {children}
     </section>
   );

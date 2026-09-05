@@ -43,7 +43,7 @@ const foundationTokens = {
   "motion.easing.shell": { kind: "easing", value: "shell" },
   "shadow.card": { kind: "shadow", value: "none" },
   "shadow.surface": { kind: "shadow", value: "none" },
-  "shadow.composer": { kind: "shadow", value: "raised" },
+  "shadow.composer": { kind: "shadow", value: "none" },
   "shadow.overlay": { kind: "shadow", value: "overlay" },
   "opacity.disabled": { kind: "opacity", value: 0.42 },
 } as const satisfies Readonly<Record<string, ThemeTokenValue>>;

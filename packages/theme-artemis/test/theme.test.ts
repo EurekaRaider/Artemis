@@ -54,7 +54,7 @@ const EXPECTED_FOUNDATION = Object.freeze({
   "motion.easing.shell": { kind: "easing", value: "shell" },
   "shadow.card": { kind: "shadow", value: "none" },
   "shadow.surface": { kind: "shadow", value: "none" },
-  "shadow.composer": { kind: "shadow", value: "raised" },
+  "shadow.composer": { kind: "shadow", value: "none" },
   "shadow.overlay": { kind: "shadow", value: "overlay" },
   "opacity.disabled": { kind: "opacity", value: 0.42 },
 } satisfies Readonly<Record<string, ThemeTokenValue>>);
@@ -398,12 +398,7 @@ describe("default Artemis Direction A skin", () => {
     expect(artemisThemeCss).toContain(
       '--artemis-typography-mono-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;',
     );
-    expect(artemisThemeCss).toContain(
-      "--artemis-shadow-composer: 0 10px 36px #0000002e;",
-    );
-    expect(artemisThemeCss).toContain(
-      "--artemis-shadow-composer: 0 10px 36px #00000066;",
-    );
+    expect(artemisThemeCss).toContain("--artemis-shadow-composer: none;");
     expect(artemisThemeCss).toContain(
       "--artemis-shadow-overlay: 0 12px 40px #00000029, 0 2px 8px #0000000f;",
     );

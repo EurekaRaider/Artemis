@@ -17,6 +17,8 @@ import {
   UserInput,
 } from "@artemis/ui/patterns";
 import { Icon } from "@artemis/ui/actions";
+import { ComposerSurface } from "@artemis/ui/surfaces";
+import { TextAreaField } from "@artemis/ui/forms";
 
 import { GalleryActionIcon } from "./gallery-action-icon.js";
 
@@ -28,6 +30,15 @@ const LONG_RESULT = Array.from(
 export function ConversationGallery() {
   return (
     <div className="gallery-conversation-grid">
+      <ComposerSurface
+        label="Composer context and input reference"
+        context={<span>Artemis · main · Execute</span>}
+      >
+        <TextAreaField
+          label="Reference prompt"
+          defaultValue="Review the selected project"
+        />
+      </ComposerSurface>
       <ConversationSurface
         className="gallery-conversation-sample"
         label="Conversation state sample"
