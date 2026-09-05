@@ -1166,7 +1166,7 @@
     color: var(--artemis-color-text-primary);
     background: var(--artemis-color-surface-base);
     border-block-end: var(--artemis-border-width-default) solid
-      var(--artemis-color-border-default);
+      var(--artemis-color-border-subtle);
     font-family: var(--artemis-typography-body-family);
     font-size: var(--artemis-typography-body-size);
   }
@@ -1252,7 +1252,7 @@
     color: var(--artemis-color-text-primary);
     background: var(--artemis-color-surface-base);
     border-block-end: var(--artemis-border-width-default) solid
-      var(--artemis-color-border-default);
+      var(--artemis-color-border-subtle);
     font-family: var(--artemis-typography-body-family);
   }
 
@@ -1739,7 +1739,7 @@
     min-block-size: 0;
     overflow: hidden;
     color: var(--artemis-color-text-primary);
-    background: var(--artemis-color-canvas);
+    background: var(--artemis-color-surface-base);
     font-family: var(--artemis-typography-body-family);
     font-size: var(--artemis-typography-body-size);
   }
@@ -2470,7 +2470,7 @@
       calc(var(--artemis-space-2) - 2px);
     background: var(--artemis-color-surface-base);
     border-block-end: var(--artemis-border-width-default) solid
-      var(--artemis-color-border-default);
+      var(--artemis-color-border-subtle);
   }
 
   [data-artemis-component="workspace-tab-bar"] > [data-part="scroll-shell"] {

@@ -30,7 +30,6 @@ export const CONVERSATION_COMPONENT_CONTRACT_SCHEMA_VERSION = 1 as const;
 
 export const CONVERSATION_COMPONENT_MUTABLE_TOKENS =
   /* @__PURE__ */ Object.freeze([
-    "--artemis-color-canvas",
     "--artemis-color-surface-base",
     "--artemis-color-surface-raised",
     "--artemis-color-surface-sunken",

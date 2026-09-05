@@ -340,7 +340,7 @@ describe("Codex conversation shell contract", () => {
       publicUiCssDeclarations(
         '[data-artemis-component="conversation-surface"]',
       ),
-    ).toMatch(/\bbackground:\s*var\(--artemis-color-canvas\)/u);
+    ).toMatch(/\bbackground:\s*var\(--artemis-color-surface-base\)/u);
     expect(
       publicUiCssDeclarations('[data-artemis-component="workspace-dock"]'),
     ).toMatch(/\bbackground:\s*var\(--artemis-color-surface-base\)/u);

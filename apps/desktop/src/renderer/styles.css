@@ -3609,7 +3609,7 @@ button.environment-row:disabled {
 
 .child-agent-panel-header {
   align-items: center;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
   display: flex;
   flex: 0 0 auto;
   gap: 12px;
@@ -3675,7 +3675,7 @@ button.environment-row:disabled {
 }
 
 .child-agent-panel-runtime-bar {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
   flex: 0 0 auto;
 }
 
@@ -3723,7 +3723,7 @@ button.environment-row:disabled {
 }
 
 .child-agent-panel-task {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
   margin: 0 0 28px;
   padding: 0 0 22px;
 }
@@ -3774,7 +3774,7 @@ button.environment-row:disabled {
 
 .agent-team-header {
   align-items: flex-start;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-soft);
   display: flex;
   flex: 0 0 auto;
   gap: 18px;

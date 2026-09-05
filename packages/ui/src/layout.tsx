@@ -42,6 +42,7 @@ export const LAYOUT_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-color-text-primary",
   "--artemis-color-text-secondary",
   "--artemis-color-border-default",
+  "--artemis-color-border-subtle",
   "--artemis-color-border-strong",
   "--artemis-color-accent-primary",
   "--artemis-space-1",

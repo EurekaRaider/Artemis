@@ -116,7 +116,7 @@
       "min-inline-size": "0",
       "padding": "calc(var(--artemis-space-2) - 1px) var(--artemis-space-3) calc(var(--artemis-space-2) - 2px)",
       "background": "var(--artemis-color-surface-base)",
-      "border-block-end": "var(--artemis-border-width-default) solid var(--artemis-color-border-default)"
+      "border-block-end": "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)"
     }
   ],
   [

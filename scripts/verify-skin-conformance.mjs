@@ -1303,7 +1303,7 @@ const CL3_EXPECTED_CSS_RULES = [
       color: "var(--artemis-color-text-primary)",
       background: "var(--artemis-color-surface-base)",
       "border-block-end":
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
       "font-family": "var(--artemis-typography-body-family)",
       "font-size": "var(--artemis-typography-body-size)",
     },
@@ -1410,7 +1410,7 @@ const CL3_EXPECTED_CSS_RULES = [
       color: "var(--artemis-color-text-primary)",
       background: "var(--artemis-color-surface-base)",
       "border-block-end":
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
       "font-family": "var(--artemis-typography-body-family)",
     },
   ],
@@ -2187,7 +2187,7 @@ const MIG2_EXPECTED_CSS_RULES = [
       "min-block-size": "0",
       overflow: "hidden",
       color: "var(--artemis-color-text-primary)",
-      background: "var(--artemis-color-canvas)",
+      background: "var(--artemis-color-surface-base)",
       "font-family": "var(--artemis-typography-body-family)",
       "font-size": "var(--artemis-typography-body-size)",
     },
