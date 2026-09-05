@@ -17,6 +17,7 @@ import {
   SourcesSurface,
 } from "@artemis/ui/workflow";
 
+import type { WorkspaceFileLink } from "../shared/api.js";
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
 import { type McpGroup, groupMcpUsage } from "./EnvironmentPanel.js";
@@ -24,6 +25,12 @@ import { type McpGroup, groupMcpUsage } from "./EnvironmentPanel.js";
 const labels = {
   en: {
     title: "Sources",
+    attachments: "Attachments",
+    agents: "Agents",
+    task: "This task",
+    viewAgent: "View details",
+    viewFile: "Open file",
+    web: "Web",
     empty: "No sources have been added to this task.",
     draft: "Attached to the next message",
     sent: "Added to the task",
@@ -43,6 +50,12 @@ const labels = {
   },
   "zh-CN": {
     title: "来源",
+    attachments: "附件",
+    agents: "Agent",
+    task: "本次任务",
+    viewAgent: "查看详情",
+    viewFile: "查看文件",
+    web: "网页",
     empty: "当前任务尚未添加来源。",
     draft: "已附加到下一条消息",
     sent: "已添加到任务",
@@ -238,33 +251,38 @@ function McpUsageGroupView({
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
   return (
-    <SourceEntry>
-      <SourceEntryIcon>
-        <SourcesIcon />
-      </SourceEntryIcon>
+    <SourceEntry className="sources-panel-mcp-entry">
       <SourceEntryBody>
-        <h2 title={group.name}>{group.name}</h2>
-        <p>{copy.mcpSummary(group.calls, group.tools.length)}</p>
-        <p title={group.tools.join(", ")}>{group.tools.join(", ")}</p>
-        <p>{usedBy}</p>
         <button
+          className="sources-panel-mcp-summary"
+          aria-label={expanded ? copy.hideDetails : copy.showDetails}
           aria-controls={detailsId}
           aria-expanded={expanded}
           onClick={() => setExpanded((current) => !current)}
           type="button"
         >
-          {expanded ? copy.hideDetails : copy.showDetails}
+          <strong title={group.name}>{group.name}</strong>
+          <span>{copy.mcpSummary(group.calls, group.tools.length)}</span>
+          <ArtemisIcon
+            aria-hidden="true"
+            name="chevron"
+            width={12}
+            height={12}
+          />
         </button>
-        {expanded && (
-          <div className="sources-panel-mcp-details" id={detailsId}>
-            {toolStats.map((entry) => (
-              <p key={entry.tool} title={entry.tool}>
-                <strong>{entry.tool}</strong>
-                <span> · {entry.calls}</span>
-              </p>
-            ))}
-          </div>
-        )}
+        <div
+          className="sources-panel-mcp-details"
+          hidden={!expanded}
+          id={detailsId}
+        >
+          <p>{usedBy}</p>
+          {toolStats.map((entry) => (
+            <p key={entry.tool} title={entry.tool}>
+              <strong>{entry.tool}</strong>
+              <span> · {entry.calls}</span>
+            </p>
+          ))}
+        </div>
       </SourceEntryBody>
     </SourceEntry>
   );
@@ -276,6 +294,8 @@ export function SourcesPanel({
   locale,
   mcpUsages,
   onOpenUrl,
+  onOpenAgent,
+  onOpenFile,
   sources,
   threadId,
 }: {
@@ -284,6 +304,8 @@ export function SourcesPanel({
   locale: AppLocale;
   mcpUsages: McpToolUsageState[];
   onOpenUrl: (url: string) => void;
+  onOpenAgent?: (agent: ChildAgentState) => void;
+  onOpenFile?: (file: WorkspaceFileLink) => void;
   sources: TaskSourceState[];
   threadId: string;
 }) {
@@ -311,6 +333,56 @@ export function SourcesPanel({
       ),
     [sources],
   );
+  const [workspaceFiles, setWorkspaceFiles] = useState<
+    Record<string, WorkspaceFileLink>
+  >({});
+  useEffect(() => {
+    let cancelled = false;
+    setWorkspaceFiles({});
+    if (!onOpenFile) return;
+    const names = [
+      ...new Set([
+        ...attachments
+          .filter((attachment) => "type" in attachment)
+          .map((attachment) => attachment.name),
+        ...attachmentSources
+          .filter((source) => source.kind === "file")
+          .map((source) => source.name),
+      ]),
+    ];
+    void Promise.all(
+      names.map(async (name) => {
+        try {
+          return [
+            name,
+            await window.artemis.inspectWorkspaceFileLink(threadId, name),
+          ] as const;
+        } catch {
+          return undefined;
+        }
+      }),
+    ).then((files) => {
+      if (!cancelled)
+        setWorkspaceFiles(
+          Object.fromEntries(files.filter((file) => file !== undefined)),
+        );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [attachments, attachmentSources, onOpenFile, threadId]);
+  const fileAction = (name: string) => {
+    const file = workspaceFiles[name];
+    return file && onOpenFile ? (
+      <button
+        className="sources-file-action environment-text-action"
+        onClick={() => onOpenFile(file)}
+        type="button"
+      >
+        {t.viewFile}
+      </button>
+    ) : null;
+  };
   const [sourceImages, setSourceImages] = useState<
     Record<string, Extract<PromptAttachment, { data: string }>>
   >({});
@@ -376,7 +448,8 @@ export function SourcesPanel({
     attachments.length === 0 &&
     attachmentSources.length === 0 &&
     mcpGroups.length === 0 &&
-    webGroups.length === 0;
+    webGroups.length === 0 &&
+    agents.length === 0;
 
   return (
     <SourcesSurface
@@ -385,9 +458,18 @@ export function SourcesPanel({
         previewError ? "error" : preview ? "open" : empty ? "empty" : "ready"
       }
     >
+      <header className="workspace-panel-toolbar">
+        <strong>{t.title}</strong>
+        <span className="workspace-panel-status">{t.task}</span>
+      </header>
       <SourcesScroll>
         {empty && <SourcesState state="empty">{t.empty}</SourcesState>}
 
+        {(attachments.length > 0 || attachmentSources.length > 0) && (
+          <h2 className="workspace-panel-section-title">
+            {t.attachments} · {attachments.length + attachmentSources.length}
+          </h2>
+        )}
         {attachments.map((attachment, index) => {
           const image = !("type" in attachment);
           const content = (
@@ -427,6 +509,7 @@ export function SourcesPanel({
               key={`draft:${index}:${attachment.name}`}
             >
               {content}
+              {fileAction(attachment.name)}
             </SourceEntry>
           );
         })}
@@ -464,6 +547,7 @@ export function SourcesPanel({
           ) : (
             <SourceEntry className="attachment" key={source.sourceId}>
               {content}
+              {fileAction(source.name)}
             </SourceEntry>
           );
         })}
@@ -472,6 +556,11 @@ export function SourcesPanel({
           <SourcesState state="error">{previewError}</SourcesState>
         )}
 
+        {mcpGroups.length > 0 && (
+          <h2 className="workspace-panel-section-title">
+            MCP · {mcpGroups.length}
+          </h2>
+        )}
         {mcpGroups.map((group) => (
           <McpUsageGroupView
             copy={t}
@@ -492,6 +581,11 @@ export function SourcesPanel({
           />
         ))}
 
+        {webGroups.length > 0 && (
+          <h2 className="workspace-panel-section-title">
+            {t.web} · {webGroups.length}
+          </h2>
+        )}
         {webGroups.map((group) => (
           <WebSearchSourceGroupView
             copy={t}
@@ -500,6 +594,30 @@ export function SourcesPanel({
             onOpenUrl={onOpenUrl}
           />
         ))}
+        {agents.length > 0 && (
+          <section className="sources-agent-group">
+            <h2 className="workspace-panel-section-title">
+              {t.agents} · {agents.length}
+            </h2>
+            {agents.map((agent) => (
+              <div className="sources-agent-row" key={agent.agentId}>
+                <div>
+                  <strong>{agent.label}</strong>
+                  <p>{agent.task}</p>
+                </div>
+                {onOpenAgent && (
+                  <button
+                    className="environment-text-action"
+                    onClick={() => onOpenAgent(agent)}
+                    type="button"
+                  >
+                    {t.viewAgent}
+                  </button>
+                )}
+              </div>
+            ))}
+          </section>
+        )}
       </SourcesScroll>
       {preview && (
         <div

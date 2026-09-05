@@ -15,7 +15,7 @@ import {
 describe("resource icons", () => {
   it("ships the prototype resource glyphs as a typed production catalog", () => {
     expect(ARTEMIS_ICON_SOURCE).toBe(
-      "ui-prototype-v17:components.html#cat-icons",
+      "ui-prototype-v69:components.html#cat-icons;apple-inspired-ui.html",
     );
     expect(RESOURCE_ICON_NAMES).toHaveLength(37);
     expect(new Set(RESOURCE_ICON_NAMES).size).toBe(RESOURCE_ICON_NAMES.length);

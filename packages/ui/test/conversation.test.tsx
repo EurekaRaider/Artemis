@@ -33,7 +33,7 @@ describe("Conversation component contracts", () => {
       CONVERSATION_COMPONENT_CONTRACTS.timelineViewport.interaction,
     ).toContain("caller-owned-scroll-anchor-wheel-and-pointer-events");
     expect(CONVERSATION_COMPONENT_MUTABLE_TOKENS).toContain(
-      "--artemis-typography-code-family",
+      "--artemis-typography-mono-family",
     );
     expect(
       validateConversationComponentContracts(CONVERSATION_COMPONENT_CONTRACTS),

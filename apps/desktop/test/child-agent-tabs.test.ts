@@ -1,3 +1,4 @@
+import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -119,8 +120,8 @@ describe("Codex-style child-agent workspace tabs", () => {
       /\.child-agent-card\s*\{[^}]*\bcursor:\s*pointer[^}]*\bdisplay:\s*flex/isu,
     );
     expect(stylesSource).toContain(".child-agent-card:focus-visible");
-    expect(stylesSource).toMatch(
-      /\.child-agent-panel\s*\{[^}]*\bdisplay:\s*flex[^}]*\boverflow:\s*hidden/isu,
+    expect(findCssDeclarations(stylesSource, ".child-agent-panel")).toMatch(
+      /\bdisplay:\s*flex[\s\S]*\boverflow:\s*hidden/iu,
     );
     expect(stylesSource).toMatch(
       /\.child-agent-panel-body\s*\{[^}]*\bflex:\s*1 1 auto[^}]*\boverflow:\s*auto/isu,

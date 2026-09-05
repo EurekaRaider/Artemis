@@ -1,12 +1,18 @@
 import type { AppLocale, Thread, ThreadGoal } from "@artemis/protocol";
-import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   GoalEditorFooter,
   GoalEditorInput,
   GoalEditorSurface,
   type WorkflowComponentState,
 } from "@artemis/ui/workflow";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 const COPY = {
   en: {
@@ -73,6 +79,7 @@ export function GoalEditorPanel({
   onError(message: string): void;
   onSaved(thread: Thread): void;
 }) {
+  const inputId = useId();
   const copy = locale.startsWith("zh") ? COPY["zh-CN"] : COPY.en;
   const [status, setStatus] = useState<GoalEditorStatus>({ kind: "loading" });
   const [revision, setRevision] = useState(goal.revision);
@@ -282,108 +289,151 @@ export function GoalEditorPanel({
 
   return (
     <GoalEditorSurface busy={busy} label={copy.goal} state={visualState}>
-      {status.kind === "loading" && (
-        <div className="goal-editor-loading">{copy.loading}</div>
-      )}
-      {(status.kind === "ready" ||
-        status.kind === "saving" ||
-        status.kind === "save-error" ||
-        (status.kind === "stale" && status.source !== undefined)) && (
-        <GoalEditorInput
-          aria-label={copy.goal}
-          autoFocus={true}
-          disabled={status.kind === "saving" || status.kind === "stale"}
-          onChange={(event) => {
-            if (status.kind !== "ready" && status.kind !== "save-error") return;
-            setStatus({
-              kind: "ready",
-              source: status.source,
-              draft: event.target.value,
-              saved: false,
-            });
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) {
-              return;
-            }
-            if (event.nativeEvent.isComposing) return;
-            event.preventDefault();
-            void save();
-          }}
-          placeholder={copy.goal}
-          ref={editorRef}
-          spellCheck={true}
-          value={draftValue}
-        />
-      )}
-      {status.kind === "load-error" && (
-        <p className="goal-editor-stale" role="alert">
-          {status.message}{" "}
-          <button onClick={handleRetryLoad} type="button">
-            {copy.retryLoad}
-          </button>
-        </p>
-      )}
-      {status.kind === "save-error" && (
-        <p className="goal-editor-stale" role="alert">
-          {status.message}{" "}
-          <button onClick={handleRetrySave} type="button">
-            {copy.retrySave}
-          </button>
-        </p>
-      )}
-      {status.kind === "stale" && (
-        <p className="goal-editor-stale" role="alert">
-          {dirty ? `${copy.staleDirty} ` : ""}
-          {copy.stale}{" "}
-          <button onClick={handleReload} type="button">
-            {dirty && reloadConfirmed ? copy.reloadConfirm : copy.reload}
-          </button>
-        </p>
-      )}
-      <GoalEditorFooter
-        actions={
-          <>
-            {status.kind === "ready" && status.saved && (
-              <span aria-live="polite" className="goal-editor-saved">
-                {copy.saved}
-              </span>
-            )}
-            <button
-              aria-label={copy.revert}
-              className="goal-editor-revert"
-              disabled={!dirty || busy || status.kind === "stale"}
-              onClick={() => {
-                if (status.kind !== "ready" && status.kind !== "save-error") {
-                  return;
-                }
-                setStatus({
-                  kind: "ready",
-                  source: status.source,
-                  draft: status.source,
-                  saved: false,
-                });
-              }}
-              title={copy.revert}
-              type="button"
-            >
-              <ArtemisIcon height={14} name="refresh" width={14} />
-            </button>
-            <button
-              className="primary-button"
-              disabled={
-                !dirty || !draftValue.trim() || busy || status.kind === "stale"
+      <header className="workspace-panel-toolbar">
+        <strong>{locale.startsWith("zh") ? "任务目标" : "Task goal"}</strong>
+        <span className="workspace-panel-status">
+          {
+            {
+              active: locale.startsWith("zh") ? "进行中" : "Active",
+              paused: locale.startsWith("zh") ? "已暂停" : "Paused",
+              blocked: locale.startsWith("zh") ? "已阻塞" : "Blocked",
+              usageLimited: locale.startsWith("zh")
+                ? "用量受限"
+                : "Usage limited",
+              budgetLimited: locale.startsWith("zh")
+                ? "预算已用完"
+                : "Budget reached",
+              complete: locale.startsWith("zh") ? "已完成" : "Complete",
+            }[goal.status]
+          }
+        </span>
+      </header>
+      <div className="goal-editor-content">
+        <label className="workspace-panel-section-title" htmlFor={inputId}>
+          {copy.goal}
+        </label>
+        {status.kind === "loading" && (
+          <div className="goal-editor-loading">{copy.loading}</div>
+        )}
+        {(status.kind === "ready" ||
+          status.kind === "saving" ||
+          status.kind === "save-error" ||
+          (status.kind === "stale" && status.source !== undefined)) && (
+          <GoalEditorInput
+            aria-label={copy.goal}
+            id={inputId}
+            autoFocus={true}
+            disabled={status.kind === "saving" || status.kind === "stale"}
+            onChange={(event) => {
+              if (status.kind !== "ready" && status.kind !== "save-error")
+                return;
+              setStatus({
+                kind: "ready",
+                source: status.source,
+                draft: event.target.value,
+                saved: false,
+              });
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) {
+                return;
               }
-              onClick={() => void save()}
-              type="button"
-            >
-              {status.kind === "saving" ? copy.saving : copy.save}
+              if (event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              void save();
+            }}
+            placeholder={copy.goal}
+            ref={editorRef}
+            spellCheck={true}
+            value={draftValue}
+          />
+        )}
+        {status.kind === "load-error" && (
+          <p className="goal-editor-stale" role="alert">
+            {status.message}{" "}
+            <button onClick={handleRetryLoad} type="button">
+              {copy.retryLoad}
             </button>
-          </>
-        }
-      >
-        {updatedLabel}
-      </GoalEditorFooter>
+          </p>
+        )}
+        {status.kind === "save-error" && (
+          <p className="goal-editor-stale" role="alert">
+            {status.message}{" "}
+            <button onClick={handleRetrySave} type="button">
+              {copy.retrySave}
+            </button>
+          </p>
+        )}
+        {status.kind === "stale" && (
+          <p className="goal-editor-stale" role="alert">
+            {dirty ? `${copy.staleDirty} ` : ""}
+            {copy.stale}{" "}
+            <button onClick={handleReload} type="button">
+              {dirty && reloadConfirmed ? copy.reloadConfirm : copy.reload}
+            </button>
+          </p>
+        )}
+        <div className="goal-editor-meta">
+          <span>
+            {locale.startsWith("zh") ? "已用时" : "Elapsed"}{" "}
+            {Math.floor(goal.timeUsedSeconds / 60)}:
+            {String(Math.floor(goal.timeUsedSeconds % 60)).padStart(2, "0")}
+          </span>
+          <span>
+            {goal.tokenBudget === undefined
+              ? locale.startsWith("zh")
+                ? "预算未设置"
+                : "No budget set"
+              : `${new Intl.NumberFormat(locale).format(goal.tokensUsed)} / ${new Intl.NumberFormat(locale).format(goal.tokenBudget)} Tokens`}
+          </span>
+        </div>
+        <GoalEditorFooter
+          actions={
+            <>
+              {status.kind === "ready" && status.saved && (
+                <span aria-live="polite" className="goal-editor-saved">
+                  {copy.saved}
+                </span>
+              )}
+              <button
+                aria-label={copy.revert}
+                className="goal-editor-revert"
+                disabled={!dirty || busy || status.kind === "stale"}
+                onClick={() => {
+                  if (status.kind !== "ready" && status.kind !== "save-error") {
+                    return;
+                  }
+                  setStatus({
+                    kind: "ready",
+                    source: status.source,
+                    draft: status.source,
+                    saved: false,
+                  });
+                }}
+                title={copy.revert}
+                type="button"
+              >
+                {copy.revert}
+              </button>
+              <button
+                className="primary-button"
+                disabled={
+                  !dirty ||
+                  !draftValue.trim() ||
+                  busy ||
+                  status.kind === "stale"
+                }
+                onClick={() => void save()}
+                type="button"
+              >
+                {status.kind === "saving" ? copy.saving : copy.save}
+              </button>
+            </>
+          }
+        >
+          {updatedLabel}
+        </GoalEditorFooter>
+      </div>
     </GoalEditorSurface>
   );
 }

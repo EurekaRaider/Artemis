@@ -296,6 +296,114 @@
       "important": false,
       "owner": "Desktop embedded browser viewport",
       "reason": "The isolated web-content canvas intentionally starts white and is not a skin surface."
+    },
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] > [data-part=\"trigger\"]",
+      "property": "padding",
+      "value": "0 9px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Context selector matches the frozen v69 26px context row with a separate leading icon. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] > [data-part=\"trigger\"]",
+      "property": "gap",
+      "value": "6px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Context selector indicator spacing from v69. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] > [data-part=\"trigger\"]",
+      "property": "padding-inline-start",
+      "value": "27px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Reserve the measured 13px context icon and its spacing in v69. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".settings-header [data-artemis-component=\"button\"]",
+      "property": "padding",
+      "value": "4px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "The settings close action uses the v69 28px toolbar control. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".settings-section [data-artemis-component=\"button\"]",
+      "property": "padding",
+      "value": "5px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Settings row actions follow the v69 compact 28px control. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".settings-section > [data-part=\"content\"] > [data-artemis-component=\"button\"]",
+      "property": "margin-block",
+      "value": "9px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Settings section actions use v69 row separation. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".settings-section :is([data-artemis-component=\"text-field\"], [data-artemis-component=\"select\"]) :is([data-part=\"control\"], [data-part=\"trigger\"])",
+      "property": "padding",
+      "value": "5px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Settings controls align with the v69 29px field geometry. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".im-setup-steps p, .settings-section > [data-part=\"content\"] > :is([data-artemis-component=\"textarea-field\"], .configuration-import)",
+      "property": "margin-block",
+      "value": "6px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Multiline settings content follows v69 section spacing. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".settings-section [data-artemis-component=\"textarea-field\"] [data-part=\"control\"]",
+      "property": "padding",
+      "value": "6px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "The settings editor uses the frozen v69 internal text inset. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".queued-message-steer, .token-usage-summary > [data-artemis-component=\"data-stat\"]",
+      "property": "gap",
+      "value": "5px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "The five-column v69 summary uses 5px between the value and label. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".automation-actions [data-artemis-component=\"button\"]",
+      "property": "padding",
+      "value": "5px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Automation card actions use v69 28px compact controls. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".plugin-market-card-footer [data-artemis-component=\"button\"]",
+      "property": "padding",
+      "value": "5px 10px",
+      "important": false,
+      "owner": "Discussion 151 v69 Desktop composition",
+      "reason": "Catalogue card actions use v69 28px compact controls. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
     }
   ]
 }

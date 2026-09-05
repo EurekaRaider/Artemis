@@ -9,14 +9,15 @@ import {
 } from "../src/icons.js";
 
 describe("ArtemisIcon", () => {
-  it("publishes the complete prototype v17 icon catalog", () => {
+  it("publishes the complete prototype v69 icon catalog and workspace brand", () => {
     expect(ARTEMIS_ICON_SOURCE).toBe(
-      "ui-prototype-v17:components.html#cat-icons",
+      "ui-prototype-v69:components.html#cat-icons;apple-inspired-ui.html",
     );
-    expect(ARTEMIS_ICON_NAMES).toHaveLength(98);
-    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(98);
+    expect(ARTEMIS_ICON_NAMES).toHaveLength(101);
+    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(101);
     expect(ARTEMIS_ICON_NAMES).toEqual(
       expect.arrayContaining([
+        "artemis",
         "folder",
         "sidebar-l",
         "queue",

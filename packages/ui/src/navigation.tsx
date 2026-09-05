@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, type ReactNode, type KeyboardEvent } from "react";
 
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
@@ -19,6 +19,7 @@ export const NAVIGATION_COMPONENT_MUTABLE_TOKENS =
     "--artemis-color-text-primary",
     "--artemis-color-text-secondary",
     "--artemis-color-border-default",
+    "--artemis-color-border-subtle",
     "--artemis-color-border-strong",
     "--artemis-color-accent-primary",
     "--artemis-space-1",
@@ -51,6 +52,7 @@ export interface NavigationComponentContract {
   readonly uiContractVersion: 1;
   readonly name: "tabs" | "segmented-control";
   readonly parts: readonly string[];
+  readonly optionalParts?: readonly string[];
   readonly states: readonly NavigationState[];
   readonly statePriority: readonly NavigationState[];
   readonly sizes: readonly NavigationControlSize[];
@@ -85,6 +87,7 @@ export const NAVIGATION_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     uiContractVersion: 1,
     name: "tabs",
     parts: ["root", "tab"],
+    optionalParts: ["icon"],
     states: ["ready", "selected", "disabled"],
     statePriority: NAVIGATION_STATE_PRIORITY,
     sizes: ["compact", "comfortable"],
@@ -317,6 +320,7 @@ export interface TabOption<
 > extends NavigationOptionBase<Value> {
   readonly id: string;
   readonly panelId: string;
+  readonly icon?: ReactNode;
 }
 
 function requireValidTabRelations<Value extends string>(
@@ -456,6 +460,11 @@ export function Tabs<Value extends string>({
             tabIndex={selected ? 0 : -1}
             type="button"
           >
+            {option.icon ? (
+              <span aria-hidden="true" data-part="icon">
+                {option.icon}
+              </span>
+            ) : null}
             {option.label}
           </button>
         );

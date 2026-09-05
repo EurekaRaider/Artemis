@@ -1997,7 +1997,9 @@ const MIG1_EXPECTED_CSS_RULES = [
   ],
   [
     'normal|[data-artemis-component="activity-bar"] > [data-part="brand"]',
-    { "margin-block-end": "var(--artemis-space-1)" },
+    {
+      "margin-block-end": "calc(var(--artemis-space-1) / 2)",
+    },
   ],
   [
     'normal|[data-artemis-component="activity-bar"] > [data-part="footer"]',
@@ -2019,8 +2021,7 @@ const MIG1_EXPECTED_CSS_RULES = [
       color: "var(--artemis-color-text-tertiary)",
       background: "transparent",
       border: "0",
-      "border-radius":
-        "calc(var(--artemis-radius-control) + var(--artemis-space-1) / 2)",
+      "border-radius": "calc(var(--artemis-radius-control) + 1px)",
       cursor: "pointer",
       transition:
         "color var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), background var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), transform var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
@@ -2036,7 +2037,7 @@ const MIG1_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="activity-bar-item"][data-state="selected"]',
     {
-      color: "var(--artemis-color-accent-text)",
+      color: "var(--artemis-color-accent-primary)",
       background: "var(--artemis-color-accent-subtle)",
     },
   ],
@@ -2045,12 +2046,12 @@ const MIG1_EXPECTED_CSS_RULES = [
     {
       position: "absolute",
       "inset-block-start": "50%",
-      "inset-inline-start": "calc(var(--artemis-space-2) * -1)",
+      "inset-inline-start": "calc(var(--artemis-space-1) * -1.5)",
       "inline-size": "calc(var(--artemis-space-1) - 1px)",
-      "block-size": "calc(var(--artemis-space-3) + var(--artemis-space-1))",
+      "block-size": "calc(var(--artemis-space-4) - 1px)",
       content: '""',
       background: "var(--artemis-color-accent-primary)",
-      "border-radius": "var(--artemis-radius-control)",
+      "border-radius": "calc(var(--artemis-space-1) / 2)",
       transform: "translateY(-50%)",
     },
   ],
@@ -2125,12 +2126,11 @@ const MIG1_EXPECTED_CSS_RULES = [
       position: "relative",
       "box-sizing": "border-box",
       "min-inline-size": "0",
-      padding:
-        "var(--artemis-space-3) var(--artemis-space-3) var(--artemis-space-2)",
+      padding: "0 var(--artemis-space-3) calc(var(--artemis-space-2) + 1px)",
       color: "var(--artemis-color-text-primary)",
       background: "var(--artemis-color-surface-composer)",
       border:
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-surface)",
       "border-radius": "var(--artemis-radius-composer)",
       "box-shadow": "var(--artemis-shadow-composer)",
       "font-family": "var(--artemis-typography-body-family)",
@@ -2140,9 +2140,9 @@ const MIG1_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="composer-surface"] > [data-part="context"]',
     {
-      margin:
-        "calc(-1 * var(--artemis-space-3)) calc(-1 * var(--artemis-space-3)) 0",
-      padding: "var(--artemis-space-2) var(--artemis-space-3)",
+      margin: "0 calc(-1 * var(--artemis-space-3))",
+      padding:
+        "var(--artemis-space-2) var(--artemis-space-3) calc(var(--artemis-space-2) - 1px)",
       background: "var(--artemis-color-surface-sunken)",
       "border-block-end":
         "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
@@ -2210,7 +2210,7 @@ const MIG2_EXPECTED_CSS_RULES = [
       "max-inline-size": "60rem",
       "margin-inline": "auto",
       padding:
-        "calc(var(--artemis-space-6) + var(--artemis-space-2)) var(--artemis-space-5) var(--artemis-space-6)",
+        "calc(var(--artemis-space-6) + var(--artemis-space-2) + 2px) var(--artemis-space-5) var(--artemis-space-6)",
     },
   ],
   [
@@ -2282,8 +2282,7 @@ const MIG2_EXPECTED_CSS_RULES = [
     {
       position: "relative",
       "min-inline-size": "0",
-      "margin-block-end":
-        "calc(var(--artemis-space-6) + var(--artemis-space-1))",
+      "margin-block-end": "calc(var(--artemis-space-5) + 2px)",
       color: "var(--artemis-color-text-primary)",
     },
   ],
@@ -2293,14 +2292,15 @@ const MIG2_EXPECTED_CSS_RULES = [
       "inline-size": "fit-content",
       "max-inline-size": "78%",
       "margin-inline-start": "auto",
-      padding: "calc(var(--artemis-space-3) - 1px) var(--artemis-space-4)",
+      padding:
+        "calc(var(--artemis-space-3) - 1px) calc(var(--artemis-space-3) + 2px)",
       "overflow-wrap": "anywhere",
       "white-space": "pre-wrap",
-      background: "var(--artemis-color-surface-raised)",
+      background: "var(--artemis-color-surface-user)",
       border:
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+        "var(--artemis-border-width-default) solid var(--artemis-color-border-surface)",
       "border-radius":
-        "var(--artemis-radius-card) var(--artemis-radius-card) var(--artemis-space-1) var(--artemis-radius-card)",
+        "var(--artemis-radius-card) var(--artemis-radius-card) calc(var(--artemis-space-1) - 1px) var(--artemis-radius-card)",
       "line-height": "1.55",
     },
   ],
@@ -2308,23 +2308,23 @@ const MIG2_EXPECTED_CSS_RULES = [
     'normal|[dir="rtl"] [data-artemis-component="conversation-message"][data-message-kind="user"], [dir="rtl"] [data-artemis-component="conversation-message"][data-message-kind="steering"]',
     {
       "border-radius":
-        "var(--artemis-radius-card) var(--artemis-radius-card) var(--artemis-radius-card) var(--artemis-space-1)",
+        "var(--artemis-radius-card) var(--artemis-radius-card) var(--artemis-radius-card) calc(var(--artemis-space-1) - 1px)",
     },
   ],
   [
     'normal|[data-artemis-component="conversation-message"][data-message-kind="assistant"]',
     {
       "max-inline-size": "100%",
-      "font-size": "calc(var(--artemis-typography-body-size) + 1px)",
-      "letter-spacing": "-0.004em",
-      "line-height": "var(--artemis-typography-body-line-height)",
+      "font-size": "calc(var(--artemis-typography-body-size) + 0.5px)",
+      "letter-spacing": "normal",
+      "line-height": "1.68",
     },
   ],
   [
     'normal|[data-artemis-component="conversation-message"] [data-part="content"] code',
     {
       "overflow-wrap": "anywhere",
-      "font-family": "var(--artemis-typography-code-family)",
+      "font-family": "var(--artemis-typography-mono-family)",
     },
   ],
   [

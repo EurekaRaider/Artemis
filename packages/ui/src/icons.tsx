@@ -1,9 +1,12 @@
 import type { ReactNode, SVGProps } from "react";
 
 export const ARTEMIS_ICON_SOURCE =
-  "ui-prototype-v17:components.html#cat-icons" as const;
+  "ui-prototype-v69:components.html#cat-icons;apple-inspired-ui.html" as const;
 
 export const ARTEMIS_ICON_NAMES = [
+  "artemis",
+  "message",
+  "agent-configuration",
   "folder",
   "folder-open",
   "files",
@@ -107,8 +110,27 @@ export const ARTEMIS_ICON_NAMES = [
 export type ArtemisIconName = (typeof ARTEMIS_ICON_NAMES)[number];
 
 const ARTEMIS_ICON_GLYPHS = {
+  artemis: (
+    <>
+      <circle cx="12" cy="12" r="8.2" />
+      <path d="M6.5 17.5 17.5 6.5M13.5 6.5h4v4" />
+    </>
+  ),
+  message: (
+    <>
+      {" "}
+      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.3-.6L3 21l1.7-5.6A8.3 8.3 0 0 1 3 11.5 8.5 8.5 0 0 1 21 11.5z"></path>{" "}
+    </>
+  ),
+  "agent-configuration": (
+    <>
+      {" "}
+      <rect height="12" rx="2.5" width="14" x="5" y="7"></rect>
+      <path d="M9 7V5.5A2.5 2.5 0 0 1 11.5 3h1A2.5 2.5 0 0 1 15 5.5V7"></path>{" "}
+    </>
+  ),
   folder: (
-    <path d="M3.5 6.5a2 2 0 012-2h4l2 2.5h7a2 2 0 012 2v8a2 2 0 01-2 2h-13a2 2 0 01-2-2v-10.5z" />
+    <path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z" />
   ),
   "folder-open": (
     <path
@@ -205,9 +227,9 @@ const ARTEMIS_ICON_GLYPHS = {
   ),
   archive: (
     <>
-      <rect x="3.5" y="4" width="17" height="4.5" rx="1.5" />
-      <path d="M5 8.5h14V18a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 015 18V8.5z" />
-      <path d="M10 12.5h4" />
+      {" "}
+      <rect height="5" rx="1.5" width="16" x="4" y="4"></rect>
+      <path d="M5.5 9v9A1.5 1.5 0 0 0 7 19.5h10a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"></path>{" "}
     </>
   ),
   review: (
@@ -230,24 +252,23 @@ const ARTEMIS_ICON_GLYPHS = {
   ),
   automation: (
     <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 7.5V12l3 1.8" />
+      {" "}
+      <circle cx="12" cy="12" r="8"></circle>
+      <path d="M12 7.5V12l3 2"></path>{" "}
     </>
   ),
   resource: (
     <>
-      <path d="M8 3.5v4M16 3.5v4M6 7.5h12v2.5a6 6 0 01-12 0V7.5z" />
-      <path d="M12 16v3.5M9.5 20h5" />
+      {" "}
+      <rect height="15" rx="3" width="17" x="3.5" y="4.5"></rect>
+      <path d="M3.5 9.5h17M8 14h4"></path>{" "}
     </>
   ),
   settings: (
     <>
-      <line x1="4" y1="7" x2="20" y2="7" />
-      <circle cx="9" cy="7" r="2" />
-      <line x1="4" y1="12" x2="20" y2="12" />
-      <circle cx="15" cy="12" r="2" />
-      <line x1="4" y1="17" x2="20" y2="17" />
-      <circle cx="7" cy="17" r="2" />
+      {" "}
+      <circle cx="12" cy="12" r="3"></circle>
+      <circle cx="12" cy="12" r="8" strokeDasharray="2.5 3"></circle>{" "}
     </>
   ),
   gear: (
@@ -363,8 +384,10 @@ const ARTEMIS_ICON_GLYPHS = {
   ),
   environment: (
     <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M3.5 12h17M12 3.5c2.5 2 3.8 5 3.8 8.5s-1.3 6.5-3.8 8.5c-2.5-2-3.8-5-3.8-8.5s1.3-6.5 3.8-8.5z" />
+      <circle cx="6" cy="6" r="2.4" />
+      <circle cx="6" cy="18" r="2.4" />
+      <circle cx="18" cy="9" r="2.4" />
+      <path d="M6 8.4v7.2M8 7l7.7 1.3M8 17l7.7-6.6" />
     </>
   ),
   branch: (
@@ -421,8 +444,8 @@ const ARTEMIS_ICON_GLYPHS = {
   check: <path d="M4.5 12.5l5 5 10-11" />,
   approval: (
     <>
-      <path d="M12 3.5l7 2.8v5.2c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6.3l7-2.8z" />
-      <path d="M9 12l2 2 4-4.5" />
+      {" "}
+      <path d="M12 3.5 20 7v5c0 4.8-3.4 7.6-8 8.5C7.4 19.6 4 16.8 4 12V7z"></path>{" "}
     </>
   ),
   "tool-activity": (
@@ -445,9 +468,8 @@ const ARTEMIS_ICON_GLYPHS = {
   ),
   "token-usage": (
     <>
-      <path d="M5.5 18.5v-6M12 18.5v-11M18.5 18.5v-8" />
-      <path d="M3.5 20.5h17" opacity="0.5" />
-      <circle cx="12" cy="4.5" r="1.5" />
+      {" "}
+      <path d="M5 19v-8M12 19V5M19 19v-5"></path>{" "}
     </>
   ),
   "review-empty": (

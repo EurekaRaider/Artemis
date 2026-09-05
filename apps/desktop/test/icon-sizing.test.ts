@@ -4,6 +4,7 @@
 // (xs 12 / sm 14 / base 16 / lg 20 / xl 24), the named consumer migrations,
 // and the frozen baseline for everything intentionally left on literal
 // pixels in this PR.
+import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { createElement } from "react";
@@ -41,15 +42,10 @@ const resourceCenterSource = readFileSync(
   "utf8",
 );
 
-function cssRuleBlock(styles: string, selector: string, last = false): string {
-  const needle = `${selector} {`;
-  const at = last ? styles.lastIndexOf(needle) : styles.indexOf(needle);
-  if (at === -1) {
-    throw new Error(`selector not found in styles.css: ${needle}`);
-  }
-  const open = styles.indexOf("{", at);
-  const close = styles.indexOf("}", open);
-  return styles.slice(open + 1, close);
+function cssRuleBlock(styles: string, selector: string): string {
+  const result = findCssDeclarations(styles, selector);
+  expect(result, `Missing CSS rule: ${selector}`).toBeDefined();
+  return result ?? "";
 }
 
 const TIER_ORDER = ["xs", "sm", "base", "lg", "xl"] as const;
@@ -116,10 +112,8 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(names).toEqual(
       [...TIER_ORDER].map((tier) => `--icon-size-${tier}`).sort(),
     );
-    // MIG5A moved two Resource Center consumers to the public action/icon
-    // contract. The renderer-local family therefore has 5 declarations plus
-    // 2 references (width/height) in each of the 11 remaining consumers.
-    expect(stylesSource.match(/--icon-size-/g)?.length ?? 0).toBe(27);
+    // Consolidated selectors share six declaration pairs plus the five tiers.
+    expect(stylesSource.match(/--icon-size-/g)?.length ?? 0).toBe(17);
   });
 
   it("keeps tier values distinct and strictly increasing", () => {
@@ -181,10 +175,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
   });
 
   const MIGRATED_RULES: Array<[string, Tier, number]> = [
-    // The row-icon rule shares its declaration block with a leading
-    // ".environment-trigger svg," selector; the trigger keeps its effective
-    // size from its own later standalone rule, which the unmigrated
-    // baseline below locks at a literal 20px.
+    // The trigger overrides the shared row rule with the v69 16px glyph.
     [".environment-row-icon svg:not(.child-agent-mark)", "lg", 18],
     [".environment-header-action svg", "lg", 18],
     [".environment-chevron svg,\n.environment-external svg", "base", 16],
@@ -197,7 +188,6 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       "lg",
       20,
     ],
-    [".environment-view-all svg", "lg", 18],
     [".resource-avatar svg", "lg", 20],
     [".resource-avatar .resource-semantic-icon", "xl", 22],
   ];
@@ -250,24 +240,23 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(artemisIconsSource).toContain("strokeWidth={1.5}");
   });
 
-  const UNMIGRATED_RULES: Array<[string, number, boolean]> = [
-    [".environment-trigger svg", 20, false],
-    [".agent-team-member-disclosure svg", 12, false],
+  const PROTOTYPE_RULES: Array<[string, number]> = [
+    [".environment-trigger svg", 16],
+    [".agent-team-member-disclosure svg", 12],
     [
       ".workspace-file-kind .seti-file-icon,\n.workspace-file-kind .seti-file-icon svg",
       21,
-      false,
     ],
-    [".workspace-tab-menu svg", 17, false],
-    [".sources-panel-icon svg", 22, false],
-    [".archive-header-icon svg", 23, true],
-    ['.archive-empty [data-part="icon"] svg', 23, true],
+    [".workspace-tab-menu svg", 17],
+    [".sources-panel-icon svg", 16],
+    [".archive-header-icon svg", 19],
+    ['.archive-empty [data-part="icon"] svg', 23],
   ];
 
-  it.each(UNMIGRATED_RULES)(
-    "%s keeps its literal pixel size (unmigrated baseline)",
-    (selector: string, px: number, last: boolean) => {
-      const block = cssRuleBlock(stylesSource, selector, last);
+  it.each(PROTOTYPE_RULES)(
+    "%s keeps its v69 pixel size",
+    (selector: string, px: number) => {
+      const block = cssRuleBlock(stylesSource, selector);
       expect(block).toMatch(new RegExp(`(?<![a-z-])width:\\s*${px}px`));
       expect(block).toMatch(new RegExp(`(?<![a-z-])height:\\s*${px}px`));
     },
@@ -290,12 +279,13 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(dingbats).toEqual({
       "App.tsx": { check: 7, star: 2 },
       "EnvironmentPanel.tsx": { check: 1, star: 0 },
+      "ImSetupGuide.tsx": { check: 1, star: 0 },
     });
     const total = Object.values(dingbats).reduce(
       (sum, counts) => sum + counts.check + counts.star,
       0,
     );
-    expect(total).toBe(10);
+    expect(total).toBe(11);
     expect(
       readFileSync(resolve(process.cwd(), "src/renderer/App.tsx"), "utf8"),
     ).toContain('<ArtemisIcon height={16} name="skill" width={16} />');
@@ -305,7 +295,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(resourceIconsSource).toContain('from "@artemis/ui/icons"');
     expect(resourceIconsSource).not.toContain("@phosphor-icons/react");
     expect(artemisIconsSource).toContain(
-      "ui-prototype-v17:components.html#cat-icons",
+      "ui-prototype-v69:components.html#cat-icons;apple-inspired-ui.html",
     );
     expect(artemisIconsSource).toContain("data-artemis-icon={name}");
     expect(stylesSource).not.toContain("--resource-icon-accent");

@@ -39,6 +39,8 @@ interface WorkspaceFilesPanelProps {
   sourceLabel: string;
   unsavedLabel: string;
   onOpenHtml(path: string): void;
+  onOpenReader?: (path: string) => void;
+  readerLabel?: string;
   onFileSelected(path: string): void;
 }
 
@@ -189,6 +191,8 @@ export function WorkspaceFilesPanel({
   sourceLabel,
   unsavedLabel,
   onOpenHtml,
+  onOpenReader,
+  readerLabel,
   onFileSelected,
 }: WorkspaceFilesPanelProps) {
   const activeThreadId = useRef(threadId);
@@ -347,99 +351,113 @@ export function WorkspaceFilesPanel({
     /\.(?:md|markdown)$/iu.test(selectedFile.path);
 
   return (
-    <WorkspaceFileLayout
-      label={title}
-      viewer={
-        selectedFile ? (
-          markdownSelected && !selectedFile.binary ? (
-            <WorkspaceMarkdownEditor
-              ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
-              content={draft}
-              dirty={draft !== selectedFile.content}
-              imageFailureText={imageFailureMessage}
-              onChange={(content) => {
-                setDraft(content);
-                setSaveState("idle");
-              }}
-              onSave={saveFile}
-              path={selectedFile.path}
-              // The branch guard above already excludes binary files (they
-              // render the preview-empty notice); readOnly is kept as an
-              // explicit contract for future call sites.
-              readOnly={selectedFile.binary}
-              richLabel={richLabel}
-              saveError={saveError}
-              saveLabel={saveLabel}
-              savedLabel={savedLabel}
-              saveState={saveState}
-              savingLabel={savingLabel}
-              sourceLabel={sourceLabel}
-              threadId={threadId}
-              unsavedLabel={unsavedLabel}
-            />
-          ) : selectedFile.binary ? (
-            <>
-              <WorkspaceFileHeader path={selectedFile.path} readOnly />
-              <WorkspaceContentState label={binaryMessage} state="read-only">
-                {binaryMessage}
-              </WorkspaceContentState>
-            </>
-          ) : (
-            <WorkspaceFileEditor
-              ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
-              content={draft}
-              dirty={draft !== selectedFile.content}
-              onChange={(content) => {
-                setDraft(content);
-                setSaveState("idle");
-              }}
-              onSave={saveFile}
-              path={selectedFile.path}
-              // Binary files render the preview-empty branch above; readOnly
-              // is kept as an explicit contract for future call sites.
-              readOnly={selectedFile.binary}
-              saveError={saveError}
-              saveLabel={saveLabel}
-              savedLabel={savedLabel}
-              saveState={saveState}
-              savingLabel={savingLabel}
-              unsavedLabel={unsavedLabel}
-            />
-          )
-        ) : (
-          <WorkspaceContentState
-            label={error ?? openFileMessage}
-            state={error ? "error" : "empty"}
+    <section className="workspace-files-panel">
+      <header className="workspace-panel-toolbar">
+        <strong>{title}</strong>
+        {markdownSelected && selectedFile && onOpenReader && readerLabel && (
+          <button
+            className="environment-text-action"
+            onClick={() => onOpenReader(selectedFile.path)}
+            type="button"
           >
-            {error ?? openFileMessage}
-          </WorkspaceContentState>
-        )
-      }
-      tree={
-        <WorkspaceFileTree
-          filterLabel={filterPlaceholder}
-          filterPlaceholder={filterPlaceholder}
-          filterValue={filter}
-          label={title}
-          loading={loadingDirectories.has("")}
-          onFilterChange={setFilter}
-          onRefresh={refresh}
-          refreshIcon={<ArtemisIcon height={20} name="refresh" width={20} />}
-          refreshLabel={refreshLabel}
-        >
-          <DirectoryTree
-            childrenByDirectory={childrenByDirectory}
-            depth={0}
-            entries={childrenByDirectory[""] ?? []}
-            expanded={expanded}
-            filter={filter}
-            loadingDirectories={loadingDirectories}
-            selectedPath={selectedFile?.path}
-            onOpen={openFile}
-            onToggle={toggleDirectory}
-          />
-        </WorkspaceFileTree>
-      }
-    />
+            {readerLabel}
+          </button>
+        )}
+      </header>
+      <WorkspaceFileLayout
+        label={title}
+        viewer={
+          selectedFile ? (
+            markdownSelected && !selectedFile.binary ? (
+              <WorkspaceMarkdownEditor
+                ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
+                content={draft}
+                dirty={draft !== selectedFile.content}
+                imageFailureText={imageFailureMessage}
+                onChange={(content) => {
+                  setDraft(content);
+                  setSaveState("idle");
+                }}
+                onSave={saveFile}
+                path={selectedFile.path}
+                // The branch guard above already excludes binary files (they
+                // render the preview-empty notice); readOnly is kept as an
+                // explicit contract for future call sites.
+                readOnly={selectedFile.binary}
+                richLabel={richLabel}
+                saveError={saveError}
+                saveLabel={saveLabel}
+                savedLabel={savedLabel}
+                saveState={saveState}
+                savingLabel={savingLabel}
+                sourceLabel={sourceLabel}
+                threadId={threadId}
+                unsavedLabel={unsavedLabel}
+              />
+            ) : selectedFile.binary ? (
+              <>
+                <WorkspaceFileHeader path={selectedFile.path} readOnly />
+                <WorkspaceContentState label={binaryMessage} state="read-only">
+                  {binaryMessage}
+                </WorkspaceContentState>
+              </>
+            ) : (
+              <WorkspaceFileEditor
+                ariaLabel={`${editFileLabel}: ${selectedFile.path}`}
+                content={draft}
+                dirty={draft !== selectedFile.content}
+                onChange={(content) => {
+                  setDraft(content);
+                  setSaveState("idle");
+                }}
+                onSave={saveFile}
+                path={selectedFile.path}
+                // Binary files render the preview-empty branch above; readOnly
+                // is kept as an explicit contract for future call sites.
+                readOnly={selectedFile.binary}
+                saveError={saveError}
+                saveLabel={saveLabel}
+                savedLabel={savedLabel}
+                saveState={saveState}
+                savingLabel={savingLabel}
+                unsavedLabel={unsavedLabel}
+              />
+            )
+          ) : (
+            <WorkspaceContentState
+              label={error ?? openFileMessage}
+              state={error ? "error" : "empty"}
+            >
+              {error ?? openFileMessage}
+            </WorkspaceContentState>
+          )
+        }
+        tree={
+          <WorkspaceFileTree
+            filterLabel={filterPlaceholder}
+            filterPlaceholder={filterPlaceholder}
+            filterValue={filter}
+            label={title}
+            loading={loadingDirectories.has("")}
+            onFilterChange={setFilter}
+            onRefresh={refresh}
+            refreshIcon={<ArtemisIcon height={20} name="refresh" width={20} />}
+            refreshLabel={refreshLabel}
+          >
+            <DirectoryTree
+              childrenByDirectory={childrenByDirectory}
+              depth={0}
+              entries={childrenByDirectory[""] ?? []}
+              expanded={expanded}
+              filter={filter}
+              loadingDirectories={loadingDirectories}
+              selectedPath={selectedFile?.path}
+              onOpen={openFile}
+              onToggle={toggleDirectory}
+            />
+          </WorkspaceFileTree>
+        }
+      />
+    </section>
   );
 }

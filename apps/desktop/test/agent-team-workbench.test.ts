@@ -1,3 +1,4 @@
+import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -37,15 +38,15 @@ describe("agent-team workbench", () => {
   });
 
   it("stacks the member queue above the collaboration log", () => {
-    expect(stylesSource).toMatch(
-      /\.agent-team-grid \{[\s\S]*?display: flex;[\s\S]*?flex-direction: column;/,
+    expect(findCssDeclarations(stylesSource, ".agent-team-grid")).toMatch(
+      /display: flex;[\s\S]*flex-direction: column;[\s\S]*overflow: auto/u,
     );
-    expect(stylesSource).toMatch(
-      /\.agent-team-members \{[\s\S]*?border-bottom: 1px solid var\(--border\);/,
+    expect(findCssDeclarations(stylesSource, ".agent-team-members")).toContain(
+      "flex: 0 0 auto",
     );
-    expect(stylesSource).toMatch(
-      /\.agent-team-collaboration \{[\s\S]*?flex: 1 1 0;/,
-    );
+    expect(
+      findCssDeclarations(stylesSource, ".agent-team-collaboration"),
+    ).toContain("flex: 1 0 auto");
   });
 
   it("opens the subagent page directly from an accessible tree row", () => {

@@ -764,6 +764,11 @@ export function AutomationPage(props: {
             {t.create}
           </Button>
         }
+        leading={
+          <span className="secondary-page-icon">
+            <ArtemisIcon name="automation" width={19} height={19} />
+          </span>
+        }
         className="automation-header"
         description={t.subtitle}
         title={t.title}

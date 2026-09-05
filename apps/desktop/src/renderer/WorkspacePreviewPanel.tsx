@@ -298,6 +298,17 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
             : "ready"
       }
     >
+      <header className="workspace-panel-toolbar">
+        <strong>{props.title}</strong>
+        <button
+          className="text-button browser-refresh-button"
+          disabled={!webviewReady || (pageLoading && loading)}
+          onClick={reload}
+          type="button"
+        >
+          {props.refreshLabel}
+        </button>
+      </header>
       <BrowserToolbar
         className="browser-toolbar"
         label={`${props.title}: ${props.addressPlaceholder}`}
@@ -333,13 +344,6 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
             onClick={() =>
               runWhenWebviewReady((webview) => webview.goForward())
             }
-          />
-          <BrowserNavigationButton
-            className="browser-refresh-button"
-            disabled={!webviewReady || (pageLoading && loading)}
-            icon={<ArtemisIcon name="refresh" />}
-            label={props.refreshLabel}
-            onClick={reload}
           />
         </BrowserNavigation>
         <BrowserAddressForm
@@ -487,7 +491,7 @@ export function MarkdownReaderPanel(props: MarkdownReaderProps) {
           {error ?? (loading ? "…" : props.emptyMessage)}
         </WorkspaceContentState>
       ) : view === "rich" ? (
-        <WorkspacePreview label={editorLabel}>
+        <WorkspacePreview className="document-reader" label={editorLabel}>
           <MarkdownContent
             imageFailureText={props.imageFailureMessage}
             resolveImage={resolveImage}

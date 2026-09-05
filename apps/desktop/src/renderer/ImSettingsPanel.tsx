@@ -519,56 +519,60 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
       data-compact={compact}
     >
       <header className="im-header">
-        <h2>{t("消息接入", "Message integrations")}</h2>
-        <span className="im-status-pill" role="status">
-          <span
-            className="im-dot"
-            data-state={
-              settings.enabled
-                ? health.failed
-                  ? "error"
-                  : status?.state
-                : "disabled"
+        <div className="im-header-copy">
+          <h2>{t("消息接入", "Message integrations")}</h2>{" "}
+          <p>
+            {t(
+              "通过 IM 单聊或群协作，把任务交给这台电脑执行。",
+              "Send tasks to this computer through private bot chats or group collaboration.",
+            )}
+          </p>
+        </div>
+        <div className="im-header-state">
+          <span className="im-status-pill" role="status">
+            <span
+              className="im-dot"
+              data-state={
+                settings.enabled
+                  ? health.failed
+                    ? "error"
+                    : status?.state
+                  : "disabled"
+              }
+              aria-hidden="true"
+            />
+            {summary}
+            {connections.length > 0 &&
+              ` · ${imConnectionSummary(connections, t)}`}
+          </span>
+          <Switch
+            label={t("启用 IM 连接", "Enable IM connection")}
+            checked={settings.enabled}
+            disabled={busy || (!settings.enabled && !!enableReason)}
+            description={
+              !settings.enabled
+                ? enableReason
+                : t(
+                    "暂停会保留已有配置与授权。",
+                    "Pausing keeps configuration and grants.",
+                  )
             }
-            aria-hidden="true"
+            onCheckedChange={(enabled) =>
+              void run(async () => {
+                const current = await window.artemis.saveImSettings({
+                  ...status!.settings,
+                  enabled,
+                });
+                setStatus((previous) => ({ ...previous, ...current }));
+                setSettings((draft) =>
+                  draft
+                    ? { ...draft, enabled: current.settings.enabled }
+                    : current.settings,
+                );
+              })
+            }
           />
-          {summary}
-          {connections.length > 0 &&
-            ` · ${imConnectionSummary(connections, t)}`}
-        </span>
-        <Switch
-          label={t("启用 IM 连接", "Enable IM connection")}
-          checked={settings.enabled}
-          disabled={busy || (!settings.enabled && !!enableReason)}
-          description={
-            !settings.enabled
-              ? enableReason
-              : t(
-                  "暂停会保留已有配置与授权。",
-                  "Pausing keeps configuration and grants.",
-                )
-          }
-          onCheckedChange={(enabled) =>
-            void run(async () => {
-              const current = await window.artemis.saveImSettings({
-                ...status!.settings,
-                enabled,
-              });
-              setStatus((previous) => ({ ...previous, ...current }));
-              setSettings((draft) =>
-                draft
-                  ? { ...draft, enabled: current.settings.enabled }
-                  : current.settings,
-              );
-            })
-          }
-        />
-        <p>
-          {t(
-            "通过 IM 单聊或群协作，把任务交给这台电脑执行。",
-            "Send tasks to this computer through private bot chats or group collaboration.",
-          )}
-        </p>
+        </div>
       </header>
       {message && (
         <InlineNotice

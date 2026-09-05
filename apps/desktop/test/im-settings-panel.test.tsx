@@ -183,7 +183,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await user.click(
-      await screen.findByRole("button", { name: "3. 连接一个机器人" }),
+      await screen.findByRole("button", { name: /^连接一个机器人/ }),
     );
     for (const [label, value] of [
       ["连接 ID", "wecom-team"],
@@ -244,7 +244,7 @@ describe("production IM settings", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(6);
     expect(screen.getByText("长连接或 HTTPS 回调")).toBeVisible();
     expect(screen.getByRole("switch", { name: "启用 IM 连接" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "1. 准备 Gateway" }));
+    await user.click(screen.getByRole("button", { name: /^准备 Gateway/ }));
     await user.click(screen.getByRole("button", { name: "一键启动并注册" }));
     await waitFor(() =>
       expect(f.manage).toHaveBeenCalledWith({ action: "setup-local" }),
@@ -407,7 +407,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await user.click(
-      await screen.findByRole("button", { name: "4. 绑定你的 IM 账号" }),
+      await screen.findByRole("button", { name: /^绑定你的 IM 账号/ }),
     );
     await user.click(screen.getByRole("button", { name: "拒绝" }));
     await waitFor(() =>

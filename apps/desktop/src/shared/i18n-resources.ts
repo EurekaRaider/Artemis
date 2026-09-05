@@ -84,7 +84,7 @@ const en = {
     title: "Settings",
     close: "Close",
     tabGeneral: "General",
-    tabProviders: "Custom providers",
+    tabProviders: "Providers & models",
     tabAgents: "Agent configuration",
     tabCapabilities: "Execution access",
     tabMaintenance: "Updates & diagnostics",
@@ -116,9 +116,8 @@ const en = {
     never: "Never",
   },
   resources: {
-    title: "Plugins",
-    marketDescription:
-      "Add plugins, Connectors, Skills and MCP servers to Artemis.",
+    title: "MCP & Skills",
+    marketDescription: "Manage plugins, Connectors, MCP servers and Skills.",
     plugins: "Plugins",
     connectors: "Connectors",
     mcp: "MCP",
@@ -249,7 +248,7 @@ const zhCN: NamespaceCatalog = {
     title: "设置",
     close: "关闭",
     tabGeneral: "通用",
-    tabProviders: "自定义供应商",
+    tabProviders: "供应商及模型配置",
     tabAgents: "Agent 配置",
     tabCapabilities: "执行权限",
     tabMaintenance: "更新与诊断",
@@ -281,9 +280,8 @@ const zhCN: NamespaceCatalog = {
     never: "从未",
   },
   resources: {
-    title: "插件",
-    marketDescription:
-      "为 Artemis 添加插件、Connectors、Skills 和 MCP 服务器。",
+    title: "MCP 与 Skills",
+    marketDescription: "管理插件、Connector、MCP 服务器与 Skills",
     plugins: "插件",
     connectors: "Connectors",
     mcp: "MCP",
@@ -410,7 +408,7 @@ const zhTW: NamespaceCatalog = {
     title: "設定",
     close: "關閉",
     tabGeneral: "一般",
-    tabProviders: "自訂供應商",
+    tabProviders: "供應商及模型設定",
     tabAgents: "Agent 設定",
     tabCapabilities: "執行權限",
     tabMaintenance: "更新與診斷",
@@ -442,7 +440,7 @@ const zhTW: NamespaceCatalog = {
     never: "從未",
   },
   resources: {
-    title: "外掛程式",
+    title: "MCP 與 Skills",
     marketDescription:
       "為 Artemis 新增外掛程式、Connectors、Skills 與 MCP 伺服器。",
     plugins: "外掛程式",

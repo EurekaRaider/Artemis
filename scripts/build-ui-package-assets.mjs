@@ -1,3 +1,5 @@
+import postcss from "postcss";
+
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -38,7 +40,20 @@ if (target === "theme-contract") {
     join(root, "packages/ui/src/styles.css"),
     "utf8",
   );
-  await writeFile(join(root, "packages/ui/dist/styles.css"), source, "utf8");
+  // Keep the exact selectors and declaration values used by conformance checks;
+  // distributed CSS does not need the source file's indentation.
+  const css = postcss.parse(source);
+  css.raws.after = "";
+  css.walk((node) => {
+    node.raws.before = "";
+    node.raws.after = "";
+    node.raws.between = node.type === "decl" ? ":" : "";
+  });
+  await writeFile(
+    join(root, "packages/ui/dist/styles.css"),
+    css.toString(),
+    "utf8",
+  );
 } else if (target === "theme-artemis") {
   const contract = await import(
     pathToFileURL(join(root, "packages/theme-contract/dist/index.js")).href

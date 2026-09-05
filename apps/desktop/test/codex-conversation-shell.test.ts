@@ -1,3 +1,5 @@
+import { artemisDarkTokens } from "@artemis/theme-artemis";
+import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -51,30 +53,15 @@ const hostMessagesSource = readFileSync(
 );
 
 function cssDeclarations(selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const match = stylesSource.match(
-    new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{(?<body>[^}]*)\\}`, "u"),
-  );
-  expect(match, `Missing CSS rule for ${selector}`).not.toBeNull();
-  return match?.groups?.body ?? "";
+  const declarations = findCssDeclarations(stylesSource, selector);
+  expect(declarations, `Missing CSS rule: ${selector}`).toBeDefined();
+  return declarations ?? "";
 }
 
 function publicUiCssDeclarations(selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const match = publicUiStylesSource.match(
-    new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{(?<body>[^}]*)\\}`, "u"),
-  );
-  expect(match, `Missing public UI CSS rule for ${selector}`).not.toBeNull();
-  return match?.groups?.body ?? "";
-}
-
-function cssVariable(name: string): string {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const value = stylesSource.match(
-    new RegExp(`${escaped}:\\s*(?<value>#[\\da-f]{6})\\s*;`, "iu"),
-  )?.groups?.value;
-  expect(value, `Missing hex CSS variable ${name}`).toBeDefined();
-  return value!;
+  const declarations = findCssDeclarations(publicUiStylesSource, selector);
+  expect(declarations, `Missing CSS rule: ${selector}`).toBeDefined();
+  return declarations ?? "";
 }
 
 function relativeLuminance(hex: string): number {
@@ -125,7 +112,7 @@ describe("Codex conversation shell contract", () => {
     );
     expect(projectTree).toContain('className="project-toggle"');
     expect(projectTree).toContain("aria-expanded={projectOpen}");
-    expect(projectTree).toContain("<FolderIcon open={projectOpen} />");
+    expect(projectTree).toContain("<FolderIcon />");
     expect(projectTree).toMatch(
       /className="project-toggle"[\s\S]*?onClick=\{\(\)\s*=>\s*toggleProjectHistory\(project\.id\)\}/u,
     );
@@ -314,14 +301,16 @@ describe("Codex conversation shell contract", () => {
     expect(appSource).toContain("setMode((current) => nextRunMode(current))");
   });
 
-  it("uses Codex shell tones, typography, and the rounded workspace boundary", () => {
-    const sidebar = cssVariable("--codex-sidebar-bg");
-    const workspace = cssVariable("--codex-workspace-bg");
+  it("uses v69 semantic shell tones and typography", () => {
+    const sidebar =
+      artemisDarkTokens.modes[0].tokens["color.background.sidebar"].value;
+    const workspace =
+      artemisDarkTokens.modes[0].tokens["color.surface.base"].value;
 
     expect(relativeLuminance(sidebar)).toBeGreaterThan(
       relativeLuminance(workspace),
     );
-    expect(relativeLuminance(workspace)).toBeLessThan(0.015);
+    expect(workspace).toBe("#232325");
     expect(stylesSource).toContain(
       '--ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;',
     );
@@ -331,11 +320,13 @@ describe("Codex conversation shell contract", () => {
     expect(
       publicUiCssDeclarations('[data-artemis-component="navigation-sidebar"]'),
     ).toMatch(/\bbackground:\s*var\(--artemis-color-background-sidebar\)/u);
-    for (const selector of [".workspace", ".workspace-header"]) {
-      expect(cssDeclarations(selector)).toMatch(
-        /\bbackground:\s*var\(--artemis-color-surface-base\)/u,
-      );
-    }
+    expect(cssDeclarations(".workspace")).toMatch(
+      /\bbackground:\s*var\(--artemis-color-surface-base\)/u,
+    );
+    expect(
+      publicUiCssDeclarations('[data-artemis-component="toolbar"]'),
+    ).toMatch(/\bbackground:\s*var\(--artemis-color-surface-base\)/u);
+
     expect(
       publicUiCssDeclarations(
         '[data-artemis-component="conversation-surface"]',
@@ -343,7 +334,7 @@ describe("Codex conversation shell contract", () => {
     ).toMatch(/\bbackground:\s*var\(--artemis-color-surface-base\)/u);
     expect(
       publicUiCssDeclarations('[data-artemis-component="workspace-dock"]'),
-    ).toMatch(/\bbackground:\s*var\(--artemis-color-surface-base\)/u);
+    ).toMatch(/\bbackground:\s*var\(--artemis-color-surface-sunken\)/u);
     expect(cssDeclarations(".workspace")).toMatch(
       /\bborder-top-left-radius:\s*0/u,
     );

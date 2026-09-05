@@ -48,65 +48,18 @@ import {
   EnvironmentCheckIcon,
   EnvironmentChevronIcon,
   EnvironmentCommitIcon,
-  EnvironmentCompareIcon,
   EnvironmentExternalIcon,
-  EnvironmentLocalIcon as CodexLocalIcon,
   EnvironmentPullRequestIcon,
   EnvironmentSearchIcon,
-  EnvironmentSourcesIcon,
 } from "./EnvironmentPanelIcons.js";
-
-export const ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH = 720;
-
-export interface EnvironmentPanelLayoutSpace {
-  workspaceWidth: number;
-  panelWidth: number;
-  layoutGap: number;
-  minimumConversationWidth: number;
-}
-
-export function environmentPanelConversationWidth(
-  layout: Readonly<EnvironmentPanelLayoutSpace>,
-) {
-  return Math.max(
-    0,
-    layout.workspaceWidth - layout.panelWidth - layout.layoutGap,
-  );
-}
-
-export function shouldAutoHideEnvironmentPanel(
-  layout: Readonly<EnvironmentPanelLayoutSpace>,
-) {
-  return (
-    environmentPanelConversationWidth(layout) < layout.minimumConversationWidth
-  );
-}
-
-export function environmentPanelVisibilityAfterResize(
-  current: Readonly<{ open: boolean; autoHidden: boolean }>,
-  layout: Readonly<EnvironmentPanelLayoutSpace>,
-) {
-  if (shouldAutoHideEnvironmentPanel(layout) && current.open) {
-    return { open: false, autoHidden: true };
-  }
-  if (!shouldAutoHideEnvironmentPanel(layout) && current.autoHidden) {
-    return { open: true, autoHidden: false };
-  }
-  return current;
-}
-
-function cssPixels(
-  styles: CSSStyleDeclaration,
-  property: string,
-  fallback: number,
-) {
-  const value = Number.parseFloat(styles.getPropertyValue(property));
-  return Number.isFinite(value) ? value : fallback;
-}
 
 const labels = {
   en: {
     trigger: "Task environment",
+    close: "Close",
+    workspaceLabel: "Local checkout",
+    viewChanges: "View changes",
+    changedFiles: (count: number) => `${count} changed files`,
     title: "Environment",
     addProject: "Add project",
     changes: "Changes",
@@ -173,7 +126,11 @@ const labels = {
     localChangesNotChecked: "Checks do not include local working tree changes.",
     unpushedCommitNotChecked: "Checks do not include unpushed commits.",
     differentHeadNotChecked: "Checks ran against a different commit.",
-    agents: "Sub-agents",
+    agents: "Agent activity",
+    mainAgent: "Main agent",
+    taskContext: "Context used in this task",
+    sourceSummary: (attachments: number, calls: number) =>
+      `${attachments} attachments · ${calls} tool calls`,
     agentSummary: (total: number, active: number) =>
       `${total} total · ${active} active`,
     noAgents: "No sub-agents have been used in this task.",
@@ -204,11 +161,15 @@ const labels = {
   },
   "zh-CN": {
     trigger: "任务环境",
-    title: "环境信息",
+    title: "环境",
+    close: "关闭",
+    workspaceLabel: "本地工作区",
+    viewChanges: "查看更改",
+    changedFiles: (count: number) => `${count} 个文件有未提交更改`,
     addProject: "添加项目",
     changes: "变更",
     local: "本地",
-    branch: "分支",
+    branch: "当前分支",
     branchMenu: "分支菜单",
     branchSearch: (project: string) => `搜索${project}分支`,
     branches: "分支",
@@ -269,7 +230,11 @@ const labels = {
     localChangesNotChecked: "检查不包含本地工作区更改。",
     unpushedCommitNotChecked: "检查不包含尚未推送的提交。",
     differentHeadNotChecked: "检查运行于另一个提交。",
-    agents: "子代理",
+    agents: "Agent 活动",
+    mainAgent: "主 Agent",
+    taskContext: "本次任务所用的上下文",
+    sourceSummary: (attachments: number, calls: number) =>
+      `${attachments} 个附件 · ${calls} 次工具调用`,
     agentSummary: (total: number, active: number) =>
       `共 ${total} 个 · ${active} 个活跃`,
     noAgents: "当前任务尚未使用子代理。",
@@ -307,34 +272,6 @@ export interface McpGroup {
   tools: string[];
   agents: string[];
 }
-
-type EnvironmentSourceItem =
-  | {
-      id: string;
-      name: string;
-      mimeType: string;
-      kind: "file" | "image";
-      draft: true;
-      attachment: PromptAttachment;
-    }
-  | {
-      id: string;
-      name: string;
-      mimeType: string;
-      kind: "file" | "image";
-      draft: false;
-    }
-  | {
-      id: string;
-      kind: "mcp";
-      name: string;
-      draft: false;
-    }
-  | {
-      id: string;
-      kind: "web-search";
-      draft: false;
-    };
 
 export type ProjectPullRequestCheckSummary =
   "passed" | "failed" | "pending" | "skipped" | "cancelled" | "none";
@@ -594,32 +531,12 @@ function ChangesIcon() {
   return <CodexChangesIcon aria-hidden="true" />;
 }
 
-function LocalIcon() {
-  return <CodexLocalIcon aria-hidden="true" />;
-}
-
-function McpIcon() {
-  return <ArtemisIcon height={20} name="mcp" width={20} />;
-}
-
-function CompareIcon() {
-  return <EnvironmentCompareIcon />;
-}
-
 function PushIcon() {
   return <EnvironmentCommitIcon />;
 }
 
 function PullRequestIcon() {
   return <EnvironmentPullRequestIcon />;
-}
-
-function WebSourceIcon() {
-  return <ArtemisIcon height={20} name="web" width={20} />;
-}
-
-function SourceIcon({ image }: { image: boolean }) {
-  return <ArtemisIcon height={20} name={image ? "image" : "file"} width={20} />;
 }
 
 export function PullRequestChecksSummary({
@@ -833,7 +750,6 @@ export function EnvironmentPanel({
   agents,
   attachments,
   defaultOpen,
-  dockOffset,
   dockOpen,
   locale,
   mcpUsages,
@@ -850,6 +766,7 @@ export function EnvironmentPanel({
   refreshKey,
   sources,
   taskTitle,
+  taskStatusLabel,
   teams,
   threadId,
 }: {
@@ -857,7 +774,6 @@ export function EnvironmentPanel({
   agents: ChildAgentState[];
   attachments: PromptAttachment[];
   defaultOpen: boolean;
-  dockOffset: number;
   dockOpen: boolean;
   locale: AppLocale;
   mcpUsages: McpToolUsageState[];
@@ -874,6 +790,7 @@ export function EnvironmentPanel({
   refreshKey?: string;
   sources: TaskSourceState[];
   taskTitle: string;
+  taskStatusLabel?: string;
   teams: AgentTeamState[];
   threadId?: string;
 }) {
@@ -890,7 +807,6 @@ export function EnvironmentPanel({
   const branchMenu = useRef<HTMLDivElement>(null);
   const branchSearch = useRef<HTMLInputElement>(null);
   const checksCloseTimer = useRef<number | undefined>(undefined);
-  const autoHidden = useRef(false);
   const openRef = useRef(defaultOpen);
   const [open, setOpen] = useState(defaultOpen);
   const [gitInfo, setGitInfo] = useState<ProjectGitInfo>();
@@ -922,13 +838,11 @@ export function EnvironmentPanel({
   const [showAllAgents, setShowAllAgents] = useState(false);
 
   const closePanel = useCallback(() => {
-    autoHidden.current = false;
     openRef.current = false;
     setOpen(false);
   }, []);
 
   const togglePanel = useCallback(() => {
-    autoHidden.current = false;
     openRef.current = !openRef.current;
     setOpen(openRef.current);
   }, []);
@@ -1004,51 +918,12 @@ export function EnvironmentPanel({
     branchSearch.current?.focus({ preventScroll: true });
   }, [branchMenuPosition, branchOpen, creatingMenuBranch]);
 
-  const syncVisibility = useCallback(() => {
-    const workspace = control.current?.closest(".workspace");
-    if (!(workspace instanceof HTMLElement)) return;
-    const styles = window.getComputedStyle(workspace);
-    const current = {
-      open: openRef.current,
-      autoHidden: autoHidden.current,
-    };
-    const next = environmentPanelVisibilityAfterResize(current, {
-      workspaceWidth: workspace.getBoundingClientRect().width,
-      panelWidth: cssPixels(styles, "--environment-panel-inline-size", 304),
-      layoutGap: cssPixels(styles, "--environment-panel-layout-gap", 24),
-      minimumConversationWidth: cssPixels(
-        styles,
-        "--environment-panel-min-conversation-inline-size",
-        ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH,
-      ),
-    });
-    if (next === current) return;
-    autoHidden.current = next.autoHidden;
-    openRef.current = next.open;
-    setOpen(next.open);
-  }, []);
-
   useLayoutEffect(() => {
-    const workspace = control.current?.closest(".workspace");
-    if (
-      !(workspace instanceof HTMLElement) ||
-      typeof window.ResizeObserver !== "function"
-    ) {
-      return;
+    if (dockOpen) {
+      openRef.current = false;
+      setOpen(false);
     }
-
-    syncVisibility();
-    const observer = new window.ResizeObserver(syncVisibility);
-    observer.observe(workspace);
-    return () => observer.disconnect();
-  }, [syncVisibility]);
-
-  useLayoutEffect(() => {
-    autoHidden.current = false;
-    openRef.current = !dockOpen;
-    setOpen(!dockOpen);
-    if (!dockOpen) syncVisibility();
-  }, [dockOpen, syncVisibility]);
+  }, [dockOpen]);
 
   const loadGit = useCallback(async () => {
     const id = ++gitRequest.current;
@@ -1235,7 +1110,6 @@ export function EnvironmentPanel({
     () => environmentAgentCounts(displayAgents),
     [displayAgents],
   );
-  const mcpGroups = useMemo(() => groupMcpUsage(mcpUsages), [mcpUsages]);
   const agentStatusLabels: Record<ChildAgentState["status"], string> = {
     queued: t.agentQueued,
     running: t.agentRunning,
@@ -1356,47 +1230,15 @@ export function EnvironmentPanel({
     gitInfo?.branches ?? [],
     branchQuery,
   );
-  const combinedSources: EnvironmentSourceItem[] = [
-    ...attachments.map((attachment, index) => ({
-      id: `draft:${index}:${attachment.name}`,
-      name: attachment.name,
-      mimeType: attachment.mimeType,
-      kind: "type" in attachment ? ("file" as const) : ("image" as const),
-      draft: true as const,
-      attachment,
-    })),
-    ...sources.flatMap((source): EnvironmentSourceItem[] =>
-      source.kind === "web-search"
-        ? []
-        : [
-            {
-              id: source.sourceId,
-              name: source.name,
-              mimeType: source.mimeType,
-              kind: source.kind,
-              draft: false,
-            },
-          ],
-    ),
-    ...mcpGroups.map((group) => ({
-      id: `mcp:${group.id}`,
-      kind: "mcp" as const,
-      name: group.name,
-      draft: false as const,
-    })),
-    ...(sources.some((source) => source.kind === "web-search")
-      ? [
-          {
-            id: "web-search",
-            kind: "web-search" as const,
-            draft: false as const,
-          },
-        ]
-      : []),
-  ];
-  const sourcePreviewLimit = 3;
-  const visibleSources = combinedSources.slice(0, sourcePreviewLimit);
-  const hasSourcePanelDetails = combinedSources.length > 0;
+  const attachmentCount =
+    attachments.length +
+    sources.filter(
+      (source) => source.kind === "file" || source.kind === "image",
+    ).length;
+  const sourceCallCount =
+    mcpUsages.length +
+    sources.filter((source) => source.kind === "web-search").length;
+  const hasSourcePanelDetails = attachmentCount + sourceCallCount > 0;
 
   const viewAllSources = () => {
     closePanel();
@@ -1589,18 +1431,7 @@ export function EnvironmentPanel({
   };
 
   return (
-    <EnvironmentControl
-      data-dock-open={dockOpen}
-      open={open}
-      ref={control}
-      style={
-        dockOffset > 0
-          ? ({
-              "--environment-panel-dock-offset": `${dockOffset}px`,
-            } as CSSProperties)
-          : undefined
-      }
-    >
+    <EnvironmentControl data-dock-open={dockOpen} open={open} ref={control}>
       <EnvironmentTrigger
         controls={panelId}
         expanded={open}
@@ -1612,6 +1443,18 @@ export function EnvironmentPanel({
       />
       {open && (
         <EnvironmentPanelSurface id={panelId} label={t.title} ref={panel}>
+          <header className="environment-panel-header">
+            <strong>
+              {t.title} · {project.name}
+            </strong>
+            <button
+              className="environment-text-action"
+              onClick={closePanel}
+              type="button"
+            >
+              {t.close}
+            </button>
+          </header>
           <EnvironmentSection
             action={
               <button
@@ -1625,7 +1468,7 @@ export function EnvironmentPanel({
               </button>
             }
             className="git-environment-section"
-            title={t.title}
+            title="Git"
           >
             {gitLoading && !gitInfo ? (
               <div className="environment-empty" role="status">
@@ -1642,105 +1485,74 @@ export function EnvironmentPanel({
               <div className="environment-empty">{t.notGit}</div>
             ) : (
               <div className="environment-rows">
-                <button
-                  className="environment-row"
-                  onClick={() => {
-                    closePanel();
-                    onOpenReview(
-                      gitInfo.unstagedCount > 0 || gitInfo.untrackedCount > 0
-                        ? "unstaged"
-                        : "staged",
-                    );
-                  }}
-                  type="button"
-                >
-                  <span className="environment-row-icon">
-                    <ChangesIcon />
+                <div className="environment-setting-row" title={gitInfo.root}>
+                  <span className="environment-setting-copy">
+                    <strong>{t.workspaceLabel}</strong>
+                    <small>{project.name}</small>
                   </span>
-                  <span className="environment-row-copy">
-                    <strong>{t.changes}</strong>
-                  </span>
-                  <span className="environment-diff-total">
-                    <i>+{gitInfo.additions}</i>
-                    <b>−{gitInfo.deletions}</b>
-                  </span>
-                </button>
-                <div className="environment-row static" title={gitInfo.root}>
-                  <span className="environment-row-icon">
-                    <LocalIcon />
-                  </span>
-                  <span className="environment-row-copy">
-                    <strong>{t.local}</strong>
-                  </span>
-                  <span className="environment-chevron" aria-hidden="true">
-                    <EnvironmentChevronIcon />
-                  </span>
+                  <span className="environment-local-badge">Local</span>
                 </div>
-                <div className="environment-branch-control">
+                <div className="environment-setting-row">
+                  <span className="environment-setting-copy">
+                    <strong>{t.branch}</strong>
+                    <small>{t.changedFiles(gitInfo.changeCount)}</small>
+                  </span>
+                  <div className="environment-branch-control">
+                    <button
+                      aria-controls="environment-branch-menu"
+                      aria-expanded={branchOpen}
+                      aria-haspopup="menu"
+                      className="environment-row"
+                      onClick={() => {
+                        if (branchOpen) closeBranchMenu();
+                        else {
+                          setCreatingMenuBranch(false);
+                          setMenuBranchName("");
+                          setBranchOpen(true);
+                        }
+                      }}
+                      ref={branchTrigger}
+                      type="button"
+                    >
+                      <span className="environment-row-copy">
+                        <strong>{gitInfo.currentBranch ?? t.detached}</strong>
+                      </span>
+                      <span className="environment-chevron" aria-hidden="true">
+                        <EnvironmentChevronIcon />
+                      </span>
+                    </button>
+                  </div>
+                </div>
+                <div className="environment-panel-actions">
                   <button
-                    aria-controls="environment-branch-menu"
-                    aria-expanded={branchOpen}
-                    aria-haspopup="menu"
-                    className="environment-row"
+                    className="environment-text-action"
                     onClick={() => {
-                      if (branchOpen) closeBranchMenu();
-                      else {
-                        setCreatingMenuBranch(false);
-                        setMenuBranchName("");
-                        setBranchOpen(true);
-                      }
+                      closePanel();
+                      onOpenReview(
+                        gitInfo.unstagedCount > 0 || gitInfo.untrackedCount > 0
+                          ? "unstaged"
+                          : "staged",
+                      );
                     }}
-                    ref={branchTrigger}
                     type="button"
                   >
-                    <span className="environment-row-icon">
-                      <BranchIcon />
-                    </span>
-                    <span className="environment-row-copy">
-                      <strong>{gitInfo.currentBranch ?? t.detached}</strong>
-                    </span>
-                    <span className="environment-chevron" aria-hidden="true">
-                      <EnvironmentChevronIcon />
-                    </span>
+                    {t.viewChanges}
+                  </button>
+                  <button
+                    className="environment-text-action commit-push-row"
+                    disabled={
+                      Boolean(gitBusy) || Boolean(panelGitAction.disabledReason)
+                    }
+                    onClick={() => {
+                      setGitError(undefined);
+                      setCommitOpen(true);
+                    }}
+                    title={panelGitAction.disabledReason}
+                    type="button"
+                  >
+                    {t.commitOrPush}
                   </button>
                 </div>
-                <button
-                  className="environment-row commit-push-row"
-                  disabled={
-                    Boolean(gitBusy) || Boolean(panelGitAction.disabledReason)
-                  }
-                  onClick={() => {
-                    setGitError(undefined);
-                    setCommitOpen(true);
-                  }}
-                  title={panelGitAction.disabledReason}
-                  type="button"
-                >
-                  <span className="environment-row-icon">
-                    <PushIcon />
-                  </span>
-                  <span className="environment-row-copy">
-                    <strong>{t.commitOrPush}</strong>
-                  </span>
-                </button>
-                <button
-                  className="environment-row"
-                  onClick={() => {
-                    closePanel();
-                    onOpenReview("branch", gitInfo.compareBase);
-                  }}
-                  type="button"
-                >
-                  <span className="environment-row-icon">
-                    <CompareIcon />
-                  </span>
-                  <span className="environment-row-copy">
-                    <strong>{t.compareBranch}</strong>
-                  </span>
-                  <span className="environment-external" aria-hidden="true">
-                    <EnvironmentExternalIcon />
-                  </span>
-                </button>
                 {pullRequestLoading && !pullRequestLookup && (
                   <div className="environment-pr-notice" role="status">
                     <span className="environment-row-icon">
@@ -1806,7 +1618,7 @@ export function EnvironmentPanel({
             )}
           </EnvironmentSection>
 
-          {(displayAgents.length > 0 || teams.length > 0) && (
+          {(threadId || displayAgents.length > 0 || teams.length > 0) && (
             <EnvironmentSection
               action={
                 displayAgents.length + teams.length > activityPreviewLimit ? (
@@ -1822,24 +1634,17 @@ export function EnvironmentPanel({
               title={t.agents}
             >
               <div className="environment-activity-list">
-                <p className="environment-agent-summary">
-                  {t.agentSummary(counts.total, counts.active)}
-                </p>
-                <div className="environment-summary-grid">
-                  <span>
-                    <b>{counts.active}</b>
-                    {t.active}
-                  </span>
-                  <span>
-                    {t.queued} {counts.queued}
-                  </span>
-                  <span>
-                    {t.blocked} {counts.blocked}
-                  </span>
-                  <span>
-                    {t.completed} {counts.completed}
-                  </span>
-                </div>
+                {threadId && (
+                  <div className="environment-setting-row">
+                    <span className="environment-setting-copy">
+                      <strong>{t.mainAgent}</strong>
+                      <small>{taskTitle}</small>
+                    </span>
+                    <span className="environment-task-state">
+                      {taskStatusLabel}
+                    </span>
+                  </div>
+                )}
                 {visibleTeams.map((team) => (
                   <button
                     className="environment-activity-row"
@@ -1859,7 +1664,8 @@ export function EnvironmentPanel({
                     <span>
                       <strong>{team.mission}</strong>
                       <small>
-                        {t.teams} · {teamStatusLabels[team.status]}
+                        {team.memberAgentIds.length} ·{" "}
+                        {teamStatusLabels[team.status]}
                       </small>
                     </span>
                     <i>›</i>
@@ -1891,11 +1697,18 @@ export function EnvironmentPanel({
                     <i>›</i>
                   </button>
                 ))}
+                {displayAgents.length > 0 && (
+                  <p className="environment-agent-summary">
+                    {t.agentSummary(counts.total, counts.active)} · {t.queued}{" "}
+                    {counts.queued} · {t.blocked} {counts.blocked} ·{" "}
+                    {t.completed} {counts.completed}
+                  </p>
+                )}
               </div>
             </EnvironmentSection>
           )}
 
-          {combinedSources.length > 0 && (
+          {hasSourcePanelDetails && (
             <EnvironmentSection
               action={
                 <button
@@ -1911,63 +1724,20 @@ export function EnvironmentPanel({
               className="sources-section"
               title={t.sources}
             >
-              <div className="environment-source-list">
-                {visibleSources.map((source) =>
-                  source.kind === "web-search" ? (
-                    <div
-                      className="environment-source-row web-search-source"
-                      key={source.id}
-                    >
-                      <span className="environment-row-icon">
-                        <WebSourceIcon />
-                      </span>
-                      <span>
-                        <strong>{t.webSearch}</strong>
-                      </span>
-                    </div>
-                  ) : source.kind === "mcp" ? (
-                    <div
-                      className="environment-source-row web-search-source"
-                      key={source.id}
-                    >
-                      <span className="environment-row-icon">
-                        <McpIcon />
-                      </span>
-                      <span>
-                        <strong title={source.name}>{source.name}</strong>
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="environment-source-row" key={source.id}>
-                      {source.draft &&
-                      source.kind === "image" &&
-                      source.attachment &&
-                      !("type" in source.attachment) ? (
-                        <img
-                          alt=""
-                          src={`data:${source.attachment.mimeType};base64,${source.attachment.data}`}
-                        />
-                      ) : (
-                        <span className="environment-row-icon">
-                          <SourceIcon image={source.kind === "image"} />
-                        </span>
-                      )}
-                      <span>
-                        <strong title={source.name}>{source.name}</strong>
-                      </span>
-                    </div>
-                  ),
-                )}
-                {hasSourcePanelDetails && (
-                  <button
-                    className="environment-view-all"
-                    onClick={viewAllSources}
-                    type="button"
-                  >
-                    <EnvironmentSourcesIcon aria-hidden="true" />
-                    <span>{t.viewAll}</span>
-                  </button>
-                )}
+              <div className="environment-setting-row">
+                <span className="environment-setting-copy">
+                  <strong>
+                    {t.sourceSummary(attachmentCount, sourceCallCount)}
+                  </strong>
+                  <small>{t.taskContext}</small>
+                </span>
+                <button
+                  className="environment-view-all environment-text-action"
+                  onClick={viewAllSources}
+                  type="button"
+                >
+                  {t.viewAll}
+                </button>
               </div>
             </EnvironmentSection>
           )}
@@ -2030,6 +1800,17 @@ export function EnvironmentPanel({
               </form>
             ) : (
               <>
+                <button
+                  className="environment-compare-action"
+                  role="menuitem"
+                  onClick={() => {
+                    closePanel();
+                    onOpenReview("branch", gitInfo?.compareBase);
+                  }}
+                  type="button"
+                >
+                  {t.compareBranch}
+                </button>
                 <label className="environment-branch-search">
                   <EnvironmentSearchIcon aria-hidden="true" />
                   <input

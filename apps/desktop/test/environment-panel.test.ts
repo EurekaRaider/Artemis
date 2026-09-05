@@ -12,19 +12,15 @@ import type {
 import type { ProjectGitInfo, ProjectPullRequest } from "../src/shared/api.js";
 import { childAgentMarkForIdentity } from "../src/renderer/ChildAgentIcon.js";
 import {
-  ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH,
   environmentBranchDisplayName,
   environmentBranchMenuBranches,
   environmentBranchMenuLayout,
-  environmentPanelConversationWidth,
-  environmentPanelVisibilityAfterResize,
   environmentAgentCounts,
   environmentDisplayAgents,
   environmentGitAction,
   groupMcpUsage,
   projectPullRequestCheckSummary,
   projectPullRequestCoverageWarning,
-  shouldAutoHideEnvironmentPanel,
   suggestedEnvironmentBranchName,
 } from "../src/renderer/EnvironmentPanel.js";
 
@@ -45,13 +41,6 @@ const copy = {
   synced: "synced",
   detachedBlocked: "switch branch",
 };
-
-const panelLayout = (workspaceWidth: number) => ({
-  workspaceWidth,
-  panelWidth: 304,
-  layoutGap: 24,
-  minimumConversationWidth: ENVIRONMENT_PANEL_MIN_CONVERSATION_WIDTH,
-});
 
 function gitInfo(overrides: Partial<ProjectGitInfo> = {}): ProjectGitInfo {
   return {
@@ -106,18 +95,12 @@ describe("task environment panel state", () => {
     expect(dock).toBeGreaterThan(environment);
   });
 
-  it("defaults open, closes with the dock, and can reopen beside the dock", () => {
-    expect(appSource).toContain("defaultOpen={!workspaceDockOpen}");
-    expect(appSource).toContain(
-      "workspaceDockOpen ? Math.max(0, dockWidthNow - 50) : 0",
-    );
+  it("opens on request, closes with the dock, and can reopen beside the dock", () => {
+    expect(appSource).toContain("defaultOpen={false}");
     expect(panelSource).toContain("useState(defaultOpen)");
-    expect(panelSource).toContain("openRef.current = !dockOpen");
-    expect(panelSource).toContain("setOpen(!dockOpen)");
+    expect(panelSource).toContain("openRef.current = false");
+    expect(panelSource).toContain("setOpen(false)");
     expect(panelSource).toContain("data-dock-open={dockOpen}");
-    expect(stylesSource).toContain(
-      '.environment-control[data-dock-open="true"] .environment-popover',
-    );
   });
 
   it("links the trigger to the named Environment dialog", () => {
@@ -139,22 +122,22 @@ describe("task environment panel state", () => {
     expect(panelSource).toContain("gitLoading && !gitInfo");
   });
 
-  it("uses compact Codex-like popover proportions", () => {
+  it("uses the v69 floating panel proportions", () => {
     expect(stylesSource).toContain(
-      "width: min(var(--environment-panel-inline-size), calc(100vw - 24px))",
+      "width: min(var(--environment-panel-inline-size), calc(100vw - 62px))",
     );
-    expect(stylesSource).toContain("max-height: calc(100vh - 96px)");
-    expect(stylesSource).toContain("scrollbar-width: none");
+    expect(stylesSource).toContain("max-height: calc(100dvh - 72px)");
+    expect(stylesSource).toContain("scrollbar-width: thin");
     expect(stylesSource).toContain("min-height: 28px");
     expect(stylesSource).toContain(".environment-checks-popover");
   });
 
   it("hides optional task sections until they contain activity", () => {
     expect(panelSource).toContain(
-      "(displayAgents.length > 0 || teams.length > 0) &&",
+      "(threadId || displayAgents.length > 0 || teams.length > 0) &&",
     );
-    expect(panelSource).toContain("combinedSources.length > 0 &&");
-    expect(panelSource).toContain("...mcpGroups.map((group) => ({");
+    expect(panelSource).toContain("hasSourcePanelDetails &&");
+    expect(panelSource).toContain("const sourceCallCount =");
     expect(panelSource).not.toContain("mcpGroups.length > 0 &&");
   });
 
@@ -181,7 +164,7 @@ describe("task environment panel state", () => {
 
   it("wires real review, branch, commit, push, agent, and source actions", () => {
     expect(panelSource).toContain(
-      'onOpenReview("branch", gitInfo.compareBase)',
+      'onOpenReview("branch", gitInfo?.compareBase)',
     );
     expect(panelSource).toContain("window.artemis.switchProjectBranch(");
     expect(panelSource).toContain("window.artemis.commitProjectChanges(");
@@ -236,64 +219,21 @@ describe("task environment panel state", () => {
     expect(stylesSource).toContain("max-height: calc(100vh - 64px)");
   });
 
-  it("auto-hides the panel before its content safe area becomes too narrow", () => {
-    expect(environmentPanelConversationWidth(panelLayout(1_047))).toBe(719);
-    expect(shouldAutoHideEnvironmentPanel(panelLayout(1_047))).toBe(true);
-    expect(shouldAutoHideEnvironmentPanel(panelLayout(1_048))).toBe(false);
-    expect(panelSource).toContain('closest(".workspace")');
-    expect(panelSource).toContain("new window.ResizeObserver");
-    expect(panelSource).toContain("window.getComputedStyle(workspace)");
-    expect(stylesSource).toContain(
-      "--environment-panel-min-conversation-inline-size: 720px",
+  it("keeps the v69 environment overlay independent of conversation width", () => {
+    expect(stylesSource).toContain("--environment-panel-inline-size: 340px");
+    expect(stylesSource).not.toContain(
+      "--environment-panel-content-safe-inline-size",
     );
+    expect(stylesSource).not.toContain(
+      "--environment-panel-min-conversation-inline-size",
+    );
+    expect(panelSource).not.toContain("syncVisibility");
+    expect(panelSource).toContain('className="environment-panel-header"');
+    expect(panelSource).toContain("onClick={closePanel}");
     expect(publicUiStylesSource).toMatch(
       /\[data-artemis-component="timeline"\]\s*\{[^}]*max-inline-size:\s*60rem;[^}]*margin-inline:\s*auto;/su,
     );
-  });
-
-  it("reserves inner content space without moving the timeline scrollbar", () => {
-    expect(stylesSource).toContain("--environment-panel-inline-size: 304px");
-    expect(stylesSource).toContain(
-      "--environment-panel-content-safe-inline-size:",
-    );
-    expect(stylesSource).toMatch(
-      /\.workspace:has\(\s*\.environment-control\[data-dock-open="false"\]\s+\.environment-trigger\[aria-expanded="true"\]\s*\)\s+:is\(\.timeline,\s*\.turn-status,\s*\.composer-wrap\)/su,
-    );
-    expect(stylesSource).toMatch(
-      /max-width:\s*min\(\s*960px,\s*calc\(100%\s*-\s*var\(--environment-panel-content-safe-inline-size\)\)\s*\)/su,
-    );
-    expect(stylesSource).toMatch(
-      /translateX\(\s*calc\(var\(--environment-panel-content-safe-inline-size\)\s*\/\s*-2\)\s*\)/su,
-    );
-    expect(stylesSource).not.toContain(
-      '.workspace:has(.environment-trigger[aria-expanded="true"]) .timeline-scroll',
-    );
-    expect(stylesSource).not.toMatch(
-      /\.workspace:has\(\.environment-trigger\[aria-expanded="true"\]\)\s+\.conversation/su,
-    );
-    expect(panelSource).toContain(
-      'import { Popover } from "@artemis/ui/feedback"',
-    );
     expect(appSource).not.toContain("environmentPanelOpen");
-    expect(appSource).toContain("<WorkspaceDock");
-    expect(appSource).toContain('id="workspace-tool-dock"');
-  });
-
-  it("restores the panel after an auto-hidden narrow layout becomes wide", () => {
-    const autoHidden = environmentPanelVisibilityAfterResize(
-      { open: true, autoHidden: false },
-      panelLayout(1_047),
-    );
-    expect(autoHidden).toEqual({ open: false, autoHidden: true });
-    expect(
-      environmentPanelVisibilityAfterResize(autoHidden, panelLayout(1_048)),
-    ).toEqual({ open: true, autoHidden: false });
-    expect(
-      environmentPanelVisibilityAfterResize(
-        { open: false, autoHidden: false },
-        panelLayout(1_048),
-      ),
-    ).toEqual({ open: false, autoHidden: false });
   });
 
   it("provides a deterministic Chinese Electron smoke fixture", () => {
@@ -343,7 +283,7 @@ describe("task environment panel state", () => {
     expect(panelSource).toContain('source.kind === "web-search"');
     expect(panelSource).toContain("onViewAllSources()");
     expect(panelSource).toContain(
-      "combinedSources.slice(0, sourcePreviewLimit)",
+      "t.sourceSummary(attachmentCount, sourceCallCount)",
     );
     expect(panelSource).toContain("const activityPreviewLimit = 2");
     expect(panelSource).not.toContain("environment-web-source-links");

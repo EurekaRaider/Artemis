@@ -1,3 +1,4 @@
+import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -12,21 +13,15 @@ const stylesSource = source("../src/renderer/styles.css");
 const publicUiStylesSource = source("../../../packages/ui/src/styles.css");
 
 function cssDeclarations(selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const match = stylesSource.match(
-    new RegExp(`${escaped}\\s*\\{(?<body>[^}]*)\\}`, "u"),
-  );
-  expect(match, `Missing CSS selector ${selector}`).not.toBeNull();
-  return match?.groups?.body ?? "";
+  const declarations = findCssDeclarations(stylesSource, selector);
+  expect(declarations, `Missing CSS selector ${selector}`).toBeDefined();
+  return declarations ?? "";
 }
 
 function publicUiCssDeclarations(selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const match = publicUiStylesSource.match(
-    new RegExp(`${escaped}\\s*\\{(?<body>[^}]*)\\}`, "u"),
-  );
-  expect(match, `Missing public UI CSS selector ${selector}`).not.toBeNull();
-  return match?.groups?.body ?? "";
+  const declarations = findCssDeclarations(publicUiStylesSource, selector);
+  expect(declarations, `Missing CSS selector ${selector}`).toBeDefined();
+  return declarations ?? "";
 }
 
 describe("reported issue regressions #94-#97", () => {
@@ -61,24 +56,28 @@ describe("reported issue regressions #94-#97", () => {
     );
   });
 
-  it("moves the completed status row with the environment-safe content column", () => {
-    expect(stylesSource).toMatch(
+  it("keeps the conversation column fixed when the floating environment panel opens", () => {
+    expect(stylesSource).not.toMatch(
       /:is\(\.timeline,\s*\.turn-status,\s*\.composer-wrap\)/su,
+    );
+    expect(
+      publicUiCssDeclarations(
+        '[data-artemis-component="environment-panel"][data-part="root"]',
+      ),
+    ).toContain("position: absolute");
+    expect(cssDeclarations(".environment-popover")).toContain(
+      "top: calc(100% + 8px)",
     );
   });
 
-  it("offsets only the environment popover when the workspace dock opens", () => {
-    expect(panelSource).toContain('"--environment-panel-dock-offset"');
-    expect(panelSource).not.toContain("marginInlineEnd: dockOffset");
-    expect(
-      cssDeclarations(
-        '.environment-control[data-dock-open="true"] .environment-popover',
-      ),
-    ).toContain("inset-inline-end: var(--environment-panel-dock-offset, 0px)");
+  it("closes the environment panel with the dock and permits explicitly reopening it", () => {
+    expect(appSource).toContain("defaultOpen={false}");
+    expect(panelSource).toContain("setOpen(false)");
+    expect(panelSource).toContain("data-dock-open={dockOpen}");
+    expect(panelSource).not.toContain("dockOffset");
+    expect(stylesSource).not.toContain("--environment-panel-dock-offset");
     expect(
       publicUiCssDeclarations('[data-artemis-component="workspace-dock"]'),
-    ).toContain(
-      "var(--artemis-motion-duration-normal)\n        var(--artemis-motion-easing-shell)",
-    );
+    ).toMatch(/transition:[\s\S]*var\(--artemis-motion-duration-normal\)/u);
   });
 });

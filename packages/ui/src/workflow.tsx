@@ -66,7 +66,7 @@ export const WORKFLOW_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-radius-card",
   "--artemis-radius-panel",
   "--artemis-typography-body-family",
-  "--artemis-typography-code-family",
+  "--artemis-typography-mono-family",
   "--artemis-typography-body-size",
   "--artemis-typography-label-size",
   "--artemis-typography-metadata-size",

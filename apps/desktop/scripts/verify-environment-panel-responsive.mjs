@@ -82,7 +82,7 @@ try {
   assert(wide.windowInnerWidth >= 1_400, "Wide window width was not applied.");
   assert(
     wide.environmentPanelOpen,
-    "Wide window did not default the panel open.",
+    "Wide window did not open the environment panel.",
   );
   assert(
     wide.environmentPanel?.visible,
@@ -114,13 +114,15 @@ try {
     "Environment popover moved the timeline scrollbar away from the workspace edge.",
   );
   assert(
-    wide.timelineContent.right <= wide.environmentPanel.left,
-    "Environment popover overlaps the timeline content safe area.",
+    Math.abs(
+      wide.timelineContent.width - Math.min(960, wide.timelineScroll.width - 8),
+    ) <= 1,
+    "Environment overlay changed the centered timeline reading width.",
   );
   assert(
     Math.abs(wide.turnStatus.left - wide.timelineContent.left) <= 1 &&
       Math.abs(wide.turnStatus.right - wide.timelineContent.right) <= 1,
-    "Completed status row is not aligned with the environment-safe timeline content.",
+    "Completed status row is not aligned with the centered timeline content.",
   );
 
   const dock = await runCase("dock", 1_420, "environment-dock");

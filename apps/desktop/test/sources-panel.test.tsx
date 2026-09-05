@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -19,7 +19,7 @@ import {
   sourceLinkHost,
   SourcesPanel,
 } from "../src/renderer/SourcesPanel.js";
-import "./renderer-test-utils.js";
+import { stubWindowArtemis } from "./renderer-test-utils.js";
 
 const panelSource = readFileSync(
   resolve(process.cwd(), "src/renderer/SourcesPanel.tsx"),
@@ -215,17 +215,17 @@ describe("SourcesPanel interactions (jsdom)", () => {
     toggle.focus();
     await user.keyboard("{Enter}");
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getAllByText("codegraph_search").length).toBe(2);
+    expect(screen.getByText("codegraph_search")).toBeVisible();
 
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getAllByText("codegraph_search").length).toBe(1);
+    expect(screen.getByText("codegraph_search")).not.toBeVisible();
   });
 
-  it("keeps tool names visible by default and opens the search query url once", async () => {
+  it("keeps MCP details collapsed by default and opens the search query url once", async () => {
     const user = userEvent.setup();
     const { onOpenUrl } = renderInteractive();
-    expect(screen.getByText("codegraph_search")).toBeInTheDocument();
+    expect(screen.getByText("codegraph_search")).not.toBeVisible();
     await user.click(
       screen.getByRole("button", { name: "Search query: Artemis release" }),
     );
@@ -245,6 +245,91 @@ describe("SourcesPanel interactions (jsdom)", () => {
       screen.getByRole("button", { name: /show tool call details/i }),
     );
     const detail = screen.getAllByTitle(longTool);
-    expect(detail.length).toBeGreaterThanOrEqual(2);
+    expect(detail.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("Sources workspace file navigation", () => {
+  const sources = [
+    {
+      type: "task.source.added",
+      sourceId: "file-1",
+      kind: "file",
+      name: "README.md",
+      mimeType: "text/markdown",
+      timestamp: "2026-09-05T00:00:00Z",
+    },
+  ] satisfies TaskSourceState[];
+  it("opens only the file resolved by the current task workspace", async () => {
+    const file = {
+      path: "/workspace/README.md",
+      viewer: "markdown",
+      executable: false,
+    } as const;
+    const inspectWorkspaceFileLink = vi.fn().mockResolvedValue(file);
+    const onOpenFile = vi.fn();
+    stubWindowArtemis({ inspectWorkspaceFileLink });
+    render(
+      <SourcesPanel
+        agents={[]}
+        attachments={[]}
+        locale="en"
+        mcpUsages={[]}
+        onOpenFile={onOpenFile}
+        onOpenUrl={() => undefined}
+        sources={sources}
+        threadId="task-1"
+      />,
+    );
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Open file" }),
+    );
+    expect(inspectWorkspaceFileLink).toHaveBeenCalledWith(
+      "task-1",
+      "README.md",
+    );
+    expect(onOpenFile).toHaveBeenCalledWith(file);
+  });
+  it("does not expose a late file result from a previously selected task", async () => {
+    let resolveOld!: (value: unknown) => void;
+    const inspectWorkspaceFileLink = vi
+      .fn()
+      .mockImplementation((threadId: string) =>
+        threadId === "task-1"
+          ? new Promise((resolve) => {
+              resolveOld = resolve;
+            })
+          : Promise.reject(new Error("File not found")),
+      );
+    const onOpenFile = vi.fn();
+    const props = {
+      agents: [],
+      attachments: [],
+      locale: "en" as const,
+      mcpUsages: [],
+      onOpenFile,
+      onOpenUrl: () => undefined,
+      sources,
+    };
+    stubWindowArtemis({ inspectWorkspaceFileLink });
+    const { rerender } = render(<SourcesPanel {...props} threadId="task-1" />);
+    await waitFor(() =>
+      expect(inspectWorkspaceFileLink).toHaveBeenCalledWith(
+        "task-1",
+        "README.md",
+      ),
+    );
+    rerender(<SourcesPanel {...props} threadId="task-2" />);
+    await act(async () =>
+      resolveOld({
+        path: "/old-workspace/README.md",
+        viewer: "markdown",
+        executable: false,
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Open file" }),
+    ).not.toBeInTheDocument();
+    expect(onOpenFile).not.toHaveBeenCalled();
   });
 });

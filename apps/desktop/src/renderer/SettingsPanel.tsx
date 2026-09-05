@@ -6,6 +6,7 @@ import {
   useState,
   type FormEvent,
   type RefObject,
+  type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -32,6 +33,8 @@ import {
   TextAreaField,
   TextField,
 } from "@artemis/ui/forms";
+import { ArtemisIcon } from "@artemis/ui/icons";
+import { userInitials } from "./user-profile.js";
 import { PanelHeader } from "@artemis/ui/layout";
 import {
   ManagementRow,
@@ -56,6 +59,7 @@ import { I18N_RESOURCES } from "../shared/i18n-resources.js";
 import { prepareProfileAvatar } from "./profile-avatar.js";
 
 interface SettingsPanelProps {
+  username?: string;
   initialSettings?: SettingsSnapshot | undefined;
   initialTab?: SettingsTab;
   locale: AppLocale;
@@ -499,7 +503,32 @@ function modelFormState(settings: SettingsSnapshot | undefined): {
   };
 }
 
+function SettingsRow({
+  label,
+  description,
+  children,
+  className = "",
+}: {
+  label: string;
+  description?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`settings-form-row ${className}`}>
+      <div className="settings-row-copy">
+        <div className="settings-row-label">{label}</div>
+        {description && (
+          <p className="settings-row-description">{description}</p>
+        )}
+      </div>
+      <div className="settings-row-control">{children}</div>
+    </div>
+  );
+}
+
 export function SettingsPanel({
+  username = "Artemis",
   initialSettings,
   initialTab = "general",
   locale,
@@ -518,6 +547,17 @@ export function SettingsPanel({
       ]),
     ),
   } as (typeof labels)["en"];
+  const [narrowNavigation, setNarrowNavigation] = useState(
+    () => window.matchMedia?.("(max-width: 980px)").matches ?? false,
+  );
+  useEffect(() => {
+    const media = window.matchMedia?.("(max-width: 980px)");
+    if (!media) return;
+    const update = () => setNarrowNavigation(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [providerConfigTab, setProviderConfigTab] = useState<
     "builtin" | "custom"
@@ -1042,7 +1082,7 @@ export function SettingsPanel({
     agents: t.tabAgents,
     capabilities: t.tabCapabilities,
     maintenance: t.tabMaintenance,
-    im: locale.startsWith("zh") ? "IM 连接" : "IM connections",
+    im: locale.startsWith("zh") ? "消息接入" : "Messaging",
   };
 
   return (
@@ -1061,7 +1101,7 @@ export function SettingsPanel({
           header={
             <PanelHeader
               actions={
-                <Button onClick={onClose} variant="quiet">
+                <Button onClick={onClose} size="compact" variant="quiet">
                   {t.close}
                 </Button>
               }
@@ -1077,40 +1117,46 @@ export function SettingsPanel({
                 className="settings-tabs"
                 label={t.title}
                 onValueChange={setActiveTab}
-                orientation="vertical"
+                orientation={narrowNavigation ? "horizontal" : "vertical"}
                 options={[
                   {
                     id: "settings-tab-general-button",
+                    icon: <ArtemisIcon name="settings" />,
                     label: t.tabGeneral,
                     panelId: "settings-tab-general",
                     value: "general",
                   },
                   {
                     id: "settings-tab-providers-button",
+                    icon: <ArtemisIcon name="folder" />,
                     label: t.tabProviders,
                     panelId: "settings-tab-providers",
                     value: "providers",
                   },
                   {
+                    id: "settings-tab-im-button",
+                    icon: <ArtemisIcon name="message" />,
+                    label: activeTabLabel.im,
+                    panelId: "settings-tab-im",
+                    value: "im",
+                  },
+                  {
                     id: "settings-tab-agents-button",
+                    icon: <ArtemisIcon name="agent-configuration" />,
                     label: t.tabAgents,
                     panelId: "settings-tab-agents",
                     value: "agents",
                   },
                   {
                     id: "settings-tab-capabilities-button",
+                    icon: <ArtemisIcon name="approval" />,
                     label: t.tabCapabilities,
                     panelId: "settings-tab-capabilities",
                     value: "capabilities",
                   },
                   {
-                    id: "settings-tab-im-button",
-                    label: activeTabLabel.im,
-                    panelId: "settings-tab-im",
-                    value: "im",
-                  },
-                  {
                     id: "settings-tab-maintenance-button",
+                    icon: <ArtemisIcon name="refresh" />,
                     label: t.tabMaintenance,
                     panelId: "settings-tab-maintenance",
                     value: "maintenance",
@@ -1206,57 +1252,87 @@ export function SettingsPanel({
                   )}
                   {providerConfigTab === "builtin" && (
                     <ManagementSection
-                      className="settings-section"
+                      className="settings-section settings-builtin-models"
                       id="provider-config-builtin"
                       labelledBy="provider-config-builtin-tab"
                       role="tabpanel"
                       title={t.model}
                     >
-                      <Select
+                      <SettingsRow
                         label={t.model}
-                        disabled={busy || models.length === 0}
-                        onValueChange={selectModel}
-                        noResultsLabel={t.modelSearchEmpty}
-                        options={models.map((model) => ({
-                          value: modelKey(model.providerId, model.modelId),
-                          label: `${model.providerId} · ${model.name} · ${model.modelId}`,
-                          searchText: `${model.providerId} ${model.name} ${model.modelId}`,
-                        }))}
-                        searchPlaceholder={t.modelSearch}
-                        value={selectedModel}
-                      />
+                        description={
+                          locale.startsWith("zh")
+                            ? "从内置供应商目录中选择。"
+                            : "Choose from the built-in provider catalog."
+                        }
+                      >
+                        <Select
+                          size="compact"
+                          label={t.model}
+                          disabled={busy || models.length === 0}
+                          onValueChange={selectModel}
+                          noResultsLabel={t.modelSearchEmpty}
+                          options={models.map((model) => ({
+                            value: modelKey(model.providerId, model.modelId),
+                            label: `${model.providerId} · ${model.name} · ${model.modelId}`,
+                            searchText: `${model.providerId} ${model.name} ${model.modelId}`,
+                          }))}
+                          searchPlaceholder={t.modelSearch}
+                          value={selectedModel}
+                        />
+                      </SettingsRow>
                       {models.length === 0 && (
                         <EmptyState
                           className="settings-empty"
                           title={t.modelUnavailable}
                         />
                       )}
-                      <TextField
-                        className="settings-field"
-                        disabled={busy || !selectedModelInfo}
+                      <SettingsRow
                         label={t.contextWindow}
-                        max={selectedModelInfo?.contextWindow}
-                        min={1_024}
-                        onValueChange={setContextWindow}
-                        step={1_024}
-                        type="number"
-                        value={contextWindow}
-                      />
-                      {selectedModelInfo && (
-                        <InlineNotice className="settings-security" tone="info">
-                          {t.contextWindowHint.replace(
-                            "{limit}",
-                            selectedModelInfo.contextWindow.toLocaleString(
-                              locale,
-                            ),
-                          )}
-                        </InlineNotice>
-                      )}
+                        description={
+                          selectedModelInfo
+                            ? t.contextWindowHint.replace(
+                                "{limit}",
+                                selectedModelInfo.contextWindow.toLocaleString(
+                                  locale,
+                                ),
+                              )
+                            : undefined
+                        }
+                      >
+                        <TextField
+                          className="settings-number-field"
+                          labelVisibility="hidden"
+                          size="compact"
+                          disabled={busy || !selectedModelInfo}
+                          label={t.contextWindow}
+                          max={selectedModelInfo?.contextWindow}
+                          min={1_024}
+                          onValueChange={setContextWindow}
+                          step={1_024}
+                          type="number"
+                          value={contextWindow}
+                        />
+                      </SettingsRow>
                       {!selectedModelUsesCustomProvider && (
-                        <>
+                        <SettingsRow
+                          className="settings-row-wide"
+                          label={`${t.apiKey}${selectedModelInfo?.providerId ? ` · ${selectedModelInfo.providerId}` : ""}`}
+                          description={
+                            settings.encryptionAvailable ? (
+                              t.encrypted
+                            ) : (
+                              <InlineNotice tone="warning">
+                                {t.unavailable}
+                              </InlineNotice>
+                            )
+                          }
+                        >
                           <TextField
                             autoComplete="off"
                             className="settings-field"
+                            labelVisibility="hidden"
+                            size="compact"
                             disabled={
                               busy ||
                               !selectedModelInfo ||
@@ -1276,17 +1352,7 @@ export function SettingsPanel({
                             type="password"
                             value={keyApiKey}
                           />
-                          <InlineNotice
-                            className="settings-security"
-                            tone={
-                              settings.encryptionAvailable ? "info" : "warning"
-                            }
-                          >
-                            {settings.encryptionAvailable
-                              ? t.encrypted
-                              : t.unavailable}
-                          </InlineNotice>
-                        </>
+                        </SettingsRow>
                       )}
                       <Button
                         disabled={
@@ -1364,7 +1430,6 @@ export function SettingsPanel({
                 <>
                   <ManagementSection
                     className="settings-section"
-                    description={t.profileAvatarHint}
                     title={t.profileAvatar}
                   >
                     <div className="settings-profile-avatar">
@@ -1372,83 +1437,104 @@ export function SettingsPanel({
                         {settings.profileAvatar ? (
                           <img alt="" src={settings.profileAvatar} />
                         ) : (
-                          <span aria-hidden="true">◎</span>
+                          <span aria-hidden="true">
+                            {userInitials(username)}
+                          </span>
                         )}
                       </div>
-                      <div className="settings-profile-avatar-actions">
-                        <input
-                          accept="image/jpeg,image/png,image/webp"
-                          aria-label={
-                            settings.profileAvatar
-                              ? t.profileAvatarChange
-                              : t.profileAvatarUpload
-                          }
-                          className="profile-avatar-input"
-                          disabled={busy}
-                          onChange={(event) => {
-                            const file = event.currentTarget.files?.[0];
-                            event.currentTarget.value = "";
-                            if (file) void setProfileAvatar(file);
-                          }}
-                          ref={profileAvatarInputRef}
-                          type="file"
-                        />
-                        <Button
-                          disabled={busy}
-                          onClick={() => profileAvatarInputRef.current?.click()}
-                        >
-                          {settings.profileAvatar
-                            ? t.profileAvatarChange
-                            : t.profileAvatarUpload}
-                        </Button>
-                        {settings.profileAvatar && (
-                          <Button
+                      <div className="settings-profile-avatar-copy">
+                        <div className="settings-profile-avatar-actions">
+                          <input
+                            accept="image/jpeg,image/png,image/webp"
+                            aria-label={
+                              settings.profileAvatar
+                                ? t.profileAvatarChange
+                                : t.profileAvatarUpload
+                            }
+                            className="profile-avatar-input"
                             disabled={busy}
-                            onClick={() => void setProfileAvatar(undefined)}
+                            onChange={(event) => {
+                              const file = event.currentTarget.files?.[0];
+                              event.currentTarget.value = "";
+                              if (file) void setProfileAvatar(file);
+                            }}
+                            ref={profileAvatarInputRef}
+                            type="file"
+                          />
+                          <Button
+                            size="compact"
+                            disabled={busy}
+                            onClick={() =>
+                              profileAvatarInputRef.current?.click()
+                            }
                           >
-                            {t.profileAvatarRemove}
+                            {settings.profileAvatar
+                              ? t.profileAvatarChange
+                              : t.profileAvatarUpload}
                           </Button>
-                        )}
+                          {settings.profileAvatar && (
+                            <Button
+                              size="compact"
+                              disabled={busy}
+                              onClick={() => void setProfileAvatar(undefined)}
+                            >
+                              {t.profileAvatarRemove}
+                            </Button>
+                          )}
+                        </div>
+                        <p className="settings-avatar-hint">
+                          {t.profileAvatarHint}
+                        </p>
                       </div>
                     </div>
                   </ManagementSection>
 
                   <ManagementSection
                     className="settings-section"
-                    description={t.languageHint}
                     title={t.language}
                   >
-                    <Select<AppLanguage>
-                      label={t.language}
-                      disabled={busy}
-                      onValueChange={(language) => void setLanguage(language)}
-                      options={[
-                        { value: "system", label: t.languageSystem },
-                        ...SUPPORTED_LOCALES.map((language) => ({
-                          value: language,
-                          label: LOCALE_METADATA[language].nativeName,
-                        })),
-                      ]}
-                      value={settings.language}
-                    />
+                    <div className="settings-preference-row">
+                      <span className="settings-row-label">{t.language}</span>
+                      <Select<AppLanguage>
+                        size="compact"
+                        labelVisibility="hidden"
+                        label={t.language}
+                        disabled={busy}
+                        onValueChange={(language) => void setLanguage(language)}
+                        options={[
+                          { value: "system", label: t.languageSystem },
+                          ...SUPPORTED_LOCALES.map((language) => ({
+                            value: language,
+                            label: LOCALE_METADATA[language].nativeName,
+                          })),
+                        ]}
+                        value={settings.language}
+                      />
+                    </div>
+                    <p className="settings-hint">{t.languageHint}</p>
                   </ManagementSection>
 
                   <ManagementSection
                     className="settings-section"
-                    description={t.themeHint}
                     title={t.theme}
                   >
-                    <Select<AppTheme>
-                      label={t.theme}
-                      disabled={busy}
-                      onValueChange={(theme) => void setTheme(theme)}
-                      options={[
-                        { value: "system", label: t.themeSystem },
-                        { value: "light", label: t.themeLight },
-                        { value: "dark", label: t.themeDark },
-                      ]}
-                      value={settings.theme}
-                    />
+                    <div className="settings-preference-row">
+                      <span className="settings-row-label">{t.theme}</span>
+                      <Select<AppTheme>
+                        size="compact"
+                        labelVisibility="hidden"
+                        label={t.theme}
+                        disabled={busy}
+                        onValueChange={(theme) => void setTheme(theme)}
+                        options={[
+                          { value: "system", label: t.themeSystem },
+                          { value: "light", label: t.themeLight },
+                          { value: "dark", label: t.themeDark },
+                        ]}
+                        value={settings.theme}
+                      />
+                    </div>
+                    <p className="settings-hint">{t.themeHint}</p>
                   </ManagementSection>
                 </>
               )}
@@ -1669,27 +1755,32 @@ export function SettingsPanel({
                 <>
                   <ManagementSection
                     className="settings-section"
-                    description={t.agentConcurrencyHint}
                     title={t.agentConcurrency}
                   >
-                    <Select<"auto" | "manual">
+                    <SettingsRow
                       label={t.concurrencyMode}
-                      disabled={busy}
-                      onValueChange={(mode) =>
-                        void setAgentConcurrencyMode(mode)
-                      }
-                      options={[
-                        {
-                          value: "auto",
-                          label: t.concurrencyAutomatic,
-                        },
-                        {
-                          value: "manual",
-                          label: t.concurrencyManual,
-                        },
-                      ]}
-                      value={settings.agentConcurrency.preference.mode}
-                    />
+                      description={t.agentConcurrencyHint}
+                    >
+                      <Select<"auto" | "manual">
+                        size="compact"
+                        label={t.concurrencyMode}
+                        disabled={busy}
+                        onValueChange={(mode) =>
+                          void setAgentConcurrencyMode(mode)
+                        }
+                        options={[
+                          {
+                            value: "auto",
+                            label: t.concurrencyAutomatic,
+                          },
+                          {
+                            value: "manual",
+                            label: t.concurrencyManual,
+                          },
+                        ]}
+                        value={settings.agentConcurrency.preference.mode}
+                      />
+                    </SettingsRow>
                     {settings.agentConcurrency.preference.mode === "manual" && (
                       <TextField
                         className="settings-field"
@@ -1747,18 +1838,22 @@ export function SettingsPanel({
                         <dd>{settings.agentConcurrency.waiting}</dd>
                       </div>
                     </dl>
-                    <InlineNotice className="settings-security" tone="info">
-                      {t.concurrencyHardware}:{" "}
-                      {t.concurrencyHardwareValue
-                        .replace(
-                          "{cores}",
-                          String(settings.agentConcurrency.parallelism),
-                        )
-                        .replace(
-                          "{memory}",
-                          String(settings.agentConcurrency.totalMemoryGiB),
-                        )}
-                    </InlineNotice>
+                    <dl className="agent-concurrency-hardware">
+                      <div>
+                        <dt>{t.concurrencyHardware}</dt>
+                        <dd>
+                          {t.concurrencyHardwareValue
+                            .replace(
+                              "{cores}",
+                              String(settings.agentConcurrency.parallelism),
+                            )
+                            .replace(
+                              "{memory}",
+                              String(settings.agentConcurrency.totalMemoryGiB),
+                            )}
+                        </dd>
+                      </div>
+                    </dl>
                     {settings.agentConcurrency.throttled && (
                       <InlineNotice
                         className="settings-security"
@@ -1791,15 +1886,19 @@ export function SettingsPanel({
                   </ManagementSection>
                   <ManagementSection
                     className="settings-section"
-                    description={t.globalAgentsHint}
                     title={t.globalAgents}
                   >
+                    <p className="settings-hint">
+                      {locale.startsWith("zh") ? "路径" : "Path"}{" "}
+                      <code>{settings.globalAgents.path}</code>
+                    </p>
                     <TextAreaField
+                      description={t.globalAgentsHint}
                       disabled={busy}
                       label={t.globalAgents}
                       labelVisibility="hidden"
                       onValueChange={setGlobalAgentsContent}
-                      rows={10}
+                      rows={8}
                       value={globalAgentsContent}
                     />
                     <Button
@@ -1913,74 +2012,85 @@ export function SettingsPanel({
                     title={t.shellRuntime}
                   >
                     {settings.platform === "win32" && (
-                      <Select<WindowsShellPreference>
-                        label={t.windowsShell}
+                      <SettingsRow label={t.windowsShell}>
+                        <Select<WindowsShellPreference>
+                          size="compact"
+                          label={t.windowsShell}
+                          disabled={busy}
+                          onValueChange={(windowsPreference) =>
+                            void setShellRuntimeConfiguration({
+                              windowsPreference,
+                            })
+                          }
+                          options={[
+                            {
+                              value: "auto",
+                              label: t.windowsShellAuto,
+                            },
+                            {
+                              value: "powershell7",
+                              label: t.windowsShellPowerShell7,
+                            },
+                            {
+                              value: "windows-powershell",
+                              label: t.windowsShellLegacy,
+                            },
+                          ]}
+                          value={settings.shell.windowsPreference}
+                        />
+                      </SettingsRow>
+                    )}
+                    <SettingsRow label={t.shellProfileMode}>
+                      <Select<ShellProfileMode>
+                        size="compact"
+                        label={t.shellProfileMode}
                         disabled={busy}
-                        onValueChange={(windowsPreference) =>
-                          void setShellRuntimeConfiguration({
-                            windowsPreference,
-                          })
+                        onValueChange={(profileMode) =>
+                          void setShellRuntimeConfiguration({ profileMode })
                         }
                         options={[
                           {
-                            value: "auto",
-                            label: t.windowsShellAuto,
+                            value: "environment",
+                            label: t.shellProfileEnvironment,
                           },
                           {
-                            value: "powershell7",
-                            label: t.windowsShellPowerShell7,
+                            value: "full",
+                            label: t.shellProfileFull,
                           },
                           {
-                            value: "windows-powershell",
-                            label: t.windowsShellLegacy,
+                            value: "disabled",
+                            label: t.shellProfileDisabled,
                           },
                         ]}
-                        value={settings.shell.windowsPreference}
+                        value={settings.shell.profileMode}
                       />
-                    )}
-                    <Select<ShellProfileMode>
-                      label={t.shellProfileMode}
-                      disabled={busy}
-                      onValueChange={(profileMode) =>
-                        void setShellRuntimeConfiguration({ profileMode })
-                      }
-                      options={[
-                        {
-                          value: "environment",
-                          label: t.shellProfileEnvironment,
-                        },
-                        {
-                          value: "full",
-                          label: t.shellProfileFull,
-                        },
-                        {
-                          value: "disabled",
-                          label: t.shellProfileDisabled,
-                        },
-                      ]}
-                      value={settings.shell.profileMode}
-                    />
+                    </SettingsRow>
                   </ManagementSection>
 
                   <ManagementSection
                     className="settings-section"
-                    description={t.localFullAccessDetail}
                     title={t.capabilityAccess}
                     tone="warning"
                   >
-                    <Switch
-                      checked={settings.localFullAccess}
-                      disabled={busy}
+                    <SettingsRow
                       label={t.localFullAccess}
-                      onCheckedChange={(checked) =>
-                        void run(async () => {
-                          const updated =
-                            await window.artemis.setLocalFullAccess(checked);
-                          setSettings(updated);
-                          onSettingsChange(updated);
-                        })
-                      }
-                    />
+                      description={t.localFullAccessDetail}
+                    >
+                      <Switch
+                        checked={settings.localFullAccess}
+                        disabled={busy}
+                        label={t.localFullAccess}
+                        labelVisibility="hidden"
+                        onCheckedChange={(checked) =>
+                          void run(async () => {
+                            const updated =
+                              await window.artemis.setLocalFullAccess(checked);
+                            setSettings(updated);
+                            onSettingsChange(updated);
+                          })
+                        }
+                      />
+                    </SettingsRow>
                   </ManagementSection>
                 </>
               )}
@@ -2008,15 +2118,54 @@ export function SettingsPanel({
                     className="settings-section"
                     title={t.updates}
                   >
-                    <InlineNotice className="settings-security" tone="info">
-                      {settings.update.currentVersion} · {settings.update.state}
-                      {settings.update.availableVersion
-                        ? ` → ${settings.update.availableVersion}`
-                        : ""}
-                      {settings.update.progress === undefined
-                        ? ""
-                        : ` · ${Math.round(settings.update.progress)}%`}
-                    </InlineNotice>
+                    <SettingsRow
+                      label="Artemis"
+                      description={
+                        <>
+                          {settings.update.currentVersion} ·{" "}
+                          {settings.update.state}
+                          {settings.update.availableVersion
+                            ? ` → ${settings.update.availableVersion}`
+                            : ""}
+                          {settings.update.progress === undefined
+                            ? ""
+                            : ` · ${Math.round(settings.update.progress)}%`}
+                        </>
+                      }
+                    >
+                      <span>
+                        <Button
+                          variant="primary"
+                          disabled={
+                            busy ||
+                            settings.update.state === "disabled" ||
+                            settings.update.state === "checking" ||
+                            settings.update.state === "downloading"
+                          }
+                          onClick={() =>
+                            void run(async () => {
+                              const update =
+                                await window.artemis.checkForUpdates();
+                              setSettings((current) =>
+                                current ? { ...current, update } : current,
+                              );
+                            })
+                          }
+                        >
+                          {t.checkUpdates}
+                        </Button>
+                        {settings.update.state === "downloaded" && (
+                          <Button
+                            disabled={busy}
+                            onClick={() =>
+                              void run(() => window.artemis.installUpdate())
+                            }
+                          >
+                            {t.installUpdate}
+                          </Button>
+                        )}
+                      </span>
+                    </SettingsRow>
                     {settings.update.rollbackAvailable && (
                       <InlineNotice
                         className="settings-security"
@@ -2030,37 +2179,6 @@ export function SettingsPanel({
                         {settings.update.message}
                       </InlineNotice>
                     )}
-                    <span>
-                      <Button
-                        disabled={
-                          busy ||
-                          settings.update.state === "disabled" ||
-                          settings.update.state === "checking" ||
-                          settings.update.state === "downloading"
-                        }
-                        onClick={() =>
-                          void run(async () => {
-                            const update =
-                              await window.artemis.checkForUpdates();
-                            setSettings((current) =>
-                              current ? { ...current, update } : current,
-                            );
-                          })
-                        }
-                      >
-                        {t.checkUpdates}
-                      </Button>
-                      {settings.update.state === "downloaded" && (
-                        <Button
-                          disabled={busy}
-                          onClick={() =>
-                            void run(() => window.artemis.installUpdate())
-                          }
-                        >
-                          {t.installUpdate}
-                        </Button>
-                      )}
-                    </span>
                   </ManagementSection>
                 </>
               )}

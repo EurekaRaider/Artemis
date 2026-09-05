@@ -56,7 +56,7 @@ export const DATA_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-radius-control",
   "--artemis-radius-card",
   "--artemis-typography-body-family",
-  "--artemis-typography-code-family",
+  "--artemis-typography-mono-family",
   "--artemis-typography-body-size",
   "--artemis-typography-body-weight",
   "--artemis-typography-label-size",

@@ -116,7 +116,9 @@ function CloseIcon() {
 }
 
 function ModeIcon() {
-  return <ArtemisIcon className="icon" height={18} name="mode" width={18} />;
+  return (
+    <ArtemisIcon className="icon" height={18} name="automation" width={18} />
+  );
 }
 
 function CheckIcon() {
@@ -390,6 +392,7 @@ export function ComposerContextBar({
         >
           <FolderIcon />
           <strong>{activeProject?.name ?? t.temporaryConversation}</strong>
+          <ArtemisIcon name="chevron" width={10} height={10} />
         </button>
         {projectMenuOpen && (
           <div
@@ -495,6 +498,7 @@ export function ComposerContextBar({
             >
               <BranchIcon />
               <span>{branchLabel ?? "Git"}</span>
+              <ArtemisIcon height={9} name="chevron" width={9} />
             </button>
             {branchMenuOpen && (
               <div

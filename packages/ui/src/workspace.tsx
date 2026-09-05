@@ -82,7 +82,7 @@ export const WORKSPACE_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze(
     "--artemis-radius-control",
     "--artemis-radius-card",
     "--artemis-typography-body-family",
-    "--artemis-typography-code-family",
+    "--artemis-typography-mono-family",
     "--artemis-typography-body-size",
     "--artemis-typography-label-size",
     "--artemis-typography-metadata-size",

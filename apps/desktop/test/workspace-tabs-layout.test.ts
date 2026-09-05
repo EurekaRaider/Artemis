@@ -1,3 +1,4 @@
+import { findCssDeclarations } from "./css-test-utils.js";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
@@ -97,10 +98,7 @@ function optionalCssRuleIn(
   cssSource: string,
   selector: string,
 ): string | undefined {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  return cssSource.match(
-    new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, "u"),
-  )?.[1];
+  return findCssDeclarations(cssSource, selector);
 }
 
 function optionalCssRule(selector: string): string | undefined {
@@ -217,14 +215,12 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(appSource).toContain("activeWorkspaceTabElement");
     expect(scrollRule).toMatch(/\boverflow-x:\s*auto/u);
     expect(scrollTrackRule).toMatch(/\binline-size:\s*max-content/u);
-    expect(scrollButtonRule).toMatch(/\bposition:\s*absolute/u);
+    expect(scrollButtonRule).toMatch(/\bposition:\s*static/u);
     expect(
       publicUiCssRule(
         '[data-artemis-component="workspace-tab-bar"]\n    [data-part="scroll-shell"][data-overflow="true"]\n    [data-part="scroll"]',
       ),
-    ).toMatch(
-      /\bpadding-inline:\s*calc\(\s*var\(--artemis-size-control-compact\)\s*\+\s*var\(--artemis-space-1\)\s*\)/u,
-    );
+    ).toMatch(/\bpadding-inline:\s*0/u);
   });
 
   it("collapses only when the user closes the last workspace tab", () => {
@@ -650,7 +646,7 @@ describe("Codex-like workspace tab layout contract", () => {
     );
     expect(treeRow).toMatch(/\bfont:\s*inherit/u);
     expect(editor).toMatch(
-      /\bfont-family:\s*var\(--artemis-typography-code-family\)/u,
+      /\bfont-family:\s*var\(--artemis-typography-mono-family\)/u,
     );
     expect
       .soft(
@@ -673,7 +669,7 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(tabLabel).toMatch(
       /\bfont-size:\s*var\(--artemis-typography-label-size\)/u,
     );
-    expect(tabLabel).toMatch(/\bfont-weight:\s*600/u);
+    expect(tabLabel).toMatch(/\bfont-weight:\s*500/u);
   });
 
   it("opens Markdown inside Files with rich and editable modes while keeping the tree mounted", () => {
@@ -742,7 +738,10 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(workspaceFilesSource).not.toContain(
       'className="preview-panel-header"',
     );
-    expect(workspaceFilesSource).not.toMatch(/<strong>\{title\}<\/strong>/u);
+    expect(
+      workspaceFilesSource.match(/<strong>\{title\}<\/strong>/gu),
+    ).toHaveLength(1);
+    expect(workspaceFilesSource).toContain("onOpenReader");
   });
 
   it("edits normal workspace files and saves through the isolated IPC bridge", () => {

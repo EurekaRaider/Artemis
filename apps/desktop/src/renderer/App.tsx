@@ -1094,9 +1094,7 @@ function AutomationIcon() {
 }
 
 function SettingsIcon() {
-  return (
-    <ArtemisIcon className="icon" height={17} name="settings" width={17} />
-  );
+  return <ArtemisIcon className="icon" height={17} name="gear" width={17} />;
 }
 
 function ReviewIcon() {
@@ -1177,7 +1175,9 @@ function WorkspaceTabIcon({
 }
 
 function ModeIcon() {
-  return <ArtemisIcon className="icon" height={18} name="mode" width={18} />;
+  return (
+    <ArtemisIcon className="icon" height={18} name="automation" width={18} />
+  );
 }
 
 function ModelIcon() {
@@ -1554,6 +1554,17 @@ export function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [projectSidebarWidth, setProjectSidebarWidth] = useState<number>();
+  const [defaultProjectSidebarWidth, setDefaultProjectSidebarWidth] = useState(
+    () => (window.innerWidth <= 1100 ? 220 : PROJECT_SIDEBAR_WIDTH_DEFAULT),
+  );
+  useEffect(() => {
+    const resize = () =>
+      setDefaultProjectSidebarWidth(
+        window.innerWidth <= 1100 ? 220 : PROJECT_SIDEBAR_WIDTH_DEFAULT,
+      );
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
   const [projectSidebarResizing, setProjectSidebarResizing] = useState(false);
   const [clockMs, setClockMs] = useState(() => Date.now());
   const [childAgentControlPending, setChildAgentControlPending] = useState<
@@ -5310,10 +5321,14 @@ export function App() {
       data-platform={snapshot.platform}
       data-renderer-ready="true"
       sidebarOpen={sidebarOpen}
-      sidebarSize={projectSidebarWidth ?? PROJECT_SIDEBAR_WIDTH_DEFAULT}
+      sidebarSize={projectSidebarWidth ?? defaultProjectSidebarWidth}
     >
       <ActivityBar
-        brand={<ArtemisMark />}
+        brand={
+          <div className="artemis-mark">
+            <ArtemisIcon name="artemis" width={18} height={18} />
+          </div>
+        }
         className="activity-bar"
         footer={
           <ActivityBarItem
@@ -5483,6 +5498,7 @@ export function App() {
                 title={projectsExpanded ? t.collapseProjects : t.expandProjects}
                 type="button"
               >
+                <ChevronIcon />
                 <span className="project-group-title">{t.projects}</span>
               </button>
               <button
@@ -5622,13 +5638,14 @@ export function App() {
                         }
                         type="button"
                       >
-                        <FolderIcon open={projectOpen} />
+                        <ChevronIcon />
                       </button>
                       <button
                         className="project-select"
                         onClick={() => toggleProjectHistory(project.id)}
                         title={project.path}
                       >
+                        <FolderIcon />
                         <span className="project-title">{project.name}</span>
                       </button>
                       <button
@@ -5977,6 +5994,7 @@ export function App() {
                 title={t.temporaryConversations}
                 type="button"
               >
+                <ChevronIcon />
                 <span className="project-group-title">
                   {t.temporaryConversations}
                 </span>
@@ -6135,7 +6153,7 @@ export function App() {
       <ApplicationShellResizer
         aria-valuemax={PROJECT_SIDEBAR_WIDTH_MAX}
         aria-valuemin={PROJECT_SIDEBAR_WIDTH_MIN}
-        aria-valuenow={projectSidebarWidth ?? PROJECT_SIDEBAR_WIDTH_DEFAULT}
+        aria-valuenow={projectSidebarWidth ?? defaultProjectSidebarWidth}
         className="project-sidebar-resizer"
         label={t.resizeProjectsSidebar}
         onKeyDown={resizeProjectSidebarFromKeyboard}
@@ -6229,10 +6247,7 @@ export function App() {
                       }
                       agents={environmentAgents}
                       attachments={attachments}
-                      defaultOpen={!workspaceDockOpen}
-                      dockOffset={
-                        workspaceDockOpen ? Math.max(0, dockWidthNow - 50) : 0
-                      }
+                      defaultOpen={false}
                       dockOpen={workspaceDockOpen}
                       key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}
                       locale={locale}
@@ -6254,6 +6269,11 @@ export function App() {
                         : {})}
                       sources={environmentSources}
                       taskTitle={activeThread?.title ?? activeProject.name}
+                      taskStatusLabel={
+                        runPresentation.status === "completed"
+                          ? t.completed
+                          : statusLabel(threadState, locale, clockMs)
+                      }
                       teams={environmentTeams}
                       {...(activeThreadId ? { threadId: activeThreadId } : {})}
                     />
@@ -6294,13 +6314,15 @@ export function App() {
                         {activeThread.title}
                       </span>
                       {activeThread.goal && (
-                        <span
+                        <button
                           className="goal-pill"
+                          onClick={openGoalEditor}
+                          type="button"
                           title={activeThread.goal.objective}
                         >
                           <ArtemisIcon height={12} name="task" width={12} />
                           {t.goal}
-                        </span>
+                        </button>
                       )}
                     </>
                   )}
@@ -7160,7 +7182,7 @@ export function App() {
                             onPaste={handleAttachmentPaste}
                             placeholder={t.prompt}
                             ref={promptInput}
-                            rows={3}
+                            rows={2}
                             value={prompt}
                           />
                         </div>
@@ -7674,17 +7696,15 @@ export function App() {
                       }
                       overflow={workspaceTabScrollState.hasOverflow}
                       scrollEnd={
-                        workspaceTabScrollState.hasOverflow ? (
-                          <button
-                            aria-label={t.scrollTabsRight}
-                            disabled={!workspaceTabScrollState.canScrollRight}
-                            onClick={() => scrollWorkspaceTabs(1)}
-                            title={t.scrollTabsRight}
-                            type="button"
-                          >
-                            <TabScrollIcon direction="right" />
-                          </button>
-                        ) : undefined
+                        <button
+                          aria-label={t.scrollTabsRight}
+                          disabled={!workspaceTabScrollState.canScrollRight}
+                          onClick={() => scrollWorkspaceTabs(1)}
+                          title={t.scrollTabsRight}
+                          type="button"
+                        >
+                          <TabScrollIcon direction="right" />
+                        </button>
                       }
                       scrollProps={{
                         onScroll: syncWorkspaceTabScrollState,
@@ -7692,17 +7712,15 @@ export function App() {
                       }}
                       scrollRef={workspaceTabScroll}
                       scrollStart={
-                        workspaceTabScrollState.hasOverflow ? (
-                          <button
-                            aria-label={t.scrollTabsLeft}
-                            disabled={!workspaceTabScrollState.canScrollLeft}
-                            onClick={() => scrollWorkspaceTabs(-1)}
-                            title={t.scrollTabsLeft}
-                            type="button"
-                          >
-                            <TabScrollIcon direction="left" />
-                          </button>
-                        ) : undefined
+                        <button
+                          aria-label={t.scrollTabsLeft}
+                          disabled={!workspaceTabScrollState.canScrollLeft}
+                          onClick={() => scrollWorkspaceTabs(-1)}
+                          title={t.scrollTabsLeft}
+                          type="button"
+                        >
+                          <TabScrollIcon direction="left" />
+                        </button>
                       }
                       trackRef={workspaceTabTrack}
                     >
@@ -8273,6 +8291,8 @@ export function App() {
                               locale={locale}
                               mcpUsages={environmentMcpUsages}
                               onOpenUrl={openConversationExternalLink}
+                              onOpenAgent={openChildAgentPanel}
+                              onOpenFile={openResolvedWorkspaceFile}
                               sources={environmentSources}
                               threadId={activeThread.id}
                             />
@@ -8377,6 +8397,10 @@ export function App() {
                                 })
                               }
                               onOpenHtml={openHtmlFromFiles}
+                              onOpenReader={(path) =>
+                                openWorkspaceTab("markdown", { path })
+                              }
+                              readerLabel={t.openLinkedFile}
                               openFileMessage={t.openFileFromTree}
                               refreshLabel={t.refreshPreview}
                               richLabel={t.richText}
@@ -8468,6 +8492,7 @@ export function App() {
           }
         >
           <SettingsPanel
+            username={username}
             initialSettings={runtimeSettings}
             initialTab={settingsTab}
             locale={locale}

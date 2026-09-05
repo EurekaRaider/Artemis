@@ -81,6 +81,7 @@ export function ImSetupGuide({
   const current = steps.findIndex((step) => !step.done);
   return (
     <ManagementSection
+      className="im-setup-guide"
       id="im-guide"
       tabIndex={-1}
       title={t("首次使用：跟着 6 步设置", "First time? Follow these 6 steps")}
@@ -100,8 +101,16 @@ export function ImSetupGuide({
             data-done={step.done}
             aria-current={index === current ? "step" : undefined}
           >
-            <Button variant="quiet" onClick={() => onNavigate(step.id)}>
-              {index + 1}. {step.title}
+            <span aria-hidden="true" className="im-step-mark">
+              {step.done ? "✓" : index + 1}
+            </span>
+            <Button
+              className="im-step-button"
+              variant="quiet"
+              onClick={() => onNavigate(step.id)}
+            >
+              <strong>{step.title}</strong>
+              <small>{step.description}</small>
             </Button>
             <span className="im-step-status">
               {step.done
@@ -110,7 +119,6 @@ export function ImSetupGuide({
                   ? t("当前步", "Current")
                   : t("待设置", "Pending")}
             </span>
-            <p>{step.description}</p>
           </li>
         ))}
       </ol>

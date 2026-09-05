@@ -1,3 +1,4 @@
+import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -20,12 +21,9 @@ function sourceBetween(value: string, start: string, end: string): string {
 }
 
 function cssDeclarations(selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const match = stylesSource.match(
-    new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{(?<body>[^}]*)\\}`, "u"),
-  );
-  expect(match, `Missing CSS rule for ${selector}`).not.toBeNull();
-  return match?.groups?.body ?? "";
+  const declarations = findCssDeclarations(stylesSource, selector);
+  expect(declarations, `Missing CSS selector ${selector}`).toBeDefined();
+  return declarations ?? "";
 }
 
 function rendererConfirmationHelper(actionSource: string): string {

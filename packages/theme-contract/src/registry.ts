@@ -81,6 +81,10 @@ export const SEMANTIC_TOKEN_REGISTRY = {
     ...color("#00000012"),
     cssVariable: "--artemis-color-border-subtle",
   },
+  "color.border.surface": {
+    ...color("#0000001f", false),
+    cssVariable: "--artemis-color-border-surface",
+  },
   "color.border.strong": {
     ...color("#9ca1aa"),
     cssVariable: "--artemis-color-border-strong",
@@ -209,6 +213,10 @@ export const SEMANTIC_TOKEN_REGISTRY = {
     ...length(16, 0, 40),
     cssVariable: "--artemis-space-4",
   },
+  "space.5": {
+    ...length(20, 0, 48, false),
+    cssVariable: "--artemis-space-5",
+  },
   "space.6": {
     ...length(24, 0, 56),
     cssVariable: "--artemis-space-6",
@@ -277,6 +285,10 @@ export const SEMANTIC_TOKEN_REGISTRY = {
   "typography.label.size": {
     ...length(12, 10, 18),
     cssVariable: "--artemis-typography-label-size",
+  },
+  "typography.metadata.size": {
+    ...length(11, 10, 18, false),
+    cssVariable: "--artemis-typography-metadata-size",
   },
   "typography.body.weight": {
     kind: "fontWeight",

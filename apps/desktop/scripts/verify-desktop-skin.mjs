@@ -1500,8 +1500,8 @@ async function driveElectron() {
       "globalThis.__ARTEMIS_SKIN_SMOKE__.renderEntrySnapshot",
     );
     assert(
-      renderEntry.tokenCount === 74,
-      "First React render lacked 74 tokens.",
+      renderEntry.tokenCount === 77,
+      "First React render lacked 77 tokens.",
     );
     assert(
       renderEntry.attrs.skin === "com.artemis.default" &&
@@ -1535,7 +1535,7 @@ async function driveElectron() {
       systemLight.result.status === "applied" &&
         systemLight.snapshot.attrs.theme === "light" &&
         systemLight.snapshot.attrs.legacyTheme === null &&
-        systemLight.snapshot.tokenCount === 74,
+        systemLight.snapshot.tokenCount === 77,
       "System light bridge was incomplete.",
     );
     await connection.send("Emulation.setEmulatedMedia", {
@@ -1553,7 +1553,7 @@ async function driveElectron() {
     assert(
       systemDark.attrs.theme === "dark" &&
         systemDark.attrs.legacyTheme === null &&
-        systemDark.tokenCount === 74,
+        systemDark.tokenCount === 77,
       "System dark bridge was incomplete.",
     );
     await connection.send("Emulation.setEmulatedMedia", {
@@ -1569,7 +1569,7 @@ async function driveElectron() {
     assert(
       systemHighContrast.result.status === "applied" &&
         systemHighContrast.snapshot.attrs.contrast === "high" &&
-        systemHighContrast.snapshot.tokenCount === 74,
+        systemHighContrast.snapshot.tokenCount === 77,
       "System high-contrast bridge was incomplete.",
     );
     await connection.send("Emulation.setEmulatedMedia", {
@@ -1591,7 +1591,7 @@ async function driveElectron() {
       explicitLight.result.status === "applied" &&
         explicitLight.snapshot.attrs.theme === "light" &&
         explicitLight.snapshot.attrs.legacyTheme === "light" &&
-        explicitLight.snapshot.tokenCount === 74,
+        explicitLight.snapshot.tokenCount === 77,
       "Explicit light bridge was incomplete.",
     );
     await connection.send("Emulation.setEmulatedMedia", {
@@ -1892,7 +1892,7 @@ async function driveElectron() {
           snapshot.attrs.theme === configuration.theme &&
           snapshot.attrs.legacyTheme === configuration.theme &&
           snapshot.attrs.contrast === configuration.contrast &&
-          snapshot.tokenCount === 74 &&
+          snapshot.tokenCount === 77 &&
           snapshot.tokens?.["color.canvas"] === canvas,
         `Runtime mode failed: ${JSON.stringify({ configuration, outcome })}`,
       );
@@ -2074,7 +2074,7 @@ async function driveElectron() {
         outcome.result.status === "fallback" &&
           outcome.result.reason === reason &&
           outcome.snapshot.attrs.skin === "com.artemis.default" &&
-          outcome.snapshot.tokenCount === 74 &&
+          outcome.snapshot.tokenCount === 77 &&
           outcome.snapshot.state.portalSame &&
           outcome.snapshot.state.portalInheritedCanvas ===
             outcome.snapshot.tokens?.["color.canvas"],
@@ -2094,7 +2094,7 @@ async function driveElectron() {
       defaultFatal.result.status === "fatal" &&
         defaultFatal.result.activeSkinId === "com.artemis.default" &&
         defaultFatal.snapshot.attrs.skin === "com.artemis.default" &&
-        defaultFatal.snapshot.tokenCount === 74 &&
+        defaultFatal.snapshot.tokenCount === 77 &&
         defaultFatal.snapshot.state.portalSame &&
         defaultFatal.snapshot.state.portalInheritedCanvas ===
           defaultFatal.snapshot.tokens?.["color.canvas"],

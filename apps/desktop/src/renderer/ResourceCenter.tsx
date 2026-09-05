@@ -115,9 +115,8 @@ async function loadInstalledPlugins(): Promise<InstalledCodexPlugin[]> {
 
 const labels = {
   en: {
-    title: "Plugins",
-    marketDescription:
-      "Add plugins, Connectors, Skills and MCP servers to Artemis.",
+    title: "MCP & Skills",
+    marketDescription: "Manage plugins, Connectors, MCP servers and Skills.",
     manageDescription: "Manage plugins, Connectors, MCP servers and Skills.",
     plugins: "Plugins",
     connectors: "Connectors",
@@ -255,7 +254,7 @@ const labels = {
     allResults: "Results",
   },
   "zh-CN": {
-    title: "插件",
+    title: "MCP 与 Skills",
     marketDescription: "为 Artemis 安装插件、Connector、Skill 与 MCP 服务器",
     manageDescription: "管理插件、Connector、MCP 和 Skill",
     plugins: "插件",
@@ -1976,56 +1975,60 @@ export function ResourceCenter({
         : plugin.unsupported.join(", ");
     return (
       <ManagementCard className="plugin-market-card" key={plugin.id}>
-        <ResourceAvatar
-          brandColor={plugin.brandColor}
-          iconDataUrl={plugin.iconDataUrl}
-          kind="plugin"
-          name={displayName}
-        />
-        <div className="plugin-market-copy">
+        <div className="plugin-market-card-heading">
+          <ResourceAvatar
+            brandColor={plugin.brandColor}
+            iconDataUrl={plugin.iconDataUrl}
+            kind="plugin"
+            name={displayName}
+          />
           <strong>{displayName}</strong>
+        </div>
+        <div className="plugin-market-copy">
           <small>{description}</small>
-          <small className="plugin-market-source">
-            {t.marketplaceSource}: {sourceLabel}
-          </small>
           {diagnostic && (
             <InlineNotice className="plugin-market-diagnostic" tone="warning">
               {pluginPageText(diagnostic)}
             </InlineNotice>
           )}
         </div>
-        {installed && installedPlugin ? (
-          <Button
-            disabled={operationPending || busyId === plugin.id}
-            onClick={() =>
-              runResourceOperation(() => removePlugin(installedPlugin))
-            }
-            variant="danger"
-          >
-            {t.remove}
-          </Button>
-        ) : (
-          <Button
-            className="resource-inline-action"
-            disabled={
-              operationPending ||
-              !plugin.installable ||
-              Boolean(conflict) ||
-              busyId === plugin.id ||
-              installProgress !== undefined
-            }
-            onClick={() => runResourceOperation(() => installPlugin(plugin))}
-            title={
-              diagnostic || (plugin.installable ? t.install : t.needsSetup)
-            }
-          >
-            {conflict
-              ? t.skillConflict
-              : plugin.installable
-                ? t.install
-                : t.needsSetup}
-          </Button>
-        )}
+        <div className="plugin-market-card-footer">
+          <small className="plugin-market-source">
+            {t.marketplaceSource}: {sourceLabel}
+          </small>
+          {installed && installedPlugin ? (
+            <Button
+              disabled={operationPending || busyId === plugin.id}
+              onClick={() =>
+                runResourceOperation(() => removePlugin(installedPlugin))
+              }
+              variant="danger"
+            >
+              {t.remove}
+            </Button>
+          ) : (
+            <Button
+              className="resource-inline-action"
+              disabled={
+                operationPending ||
+                !plugin.installable ||
+                Boolean(conflict) ||
+                busyId === plugin.id ||
+                installProgress !== undefined
+              }
+              onClick={() => runResourceOperation(() => installPlugin(plugin))}
+              title={
+                diagnostic || (plugin.installable ? t.install : t.needsSetup)
+              }
+            >
+              {conflict
+                ? t.skillConflict
+                : plugin.installable
+                  ? t.install
+                  : t.needsSetup}
+            </Button>
+          )}
+        </div>
       </ManagementCard>
     );
   }
@@ -2332,6 +2335,29 @@ export function ResourceCenter({
     );
   }
 
+  const managementCounts: Record<ManagementTab, number> = {
+    plugins:
+      installedPlugins.length + (settings?.trustedExtensions.length ?? 0),
+    connectors: mcpServers.filter(
+      (server) => server.config.resourceKind === "connector",
+    ).length,
+    mcp: mcpServers.filter(
+      (server) => server.config.resourceKind !== "connector",
+    ).length,
+    skills: standaloneSkills.length,
+  };
+  const managementTabOptions = (
+    ["plugins", "connectors", "mcp", "skills"] as const
+  ).map((tab) => ({
+    id: `resource-management-tab-${tab}`,
+    label: `${t[tab]} ${managementCounts[tab]}`,
+    panelId: `resource-management-panel-${tab}`,
+    value: tab,
+  }));
+  const activeManagementTabOption = managementTabOptions.find(
+    (option) => option.value === managementTab,
+  )!;
+
   if (mode === "marketplace") {
     return (
       <ResourceSurface
@@ -2345,6 +2371,11 @@ export function ResourceCenter({
         label={t.title}
       >
         <ManagementHeader
+          leading={
+            <span className="secondary-page-icon">
+              <ArtemisIcon name="resource" width={19} height={19} />
+            </span>
+          }
           className="resource-page-header"
           description={t.marketDescription}
           title={t.title}
@@ -2377,139 +2408,20 @@ export function ResourceCenter({
             </div>
           }
         />
-        <SearchField
-          className="resource-search-field resource-market-search"
+        <Tabs
+          className="resource-category-tabs"
           disabled={operationPending}
-          label={t.searchPlugins}
-          onValueChange={setMarketplaceQuery}
-          placeholder={t.searchPlugins}
-          value={marketplaceQuery}
+          label={t.manage}
+          onValueChange={(tab) => openManagement(tab)}
+          options={managementTabOptions.map((option) => ({
+            ...option,
+            label: t[option.value],
+          }))}
+          size="compact"
+          value="plugins"
         />
-
-        <ManagementSection
-          actions={
-            <IconButton
-              className="resource-icon-button"
-              disabled={operationPending}
-              icon={<GearIcon />}
-              label={t.manage}
-              onClick={() => openManagement()}
-              title={t.manage}
-            />
-          }
-          className="resource-installed-overview"
-          title={t.installed}
-        >
-          <div className="resource-installed-icons">
-            {installedTiles.slice(0, 24).map((item) => (
-              <IconButton
-                className="resource-installed-icon-button"
-                disabled={operationPending}
-                icon={
-                  <ResourceAvatar
-                    brandColor={item.brandColor}
-                    iconKey={item.iconKey}
-                    iconDataUrl={item.iconDataUrl}
-                    kind={item.kind}
-                    name={item.name}
-                  />
-                }
-                key={item.id}
-                label={item.name}
-                onClick={() =>
-                  openManagement(
-                    item.kind === "plugin"
-                      ? "plugins"
-                      : item.kind === "skill"
-                        ? "skills"
-                        : "mcp",
-                  )
-                }
-                title={item.name}
-              />
-            ))}
-            {installedTiles.length === 0 && (
-              <span className="resource-empty-inline">{t.noPlugins}</span>
-            )}
-            {installedTiles.length > 24 && (
-              <span className="resource-installed-more">
-                +{installedTiles.length - 24}
-              </span>
-            )}
-          </div>
-        </ManagementSection>
-
-        {renderProgressAndMessage()}
-
-        <div className="resource-market-controls">
-          <Tabs
-            className="resource-scope-tabs"
-            disabled={operationPending}
-            label={t.marketplaces}
-            onValueChange={(sourceId) =>
-              runResourceOperation(() => selectMarketplace(sourceId))
-            }
-            options={marketplaceTabOptions}
-            size="compact"
-            value={activeMarketplaceTabOption.value}
-          />
-          <small>
-            {marketplaceFilter
-              ? t.allResults
-              : selectedMarketplaceSource
-                ? marketplaceSourceLabel(selectedMarketplaceSource)
-                : t.local}
-          </small>
-        </div>
-
-        {isArtemisPluginShop && !marketplaceFilter && (
-          <ManagementCard className="resource-runtime-banner resource-marketplace-account-banner">
-            <div>
-              <strong>
-                {locale.startsWith("zh")
-                  ? "Artemis Plugin Shop 专用 Google 鉴权"
-                  : "Google authentication for Artemis Plugin Shop"}
-              </strong>
-              <small>
-                {locale.startsWith("zh")
-                  ? "仅用于此商店提供的 Gmail 与 Google Workspace 插件。"
-                  : "Used only by the Gmail and Google Workspace plugins from this marketplace."}
-              </small>
-            </div>
-            <Button
-              disabled={operationPending}
-              onClick={() => runResourceOperation(openGoogleAccount)}
-            >
-              {locale.startsWith("zh") ? "Google 账号" : "Google account"}
-            </Button>
-          </ManagementCard>
-        )}
-
-        <InlineNotice tone="warning">{t.thirdParty}</InlineNotice>
-
-        {selectedMarketplaceView === "bundled" &&
-          !marketplaceFilter &&
-          runtimePendingPlugins.length > 0 && (
-            <ManagementCard className="resource-runtime-banner">
-              <div>
-                <strong>{t.installRequiredDocuments}</strong>
-                <small>{t.requiredDocumentsDescription}</small>
-              </div>
-              <Button
-                disabled={
-                  operationPending ||
-                  busyId === "required-documents" ||
-                  installProgress !== undefined
-                }
-                onClick={() => runResourceOperation(installRuntimePlugins)}
-              >
-                {t.installRequiredDocuments}
-              </Button>
-            </ManagementCard>
-          )}
-
-        {marketplaceTabOptions
-          .filter((option) => option.value !== activeMarketplaceTabOption.value)
+        {managementTabOptions
+          .filter((option) => option.value !== "plugins")
           .map((option) => (
             <div
               aria-labelledby={option.id}
@@ -2520,56 +2432,187 @@ export function ResourceCenter({
             />
           ))}
         <div
-          aria-labelledby={activeMarketplaceTabOption.id}
-          className="plugin-market-groups"
-          id={activeMarketplaceTabOption.panelId}
+          className="resource-marketplace-content"
           role="tabpanel"
+          id="resource-management-panel-plugins"
+          aria-labelledby="resource-management-tab-plugins"
         >
-          {marketplaceGroups.map((group) => (
-            <section
-              className="plugin-market-group"
-              key={`${group.sourceId ?? "group"}:${group.title}`}
-            >
-              <h2>
-                {marketplaceFilter ? group.title : pluginPageText(group.title)}
-              </h2>
-              <div className="plugin-market-grid">
-                {group.plugins.map((plugin) =>
-                  renderPluginCard(plugin, group.sourceId),
-                )}
+          <SearchField
+            className="resource-search-field resource-market-search"
+            disabled={operationPending}
+            label={t.searchPlugins}
+            onValueChange={setMarketplaceQuery}
+            placeholder={t.searchPlugins}
+            value={marketplaceQuery}
+          />
+
+          {renderProgressAndMessage()}
+
+          <div className="resource-market-controls">
+            <Tabs
+              className="resource-scope-tabs"
+              disabled={operationPending}
+              label={t.marketplaces}
+              onValueChange={(sourceId) =>
+                runResourceOperation(() => selectMarketplace(sourceId))
+              }
+              options={marketplaceTabOptions}
+              size="compact"
+              value={activeMarketplaceTabOption.value}
+            />
+            <small>
+              {marketplaceFilter
+                ? t.allResults
+                : selectedMarketplaceSource
+                  ? marketplaceSourceLabel(selectedMarketplaceSource)
+                  : t.local}
+            </small>
+          </div>
+
+          {isArtemisPluginShop && !marketplaceFilter && (
+            <ManagementCard className="resource-runtime-banner resource-marketplace-account-banner">
+              <div>
+                <strong>
+                  {locale.startsWith("zh")
+                    ? "Artemis Plugin Shop 专用 Google 鉴权"
+                    : "Google authentication for Artemis Plugin Shop"}
+                </strong>
+                <small>
+                  {locale.startsWith("zh")
+                    ? "仅用于此商店提供的 Gmail 与 Google Workspace 插件。"
+                    : "Used only by the Gmail and Google Workspace plugins from this marketplace."}
+                </small>
               </div>
-            </section>
-          ))}
-          {!searching && marketplaceGroups.length === 0 && (
-            <EmptyResource>{t.noMarketplaceResults}</EmptyResource>
+              <Button
+                disabled={operationPending}
+                onClick={() => runResourceOperation(openGoogleAccount)}
+              >
+                {locale.startsWith("zh") ? "Google 账号" : "Google account"}
+              </Button>
+            </ManagementCard>
           )}
+
+          <InlineNotice tone="warning">{t.thirdParty}</InlineNotice>
+
+          {selectedMarketplaceView === "bundled" &&
+            !marketplaceFilter &&
+            runtimePendingPlugins.length > 0 && (
+              <ManagementCard className="resource-runtime-banner">
+                <div>
+                  <strong>{t.installRequiredDocuments}</strong>
+                  <small>{t.requiredDocumentsDescription}</small>
+                </div>
+                <Button
+                  disabled={
+                    operationPending ||
+                    busyId === "required-documents" ||
+                    installProgress !== undefined
+                  }
+                  onClick={() => runResourceOperation(installRuntimePlugins)}
+                >
+                  {t.installRequiredDocuments}
+                </Button>
+              </ManagementCard>
+            )}
+
+          {marketplaceTabOptions
+            .filter(
+              (option) => option.value !== activeMarketplaceTabOption.value,
+            )
+            .map((option) => (
+              <div
+                aria-labelledby={option.id}
+                hidden
+                id={option.panelId}
+                key={option.value}
+                role="tabpanel"
+              />
+            ))}
+          <div
+            aria-labelledby={activeMarketplaceTabOption.id}
+            className="plugin-market-groups"
+            id={activeMarketplaceTabOption.panelId}
+            role="tabpanel"
+          >
+            {marketplaceGroups.map((group) => (
+              <section
+                className="plugin-market-group"
+                key={`${group.sourceId ?? "group"}:${group.title}`}
+              >
+                <h2>
+                  {marketplaceFilter
+                    ? group.title
+                    : pluginPageText(group.title)}
+                </h2>
+                <div className="plugin-market-grid">
+                  {group.plugins.map((plugin) =>
+                    renderPluginCard(plugin, group.sourceId),
+                  )}
+                </div>
+              </section>
+            ))}
+            {!searching && marketplaceGroups.length === 0 && (
+              <EmptyResource>{t.noMarketplaceResults}</EmptyResource>
+            )}
+          </div>
+
+          <ManagementSection
+            actions={
+              <IconButton
+                className="resource-icon-button"
+                disabled={operationPending}
+                icon={<GearIcon />}
+                label={t.manage}
+                onClick={() => openManagement()}
+                title={t.manage}
+              />
+            }
+            className="resource-installed-overview"
+            title={t.installed}
+          >
+            <div className="resource-installed-icons">
+              {installedTiles.slice(0, 24).map((item) => (
+                <IconButton
+                  className="resource-installed-icon-button"
+                  disabled={operationPending}
+                  icon={
+                    <ResourceAvatar
+                      brandColor={item.brandColor}
+                      iconKey={item.iconKey}
+                      iconDataUrl={item.iconDataUrl}
+                      kind={item.kind}
+                      name={item.name}
+                    />
+                  }
+                  key={item.id}
+                  label={item.name}
+                  onClick={() =>
+                    openManagement(
+                      item.kind === "plugin"
+                        ? "plugins"
+                        : item.kind === "skill"
+                          ? "skills"
+                          : "mcp",
+                    )
+                  }
+                  title={item.name}
+                />
+              ))}
+              {installedTiles.length === 0 && (
+                <span className="resource-empty-inline">{t.noPlugins}</span>
+              )}
+              {installedTiles.length > 24 && (
+                <span className="resource-installed-more">
+                  +{installedTiles.length - 24}
+                </span>
+              )}
+            </div>
+          </ManagementSection>
         </div>
       </ResourceSurface>
     );
   }
 
-  const managementCounts: Record<ManagementTab, number> = {
-    plugins:
-      installedPlugins.length + (settings?.trustedExtensions.length ?? 0),
-    connectors: mcpServers.filter(
-      (server) => server.config.resourceKind === "connector",
-    ).length,
-    mcp: mcpServers.filter(
-      (server) => server.config.resourceKind !== "connector",
-    ).length,
-    skills: standaloneSkills.length,
-  };
-  const managementTabOptions = (
-    ["plugins", "connectors", "mcp", "skills"] as const
-  ).map((tab) => ({
-    id: `resource-management-tab-${tab}`,
-    label: `${t[tab]} ${managementCounts[tab]}`,
-    panelId: `resource-management-panel-${tab}`,
-    value: tab,
-  }));
-  const activeManagementTabOption = managementTabOptions.find(
-    (option) => option.value === managementTab,
-  )!;
   const managementSearchLabel =
     managementTab === "plugins"
       ? t.searchPlugins
@@ -2611,11 +2654,20 @@ export function ResourceCenter({
 
       <div className="resource-management-toolbar">
         <Tabs
-          className="resource-management-tabs"
+          className="resource-management-tabs resource-category-tabs"
           disabled={operationPending}
           label={t.manage}
-          onValueChange={switchManagementTab}
-          options={managementTabOptions}
+          onValueChange={(tab) => {
+            if (tab === "plugins" && managementTab !== "plugins") {
+              setMode("marketplace");
+              setManagementTab(tab);
+              setMessage(undefined);
+            } else switchManagementTab(tab);
+          }}
+          options={managementTabOptions.map((option) => ({
+            ...option,
+            label: t[option.value],
+          }))}
           size="compact"
           value={managementTab}
         />

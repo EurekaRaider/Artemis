@@ -1,3 +1,4 @@
+import { findCssDeclarations } from "./css-test-utils.js";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -228,21 +229,15 @@ const macIconSource = readFileSync(
 );
 
 function cssRule(selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const match = stylesSource.match(
-    new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, "u"),
-  );
-  expect(match, `Missing CSS rule for ${selector}`).not.toBeNull();
-  return match?.[1] ?? "";
+  const declarations = findCssDeclarations(stylesSource, selector);
+  expect(declarations, `Missing CSS rule for ${selector}`).toBeDefined();
+  return declarations ?? "";
 }
 
 function publicUiCssRule(selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const match = publicUiStylesSource.match(
-    new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`, "u"),
-  );
-  expect(match, `Missing public UI CSS rule for ${selector}`).not.toBeNull();
-  return match?.[1] ?? "";
+  const declarations = findCssDeclarations(publicUiStylesSource, selector);
+  expect(declarations, `Missing CSS rule for ${selector}`).toBeDefined();
+  return declarations ?? "";
 }
 
 function cssAtRule(pattern: RegExp): string | undefined {
@@ -260,33 +255,13 @@ function cssAtRule(pattern: RegExp): string | undefined {
 }
 
 function cssDeclarationsForSelector(selector: string): string | undefined {
-  const rules = stylesSource.matchAll(
-    /(?<selectors>[^{}]+)\{(?<declarations>[^{}]*)\}/gu,
-  );
-  for (const rule of rules) {
-    const selectors =
-      rule.groups?.selectors.split(",").map((item) => item.trim()) ?? [];
-    if (selectors.includes(selector)) {
-      return rule.groups?.declarations;
-    }
-  }
-  return undefined;
+  return findCssDeclarations(stylesSource, selector);
 }
 
 function publicUiCssDeclarationsForSelector(
   selector: string,
 ): string | undefined {
-  const rules = publicUiStylesSource.matchAll(
-    /(?<selectors>[^{}]+)\{(?<declarations>[^{}]*)\}/gu,
-  );
-  for (const rule of rules) {
-    const selectors =
-      rule.groups?.selectors.split(",").map((item) => item.trim()) ?? [];
-    if (selectors.includes(selector)) {
-      return rule.groups?.declarations;
-    }
-  }
-  return undefined;
+  return findCssDeclarations(publicUiStylesSource, selector);
 }
 
 function hexProperty(declarations: string, property: string): string {
@@ -532,7 +507,7 @@ describe("renderer layout contract", () => {
     expect(appSource).not.toContain('className="command-backdrop"');
     expect(stylesSource).not.toContain(".command-backdrop");
     expect(settingsIconSource).toContain('<ArtemisIcon className="icon"');
-    expect(settingsIconSource).toContain('name="settings"');
+    expect(settingsIconSource).toContain('name="gear"');
     expect(settingsIconSource).toContain("height={17}");
     expect(sidebarFooterStart).toBeGreaterThan(-1);
     expect(sidebarFooterEnd).toBeGreaterThan(sidebarFooterStart);
@@ -573,10 +548,10 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("initialTab={settingsTab}");
     expect(settingsSource).toContain('initialTab = "general"');
     expect(settingsSource).toContain("useState<SettingsTab>(initialTab)");
-    expect(cssRule(".app-version")).toMatch(/\bfont-size:\s*11px/u);
+    expect(cssRule(".app-version")).toMatch(/\bfont-size:\s*10\.5px/u);
     expect(cssRule(".app-version")).toMatch(/\bcolor:\s*var\(--muted-2\)/u);
     expect(cssRule(".app-version")).toMatch(/\bbackground:\s*transparent/u);
-    expect(cssRule(".sidebar-footer")).toContain("padding: 0 11px 6px 14px");
+    expect(cssRule(".sidebar-footer")).toContain("padding: 8px 10px 16px 14px");
   });
 
   it("keeps archived conversations out of the task sidebar and opens them from a library", () => {
@@ -687,7 +662,7 @@ describe("renderer layout contract", () => {
       /\bborder-radius:\s*var\(--artemis-radius-composer\)/u,
     );
     expect(composerSurface).toMatch(
-      /border:\s*var\(--artemis-border-width-default\) solid[\s\S]*var\(--artemis-color-border-default\)/u,
+      /border:\s*var\(--artemis-border-width-default\) solid[\s\S]*var\(--artemis-color-border-surface\)/u,
     );
     expect(cssRule(".composer-context")).toContain("margin: 0;");
     expect(
@@ -1249,7 +1224,7 @@ describe("renderer layout contract", () => {
       "font-family: var(--artemis-typography-body-family)",
     );
     expect(assistant).toContain(
-      "font-size: calc(var(--artemis-typography-body-size) + 1px)",
+      "font-size: calc(var(--artemis-typography-body-size) + 0.5px)",
     );
     expect(cssRule(".tool-summary-label")).toContain("font-size: 14px");
     expect(appSource).not.toContain('thinkingStatus: "Thinking"');
@@ -1633,7 +1608,7 @@ describe("renderer layout contract", () => {
     expect(settingsSurface).toMatch(/\bdisplay:\s*flex/u);
     expect(settingsBody).toMatch(/\bdisplay:\s*grid/u);
     expect(publicUiStylesSource).toContain(
-      "grid-template-columns: minmax(11rem, 13rem)",
+      "grid-template-columns: 13.25rem minmax(0, 1fr)",
     );
     expect(cssRule(".profile-avatar-input")).toMatch(
       /\bposition:\s*absolute[\s\S]*\bwidth:\s*1px/u,
@@ -1713,7 +1688,8 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("desktopSkinHost.setTheme(theme)");
     expect(stylesSource).toContain(':root[data-theme="light"]');
     expect(stylesSource).toContain(':root[data-theme="dark"]');
-    expect(stylesSource).toContain(":root:not([data-theme])");
+    expect(cssRule(":root")).toContain("color-scheme: light dark");
+    expect(cssRule(":root")).toContain("light-dark(");
   });
 
   it("keeps the terminal and native window chrome aligned with the theme", () => {
@@ -2201,7 +2177,7 @@ describe("renderer layout contract", () => {
     expect(apiSource).toContain("setProjectSidebarWidth(width: number)");
     expect(preloadSource).toContain("setProjectSidebarWidth: (width)");
     expect(appSource).toMatch(
-      /sidebarSize=\{projectSidebarWidth \?\? PROJECT_SIDEBAR_WIDTH_DEFAULT\}/u,
+      /sidebarSize=\{projectSidebarWidth \?\? defaultProjectSidebarWidth\}/u,
     );
     expect(appSource).not.toContain("sidebar-collapsed");
     expect(stylesSource).not.toContain("--project-sidebar-width");
@@ -2233,7 +2209,9 @@ describe("renderer layout contract", () => {
     expect(dock).toMatch(/\binline-size:\s*var\(--workspace-dock-width/u);
     expect(dock).toMatch(/calc\(100%\s*-\s*20\.4375rem\)/u);
     expect(dock).toMatch(/transition:/u);
-    expect(resizer).toMatch(/\bflex:\s*0\s+0\s+0\.4375rem/u);
+    expect(resizer).toMatch(
+      /\bflex:\s*0\s+0\s+calc\(var\(--artemis-space-1\) \+ 1px\)/u,
+    );
     expect(closedDock).toMatch(/\bflex-basis:\s*0/u);
     expect(closedDock).toMatch(/\bopacity:\s*0/u);
     expect(closedDock).toMatch(/\btransform:\s*translateX\(/u);
@@ -2327,7 +2305,7 @@ describe("renderer layout contract", () => {
 
     expect(timeline).toMatch(/\bmax-inline-size:\s*60rem/u);
     expect(timeline).toMatch(
-      /\bpadding:\s*calc\(var\(--artemis-space-6\) \+ var\(--artemis-space-2\)\)\s+var\(--artemis-space-5\) var\(--artemis-space-6\)/u,
+      /\bpadding:\s*calc\(var\(--artemis-space-6\) \+ var\(--artemis-space-2\) \+ 2px\)\s+var\(--artemis-space-5\) var\(--artemis-space-6\)/u,
     );
     expect(composerWrap).toMatch(/\bmax-width:\s*960px/u);
     expect(composerWrap).toMatch(/\bpadding:\s*0\s+20px\s+18px/u);
@@ -2409,12 +2387,14 @@ describe("renderer layout contract", () => {
       'className="resource-installed-overview"',
     );
     expect(resourceCenterSource).toContain(
-      'className="resource-management-tabs"',
+      'className="resource-management-tabs resource-category-tabs"',
     );
     expect(resourceCenterSource).toContain(
       "value={activeMarketplaceTabOption.value}",
     );
-    expect(resourceCenterSource).toContain("options={managementTabOptions}");
+    expect(resourceCenterSource).toContain(
+      "options={managementTabOptions.map((option) => ({",
+    );
     expect(resourceSurface).toMatch(/\bdisplay:\s*flex/u);
     expect(publicUiStylesSource).toContain("inline-size: min(100%, 72rem)");
     expect(toolbar).toMatch(/\bdisplay:\s*flex/u);

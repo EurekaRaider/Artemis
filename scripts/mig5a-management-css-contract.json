@@ -33,7 +33,7 @@
     {
       "display": "grid",
       "flex": "1 1 auto",
-      "grid-template-columns": "minmax(11rem, 13rem) minmax(0, 1fr)",
+      "grid-template-columns": "13.25rem minmax(0, 1fr)",
       "min-inline-size": "0",
       "min-block-size": "0"
     }
@@ -50,23 +50,31 @@
     }
   ],
   [
-    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"][aria-orientation=\"vertical\"]",
+    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"]",
     {
       "display": "flex",
       "flex-direction": "column",
       "align-items": "stretch",
-      "gap": "var(--artemis-space-1)",
+      "gap": "calc(var(--artemis-space-1) - 1px)",
       "padding": "0",
       "background": "transparent",
       "border": "0"
     }
   ],
   [
-    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"][aria-orientation=\"vertical\"] [data-part=\"tab\"]",
+    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"] [data-part=\"tab\"]",
     {
       "justify-content": "flex-start",
-      "min-block-size": "var(--artemis-size-control-comfortable)",
-      "text-align": "start"
+      "min-block-size": "calc(var(--artemis-size-control-compact) + var(--artemis-space-1))",
+      "text-align": "start",
+      "font-size": "var(--artemis-typography-label-size)",
+      "line-height": "1.4",
+      "font-weight": "500",
+      "padding": "calc(var(--artemis-space-1) * 1.5) calc(var(--artemis-space-2) + 2px)",
+      "gap": "calc(var(--artemis-space-2) - 1px)",
+      "border": "1px solid transparent",
+      "border-radius": "var(--artemis-radius-control)",
+      "color": "var(--artemis-color-text-secondary)"
     }
   ],
   [
@@ -77,18 +85,22 @@
       "gap": "var(--artemis-space-5)",
       "min-inline-size": "0",
       "min-block-size": "0",
-      "padding": "var(--artemis-space-5) var(--artemis-space-5) var(--artemis-space-6)",
+      "padding": "var(--artemis-space-6) calc(var(--artemis-space-6) + var(--artemis-space-1))",
       "overflow": "auto",
-      "scrollbar-gutter": "stable"
+      "scrollbar-gutter": "auto"
     }
   ],
   [
     "normal|[data-artemis-component=\"settings-surface\"] [data-artemis-component=\"select\"] [data-part=\"menu\"]",
-    { "z-index": "80" }
+    {
+      "z-index": "80"
+    }
   ],
   [
     "normal|[data-artemis-component=\"mcp-editor-surface\"] [data-artemis-component=\"select\"] [data-part=\"menu\"]",
-    { "z-index": "80" }
+    {
+      "z-index": "80"
+    }
   ],
   [
     "normal|[data-artemis-component=\"resource-surface\"]",
@@ -113,7 +125,9 @@
   ],
   [
     "normal|[data-artemis-component=\"resource-surface\"] > [data-part=\"toolbar\"]",
-    { "margin-block-end": "var(--artemis-space-5)" }
+    {
+      "margin-block-end": "var(--artemis-space-5)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"resource-surface\"] > [data-part=\"content\"]",
@@ -161,7 +175,10 @@
   ],
   [
     "normal|[data-artemis-component=\"management-header\"] > [data-part=\"copy\"]",
-    { "flex": "1 1 auto", "min-inline-size": "0" }
+    {
+      "flex": "1 1 auto",
+      "min-inline-size": "0"
+    }
   ],
   [
     "normal|[data-artemis-component=\"management-header\"] [data-part=\"title\"]",
@@ -299,7 +316,9 @@
   ],
   [
     "normal|[data-artemis-component=\"management-row\"] > [data-part=\"copy\"]",
-    { "min-inline-size": "0" }
+    {
+      "min-inline-size": "0"
+    }
   ],
   [
     "normal|[data-artemis-component=\"management-row\"] [data-part=\"title\"], [data-artemis-component=\"management-row\"] [data-part=\"description\"]",
@@ -312,7 +331,9 @@
   ],
   [
     "normal|[data-artemis-component=\"management-row\"] [data-part=\"title\"]",
-    { "font-size": "var(--artemis-typography-label-size)" }
+    {
+      "font-size": "var(--artemis-typography-label-size)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"management-row\"] [data-part=\"description\"]",
@@ -353,7 +374,9 @@
   ],
   [
     "normal|[data-artemis-component=\"management-section\"]:is([data-state=\"busy\"], [data-state=\"disabled\"]), [data-artemis-component=\"management-card\"]:is([data-state=\"busy\"], [data-state=\"disabled\"]), [data-artemis-component=\"management-row\"]:is([data-state=\"busy\"], [data-state=\"disabled\"])",
-    { "opacity": "var(--artemis-opacity-disabled)" }
+    {
+      "opacity": "var(--artemis-opacity-disabled)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"mcp-editor-surface\"]",
@@ -367,7 +390,9 @@
   ],
   [
     "normal|[data-artemis-component=\"mcp-editor-surface\"] > [data-part=\"header\"], [data-artemis-component=\"mcp-editor-surface\"] > [data-part=\"feedback\"], [data-artemis-component=\"mcp-editor-surface\"] > [data-part=\"content\"]",
-    { "min-inline-size": "0" }
+    {
+      "min-inline-size": "0"
+    }
   ],
   [
     "normal|[data-artemis-component=\"mcp-editor-surface\"] > [data-part=\"content\"]",
@@ -389,7 +414,9 @@
   ],
   [
     "normal|[data-artemis-component=\"mcp-editor-surface\"][data-state=\"error\"] > [data-part=\"feedback\"]",
-    { "color": "var(--artemis-color-status-danger)" }
+    {
+      "color": "var(--artemis-color-status-danger)"
+    }
   ],
   [
     "compact-width|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"]",
@@ -409,7 +436,7 @@
     }
   ],
   [
-    "compact-width|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"][aria-orientation=\"vertical\"]",
+    "compact-width|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"]",
     {
       "flex-direction": "column",
       "inline-size": "100%",
@@ -418,30 +445,75 @@
   ],
   [
     "compact-width|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"content\"]",
-    { "padding": "var(--artemis-space-4)" }
+    {
+      "padding": "var(--artemis-space-4)"
+    }
   ],
   [
     "compact-width|[data-artemis-component=\"resource-surface\"]",
-    { "padding-inline": "var(--artemis-space-4)" }
+    {
+      "padding-inline": "var(--artemis-space-4)"
+    }
   ],
   [
     "compact-width|[data-artemis-component=\"management-header\"]",
-    { "align-items": "flex-start", "flex-wrap": "wrap" }
+    {
+      "align-items": "flex-start",
+      "flex-wrap": "wrap"
+    }
   ],
   [
     "compact-width|[data-artemis-component=\"management-header\"] > [data-part=\"actions\"]",
-    { "margin-inline-start": "auto" }
+    {
+      "margin-inline-start": "auto"
+    }
   ],
   [
     "compact-width|[data-artemis-component=\"management-row\"]",
-    { "grid-template-columns": "auto minmax(0, 1fr)" }
+    {
+      "grid-template-columns": "auto minmax(0, 1fr)"
+    }
   ],
   [
     "compact-width|[data-artemis-component=\"management-row\"] > [data-part=\"actions\"]",
-    { "grid-column": "1 / -1", "justify-content": "flex-end" }
+    {
+      "grid-column": "1 / -1",
+      "justify-content": "flex-end"
+    }
   ],
   [
     "reduced-motion|[data-artemis-component=\"management-card\"], [data-artemis-component=\"management-row\"]",
-    { "transition": "none" }
+    {
+      "transition": "none"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"settings-surface\"] > [data-part=\"body\"] > [data-part=\"navigation\"] [data-artemis-component=\"tabs\"] [data-part=\"tab\"][aria-selected=\"true\"]",
+    {
+      "background": "var(--artemis-color-surface-base)",
+      "color": "var(--artemis-color-text-primary)",
+      "border-color": "var(--artemis-color-border-subtle)",
+      "box-shadow": "0 1px 3px color-mix(in srgb, var(--artemis-color-text-primary) 8%, transparent)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"tabs\"] [data-part=\"icon\"]",
+    {
+      "display": "inline-flex",
+      "flex": "0 0 auto",
+      "inline-size": "13px",
+      "block-size": "13px"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"workspace-tab-bar\"] :is([data-part=\"scroll-start\"], [data-part=\"scroll-end\"]) > button",
+    {
+      "min-inline-size": "22px",
+      "min-block-size": "28px",
+      "inline-size": "22px",
+      "block-size": "28px",
+      "background": "transparent",
+      "border": "0"
+    }
   ]
 ]

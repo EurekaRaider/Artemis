@@ -106,7 +106,7 @@ describe("reported issues #56–#59", () => {
 
     expect(sidebarRule).toContain("flex-direction: column");
     expect(sidebarRule).toContain("display: flex");
-    expect(treeRule).toMatch(/padding:\s*[1-9]\d*px\s+10px\s+16px/u);
+    expect(treeRule).toMatch(/padding:\s*2px\s+8px\s+8px/u);
     expect(appSource).not.toContain('className="sidebar-create-menu"');
   });
 });

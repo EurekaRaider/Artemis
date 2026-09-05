@@ -16,7 +16,7 @@
       "flex": "1 1 auto",
       "flex-direction": "column",
       "overflow": "hidden",
-      "background": "var(--artemis-color-canvas)"
+      "background": "var(--artemis-color-surface-base)"
     }
   ],
   [
@@ -38,7 +38,7 @@
     {
       "display": "grid",
       "flex": "1 1 auto",
-      "grid-template-columns": "minmax(0, 1fr) minmax(11rem, 15rem)",
+      "grid-template-columns": "minmax(0, 1fr) minmax(11.5625rem, 31%)",
       "min-inline-size": "0",
       "min-block-size": "0",
       "overflow": "hidden"
@@ -75,11 +75,16 @@
   ],
   [
     "normal|[data-artemis-component=\"review-surface\"][data-part=\"error\"]",
-    { "color": "var(--artemis-color-status-danger)" }
+    {
+      "color": "var(--artemis-color-status-danger)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"review-diff\"]",
-    { "box-sizing": "border-box", "min-inline-size": "0" }
+    {
+      "box-sizing": "border-box",
+      "min-inline-size": "0"
+    }
   ],
   [
     "normal|[data-artemis-component=\"review-diff\"][data-part=\"root\"]",
@@ -101,7 +106,7 @@
       "padding": "var(--artemis-space-2) var(--artemis-space-3)",
       "border-block-end": "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
       "color": "var(--artemis-color-text-secondary)",
-      "font-family": "var(--artemis-typography-code-family)",
+      "font-family": "var(--artemis-typography-mono-family)",
       "font-size": "var(--artemis-typography-metadata-size)"
     }
   ],
@@ -112,7 +117,7 @@
       "min-inline-size": "max-content",
       "padding": "2px var(--artemis-space-3)",
       "color": "var(--artemis-color-text-secondary)",
-      "font-family": "var(--artemis-typography-code-family)",
+      "font-family": "var(--artemis-typography-mono-family)",
       "font-size": "var(--artemis-typography-metadata-size)",
       "line-height": "1.65",
       "white-space": "pre"
@@ -143,11 +148,15 @@
   ],
   [
     "normal|[data-artemis-component=\"environment-control\"]",
-    { "box-sizing": "border-box" }
+    {
+      "box-sizing": "border-box"
+    }
   ],
   [
     "normal|[data-artemis-component=\"environment-control\"][data-part=\"root\"]",
-    { "position": "relative" }
+    {
+      "position": "relative"
+    }
   ],
   [
     "normal|[data-artemis-component=\"environment-control\"][data-part=\"trigger\"]",
@@ -174,7 +183,10 @@
   ],
   [
     "normal|[data-artemis-component=\"environment-control\"][data-part=\"trigger\"]:focus-visible, [data-artemis-component=\"goal-editor\"] [data-part=\"input\"]:focus-visible, [data-artemis-component=\"sources-surface\"] button:focus-visible, [data-artemis-component=\"review-surface\"] button:focus-visible",
-    { "outline": "2px solid Highlight", "outline-offset": "2px" }
+    {
+      "outline": "2px solid Highlight",
+      "outline-offset": "2px"
+    }
   ],
   [
     "normal|[data-artemis-component=\"environment-panel\"][data-part=\"root\"]",
@@ -200,7 +212,9 @@
   ],
   [
     "normal|[data-artemis-component=\"environment-panel\"][data-part=\"section\"]",
-    { "padding": "var(--artemis-space-2)" }
+    {
+      "padding": "var(--artemis-space-2)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"environment-panel\"][data-part=\"section\"] + [data-artemis-component=\"environment-panel\"][data-part=\"section\"]",
@@ -249,11 +263,15 @@
   ],
   [
     "normal|[data-artemis-component=\"environment-panel\"] .environment-row:hover",
-    { "background": "var(--artemis-color-interaction-hover)" }
+    {
+      "background": "var(--artemis-color-interaction-hover)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"goal-editor\"]",
-    { "box-sizing": "border-box" }
+    {
+      "box-sizing": "border-box"
+    }
   ],
   [
     "normal|[data-artemis-component=\"goal-editor\"][data-part=\"root\"]",
@@ -310,11 +328,15 @@
   ],
   [
     "normal|[data-artemis-component=\"goal-editor\"]:is([data-state=\"loading\"], [data-state=\"saving\"])",
-    { "cursor": "progress" }
+    {
+      "cursor": "progress"
+    }
   ],
   [
     "normal|[data-artemis-component=\"goal-editor\"][data-state=\"stale\"]",
-    { "background": "var(--artemis-color-status-warning-subtle)" }
+    {
+      "background": "var(--artemis-color-status-warning-subtle)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"sources-surface\"]",
@@ -371,7 +393,9 @@
   ],
   [
     "normal|[data-artemis-component=\"sources-surface\"] [data-part=\"entry-body\"]",
-    { "min-inline-size": "0" }
+    {
+      "min-inline-size": "0"
+    }
   ],
   [
     "normal|[data-artemis-component=\"sources-surface\"] [data-part=\"entry-body\"] :is(h2, p)",
@@ -384,7 +408,9 @@
   ],
   [
     "normal|[data-artemis-component=\"sources-surface\"] [data-part=\"entry-body\"] h2",
-    { "font-size": "var(--artemis-typography-label-size)" }
+    {
+      "font-size": "var(--artemis-typography-label-size)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"sources-surface\"] [data-part=\"entry-body\"] p, [data-artemis-component=\"sources-surface\"]:is([data-part=\"loading\"], [data-part=\"empty\"], [data-part=\"error\"])",
@@ -395,15 +421,22 @@
   ],
   [
     "normal|[data-artemis-component=\"sources-surface\"]:is([data-part=\"loading\"], [data-part=\"empty\"], [data-part=\"error\"])",
-    { "padding": "var(--artemis-space-6)", "text-align": "center" }
+    {
+      "padding": "var(--artemis-space-6)",
+      "text-align": "center"
+    }
   ],
   [
     "normal|[data-artemis-component=\"sources-surface\"][data-part=\"error\"]",
-    { "color": "var(--artemis-color-status-danger)" }
+    {
+      "color": "var(--artemis-color-status-danger)"
+    }
   ],
   [
     "compact-width|[data-artemis-component=\"review-surface\"][data-part=\"workspace\"]",
-    { "grid-template-columns": "minmax(0, 1fr) minmax(9rem, 12rem)" }
+    {
+      "grid-template-columns": "minmax(0, 1fr) minmax(9rem, 12rem)"
+    }
   ],
   [
     "narrow-width|[data-artemis-component=\"review-surface\"][data-part=\"workspace\"]",
@@ -422,6 +455,8 @@
   ],
   [
     "reduced-motion|[data-artemis-component=\"environment-control\"][data-part=\"trigger\"]",
-    { "transition": "none" }
+    {
+      "transition": "none"
+    }
   ]
 ]

@@ -1,3 +1,4 @@
+import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -16,12 +17,9 @@ const publicUiStylesSource = source("../../../packages/ui/src/styles.css");
 const tokenUsageSource = source("../src/renderer/TokenUsagePage.tsx");
 
 function cssDeclarations(selector: string): string {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const match = stylesSource.match(
-    new RegExp(`${escaped}\\s*\\{(?<body>[^}]*)\\}`, "u"),
-  );
-  expect(match, `Missing CSS selector ${selector}`).not.toBeNull();
-  return match?.groups?.body ?? "";
+  const declarations = findCssDeclarations(stylesSource, selector);
+  expect(declarations, `Missing CSS selector ${selector}`).toBeDefined();
+  return declarations ?? "";
 }
 
 describe("reported issue regressions #31-#42", () => {
@@ -29,7 +27,7 @@ describe("reported issue regressions #31-#42", () => {
     expect(cssDeclarations(".project-thread-list")).toContain("gap: 2px");
     expect(
       cssDeclarations(".project-collection-rows > .nested-project:first-child"),
-    ).toContain("margin-top: 6px");
+    ).toContain("margin-top: 0");
   });
 
   it("keeps the provider menu name aligned with its combined scope", () => {
@@ -47,7 +45,7 @@ describe("reported issue regressions #31-#42", () => {
 
   it("adds the requested environment offset and activity/sidebar divider", () => {
     expect(cssDeclarations(".environment-popover")).toContain(
-      "top: calc(100% + 20px)",
+      "top: calc(100% + 8px)",
     );
     expect(publicUiStylesSource).toMatch(
       /\[data-artemis-component="activity-bar"\]\s*\{[^}]*border-inline-end:\s*var\(--artemis-border-width-default\) solid\s*var\(--artemis-color-border-subtle\)/u,
