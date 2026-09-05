@@ -5,3 +5,5 @@ dist-renderer
 release
 coverage
 package-lock.json
+docs/proposal-im-settings-redesign.md
+docs/ui-prototype/

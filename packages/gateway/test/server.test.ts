@@ -112,6 +112,65 @@ async function fixture(withCards = false) {
   };
 }
 describe("Gateway lifecycle and delivery authorization", () => {
+  it("exposes only public credential identifiers and confirms pending pairing through the owning device API", async () => {
+    const f = await fixture();
+    const post = (path: string, body: unknown, headers = f.headers) =>
+      fetch(`${f.url}/v1/device/${path}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+    await post("unpair", f.input.identity);
+    const { code } = await (
+      await post("pair", { requireConfirmation: true })
+    ).json();
+    f.receive({ ...f.input, messageId: "pending-pair", text: `/pair ${code}` });
+    await f.gateway.tick();
+    const status = await (
+      await fetch(`${f.url}/v1/device/status`, { headers: f.headers })
+    ).json();
+    expect(status.identities).toEqual([]);
+    expect(status.pairingRequests).toHaveLength(1);
+    expect(status.connections[0].configuration).toEqual({
+      id: "wecom",
+      name: "test",
+      tenantId: "tenant",
+      botId: "bot",
+    });
+    expect(status.connections[0].configuration).not.toHaveProperty("secret");
+    const other = f.gateway.store.register("Other device");
+    const otherHeaders = {
+      ...f.headers,
+      "x-artemis-device": other.id,
+      authorization: `Bearer ${other.token}`,
+    };
+    const requestId = status.pairingRequests[0].id;
+    expect(
+      (
+        await post(
+          "resolve-pairing",
+          { requestId, approve: true },
+          otherHeaders,
+        )
+      ).ok,
+    ).toBe(false);
+    expect(
+      (await post("resolve-pairing", { requestId, approve: true })).ok,
+    ).toBe(true);
+    const updated = await (
+      await fetch(`${f.url}/v1/device/status`, { headers: f.headers })
+    ).json();
+    expect(updated.identities).toEqual([f.input.identity]);
+    expect(updated.pairingRequests).toEqual([]);
+    f.gateway.store.delete("throttle", imConversationKey(f.input.conversation));
+    await f.gateway.tick();
+    await expect
+      .poll(() => f.sent.some((text) => text.includes("配对成功")))
+      .toBe(true);
+    expect(
+      (await post("resolve-pairing", { requestId, approve: false })).ok,
+    ).toBe(false);
+  });
   it("prevents reusing a connection ID for a different tenant or bot while allowing secret rotation", async () => {
     const f = await fixture();
     const config = {

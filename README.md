@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="1111 passing tests" src="https://img.shields.io/badge/Tests-1111_passing-2EA44F" />
+  <img alt="2057 passing tests" src="https://img.shields.io/badge/Tests-2057_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -1026,14 +1026,26 @@ bounded subteam and must integrate it before completing.
 
 ### IM access and cross-platform collaboration
 
-Settings → **IM connections** starts the bundled Gateway and registers this device
-with one click, without source code, Node.js, npm or terminal commands. Connect
-WeCom, Feishu or Slack, pair your account and choose project permissions. Slack uses
-Socket Mode, an importable app manifest and automatic workspace/bot discovery.
+Settings → **IM connections** presents first-time setup as a six-step wizard and
+daily operation as a two-column channel manager that collapses for compact
+windows. Start the bundled Gateway and register this device without source code,
+Node.js, npm or terminal commands, then connect WeCom, Feishu or Slack, pair your
+account and choose project permissions. Slack uses Socket Mode, an importable app
+manifest and automatic workspace/bot discovery.
+
+A single status header and master switch control the service. The switch remains
+guarded until a device and connected bot exist, and pausing preserves the saved
+configuration. Saved credentials stay redacted and use an explicit replacement
+flow. New pairing codes expire after five minutes, and incoming pair requests
+must be approved or rejected before an identity becomes active. The management
+view also exposes channel delivery/member/group diagnostics, account removal with
+inline confirmation and shared-space JSON editing.
+
 Advanced setup can export a prebuilt Gateway for a shared server (Node.js 24+).
-Feishu callbacks and public file-download links require a reachable HTTPS Gateway. The feature is disabled by default and requires Artemis to be running.
-Dedicated remote sessions use local grants and native sandboxed tools; existing
-desktop tasks and Terminal keep their current permission contracts.
+Feishu callbacks and public file-download links require a reachable HTTPS Gateway.
+The feature is disabled by default and requires Artemis to be running. Dedicated
+remote sessions use local grants and native sandboxed tools; existing desktop
+tasks and Terminal keep their current permission contracts.
 
 The Gateway supports durable delivery, private approvals, explicitly shared group
 spaces and assignments between independently authorized Artemis devices. See
@@ -1124,14 +1136,14 @@ audit step; all other gates remain required.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.61`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.62`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.61
-git push origin v1.4.61
+git tag v1.4.62
+git push origin v1.4.62
 ```
 
 ### Build and test matrix
@@ -1144,11 +1156,13 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current core test suites contain **1514 passing tests** (7 skipped):
+The current package test suites contain **2057 passing tests** (7 skipped).
+Repeated UI and UI Gallery runs inside the verification pipeline are counted
+once:
 
-| Protocol | Platform | Agent Host | Desktop | **Total** |
-| -------: | -------: | ---------: | ------: | --------: |
-|      117 |       24 |        144 |    1229 |  **1514** |
+| Gateway | Protocol | Platform | Agent Host | Theme Contract |  UI | Theme Artemis | UI Gallery | Desktop | **Total** |
+| ------: | -------: | -------: | ---------: | -------------: | --: | ------------: | ---------: | ------: | --------: |
+|      37 |      121 |       24 |        147 |             14 | 288 |             5 |        142 |    1279 |  **2057** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1177,13 +1191,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.61` packaging configuration produces:
+The `1.4.62` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.61.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.61.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.61.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.62.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.62.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.62.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

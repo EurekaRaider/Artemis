@@ -1,0 +1,1383 @@
+{
+  "version": "v17",
+  "baseline": {
+    "commit": "d0b7b9fa20787c97c90cdb00a8fa827e275f5aef",
+    "branch": "main",
+    "rendererRoot": "apps/desktop/src/renderer/"
+  },
+  "generatedBy": "手写逐卡生产账本 + v17 原型契约。HTML 字段描述 v17 可执行规格；status/gaps 描述 current main 正式 TS/Electron 实现相对该规格的覆盖。prototype-contracts.js 独立证明 70 张 HTML 卡与 22 张历史缺口卡，不把原型完成冒充生产迁移完成。",
+  "prototypeContract": {
+    "runner": "prototype/tools/prototype-contracts.js",
+    "result": "prototype/contrast/prototype-contract-result.json",
+    "expectedCards": 70,
+    "expectedTargetedCards": 22
+  },
+  "cards": [
+    {
+      "card": "cat-overview-01",
+      "no": "◎",
+      "title": "同组件三方向速览",
+      "module": "tokens-design",
+      "symbol": "--ui-font",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 3,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态速览卡，切顶部方向标签仅换令牌",
+      "keyboard": "无",
+      "aria": "规范展示，无交互控件",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-tokens-01",
+      "no": "t0a",
+      "title": "字体排印",
+      "module": "tokens-design",
+      "symbol": "--mono-font",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 4,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态规范卡（六档字阶展示）",
+      "keyboard": "无",
+      "aria": "规范展示",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-tokens-02",
+      "no": "t0b",
+      "title": "间距与密度",
+      "module": "tokens-design",
+      "symbol": "padding:",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 279,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态规范卡（间距/行高刻度）",
+      "keyboard": "无",
+      "aria": "规范展示",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-tokens-03",
+      "no": "t1",
+      "title": "圆角与阴影",
+      "module": "tokens-design",
+      "symbol": "border-radius:",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 286,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态规范卡（同心圆角+浮层阴影）",
+      "keyboard": "无",
+      "aria": "规范展示",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-tokens-04",
+      "no": "t2",
+      "title": "动效节奏",
+      "module": "tokens-design",
+      "symbol": "transition:",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 255,
+      "states": [
+        "default"
+      ],
+      "interaction": "播放按钮触发进度条动画",
+      "keyboard": "空格/Enter 触发按钮",
+      "aria": "按钮可聚焦，prefers-reduced-motion 降级",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-basic-01",
+      "no": "01",
+      "title": "按钮变体与状态",
+      "module": "basic-controls",
+      "symbol": "button {",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 233,
+      "states": [
+        "default",
+        "disabled",
+        "loading"
+      ],
+      "interaction": "点击五种变体按钮",
+      "keyboard": "Tab 聚焦，focus-visible 焦点环",
+      "aria": "禁用态原生 disabled 属性",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-basic-02",
+      "no": "02",
+      "title": "徽章",
+      "module": "basic-controls",
+      "symbol": "badge",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 3242,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态徽章展示（pill 仅标签/状态）",
+      "keyboard": "无",
+      "aria": "纯展示文本",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-basic-03",
+      "no": "01b",
+      "title": "图标按钮",
+      "module": "basic-controls",
+      "symbol": ".icon-button",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 309,
+      "states": [
+        "default",
+        "disabled"
+      ],
+      "interaction": "点击图标按钮",
+      "keyboard": "Tab 聚焦，焦点环",
+      "aria": "aria-label 必需（卡上已标注）",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-basic-04",
+      "no": "01c",
+      "title": "头像",
+      "module": "basic-controls",
+      "symbol": "avatar",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 929,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态头像展示",
+      "keyboard": "无",
+      "aria": "装饰性图形",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-basic-05",
+      "no": "01d",
+      "title": "分段控件",
+      "module": "basic-controls",
+      "symbol": "aria-pressed",
+      "file": "apps/desktop/src/renderer/WorkspaceMarkdownEditor.tsx",
+      "line": 72,
+      "states": [
+        "default"
+      ],
+      "interaction": "点击切换选中段",
+      "keyboard": "Tab + Enter/Space",
+      "aria": "role=group + aria-pressed 按钮组",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-basic-06",
+      "no": "03",
+      "title": "快捷键 · 提示 · 进度",
+      "module": "basic-controls",
+      "symbol": "kbd",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 2128,
+      "states": [
+        "default"
+      ],
+      "interaction": "悬停/聚焦显示 tooltip，按钮推进进度条",
+      "keyboard": "Tab；tooltip 经 focus-within 可达",
+      "aria": "kbd 样式标注快捷键",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-icons-01",
+      "no": "ic1",
+      "title": "图标网格与规范",
+      "module": "iconography",
+      "symbol": "stroke",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 1923,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态规范卡（24 网格/stroke 1.5/圆角端点）",
+      "keyboard": "无",
+      "aria": "装饰性图标演示",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-icons-02",
+      "no": "ic2",
+      "title": "尺寸档",
+      "module": "iconography",
+      "symbol": "resourceIconName",
+      "file": "apps/desktop/src/renderer/resource-icons.tsx",
+      "line": 326,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态尺寸演示（xs…xl 五档）",
+      "keyboard": "无",
+      "aria": "装饰性图标演示",
+      "status": "partial",
+      "gaps": [
+        "生产无统一 xs/sm/base/lg/xl 尺寸档类，图标尺寸由各组件内联定义"
+      ]
+    },
+    {
+      "card": "cat-icons-03",
+      "no": "ic3",
+      "title": "自主设计图标库",
+      "module": "iconography",
+      "symbol": "export function EnvironmentAddIcon",
+      "file": "apps/desktop/src/renderer/EnvironmentPanelIcons.tsx",
+      "line": 5,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态图标网格（98 格命名图标）",
+      "keyboard": "无",
+      "aria": "装饰性图标网格",
+      "status": "partial",
+      "gaps": [
+        "基线仅 EnvironmentPanelIcons + resource-icons 两套自绘集，未逐一对应卡上 98 个命名"
+      ]
+    },
+    {
+      "card": "cat-icons-04",
+      "no": "ic4",
+      "title": "Agent 团队标记",
+      "module": "iconography",
+      "symbol": "childAgentMarkForIdentity",
+      "file": "apps/desktop/src/renderer/ChildAgentIcon.tsx",
+      "line": 25,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态标记网格（8 形态 × 12 色）",
+      "keyboard": "无",
+      "aria": "装饰性标记",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-input-01",
+      "no": "04",
+      "title": "文本框",
+      "module": "form-inputs",
+      "symbol": "input,",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 226,
+      "states": [
+        "default",
+        "error",
+        "disabled"
+      ],
+      "interaction": "输入文本；错误/禁用态演示",
+      "keyboard": "Tab 聚焦",
+      "aria": "label 关联；aria-invalid + 错误文案",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-input-02",
+      "no": "04b",
+      "title": "搜索框",
+      "module": "form-inputs",
+      "symbol": ".sidebar-search",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 427,
+      "states": [
+        "default"
+      ],
+      "interaction": "输入搜索词",
+      "keyboard": "Tab 聚焦",
+      "aria": "aria-label=搜索",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-input-03",
+      "no": "04c",
+      "title": "字段类型",
+      "module": "form-inputs",
+      "symbol": "password",
+      "file": "apps/desktop/src/renderer/SettingsPanel.tsx",
+      "line": 1151,
+      "states": [
+        "default"
+      ],
+      "interaction": "五类字段输入演示",
+      "keyboard": "Tab 聚焦",
+      "aria": "label 关联",
+      "status": "partial",
+      "gaps": [
+        "password/url/number 在基线有对应；date/file 字段类型无生产对应"
+      ]
+    },
+    {
+      "card": "cat-input-04",
+      "no": "05",
+      "title": "下拉选择",
+      "module": "form-inputs",
+      "symbol": "function CodexSelect",
+      "file": "apps/desktop/src/renderer/CodexSelect.tsx",
+      "line": 98,
+      "states": [
+        "default",
+        "disabled"
+      ],
+      "interaction": "点击展开；选项选择",
+      "keyboard": "↑↓ 移动，Enter 选择，Esc 关闭",
+      "aria": "aria-haspopup/aria-expanded；listbox+option+aria-selected",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-input-05",
+      "no": "06",
+      "title": "开关与复选",
+      "module": "form-inputs",
+      "symbol": ".resource-switch",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 9769,
+      "states": [
+        "default",
+        "disabled"
+      ],
+      "interaction": "切换开关/勾选复选",
+      "keyboard": "Tab + Space",
+      "aria": "原生 checkbox 语义",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-overlay-01",
+      "no": "07",
+      "title": "对话框",
+      "module": "overlays",
+      "symbol": "aria-modal",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 8348,
+      "states": [
+        "default"
+      ],
+      "interaction": "打开/确认/取消/遮罩关闭",
+      "keyboard": "Tab 框内循环；Esc 关闭；焦点回触发器",
+      "aria": "role=dialog + aria-modal",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-overlay-02",
+      "no": "08",
+      "title": "Popover",
+      "module": "overlays",
+      "symbol": "workspace-header",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 6078,
+      "states": [
+        "default"
+      ],
+      "interaction": "点击展开/外点关闭",
+      "keyboard": "Esc 关闭；触发钮可聚焦",
+      "aria": "aria-haspopup + aria-expanded；role=dialog 标注",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-overlay-03",
+      "no": "09",
+      "title": "Toast",
+      "module": "overlays",
+      "symbol": "TransientNotice",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 271,
+      "states": [
+        "default",
+        "error"
+      ],
+      "interaction": "按钮触发信息/错误提示",
+      "keyboard": "无（自动消失）",
+      "aria": "role=status/alert；aria-live polite/assertive",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-data-01",
+      "no": "09a",
+      "title": "标签页",
+      "module": "shell-navigation",
+      "symbol": "workspace-tab-bar",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 7463,
+      "states": [
+        "default"
+      ],
+      "interaction": "点击切换；方向键/Home/End 同步选择与焦点",
+      "keyboard": "roving tabindex；←/→/Home/End",
+      "aria": "role=tablist/tab + aria-selected + aria-controls",
+      "status": "partial",
+      "gaps": [
+        "正式 App.tsx 的 workspace tab 尚未固化 v17 的 roving tabindex 与 ←/→/Home/End 契约；迁移为 TS 组件时必须补 RTL 证据"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-data-02",
+      "no": "09b",
+      "title": "活动栏按钮",
+      "module": "shell-navigation",
+      "symbol": "activity-bar",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 5297,
+      "states": [
+        "default"
+      ],
+      "interaction": "点击切换活动项",
+      "keyboard": "Tab + 点击",
+      "aria": "aria-label + aria-current=page；active 左指示条",
+      "status": "partial",
+      "gaps": [
+        "正式 App.tsx 活动栏仍只有 active class，没有 aria-current=page；TS 迁移必须补齐"
+      ]
+    },
+    {
+      "card": "cat-data-03",
+      "no": "09c",
+      "title": "面包屑",
+      "module": "shell-navigation",
+      "symbol": null,
+      "file": null,
+      "line": null,
+      "states": [
+        "default"
+      ],
+      "interaction": "点击层级链接",
+      "keyboard": "Tab + Enter",
+      "aria": "nav + aria-label；aria-current=page",
+      "status": "uncovered",
+      "gaps": [
+        "基线 Renderer 无面包屑/路径导航组件（App.tsx 与 styles.css 均无对应符号），卡片为前瞻设计，无 file:line 锚点"
+      ]
+    },
+    {
+      "card": "cat-data-04",
+      "no": "09d",
+      "title": "动态 Dock 标签",
+      "module": "shell-navigation",
+      "symbol": "workspace-tool-dock",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 7431,
+      "states": [
+        "default",
+        "empty",
+        "disabled"
+      ],
+      "interaction": "切换/关闭标签；活动标签关闭后转移焦点；空态启动 Review/Terminal/Browser/Files",
+      "keyboard": "roving tabindex；←/→/Home/End；关闭后焦点转移",
+      "aria": "role=tablist/tab + aria-selected；关闭按钮 label；不可用启动项 aria-disabled",
+      "status": "partial",
+      "gaps": [
+        "正式 workspace Dock 标签仍未固化 roving tabindex/方向键与活动标签关闭后的焦点转移",
+        "正式启动器无显式 disabled-unavailable 契约；TS 迁移需保留 v17 四工具启动器与不可用态"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-data-05",
+      "no": "10",
+      "title": "可调整分栏",
+      "module": "shell-navigation",
+      "symbol": "resizeWorkspaceDockFromKeyboard",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 3080,
+      "states": [
+        "default",
+        "disabled"
+      ],
+      "interaction": "拖拽与按钮演示像素钳制；关闭/重新打开分栏",
+      "keyboard": "←/→ 每次 24px；Home 默认；End 最大",
+      "aria": "role=separator + 像素 aria-valuenow/min/max + aria-controls；关闭时 tabindex=-1",
+      "status": "partial",
+      "gaps": [
+        "正式 resizeWorkspaceDockFromKeyboard 仅支持 ArrowLeft/ArrowRight；TS 迁移需补 Home/End 并保留现有像素钳制",
+        "正式 Dock separator 只控制 workspace-tool-dock；v17 规格要求同时声明受影响的 conversation 与 Dock"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-data-06",
+      "no": "11",
+      "title": "工具栏",
+      "module": "shell-navigation",
+      "symbol": ".toolbar-button",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 310,
+      "states": [
+        "default",
+        "disabled"
+      ],
+      "interaction": "点击工具按钮；按压态切换",
+      "keyboard": "Tab + 点击",
+      "aria": "role=toolbar + aria-label；aria-pressed",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-data-07",
+      "no": "11b",
+      "title": "侧栏树行",
+      "module": "shell-navigation",
+      "symbol": "project-thread-row",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 5859,
+      "states": [
+        "default",
+        "conflict"
+      ],
+      "interaction": "三级行选择、drop-before、active-running 与更多菜单展开",
+      "keyboard": "树行 roving tabindex；↑/↓；Enter/Space；菜单 Esc 恢复焦点",
+      "aria": "role=tree/treeitem + aria-level 1/2/3 + aria-selected；菜单 aria-expanded",
+      "status": "partial",
+      "gaps": [
+        "正式项目线程行的树语义与焦点策略分散在 App.tsx，尚无可复用 TreeRow TS 组件或 roving 键盘契约",
+        "拖拽落点、运行徽标与更多菜单需要在迁移测试中作为同一行状态组合验证"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-data-08",
+      "no": "12",
+      "title": "列表行 + 树",
+      "module": "shell-navigation",
+      "symbol": "aria-level",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 5458,
+      "states": [
+        "default"
+      ],
+      "interaction": "折叠/展开；三级行选择；drop-after；active-running；更多菜单",
+      "keyboard": "树行 roving tabindex；↑/↓；Enter/Space；菜单 Esc 恢复焦点",
+      "aria": "role=tree/treeitem；aria-expanded；aria-level 1/2/3；aria-selected",
+      "status": "partial",
+      "gaps": [
+        "正式 App.tsx 尚未把三层树、拖拽落点、运行态和菜单焦点统一为可复用组件契约",
+        "正式线程树缺 ↑/↓ roving 导航与 Enter/Space 选择的组件级测试证据"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-data-09",
+      "no": "12a",
+      "title": "卡片 + 统计卡",
+      "module": "data-display",
+      "symbol": "TokenUsagePage",
+      "file": "apps/desktop/src/renderer/TokenUsagePage.tsx",
+      "line": 85,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态卡片/统计卡展示",
+      "keyboard": "无",
+      "aria": "纯展示",
+      "status": "partial",
+      "gaps": [
+        "生产无通用 .card/.stat-card 组件类，统计呈现内聚在 TokenUsagePage/ResourceCenter 页面内"
+      ]
+    },
+    {
+      "card": "cat-data-10",
+      "no": "12b",
+      "title": "差异 Diff",
+      "module": "data-display",
+      "symbol": "TurnChangeSetCard",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 9491,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态增删行展示",
+      "keyboard": "无",
+      "aria": "增删行色彩语义（无专门 role）",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-data-11",
+      "no": "12c",
+      "title": "表格",
+      "module": "data-display",
+      "symbol": "table",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 2773,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态表格；行 hover",
+      "keyboard": "无",
+      "aria": "语义 table/th/td",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-data-12",
+      "no": "12d",
+      "title": "热力图 + 终端",
+      "module": "data-display",
+      "symbol": "export function TerminalPanel",
+      "file": "apps/desktop/src/renderer/TerminalPanel.tsx",
+      "line": 55,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态热力图 + 终端输出演示",
+      "keyboard": "无",
+      "aria": "热力图容器 aria-label；终端深色固定",
+      "status": "partial",
+      "gaps": [
+        "终端 covered（TerminalPanel 基线有组件）；热力图在基线无对应组件"
+      ]
+    },
+    {
+      "card": "cat-data-13",
+      "no": "12e",
+      "title": "状态胶囊",
+      "module": "data-display",
+      "symbol": ".status-pill",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 1061,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态三态胶囊展示",
+      "keyboard": "无",
+      "aria": "色彩+文字双编码",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-data-14",
+      "no": "12f",
+      "title": "消息",
+      "module": "data-display",
+      "symbol": "function Timeline",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 9589,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态用户/助手消息展示",
+      "keyboard": "无",
+      "aria": "头像+署名+正文结构",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-data-15",
+      "no": "13",
+      "title": "面板头 + 滚动区",
+      "module": "data-display",
+      "symbol": ".panel-header",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 399,
+      "states": [
+        "default"
+      ],
+      "interaction": "滚动区滚动；头部按钮点击",
+      "keyboard": "滚动区 tabindex=0 可键盘滚动",
+      "aria": "按钮 aria-label；滚动区 aria-label",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-state-01",
+      "no": "s1",
+      "title": "空状态",
+      "module": "feedback-states",
+      "symbol": ".empty-state",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 2337,
+      "states": [
+        "empty"
+      ],
+      "interaction": "空态 CTA 按钮点击",
+      "keyboard": "Tab + Enter",
+      "aria": "图标装饰+标题+描述结构",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-state-02",
+      "no": "s2",
+      "title": "加载骨架",
+      "module": "feedback-states",
+      "symbol": "skeleton",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 4296,
+      "states": [
+        "loading"
+      ],
+      "interaction": "静态骨架屏演示",
+      "keyboard": "无",
+      "aria": "装饰性（aria-hidden 语义占位）",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-state-03",
+      "no": "s3",
+      "title": "错误横幅",
+      "module": "feedback-states",
+      "symbol": "role=\"alert\"",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 6311,
+      "states": [
+        "error"
+      ],
+      "interaction": "重试按钮点击",
+      "keyboard": "Tab + Enter",
+      "aria": "role=alert",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-state-04",
+      "no": "s4",
+      "title": "内联提示",
+      "module": "feedback-states",
+      "symbol": "notice",
+      "file": "apps/desktop/src/renderer/styles.css",
+      "line": 1295,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态内联提示",
+      "keyboard": "无",
+      "aria": "信息级提示（非 alert）",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-sources-01",
+      "no": "S1",
+      "title": "来源卡片（四类型）",
+      "module": "sources-panel",
+      "symbol": "export function SourcesPanel",
+      "file": "apps/desktop/src/renderer/SourcesPanel.tsx",
+      "line": 159,
+      "states": [
+        "default",
+        "loading",
+        "error"
+      ],
+      "interaction": "file/image/web/MCP 四类型均有打开按钮；加载/失败/恢复反馈",
+      "keyboard": "Tab 到打开按钮；focus-visible",
+      "aria": "打开来源 aria-label；状态区 status/alert + aria-live；长内容 title",
+      "status": "partial",
+      "gaps": [
+        "正式 SourcesPanel 的 file 与 MCP 条目仍是 article，不具备统一 open-source 操作契约",
+        "正式来源加载由面板外驱动，缺 v17 统一 loading/error/retry 状态接口"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-sources-02",
+      "no": "S2",
+      "title": "网页搜索来源组",
+      "module": "sources-panel",
+      "symbol": "WebSearchSourceGroup",
+      "file": "apps/desktop/src/renderer/SourcesPanel.tsx",
+      "line": 81,
+      "states": [
+        "default",
+        "error"
+      ],
+      "interaction": "query/结果按钮打开真实 URL 语义；失败后重试恢复",
+      "keyboard": "Tab + Enter/Space；focus-visible",
+      "aria": "结果列表 + open-source aria-label；失败 role=alert",
+      "status": "partial",
+      "gaps": [
+        "正式 WebSearchSourceGroup 有打开按钮，但没有组内搜索失败/retry 状态；TS 组件接口需补齐"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-sources-03",
+      "no": "S3",
+      "title": "MCP 调用来源组",
+      "module": "sources-panel",
+      "symbol": "mcpSummary",
+      "file": "apps/desktop/src/renderer/SourcesPanel.tsx",
+      "line": 22,
+      "states": [
+        "default"
+      ],
+      "interaction": "每个 MCP 调用可打开详情；长内容截断并保留 title",
+      "keyboard": "Tab + Enter/Space；focus-visible",
+      "aria": "调用按钮 aria-label；详情 role=status",
+      "status": "partial",
+      "gaps": [
+        "正式 SourcesPanel 的 MCP 组仍是静态 article；TS 迁移需加入逐调用详情与失败反馈契约"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-sources-04",
+      "no": "S4",
+      "title": "来源空态",
+      "module": "sources-panel",
+      "symbol": "empty:",
+      "file": "apps/desktop/src/renderer/SourcesPanel.tsx",
+      "line": 17,
+      "states": [
+        "empty"
+      ],
+      "interaction": "静态空态展示",
+      "keyboard": "无",
+      "aria": "空态文案（基线 i18n empty 文案对应）",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-sources-05",
+      "no": "S5",
+      "title": "来源归属标签",
+      "module": "sources-panel",
+      "symbol": "parentAgent:",
+      "file": "apps/desktop/src/renderer/SourcesPanel.tsx",
+      "line": 20,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态归属标签展示",
+      "keyboard": "无",
+      "aria": "parentAgent/usedBy 文案对应基线 i18n",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-sources-06",
+      "no": "S6",
+      "title": "目标编辑器",
+      "module": "goal-editor",
+      "symbol": "export function GoalEditorPanel",
+      "file": "apps/desktop/src/renderer/GoalEditorPanel.tsx",
+      "line": 32,
+      "states": [
+        "default",
+        "loading",
+        "error"
+      ],
+      "interaction": "dirty/revert/save；loading/saving/load-error/save-error/ready 状态切换",
+      "keyboard": "Tab；⌘/Ctrl+Enter 保存",
+      "aria": "aria-busy；status aria-live；错误状态可见；按钮 aria-label",
+      "status": "partial",
+      "gaps": [
+        "正式 GoalEditorPanel 将 load/save error 只上抛到全局 onError，缺面板内 retry/error 状态接口",
+        "正式组件虽支持 ⌘/Ctrl+Enter 与 aria-busy，但尚无独立 workbench/RTL 契约覆盖完整状态族"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-sources-07",
+      "no": "S7",
+      "title": "目标编辑器 stale 冲突",
+      "module": "goal-editor",
+      "symbol": "stale",
+      "file": "apps/desktop/src/renderer/GoalEditorPanel.tsx",
+      "line": 14,
+      "states": [
+        "conflict",
+        "disabled",
+        "loading"
+      ],
+      "interaction": "stale 提示、重试、重新载入后恢复保存",
+      "keyboard": "Tab 到重试；完成后保存恢复可达",
+      "aria": "stale alert + aria-busy；禁用/恢复按钮",
+      "status": "partial",
+      "gaps": [
+        "正式 GoalEditorPanel 的 stale 恢复要求关闭后重开，没有面板内 retry；TS 迁移需采用 v17 可恢复路径"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-sources-08",
+      "no": "S8",
+      "title": "环境来源集成 + PR checks",
+      "module": "environment",
+      "symbol": "pr-check",
+      "file": "apps/desktop/src/renderer/EnvironmentPanel.tsx",
+      "line": 1629,
+      "states": [
+        "default",
+        "loading",
+        "error"
+      ],
+      "interaction": "PR summary 六态；三种 coverage warning；checks dialog；stale retry",
+      "keyboard": "Tab；Enter/Space 打开 checks；Esc 关闭并恢复焦点",
+      "aria": "dialog + aria-expanded；passed/pending/failed/skipped/cancelled/none 文本；警告列表",
+      "status": "partial",
+      "gaps": [
+        "正式 PR checks 行为内聚在大型 EnvironmentPanel，尚未抽成可复用 TS 组件与独立 RTL 状态矩阵"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-artemis-01",
+      "no": "13a",
+      "title": "运行模式",
+      "module": "run-control",
+      "symbol": "approval-policy-menu",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 7046,
+      "states": [
+        "default"
+      ],
+      "interaction": "点击展开策略菜单",
+      "keyboard": "菜单键盘导航",
+      "aria": "aria-haspopup/aria-expanded",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-02",
+      "no": "13b",
+      "title": "工具活动",
+      "module": "task-activity",
+      "symbol": "ToolActivityGroupCard",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 9360,
+      "states": [
+        "default",
+        "loading"
+      ],
+      "interaction": "点标题折叠/展开",
+      "keyboard": "标题可聚焦，Enter 切换",
+      "aria": "aria-expanded；步骤状态点",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-03",
+      "no": "13c",
+      "title": "任务计划",
+      "module": "task-activity",
+      "symbol": "export function TaskPlanProgress",
+      "file": "apps/desktop/src/renderer/TaskPlanProgress.tsx",
+      "line": 85,
+      "states": [
+        "default",
+        "loading"
+      ],
+      "interaction": "静态步骤进度展示",
+      "keyboard": "无",
+      "aria": "步骤完成/进行中视觉（基线组件渲染）",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-04",
+      "no": "13d",
+      "title": "模型选择",
+      "module": "session-messaging",
+      "symbol": "model-picker",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 7163,
+      "states": [
+        "default"
+      ],
+      "interaction": "点击展开模型列表",
+      "keyboard": "列表键盘导航",
+      "aria": "aria-haspopup/expanded",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-05",
+      "no": "13e",
+      "title": "输入区",
+      "module": "composer",
+      "symbol": "composer",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 6568,
+      "states": [
+        "default"
+      ],
+      "interaction": "textarea 输入自适应高",
+      "keyboard": "原生 textarea 聚焦",
+      "aria": "aria-label 标注",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-06",
+      "no": "13f",
+      "title": "上下文环",
+      "module": "session-messaging",
+      "symbol": "export function ContextUsageIndicator",
+      "file": "apps/desktop/src/renderer/ContextUsageIndicator.tsx",
+      "line": 78,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态三档用量环展示",
+      "keyboard": "无",
+      "aria": "role=img + aria-label 百分比；高用量转警告色",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-07",
+      "no": "13g",
+      "title": "附件芯片",
+      "module": "composer",
+      "symbol": "export function ComposerContextBar",
+      "file": "apps/desktop/src/renderer/ComposerContextBar.tsx",
+      "line": 249,
+      "states": [
+        "default"
+      ],
+      "interaction": "点 × 移除附件",
+      "keyboard": "Tab + Enter",
+      "aria": "移除按钮 aria-label",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-08",
+      "no": "13h",
+      "title": "Agent 团队",
+      "module": "agents",
+      "symbol": "AgentTeamPanel",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 8451,
+      "states": [
+        "default"
+      ],
+      "interaction": "静态主/子 Agent 层级展示",
+      "keyboard": "无",
+      "aria": "层级缩进+状态徽章",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-09",
+      "no": "13i",
+      "title": "提示历史",
+      "module": "session-messaging",
+      "symbol": "navigatePromptHistory",
+      "file": "apps/desktop/src/renderer/prompt-history.ts",
+      "line": 33,
+      "states": [
+        "default"
+      ],
+      "interaction": "hover 出复用按钮并点击",
+      "keyboard": "Tab 行内可达（focus-within 显按钮）",
+      "aria": "复用按钮文本",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-10",
+      "no": "13j",
+      "title": "Browser 地址栏",
+      "module": "workspace-panels",
+      "symbol": "export function WorkspaceBrowserPanel",
+      "file": "apps/desktop/src/renderer/WorkspacePreviewPanel.tsx",
+      "line": 100,
+      "states": [
+        "default",
+        "loading",
+        "disabled"
+      ],
+      "interaction": "输入地址回车导航；前进/后退/刷新",
+      "keyboard": "输入框 + 按钮键盘可达",
+      "aria": "按钮 aria-label；禁用态",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-11",
+      "no": "13k",
+      "title": "Markdown 编辑与预览",
+      "module": "workspace-panels",
+      "symbol": "export function WorkspaceMarkdownEditor",
+      "file": "apps/desktop/src/renderer/WorkspaceMarkdownEditor.tsx",
+      "line": 23,
+      "states": [
+        "default",
+        "loading",
+        "error"
+      ],
+      "interaction": "rich/source 双态；dirty/saving/saved/image-error；代码编辑器 plain 阈值与长行滚动",
+      "keyboard": "Tab；Markdown 与代码编辑器均支持 ⌘/Ctrl+S",
+      "aria": "模式按钮 aria-pressed；编辑器 textbox；保存状态 aria-live；wrap=off",
+      "status": "partial",
+      "gaps": [
+        "正式 Markdown 与 WorkspaceFileEditor 仍是两个独立面板；迁移到 UI 库时需分别保留 v17 状态/快捷键契约",
+        "正式 Markdown 组件无 disabled prop，需在 TS 组件 API 评审时明确是否属于非目标而非静默遗漏"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-artemis-12",
+      "no": "13l",
+      "title": "环境操作对话框",
+      "module": "environment",
+      "symbol": "commitMessage",
+      "file": "apps/desktop/src/renderer/EnvironmentPanel.tsx",
+      "line": 728,
+      "states": [
+        "default"
+      ],
+      "interaction": "提交/推送/切分支按钮打开对话框",
+      "keyboard": "Tab + Enter",
+      "aria": "按钮文本；对话框复用焦点陷阱",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-13",
+      "no": "13m",
+      "title": "设置复杂表单",
+      "module": "settings-mcp",
+      "symbol": "export function McpServerEditor",
+      "file": "apps/desktop/src/renderer/McpServerEditor.tsx",
+      "line": 145,
+      "states": [
+        "default",
+        "disabled",
+        "error",
+        "loading",
+        "conflict"
+      ],
+      "interaction": "stdio/http 切换、auth/权限、字段校验、busy-save、凭据锁定、移除确认",
+      "keyboard": "Tab 遍历；确认对话框聚焦与取消后焦点恢复",
+      "aria": "传输类型 aria-pressed；form aria-busy；错误 alert；移除 dialog",
+      "status": "partial",
+      "gaps": [
+        "正式 McpServerEditor 功能齐全但尚未作为可复用 UI 库组件交付；迁移需建立字段校验、busy/error、凭据锁定和移除确认的独立 RTL 证据"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-artemis-14",
+      "no": "14",
+      "title": "Composer",
+      "module": "composer",
+      "symbol": "composer-drop-overlay",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 6575,
+      "states": [
+        "default"
+      ],
+      "interaction": "输入、加附件、模拟拖拽、切运行模式",
+      "keyboard": "Tab 遍历；发送钮禁用逻辑",
+      "aria": "drop-overlay 文案；ctx-ring aria-label；按钮 aria-label",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-15",
+      "no": "15",
+      "title": "排队消息 steer",
+      "module": "session-messaging",
+      "symbol": "queued-message-bar",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 6410,
+      "states": [
+        "default",
+        "disabled",
+        "loading"
+      ],
+      "interaction": "插入当前、移到最前、内联编辑保存/取消、busy、移除",
+      "keyboard": "Tab；编辑时 Ctrl/⌘+Enter 保存、Esc 取消",
+      "aria": "role=status + 动态条数 label；busy/disabled 原生语义",
+      "status": "partial",
+      "gaps": [
+        "正式 App.tsx 已有 move-to-front/内联编辑/busy，但编辑器缺 v17 的 Ctrl/⌘+Enter 保存与 Esc 取消快捷键"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-artemis-16",
+      "no": "16",
+      "title": "斜杠命令菜单",
+      "module": "session-messaging",
+      "symbol": "slash-command-menu",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 6584,
+      "states": [
+        "default"
+      ],
+      "interaction": "菜单选择命令",
+      "keyboard": "↑↓ 移动，Enter 选择",
+      "aria": "role=listbox/option + aria-selected",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-17",
+      "no": "17",
+      "title": "用户输入请求",
+      "module": "session-messaging",
+      "symbol": "UserInputCard",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 9046,
+      "states": [
+        "default",
+        "conflict"
+      ],
+      "interaction": "点选作答；自定义输入行编辑",
+      "keyboard": "选项点击；编辑行 Enter 提交/Esc 取消",
+      "aria": "倒计时+状态点；作答后锁定",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-18",
+      "no": "17b",
+      "title": "多组问答",
+      "module": "session-messaging",
+      "symbol": null,
+      "file": null,
+      "line": null,
+      "states": [
+        "default"
+      ],
+      "interaction": "单卡滑动切换；独立作答进度；点导航",
+      "keyboard": "dots roving tabindex；←/→/Home/End；箭头钮",
+      "aria": "tablist/tab/tabpanel + aria-controls/labelledby；进度与独立计时",
+      "status": "uncovered",
+      "gaps": [
+        "前瞻设计：当前协议 userInputRequestedPayloadSchema 为单问题 header/question/options（packages/protocol/src/schema.ts:368），无多问题数组",
+        "正式迁移必须先扩展版本化协议与幂等 reducer，不能仅复制 HTML 交互；当前无生产锚点"
+      ],
+      "r15": true
+    },
+    {
+      "card": "cat-artemis-19",
+      "no": "17c",
+      "title": "输入结果态",
+      "module": "session-messaging",
+      "symbol": "timedOut",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 461,
+      "states": [
+        "conflict"
+      ],
+      "interaction": "静态超时/已选结果展示",
+      "keyboard": "无",
+      "aria": "结果条文案（超时采用推荐项）",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-20",
+      "no": "18",
+      "title": "审批卡",
+      "module": "run-control",
+      "symbol": "approval-card",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 9861,
+      "states": [
+        "default"
+      ],
+      "interaction": "允许一次/始终允许/拒绝",
+      "keyboard": "Tab + Enter",
+      "aria": "警示图标+命令块+三动作",
+      "status": "covered",
+      "gaps": []
+    }
+  ],
+  "modules": [
+    {
+      "module": "tokens-design",
+      "label": "设计令牌与主题"
+    },
+    {
+      "module": "basic-controls",
+      "label": "基础控件"
+    },
+    {
+      "module": "iconography",
+      "label": "图标系统"
+    },
+    {
+      "module": "form-inputs",
+      "label": "输入与选择"
+    },
+    {
+      "module": "overlays",
+      "label": "浮层"
+    },
+    {
+      "module": "shell-navigation",
+      "label": "主壳与导航"
+    },
+    {
+      "module": "data-display",
+      "label": "数据容器"
+    },
+    {
+      "module": "feedback-states",
+      "label": "状态反馈"
+    },
+    {
+      "module": "sources-panel",
+      "label": "任务来源"
+    },
+    {
+      "module": "goal-editor",
+      "label": "目标编辑器"
+    },
+    {
+      "module": "environment",
+      "label": "环境与 PR checks"
+    },
+    {
+      "module": "composer",
+      "label": "输入区"
+    },
+    {
+      "module": "run-control",
+      "label": "运行模式与审批"
+    },
+    {
+      "module": "task-activity",
+      "label": "工具活动与计划"
+    },
+    {
+      "module": "agents",
+      "label": "Agent 团队"
+    },
+    {
+      "module": "workspace-panels",
+      "label": "工作区面板"
+    },
+    {
+      "module": "settings-mcp",
+      "label": "设置与 MCP"
+    },
+    {
+      "module": "session-messaging",
+      "label": "会话与消息"
+    }
+  ]
+}

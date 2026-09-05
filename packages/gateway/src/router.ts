@@ -91,19 +91,29 @@ export class GatewayRouter {
           /^\/pair\s+[a-f0-9]{16}$/iu.test(event.text)
         ) {
           this.store.transaction(() => {
-            this.store.pair(
+            const pending = this.store.requestPair(
               event.text.split(/\s+/u)[1]!,
               event.identity,
+              event.conversation,
               this.now(),
             );
-            this.store.put(
-              "direct-routes",
-              imIdentityKey(event.identity),
-              event.conversation,
-            );
+            if (!pending) {
+              this.store.pair(
+                event.text.split(/\s+/u)[1]!,
+                event.identity,
+                this.now(),
+              );
+              this.store.put(
+                "direct-routes",
+                imIdentityKey(event.identity),
+                event.conversation,
+              );
+            }
             this.queueDelivery(`${item.id}:paired`, {
               conversation: event.conversation,
-              text: "配对成功。发送 /projects 选择项目，/help 查看操作。",
+              text: pending
+                ? "配对请求已发送，请回到 Artemis 的消息接入设置批准。"
+                : "配对成功。发送 /projects 选择项目，/help 查看操作。",
             });
             this.store.mark("incoming", item.id, "done");
           });

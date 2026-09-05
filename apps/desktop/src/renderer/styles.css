@@ -9253,11 +9253,6 @@ kbd {
   unicode-bidi: isolate;
 }
 
-.im-settings {
-  display: grid;
-  gap: 20px;
-  min-width: 0;
-}
 .im-actions,
 .im-identity {
   display: flex;
@@ -9290,19 +9285,8 @@ kbd {
   gap: 16px;
   padding-inline-start: 24px;
 }
-.im-setup-steps {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  list-style: none;
-  padding-inline-start: 0;
-}
-.im-setup-steps li {
-  margin-block: 0;
-}
 .im-setup-steps p {
   margin-block: 6px;
-}
-.im-step-status {
-  margin-inline-start: 12px;
 }
 .im-command {
   white-space: pre-wrap;
@@ -9311,4 +9295,368 @@ kbd {
 }
 .im-settings li {
   margin-block: 8px;
+}
+
+/* Message integration content only; the shared settings window keeps its geometry. */
+#settings-tab-im {
+  min-height: 0;
+}
+.im-settings {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 14px;
+}
+.im-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+.im-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.im-header > p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+}
+.im-header > [data-artemis-component="switch"] {
+  max-width: 100%;
+}
+.im-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.im-dot {
+  display: inline-block;
+  inline-size: 7px;
+  block-size: 7px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  flex: none;
+  color: var(--muted);
+}
+.im-dot[data-state="connected"] {
+  color: var(--success);
+  background: currentColor;
+}
+.im-dot[data-state="error"] {
+  color: var(--danger);
+  background: currentColor;
+}
+.im-dot[data-state="connecting"] {
+  color: var(--warning);
+  background: currentColor;
+}
+.im-layout {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+.im-channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-self: start;
+  min-width: 0;
+  border-inline-end: 1px solid var(--border);
+  padding-inline-end: 10px;
+}
+.im-nav-item {
+  min-width: 0;
+}
+.im-nav-label {
+  display: block;
+  padding: 8px 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.im-channel-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: start;
+  width: 100%;
+  white-space: normal;
+  min-height: 38px;
+}
+.im-channel-card > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.im-channel-card small {
+  color: var(--muted);
+  font-weight: normal;
+  font-size: 11px;
+  padding-inline-start: 14px;
+}
+.im-channel-card[aria-selected="true"],
+.im-common-trigger[aria-selected="true"] {
+  background: var(--artemis-color-interaction-selected);
+  border-color: var(--artemis-color-border-strong);
+}
+.im-detail,
+.im-wizard {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 6px 10px 2px;
+}
+.im-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.im-detail > section {
+  min-width: 0;
+}
+.im-detail [data-artemis-component="management-section"] {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.im-detail [data-artemis-component="management-section"] [data-part="title"] {
+  font-size: 16px;
+}
+.im-guide-link {
+  align-self: flex-start;
+  font-size: 12px;
+}
+.im-block {
+  padding-block: 12px;
+  border-block: 1px solid var(--border);
+}
+.im-block-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.im-block-header h4 {
+  margin-inline-end: auto;
+}
+.im-settings h4 {
+  margin-block: 0 8px;
+}
+.im-credentials {
+  display: grid;
+  gap: 12px;
+}
+.im-credentials > [data-artemis-component="button"] {
+  justify-self: start;
+}
+.im-connection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.im-accounts {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.im-accounts:empty {
+  display: none;
+}
+.im-identity {
+  padding-block: 8px;
+  border-bottom: 1px solid var(--border);
+  justify-content: space-between;
+}
+.im-identity > .im-identifier {
+  min-width: 0;
+  flex: 1;
+}
+.im-unpair-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-basis: 100%;
+}
+.im-unpair-confirm > span {
+  flex-basis: 100%;
+}
+.im-pairing-code {
+  display: grid;
+  gap: 10px;
+}
+.im-pairing-code > [data-artemis-component="button"] {
+  justify-self: start;
+}
+.im-countdown,
+.im-grant-fields {
+  font-variant-numeric: tabular-nums;
+}
+.im-identifier,
+.im-settings textarea {
+  font-family: var(--artemis-typography-mono-family);
+  overflow-wrap: anywhere;
+}
+.im-setup-steps {
+  list-style: none;
+  padding-inline-start: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.im-settings .im-setup-steps li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  margin: 0;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+.im-setup-steps button {
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: start;
+}
+.im-setup-steps p {
+  display: none;
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+.im-setup-steps .is-current p {
+  display: block;
+}
+.im-setup-steps .is-current button {
+  color: var(--blue);
+}
+.im-step-status {
+  font-size: 11px;
+  margin: 0;
+  color: var(--muted);
+}
+.im-setup-steps [data-done="true"] .im-step-status {
+  color: var(--success);
+}
+.im-platform-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-block: 12px;
+}
+.im-platform-card {
+  display: flex;
+  flex-direction: column;
+  text-align: start;
+  align-items: flex-start;
+  padding: 10px;
+  white-space: normal;
+}
+.im-platform-card span {
+  font-weight: normal;
+  font-size: 11px;
+  color: var(--muted);
+}
+.im-settings[data-compact="true"] .im-layout {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+}
+.im-settings[data-compact="true"] .im-channel-list {
+  flex-direction: row;
+  align-items: stretch;
+  border-inline-end: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 0 0 8px;
+}
+.im-settings[data-compact="true"] .im-nav-item {
+  flex: 1;
+}
+.im-settings[data-compact="true"] .im-channel-card {
+  height: 100%;
+  padding: 5px;
+  align-items: center;
+}
+.im-common-trigger {
+  white-space: normal;
+  max-width: 36%;
+}
+.im-common-menu [data-part="content"] {
+  display: grid;
+  gap: 4px;
+}
+.im-common-menu [role="menuitem"] {
+  justify-content: flex-start;
+}
+.im-settings :is(button, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--artemis-color-focus-ring);
+  outline-offset: 2px;
+}
+@media (forced-colors: active) {
+  .im-dot {
+    color: CanvasText;
+  }
+  .im-channel-card[aria-selected="true"],
+  .im-common-trigger[aria-selected="true"] {
+    outline: 2px solid Highlight;
+  }
+}
+
+.im-channel-card,
+.im-common-trigger,
+.im-common-menu [role="menuitem"] {
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--artemis-radius-control);
+  cursor: pointer;
+  padding: 8px;
+}
+.im-channel-card:hover,
+.im-common-trigger:hover,
+.im-common-menu [role="menuitem"]:hover {
+  background: var(--artemis-color-interaction-hover);
+}
+.im-platform-card [data-part="label"] {
+  display: grid;
+  gap: 4px;
+}
+.im-settings {
+  padding: 4px 12px 0;
+  box-sizing: border-box;
+}
+.im-settings[data-compact="true"] .im-layout {
+  min-height: 240px;
+}
+.im-setup-steps .is-current {
+  background: var(--artemis-color-interaction-selected);
+}
+/* At high zoom, keep every outer tab reachable without consuming the IM viewport. */
+@media (max-width: 52rem) and (max-height: 36rem) {
+  .settings-panel:has(.im-settings)
+    [data-artemis-component="settings-surface"]
+    > [data-part="body"]
+    > [data-part="navigation"] {
+    max-block-size: min(112px, 25vh);
+    overflow-y: auto;
+  }
+}
+.im-diagnostics {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.im-diagnostics p {
+  margin: 0 0 8px;
 }

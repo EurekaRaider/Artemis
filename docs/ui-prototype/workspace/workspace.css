@@ -1,0 +1,115 @@
+/* Scoped to the IM tab. The supplied v17 dialog and other tabs stay intact. */
+#settingsPanelExisting[hidden], #settingsPanelIm[hidden], #settingsPanelIm [hidden] { display: none !important; }
+#settingsPanelIm {
+  --im-muted: var(--text-2);
+  display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0;
+  font-size: 12px; line-height: 1.5; color: var(--text);
+}
+#settingsPanelIm * { min-width: 0; }
+#settingsPanelIm h2, #settingsPanelIm h3, #settingsPanelIm h4, #settingsPanelIm p { margin: 0; }
+#settingsPanelIm h2 { font-size: 17px; font-weight: 650; letter-spacing: -.02em; }
+#settingsPanelIm h3 { font-size: 14px; font-weight: 620; }
+#settingsPanelIm h4 { font-size: 12px; font-weight: 620; }
+#settingsPanelIm button, #settingsPanelIm input, #settingsPanelIm select, #settingsPanelIm textarea { font: inherit; }
+#settingsPanelIm button { cursor: pointer; }
+#settingsPanelIm button:disabled { opacity: .5; cursor: default; }
+#settingsPanelIm :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#settingsPanelIm .im-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: none; padding-bottom: 14px; }
+#settingsPanelIm .im-header p { flex-basis: 100%; color: var(--im-muted); }
+#settingsPanelIm .im-header > .im-status-pill { margin-left: auto; }
+#settingsPanelIm .im-master-switch { display: inline-flex; align-items: center; gap: 8px; }
+#settingsPanelIm .switch.on { background: var(--accent); }
+#settingsPanelIm .im-status-pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-soft); border-radius: 99px; padding: 3px 8px; white-space: nowrap; font-size: 11px; background: var(--sunken); }
+#settingsPanelIm .im-dot { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--im-muted); }
+#settingsPanelIm .im-dot.ok { background: var(--success); }
+#settingsPanelIm .im-dot.bad { background: var(--danger); }
+#settingsPanelIm .im-dot.pending { background: var(--warning); }
+#settingsPanelIm .im-layout { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 20px; flex: 1; min-height: 0; }
+#settingsPanelIm .im-channel-list { display: flex; flex-direction: column; gap: 4px; border-right: 1px solid var(--border-soft); padding-right: 12px; overflow-y: auto; }
+#settingsPanelIm .im-nav-label { color: var(--im-muted); font-size: 10px; font-weight: 600; margin: 4px 8px; }
+#settingsPanelIm .im-common-tabs { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; }
+#settingsPanelIm .im-channel-card { display: flex; flex-direction: column; gap: 3px; padding: 8px; border-radius: var(--r-control); text-align: left; color: var(--im-muted); background: transparent; border: 1px solid transparent; flex: none; }
+#settingsPanelIm .im-channel-card > span:first-child { display: flex; align-items: center; gap: 7px; font-weight: 550; }
+#settingsPanelIm .im-channel-card small { font-size: 10px; padding-left: 14px; }
+#settingsPanelIm .im-common-tabs .im-channel-card { padding-block: 6px; }
+#settingsPanelIm .im-channel-card:hover { background: var(--hover); color: var(--text); }
+#settingsPanelIm .im-channel-card[aria-selected="true"] { background: var(--selected); color: var(--text); border-color: var(--border-soft); }
+#settingsPanelIm .im-more { display: none; }
+#settingsPanelIm .im-detail { overflow-y: auto; overscroll-behavior: contain; padding: 1px 6px 14px 1px; }
+#settingsPanelIm .im-detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding-block: 10px 12px; }
+#settingsPanelIm .im-detail-header p { color: var(--im-muted); font-size: 11px; margin-top: 3px; }
+#settingsPanelIm .im-block { display: flex; flex-direction: column; gap: 9px; padding-block: 13px; border-bottom: 1px solid var(--border-soft); }
+#settingsPanelIm .im-block:last-child { border-bottom: 0; }
+#settingsPanelIm .im-row, #settingsPanelIm .im-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+#settingsPanelIm .im-row > :first-child { flex: 1; }
+#settingsPanelIm .im-muted { color: var(--im-muted); font-size: 11px; overflow-wrap: anywhere; }
+#settingsPanelIm .im-btn { border: 1px solid var(--border); border-radius: var(--r-control); padding: 5px 10px; color: var(--text); background: var(--surface); line-height: 1.4; }
+#settingsPanelIm .im-btn:hover { background: var(--hover); }
+#settingsPanelIm .im-btn:active { transform: translateY(1px); }
+#settingsPanelIm .im-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+#settingsPanelIm .im-btn.primary:hover { background: var(--accent-hover); }
+#settingsPanelIm .im-btn.danger { color: var(--danger-text, var(--danger)); }
+#settingsPanelIm .im-btn.quiet { background: transparent; border-color: transparent; color: var(--im-muted); padding-inline: 2px; }
+#settingsPanelIm .im-notice { padding: 10px 12px; border: 1px solid var(--border); background: var(--sunken); border-radius: var(--r-control); }
+#settingsPanelIm .im-notice.warning { border-left: 3px solid var(--warning); }
+#settingsPanelIm .im-notice.error { border-left: 3px solid var(--danger); }
+#settingsPanelIm .im-pairing-card { display: grid; gap: 9px; padding: 12px; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--sunken); }
+#settingsPanelIm .im-binding-list { padding: 0; list-style: none; }
+#settingsPanelIm .im-binding-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-block: 9px; border-bottom: 1px solid var(--border-soft); }
+#settingsPanelIm .im-binding-row:last-child { border: 0; }
+#settingsPanelIm .im-binding-main { flex: 1; display: grid; gap: 2px; }
+#settingsPanelIm .im-unbind-confirm { display: grid; gap: 8px; flex-basis: 100%; background: var(--sunken); padding: 10px; border-radius: var(--r-control); }
+#settingsPanelIm .im-field { display: grid; gap: 5px; }
+#settingsPanelIm .im-field > span { font-size: 11px; font-weight: 550; }
+#settingsPanelIm :is(.im-input, .im-select, .im-textarea) { width: 100%; padding: 7px 9px; border-radius: var(--r-input); background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+#settingsPanelIm .im-textarea { min-height: 130px; resize: vertical; }
+#settingsPanelIm .im-form { display: grid; gap: 11px; }
+#settingsPanelIm .im-identifier { display: block; border: 1px solid var(--border-soft); border-radius: 6px; padding: 7px 9px; background: var(--sunken); font: 11px/1.65 var(--mono-font); overflow-wrap: anywhere; white-space: pre-wrap; user-select: text; }
+#settingsPanelIm .im-textarea, #settingsPanelIm code { font-family: var(--mono-font); }
+#settingsPanelIm time, #settingsPanelIm .im-countdown { font-variant-numeric: tabular-nums; }
+#settingsPanelIm details { min-width: 0; }
+#settingsPanelIm summary { cursor: pointer; list-style: none; font-weight: 550; padding-block: 7px; }
+#settingsPanelIm summary::-webkit-details-marker { display: none; }
+#settingsPanelIm summary::after { content: "▸"; float: right; margin-left: 8px; }
+#settingsPanelIm details[open] > summary::after { content: "▾"; }
+#settingsPanelIm .im-guide { margin: 8px 0; padding-left: 18px; display: grid; gap: 8px; color: var(--im-muted); }
+#settingsPanelIm .im-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+#settingsPanelIm .im-chip { border: 1px solid var(--border-soft); border-radius: 6px; padding: 2px 6px; font-size: 10px; color: var(--im-muted); }
+#settingsPanelIm .im-wizard { overflow-y: auto; min-height: 0; padding-right: 6px; }
+#settingsPanelIm .im-setup-steps { padding: 0; list-style: none; margin: 6px 0 12px; border: 1px solid var(--border); border-radius: var(--r-card); overflow: hidden; }
+#settingsPanelIm .im-step { border-bottom: 1px solid var(--border-soft); }
+#settingsPanelIm .im-step:last-child { border-bottom: 0; }
+#settingsPanelIm .im-step button { display: grid; grid-template-columns: 22px minmax(0,1fr) auto; gap: 8px; text-align: left; width: 100%; padding: 8px 12px; color: var(--text); background: transparent; align-items: center; }
+#settingsPanelIm .im-step button:hover { background: var(--hover); }
+#settingsPanelIm .im-step button[aria-current="step"] { background: var(--accent-soft); }
+#settingsPanelIm .im-step button small { display: block; color: var(--im-muted); font-size: 11px; margin-top: 3px; font-weight: 400; }
+#settingsPanelIm .im-step-number { color: var(--im-muted); font-variant-numeric: tabular-nums; }
+#settingsPanelIm .im-step-state { color: var(--im-muted); font-size: 10px; white-space: nowrap; }
+#settingsPanelIm .im-platform-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+#settingsPanelIm .im-platform-card { display: grid; gap: 3px; text-align: left; color: var(--text); background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-control); padding: 10px; }
+#settingsPanelIm .im-platform-card:hover { border-color: var(--accent); }
+#settingsPanelIm .im-platform-card span, #settingsPanelIm .im-platform-card small { font-size: 11px; color: var(--im-muted); }
+#settingsPanelIm .im-project { padding-block: 9px; border-bottom: 1px solid var(--border-soft); }
+#settingsPanelIm .im-check { display: flex; align-items: center; gap: 7px; }
+#settingsPanelIm .im-check input { accent-color: var(--accent); width: 14px; height: 14px; }
+#settingsPanelIm .im-feedback:empty { display: none; }
+#settingsPanelIm .im-feedback { flex: none; padding: 8px 10px; background: var(--sunken); border-left: 3px solid var(--accent); margin-top: 8px; overflow-wrap: anywhere; }
+#settingsPanelIm .im-feedback[role="alert"] { border-left-color: var(--danger); }
+/* The proposal also calls this the dialog's available-width breakpoint.
+   Use the unchanged v17 dialog's actual width: a 720px IM-content threshold
+   would make the normal 860px dialog permanently compact. */
+#settingsPanelIm[data-compact="true"] .im-layout { display: flex; flex-direction: column; gap: 12px; }
+#settingsPanelIm[data-compact="true"] .im-channel-list { flex-direction: row; flex: none; align-items: stretch; gap: 3px; border-right: 0; border-bottom: 1px solid var(--border-soft); padding: 3px 0 7px; overflow: visible; }
+#settingsPanelIm[data-compact="true"] .im-channel-list > .im-nav-label, #settingsPanelIm[data-compact="true"] .im-common-tabs { display: none; }
+#settingsPanelIm[data-compact="true"] .im-channel-card { padding: 6px; flex: 1; }
+#settingsPanelIm[data-compact="true"] .im-channel-card small { display: none; }
+#settingsPanelIm[data-compact="true"] .im-more { display: block; position: relative; }
+#settingsPanelIm .im-more-menu { position: absolute; right: 0; top: calc(100% + 5px); width: min(210px, 75vw); padding: 5px; display: grid; gap: 4px; background: var(--raised); border: 1px solid var(--border); border-radius: var(--r-control); box-shadow: var(--shadow-overlay); z-index: 3; }
+#settingsPanelIm .im-more-menu button { color: var(--text); border-radius: 5px; text-align: left; padding: 8px; }
+#settingsPanelIm .im-more-menu button:hover, #settingsPanelIm .im-more-menu button:focus-visible { background: var(--selected); }
+#settingsPanelIm[data-compact="true"] .im-detail { flex: 1; }
+#settingsPanelIm[data-compact="true"] .im-platform-card { padding: 8px; }
+html[data-contrast="high"] #settingsPanelIm { --im-muted: var(--text); --border: var(--text); --border-soft: var(--text-2); }
+@media (prefers-contrast: more) { #settingsPanelIm { --im-muted: var(--text); --border: var(--text); --border-soft: var(--text-2); } }
+@media (forced-colors: active) { #settingsPanelIm .im-dot { background: CanvasText; } #settingsPanelIm [aria-selected="true"] { outline: 2px solid Highlight; } }
+@media (prefers-reduced-motion: reduce) { #settingsPanelIm *, #settingsPanelIm *::before, #settingsPanelIm *::after { transition: none !important; animation: none !important; } }

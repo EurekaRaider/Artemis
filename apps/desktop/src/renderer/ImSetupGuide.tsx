@@ -1,6 +1,5 @@
 import type { AppLocale, ImStatus } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
-import { InlineNotice } from "@artemis/ui/feedback";
 import { ManagementSection } from "@artemis/ui/management";
 
 type Translate = (cn: string, en: string) => string;
@@ -82,6 +81,8 @@ export function ImSetupGuide({
   const current = steps.findIndex((step) => !step.done);
   return (
     <ManagementSection
+      id="im-guide"
+      tabIndex={-1}
       title={t("首次使用：跟着 6 步设置", "First time? Follow these 6 steps")}
       description={t(
         "每一步都有填写示例和成功标志。先完成个人单聊，再设置群聊协作。点击步骤可直接跳到对应位置。",
@@ -93,18 +94,20 @@ export function ImSetupGuide({
         aria-label={t("IM 设置步骤", "IM setup steps")}
       >
         {steps.map((step, index) => (
-          <li key={step.id}>
-            <Button
-              aria-current={index === current ? "step" : undefined}
-              onClick={() => onNavigate(step.id)}
-            >
+          <li
+            key={step.id}
+            className={index === current ? "is-current" : undefined}
+            data-done={step.done}
+            aria-current={index === current ? "step" : undefined}
+          >
+            <Button variant="quiet" onClick={() => onNavigate(step.id)}>
               {index + 1}. {step.title}
             </Button>
             <span className="im-step-status">
               {step.done
                 ? t("已完成", "Done")
                 : index === current
-                  ? t("下一步", "Next")
+                  ? t("当前步", "Current")
                   : t("待设置", "Pending")}
             </span>
             <p>{step.description}</p>

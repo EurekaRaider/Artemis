@@ -1,0 +1,16 @@
+{
+  "baseline": "User-supplied v17, 2026-09-05",
+  "styleSha256": "8505225b189afd8eae7577009cee2e09ee4180e3eb707fe3ef234fe223a491e8",
+  "scriptSha256": "61d4bc4a8de41298a818712776df2a64ab6432bf2ae3ed17e097236932069270",
+  "componentsSha256": "8e6926592a21edb6bcaf228b8ed2c86aed563c2a106faa702ccbaf2404f5f28c",
+  "t8Sha256": "12af32773cb1606ade38b53a6f6105c24d15101a3f71aa2ea2a489c25ec1e7ec",
+  "settingsLabels": [
+    "通用",
+    "供应商及模型配置",
+    "Agent 配置",
+    "执行权限",
+    "更新与诊断"
+  ],
+  "settingsWidth": 860,
+  "settingsHeight": 560
+}

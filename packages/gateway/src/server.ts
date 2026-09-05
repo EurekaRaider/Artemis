@@ -501,7 +501,36 @@ export class ArtemisGateway {
           .list<{ deviceId: string; identity: ImIdentity }>("identities")
           .filter((b) => b.deviceId === deviceId)
           .map((b) => b.identity),
-        connections: [...this.adapters.values()].map((a) => a.status()),
+        pairingRequests: this.store.pairingRequests(deviceId),
+        connections: [...this.adapters.values()].map((a) => {
+          const status = a.status();
+          const stored = this.store.get<{ sealed: string }>(
+            "connections",
+            status.id,
+          );
+          const config = stored
+            ? this.store.unseal<ChannelConnection>(stored.sealed)
+            : undefined;
+          return {
+            ...status,
+            configuration: config
+              ? Object.fromEntries(
+                  [
+                    "id",
+                    "name",
+                    "tenantId",
+                    "botId",
+                    "appId",
+                    "botOpenId",
+                  ].flatMap((key) =>
+                    key in config
+                      ? [[key, config[key as keyof ChannelConnection]]]
+                      : [],
+                  ),
+                )
+              : {},
+          };
+        }),
         spaces: this.store
           .list<CollaborationSpace>("spaces")
           .filter((s) => s.participants.some((p) => p.deviceId === deviceId))
@@ -655,10 +684,42 @@ export class ArtemisGateway {
       return;
     }
     if (url.pathname === "/v1/device/pair") {
+      const input = z
+        .object({ requireConfirmation: z.boolean().optional() })
+        .strict()
+        .parse(body);
       respond(response, 200, {
-        code: this.store.pairCode(deviceId),
+        code: this.store.pairCode(
+          deviceId,
+          Date.now(),
+          input.requireConfirmation,
+        ),
         expiresIn: 300,
       });
+      return;
+    }
+    if (
+      url.pathname === "/v1/device/resolve-pairing" &&
+      request.method === "POST"
+    ) {
+      const input = z
+        .object({ requestId: z.string().uuid(), approve: z.boolean() })
+        .strict()
+        .parse(body);
+      this.store.transaction(() => {
+        const pending = this.store.resolvePairRequest(
+          deviceId,
+          input.requestId,
+          input.approve,
+        );
+        this.router.queueDelivery(`pairing:${pending.id}:resolved`, {
+          conversation: pending.conversation,
+          text: input.approve
+            ? "配对成功。发送 /projects 选择项目，/help 查看操作。"
+            : "配对请求已拒绝。如需重新配对，请在 Artemis 生成新的配对码。",
+        });
+      });
+      respond(response, 200, { resolved: true });
       return;
     }
     if (url.pathname === "/v1/device/unpair") {

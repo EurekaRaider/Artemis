@@ -7,7 +7,17 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { imIdentityKey, type ImIdentity } from "@artemis/protocol";
+import {
+  imIdentityKey,
+  type ImIdentity,
+  type ImConversation,
+  type ImPairingRequest,
+} from "@artemis/protocol";
+
+interface PendingPairing extends ImPairingRequest {
+  deviceId: string;
+  conversation: ImConversation;
+}
 
 export function digest(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -45,6 +55,15 @@ export class GatewayStore {
       CREATE TABLE IF NOT EXISTS pair_codes (hash TEXT PRIMARY KEY, device_id TEXT NOT NULL, expires INTEGER NOT NULL);
       UPDATE queue SET state='pending' WHERE state='processing' AND bucket='incoming';
       UPDATE queue SET state='uncertain' WHERE state='sending' AND bucket='outgoing';`);
+      if (
+        !this.db
+          .prepare("PRAGMA table_info(pair_codes)")
+          .all()
+          .some((column) => column.name === "require_confirmation")
+      )
+        this.db.exec(
+          "ALTER TABLE pair_codes ADD COLUMN require_confirmation INTEGER NOT NULL DEFAULT 0",
+        );
     } catch (error) {
       this.db.close();
       throw error;
@@ -136,22 +155,38 @@ export class GatewayStore {
       !!device && !device.revoked && sameSecret(device.tokenHash, digest(token))
     );
   }
-  pairCode(deviceId: string, now = Date.now()): string {
+  pairCode(
+    deviceId: string,
+    now = Date.now(),
+    requireConfirmation = false,
+  ): string {
     const code = randomBytes(8).toString("hex");
     this.db
       .prepare("DELETE FROM pair_codes WHERE device_id=? OR expires<=?")
       .run(deviceId, now);
     this.db
-      .prepare("INSERT INTO pair_codes VALUES(?,?,?)")
-      .run(digest(code), deviceId, now + 5 * 60_000);
+      .prepare(
+        "INSERT INTO pair_codes(hash,device_id,expires,require_confirmation) VALUES(?,?,?,?)",
+      )
+      .run(
+        digest(code),
+        deviceId,
+        now + 5 * 60_000,
+        Number(requireConfirmation),
+      );
+    this.delete("pairing-requests", deviceId);
     return code;
   }
   pair(code: string, identity: ImIdentity, now = Date.now()): string {
     return this.transaction(() => {
       const row = this.db
-        .prepare("SELECT device_id FROM pair_codes WHERE hash=? AND expires>?")
+        .prepare(
+          "SELECT device_id,require_confirmation FROM pair_codes WHERE hash=? AND expires>?",
+        )
         .get(digest(code), now);
       if (!row) throw new Error("Pairing code is invalid or expired.");
+      if (row.require_confirmation)
+        throw new Error("Approve this pairing on its device first.");
       const deviceId = String(row.device_id);
       if (this.get<{ revoked: boolean }>("devices", deviceId)?.revoked)
         throw new Error("This device has been revoked.");
@@ -164,6 +199,81 @@ export class GatewayStore {
       this.put("identities", imIdentityKey(identity), { deviceId, identity });
       this.db.prepare("DELETE FROM pair_codes WHERE hash=?").run(digest(code));
       return deviceId;
+    });
+  }
+  requestPair(
+    code: string,
+    identity: ImIdentity,
+    conversation: ImConversation,
+    now = Date.now(),
+  ): PendingPairing | undefined {
+    return this.transaction(() => {
+      const row = this.db
+        .prepare(
+          "SELECT device_id,expires,require_confirmation FROM pair_codes WHERE hash=? AND expires>?",
+        )
+        .get(digest(code), now);
+      if (!row) throw new Error("Pairing code is invalid or expired.");
+      if (!row.require_confirmation) return undefined;
+      const deviceId = String(row.device_id);
+      if (this.get<{ revoked: boolean }>("devices", deviceId)?.revoked)
+        throw new Error("This device has been revoked.");
+      if (
+        conversation.kind !== "direct" ||
+        conversation.connectionId !== identity.connectionId
+      )
+        throw new Error("Pair in your private bot conversation.");
+      const pending: PendingPairing = {
+        id: randomUUID(),
+        deviceId,
+        identity,
+        conversation,
+        expiresAt: Number(row.expires),
+      };
+      this.put("pairing-requests", deviceId, pending);
+      this.db.prepare("DELETE FROM pair_codes WHERE hash=?").run(digest(code));
+      return pending;
+    });
+  }
+  pairingRequests(deviceId: string, now = Date.now()): ImPairingRequest[] {
+    const pending = this.get<PendingPairing>("pairing-requests", deviceId);
+    if (!pending) return [];
+    if (pending.expiresAt <= now) {
+      this.delete("pairing-requests", deviceId);
+      return [];
+    }
+    return [
+      {
+        id: pending.id,
+        identity: pending.identity,
+        expiresAt: pending.expiresAt,
+      },
+    ];
+  }
+  resolvePairRequest(
+    deviceId: string,
+    requestId: string,
+    approve: boolean,
+    now = Date.now(),
+  ): PendingPairing {
+    return this.transaction(() => {
+      const pending = this.get<PendingPairing>("pairing-requests", deviceId);
+      if (!pending || pending.id !== requestId || pending.expiresAt <= now)
+        throw new Error("Pairing request is invalid or expired.");
+      if (this.get<{ revoked: boolean }>("devices", deviceId)?.revoked)
+        throw new Error("This device has been revoked.");
+      if (approve) {
+        const key = imIdentityKey(pending.identity);
+        const old = this.get<{ deviceId: string }>("identities", key);
+        if (old && old.deviceId !== deviceId)
+          throw new Error(
+            "Unpair this identity from its current device first.",
+          );
+        this.put("identities", key, { deviceId, identity: pending.identity });
+        this.put("direct-routes", key, pending.conversation);
+      }
+      this.delete("pairing-requests", deviceId);
+      return pending;
     });
   }
   enqueue(

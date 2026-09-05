@@ -150,6 +150,7 @@ const child = spawn(
     join(root, "apps/desktop"),
     `--user-data-dir=${data}`,
     "--disable-gpu",
+    "--inspect=127.0.0.1:0",
     `--remote-debugging-port=${port}`,
     "--remote-debugging-address=127.0.0.1",
   ],
@@ -169,7 +170,52 @@ const until = async (check, description, timeout = 30000) => {
   } while (Date.now() - start < timeout);
   throw new Error(`Timed out: ${description}`);
 };
+let mainSocket;
 try {
+  const inspectorUrl = await until(
+    () =>
+      /Debugger listening on (ws:\/\/127\.0\.0\.1:\d+\/\S+)/u.exec(logs)?.[1],
+    "isolated Electron main inspector",
+  );
+  mainSocket = new WebSocket(inspectorUrl);
+  await new Promise((resolve, reject) => {
+    mainSocket.addEventListener("open", resolve, { once: true });
+    mainSocket.addEventListener("error", reject, { once: true });
+  });
+  let mainSequence = 0;
+  const mainEvaluate = (expression) =>
+    new Promise((resolve, reject) => {
+      const id = ++mainSequence;
+      const timer = setTimeout(() => {
+        mainSocket.removeEventListener("message", listener);
+        reject(new Error("Main inspector timed out"));
+      }, 10000);
+      const listener = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.id !== id) return;
+        clearTimeout(timer);
+        mainSocket.removeEventListener("message", listener);
+        if (data.error || data.result.exceptionDetails)
+          reject(
+            new Error(
+              JSON.stringify(data.error ?? data.result.exceptionDetails),
+            ),
+          );
+        else resolve(data.result.result?.value);
+      };
+      mainSocket.addEventListener("message", listener);
+      mainSocket.send(
+        JSON.stringify({
+          id,
+          method: "Runtime.evaluate",
+          params: { expression, returnByValue: true },
+        }),
+      );
+    });
+  const nativeContents = `process.getBuiltinModule('module').createRequire(${JSON.stringify(join(root, "apps/desktop/package.json"))})('electron').BrowserWindow.getAllWindows().find(w => !w.isDestroyed()).webContents`;
+  const runtime = await mainEvaluate(
+    "({electron:process.versions.electron,chrome:process.versions.chrome,platform:process.platform,arch:process.arch})",
+  );
   const target = await until(async () => {
     try {
       return (
@@ -254,6 +300,20 @@ try {
   };
   const button = (text) =>
     `Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()===${JSON.stringify(text)})`;
+  const openView = async (view) => {
+    if (
+      !(await evaluate(`Boolean(document.querySelector('#im-nav-${view}'))`))
+    ) {
+      await click("document.querySelector('.im-common-trigger')");
+      const labels = {
+        gateway: "Gateway 与设备",
+        pairing: "配对与账号",
+        permissions: "项目授权",
+        spaces: "群协作空间",
+      };
+      await click(button(labels[view]));
+    } else await click(`document.querySelector('#im-nav-${view}')`);
+  };
   const fill = async (selector, text) => {
     await click(`document.querySelector(${JSON.stringify(selector)})`);
     await send("Input.insertText", { text });
@@ -265,6 +325,7 @@ try {
       evaluate("Boolean(window.artemis && document.querySelector('button'))"),
     "desktop ready",
   );
+  assert.match(await evaluate("document.title"), /Artemis/u);
   await evaluate('window.artemis.setLanguage("zh-CN")');
   await send("Page.reload");
   await until(
@@ -289,9 +350,14 @@ try {
     await evaluate("document.querySelectorAll('.im-setup-steps li').length"),
     6,
   );
-  await click(
-    "Array.from(document.querySelectorAll('summary')).find(s=>s.textContent.includes('进阶：'))",
+  const wizardCapture = await send("Page.captureScreenshot", { format: "png" });
+  await writeFile(
+    join(output, "wizard.png"),
+    Buffer.from(wizardCapture.data, "base64"),
   );
+  await click(button("1. 准备 Gateway"));
+  await openView("spaces");
+  await click("document.querySelector('#im-spaces summary')");
   assert.equal(
     await evaluate(
       "Array.from(document.querySelectorAll('label')).some(label=>label.textContent.includes('协作空间管理凭据'))",
@@ -304,9 +370,7 @@ try {
     ),
     true,
   );
-  await click(
-    "Array.from(document.querySelectorAll('summary')).find(s=>s.textContent.includes('进阶：'))",
-  );
+  await openView("gateway");
   const initial = await evaluate("window.artemis.getImStatus()");
   assert.equal(initial.settings.enabled, false);
   assert.equal(initial.settings.grants.length, 0);
@@ -328,10 +392,8 @@ try {
       "机器人配置的管理凭据",
     ),
   );
-  await click("document.querySelector('#im-bot [aria-haspopup=listbox]')");
-  await click(
-    "Array.from(document.querySelectorAll('[role=option]')).find(e=>e.textContent.trim()==='Slack')",
-  );
+  await openView("slack");
+  await click("document.querySelector('#im-bot details:last-child summary')");
   await evaluate(
     "window.__copiedImCommand=''; navigator.clipboard.writeText=async text=>{window.__copiedImCommand=text;}",
   );
@@ -353,17 +415,19 @@ try {
       "事件回调地址：",
     ),
   );
+  await openView("pairing");
   await click(button("生成一次性配对码"));
   await click(button("复制配对指令"));
   assert.match(
     await evaluate("window.__copiedImCommand"),
     /^pair [a-f0-9]{16}$/u,
   );
+  await click(
+    "document.querySelector('#im-test').closest('details').querySelector('summary')",
+  );
   await click("document.querySelector('#im-test button')");
   assert.equal(await evaluate("window.__copiedImCommand"), "projects");
-  await evaluate(
-    "document.querySelector('#im-bot').scrollIntoView({block:'start'})",
-  );
+  await openView("slack");
   const slackScreenshot = await send("Page.captureScreenshot", {
     format: "png",
   });
@@ -371,10 +435,7 @@ try {
     join(output, "slack.png"),
     Buffer.from(slackScreenshot.data, "base64"),
   );
-  await click("document.querySelector('#im-bot [aria-haspopup=listbox]')");
-  await click(
-    "Array.from(document.querySelectorAll('[role=option]')).find(e=>e.textContent.trim()==='企业微信')",
-  );
+  await openView("wecom");
   const records = [];
   for (const variant of [
     { theme: "light", width: 1280, height: 900 },
@@ -402,9 +463,9 @@ try {
     );
     records.push({ ...variant, geometry });
   }
+  await click(button("返回设置指引"));
   await click("document.querySelectorAll('.im-setup-steps button')[1]");
   assert.equal(await evaluate("document.activeElement.id"), "im-device");
-  await click("document.querySelector('#im-device summary')");
   assert.equal(await evaluate(`${button("注册当前设备")}.disabled`), true);
   await evaluate(
     "document.querySelector('#im-device input[type=url]').focus(); document.querySelector('#im-device input[type=url]').select()",
@@ -428,6 +489,7 @@ try {
     ),
     "",
   );
+  await openView("wecom");
   await click(button("刷新机器人连接状态"));
   await until(
     async () =>
@@ -435,6 +497,7 @@ try {
         ?.state === "connected",
     "bot refresh while paused",
   );
+  await openView("pairing");
   await click(button("生成一次性配对码"));
   const pairCode = await until(
     () =>
@@ -465,13 +528,217 @@ try {
   await gateway.tick();
   await click(button("我已发送，刷新配对结果"));
   assert.equal(
+    (await evaluate("window.artemis.getImStatus()")).identities.length,
+    0,
+  );
+  await click(button("批准"));
+  await until(
+    () => evaluate("Boolean(document.querySelector('#im-bot'))"),
+    "automatic management after approval",
+  );
+  assert.equal(
     (await evaluate("window.artemis.getImStatus()")).identities[0].userId,
     "alice",
   );
-  await click(
-    "document.querySelector('#im-permissions [role=checkbox], #im-permissions input[type=checkbox]')",
+  // Exercise the real saved-credential form and the existing Gateway admin API.
+  await click(button("更换"));
+  assert.equal(
+    await evaluate(
+      "document.querySelector('#im-bot input[type=password]').value",
+    ),
+    "",
   );
-  await click(button("保存并启用连接"));
+  const credentialCapture = await send("Page.captureScreenshot", {
+    format: "png",
+  });
+  await writeFile(
+    join(output, "credentials.png"),
+    Buffer.from(credentialCapture.data, "base64"),
+  );
+  await fill("#im-bot input[type=password]", "synthetic-rotated-secret");
+  await click("document.querySelectorAll('#im-bot input[type=password]')[1]");
+  await send("Input.insertText", { text: "test-administrator-".repeat(3) });
+  await click(button("保存并连接机器人"));
+  await until(
+    () => evaluate("!document.querySelector('#im-bot input[type=password]')"),
+    "saved credential form collapses",
+  );
+  assert.equal(
+    await evaluate(
+      "Boolean(document.querySelector('#im-bot').textContent.includes('synthetic-rotated-secret'))",
+    ),
+    false,
+  );
+  await openView("spaces");
+  await click("document.querySelector('#im-spaces summary')");
+  await fill(
+    "#im-spaces input[type=password]",
+    "test-administrator-".repeat(3),
+  );
+  await click(button("查看连接、成员和投递诊断"));
+  await until(
+    () => evaluate("Boolean(document.querySelector('.im-diagnostics'))"),
+    "real member and group diagnostics",
+  );
+  assert.equal(
+    await evaluate(
+      "document.querySelector('#im-spaces input[type=password]').value",
+    ),
+    "",
+  );
+  assert.ok(
+    (
+      await evaluate("document.querySelector('.im-diagnostics').textContent")
+    ).includes("alice"),
+  );
+  const diagnosticsCapture = await send("Page.captureScreenshot", {
+    format: "png",
+  });
+  await writeFile(
+    join(output, "diagnostics.png"),
+    Buffer.from(diagnosticsCapture.data, "base64"),
+  );
+  await openView("wecom");
+  // Inline confirmation must not close the real settings dialog on Escape.
+  await click(button("解除绑定"));
+  assert.equal(
+    await evaluate("document.activeElement.textContent.trim()"),
+    "确认解除",
+  );
+  await send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  });
+  await send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  });
+  await pause(100);
+  assert.equal(
+    await evaluate("document.activeElement.textContent.trim()"),
+    "解除绑定",
+  );
+  assert.equal(
+    await evaluate("Boolean(document.querySelector('.settings-panel'))"),
+    true,
+  );
+  for (const variant of [
+    {
+      name: "manage-light",
+      theme: "light",
+      width: 1280,
+      height: 900,
+      contrast: "no-preference",
+    },
+    {
+      name: "manage-dark-high",
+      theme: "dark",
+      width: 1280,
+      height: 900,
+      contrast: "more",
+    },
+    {
+      name: "compact",
+      theme: "light",
+      width: 720,
+      height: 640,
+      contrast: "no-preference",
+    },
+    {
+      name: "zoom-budget",
+      theme: "dark",
+      width: 640,
+      height: 450,
+      contrast: "no-preference",
+    },
+  ]) {
+    await evaluate(`window.artemis.setTheme(${JSON.stringify(variant.theme)})`);
+    await send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-contrast", value: variant.contrast }],
+    });
+    await send("Emulation.setDeviceMetricsOverride", {
+      width: variant.width,
+      height: variant.height,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+    await pause(250);
+    const geometry = await evaluate(
+      `(() => { const panel = document.querySelector('.im-settings'); const detail = document.querySelector('.im-detail'); return { width: innerWidth, height: innerHeight, compact: panel.dataset.compact, contrast: document.documentElement.dataset.artemisContrast, panelWidth: panel.clientWidth, panelScrollWidth: panel.scrollWidth, detailWidth: detail.clientWidth, detailScrollWidth: detail.scrollWidth, dialogWidth: document.querySelector('.settings-panel').getBoundingClientRect().width }; })()`,
+    );
+    assert.equal(
+      geometry.contrast,
+      variant.contrast === "more" ? "high" : "normal",
+    );
+    assert.ok(
+      geometry.panelScrollWidth <= geometry.panelWidth + 1,
+      JSON.stringify(geometry),
+    );
+    assert.ok(
+      geometry.detailScrollWidth <= geometry.detailWidth + 1,
+      JSON.stringify(geometry),
+    );
+    const screenshot = await send("Page.captureScreenshot", { format: "png" });
+    await writeFile(
+      join(output, `${variant.name}.png`),
+      Buffer.from(screenshot.data, "base64"),
+    );
+    records.push({ ...variant, geometry });
+    if (geometry.compact === "true") {
+      await openView("spaces");
+      assert.equal(
+        await evaluate("document.querySelector('#im-spaces details').open"),
+        false,
+      );
+      await openView("wecom");
+    }
+  }
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: 1280,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await send("Emulation.setEmulatedMedia", { features: [] });
+  await pause(250);
+  await send("Emulation.clearDeviceMetricsOverride");
+  await mainEvaluate(`${nativeContents}.setZoomFactor(2)`);
+  await pause(300);
+  assert.equal(await mainEvaluate(`${nativeContents}.getZoomFactor()`), 2);
+  await openView("spaces");
+  assert.equal(
+    await evaluate("document.querySelector('#im-spaces details').open"),
+    false,
+  );
+  await openView("wecom");
+  await evaluate(
+    "document.querySelector('#im-bot').scrollIntoView({block:'start'})",
+  );
+  const zoomGeometry = await evaluate(
+    `(() => { const p = document.querySelector('.im-settings'); const d = document.querySelector('.im-detail'); return { width: innerWidth, height: innerHeight, compact: p.dataset.compact, panelWidth: p.clientWidth, panelScrollWidth: p.scrollWidth, detailWidth: d.clientWidth, detailScrollWidth: d.scrollWidth }; })()`,
+  );
+  assert.equal(zoomGeometry.compact, "true");
+  assert.ok(zoomGeometry.panelScrollWidth <= zoomGeometry.panelWidth + 1);
+  const zoomCapture = await send("Page.captureScreenshot", { format: "png" });
+  await writeFile(
+    join(output, "native-zoom-200.png"),
+    Buffer.from(zoomCapture.data, "base64"),
+  );
+  records.push({
+    name: "native-zoom-200",
+    zoomFactor: 2,
+    geometry: zoomGeometry,
+  });
+  await mainEvaluate(`${nativeContents}.setZoomFactor(1)`);
+  await pause(200);
+  await openView("permissions");
+  await click("document.querySelector('#im-permissions input[type=checkbox]')");
+  await click(button("保存项目授权"));
+  await click("document.querySelector('.im-header [role=switch]')");
   await until(
     async () =>
       (await evaluate("window.artemis.getImStatus()")).settings.grants
@@ -489,7 +756,7 @@ try {
   );
   assert.equal(
     await evaluate(
-      "document.querySelector('#im-permissions [role=switch]').checked",
+      "document.querySelector('.im-header [role=switch]').checked",
     ),
     true,
   );
@@ -501,6 +768,7 @@ try {
   await evaluate(
     "window.__copiedImCommand=''; navigator.clipboard.writeText=async text=>{window.__copiedImCommand=text;}",
   );
+  await openView("pairing");
   await click("document.querySelector('#im-test button')");
   assert.equal(await evaluate("window.__copiedImCommand"), "/projects");
   receive(message("new-task", "/new Explain README.md"));
@@ -615,13 +883,19 @@ try {
     JSON.stringify(
       {
         passed: true,
+        runtime,
         checks: [
           "six setup steps and navigation",
           "built-in Gateway starts and registers automatically without grants or administrator form",
           "Slack selection, manifest copy and two-token form",
           "Slack pairing and first-task commands omit slash",
-          "light/dark viewport layout",
+          "light/dark/high-contrast/compact/200-percent CSS viewport-budget layout",
+          "real device pairing approval and automatic management transition",
+          "inline unpair Escape restores focus without closing settings",
+          "native webContents 200-percent zoom, compact navigation and no IM horizontal overflow",
           "registration clears credentials",
+          "saved credentials replace through real admin API, secrets remain empty on entry and clear after save",
+          "real member/group diagnostics and administrator credential clearing",
           "pairing refresh works while paused",
           "project authorization UI",
           "copy control payload",
@@ -656,6 +930,7 @@ try {
   throw error;
 } finally {
   socket?.close();
+  mainSocket?.close();
   child.kill("SIGTERM");
   await new Promise((resolve) => {
     child.once("exit", resolve);

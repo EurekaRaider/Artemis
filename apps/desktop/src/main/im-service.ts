@@ -16,6 +16,7 @@ import {
   imConversationKey,
   imIdentityKey,
   imManagementSchema,
+  imPairingRequestSchema,
   imSettingsSchema,
   remoteInvocationSchema,
   remoteOperationSchema,
@@ -112,6 +113,7 @@ export class ImService {
   private state: ImStatus["state"] = "disabled";
   private error: string | undefined;
   private identities: ImIdentity[] = [];
+  private pairingRequests: NonNullable<ImStatus["pairingRequests"]> = [];
   private channelStatus: unknown[] = [];
   private spaces: unknown[] = [];
   private reconciled = false;
@@ -206,6 +208,7 @@ export class ImService {
       state: this.config.enabled ? this.state : "disabled",
       ...(this.error ? { error: this.error } : {}),
       identities: structuredClone(this.identities),
+      pairingRequests: structuredClone(this.pairingRequests),
       connections: structuredClone(this.channelStatus),
       spaces: structuredClone(this.spaces),
       remoteTasks: this.list<Binding>("bindings").map((b) => ({
@@ -441,6 +444,9 @@ export class ImService {
       )
         await this.localGateway.close();
       this.identities = [];
+      this.pairingRequests = [];
+      this.channelStatus = [];
+      this.spaces = [];
       return this.status();
     }
     if (action.action === "admin") {
@@ -481,7 +487,21 @@ export class ImService {
         }
       return result;
     }
-    return (await this.http("/v1/device/pair", "POST", {})).json();
+    if (action.action === "resolve-pairing") {
+      const result = await (
+        await this.http("/v1/device/resolve-pairing", "POST", {
+          requestId: action.requestId,
+          approve: action.approve,
+        })
+      ).json();
+      await this.refreshConnection();
+      return result;
+    }
+    return (
+      await this.http("/v1/device/pair", "POST", {
+        requireConfirmation: action.requireConfirmation,
+      })
+    ).json();
   }
   private grant(binding: Binding) {
     if (this.leaseUntil <= Date.now())
@@ -1611,6 +1631,9 @@ export class ImService {
     this.identities = z
       .array(remoteInvocationSchema.shape.identity)
       .parse(status.identities);
+    this.pairingRequests = z
+      .array(imPairingRequestSchema)
+      .parse(status.pairingRequests ?? []);
     this.channelStatus = Array.isArray(status.connections)
       ? status.connections
       : [];

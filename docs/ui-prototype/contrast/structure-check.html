@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>结构不变量负向用例（R15①，固化）</title>
+<style>body{font:14px sans-serif;margin:20px}</style></head>
+<body>
+<div id="panel-a">面板 A</div><div id="panel-b">面板 B</div>
+<button id="ctl" class="control collapsed" aria-controls="panel-a" aria-expanded="false" aria-label="切换面板">切换</button>
+<button id="dis">可禁用</button>
+<div id="left"><button id="first">First</button></div>
+<div id="right"><button id="second">Second</button></div>
+<div role="tab" id="tab1" aria-selected="false">标签页一</div>
+<script src="scanner.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var cs = window.ContrastScanner, out = { cases: [], ok: true };
+  function snap(label) { var p = cs.run(label); return p.audit.structBefore; }
+  function check(id, mutate, expectChanged) {
+    var before = snap(id + "-before");
+    mutate();
+    var after = snap(id + "-after");
+    var changed = before !== after;
+    var ok = changed === expectChanged;
+    out.cases.push({ id: id, expectChanged: expectChanged, changed: changed, ok: ok });
+    if (!ok) out.ok = false;
+  }
+  var ctl = document.getElementById("ctl");
+  check("aria-controls 换目标", function(){ ctl.setAttribute("aria-controls","panel-b"); }, true);
+  check("aria-expanded 翻转", function(){ ctl.setAttribute("aria-expanded","true"); }, true);
+  check("第二 class 状态变化", function(){ ctl.className = "control expanded"; }, true);
+  check("hidden 变化", function(){ document.getElementById("panel-a").hidden = true; }, true);
+  check("disabled 变化", function(){ document.getElementById("dis").disabled = true; }, true);
+  check("跨父容器交换", function(){
+    var l=document.getElementById("left"), r=document.getElementById("right");
+    l.appendChild(r.firstElementChild); r.appendChild(document.getElementById("first"));
+  }, true);
+  check("无操作对照（不得误报）", function(){ }, false);
+
+  /* R15① 反例 A：aria-selected 在 scanAll 执行期间翻转（单次 run 内 before/after 之间）。
+     通过包裹 document.querySelectorAll 在首次 '*' 调用时翻转，模拟评审反例；
+     结构编码已收录全部 aria-*，structAfter 必然 !== structBefore。 */
+  (function(){
+    var tab = document.getElementById("tab1");
+    var orig = document.querySelectorAll.bind(document), called = false;
+    document.querySelectorAll = function(sel){
+      var r = orig.apply(document, arguments);
+      if(!called && sel === "*"){ called = true; tab.setAttribute("aria-selected","true"); }
+      return r;
+    };
+    var before = snap("aria-selected-单次扫描翻转-before");
+    /* run() 内部 scanAll 触发补丁 → 翻转发生在 structBefore 与 structAfter 之间 */
+    var p = cs.run("aria-selected-单次扫描翻转-after");
+    document.querySelectorAll = orig;
+    var changed = before !== p.audit.structAfter;
+    var flipped = tab.getAttribute("aria-selected") === "true";
+    var ok = changed && flipped;
+    out.cases.push({ id: "aria-selected 单次扫描翻转（评审反例A）", expectChanged: true, changed: changed, flipped: flipped, ok: ok });
+    if(!ok) out.ok = false;
+  })();
+
+  /* R15① 反例 B：分隔符碰撞——id 含分隔符子串 vs 拆成 aria-label。
+     旧拼接编码下两者同串；JSON 元组编码必须区分。 */
+  (function(){
+    var host = document.createElement("div"); host.id = "collide-host";
+    document.body.appendChild(host);
+    host.innerHTML = '<button id="b">按钮</button>';
+    var b = host.querySelector("#b");
+    b.setAttribute("id","x|al=foo");
+    var s1 = snap("分隔符碰撞-before");   /* id="x|al=foo" */
+    b.removeAttribute("id"); b.setAttribute("id","x"); b.setAttribute("aria-label","foo");
+    var s2 = snap("分隔符碰撞-after");    /* id="x" + aria-label="foo" */
+    var changed = s1 !== s2;
+    out.cases.push({ id: "id/aria-label 分隔符碰撞（评审反例B）", expectChanged: true, changed: changed, ok: changed });
+    if(!changed) out.ok = false;
+    host.remove();
+  })();
+
+  /* R16② 反例 C：深层 DOM（70 层）aria-label 变更——v15 的 64 层静默截断会漏报，
+     v16 取消截断后必须捕获。 */
+  (function(){
+    var deep = document.createElement("div"); deep.id = "deep-root";
+    document.body.appendChild(deep);
+    var cur = deep;
+    for(var i=0;i<69;i++){ var nx=document.createElement("div"); cur.appendChild(nx); cur=nx; }
+    var deepBtn = document.createElement("button");
+    deepBtn.setAttribute("aria-label","before");
+    deepBtn.textContent = "深层按钮";
+    cur.appendChild(deepBtn);
+    var before = snap("深层70层-aria-label-before");
+    deepBtn.setAttribute("aria-label","after");
+    var after = snap("深层70层-aria-label-after");
+    var changed = before !== after;
+    out.cases.push({ id: "深层 70 层 aria-label 变更（评审反例C，截断已取消）", expectChanged: true, changed: changed, ok: changed });
+    if(!changed) out.ok = false;
+    deep.remove();
+  })();
+
+  /* R16② 反例 D：contenteditable 翻转 */
+  (function(){
+    var ce = document.createElement("div");
+    ce.id = "ce-demo"; ce.textContent = "可编辑区";
+    document.body.appendChild(ce);
+    var before = snap("contenteditable-before");
+    ce.setAttribute("contenteditable","true");
+    var after = snap("contenteditable-after");
+    var changed = before !== after;
+    out.cases.push({ id: "contenteditable 翻转（评审反例D）", expectChanged: true, changed: changed, ok: changed });
+    if(!changed) out.ok = false;
+    ce.remove();
+  })();
+
+  /* R16② 反例 E：input 当前值变更（property 权威，非 attribute） */
+  (function(){
+    var inp = document.createElement("input");
+    inp.id = "val-demo"; inp.value = "before";
+    document.body.appendChild(inp);
+    var before = snap("input-value-before");
+    inp.value = "after";
+    var after = snap("input-value-after");
+    var changed = before !== after;
+    out.cases.push({ id: "input.value 变更（评审反例E，property 权威）", expectChanged: true, changed: changed, ok: changed });
+    if(!changed) out.ok = false;
+    inp.remove();
+  })();
+
+  /* R15② chrome 边界：data-struct-chrome 内 aria-selected 翻转不改变结构串（组合身份反射，
+     已披露规范化）；chrome 外翻转仍捕获（上方 aria-selected 用例）。 */
+  (function(){
+    var host = document.createElement("div");
+    host.setAttribute("data-struct-chrome","");
+    host.innerHTML = '<button role="tab" id="chrome-tab" aria-selected="true">组合反射</button>';
+    document.body.appendChild(host);
+    var b = document.getElementById("chrome-tab");
+    var before = snap("chrome-aria-selected-before");
+    b.setAttribute("aria-selected","false");
+    var after = snap("chrome-aria-selected-after");
+    var changed = before !== after;
+    var ok = (changed === false);
+    out.cases.push({ id: "chrome 内 aria-selected 翻转（组合反射，规范化不改串）", expectChanged: false, changed: changed, ok: ok });
+    if(!ok) out.ok = false;
+    host.remove();
+  })();
+
+  /* R15① 可逆性：JSON.parse(结构串) 成功且重新序列化与原串相同（键序规范化） */
+  (function(){
+    var s = snap("可逆性-before");
+    var json = cs.structJsonOf(s);
+    var ok1 = false, ok2 = false, parsed = null;
+    try { parsed = JSON.parse(json); ok1 = true; } catch(e){}
+    if (ok1) { try { ok2 = (JSON.stringify(parsed) === json); } catch(e){} }
+    out.cases.push({ id: "结构串 JSON.parse 可逆 + 规范化重序列化一致", expectChanged: false, parseOk: ok1, roundTrip: ok2, ok: ok1 && ok2 });
+    if(!(ok1 && ok2)) out.ok = false;
+  })();
+
+  var host = document.createElement("div"); host.id = "STRUCT_OUT";
+  host.setAttribute("data-ok", String(out.ok));
+  host.setAttribute("data-json", encodeURIComponent(JSON.stringify(out)));
+  document.body.appendChild(host);
+});
+</script></body></html>

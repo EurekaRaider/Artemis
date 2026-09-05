@@ -33,6 +33,26 @@ export const imConversationSchema = z
   })
   .strict();
 export type ImConversation = z.infer<typeof imConversationSchema>;
+export const imPairingRequestSchema = z
+  .object({
+    id: z.string().uuid(),
+    identity: imIdentitySchema,
+    expiresAt: z.number().int().positive(),
+  })
+  .strict();
+export type ImPairingRequest = z.infer<typeof imPairingRequestSchema>;
+
+export interface ImConnectionStatus {
+  id: string;
+  name: string;
+  channel: ImIdentity["channel"];
+  state: "disabled" | "connecting" | "connected" | "error";
+  error?: string;
+  // Only public identifiers, never saved secrets.
+  configuration?: Partial<
+    Record<"id" | "name" | "tenantId" | "botId" | "appId" | "botOpenId", string>
+  >;
+}
 export function imConversationKey(conversation: ImConversation): string {
   return JSON.stringify([
     conversation.connectionId,
@@ -98,6 +118,7 @@ export interface ImStatus {
   state: "disabled" | "connecting" | "connected" | "error";
   error?: string;
   identities: ImIdentity[];
+  pairingRequests?: ImPairingRequest[];
   localGateway?: { state: "stopped" | "running" | "error"; error?: string };
 }
 export const remoteInvocationSchema = z
@@ -289,7 +310,19 @@ export const imManagementSchema = z.discriminatedUnion("action", [
       adminToken: z.string().min(32).max(1024),
     })
     .strict(),
-  z.object({ action: z.literal("pair") }).strict(),
+  z
+    .object({
+      action: z.literal("pair"),
+      requireConfirmation: z.boolean().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("resolve-pairing"),
+      requestId: z.string().uuid(),
+      approve: z.boolean(),
+    })
+    .strict(),
   z.object({ action: z.literal("refresh") }).strict(),
   z
     .object({ action: z.literal("unpair"), identity: imIdentitySchema })

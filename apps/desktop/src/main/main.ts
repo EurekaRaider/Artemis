@@ -3,7 +3,14 @@ import { imManagementSchema } from "@artemis/protocol";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { watch, type FSWatcher } from "node:fs";
-import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { userInfo } from "node:os";
 import { monitorEventLoopDelay, type IntervalHistogram } from "node:perf_hooks";
 import {
@@ -6128,11 +6135,15 @@ function registerIpc(): void {
     if (action.action === "export-gateway") {
       if (!mainWindow) throw new Error("Desktop window is not ready.");
       const result = await dialog.showSaveDialog(mainWindow, {
-        title: "Export Artemis Gateway", defaultPath: "artemis-gateway.tar.gz",
+        title: "Export Artemis Gateway",
+        defaultPath: "artemis-gateway.tar.gz",
         filters: [{ name: "Gateway package", extensions: ["tar.gz"] }],
       });
       if (result.canceled || !result.filePath) return undefined;
-      await copyFile(join(app.getAppPath(), "dist-electron", "artemis-gateway.tar.gz"), result.filePath);
+      await copyFile(
+        join(app.getAppPath(), "dist-electron", "artemis-gateway.tar.gz"),
+        result.filePath,
+      );
       return result.filePath;
     }
     return imService.manage(action);
