@@ -9884,6 +9884,7 @@ kbd {
 }
 
 .token-usage-tabs [data-part="tab"][aria-selected="true"] {
+  font-weight: 600;
   color: var(--artemis-color-text-primary);
   background: transparent;
 }

@@ -364,7 +364,7 @@ try {
       const field = verifyComponent(
         "text-field",
         ["root", "label", "control"],
-        "settings-field",
+        "settings-number-field",
         "settings",
       );
       const select = verifyComponent(
@@ -381,7 +381,7 @@ try {
           type: "number",
         },
       );
-      verifyFocusEvidence("settings-field", field);
+      verifyFocusEvidence("settings-number-field", field);
       assert(
         "settings-select-semantics",
         select.control.tagName === "button" &&

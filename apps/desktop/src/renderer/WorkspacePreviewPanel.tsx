@@ -7,6 +7,7 @@ import {
   type FormEvent,
 } from "react";
 import { ArtemisIcon } from "@artemis/ui/icons";
+import { Button } from "@artemis/ui/actions";
 import {
   BrowserAddressForm,
   BrowserAddressInput,
@@ -300,14 +301,16 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
     >
       <header className="workspace-panel-toolbar">
         <strong>{props.title}</strong>
-        <button
+        <Button
+          variant="quiet"
+          size="compact"
           className="text-button browser-refresh-button"
           disabled={!webviewReady || (pageLoading && loading)}
           onClick={reload}
           type="button"
         >
           {props.refreshLabel}
-        </button>
+        </Button>
       </header>
       <BrowserToolbar
         className="browser-toolbar"

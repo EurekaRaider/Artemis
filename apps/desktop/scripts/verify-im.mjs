@@ -355,7 +355,9 @@ try {
     join(output, "wizard.png"),
     Buffer.from(wizardCapture.data, "base64"),
   );
-  await click(button("1. 准备 Gateway"));
+  await click(
+    "Array.from(document.querySelectorAll('.im-step-button')).find(b=>b.querySelector('strong')?.textContent.trim()==='准备 Gateway')",
+  );
   await openView("spaces");
   await click("document.querySelector('#im-spaces summary')");
   assert.equal(

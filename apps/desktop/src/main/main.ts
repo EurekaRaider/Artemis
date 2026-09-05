@@ -11727,7 +11727,7 @@ async function driveSmokeFormControlsEvidence(
     },
     "form-controls-settings": {
       selector:
-        '#provider-config-builtin [data-artemis-component="text-field"] [data-part="control"]',
+        '#provider-config-builtin [data-artemis-component="text-field"] input[type="number"]',
     },
     "form-controls-settings-custom": {
       selector:
@@ -12217,7 +12217,10 @@ async function driveSmokeWorkspaceDockEvidence(
                 browserViewport !== null &&
                 document.querySelectorAll(
                   '[data-artemis-component="browser-navigation-button"]',
-                ).length === 3 &&
+                ).length === 2 &&
+                document.querySelector(
+                  '.workspace-panel-toolbar .browser-refresh-button[data-artemis-component="button"]',
+                ) instanceof HTMLButtonElement &&
                 document.querySelector(
                   '[data-artemis-component="browser-go-button"]',
                 ) !== null,
@@ -15494,7 +15497,7 @@ function createMainWindow(): BrowserWindow {
                       return;
                     }
                     const field = await waitForElement(
-                      '#provider-config-builtin [data-artemis-component="text-field"] [data-part="control"]',
+                      '#provider-config-builtin [data-artemis-component="text-field"] input[type="number"]',
                     );
                     const trigger = await waitForElement(
                       '#provider-config-builtin [data-artemis-component="select"] [data-part="trigger"]:not(:disabled)',
@@ -16098,13 +16101,15 @@ function createMainWindow(): BrowserWindow {
                   };
                   const openManageMcpTab = async () => {
                     document.querySelectorAll('.activity-button')[1]?.click();
-                    await waitFor('.resource-installed-overview .resource-icon-button');
-                    document
-                      .querySelector('.resource-installed-overview .resource-icon-button')
-                      ?.click();
                     const mcpTab = await waitFor('#resource-management-tab-mcp');
                     mcpTab?.click();
-                    await waitFor('#resource-management-panel-mcp');
+                    const selectedMcpTab = await waitFor(
+                      '#resource-management-tab-mcp[aria-selected="true"]',
+                    );
+                    const mcpPanel = await waitFor('#resource-management-panel-mcp:not([hidden])');
+                    if (!selectedMcpTab || !mcpPanel) {
+                      throw new Error('MCP management tab did not become selected.');
+                    }
                     const readSeedRowByName = (serverName) => {
                       const seededRow = [
                         ...document.querySelectorAll('.resource-management-row'),

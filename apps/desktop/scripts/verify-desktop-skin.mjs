@@ -332,16 +332,10 @@ const snapshot = () => {
   const environmentPanelWidth = Number.parseFloat(
     workspaceStyles?.getPropertyValue("--environment-panel-inline-size") ?? "",
   );
-  const environmentLayoutGap = Number.parseFloat(
-    workspaceStyles?.getPropertyValue("--environment-panel-layout-gap") ?? "",
-  );
-  const environmentMinimumConversationWidth = Number.parseFloat(
-    workspaceStyles?.getPropertyValue(
-      "--environment-panel-min-conversation-inline-size",
-    ) ?? "",
-  );
   const workspaceBounds =
     workspace instanceof HTMLElement ? workspace.getBoundingClientRect() : null;
+  const conversationBounds = document.querySelector('[data-artemis-component="conversation-surface"]')?.getBoundingClientRect();
+  const environmentBounds = document.querySelector('.environment-popover')?.getBoundingClientRect();
   const surfaceStyle = (element, tokenName) => {
     if (!(element instanceof HTMLElement)) return null;
     const computed = getComputedStyle(element);
@@ -496,22 +490,9 @@ const snapshot = () => {
         panelWidth: Number.isFinite(environmentPanelWidth)
           ? environmentPanelWidth
           : null,
-        layoutGap: Number.isFinite(environmentLayoutGap)
-          ? environmentLayoutGap
-          : null,
-        minimumConversationWidth: Number.isFinite(
-          environmentMinimumConversationWidth,
-        )
-          ? environmentMinimumConversationWidth
-          : null,
-        conversationWidth:
-          workspaceBounds &&
-          Number.isFinite(environmentPanelWidth) &&
-          Number.isFinite(environmentLayoutGap)
-            ? workspaceBounds.width -
-              environmentPanelWidth -
-              environmentLayoutGap
-            : null,
+        minimumConversationWidth: workspaceBounds ? Math.min(320, workspaceBounds.width) : null,
+        conversationWidth: conversationBounds?.width ?? null,
+        panelInsideViewport: Boolean(environmentBounds && environmentBounds.left >= 0 && environmentBounds.right <= window.innerWidth && environmentBounds.top >= 0 && environmentBounds.bottom <= window.innerHeight),
       },
       terminalActive:
         document.querySelector(
@@ -1428,6 +1409,18 @@ async function rememberRuntimeState(connection, includePortal) {
     await evaluate(
       connection,
       `(() => {
+        const trigger = document.querySelector(".environment-trigger");
+        if (trigger?.getAttribute("aria-expanded") === "true") trigger.click();
+      })()`,
+    );
+    await waitFor(
+      connection,
+      '!document.querySelector("#environment-branch-menu")',
+      "closed Environment portal before Composer focus",
+    );
+    await evaluate(
+      connection,
+      `(() => {
         const composer = document.querySelector(".composer textarea");
         composer?.focus();
         composer?.setSelectionRange(2, 8);
@@ -1793,6 +1786,8 @@ async function driveElectron() {
           runtimeViewport.width &&
         remembered.surfaces?.geometry?.viewport?.height ===
           runtimeViewport.height &&
+        remembered.state.environmentLayout.conversationWidth > 0 &&
+        remembered.state.environmentLayout.panelInsideViewport &&
         remembered.state.environmentLayout.conversationWidth >=
           remembered.state.environmentLayout.minimumConversationWidth &&
         remembered.state.portalInheritedCanvas ===
