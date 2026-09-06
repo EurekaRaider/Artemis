@@ -41,7 +41,6 @@ describe("screenshot visual contracts", () => {
       "justify-content": "center",
       "inline-size": "100%",
       "block-size": "100%",
-      "line-height": "0",
     });
     expect(declarations(shared, close + " svg").display).toBe("block");
   });

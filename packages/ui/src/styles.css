@@ -2741,7 +2741,6 @@
     justify-content: center;
     inline-size: 100%;
     block-size: 100%;
-    line-height: 0;
   }
 
   [data-artemis-component="workspace-tab"] > [data-part="close"] svg {
