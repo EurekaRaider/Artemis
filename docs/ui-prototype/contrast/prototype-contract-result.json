@@ -1,8 +1,8 @@
 {
- "version": "v17",
+ "version": "v18",
  "ok": true,
- "totalCards": 70,
- "passedCards": 70,
+ "totalCards": 73,
+ "passedCards": 73,
  "targetedCards": 23,
  "failures": [],
  "cardResults": {
@@ -264,9 +264,9 @@
    ],
    "targeted": [
     {
-     "name": "98-unique-icons",
+     "name": "102-unique-icons",
      "ok": true,
-     "detail": "count=98, unique=98"
+     "detail": "count=102, unique=102"
     }
    ]
   },
@@ -1480,6 +1480,60 @@
      "detail": ""
     }
    ]
+  },
+  "cat-artemis-21": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-22": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
+  },
+  "cat-artemis-23": {
+   "ok": true,
+   "generic": [
+    {
+     "name": "header",
+     "ok": true
+    },
+    {
+     "name": "body",
+     "ok": true
+    },
+    {
+     "name": "visible-title",
+     "ok": true
+    }
+   ],
+   "targeted": []
   },
   "cat-artemis-14": {
    "ok": true,

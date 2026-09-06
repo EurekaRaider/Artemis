@@ -1,18 +1,18 @@
 # 能力覆盖矩阵（components.html 70 卡 ↔ 基线 d0b7b9f 逐卡账本）
 
-> 版本：v17 · 基线：`d0b7b9fa20787c97c90cdb00a8fa827e275f5aef`（main）· 生成器：`prototype/tools/gen_matrix.py`
+> 版本：v18 · 基线：`d0b7b9fa20787c97c90cdb00a8fa827e275f5aef`（main）· 生成器：`prototype/tools/gen_matrix.py`
 >
 > 本文件由生成器产出，**所有数字来自 `matrix-stats.json`，禁止手写**。
-> 重新生成：`python3 tools/gen_matrix.py --version v17 --baseline d0b7b9fa20787c97c90cdb00a8fa827e275f5aef`
-> 校验：`python3 tools/gen_matrix.py --verify --version v17 --baseline d0b7b9fa20787c97c90cdb00a8fa827e275f5aef`
+> 重新生成：`python3 tools/gen_matrix.py --version v18 --baseline d0b7b9fa20787c97c90cdb00a8fa827e275f5aef`
+> 校验：`python3 tools/gen_matrix.py --verify --version v18 --baseline d0b7b9fa20787c97c90cdb00a8fa827e275f5aef`
 
-**双口径，禁止混淆。** 生产 TS/Electron 账本的 70 卡中 20 卡 partial、2 卡 uncovered，缺口仍如实列在第四节；与此同时，HTML 原型契约已经 70/70 通过，其中 23 张卡有定向交互断言（历史 partial/uncovered 22 张 + v19 新增 13c 胶囊 1 张）。
+**双口径，禁止混淆。** 生产 TS/Electron 账本的 70 卡中 21 卡 partial、2 卡 uncovered，缺口仍如实列在第四节；与此同时，HTML 原型契约已经 73/73 通过，其中 23 张卡有定向交互断言（历史 partial/uncovered 23 张 + v19 新增 13c 胶囊 0 张）。
 
 **校验边界：** runner 的 T8 执行 HTML 卡片的状态、交互、键盘和 ARIA 契约；`--verify` 读取并校验该结果，同时验证生产账本格式、计数和精确词边界锚点。HTML 通过不等于生产 TS 组件已经实现。
 
 ## 一、口径与计数规则
 
-- **分母 = 70 张卡**（components.html 全部 `class="spec"`，带稳定 `data-card` 属性）= 本文件总表行数 = covered+partial+uncovered 之和（48+20+2）。
+- **分母 = 73 张卡**（components.html 全部 `class="spec"`，带稳定 `data-card` 属性）= 本文件总表行数 = covered+partial+uncovered 之和（50+21+2）。
 - 卡 id：`<section>-<两位序号>`，按 DOM 顺序注入（如 `cat-input-03`），由 `--inject` 生成并经校验器与账本双向核对、无重复。
 - **行号全部由生成器按 `git show d0b7b9f:<path>` 定位并经校验器逐条验证**（断言「该行包含该符号」）。v14 中 EnvironmentPanel/SourcesPanel/McpServerEditor/WorkspaceFileEditor 的行号错位已在本版修正。
 - 模块为互斥分类：每卡恰好归一个模块，共 18 个；模块行内三态卡数之和 = 该模块卡数；全部模块卡数之和 = 分母；模块状态取组内最弱（含 uncovered 即 uncovered，否则含 partial 即 partial，否则 covered）；三态模块数之和 = 模块总数。
@@ -20,7 +20,7 @@
 - HTML 是否完成由 T8 判定；本表 status 则判定 **current main 的正式 TS/Electron 实现**相对 v17 HTML 契约的覆盖，不凭模块名或静态锚点臆断。
 - `covered` = current main 已有对应生产实现；`partial` = 已有主流程/锚点，但相对 v17 契约仍缺状态、键盘、ARIA、组件化或独立测试；`uncovered` = current main 无对应生产符号（该卡无 file:line 锚点，校验器强制）。
 
-## 二、逐卡总表（分母 70 = 行数）
+## 二、逐卡总表（分母 73 = 行数）
 
 | 卡 id | v14 编号 | 标题 | 模块 | 生产符号 | 基线锚点 | HTML 状态 | v17 交互契约 | v17 键盘 | v17 ARIA | 生产覆盖 | 生产迁移缺口 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -94,6 +94,9 @@
 | `cat-artemis-18` | 17b | 多组问答 | 会话与消息 | — | — | default | 单卡滑动切换；独立作答进度；点导航 | dots roving tabindex；←/→/Home/End；箭头钮 | tablist/tab/tabpanel + aria-controls/labelledby；进度与独立计时 | uncovered | 前瞻设计：当前协议 userInputRequestedPayloadSchema 为单问题 header/question/options（packages/protocol/src/schema.ts:368），无多问题数组；正式迁移必须先扩展版本化协议与幂等 reducer，不能仅复制 HTML 交互；当前无生产锚点 |
 | `cat-artemis-19` | 17c | 输入结果态 | 会话与消息 | `timedOut` | `apps/desktop/src/renderer/App.tsx:461` | conflict | 静态超时/已选结果展示 | 无 | 结果条文案（超时采用推荐项） | covered | — |
 | `cat-artemis-20` | 18 | 审批卡 | 运行模式与审批 | `approval-card` | `apps/desktop/src/renderer/App.tsx:9861` | default | 允许一次/始终允许/拒绝 | Tab + Enter | 警示图标+命令块+三动作 | covered | — |
+| `cat-artemis-21` | 13n | 极致模式选项 | 输入区 | `activeUltraMode` | `apps/desktop/src/renderer/App.tsx:3836` | default、conflict | 菜单项选择（menuitemradio 语义，aria-checked 表达选中） | 菜单内方向键移动 + Enter 选择 | menuitemradio + aria-checked + 配额注记 | partial | 正式菜单已支持极致档（App.tsx 7552 区域），但原型的浮光动效（.ultra-shine 4.5s 循环）与独立注记行样式未固化到生产 UI |
+| `cat-artemis-22` | 13o | 归档列表行 | 主壳与导航 | `ArchivePage` | `apps/desktop/src/renderer/ArchivePage.tsx:74` | default、empty、loading | 整行悬停中性填充；打开（primary）/恢复（ghost）/删除（ghost+danger 文字） | 列表 Tab 顺序访问动作钮 | 项目归属+时间头部行、标题、可选目标行；空态图标瓦+清除搜索切换 | covered | — |
+| `cat-artemis-23` | 13p | 已归档只读横幅 | 输入区 | `archived-readonly` | `apps/desktop/src/renderer/App.tsx:6333` | default | 恢复钮解档并交还输入区（与归档列表行的恢复共用解档通道） | Tab + Enter 触发恢复 | role=status + 归档箱图标 + 两级文案 + 恢复 primary 钮 | covered | — |
 
 ## 三、模块汇总（互斥分类，18 模块，卡数和 = 70）
 
@@ -104,20 +107,20 @@
 | `iconography` | 图标系统 | 4 | 2 | 2 | 0 | partial |
 | `form-inputs` | 输入与选择 | 5 | 4 | 1 | 0 | partial |
 | `overlays` | 浮层 | 3 | 3 | 0 | 0 | covered |
-| `shell-navigation` | 主壳与导航 | 8 | 1 | 6 | 1 | uncovered |
+| `shell-navigation` | 主壳与导航 | 9 | 2 | 6 | 1 | uncovered |
 | `data-display` | 数据容器 | 7 | 5 | 2 | 0 | partial |
 | `feedback-states` | 状态反馈 | 4 | 4 | 0 | 0 | covered |
 | `sources-panel` | 任务来源 | 5 | 2 | 3 | 0 | partial |
 | `goal-editor` | 目标编辑器 | 2 | 0 | 2 | 0 | partial |
 | `environment` | 环境与 PR checks | 2 | 1 | 1 | 0 | partial |
-| `composer` | 输入区 | 3 | 3 | 0 | 0 | covered |
+| `composer` | 输入区 | 5 | 4 | 1 | 0 | partial |
 | `run-control` | 运行模式与审批 | 2 | 2 | 0 | 0 | covered |
 | `task-activity` | 工具活动与计划 | 2 | 2 | 0 | 0 | covered |
 | `agents` | Agent 团队 | 1 | 1 | 0 | 0 | covered |
 | `workspace-panels` | 工作区面板 | 2 | 1 | 1 | 0 | partial |
 | `settings-mcp` | 设置与 MCP | 1 | 0 | 1 | 0 | partial |
 | `session-messaging` | 会话与消息 | 8 | 6 | 1 | 1 | uncovered |
-| **合计** | — | **70** | 8 | 8 | 2 | **18 模块** |
+| **合计** | — | **73** | 7 | 9 | 2 | **18 模块** |
 
 ## 四、生产迁移清单（全部为 partial/uncovered）
 
@@ -148,19 +151,20 @@ v17 HTML 已由 T8 覆盖以下卡片；这里列的是 current main 正式实�
 - `cat-data-02`（活动栏按钮）：正式 App.tsx 活动栏仍只有 active class，没有 aria-current=page；TS 迁移必须补齐
 - `cat-data-09`（卡片 + 统计卡）：生产无通用 .card/.stat-card 组件类，统计呈现内聚在 TokenUsagePage/ResourceCenter 页面内
 - `cat-data-12`（热力图 + 终端）：终端 covered（TerminalPanel 基线有组件）；热力图在基线无对应组件
+- `cat-artemis-21`（极致模式选项）：正式菜单已支持极致档（App.tsx 7552 区域），但原型的浮光动效（.ultra-shine 4.5s 循环）与独立注记行样式未固化到生产 UI
 
 ## 五、统计
 
-HTML 原型契约：**70/70**；定向交互断言卡：**23**（历史缺口 22 + v19 13c 胶囊 1）；证据：`contrast/prototype-contract-result.json`。
+HTML 原型契约：**73/73**；定向交互断言卡：**23**（历史缺口 23 + v19 13c 胶囊 0）；证据：`contrast/prototype-contract-result.json`。
 
 | 覆盖状态 | 卡数 | 占比 |
 |---|---|---|
-| covered | 48 | 69% |
-| partial | 20 | 28% |
+| covered | 50 | 68% |
+| partial | 21 | 29% |
 | uncovered | 2 | 3% |
-| **合计** | **70** | **100%** |
+| **合计** | **73** | **100%** |
 
-模块互斥分类：18 个模块 = covered 8 + partial 8 + uncovered 2（和 = 模块总数）。
+模块互斥分类：18 个模块 = covered 7 + partial 9 + uncovered 2（和 = 模块总数）。
 
 ## 六、诚实边界
 

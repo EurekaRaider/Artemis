@@ -1,11 +1,16 @@
-/* Shared by components.html and apple-inspired-ui.html. Component library is the design source. */
+/* Shared by components.html and artemis-ui.html. Component library is the design source. */
 /* ============ 共享动效与圆角语义 ============ */
 :root {
   --t-quick: 180ms cubic-bezier(0.32, 0.72, 0, 1);
   --t-med: 320ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 /* ============ 方向 A · Apple-inspired（舒适密度 同心圆角 轻毛玻璃） ============ */
-[data-direction="a"] {
+html[data-direction="a"] {
+  /* v111：ZCode 精确交互阶梯——亮色 selected 高于 hover 一档（10% vs 5%）、暗色两者持平（各值在主题块），
+     选中同时靠字重/文本色双保险。选择器带 html 以压过 compat.css 的 html[data-direction]（0,1,1）。 */
+  /* ZCode 字体体系：系统字体栈（直接覆盖 --ui-font/--mono-font 别名） */
+  --ui-font: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --mono-font: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --r-sm: 8px;
   --r-md: 10px;
   --r-lg: 12px;
@@ -15,64 +20,77 @@
   --sp-btn-x: 15px;
   --sp-field-y: 9px;
   --row-h: 36px;
-  --fs: 13.5px;
+  --fs: 14px;
   --surface-material: var(--surface);
   --overlay-blur: blur(6px);
   --font-display: inherit;
   --title-ls: -0.01em;
 }
 [data-direction="a"][data-theme="light"] {
-  --bg: #f5f5f7;
+  /* ZCode 基底：neutral 灰阶 + sky 品牌蓝 + 近黑主按钮 */
+  --bg: #fafafa;
+  --bg-sidebar: #f5f5f5;
   --surface: #ffffff;
-  --surface-2: #f5f5f7;
-  --surface-3: #ececee;
-  --text: #1d1d1f;
-  --text-2: #5a5a60;
-  --text-3: #68686c;
-  --border: rgba(0, 0, 0, 0.12);
-  --border-soft: rgba(0, 0, 0, 0.07);
-  --accent: #0071e3;
-  --accent-strong: #0060c9;
-  --accent-contrast: #ffffff;
-  --accent-text: #0056ae;
-  --success: #23843b;
-  --warning: #b25000;
-  --danger: #d70015;
-  --success-text: #1d6c30;
+  --surface-2: #f5f5f5;
+  --surface-3: #e5e5e5;
+  --text: #404040;
+  --text-2: rgba(64, 64, 64, 0.6);
+  --text-3: rgba(64, 64, 64, 0.47);
+  --border: rgba(10, 10, 10, 0.1);
+  --border-soft: rgba(10, 10, 10, 0.06);
+  --accent: #0a0a0a;
+  --accent-strong: #171717;
+  --accent-contrast: #fafafa;
+  --accent-text: #171717;
+  --success: #16a34a;
+  --warning: #ca8a04;
+  --danger: #dc2626;
+  --success-text: #12702f;
   --on-success: #ffffff;
-  --danger-solid: #d70015;
-  --danger-text: #c80014;
-  --warning-text: #ab4d00;
-  --accent-hover: #0071e3;
-  --focus-ring: rgba(0, 113, 227, 0.35);
+  --danger-solid: #dc2626;
+  --danger-text: #b91c1c;
+  --warning-text: #8a5406;
+  --accent-hover: #262626;
+  --focus-ring: rgba(10, 10, 10, 0.45);
+  --selected: rgba(10, 10, 10, 0.1);
+  --bg-activity: #f5f5f5;
+  --terminal-bg: #fafafa;
+  --terminal-fg: #0a0a0a;
   --shadow-overlay:
     0 12px 40px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.06);
   color-scheme: light;
 }
 [data-direction="a"][data-theme="dark"] {
-  --bg: #1d1d1f;
-  --surface: #232325;
-  --surface-2: #2c2c2e;
-  --surface-3: #3a3a3c;
-  --text: #f5f5f7;
-  --text-2: #bcbcc1;
-  --text-3: #a6a6aa;
-  --border: rgba(255, 255, 255, 0.16);
-  --border-soft: rgba(255, 255, 255, 0.08);
-  --accent: #2077c9;
-  --accent-strong: #2f8ad8;
-  --accent-contrast: #ffffff;
-  --accent-text: #89b7e2;
-  --success: #30d158;
-  --warning: #ffd60a;
-  --danger: #ff453a;
-  --success-text: #30d158;
-  --on-success: #0e1510;
-  --danger-solid: #d63a31;
-  --danger-text: #ff8179;
-  --warning-text: #ffd60a;
-  --accent-hover: #2076c7;
-  --focus-ring: rgba(41, 151, 255, 0.5);
+  /* ZCode 基底：neutral 灰阶 + sky 品牌蓝 + 近白主按钮 */
+  --bg: #171717;
+  --bg-sidebar: #0a0a0a;
+  --surface: #262626;
+  --surface-2: #303030;
+  --surface-3: #3d3d3d;
+  --text: #e5e5e5;
+  --text-2: rgba(229, 229, 229, 0.6);
+  --text-3: rgba(229, 229, 229, 0.33);
+  --border: rgba(250, 250, 250, 0.1);
+  --border-soft: rgba(250, 250, 250, 0.06);
+  --accent: #fafafa;
+  --accent-strong: #d4d4d4;
+  --accent-contrast: #0a0a0a;
+  --accent-text: #f5f5f5;
+  --success: #22c55e;
+  --warning: #eab308;
+  --danger: #ef4444;
+  --success-text: #4ade80;
+  --on-success: #052e16;
+  --danger-solid: #ef4444;
+  --danger-text: #ff8a8a;
+  --warning-text: #facc15;
+  --accent-hover: #e5e5e5;
+  --focus-ring: rgba(250, 250, 250, 0.5);
+  --hover: rgba(229, 229, 229, 0.1);
+  --selected: rgba(229, 229, 229, 0.1);
+  --bg-activity: #0a0a0a;
+  --terminal-bg: #0a0a0a;
+  --terminal-fg: #fafafa;
   --shadow-overlay:
     0 12px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
   color-scheme: dark;
@@ -214,7 +232,7 @@
   --success-text: #7fb98a;
   --on-success: #12140f;
   --danger-solid: #ae5f4a;
-  --danger-text: #e3856d;
+  --danger-text: #e68a75;
   --warning-text: #d9a84e;
   --accent-hover: #a2644d;
   --focus-ring: rgba(224, 138, 107, 0.5);
@@ -245,4 +263,18 @@
   --z-popover: 60;
   --z-dialog: 100;
   --z-toast: 200;
+}
+
+/* ============ v79 追加：ZCode 字体栈（置于文件末尾确保层叠取胜） ============ */
+:root {
+  --font-ui:
+    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol";
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+}
+html,
+body {
+  font-family: var(--ui-font);
 }

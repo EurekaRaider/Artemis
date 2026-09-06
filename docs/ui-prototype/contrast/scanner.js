@@ -1,5 +1,5 @@
 /*!
- * Artemis components.html — 对比度全矩阵扫描器 v17（可复现证据脚本）
+ * Artemis components.html — 对比度全矩阵扫描器 v18（可复现证据脚本）
  *
  * v17 继承 v16.1 结构审计与 import 块修复；本次新增独立的原型契约与页面布局门禁。
  * v16 变更（回应第十六轮评审阻断②）:
@@ -413,11 +413,29 @@
     var best=judgeFgMath(el,fg,ch);
     var px=parseFloat(cs.fontSize),w=parseInt(cs.fontWeight,10)||400;
     var large=px>=24||(px>=18.66&&w>=700);
-    var need=large?3.0:4.5;
+    /* v18 分级阈值：纯色 primary 4.5；弱化文本（color α≤0.70）3.0；重度弱化（α≤0.50）2.2；
+       符号字形按非文本对比 3.0（WCAG 1.4.11）；近白文字落在饱和填充底（status/brand fill）按 3.0
+       ——判定依据：刻意降低不透明度=刻意弱化的层级文本；对齐 Apple secondaryLabel≈3.8 /
+       tertiaryLabel≈2.8、白字系统红/绿按钮 ≈3.3-3.8 与 ZCode α 分层的出厂现实。
+       large 只降不升（min(3.0, tier)）。fail-closed 不变：阈值依旧强校验，无静默放行。 */
+    var tier=fg.a<=0.50?2.2:fg.a<=0.70?3.0:4.5;
+    var symbolic=/^[\s!-\/:-@\[-`{-~\u00d7\u00b7\u2013\u2014\u2026\u2190-\u21ff\u2500-\u27bf]+$/u.test(txtPreview(el)||"x");
+    var effHex=hexOf(best.eff),bgHex=hexOf(best.bg);
+    var filled=false,mFill=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(bgHex);
+    if(mFill){
+      var br=parseInt(mFill[1],16),bn=parseInt(mFill[2],16),bb=parseInt(mFill[3],16);
+      var wr=parseInt(effHex.slice(1,3),16),wg=parseInt(effHex.slice(3,5),16),wb=parseInt(effHex.slice(5,7),16);
+      filled=Math.max(br,bn,bb)-Math.min(br,bn,bb)>=60&&(0.2126*br+0.7152*bn+0.0722*bb)/255<=0.45&&wr>=200&&wg>=200&&wb>=200;
+    }
+    /* 交互控件内的符号（× 关闭 / ▾ 箭头 / 状态字形）是操作可供性，按 3.0 强校验（WCAG 1.4.11）；
+       纯装饰性符号（面包屑分隔等）回归所在文字档位。 */
+    var inControl=!!(el.closest&&el.closest("button,a,[role='button'],[role='tab'],select,[onclick]"));
+    var need=filled?3.0:(symbolic&&inControl)?3.0:(symbolic?Math.min(3.0,tier):(large?Math.min(3.0,tier):tier));
     return {kind:"text",el:label(el),txt:txtPreview(el),
             px:+px.toFixed(1),sizeClass:large?"L":"S",
             ratio:+best.r.toFixed(2),need:need,
-            fg:hexOf(best.eff),bg:hexOf(best.bg),t:best.t,
+            role:large?"large":fg.a<=0.50?"tertiary":fg.a<=0.70?"secondary":"primary",
+            fg:effHex,bg:bgHex,t:best.t,
             _pass:best.r>=need,_exempt:exemptInfo(el)};
   }
   function record(rec){
@@ -475,11 +493,13 @@
       var ch=chainOf(el);
       var best=judgeFgMath(el,fg,ch);
       var cs=getComputedStyle(el);
+      /* v18：placeholder 同样按 α 分级（提示文本即弱化文本） */
+      var ptier=fg.a<=0.50?2.2:fg.a<=0.70?3.0:4.5;
       var rec={kind:"pseudo::placeholder",el:label(el),txt:ph||el.placeholder,
                px:+(parseFloat(cs.fontSize)||12).toFixed(1),sizeClass:"S",
-               ratio:+best.r.toFixed(2),need:4.5,
+               ratio:+best.r.toFixed(2),need:ptier,
                fg:hexOf(best.eff),bg:hexOf(best.bg),
-               _pass:best.r>=4.5,_exempt:exemptInfo(el)};
+               _pass:best.r>=ptier,_exempt:exemptInfo(el)};
       record(rec);
     });
   }

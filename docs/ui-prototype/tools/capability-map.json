@@ -1,5 +1,5 @@
 {
-  "version": "v17",
+  "version": "v18",
   "baseline": {
     "commit": "d0b7b9fa20787c97c90cdb00a8fa827e275f5aef",
     "branch": "main",
@@ -9,7 +9,7 @@
   "prototypeContract": {
     "runner": "prototype/tools/prototype-contracts.js",
     "result": "prototype/contrast/prototype-contract-result.json",
-    "expectedCards": 70,
+    "expectedCards": 73,
     "expectedTargetedCards": 23
   },
   "cards": [
@@ -1302,6 +1302,62 @@
       "interaction": "允许一次/始终允许/拒绝",
       "keyboard": "Tab + Enter",
       "aria": "警示图标+命令块+三动作",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-21",
+      "no": "13n",
+      "title": "极致模式选项",
+      "module": "composer",
+      "symbol": "activeUltraMode",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 3836,
+      "states": [
+        "default",
+        "conflict"
+      ],
+      "interaction": "菜单项选择（menuitemradio 语义，aria-checked 表达选中）",
+      "keyboard": "菜单内方向键移动 + Enter 选择",
+      "aria": "menuitemradio + aria-checked + 配额注记",
+      "status": "partial",
+      "gaps": [
+        "正式菜单已支持极致档（App.tsx 7552 区域），但原型的浮光动效（.ultra-shine 4.5s 循环）与独立注记行样式未固化到生产 UI"
+      ]
+    },
+    {
+      "card": "cat-artemis-22",
+      "no": "13o",
+      "title": "归档列表行",
+      "module": "shell-navigation",
+      "symbol": "ArchivePage",
+      "file": "apps/desktop/src/renderer/ArchivePage.tsx",
+      "line": 74,
+      "states": [
+        "default",
+        "empty",
+        "loading"
+      ],
+      "interaction": "整行悬停中性填充；打开（primary）/恢复（ghost）/删除（ghost+danger 文字）",
+      "keyboard": "列表 Tab 顺序访问动作钮",
+      "aria": "项目归属+时间头部行、标题、可选目标行；空态图标瓦+清除搜索切换",
+      "status": "covered",
+      "gaps": []
+    },
+    {
+      "card": "cat-artemis-23",
+      "no": "13p",
+      "title": "已归档只读横幅",
+      "module": "composer",
+      "symbol": "archived-readonly",
+      "file": "apps/desktop/src/renderer/App.tsx",
+      "line": 6333,
+      "states": [
+        "default"
+      ],
+      "interaction": "恢复钮解档并交还输入区（与归档列表行的恢复共用解档通道）",
+      "keyboard": "Tab + Enter 触发恢复",
+      "aria": "role=status + 归档箱图标 + 两级文案 + 恢复 primary 钮",
       "status": "covered",
       "gaps": []
     }

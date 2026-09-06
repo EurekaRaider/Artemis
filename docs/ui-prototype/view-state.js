@@ -1,5 +1,5 @@
 // 通过 URL hash 驱动视图状态，供 headless 截图与人工分享
-// 用法: apple-inspired-ui.html#view=archive&theme=dark&dock=terminal&settings=1
+// 用法: artemis-ui.html#view=archive&theme=dark&dock=terminal&settings=1
 (function () {
   var params = new URLSearchParams(location.hash.slice(1) || "");
   if (!params.toString()) return;
@@ -18,6 +18,14 @@
     document.querySelectorAll(".dock-tab[data-dock-tab]").forEach(function (t) {
       t.classList.toggle("active", t.getAttribute("data-dock-tab") === dock);
     });
+    var dockResizer = document.getElementById("dockResizer");
+    if (dockResizer) {
+      dockResizer.tabIndex = dock === "open" ? 0 : -1;
+      dockResizer.setAttribute(
+        "aria-disabled",
+        dock === "open" ? "false" : "true",
+      );
+    }
   }
   if (params.get("settings") === "1") {
     document.getElementById("settingsBackdrop").classList.add("open");

@@ -2,7 +2,7 @@
 """capability-matrix 生成器 + 校验器（v17）。
 
 职责（R15 第②项）：
-  1. 解析 prototype/components.html 中全部 class="spec" 卡片（70 张），
+  1. 解析 prototype/components.html 中全部 class="spec" 卡片（73 张），
      按 DOM 顺序与所属 section 生成稳定 card id（<section>-<两位序号>），
      并可注入 data-card 属性（--inject，幂等）。
   2. 读取 prototype/tools/capability-map.json（手写逐卡账本），
@@ -19,7 +19,7 @@
   python3 tools/gen_matrix.py --verify --version v17 --baseline <sha>
 
 计数与百分比规则（写入文档头部，校验器据此裁定）：
-  - 分母 = components.html 的 .spec 卡数（70）= 账本 cards 数 = 总表行数
+  - 分母 = components.html 的 .spec 卡数（73）= 账本 cards 数 = 总表行数
     = covered+partial+uncovered 之和。
   - 模块为互斥分类：每卡恰好归一个模块；模块行内三态卡数之和 = 该模块卡数；
     全部模块卡数之和 = 分母；模块数 = modules 行数；
@@ -441,7 +441,7 @@ def build_markdown(map_data: dict, stats: dict, version: str, baseline: str) -> 
     )
     ap("")
 
-    ap("## 二、逐卡总表（分母 70 = 行数）")
+    ap("## 二、逐卡总表（分母 73 = 行数）")
     ap("")
     ap("| 卡 id | v14 编号 | 标题 | 模块 | 生产符号 | 基线锚点 | HTML 状态 | v17 交互契约 | v17 键盘 | v17 ARIA | 生产覆盖 | 生产迁移缺口 |")
     ap("|---|---|---|---|---|---|---|---|---|---|---|---|")
@@ -587,8 +587,8 @@ def run_checks(map_data: dict, baseline: Baseline, html_ids: list[str]) -> dict:
         )
     if len(html_ids) != len(set(html_ids)):
         fail("components.html data-card 存在重复")
-    if len(map_ids) != 70:
-        fail(f"分母应为 70 张卡，实际 {len(map_ids)}")
+    if len(map_ids) != 73:
+        fail(f"分母应为 73 张卡，实际 {len(map_ids)}")
 
     anchored_count = 0
     for card in map_data["cards"]:

@@ -50,7 +50,7 @@ attribute-only resolver pass into a migrated production surface.
   (`sha256:808ee19c05236b8bc1e83b0c9914f9985d3d091c5df4bb36adc46440c229068c`),
   `ui-prototype/components.html`
   (`sha256:8e6926592a21edb6bcaf228b8ed2c86aed563c2a106faa702ccbaf2404f5f28c`),
-  `ui-prototype/apple-inspired-ui.html`
+  `ui-prototype/artemis-ui.html`
   (`sha256:25bb03a28c1e04dd73e57f64d27d3ac2ab6a24ebfe829053e4a540c351c29bbf`),
   `ui-prototype/proposal-ui-library.md`,
   `ui-prototype/capability-matrix.md`,
@@ -93,7 +93,7 @@ an author signature or trust decision.
 ## CL1A Direction A merged decisions
 
 `components.html` is authoritative where v17 corrected a semantic role for
-contrast; `apple-inspired-ui.html` supplements shell surfaces, terminal, diff,
+contrast; `artemis-ui.html` supplements shell surfaces, terminal, diff,
 and mode-specific shadows. The README's explicit five-level Direction A
 mapping resolves the component-page naming collision as control/input/card/
 panel/composer = `8/10/12/16/18px`; the comparison page's local

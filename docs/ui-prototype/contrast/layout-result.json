@@ -17,12 +17,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":318,\"y\":575,\"width\":388.96875,\"height\":220,\"top\":575,\"right\":706.96875,\"bottom\":795,\"left\":318}"
+     "detail": "composer={\"x\":490,\"y\":560,\"width\":720,\"height\":235,\"top\":560,\"right\":1210,\"bottom\":795,\"left\":490}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":331,\"y\":719,\"width\":362.96875,\"height\":66,\"top\":719,\"right\":693.96875,\"bottom\":785,\"left\":331}"
+     "detail": "toolbar={\"x\":503,\"y\":753,\"width\":694,\"height\":32,\"top\":753,\"right\":1197,\"bottom\":785,\"left\":503}"
     },
     {
      "name": "toolbar-control-1",
@@ -52,22 +52,62 @@
     {
      "name": "toolbar-control-6",
      "ok": true,
-     "detail": "GLM · 自动"
+     "detail": "上下文窗口：34% 已用（剩余 66%）。已用 6.8万 Token，共 20万。上次模型实测输入 5.9万 Token。按类别估算的用量：系统提示词 1.2万 Token (6.0%)。系统工具 8,600 Token (4.3%)。MCP 工具 6,200 Token (3.1%)。记忆文件 2,400 Token (1.2%)。Skills 1,800 Token (0.9%)。消息 3.7万 Token (18.5%)。可用空间 12.4万 Token (62.0%)。自动压缩缓冲区 8,000 Token (4.0%)。"
     },
     {
      "name": "toolbar-control-7",
      "ok": true,
-     "detail": "停止"
+     "detail": "模型与推理强度"
     },
     {
      "name": "toolbar-control-8",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）GLM-5.3✓"
+    },
+    {
+     "name": "toolbar-control-9",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）GLM-5.4 Air"
+    },
+    {
+     "name": "toolbar-control-10",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）Claude Sonnet 4.6"
+    },
+    {
+     "name": "toolbar-control-11",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）低"
+    },
+    {
+     "name": "toolbar-control-12",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）中✓"
+    },
+    {
+     "name": "toolbar-control-13",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）高"
+    },
+    {
+     "name": "toolbar-control-14",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）极致模式更快消耗使用额度"
+    },
+    {
+     "name": "toolbar-control-15",
+     "ok": true,
+     "detail": "停止"
+    },
+    {
+     "name": "toolbar-control-16",
      "ok": true,
      "detail": "发送"
     },
     {
      "name": "resizer-pixel-range",
      "ok": true,
-     "detail": "440 <= 708 <= 815"
+     "detail": "360 <= 612 <= 612"
     },
     {
      "name": "resizer-controls",
@@ -77,7 +117,7 @@
     {
      "name": "closed-resizer-not-tabbable",
      "ok": true,
-     "detail": "open=true, tabindex=0"
+     "detail": "open=false, tabindex=-1"
     },
     {
      "name": "launcher-has-four-tools",
@@ -104,12 +144,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":318,\"y\":575,\"width\":388.9609375,\"height\":220,\"top\":575,\"right\":706.9609375,\"bottom\":795,\"left\":318}"
+     "detail": "composer={\"x\":490,\"y\":560,\"width\":720,\"height\":235,\"top\":560,\"right\":1210,\"bottom\":795,\"left\":490}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":331,\"y\":719,\"width\":362.9609375,\"height\":66,\"top\":719,\"right\":693.9609375,\"bottom\":785,\"left\":331}"
+     "detail": "toolbar={\"x\":503,\"y\":753,\"width\":694,\"height\":32,\"top\":753,\"right\":1197,\"bottom\":785,\"left\":503}"
     },
     {
      "name": "toolbar-control-1",
@@ -139,22 +179,62 @@
     {
      "name": "toolbar-control-6",
      "ok": true,
-     "detail": "GLM · 自动"
+     "detail": "上下文窗口：34% 已用（剩余 66%）。已用 6.8万 Token，共 20万。上次模型实测输入 5.9万 Token。按类别估算的用量：系统提示词 1.2万 Token (6.0%)。系统工具 8,600 Token (4.3%)。MCP 工具 6,200 Token (3.1%)。记忆文件 2,400 Token (1.2%)。Skills 1,800 Token (0.9%)。消息 3.7万 Token (18.5%)。可用空间 12.4万 Token (62.0%)。自动压缩缓冲区 8,000 Token (4.0%)。"
     },
     {
      "name": "toolbar-control-7",
      "ok": true,
-     "detail": "停止"
+     "detail": "模型与推理强度"
     },
     {
      "name": "toolbar-control-8",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）GLM-5.3✓"
+    },
+    {
+     "name": "toolbar-control-9",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）GLM-5.4 Air"
+    },
+    {
+     "name": "toolbar-control-10",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）Claude Sonnet 4.6"
+    },
+    {
+     "name": "toolbar-control-11",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）低"
+    },
+    {
+     "name": "toolbar-control-12",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）中✓"
+    },
+    {
+     "name": "toolbar-control-13",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）高"
+    },
+    {
+     "name": "toolbar-control-14",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）极致模式更快消耗使用额度"
+    },
+    {
+     "name": "toolbar-control-15",
+     "ok": true,
+     "detail": "停止"
+    },
+    {
+     "name": "toolbar-control-16",
      "ok": true,
      "detail": "发送"
     },
     {
      "name": "resizer-pixel-range",
      "ok": true,
-     "detail": "440 <= 708 <= 815"
+     "detail": "360 <= 612 <= 612"
     },
     {
      "name": "resizer-controls",
@@ -164,7 +244,7 @@
     {
      "name": "closed-resizer-not-tabbable",
      "ok": true,
-     "detail": "open=true, tabindex=0"
+     "detail": "open=false, tabindex=-1"
     },
     {
      "name": "launcher-has-four-tools",
@@ -191,12 +271,12 @@
     {
      "name": "composer-inside-conversation",
      "ok": true,
-     "detail": "composer={\"x\":409,\"y\":609,\"width\":920,\"height\":186,\"top\":609,\"right\":1329,\"bottom\":795,\"left\":409}"
+     "detail": "composer={\"x\":490,\"y\":560,\"width\":720,\"height\":235,\"top\":560,\"right\":1210,\"bottom\":795,\"left\":490}"
     },
     {
      "name": "toolbar-inside-composer",
      "ok": true,
-     "detail": "toolbar={\"x\":422,\"y\":753,\"width\":894,\"height\":32,\"top\":753,\"right\":1316,\"bottom\":785,\"left\":422}"
+     "detail": "toolbar={\"x\":503,\"y\":753,\"width\":694,\"height\":32,\"top\":753,\"right\":1197,\"bottom\":785,\"left\":503}"
     },
     {
      "name": "toolbar-control-1",
@@ -226,22 +306,62 @@
     {
      "name": "toolbar-control-6",
      "ok": true,
-     "detail": "GLM · 自动"
+     "detail": "上下文窗口：34% 已用（剩余 66%）。已用 6.8万 Token，共 20万。上次模型实测输入 5.9万 Token。按类别估算的用量：系统提示词 1.2万 Token (6.0%)。系统工具 8,600 Token (4.3%)。MCP 工具 6,200 Token (3.1%)。记忆文件 2,400 Token (1.2%)。Skills 1,800 Token (0.9%)。消息 3.7万 Token (18.5%)。可用空间 12.4万 Token (62.0%)。自动压缩缓冲区 8,000 Token (4.0%)。"
     },
     {
      "name": "toolbar-control-7",
      "ok": true,
-     "detail": "停止"
+     "detail": "模型与推理强度"
     },
     {
      "name": "toolbar-control-8",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）GLM-5.3✓"
+    },
+    {
+     "name": "toolbar-control-9",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）GLM-5.4 Air"
+    },
+    {
+     "name": "toolbar-control-10",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）Claude Sonnet 4.6"
+    },
+    {
+     "name": "toolbar-control-11",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）低"
+    },
+    {
+     "name": "toolbar-control-12",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）中✓"
+    },
+    {
+     "name": "toolbar-control-13",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）高"
+    },
+    {
+     "name": "toolbar-control-14",
+     "ok": true,
+     "detail": "（收起浮层，跳过边界）极致模式更快消耗使用额度"
+    },
+    {
+     "name": "toolbar-control-15",
+     "ok": true,
+     "detail": "停止"
+    },
+    {
+     "name": "toolbar-control-16",
      "ok": true,
      "detail": "发送"
     },
     {
      "name": "resizer-pixel-range",
      "ok": true,
-     "detail": "440 <= 708 <= 815"
+     "detail": "360 <= 612 <= 612"
     },
     {
      "name": "resizer-controls",

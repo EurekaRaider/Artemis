@@ -37,7 +37,7 @@
     var sizeCard = q('[data-card="cat-icons-02"]');
     assert("cat-icons-02", "five-size-tiers", ["xs", "sm", "lg", "xl"].every(function (c) { return sizeCard.querySelector("svg.ic." + c); }) && sizeCard.querySelector("svg.ic:not(.xs):not(.sm):not(.lg):not(.xl)"), "xs/sm/base/lg/xl");
     var iconNames = qa('[data-card="cat-icons-03"] .ic-name').map(function (n) { return n.textContent.trim(); });
-    assert("cat-icons-03", "100-unique-icons", iconNames.length === 100 && new Set(iconNames).size === 100, "count=" + iconNames.length + ", unique=" + new Set(iconNames).size);
+    assert("cat-icons-03", "102-unique-icons", iconNames.length === 102 && new Set(iconNames).size === 102, "count=" + iconNames.length + ", unique=" + new Set(iconNames).size);
 
     var typeCard = q('[data-card="cat-input-03"]');
     ["password", "url", "number", "date", "file"].forEach(function (type) { assert("cat-input-03", type + "-field", Boolean(typeCard.querySelector('input[type="' + type + '"]')), type); });
@@ -146,7 +146,7 @@
     if (targetedCards.length !== 23) failures.push("catalog / targeted-card-count: expected 23, got " + targetedCards.length);
     var passedCards = Object.keys(cardResults).filter(function (card) { return cardResults[card].ok; }).length;
     return {
-      version: "v17",
+      version: "v18",
       ok: failures.length === 0 && passedCards === 73,
       totalCards: specs.length,
       passedCards: passedCards,

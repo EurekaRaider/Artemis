@@ -6,7 +6,7 @@
 
 ## 1. 范围与非目标
 
-**范围:仅「消息接入」tab 的内容区**(`apple-inspired-ui.html` `#settingsPanelIm` 及其 `workspace.css` / `workspace.js` / `fixtures.js` 配套)。
+**范围:仅「消息接入」tab 的内容区**(`artemis-ui.html` `#settingsPanelIm` 及其 `workspace.css` / `workspace.js` / `fixtures.js` 配套)。
 
 **非目标(零改动项):**
 
@@ -230,7 +230,7 @@
 
 | 步骤 | 内容 | 落点 |
 |---|---|---|
-| P1 | `#settingsPanelIm` 重写为三态结构(向导 / 管理双栏 / 紧凑),三平台渠道卡替换旧「钉钉即将支持」 | `apple-inspired-ui.html` |
+| P1 | `#settingsPanelIm` 重写为三态结构(向导 / 管理双栏 / 紧凑),三平台渠道卡替换旧「钉钉即将支持」 | `artemis-ui.html` |
 | P2 | `im-*` 新规则(含紧凑态降级与 200% 缩放),删除被替换的旧 IM 规则 | `workspace/workspace.css` |
 | P3 | 演示数据与状态切换:设备 / 凭据 / 连接 / 配对请求 / 绑定 / 授权各造一组 fixture;`#settings=1&im=wizard|manage` 直达两态,窄视口自动演紧凑态 | `workspace/fixtures.js` + `workspace/workspace.js` |
 | P4 | 专项断言:三态结构、渠道卡切换、条件卡显隐、内联确认、凭据两态、主开关守卫、紧凑断点;并复跑 T8 / T9 防回归 | `tools/` 既有 Playwright 体系 |

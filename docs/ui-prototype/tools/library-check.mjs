@@ -91,7 +91,7 @@ try {
       true,
     );
   });
-  await page.goto(new URL("apple-inspired-ui.html", root).href);
+  await page.goto(new URL("artemis-ui.html", root).href);
   await check(
     "nested dialog preserves environment and consumes one Escape",
     async () => {
@@ -340,7 +340,7 @@ try {
     "single-file offline export resolves every script and stylesheet",
     async () => {
       const { fileURLToPath, pathToFileURL } = await import("node:url");
-      for (const name of ["components.html", "apple-inspired-ui.html"]) {
+      for (const name of ["components.html", "artemis-ui.html"]) {
         const file = out + "/bundled-" + name;
         await writeFile(file, inlineAssets(fileURLToPath(new URL(name, root))));
         await page.goto(pathToFileURL(file).href);
@@ -353,7 +353,7 @@ try {
       }
     },
   );
-  await page.goto(new URL("apple-inspired-ui.html", root).href);
+  await page.goto(new URL("artemis-ui.html", root).href);
   await page.screenshot({ path: out + "/workspace.png" });
   await page.goto(new URL("components.html", root).href + "#goto=01");
   await page.screenshot({ path: out + "/catalog.png" });

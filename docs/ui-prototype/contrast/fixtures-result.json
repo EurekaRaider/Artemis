@@ -48,7 +48,7 @@
    "scannerRatio": 5.53,
    "renderedMin": 1.23,
    "renderedMax": 5.8,
-   "need": 4.5,
+   "need": 3,
    "ok": true,
    "worstColRatio": 4.54,
    "confirm": "good-case"
@@ -58,7 +58,7 @@
    "scannerRatio": 6.85,
    "renderedMin": 1.36,
    "renderedMax": 7.06,
-   "need": 4.5,
+   "need": 3,
    "ok": true,
    "worstColRatio": 6.58,
    "confirm": "good-case"

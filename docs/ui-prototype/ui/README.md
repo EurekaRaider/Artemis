@@ -1,6 +1,6 @@
 # Artemis UI 原型组件库
 
-这是供 `components.html` 和 `apple-inspired-ui.html` 共用的浏览器组件库。零运行时依赖，可用 `file://` 离线打开；不连接 Electron、Node、Agent、IM 或真实文件操作。
+这是供 `components.html` 和 `artemis-ui.html` 共用的浏览器组件库。零运行时依赖，可用 `file://` 离线打开；不连接 Electron、Node、Agent、IM 或真实文件操作。
 
 ## 入口与边界
 
@@ -82,7 +82,7 @@ selection.destroy();
 ```sh
 node docs/ui-prototype/tools/library-check.mjs
 node docs/ui-prototype/tools/workspace-check.mjs
-node docs/ui-prototype/tools/inline-assets.cjs docs/ui-prototype/apple-inspired-ui.html /tmp/artemis-workspace.html
+node docs/ui-prototype/tools/inline-assets.cjs docs/ui-prototype/artemis-ui.html /tmp/artemis-workspace.html
 ```
 
 前两条需要本机 Playwright 与 Chromium。原型目录的私有 `package.json` 固定 Playwright 1.60.0；新环境可运行 `npm install --prefix docs/ui-prototype`，再从该目录运行 `npx playwright install chromium`。默认证据写到 `/tmp/artemis-library-check` 和 `/tmp/artemis-workspace-check`，可使用 `ARTEMIS_UI_CHECK_OUTPUT` 改位置。单文件导出只内联本地 CSS 与脚本，拒绝远程或越出原型目录的资源。

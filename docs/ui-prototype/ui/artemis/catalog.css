@@ -237,7 +237,7 @@
   .select-trig .chev {
     position: absolute;
     right: 11px;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: 10px;
   }
   .menu {
@@ -981,7 +981,7 @@
   .ctx-chip button {
     border: 0;
     background: transparent;
-    color: var(--text-3);
+    color: var(--text-2);
     cursor: pointer;
     padding: 0;
     display: inline-flex;
@@ -1710,7 +1710,7 @@
   .dock-tab .dt-x {
     border: 0;
     background: transparent;
-    color: var(--text-3);
+    color: var(--text-2);
     cursor: pointer;
     padding: 0 2px;
     border-radius: 3px;
@@ -2871,7 +2871,7 @@
   }
   .pr-icon.pending {
     background: var(--surface-3);
-    color: var(--text-3);
+    color: var(--text-2);
   }
 
   /* v17 迁移前原型契约：把生产覆盖与原型完成度分开，补齐高风险交互状态 */
@@ -3178,7 +3178,7 @@
   .pr-icon.cancelled,
   .pr-icon.none {
     background: var(--surface-3);
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .coverage-list {
     display: flex;

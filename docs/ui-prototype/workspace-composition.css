@@ -87,14 +87,6 @@
   .files-workspace {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(200px,1fr) auto;}
   .file-tree {max-height:200px;border-left:0;border-top:1px solid var(--border-soft);}
 }
-@media(max-width:980px) {
-  body[data-dock="open"] .workspace-dock {display:flex !important;position:absolute;inset:0;max-width:none !important;width:100%;min-width:0;z-index:15;}
-  .workspace-content {position:relative;}
-  body[data-dock="open"] .conversation {visibility:hidden;}
-  .settings-body {grid-template-columns:1fr;}
-  .settings-tabs {flex-direction:row;overflow:auto;}
-  .settings-tab {white-space:nowrap;flex-shrink:0;}
-}
 @media(max-width:680px) {
   .settings-content {padding:16px;}
   .settings-panel {width:calc(100vw - 16px);height:calc(100dvh - 24px);}
@@ -105,19 +97,16 @@
 .task-plan {min-width:min(280px,100%);}
 .review-file-sidebar .file-path {flex-basis:calc(100% - 20px);}
 @container (max-width:540px) {.review-file-sidebar .file-path {flex-basis:auto;}}
-/* Match the desktop shell at its supported minimum window width (980px). */
-:root {--activity-w:46px;--default-sidebar-width:252px;}
-.app-shell {grid-template-columns:var(--activity-w) var(--sidebar-w,var(--default-sidebar-width)) minmax(0,1fr);}
-body.sidebar-collapsed .app-shell {grid-template-columns:var(--activity-w) 0 minmax(0,1fr);}
-.project-sidebar-resizer {left:calc(var(--activity-w) + var(--sidebar-w,var(--default-sidebar-width)) - 2px);touch-action:none;}
+/* v74 ZCode base: single sidebar column (activity rail merged). */
+:root {--default-sidebar-width:260px;}
+.app-shell {grid-template-columns:var(--sidebar-w,var(--default-sidebar-width)) minmax(0,1fr);}
+body.sidebar-collapsed .app-shell {grid-template-columns:0 minmax(0,1fr);}
+.project-sidebar-resizer {left:calc(var(--sidebar-w,var(--default-sidebar-width)) - 2px);touch-action:none;}
 @media(max-width:1100px) {
-  :root {--activity-w:44px;--default-sidebar-width:220px;}
+  :root {--default-sidebar-width:240px;}
   .composer-wrap {padding:0 12px 12px;}
   .composer-trailing {gap:4px;}
   .model-btn,.ctx-usage {padding-left:5px;padding-right:5px;}
-}
-@media(max-width:680px) {
-  .app-shell,body.sidebar-collapsed .app-shell {grid-template-columns:var(--activity-w) minmax(0,1fr);}
 }
 @container(max-width:620px) {
   .review-workspace {grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(200px,1fr) auto;}
@@ -135,3 +124,246 @@ body.sidebar-collapsed .app-shell {grid-template-columns:var(--activity-w) 0 min
 /* 计划胶囊水平居中（对齐真实应用 margin:0 auto），浮窗居中锚定（task-plan.css 的 left:50%/translateX 生效） */
 .composer-wrap .task-plan-progress { margin:0 auto 10px; max-width:calc(100% - 40px); }
 .composer-wrap .task-plan-list { width:min(520px, calc(100cqw - 40px)); }
+
+/* v74：dock 始终推挤（无遮罩模式）。窗口不够宽时按序降级：
+   ≤1060px 自动收起侧栏（ZCode 窄窗行为），主区保底 560px，dock 随剩余宽度收窄。 */
+@media(max-width:1060px) {
+  .app-shell,body.sidebar-collapsed .app-shell {grid-template-columns:0 minmax(0,1fr);}
+  .project-sidebar-resizer {display:none;}
+  .settings-body {grid-template-columns:1fr;}
+  .settings-tabs {flex-direction:row;overflow:auto;}
+  .settings-tab {white-space:nowrap;flex-shrink:0;}
+}
+
+
+/* ============================================================
+   v102 · 折叠态 rail（48px）+ hover-peek 浮层侧栏
+   悬停 rail → 完整侧栏以毛玻璃浮层滑出（fixed，不推挤主区）
+   ============================================================ */
+.sidebar-rail {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 48px;
+  padding: 10px 0;
+}
+body.sidebar-collapsed .sidebar-rail {
+  display: flex;
+}
+body.sidebar-collapsed .app-shell {
+  grid-template-columns: 48px minmax(0, 1fr);
+}
+body.sidebar-collapsed .sidebar {
+  border-right: 1px solid var(--border-soft);
+}
+
+/* rail 元件 */
+.rail-brand {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+.rail-brand svg {
+  width: 21px;
+  height: 21px;
+}
+.sidebar-rail .rail-item {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+  font-size: 0;
+}
+.sidebar-rail .rail-item:hover,
+.sidebar-rail .rail-item.active {
+  background: var(--hover);
+  color: var(--text);
+}
+.rail-sep {
+  width: 22px;
+  height: 1px;
+  margin: 6px 0;
+  background: var(--border);
+}
+.rail-anchor {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}
+.rail-anchor:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.rail-dot {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  border: 2px solid var(--bg-sidebar);
+}
+.rail-sp {
+  flex: 1;
+}
+.rail-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 590;
+  color: var(--text-2);
+  background: var(--hover);
+}
+
+/* hover-peek：折叠时完整侧栏变浮层，悬停 sidebar（rail 或浮层本身）滑出 */
+body.sidebar-collapsed .sidebar-main {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 48px; /* v104：浮层在 rail 右侧滑出，rail 不被覆盖、按钮始终可点 */
+  width: var(--sidebar-w, 260px);
+  display: flex;
+  flex-direction: column;
+  z-index: 80;
+  transform: translateX(calc(-100% - 48px));
+  opacity: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg-sidebar) 96%, transparent);
+  backdrop-filter: blur(28px) saturate(1.35);
+  -webkit-backdrop-filter: blur(28px) saturate(1.35);
+  box-shadow: var(--shadow-overlay);
+  border-right: 1px solid var(--border);
+  transition:
+    transform 220ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 180ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+body.sidebar-collapsed .sidebar:hover .sidebar-main {
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (max-width: 1060px) {
+  .app-shell,
+  body.sidebar-collapsed .app-shell {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+}
+
+
+/* ============================================================
+   v102.1 修复：材质下沉到 rail/main
+   ① .sidebar-main 需要 flex 纵向布局（wrapper 丢失了原 .sidebar 的列布局）
+   ② .sidebar 去掉 backdrop-filter —— 它会成为 fixed 定位的包含块，
+      把 hover-peek 浮层剪裁进 48px 的 rail 盒内；毛玻璃材质下沉一层
+   ============================================================ */
+.sidebar {
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: visible;
+}
+.sidebar-rail {
+  background: color-mix(in srgb, var(--bg-sidebar) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(1.35);
+  -webkit-backdrop-filter: blur(24px) saturate(1.35);
+}
+.sidebar-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: color-mix(in srgb, var(--bg-sidebar) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(1.35);
+  -webkit-backdrop-filter: blur(24px) saturate(1.35);
+}
+html[data-theme="dark"] .sidebar-rail,
+html[data-theme="dark"] .sidebar-main {
+  background: color-mix(in srgb, var(--bg-sidebar) 92%, transparent);
+}
+
+/* v104：rail 置于浮层之上，底部 [头像][设置][展开] 钉底 */
+.sidebar-rail {
+  position: relative;
+  z-index: 81;
+}
+
+
+/* v105：展开态头像放大（ZCode 头像:文字 ≈ 2.2:1）；版本胶囊黑白实底（随主题反转） */
+.sidebar-footer .avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 13px;
+}
+.app-version,
+.app-version:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: transparent;
+  transition:
+    background var(--t-quick),
+    color var(--t-quick);
+  font-weight: 550;
+  letter-spacing: 0.01em;
+  padding: 2.5px 8px;
+}
+
+
+/* v107：rail 撑满全高（此前内容高 362，底部三钮贴到功能区） */
+.sidebar-rail {
+  flex: 1 0 auto;
+  min-height: 0;
+}
+/* 折叠钮双态图标：展开态=收起语义，折叠态（peek 内）=展开语义 */
+#leftToggle .ic-expand {
+  display: none;
+}
+body.sidebar-collapsed #leftToggle .ic-expand {
+  display: block;
+}
+body.sidebar-collapsed #leftToggle > svg:not(.ic-expand) {
+  display: none;
+}
+/* peek 弹出加 80ms 悬停缓冲 */
+body.sidebar-collapsed .sidebar:hover .sidebar-main {
+  transition-delay: 80ms;
+}
+
+
+/* ============================================================
+   v110 · 抽屉与极简栏互斥（修复并排双图标）
+   rail 降级为"唤起把手"：悬停 → 抽屉从窗口左缘滑出占据 rail
+   位置，rail 淡出让位；移开 → 抽屉滑走，rail 延迟淡入回归。
+   层级：抽屉(80)盖住 rail(1)，由抽屉物理揭示 rail，
+   两套相同图标不再同屏。
+   ============================================================ */
+body.sidebar-collapsed .sidebar-main {
+  left: 0;
+  transform: translateX(-100%);
+}
+body.sidebar-collapsed .sidebar-rail {
+  z-index: 1; /* v104 的 81 是并排布局的产物；替换式布局 rail 必须在抽屉之下 */
+  transition: opacity 160ms var(--ease) 150ms;
+}
+body.sidebar-collapsed .sidebar:hover .sidebar-rail {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms var(--ease);
+}

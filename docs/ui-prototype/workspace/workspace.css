@@ -45,7 +45,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-text);
   outline-offset: 2px;
   border-radius: var(--r-control);
 }
@@ -119,7 +119,7 @@ body.sidebar-collapsed .project-sidebar-resizer {
   background: var(--hover);
 }
 .activity-button.active {
-  color: var(--accent);
+  color: var(--accent-text);
   background: var(--accent-soft);
 }
 .activity-button.active::before {
@@ -172,7 +172,7 @@ body.sidebar-collapsed .project-sidebar-resizer {
     box-shadow var(--t-quick);
 }
 .sidebar-search:focus-within {
-  border-color: var(--accent);
+  border-color: var(--accent-text);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .sidebar-search input {
@@ -192,7 +192,7 @@ body.sidebar-collapsed .project-sidebar-resizer {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 2px 8px 8px;
+  padding: 2px 10px 8px; /* v78：与 sidebar-top 的 10px 内距对齐，图标列 x=20 */
 }
 .project-tree::-webkit-scrollbar {
   width: 8px;
@@ -516,7 +516,7 @@ body.sidebar-collapsed .project-sidebar-resizer {
   height: 22px;
   border-radius: 50%;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text);
   display: grid;
   place-items: center;
   font-size: 10px;
@@ -619,7 +619,7 @@ body[data-view="automations"] .pg-auto {
   color: var(--text);
 }
 .ws-toggle.active {
-  color: var(--accent);
+  color: var(--accent-text);
   background: var(--accent-soft);
 }
 .workspace-heading {
@@ -701,12 +701,12 @@ body[data-view="automations"] .pg-auto {
   color: var(--text);
 }
 .environment-trigger.active {
-  color: var(--accent);
+  color: var(--accent-text);
   background: var(--accent-soft);
 }
 .environment-popover {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 18px);
   right: 0;
   width: 320px;
   background: var(--material);
@@ -1372,7 +1372,7 @@ body[data-empty="1"] .timeline-scroll {
   transition: box-shadow var(--t-quick);
 }
 .composer-input:focus-within {
-  box-shadow: 0 0 0 1px var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-text);
 }
 .composer-policy {
   position: relative;
@@ -1418,7 +1418,7 @@ body[data-empty="1"] .timeline-scroll {
   resize: none;
   background: none;
   color: var(--text);
-  caret-color: var(--accent);
+  caret-color: var(--accent-text);
   font: inherit;
   font-size: 13px;
   line-height: 1.55;
@@ -1497,7 +1497,7 @@ body[data-empty="1"] .timeline-scroll {
   stroke: var(--surface-3);
 }
 .ctx-ring .fg-c {
-  stroke: var(--accent);
+  stroke: var(--accent-text);
   stroke-linecap: round;
   stroke-dasharray: 56.5;
   transition: stroke-dashoffset var(--t-med);
@@ -1851,7 +1851,7 @@ body[data-empty="1"] .timeline-scroll {
   flex: 0 0 auto;
   width: 12px;
   height: 12px;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .ultra-shine::after {
   content: "";
@@ -2131,7 +2131,7 @@ body[data-dock="open"] .dock-resizer {
   border-radius: 5px;
   display: grid;
   place-items: center;
-  color: var(--text-3);
+  color: var(--text-2);
 }
 .dock-tab .x:hover {
   background: var(--hover);
@@ -4415,10 +4415,6 @@ body[data-archived-demo] .composer-wrap .composer {
 }
 
 @media (max-width: 980px) {
-  .workspace-dock,
-  .dock-resizer {
-    display: none !important;
-  }
   .settings-body {
     grid-template-columns: 1fr;
   }
@@ -4514,14 +4510,6 @@ button:disabled {
   max-width: calc(100vw - 32px);
 }
 @media (max-width: 680px) {
-  .app-shell,
-  body.sidebar-collapsed .app-shell {
-    grid-template-columns: 46px minmax(0, 1fr);
-  }
-  .sidebar,
-  .project-sidebar-resizer {
-    display: none;
-  }
   .workspace {
     min-width: 0;
   }
@@ -4765,4 +4753,490 @@ button:disabled {
   .im-platform-cards {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+
+/* ============================================================
+   v74 · ZCode 基底布局改造
+   合栏侧栏（毛玻璃）· 36px 顶部通栏（穿透，不随 dock 位移）
+   推挤式 dock（1px 分割 + 8px 拖拽 + 560px 主区保底）
+   ============================================================ */
+
+/* 页面底：为毛玻璃材质提供可弥散的微渐变 */
+html {
+  background: var(--bg);
+}
+body {
+  background: transparent;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      640px 420px at 10% -6%,
+      color-mix(in srgb, var(--accent) 8%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      760px 540px at 96% 108%,
+      color-mix(in srgb, var(--accent-text) 7%, transparent),
+      transparent 72%
+    );
+}
+
+/* 壳层：46px 活动栏 + 252px 侧栏 → 单栏 260px */
+.app-shell {
+  grid-template-columns: var(--sidebar-w, 260px) minmax(0, 1fr);
+}
+body.sidebar-collapsed .app-shell {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+.project-sidebar-resizer {
+  left: calc(var(--sidebar-w, 260px) - 2px);
+}
+
+/* 侧栏：毛玻璃（基色 72% + blur，对齐 ZCode bg-sidebar/70 配方） */
+.sidebar {
+  background: color-mix(in srgb, var(--bg-sidebar) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(1.35);
+  -webkit-backdrop-filter: blur(24px) saturate(1.35);
+}
+.sidebar-top {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 10px 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.activity-mark {
+  display: flex;
+  align-items: center;
+  height: 20px;
+  padding-left: 2px;
+}
+.activity-mark svg {
+  width: 16px;
+  height: 16px;
+}
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.activity-button.nav-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 510;
+  transition:
+    background var(--t-quick),
+    color var(--t-quick);
+}
+.activity-button.nav-row:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.activity-button.nav-row.active {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.sidebar-actions {
+  display: flex;
+  padding: 0 0 2px;
+}
+.foot-icon {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--text-2);
+  transition:
+    background var(--t-quick),
+    color var(--t-quick);
+}
+.foot-icon:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.foot-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 36px 顶部通栏：横跨主区与 dock（毛玻璃，控件钉死右缘零位移） */
+.workspace-header {
+  flex: 0 0 52px;
+  height: 52px;
+  padding: 0 10px 0 12px;
+  gap: 8px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.35);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+  z-index: 20;
+}
+.workspace-header .ws-toggle {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.workspace-header .environment-trigger {
+  width: 30px;
+  height: 30px;
+}
+body:not([data-view="workspace"]) .workspace-heading {
+  visibility: hidden;
+}
+
+/* 主列：消息/输入居中 760px，560px 保底防变形 */
+.conversation {
+  flex: 1 1 auto;
+  min-width: min(560px, 100%);
+  background: transparent;
+}
+.timeline {
+  max-width: 760px;
+}
+.composer-wrap {
+  max-width: 760px;
+}
+.composer-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px 6px;
+}
+
+/* dock：推挤式抬升面板（card 实底）+ 1px 分割 + 8px 拖拽热区 */
+.workspace-dock {
+  flex: 0 0 var(--dock-w, 480px);
+  width: var(--dock-w, 480px);
+  max-width: min(1080px, calc(100% - 568px));
+  min-width: min(360px, calc(100% - 568px));
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: none;
+}
+.dock-resizer {
+  flex: 0 0 8px;
+  width: 8px;
+  position: relative;
+  background: transparent;
+}
+.dock-resizer:hover,
+.dock-resizer.dragging {
+  background: transparent;
+}
+.dock-resizer::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  transition: background var(--t-quick);
+}
+.dock-resizer:hover::after,
+.dock-resizer.dragging::after {
+  width: 2px;
+  background: var(--accent-text);
+}
+
+/* dock 页签 → 图标行（pane 头） */
+.workspace-tab-bar {
+  flex: 0 0 36px;
+  gap: 2px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.dock-tab {
+  font-size: 0;
+  gap: 0;
+  padding: 0 9px;
+}
+.dock-tab .x {
+  margin-left: 2px;
+}
+
+/* v78：侧栏信息架构对齐——项目行/分组行与功能列表共用同一图标列（x=10, 16px 宽） */
+.sidebar .group-row,
+.sidebar .project-head {
+  padding-left: 10px;
+  gap: 9px;
+}
+.sidebar .project-head > svg:not(.chev) {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+/* v81：分组行 ZCode 化——去箭头图标；+ 项目/+ 会话 悬停浮现（保持右置）。
+   去箭头后：分组标签落左缘作节标题；项目行图标/文字自动与功能列表同列（20/45）。 */
+.sidebar .group-row .chev,
+.sidebar .project-head .chev {
+  display: none;
+}
+.sidebar .group-row .group-add {
+  opacity: 0;
+  transition:
+    opacity var(--t-quick),
+    background var(--t-quick);
+}
+.sidebar .group-row:hover .group-add,
+.sidebar .group-row:focus-within .group-add {
+  opacity: 1;
+}
+
+/* v81：ZCode 式分组——无箭头；+项目/+会话等行内操作 hover 才显现 */
+.group-add,
+.project-head .acts {
+  opacity: 0;
+  transition: opacity var(--t-quick);
+}
+.group-row:hover .group-add,
+.group-row:focus-within .group-add,
+.project-head:hover .acts,
+.project-head:focus-within .acts {
+  opacity: 1;
+}
+
+/* v81：深色侧栏压深（ZCode：侧栏比主区深、pane 比主区亮） */
+html[data-theme="dark"] .sidebar {
+  background: color-mix(in srgb, var(--bg-sidebar) 92%, transparent);
+}
+html[data-theme="dark"] body::before {
+  background:
+    radial-gradient(
+      640px 420px at 10% -6%,
+      color-mix(in srgb, var(--accent) 4%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      760px 540px at 96% 108%,
+      color-mix(in srgb, #ffffff 3%, transparent),
+      transparent 72%
+    );
+}
+
+/* v82：项目行展开/折叠由文件夹图标本身表达（无箭头） */
+.project-head .folder-open { display: none; }
+.project-head[aria-expanded="true"] .folder-closed { display: none; }
+.project-head[aria-expanded="true"] .folder-open { display: block; }
+
+/* v83：分组行 hover 背景态；开文件夹光学等大（lucide 路径占满 24 格，缩到 13px 与关闭款等大） */
+.group-row:hover,
+.group-row:focus-within {
+  background: var(--hover);
+  color: var(--text-2);
+}
+/* 项目名零位移：开/关文件夹同占 16px 槽，开款内部缩放到光学等大 */
+.project-head > svg.folder-open:not(.chev) {
+  transform: scale(0.8125);
+}
+
+/* v86：分组行操作右侧化（ZCode 式）：[+ 添加] [⇵ 展开/收起全部] [▼ 分组箭头]，均 hover 显现 */
+.group-row .grp-eye,
+.group-row .group-toggle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  opacity: 0;
+  transition:
+    opacity var(--t-quick),
+    transform var(--t-quick),
+    background var(--t-quick);
+}
+.group-row:hover .grp-eye,
+.group-row:focus-within .grp-eye,
+.group-row:hover .group-toggle,
+.group-row:focus-within .group-toggle {
+  opacity: 1;
+}
+.group-row .grp-eye svg {
+  transition: transform var(--t-quick);
+}
+.group-row[aria-expanded="true"] .grp-eye svg {
+  transform: rotate(90deg);
+}
+.g-sp {
+  flex: 1;
+}
+/* 斜向箭头双图标：t-out 朝外=展开可用；t-in 朝内=收起可用 */
+.group-toggle .t-in {
+  display: none;
+}
+.group-toggle[data-state="open"] .t-in {
+  display: block;
+}
+.group-toggle[data-state="open"] .t-out {
+  display: none;
+}
+.group-toggle[data-state="open"] svg {
+  transform: rotate(180deg);
+}
+.group-row {
+  margin-bottom: 5px;
+}
+
+/* v92：侧栏行高统一 32px（ZCode h-8 节奏）——消除 hover 与选中背景条的高度差 */
+.sidebar .activity-button.nav-row {
+  height: 32px;
+}
+.sidebar .group-row {
+  min-height: 32px;
+}
+.sidebar .project-head {
+  min-height: 32px;
+}
+.sidebar .thread {
+  min-height: 32px;
+}
+
+/* v95：搜索会话——独立固定区，紧贴「项目」分组之上，不随会话列表滚动 */
+.sidebar-searchzone {
+  flex: none;
+  padding: 8px 10px 2px;
+}
+.sidebar-searchzone .sidebar-search {
+  width: 100%;
+}
+
+/* v96：品牌锁定行 + 会话相对时间 + 底部账户区放大（ZCode 比例） */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 2px 2px 6px;
+  min-height: 30px;
+}
+.sidebar-brand .activity-mark {
+  display: flex;
+  align-items: center;
+  padding-left: 10px;
+}
+.sidebar-brand .activity-mark svg {
+  width: 18px;
+  height: 18px;
+}
+.brand-name {
+  font-size: 13.5px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.sidebar-footer .avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+}
+.sidebar-footer .local-name b {
+  font-size: 13px;
+}
+.thread {
+  padding-right: 30px;
+}
+.tt-time {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* v99：会话时间贴右缘，hover 时与「···」同位交叉淡切（零位移） */
+.thread {
+  padding-right: 8px;
+}
+.tt-time {
+  transition: opacity var(--t-quick);
+}
+.thread-wrap:hover .tt-time,
+.thread-wrap:focus-within .tt-time {
+  opacity: 0;
+}
+.thread-wrap .thread-more {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.9);
+  opacity: 0;
+  transition:
+    opacity var(--t-quick),
+    transform var(--t-quick);
+}
+.thread-wrap:hover .thread-more,
+.thread-wrap:focus-within .thread-more {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+/* v99：Logo 圆角方形图标砖（应用图标语言）+ 品牌行 */
+.sidebar-brand .activity-mark {
+  width: 30px;
+  height: 30px;
+  padding-left: 0;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+.sidebar-brand .activity-mark svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* v100：顶栏 52px · 标题位宽度锁 · 底部折叠钮布局 */
+.workspace-header .ws-toggle,
+.workspace-header .environment-trigger {
+  width: 32px;
+  height: 32px;
+}
+.workspace-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: min(62%, 680px);
+}
+.workspace-heading > svg {
+  flex: none;
+  color: var(--text-3);
+}
+.workspace-heading strong {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-thread-title {
+  max-width: 320px;
+}
+#leftExpand {
+  display: none;
+}
+#leftExpand:not([hidden]) {
+  display: grid;
+}
+.foot-sep {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--border);
+}
+.sidebar-footer #leftToggle {
+  flex: none;
 }

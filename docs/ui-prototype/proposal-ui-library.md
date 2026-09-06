@@ -1,7 +1,7 @@
 # 提案：Artemis UI 组件库（`@artemis/ui`）构建方案
 
 > 状态：**征求评审意见**。本提案获通过前不开始任何实现。
-> 依据：discussion #76 方向 A 组件层原型（components.html，70 卡）、scanner v17 + T8/T9 证据链、已接受候选规范 #1/#9/#10′；基线 d0b7b9f。
+> 依据：discussion #76 方向 A 组件层原型（components.html，70 卡）、scanner v18 + T8/T9 证据链、已接受候选规范 #1/#9/#10′；基线 d0b7b9f。
 
 ## 1 · 背景与目标
 
@@ -51,7 +51,7 @@ primitive（色板/字阶/间距/圆角原始值）
 
 ## 5 · 质量门（落实决议 #10′，库的核心差异化）
 
-1. **对比度矩阵进 CI**：scanner v17 + fixtures 移植为 `packages/ui/tools/contrast/`，对库内 workbench 页（components.html 的 React 版，即全部组件的真实渲染）跑「方向 × 主题 × 对比度 × 三场景 = 36 组合」矩阵，`npm run test:contrast`，fail-closed 语义不变
+1. **对比度矩阵进 CI**：scanner v18 + fixtures 移植为 `packages/ui/tools/contrast/`，对库内 workbench 页（components.html 的 React 版，即全部组件的真实渲染）跑「方向 × 主题 × 对比度 × 三场景 = 36 组合」矩阵，`npm run test:contrast`，fail-closed 语义不变
 2. **假阳性反例集即回归 fixtures**：渐变中段、组级 opacity 等反例永久保留，任何令牌/组件改动先过像素对照
 3. **行为测试**：每个交互组件配 RTL 用例（键盘导航、焦点、回调），ARIA 断言取自原型已验证的选择器
 4. **并联**：desktop `verify:screenshot-matrix` 继续负责整页级视觉；库级与页面级两层互不替代

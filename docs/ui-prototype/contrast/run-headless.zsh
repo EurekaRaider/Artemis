@@ -5,9 +5,15 @@ VF="$(cd "$(dirname "$0")" && pwd)/VERSION"
 if [ ! -f "$VF" ]; then echo "❌ 缺少 VERSION 单一来源文件"; exit 90; fi
 source "$VF"
 : "${VERSION:?VERSION 未定义}" "${BASELINE:?BASELINE 未定义}"
-# Artemis components.html 对比度矩阵驱动 · fail-closed v17
+# Artemis components.html 对比度矩阵驱动 · fail-closed v18
+# v18（分级阈值——用户拍板方案 A）:
+#   - judgeText 按角色分档：纯色 primary 4.5 / 二级文本（color α≤0.65）3.0 / 三级（α≤0.45）2.2；
+#     符号字形按 WCAG 1.4.11 非文本对比 3.0。依据：Apple secondaryLabel≈3.8、tertiaryLabel≈2.8
+#     与 ZCode α 分层的出厂现实；刻意降不透明度=刻意弱化的层级文本。阈值依旧强校验，无静默放行。
+#   - 配套 token 微调（ui/tokens.css 方向 A）：亮 text-3 α 0.40→0.47、暗 0.30→0.33（过 2.2 档）、
+#     亮 success-text #15803d→#12702f、warning-text #a16207→#8a5406（软底徽章过 4.5）。
 # v17（原型完成门禁）:
-#   - T8 执行 70 张卡片通用契约与 23 个定向交互契约（22 历史 partial/uncovered + v19 13c 任务计划胶囊）
+#   - T8 执行 73 张卡片通用契约与 23 个定向交互契约（22 历史 partial/uncovered + v19 13c 任务计划胶囊）
 #   - T9 执行主页面 normal / 200% zoom / Dock closed 布局与 ARIA 审计
 # 变更（回应第六轮评审）:
 #   - 运行前清理旧结果；无 SCAN_OUT / 出现 scannerError / 断言缺失一律判 FAIL 并非零退出
@@ -409,7 +415,7 @@ sys.exit(0 if ok else 5)
 PY
 ST_RC=$?
 
-# ---- T8 原型契约：70 卡片全部具备完整骨架，历史 20 partial + 2 uncovered + 13c 任务计划胶囊逐项执行交互 ----
+# ---- T8 原型契约：73 卡片全部具备完整骨架，历史 20 partial + 2 uncovered + 13c 任务计划胶囊逐项执行交互 ----
 CONTRACT_JSON="$ROOT/contrast/prototype-contract-result.json"
 rm -f "$CONTRACT_JSON"
 node - "$ROOT" "$TMP" <<'NODECONTRACT'
@@ -440,7 +446,7 @@ if not m:
 else:
     result = json.loads(urllib.parse.unquote(m.group(1)))
 json.dump(result, open(out, "w"), ensure_ascii=False, indent=1)
-ok = result.get("ok") is True and result.get("totalCards") == 70 and result.get("passedCards") == 70 and result.get("targetedCards") == 23
+ok = result.get("ok") is True and result.get("totalCards") == 73 and result.get("passedCards") == 73 and result.get("targetedCards") == 23
 print("T8 原型契约", "PASS" if ok else "FAIL", "cards=%s/%s targeted=%s failures=%s" % (result.get("passedCards"), result.get("totalCards"), result.get("targetedCards"), len(result.get("failures", []))))
 if not ok:
     print("  " + "\n  ".join(result.get("failures", [])[:20]))
@@ -456,7 +462,7 @@ for CASE in normal zoom200 closed; do
   HASH="audit=1"
   if [ "$CASE" = "zoom200" ]; then FLAGS+=(--force-device-scale-factor=2); fi
   if [ "$CASE" = "closed" ]; then HASH="audit=1&dock=closed"; fi
-  "$CHROME" $FLAGS --dump-dom "file://$ROOT/apple-inspired-ui.html#$HASH" > "$TMP/layout-$CASE.html" 2>/dev/null
+  "$CHROME" $FLAGS --dump-dom "file://$ROOT/artemis-ui.html#$HASH" > "$TMP/layout-$CASE.html" 2>/dev/null
 done
 python3 - "$TMP" "$LAYOUT_JSON" <<'PYLAYOUT'
 import json, re, sys
@@ -574,7 +580,7 @@ for f in files:
         d2e = json.loads(json.dumps(d2))
         for ex in d2e.get("exemptions", []):
             if isinstance(ex, dict):
-                ex.pop("ratio", None); ex.pop("fg", None); ex.pop("bg", None)
+                ex.pop("ratio", None); ex.pop("fg", None); ex.pop("bg", None); ex.pop("need", None); ex.pop("role", None); ex.pop("_pass", None)
         equiv_hsh = hashlib.sha256(json.dumps(d2e, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         if f is None:
             seen_equiv[cls] = (stem, equiv_hsh)
@@ -730,7 +736,7 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
   # T5 无浏览器 fail-closed：内层完整 runner（CHROME=/usr/bin/true），退出码必须等于常量
   T5DIR="$(mktemp -d /tmp/artemis-nobrowser.XXXXXX)"
   cp -r "$ROOT/contrast" "$T5DIR/contrast"
-  cp "$ROOT/components.html" "$ROOT/apple-inspired-ui.html" "$T5DIR/"
+  cp "$ROOT/components.html" "$ROOT/artemis-ui.html" "$T5DIR/"
   cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T5DIR/"
   cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T5DIR/"
   cp "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T5DIR/"
@@ -755,7 +761,7 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
   T6DIR="$(mktemp -d /tmp/artemis-layout-nested.XXXXXX)"
   mkdir -p "$T6DIR/prototype"
   cp -r "$ROOT/contrast" "$ROOT/tools" "$T6DIR/prototype/"
-  cp "$ROOT/components.html" "$ROOT/apple-inspired-ui.html" "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T6DIR/prototype/"
+  cp "$ROOT/components.html" "$ROOT/artemis-ui.html" "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T6DIR/prototype/"
   cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T6DIR/prototype/"
   cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T6DIR/prototype/"
   RUN_SELFTESTS=0 CHROME="$CHROME" "$T6DIR/prototype/contrast/run-headless.zsh" >/dev/null 2>&1
@@ -769,7 +775,7 @@ if [ $T2_RC -ne 0 ]; then echo "T2/T3/T4 负向自测: FAIL"; SELF_FAIL=$((SELF_
   # T7 平铺布局自测（R16①）：内容直接在根、无 prototype/ 嵌套，路径从脚本位置解析
   T7DIR="$(mktemp -d /tmp/artemis-layout-flat.XXXXXX)"
   cp -r "$ROOT/contrast" "$ROOT/tools" "$T7DIR/"
-  cp "$ROOT/components.html" "$ROOT/apple-inspired-ui.html" "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T7DIR/"
+  cp "$ROOT/components.html" "$ROOT/artemis-ui.html" "$ROOT/README.md" "$ROOT/proposal-ui-library.md" "$ROOT/capability-matrix.md" "$T7DIR/"
   cp -r "$ROOT/ui" "$ROOT/showcase" "$ROOT/workspace" "$T7DIR/"
   cp "$ROOT/component-tokens.css" "$ROOT/workspace-composition.css" "$T7DIR/"
   RUN_SELFTESTS=0 CHROME="$CHROME" "$T7DIR/contrast/run-headless.zsh" >/dev/null 2>&1

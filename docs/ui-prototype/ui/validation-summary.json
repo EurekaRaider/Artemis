@@ -309,7 +309,7 @@
     "reason": "RUN_SELFTESTS=0; pixel and structure fixture checks still ran."
   },
   "finalSourceSha256": {
-    "apple-inspired-ui.html": "7d18fb90d20af620e8a041cf7260c53c867bbb7fbcb7d28502f48597a87d5c9e",
+    "artemis-ui.html": "7d18fb90d20af620e8a041cf7260c53c867bbb7fbcb7d28502f48597a87d5c9e",
     "components.html": "5e7e2bf3d72de021d2b31b94d87d9c4faad2b5352ce5841f85f0508dc523dec2",
     "showcase/showcase.css": "2eb17ca1d49b7adb03ad4dd9ec343aa9ad397e2fe33c6541282e82e92acf8a2d",
     "showcase/showcase.js": "1d0188aada097bdc3675cbcfe5fb3baf6b11396c626c863dd4f64e80a70439ce",
@@ -327,7 +327,7 @@
     "workspace-composition.css": "e6948a8711dbc34d552b40ca1a1d1644eaf041d28a9dae5b245b417f5966c626"
   },
   "contrastSnapshotSha256": {
-    "apple-inspired-ui.html": "eae01ea3083bc4eda1f0e69f9abe598d475c38142b4cdefba77da343ccfd9275",
+    "artemis-ui.html": "eae01ea3083bc4eda1f0e69f9abe598d475c38142b4cdefba77da343ccfd9275",
     "components.html": "5e7e2bf3d72de021d2b31b94d87d9c4faad2b5352ce5841f85f0508dc523dec2",
     "showcase/showcase.css": "2eb17ca1d49b7adb03ad4dd9ec343aa9ad397e2fe33c6541282e82e92acf8a2d",
     "showcase/showcase.js": "3178373ad67599935713f5b39932f4ccdc7f881a1b68572acf1e016185c6a97b",

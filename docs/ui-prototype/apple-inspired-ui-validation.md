@@ -4,7 +4,7 @@
 
 ## 交付范围
 
-`apple-inspired-ui.html` 使用页面已有的按钮、标签、卡片、树行、表单、任务计划与消息组件重新组装主界面。`ui/index.css` 与 `ui/index.js` 是两个原型页面的共享组件入口；`component-tokens.css` 仅作兼容入口；`workspace-composition.css` 仅负责页面与子面板的组合布局。
+`artemis-ui.html` 使用页面已有的按钮、标签、卡片、树行、表单、任务计划与消息组件重新组装主界面。`ui/index.css` 与 `ui/index.js` 是两个原型页面的共享组件入口；`component-tokens.css` 仅作兼容入口；`workspace-composition.css` 仅负责页面与子面板的组合布局。
 
 默认值：方案 1（a）、浅色（light）、标准对比度（normal）。计划／执行／审查是独立的任务运行模式，默认保持执行。
 
@@ -54,7 +54,7 @@ node docs/ui-prototype/tools/workspace-check.mjs
 
 ## 预览
 
-打开 `apple-inspired-ui.html`，需保留同目录的 `ui/`、`workspace/` 和样式文件，或使用单文件导出工具。工具栏的 `+` 打开审查／终端／浏览器／文件；顶栏目标按钮打开目标；环境按钮打开来源与 Agent 入口。设置 → 通用可切换外观。
+打开 `artemis-ui.html`，需保留同目录的 `ui/`、`workspace/` 和样式文件，或使用单文件导出工具。工具栏的 `+` 打开审查／终端／浏览器／文件；顶栏目标按钮打开目标；环境按钮打开来源与 Agent 入口。设置 → 通用可切换外观。
 
 支持 `#tab=review|terminal|browser|files|goal|sources|markdown|team|agent`，以及 `#view=resources|token-usage|automations|archive`。`#audit=1` 生成隐藏的 `LAYOUT_OUT` 布局结果。
 

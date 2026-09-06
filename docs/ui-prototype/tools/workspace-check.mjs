@@ -2,7 +2,7 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
-const base=new URL('../apple-inspired-ui.html',import.meta.url).href;
+const base=new URL('../artemis-ui.html',import.meta.url).href;
 const out=process.env.ARTEMIS_UI_CHECK_OUTPUT || '/tmp/artemis-workspace-check';
 await mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true});

@@ -226,7 +226,7 @@ try {
       },
     });
     await globalThis.__referenceWindow.loadFile(path, { hash: "dock=closed" });
-  }, root + "/docs/ui-prototype/apple-inspired-ui.html");
+  }, root + "/docs/ui-prototype/artemis-ui.html");
   const reference = await newWindow;
   reference.on("pageerror", (e) =>
     errors.push({ surface: "reference", message: e.message }),
@@ -433,7 +433,7 @@ try {
       await reference.goto(
         "file://" +
           root +
-          "/docs/ui-prototype/apple-inspired-ui.html#dock=closed&theme=" +
+          "/docs/ui-prototype/artemis-ui.html#dock=closed&theme=" +
           theme,
       );
       await reference.reload();
@@ -488,7 +488,7 @@ try {
     .filter({ hasText: "README.md" })
     .click();
   await reference.goto(
-    "file://" + root + "/docs/ui-prototype/apple-inspired-ui.html#tab=files",
+    "file://" + root + "/docs/ui-prototype/artemis-ui.html#tab=files",
   );
   await reference.reload();
   await product.waitForTimeout(500);
@@ -510,7 +510,7 @@ try {
     await reference.goto(
       "file://" +
         root +
-        "/docs/ui-prototype/apple-inspired-ui.html#tab=" +
+        "/docs/ui-prototype/artemis-ui.html#tab=" +
         name,
     );
     await reference.reload();
@@ -699,7 +699,7 @@ try {
   await reference.locator("#settingsClose").click();
   await product.locator(".right-sidebar-toggle").click();
   await reference.goto(
-    "file://" + root + "/docs/ui-prototype/apple-inspired-ui.html#dock=closed",
+    "file://" + root + "/docs/ui-prototype/artemis-ui.html#dock=closed",
   );
   await reference.reload();
   await product.locator(".environment-trigger").click();

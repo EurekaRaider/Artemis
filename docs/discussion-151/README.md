@@ -10,7 +10,7 @@ The implementation follows [Discussion #151](https://github.com/EurekaRaider/Art
 - ZIP SHA-256: `e11a02906e9d17778ea44ff418b9025fbad1d843661299f8332a804334b82227`.
 - All 82 files in `../ui-prototype` match [the attachment manifest](prototype-manifest.json) byte for byte. Historical reports inside that snapshot are retained as supplied.
 - [73-card inventory](cards.json) supersedes the old 70-card count for this implementation. Each entry separates prototype, React and Electron status; the snapshot's historical migration map is not rewritten to claim production acceptance.
-- Entry points: [workspace](../ui-prototype/apple-inspired-ui.html) and [catalog](../ui-prototype/components.html).
+- Entry points: [workspace](../ui-prototype/artemis-ui.html) and [catalog](../ui-prototype/components.html).
 
 Fresh baseline checks on 2026-09-05: existing `verify-desktop-skin` passed on the clean baseline SHA using isolated user data, including its real Electron matrix and macOS arm64 engineering-package resource checks. [Screenshot hashes](baseline.json) identify that run. This is not signing, notarization, update/rollback, macOS x64 or Windows acceptance. The selected Gateway/protocol/remote tools/desktop IM/settings suite passed 76 tests; the first sandboxed attempt could not bind loopback, and the rerun with local ports enabled passed.
 

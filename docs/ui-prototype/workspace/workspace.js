@@ -38,6 +38,48 @@
       thread.hidden = !thread.textContent.toLowerCase().includes(query);
     });
   });
+  /* v96：会话相对时间（ZCode 规则：刚刚 / N 分钟前 / N 小时前 / 昨天 / N 天前 / 日期） */
+  function formatRelTime(ts) {
+    var diff = Date.now() - ts;
+    var m = Math.floor(diff / 60000);
+    if (m < 1) return "刚刚";
+    if (m < 60) return m + " 分钟前";
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + " 小时前";
+    var d = Math.floor(h / 24);
+    if (d === 1) return "昨天";
+    if (d < 7) return d + " 天前";
+    var dt = new Date(ts);
+    return dt.getMonth() + 1 + "月" + dt.getDate() + "日";
+  }
+  $$(".thread[data-ts]").forEach(function (t) {
+    var slot = t.querySelector(".tt-time");
+    if (slot) slot.textContent = formatRelTime(+t.getAttribute("data-ts"));
+  });
+
+  /* v102：rail 展开与当前会话定位 */
+  function expandSidebar() {
+    body.classList.remove("sidebar-collapsed");
+    var t = $("#leftToggle");
+    if (t) t.classList.add("active");
+  }
+  $$("#railExpand, .rail-brand").forEach(function (b) {
+    b.addEventListener("click", expandSidebar);
+  });
+  $("#railSettings").addEventListener("click", function () {
+    var sb = $("#settingsBtn");
+    if (sb) sb.click();
+  });
+  $("#railAnchor").addEventListener("click", function () {
+    expandSidebar();
+    setTimeout(function () {
+      var active = $(".thread.active");
+      if (active && active.scrollIntoView) {
+        active.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }, 280);
+  });
+
   /* ---------- 视图切换 ---------- */
   $$(".activity-button[data-goto]").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -67,6 +109,7 @@
       !body.classList.contains("sidebar-collapsed"),
     );
   });
+
 
   /* Dock panels share one registry, one tab selection, and one close lifecycle. */
   var panelRegistry = {
@@ -1457,8 +1500,9 @@
   }
   function dockLimits() {
     var cw = contentEl.getBoundingClientRect().width;
-    var min = Math.min(440, Math.max(320, cw - 327));
-    var max = Math.min(1080, cw - 327);
+    /* v74：主区 560px + 分割条 8px 保底，dock 最小 360px（防主内容区挤压变形） */
+    var min = Math.min(360, Math.max(320, cw - 568));
+    var max = Math.min(1080, cw - 568);
     return { min: min, max: Math.max(min, max) };
   }
   function setDockWidth(px, announce) {
@@ -1867,34 +1911,178 @@
     }
   });
 
+  /* v86：会话列表展开/折叠——无 rAF、可打断、事件保底的高度+透明度过渡 */
+  var listEase = "cubic-bezier(0.32, 0.72, 0, 1)";
+  var listReduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function clearListAnim(el) {
+    ["height", "overflow", "opacity", "transition"].forEach(function (prop) {
+      el.style.removeProperty(prop);
+    });
+  }
+  function cancelListAnim(el) {
+    var t = el.__listAnim;
+    if (!t) return;
+    clearTimeout(t.timer);
+    el.removeEventListener("transitionend", t.onEnd);
+    el.__listAnim = null;
+  }
+  function settleListAnim(el, done) {
+    cancelListAnim(el);
+    function finish() {
+      el.__listAnim = null;
+      clearTimeout(timer);
+      el.removeEventListener("transitionend", onEnd);
+      done();
+    }
+    function onEnd(e) {
+      if (e.target !== el || e.propertyName !== "height") return;
+      finish();
+    }
+    var timer = setTimeout(finish, 480);
+    el.addEventListener("transitionend", onEnd);
+    el.__listAnim = { timer: timer, onEnd: onEnd };
+  }
+  function animateList(el, open) {
+    cancelListAnim(el);
+    if (listReduceMotion) {
+      clearListAnim(el);
+      el.hidden = !open;
+      return;
+    }
+    var from = el.getBoundingClientRect().height;
+    var fromOp = el.hidden ? "0" : getComputedStyle(el).opacity;
+    clearListAnim(el);
+    el.hidden = false;
+    var full = el.scrollHeight;
+    if (!open && full === 0 && from === 0) {
+      el.hidden = true;
+      return;
+    }
+    /* 同帧设起点 → 强制回流 → 设终点，无 rAF 依赖 */
+    el.style.transition = "none";
+    el.style.height = from + "px";
+    el.style.opacity = fromOp;
+    el.style.overflow = "hidden";
+    el.offsetHeight; /* 回流 */
+    el.style.transition =
+      "height 260ms " + listEase + ", opacity 200ms " + listEase + (open ? " 40ms" : "");
+    el.style.height = (open ? full : 0) + "px";
+    el.style.opacity = open ? "1" : "0";
+    settleListAnim(el, function () {
+      clearListAnim(el);
+      if (!open) el.hidden = true;
+    });
+  }
+  /* v91：分组箭头/全部切换的悬浮提示随实际功能切换 */
+  function syncEyeTitle(group) {
+    var eye = group.querySelector(".grp-eye");
+    if (!eye) return;
+    eye.setAttribute(
+      "title",
+      group.getAttribute("aria-expanded") === "true"
+        ? "隐藏所有项目"
+        : "显示所有项目",
+    );
+  }
   $$(".project-head").forEach(function (button) {
     button.addEventListener("click", function (e) {
       if (e.target.closest(".acts")) return;
       var open = button.getAttribute("aria-expanded") !== "true";
       button.setAttribute("aria-expanded", String(open));
-      button.nextElementSibling.hidden = !open;
+      animateList(button.nextElementSibling, open);
     });
   });
   $$(".group-row").forEach(function (button) {
     button.addEventListener("click", function (e) {
-      if (e.target.closest(".group-add")) return;
+      if (e.target.closest(".group-add") || e.target.closest(".group-toggle")) return;
       var open = button.getAttribute("aria-expanded") !== "true";
       button.setAttribute("aria-expanded", String(open));
+      syncEyeTitle(button);
       var sibling = button.nextElementSibling;
       while (sibling && !sibling.classList.contains("group-row")) {
-        sibling.hidden = !open;
+        animateList(sibling, open);
         sibling = sibling.nextElementSibling;
       }
     });
   });
+  /* v86：展开/收起全部——切换本组所有项目（含分组自身折叠态的展开） */
+  $$(".group-toggle").forEach(function (toggle) {
+    toggle.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var group = toggle.closest(".group-row");
+      /* v89：方向语义由真实状态驱动——有任一会话收起（或分组收起）→ 展开全部；否则收起全部 */
+      var heads = [];
+      var scan = group.nextElementSibling;
+      while (scan && !scan.classList.contains("group-row")) {
+        var h = scan.querySelector(".project-head");
+        if (h) heads.push(h);
+        scan = scan.nextElementSibling;
+      }
+      var expand =
+        group.getAttribute("aria-expanded") !== "true" ||
+        heads.some(function (h) {
+          return h.getAttribute("aria-expanded") !== "true";
+        });
+      toggle.setAttribute("data-state", expand ? "open" : "closed");
+      toggle.setAttribute("aria-label", expand ? "收起全部" : "展开全部");
+      toggle.setAttribute("title", expand ? "收起全部会话" : "展开全部会话");
+      if (expand && group.getAttribute("aria-expanded") !== "true") {
+        group.setAttribute("aria-expanded", "true");
+        syncEyeTitle(group);
+        var sib0 = group.nextElementSibling;
+        while (sib0 && !sib0.classList.contains("group-row")) {
+          animateList(sib0, true);
+          sib0 = sib0.nextElementSibling;
+        }
+      }
+      var sibling = group.nextElementSibling;
+      while (sibling && !sibling.classList.contains("group-row")) {
+        var head = sibling.querySelector(".project-head");
+        if (head) {
+          head.setAttribute("aria-expanded", String(expand));
+          animateList(head.nextElementSibling, expand);
+        } else if (!expand) {
+          animateList(sibling, false);
+        }
+        sibling = sibling.nextElementSibling;
+      }
+    });
+  });
+  /* 折叠态 rail 必须可交互：inert 只允许挂在 peek 面板上，
+     且仅在「已折叠且未悬停」时生效（把隐藏控件挡在 tab 序列外）。
+     直接 inert 整个 #projectSidebar 会连 rail 一起禁用（旧版折叠=整栏归零时代的遗留）。 */
+  var sidebarEl = $("#projectSidebar");
+  var sidebarMain =
+    sidebarEl && sidebarEl.querySelector(".sidebar-main");
+  var sidebarRail =
+    sidebarEl && sidebarEl.querySelector(".sidebar-rail");
+  var sidebarPeeked = false;
+  function syncSidebarInert() {
+    if (!sidebarEl || !sidebarMain) return;
+    var collapsed = body.classList.contains("sidebar-collapsed");
+    sidebarEl.inert = false;
+    sidebarMain.inert = collapsed && !sidebarPeeked;
+    /* 抽屉打开时 rail 已被覆盖隐藏（v110 互斥），一并移出 tab 序列 */
+    if (sidebarRail) sidebarRail.inert = collapsed && sidebarPeeked;
+  }
+  if (sidebarEl) {
+    sidebarEl.addEventListener("mouseenter", function () {
+      sidebarPeeked = true;
+      syncSidebarInert();
+    });
+    sidebarEl.addEventListener("mouseleave", function () {
+      sidebarPeeked = false;
+      syncSidebarInert();
+    });
+  }
   function syncNavigation() {
     $$(".activity-button[data-goto]").forEach(function (button) {
       if (button.dataset.goto === body.dataset.view)
         button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
+    syncSidebarInert();
     var collapsed = body.classList.contains("sidebar-collapsed");
-    $("#projectSidebar").inert = collapsed;
     $("#leftToggle").setAttribute("aria-expanded", String(!collapsed));
     sidebarHandle.tabIndex = collapsed ? -1 : 0;
   }

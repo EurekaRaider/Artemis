@@ -6,164 +6,175 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Artemis · 工作空间原型</title>
 
-<link href="ui/compat.css?v=69" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=69" rel="stylesheet"/>
+<link href="ui/compat.css?v=100" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=114" rel="stylesheet"/>
 
-<link href="workspace-composition.css?v=69" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=69"/>
+<link href="workspace-composition.css?v=110" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=114"/>
 </head>
-<body data-dock="open" data-empty="0" data-view="workspace">
+<body data-dock="closed" data-empty="0" data-view="workspace">
 <div class="app-shell">
-<!-- 活动栏 46px: 项目/插件/使用量/定时/归档 + 设置 -->
-<nav aria-label="活动栏" class="activity-bar">
-<span aria-hidden="true" class="activity-mark">
-<svg fill="none" height="18" viewbox="0 0 24 24" width="18"><circle cx="12" cy="12" r="8.2" stroke="var(--accent)" stroke-width="1.5"></circle><path d="M6.5 17.5 17.5 6.5" stroke="var(--accent)" stroke-linecap="round" stroke-width="1.5"></path><path d="M13.5 6.5h4v4" stroke="var(--accent)" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path></svg>
-</span>
-<button aria-label="项目" class="activity-button active" data-goto="workspace" title="项目" type="button">
-<svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewbox="0 0 24 24" width="17"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z"></path></svg>
-</button>
-<button aria-label="MCP 与 Skills" class="activity-button" data-goto="resources" title="MCP 与 Skills" type="button">
-<svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewbox="0 0 24 24" width="17"><rect height="15" rx="3" width="17" x="3.5" y="4.5"></rect><path d="M3.5 9.5h17M8 14h4"></path></svg>
-</button>
-<button aria-label="Token 用量" class="activity-button" data-goto="token-usage" title="Token 用量" type="button">
-<svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-width="1.4" viewbox="0 0 24 24" width="17"><path d="M5 19v-8M12 19V5M19 19v-5"></path></svg>
-</button>
-<button aria-label="定时任务" class="activity-button" data-goto="automations" title="定时任务" type="button">
-<svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewbox="0 0 24 24" width="17"><circle cx="12" cy="12" r="8"></circle><path d="M12 7.5V12l3 2"></path></svg>
-</button>
-<button aria-label="归档" class="activity-button" data-goto="archive" title="归档" type="button">
-<svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewbox="0 0 24 24" width="17"><rect height="5" rx="1.5" width="16" x="4" y="4"></rect><path d="M5.5 9v9A1.5 1.5 0 0 0 7 19.5h10a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"></path></svg>
-</button>
-<div class="activity-spacer"></div>
-<button aria-label="设置" class="activity-button" id="settingsBtn" title="设置" type="button">
-<svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewbox="0 0 24 24" width="17"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-</button>
-</nav>
 <!-- 项目侧栏: 搜索+新建 → 三层树 → 账号 -->
 <aside aria-label="项目侧栏" class="sidebar" id="projectSidebar">
-<div class="sidebar-header">
-<div class="sidebar-header-actions">
+<div aria-label="侧栏快捷栏" class="sidebar-rail">
+<button aria-label="展开侧栏" class="rail-brand" title="展开侧栏" type="button"><svg fill="none" height="18" viewbox="0 0 24 24" width="18"><circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="1.5"></circle><path d="M6.5 17.5 17.5 6.5" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"></path><path d="M13.5 6.5h4v4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path></svg></button>
+<nav aria-label="功能入口">
+<button aria-label="插件市场" class="activity-button rail-item" data-goto="resources" title="插件市场" type="button"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="17" height="17"><rect height="7" rx="1.6" width="7" x="3.5" y="3.5"></rect><rect height="7" rx="1.6" width="7" x="13.5" y="3.5"></rect><rect height="7" rx="1.6" width="7" x="3.5" y="13.5"></rect><rect height="7" rx="1.6" width="7" x="13.5" y="13.5"></rect></svg></button>
+<button aria-label="用量统计" class="activity-button rail-item" data-goto="token-usage" title="用量统计" type="button"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="17" height="17"><path d="M5 19v-8M12 19V5M19 19v-5"></path></svg></button>
+<button aria-label="定时任务" class="activity-button rail-item" data-goto="automations" title="定时任务" type="button"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="17" height="17"><circle cx="12" cy="12" r="8"></circle><path d="M12 7.5V12l3 2"></path></svg></button>
+<button aria-label="归档会话" class="activity-button rail-item" data-goto="archive" title="归档会话" type="button"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="17" height="17"><rect height="5" rx="1.5" width="16" x="4" y="4"></rect><path d="M5.5 9v9A1.5 1.5 0 0 0 7 19.5h10a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"></path></svg></button>
+</nav>
+<span aria-hidden="true" class="rail-sep"></span>
+<button aria-label="定位当前会话" class="rail-anchor" id="railAnchor" title="Artemis / UI 设计语言改版" type="button"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="18" height="18"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z"></path></svg><span aria-hidden="true" class="rail-dot running"></span></button>
+<span class="rail-sp"></span>
+<button aria-label="账户" class="rail-avatar" title="nicky" type="button">N</button>
+<button aria-label="设置" class="rail-item" id="railSettings" title="设置" type="button"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16" height="16"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
+<button aria-label="展开侧栏" class="rail-item" id="railExpand" title="展开侧栏" type="button"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="17" height="17"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M9.5 4.5v15"></path></svg></button>
+</div>
+<div class="sidebar-main">
+
+<div class="sidebar-top">
+<div class="sidebar-brand">
+<span aria-hidden="true" class="activity-mark"><svg fill="none" height="18" viewbox="0 0 24 24" width="18"><circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="1.5"></circle><path d="M6.5 17.5 17.5 6.5" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"></path><path d="M13.5 6.5h4v4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"></path></svg></span>
+<span class="brand-name">Artemis</span>
+<button aria-label="当前版本 v1.4.40" class="app-version" id="versionChip" title="当前版本 v1.4.40" type="button">v1.4.40</button>
+</div>
+<nav aria-label="功能入口" class="sidebar-nav">
+<button aria-label="插件市场" class="activity-button nav-row" data-goto="resources" title="插件市场" type="button"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewbox="0 0 24 24" width="16"><rect height="7" rx="1.6" width="7" x="3.5" y="3.5"></rect><rect height="7" rx="1.6" width="7" x="13.5" y="3.5"></rect><rect height="7" rx="1.6" width="7" x="3.5" y="13.5"></rect><rect height="7" rx="1.6" width="7" x="13.5" y="13.5"></rect></svg><span class="nav-label">插件市场</span></button>
+<button aria-label="用量统计" class="activity-button nav-row" data-goto="token-usage" title="用量统计" type="button"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-width="1.4" viewbox="0 0 24 24" width="16"><path d="M5 19v-8M12 19V5M19 19v-5"></path></svg><span class="nav-label">用量统计</span></button>
+<button aria-label="定时任务" class="activity-button nav-row" data-goto="automations" title="定时任务" type="button"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewbox="0 0 24 24" width="16"><circle cx="12" cy="12" r="8"></circle><path d="M12 7.5V12l3 2"></path></svg><span class="nav-label">定时任务</span></button>
+<button aria-label="归档会话" class="activity-button nav-row" data-goto="archive" title="归档会话" type="button"><svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewbox="0 0 24 24" width="16"><rect height="5" rx="1.5" width="16" x="4" y="4"></rect><path d="M5.5 9v9A1.5 1.5 0 0 0 7 19.5h10a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"></path></svg><span class="nav-label">归档会话</span></button>
+</nav>
+
+</div>
+
+<div class="sidebar-searchzone">
 <label class="sidebar-search">
 <svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg>
-<input aria-label="搜索任务" placeholder="搜索任务" type="text"/>
+<input aria-label="搜索会话" placeholder="搜索会话" type="text"/>
 </label>
-</div>
 </div>
 <div class="project-tree">
 <button aria-expanded="true" class="group-row" type="button">
-<svg class="chev" fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewbox="0 0 24 24" width="10"><path d="m6 9 6 6 6-6"></path></svg>
-        项目
-        <span aria-label="添加项目" class="group-add" role="button" title="添加项目"><svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="11"><path d="M12 5v14M5 12h14"></path></svg></span>
+项目
+<span aria-hidden="true" class="grp-eye" title="隐藏所有项目"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="12" height="12"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"></path></svg></span>
+<span class="g-sp"></span>
+<span aria-label="收起全部" class="group-toggle" data-state="open" role="button" title="收起全部会话"><svg class="t-out" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="12" height="12"><path d="M14.5 4H20v5.5"></path><path d="M20 4l-5.5 5.5"></path><path d="M9.5 20H4v-5.5"></path><path d="M4 20l5.5-5.5"></path></svg><svg class="t-in" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="12" height="12"><path d="M20 10h-6V4"></path><path d="M14 10l7-7"></path><path d="M4 14h6v6"></path><path d="M3 21l7-7"></path></svg></span>
+<span aria-label="添加项目" class="group-add" role="button" title="添加项目"><svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="11"><path d="M12 5v14M5 12h14"></path></svg></span>
 </button>
 <div class="project-item">
-<button aria-expanded="true" class="project-head" type="button">
-<svg class="chev" fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewbox="0 0 24 24" width="10"><path d="m6 9 6 6 6-6"></path></svg>
-<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="12"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z"></path></svg>
+<button aria-expanded="true" class="project-head" type="button"><svg class="folder-closed" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z"></path></svg><svg class="folder-open" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24"><path d="M6 14l1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"></path></svg>
           Artemis
           <span class="acts">
-<span class="proj-act" role="button" title="新会话"><svg fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewbox="0 0 24 24" width="10"><path d="M12 5v14M5 12h14"></path></svg></span>
+<span class="proj-act" role="button" title="新会话"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="12" height="12"><path d="M12.5 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6.5"></path><path d="M17.6 3.4a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 8.6-8.6z"></path></svg></span>
 <span class="proj-act" role="button" title="更多"><svg fill="currentColor" height="10" viewbox="0 0 24 24" width="10"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg></span>
 </span>
 </button>
 <div class="thread-list">
 <div class="thread-wrap">
-<button class="thread active" type="button"><span class="dot"></span><span class="tt">UI 设计语言改版</span></button>
+<button class="thread active" data-ts="1788705626941" type="button"><span class="dot"></span><span class="tt">UI 设计语言改版</span><span class="tt-time" aria-hidden="true"></span></button>
 <button aria-label="更多操作" class="thread-more" title="更多操作" type="button">···</button>
 </div>
 <div class="thread-wrap">
-<button class="thread running" type="button"><span class="dot"></span><span class="tt">修复 Windows 打包 ACL</span></button>
+<button class="thread running" data-ts="1788704930941" type="button"><span class="dot"></span><span class="tt">修复 Windows 打包 ACL</span><span class="tt-time" aria-hidden="true"></span></button>
 <button aria-label="更多操作" class="thread-more" title="更多操作" type="button">···</button>
 </div>
 <div class="thread-wrap">
-<button class="thread" type="button"><span class="dot"></span><span class="tt">Seatbelt 策略回归</span></button>
+<button class="thread" data-ts="1788702830941" type="button"><span class="dot"></span><span class="tt">Seatbelt 策略回归</span><span class="tt-time" aria-hidden="true"></span></button>
 <button aria-label="更多操作" class="thread-more" title="更多操作" type="button">···</button>
 </div>
 </div>
 </div>
 <div class="project-item">
-<button aria-expanded="true" class="project-head" type="button">
-<svg class="chev" fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewbox="0 0 24 24" width="10"><path d="m6 9 6 6 6-6"></path></svg>
-<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="12"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z"></path></svg>
+<button aria-expanded="true" class="project-head" type="button"><svg class="folder-closed" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z"></path></svg><svg class="folder-open" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24"><path d="M6 14l1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"></path></svg>
           token-lab
           <span class="acts">
-<span class="proj-act" role="button" title="新会话"><svg fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewbox="0 0 24 24" width="10"><path d="M12 5v14M5 12h14"></path></svg></span>
+<span class="proj-act" role="button" title="新会话"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="12" height="12"><path d="M12.5 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6.5"></path><path d="M17.6 3.4a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 8.6-8.6z"></path></svg></span>
 <span class="proj-act" role="button" title="更多"><svg fill="currentColor" height="10" viewbox="0 0 24 24" width="10"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg></span>
 </span>
 </button>
 <div class="thread-list">
 <div class="thread-wrap">
-<button class="thread" type="button"><span class="dot"></span><span class="tt">令牌契约 A2 校验</span></button>
+<button class="thread" data-ts="1788693650941" type="button"><span class="dot"></span><span class="tt">令牌契约 A2 校验</span><span class="tt-time" aria-hidden="true"></span></button>
 <button aria-label="更多操作" class="thread-more" title="更多操作" type="button">···</button>
 </div>
 </div>
 </div>
 <button aria-expanded="true" class="group-row" style="margin-top:6px" type="button">
-<svg class="chev" fill="none" height="10" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewbox="0 0 24 24" width="10"><path d="m6 9 6 6 6-6"></path></svg>
-        临时会话
-        <span aria-label="新建临时会话" class="group-add" role="button" title="新建临时会话"><svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="11"><path d="M12 5v14M5 12h14"></path></svg></span>
+临时会话
+<span aria-hidden="true" class="grp-eye" title="隐藏所有项目"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="12" height="12"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"></path></svg></span>
+<span class="g-sp"></span>
+<span aria-label="新建临时会话" class="group-add" role="button" title="新建临时会话"><svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="12" height="12"><path d="M12.5 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6.5"></path><path d="M17.6 3.4a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 8.6-8.6z"></path></svg></span>
 </button>
 <div class="thread-list">
 <div class="thread-wrap">
-<button class="thread" type="button"><span class="dot"></span><span class="tt">desktop-organizer 清理</span></button>
+<button class="thread" data-ts="1788612050941" type="button"><span class="dot"></span><span class="tt">desktop-organizer 清理</span><span class="tt-time" aria-hidden="true"></span></button>
 <button aria-label="更多操作" class="thread-more" title="更多操作" type="button">···</button>
 </div>
 <!-- IM 绑定线程（feat/im-feishu：标题「渠道 · 发送者」，徽标绿点=已连接/红点=断链；
      通道名前置端在线指示——组件层 ic3 mobile/monitor，亮=在线 暗=离线，可多端并存） -->
 <div class="thread-wrap">
-<button class="thread" type="button"><span class="dot"></span><span aria-label="手机在线，PC 在线" class="im-devices" title="手机在线 · PC 在线"><svg aria-hidden="true" class="on" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="18" rx="4" width="12" x="6" y="3"></rect><path d="M10.4 6.5h3.2"></path></svg><svg aria-hidden="true" class="on" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="12.5" rx="2" width="17" x="3.5" y="4"></rect><path d="M4.5 13.5h15M12 16.5v2.6M9.2 20.5h5.6"></path></svg></span><span class="tt">飞书 · 张三</span></button>
+<button class="thread" data-ts="1788532850941" type="button"><span class="dot"></span><span aria-label="手机在线，PC 在线" class="im-devices" title="手机在线 · PC 在线"><svg aria-hidden="true" class="on" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="18" rx="4" width="12" x="6" y="3"></rect><path d="M10.4 6.5h3.2"></path></svg><svg aria-hidden="true" class="on" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="12.5" rx="2" width="17" x="3.5" y="4"></rect><path d="M4.5 13.5h15M12 16.5v2.6M9.2 20.5h5.6"></path></svg></span><span class="tt">飞书 · 张三</span><span class="tt-time" aria-hidden="true"></span></button>
 <button aria-label="更多操作" class="thread-more" title="更多操作" type="button">···</button>
 </div>
 <div class="thread-wrap">
-<button class="thread" type="button"><span class="dot"></span><span aria-label="手机在线，PC 离线" class="im-devices" title="手机在线 · PC 离线"><svg aria-hidden="true" class="on" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="18" rx="4" width="12" x="6" y="3"></rect><path d="M10.4 6.5h3.2"></path></svg><svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="12.5" rx="2" width="17" x="3.5" y="4"></rect><path d="M4.5 13.5h15M12 16.5v2.6M9.2 20.5h5.6"></path></svg></span><span class="tt">飞书 · 王小明</span></button>
+<button class="thread" data-ts="1788514850941" type="button"><span class="dot"></span><span aria-label="手机在线，PC 离线" class="im-devices" title="手机在线 · PC 离线"><svg aria-hidden="true" class="on" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="18" rx="4" width="12" x="6" y="3"></rect><path d="M10.4 6.5h3.2"></path></svg><svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="12.5" rx="2" width="17" x="3.5" y="4"></rect><path d="M4.5 13.5h15M12 16.5v2.6M9.2 20.5h5.6"></path></svg></span><span class="tt">飞书 · 王小明</span><span class="tt-time" aria-hidden="true"></span></button>
 <button aria-label="更多操作" class="thread-more" title="更多操作" type="button">···</button>
 </div>
 <div class="thread-wrap">
-<button class="thread" type="button"><span class="dot"></span><span aria-label="手机离线，PC 在线" class="im-devices" title="手机离线 · PC 在线"><svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="18" rx="4" width="12" x="6" y="3"></rect><path d="M10.4 6.5h3.2"></path></svg><svg aria-hidden="true" class="on" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="12.5" rx="2" width="17" x="3.5" y="4"></rect><path d="M4.5 13.5h15M12 16.5v2.6M9.2 20.5h5.6"></path></svg></span><span class="tt">企业微信 · 陈晨</span></button>
+<button class="thread" data-ts="1788273650941" type="button"><span class="dot"></span><span aria-label="手机离线，PC 在线" class="im-devices" title="手机离线 · PC 在线"><svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="18" rx="4" width="12" x="6" y="3"></rect><path d="M10.4 6.5h3.2"></path></svg><svg aria-hidden="true" class="on" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="12.5" rx="2" width="17" x="3.5" y="4"></rect><path d="M4.5 13.5h15M12 16.5v2.6M9.2 20.5h5.6"></path></svg></span><span class="tt">企业微信 · 陈晨</span><span class="tt-time" aria-hidden="true"></span></button>
 <button aria-label="更多操作" class="thread-more" title="更多操作" type="button">···</button>
 </div>
 <div class="thread-wrap">
-<button class="thread" type="button"><span class="dot"></span><span aria-label="手机离线，PC 离线" class="im-devices" title="手机离线 · PC 离线"><svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="18" rx="4" width="12" x="6" y="3"></rect><path d="M10.4 6.5h3.2"></path></svg><svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="12.5" rx="2" width="17" x="3.5" y="4"></rect><path d="M4.5 13.5h15M12 16.5v2.6M9.2 20.5h5.6"></path></svg></span><span class="tt">飞书 · 李四</span></button>
+<button class="thread" data-ts="1788705596941" type="button"><span class="dot"></span><span aria-label="手机离线，PC 离线" class="im-devices" title="手机离线 · PC 离线"><svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="18" rx="4" width="12" x="6" y="3"></rect><path d="M10.4 6.5h3.2"></path></svg><svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="12"><rect height="12.5" rx="2" width="17" x="3.5" y="4"></rect><path d="M4.5 13.5h15M12 16.5v2.6M9.2 20.5h5.6"></path></svg></span><span class="tt">飞书 · 李四</span><span class="tt-time" aria-hidden="true"></span></button>
 <button aria-label="更多操作" class="thread-more" title="更多操作" type="button">···</button>
 </div>
 </div>
 </div>
 <div class="sidebar-footer">
+<button aria-label="折叠/展开侧栏" class="ws-toggle active" id="leftToggle" title="折叠/展开侧栏" type="button">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M9.5 4.5v15"></path></svg>
+<svg class="ic-expand" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16" height="16"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M9.5 4.5v15"></path><path d="m13.5 9.5 2.5 2.5-2.5 2.5"></path></svg>
+</button>
+<span aria-hidden="true" class="foot-sep"></span>
+
 <span class="local-badge">
 <span class="avatar">N</span>
 <span class="local-name"><b>nicky</b></span>
 </span>
 <span class="foot-sp"></span>
-<button aria-label="当前版本 v1.4.40" class="app-version" id="versionChip" title="当前版本 v1.4.40" type="button">v1.4.40</button>
+<button aria-label="设置" class="foot-icon" id="settingsBtn" title="设置" type="button"><svg fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4" viewbox="0 0 24 24" width="17"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
+
+</div>
+
 </div>
 </aside>
 <div aria-controls="projectSidebar" aria-label="调整任务侧栏宽度" aria-orientation="vertical" aria-valuemax="420" aria-valuemin="208" aria-valuenow="252" class="project-sidebar-resizer" role="separator" tabindex="0"></div>
 <!-- ===== workspace ===== -->
 <section class="workspace">
-<!-- 视图: workspace -->
-<div class="page pg-workspace">
 <header class="workspace-header">
-<button aria-label="折叠侧栏" class="ws-toggle active" id="leftToggle" title="折叠侧栏" type="button">
-<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M9.5 4.5v15"></path></svg>
-</button>
 <div class="workspace-heading">
+<svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16" height="16"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z"></path></svg>
 <strong>Artemis</strong>
 <span class="header-separator">/</span>
 <span class="workspace-thread-title">UI 设计语言改版</span>
-<button class="goal-pill" data-open-panel="goal" title="编辑任务目标" type="button"><span aria-hidden="true">◎</span>目标</button>
+
 </div>
 <div class="header-actions">
-<span class="status-pill"><span class="status-dot running"></span>运行中 <span>4:12</span></span>
 <div class="environment-control">
 <button aria-expanded="false" aria-label="环境" class="environment-trigger" id="envTrigger" title="环境（Git · 代理）" type="button">
-<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-width="1.5" viewbox="0 0 24 24" width="16"><circle cx="6" cy="6" r="2.4"></circle><circle cx="6" cy="18" r="2.4"></circle><circle cx="18" cy="9" r="2.4"></circle><path d="M6 8.4v7.2M8 7l7.7 1.3M8 17l7.7-6.6"></path></svg>
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16"><path d="M12 3L3.5 7.5 12 12l8.5-4.5L12 3z"></path><path d="M3.5 12l8.5 4.5L20.5 12"></path><path d="M3.5 16.5l8.5 4.5 8.5-4.5"></path></svg>
 </button>
-<div aria-label="环境" class="environment-popover" id="envPop" role="dialog"><header class="panel-toolbar"><strong>环境 · Artemis</strong><span class="sp"></span><button class="btn btn-quiet" id="envClose" type="button">关闭</button></header><section class="setting-group"><h2 class="setting-group-title">Git</h2><div class="setting-row"><div><div class="label">本地工作区</div><div class="desc">Artemis-feat-im-feishu</div></div><span class="sp"></span><span class="chip ok">Local</span></div><div class="setting-row"><div><div class="label">当前分支</div><div class="desc">3 个文件有未提交更改</div></div><span class="sp"></span><button class="btn btn-quiet" id="environmentBranch" type="button">main ▾</button></div><div class="panel-actions"><button class="btn btn-quiet" data-open-panel="review" type="button">查看更改</button><button class="btn btn-quiet" data-dialog="commit" type="button">提交更改</button></div></section><section class="setting-group"><h2 class="setting-group-title">Agent 活动</h2><div class="setting-row"><div><div class="label">主 Agent</div><div class="desc">正在整理界面布局</div></div><span class="sp"></span><span class="chip run">运行中</span></div><div class="setting-row"><div><div class="label">UI 实现团队</div><div class="desc">2 位成员 · 1 位运行中</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="team" type="button">查看团队</button></div><div class="setting-row"><div><div class="label">布局检查</div><div class="desc">已完成 · 3 个发现</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="agent" type="button">查看 Agent</button></div></section><section class="setting-group"><h2 class="setting-group-title">来源</h2><div class="setting-row"><div><div class="label">2 个附件 · 1 次工具调用</div><div class="desc">本次任务所用的上下文</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="sources" type="button">查看全部</button></div></section></div>
+<div aria-label="环境" class="environment-popover" id="envPop" role="dialog"><header class="panel-toolbar"><strong>环境 · Artemis</strong><span class="sp"></span><button class="btn btn-quiet" id="envClose" type="button">关闭</button>
+<section class="setting-group"><h2 class="setting-group-title">Git</h2><div class="setting-row"><div><div class="label">本地工作区</div><div class="desc">Artemis-feat-im-feishu</div></div><span class="sp"></span><span class="chip ok">Local</span></div><div class="setting-row"><div><div class="label">当前分支</div><div class="desc">3 个文件有未提交更改</div></div><span class="sp"></span><button class="btn btn-quiet" id="environmentBranch" type="button">main ▾</button></div><div class="panel-actions"><button class="btn btn-quiet" data-open-panel="review" type="button">查看更改</button><button class="btn btn-quiet" data-dialog="commit" type="button">提交更改</button></div></section><section class="setting-group"><h2 class="setting-group-title">Agent 活动</h2><div class="setting-row"><div><div class="label">主 Agent</div><div class="desc">正在整理界面布局</div></div><span class="sp"></span><span class="chip run">运行中</span></div><div class="setting-row"><div><div class="label">UI 实现团队</div><div class="desc">2 位成员 · 1 位运行中</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="team" type="button">查看团队</button></div><div class="setting-row"><div><div class="label">布局检查</div><div class="desc">已完成 · 3 个发现</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="agent" type="button">查看 Agent</button></div></section><section class="setting-group"><h2 class="setting-group-title">来源</h2><div class="setting-row"><div><div class="label">2 个附件 · 1 次工具调用</div><div class="desc">本次任务所用的上下文</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="sources" type="button">查看全部</button></div></section></div>
 </div>
-<button aria-controls="workspaceDock" aria-expanded="true" aria-label="切换右栏" class="ws-toggle active" id="dockToggle" title="切换右栏" type="button">
+<button aria-controls="workspaceDock" aria-expanded="false" aria-label="切换右栏" class="ws-toggle" id="dockToggle" title="切换右栏" type="button">
 <svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="16"><rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect><path d="M14.5 4.5v15"></path></svg>
 </button>
 </div>
 </header>
-<div class="workspace-content" id="workspaceContent">
+
+<!-- 视图: workspace -->
+<div class="page pg-workspace"><div class="workspace-content" id="workspaceContent">
 <section class="conversation" id="conversation">
 <div class="timeline-scroll">
 <div class="timeline">
@@ -194,7 +205,7 @@
 <p class="ap-reason">更新原型文件以对齐真实布局，不改动现有源码。</p>
 <div class="ap-target">
 <svg fill="none" height="11" stroke="var(--text-3)" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="11"><path d="M7 3.5h7L19 8.5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1z"></path><path d="M13.5 3.5v5.5H19"></path></svg>
-<span class="mono">prototype/apple-inspired-ui.html</span>
+<span class="mono">prototype/artemis-ui.html</span>
 <span class="tag">更新 · 42 KB</span>
 </div>
 <div class="ap-actions">
@@ -226,6 +237,7 @@
 <!-- 任务计划 -->
 <div class="task-plan-progress" id="taskPlan"></div>
 <div class="composer">
+<div class="composer-status"><button class="goal-pill" data-open-panel="goal" title="编辑任务目标" type="button"><span aria-hidden="true">◎</span>目标 · UI 设计语言改版</button><span class="status-pill"><span class="status-dot running"></span>运行中 <span>4:12</span></span></div>
 <div aria-label="任务上下文" class="composer-topbar">
 <div class="composer-context-control">
 <button aria-expanded="false" aria-haspopup="menu" class="ctx-select" id="projSelect" type="button">
@@ -369,7 +381,7 @@
 </div>
 </div>
 </section>
-<div aria-controls="conversation workspaceDock" aria-label="调整右栏宽度（拖动或 ←→，Home 复位，End 最大）" aria-orientation="vertical" aria-valuemax="1080" aria-valuemin="320" aria-valuenow="620" aria-valuetext="右栏宽度 620 像素" class="dock-resizer" id="dockResizer" role="separator" tabindex="0"></div>
+<div aria-controls="conversation workspaceDock" aria-label="调整右栏宽度（拖动或 ←→，Home 复位，End 最大）" aria-orientation="vertical" aria-valuemax="1080" aria-valuemin="320" aria-valuenow="620" aria-valuetext="右栏宽度 620 像素" class="dock-resizer" id="dockResizer" role="separator" tabindex="-1" aria-disabled="true"></div>
 <!-- workspace-tool-dock: 动态标签 -->
 <aside aria-label="工作区面板" class="workspace-dock" id="workspaceDock">
 <div class="workspace-tab-bar" role="tablist">
@@ -392,7 +404,7 @@
 <div class="tab-content">
 <!-- review 面板 -->
 <div aria-labelledby="dockTabReview" class="tab-panel show" data-panel="review" id="dockPanelReview" role="tabpanel"><header class="panel-toolbar"><strong>审查</strong><span class="sp"></span><select aria-label="对比范围" class="select-pill" id="reviewScope"><option value="unstaged">未暂存</option><option value="staged">已暂存</option><option value="last-turn">上一轮</option><option value="branch">分支</option></select><span class="card-sub" id="reviewRange">HEAD → 工作区</span></header><div class="review-workspace"><div class="review-reader"><div class="diff-panel">
-<div class="diff-head"><span id="reviewFilename">apple-inspired-ui.html</span><span class="hint">工作区更改</span></div>
+<div class="diff-head"><span id="reviewFilename">artemis-ui.html</span><span class="hint">工作区更改</span></div>
 <div class="diff-scroll" tabindex="0">
 <div class="diff-line ctx"><span class="ln">12</span><span class="code">:root {</span></div>
 <div class="diff-line del"><span class="ln">13</span><span class="code">-  --bg: #111214;</span></div>
@@ -405,7 +417,7 @@
 <div class="diff-line ctx"><span class="ln"></span><span class="code"><span class="cmt">/* 圆角 8/10/12/16 · 动效 180/320/480ms */</span></span></div>
 </div>
 </div></div><aside aria-label="已更改文件" class="review-file-sidebar"><div class="changed-head"><span class="changed-title">已更改文件</span><span class="changed-count">3 个文件</span></div><label class="panel-filter"><input aria-label="筛选更改文件" id="reviewFilter" placeholder="筛选文件"/></label><div class="file-list">
-<button aria-pressed="true" class="file-row selected" data-review-file="0" type="button"><span class="file-dot fd-css"></span><span class="file-path">docs/ui-prototype/apple-inspired-ui.html</span><span class="file-delta"><span class="add">+142</span> <span class="del">−38</span></span></button>
+<button aria-pressed="true" class="file-row selected" data-review-file="0" type="button"><span class="file-dot fd-css"></span><span class="file-path">docs/ui-prototype/artemis-ui.html</span><span class="file-delta"><span class="add">+142</span> <span class="del">−38</span></span></button>
 <button aria-pressed="false" class="file-row" data-review-file="1" type="button"><span class="file-dot fd-tsx"></span><span class="file-path">docs/ui-prototype/component-tokens.css</span><span class="file-delta"><span class="add">+64</span> <span class="del">−12</span></span></button>
 <button aria-pressed="false" class="file-row" data-review-file="2" type="button"><span class="file-dot fd-new"></span><span class="file-path">docs/ui-prototype/README.md</span><span class="file-badge pending">待审批</span></button>
 </div><p class="empty-hint" hidden="" id="reviewNoMatch">没有匹配的文件</p></aside></div></div>
@@ -435,8 +447,8 @@
 </div>
 <!-- browser 占位面板（点击 launcher Browser 打开） -->
 <div aria-labelledby="dockTabBrowser" class="tab-panel" data-panel="browser" hidden="" id="dockPanelBrowser" role="tabpanel"><header class="panel-toolbar"><strong>浏览器</strong><span class="sp"></span><button class="btn btn-quiet" id="browserRefresh" type="button">刷新</button></header><form class="browser-bar" id="browserForm"><button aria-label="后退" class="icon-btn" disabled="" id="browserBack" type="button">‹</button><button aria-label="前进" class="icon-btn" disabled="" id="browserForward" type="button">›</button><input aria-label="浏览器地址" class="browser-address" id="browserAddress" value="artemis://preview/welcome"/><button class="btn btn-quiet" type="submit">前往</button></form><div class="browser-preview" id="browserPreview"><span class="chip ok">本地预览</span><h1>让想法成为作品。</h1><p>从一个任务开始，在同一个工作空间中编写、查看和完善。</p><div class="preview-grid"><article class="card"><h2>清晰的上下文</h2><p>项目、附件和来源始终触手可及。</p></article><article class="card"><h2>专注的工作空间</h2><p>会话与工具并排，随时查看结果。</p></article></div><button class="btn btn-primary" id="previewReadme" type="button">阅读项目说明</button></div></div>
-<div aria-labelledby="dockTabFiles" class="tab-panel" data-panel="files" hidden="" id="dockPanelFiles" role="tabpanel"><header class="panel-toolbar"><strong>文件</strong><span class="sp"></span><button class="btn btn-quiet" data-open-panel="markdown" type="button">打开阅读器</button></header><div class="files-workspace"><div class="file-viewer"><div class="panel-toolbar"><span class="mono" id="fileViewerPath">README.md</span><span class="sp"></span><button class="btn btn-quiet" id="fileEdit" type="button">编辑</button></div><pre class="code-view" id="fileSource" tabindex="0"></pre><textarea aria-label="文件内容" class="editor-area" hidden="" id="fileEditor"></textarea><div class="panel-actions" hidden="" id="fileEditActions"><span class="card-sub">修改仅保留在此原型页面</span><span class="sp"></span><button class="btn btn-quiet" id="fileCancel" type="button">取消</button><button class="btn btn-primary" id="fileSave" type="button">保存</button></div></div><aside aria-label="工作区文件" class="file-tree"><label class="panel-filter"><input aria-label="筛选工作区文件" id="fileFilter" placeholder="筛选文件"/></label><details open=""><summary>Artemis</summary><button class="file-row selected" data-file="readme" type="button">README.md</button><details open=""><summary>docs / ui-prototype</summary><button class="file-row" data-file="html" type="button">apple-inspired-ui.html</button><button class="file-row" data-file="css" type="button">component-tokens.css</button></details><button class="file-row" data-file="package" type="button">package.json</button></details><p class="empty-hint" hidden="" id="fileNoMatch">没有匹配的文件</p></aside></div></div>
-<section aria-label="任务目标" class="tab-panel" data-panel="goal" hidden="" id="dockPanelGoal" role="tabpanel"><header class="panel-toolbar"><strong>任务目标</strong><span class="sp"></span><span class="chip run">进行中</span></header><div class="panel-scroll goal-editor"><label class="setting-group-title" for="goalInput">目标</label><textarea class="editor-area" id="goalInput">对齐 Artemis 当前主界面与子面板，使用现有组件组装一套可交互的 UI 原型，并完成布局与交互检查。</textarea><div class="goal-meta"><span>已用时 4 分 12 秒</span><span>预算未设置</span></div><div class="panel-actions"><span class="card-sub" id="goalSaved" role="status">修改后可保存目标</span><span class="sp"></span><button class="btn btn-quiet" disabled="" id="goalRevert" type="button">还原</button><button class="btn btn-primary" disabled="" id="goalSave" type="button">保存目标</button></div></div></section><section aria-label="来源" class="tab-panel" data-panel="sources" hidden="" id="dockPanelSources" role="tabpanel"><header class="panel-toolbar"><strong>来源</strong><span class="sp"></span><span class="card-sub">本次任务</span></header><div class="panel-scroll"><section class="setting-group"><h2 class="setting-group-title">附件 · 2</h2><div class="setting-row"><div><div class="label">apple-inspired-ui.html</div><div class="desc">页面原型 · 当前任务</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="files" type="button">查看文件</button></div><div class="setting-row"><div><div class="label">README.md</div><div class="desc">项目说明 · 当前任务</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="markdown" type="button">阅读</button></div></section><section class="setting-group"><h2 class="setting-group-title">MCP · 1</h2><details class="tool-card source-details"><summary>filesystem <span class="chip">1 次调用</span></summary><div class="tool-row"><code>read_file</code><span class="sp"></span><span class="card-sub">主 Agent · 1 次</span></div></details></section><section class="setting-group"><h2 class="setting-group-title">Agent · 1</h2><div class="setting-row"><div><div class="label">布局检查</div><div class="desc">使用了 2 个项目附件</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="agent" type="button">查看详情</button></div></section></div></section><section aria-label="README.md" class="tab-panel" data-panel="markdown" hidden="" id="dockPanelMarkdown" role="tabpanel"><header class="panel-toolbar"><strong>README.md</strong><span class="sp"></span><div aria-label="阅读模式" class="seg" role="group"><button aria-pressed="true" class="active" data-reader="rich" type="button">富文本</button><button aria-pressed="false" data-reader="source" type="button">源代码</button></div></header><article class="panel-scroll document-reader" id="readerRich"><span class="card-sub">ARTEMIS / README</span><h1>一个专注于任务的工作空间</h1><p>Artemis 将会话、文件和工具放在一起，让任务的上下文清晰可见。</p><h2>开始工作</h2><ol><li>选择本地项目，或开始一个临时会话。</li><li>在输入区选择计划、执行或审查模式。</li><li>从右侧工具栏打开审查、终端、浏览器与文件。</li></ol><h2>检查与交付</h2><p>查看更改、阅读任务来源，并在目标面板确认完成范围。</p><blockquote>项目上下文与当前任务保持一致。</blockquote></article><pre class="code-view" hidden="" id="readerSource"></pre></section><section aria-label="Agent 团队" class="tab-panel" data-panel="team" hidden="" id="dockPanelTeam" role="tabpanel"><header class="panel-toolbar"><strong>UI 实现团队</strong><span class="sp"></span><span class="chip run">运行中</span></header><div class="panel-scroll"><section class="setting-group"><h2 class="setting-group-title">成员 · 2</h2><div class="setting-row"><div><div class="label">界面编排</div><div class="desc">正在整理子面板</div></div><span class="sp"></span><span class="chip run">运行中</span></div><div class="setting-row"><div><div class="label">布局检查</div><div class="desc">已完成 · 3 个发现</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="agent" type="button">查看</button></div></section><section class="setting-group"><h2 class="setting-group-title">团队消息</h2><article class="tool-card panel-message"><strong>布局检查</strong><span class="card-sub">刚刚</span><p>审查面板的文件列表应位于右侧；项目与模式上下文应在输入框上方独立排列。</p></article></section><div class="panel-actions"><button class="btn btn-quiet" id="teamStop" type="button">停止团队</button></div></div></section><section aria-label="布局检查" class="tab-panel" data-panel="agent" hidden="" id="dockPanelAgent" role="tabpanel"><header class="panel-toolbar"><strong>布局检查</strong><span class="sp"></span><span class="chip ok">已完成</span></header><div class="panel-scroll"><section class="setting-group"><h2 class="setting-group-title">任务</h2><p>核对主界面及子面板的信息层级、入口和容器关系。</p></section><section class="setting-group"><h2 class="setting-group-title">活动记录</h2><div class="tool-row">读取 App.tsx<span class="sp"></span><span class="chip ok">完成</span></div><div class="tool-row">核对面板组件<span class="sp"></span><span class="chip ok">完成</span></div></section><section class="setting-group"><h2 class="setting-group-title">结果</h2><article class="tool-card panel-message"><p>已核对 9 类 Dock 面板。建议保持会话区独立滚动，并将上下文入口集中到环境浮层。</p></article></section></div></section></div>
+<div aria-labelledby="dockTabFiles" class="tab-panel" data-panel="files" hidden="" id="dockPanelFiles" role="tabpanel"><header class="panel-toolbar"><strong>文件</strong><span class="sp"></span><button class="btn btn-quiet" data-open-panel="markdown" type="button">打开阅读器</button></header><div class="files-workspace"><div class="file-viewer"><div class="panel-toolbar"><span class="mono" id="fileViewerPath">README.md</span><span class="sp"></span><button class="btn btn-quiet" id="fileEdit" type="button">编辑</button></div><pre class="code-view" id="fileSource" tabindex="0"></pre><textarea aria-label="文件内容" class="editor-area" hidden="" id="fileEditor"></textarea><div class="panel-actions" hidden="" id="fileEditActions"><span class="card-sub">修改仅保留在此原型页面</span><span class="sp"></span><button class="btn btn-quiet" id="fileCancel" type="button">取消</button><button class="btn btn-primary" id="fileSave" type="button">保存</button></div></div><aside aria-label="工作区文件" class="file-tree"><label class="panel-filter"><input aria-label="筛选工作区文件" id="fileFilter" placeholder="筛选文件"/></label><details open=""><summary>Artemis</summary><button class="file-row selected" data-file="readme" type="button">README.md</button><details open=""><summary>docs / ui-prototype</summary><button class="file-row" data-file="html" type="button">artemis-ui.html</button><button class="file-row" data-file="css" type="button">component-tokens.css</button></details><button class="file-row" data-file="package" type="button">package.json</button></details><p class="empty-hint" hidden="" id="fileNoMatch">没有匹配的文件</p></aside></div></div>
+<section aria-label="任务目标" class="tab-panel" data-panel="goal" hidden="" id="dockPanelGoal" role="tabpanel"><header class="panel-toolbar"><strong>任务目标</strong><span class="sp"></span><span class="chip run">进行中</span></header><div class="panel-scroll goal-editor"><label class="setting-group-title" for="goalInput">目标</label><textarea class="editor-area" id="goalInput">对齐 Artemis 当前主界面与子面板，使用现有组件组装一套可交互的 UI 原型，并完成布局与交互检查。</textarea><div class="goal-meta"><span>已用时 4 分 12 秒</span><span>预算未设置</span></div><div class="panel-actions"><span class="card-sub" id="goalSaved" role="status">修改后可保存目标</span><span class="sp"></span><button class="btn btn-quiet" disabled="" id="goalRevert" type="button">还原</button><button class="btn btn-primary" disabled="" id="goalSave" type="button">保存目标</button></div></div></section><section aria-label="来源" class="tab-panel" data-panel="sources" hidden="" id="dockPanelSources" role="tabpanel"><header class="panel-toolbar"><strong>来源</strong><span class="sp"></span><span class="card-sub">本次任务</span></header><div class="panel-scroll"><section class="setting-group"><h2 class="setting-group-title">附件 · 2</h2><div class="setting-row"><div><div class="label">artemis-ui.html</div><div class="desc">页面原型 · 当前任务</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="files" type="button">查看文件</button></div><div class="setting-row"><div><div class="label">README.md</div><div class="desc">项目说明 · 当前任务</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="markdown" type="button">阅读</button></div></section><section class="setting-group"><h2 class="setting-group-title">MCP · 1</h2><details class="tool-card source-details"><summary>filesystem <span class="chip">1 次调用</span></summary><div class="tool-row"><code>read_file</code><span class="sp"></span><span class="card-sub">主 Agent · 1 次</span></div></details></section><section class="setting-group"><h2 class="setting-group-title">Agent · 1</h2><div class="setting-row"><div><div class="label">布局检查</div><div class="desc">使用了 2 个项目附件</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="agent" type="button">查看详情</button></div></section></div></section><section aria-label="README.md" class="tab-panel" data-panel="markdown" hidden="" id="dockPanelMarkdown" role="tabpanel"><header class="panel-toolbar"><strong>README.md</strong><span class="sp"></span><div aria-label="阅读模式" class="seg" role="group"><button aria-pressed="true" class="active" data-reader="rich" type="button">富文本</button><button aria-pressed="false" data-reader="source" type="button">源代码</button></div></header><article class="panel-scroll document-reader" id="readerRich"><span class="card-sub">ARTEMIS / README</span><h1>一个专注于任务的工作空间</h1><p>Artemis 将会话、文件和工具放在一起，让任务的上下文清晰可见。</p><h2>开始工作</h2><ol><li>选择本地项目，或开始一个临时会话。</li><li>在输入区选择计划、执行或审查模式。</li><li>从右侧工具栏打开审查、终端、浏览器与文件。</li></ol><h2>检查与交付</h2><p>查看更改、阅读任务来源，并在目标面板确认完成范围。</p><blockquote>项目上下文与当前任务保持一致。</blockquote></article><pre class="code-view" hidden="" id="readerSource"></pre></section><section aria-label="Agent 团队" class="tab-panel" data-panel="team" hidden="" id="dockPanelTeam" role="tabpanel"><header class="panel-toolbar"><strong>UI 实现团队</strong><span class="sp"></span><span class="chip run">运行中</span></header><div class="panel-scroll"><section class="setting-group"><h2 class="setting-group-title">成员 · 2</h2><div class="setting-row"><div><div class="label">界面编排</div><div class="desc">正在整理子面板</div></div><span class="sp"></span><span class="chip run">运行中</span></div><div class="setting-row"><div><div class="label">布局检查</div><div class="desc">已完成 · 3 个发现</div></div><span class="sp"></span><button class="btn btn-quiet" data-open-panel="agent" type="button">查看</button></div></section><section class="setting-group"><h2 class="setting-group-title">团队消息</h2><article class="tool-card panel-message"><strong>布局检查</strong><span class="card-sub">刚刚</span><p>审查面板的文件列表应位于右侧；项目与模式上下文应在输入框上方独立排列。</p></article></section><div class="panel-actions"><button class="btn btn-quiet" id="teamStop" type="button">停止团队</button></div></div></section><section aria-label="布局检查" class="tab-panel" data-panel="agent" hidden="" id="dockPanelAgent" role="tabpanel"><header class="panel-toolbar"><strong>布局检查</strong><span class="sp"></span><span class="chip ok">已完成</span></header><div class="panel-scroll"><section class="setting-group"><h2 class="setting-group-title">任务</h2><p>核对主界面及子面板的信息层级、入口和容器关系。</p></section><section class="setting-group"><h2 class="setting-group-title">活动记录</h2><div class="tool-row">读取 App.tsx<span class="sp"></span><span class="chip ok">完成</span></div><div class="tool-row">核对面板组件<span class="sp"></span><span class="chip ok">完成</span></div></section><section class="setting-group"><h2 class="setting-group-title">结果</h2><article class="tool-card panel-message"><p>已核对 9 类 Dock 面板。建议保持会话区独立滚动，并将上下文入口集中到环境浮层。</p></article></section></div></section></div>
 <div aria-label="打开工具" class="panel-picker" hidden="" id="panelPicker" role="menu"><button class="btn btn-quiet" data-open-panel="review" role="menuitem" type="button">审查</button><button class="btn btn-quiet" data-open-panel="terminal" role="menuitem" type="button">终端</button><button class="btn btn-quiet" data-open-panel="browser" role="menuitem" type="button">浏览器</button><button class="btn btn-quiet" data-open-panel="files" role="menuitem" type="button">文件</button></div></aside>
 </div>
 </div>
@@ -1187,6 +1199,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=69"></script>
+<script src="workspace/workspace.js?v=110"></script>
 </body>
 </html>
