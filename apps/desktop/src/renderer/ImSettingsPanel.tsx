@@ -542,21 +542,21 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
               aria-hidden="true"
             />
             {summary}
-            {connections.length > 0 &&
-              ` · ${imConnectionSummary(connections, t)}`}
+            {health.failed > 0 && ` · ${imConnectionSummary(connections, t)}`}
+          </span>
+          <span className="im-master-label" aria-hidden="true">
+            {t("启用", "Enable")}
           </span>
           <Switch
+            labelVisibility="hidden"
             label={t("启用 IM 连接", "Enable IM connection")}
+            title={t(
+              "暂停会保留已有配置与授权。",
+              "Pausing keeps configuration and grants.",
+            )}
             checked={settings.enabled}
             disabled={busy || (!settings.enabled && !!enableReason)}
-            description={
-              !settings.enabled
-                ? enableReason
-                : t(
-                    "暂停会保留已有配置与授权。",
-                    "Pausing keeps configuration and grants.",
-                  )
-            }
+            description={!settings.enabled ? enableReason : undefined}
             onCheckedChange={(enabled) =>
               void run(async () => {
                 const current = await window.artemis.saveImSettings({
@@ -670,21 +670,7 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                 onNavigate={navigateStep}
               />
             )}
-            <Button
-              className="im-guide-link"
-              disabled={busy}
-              onClick={() => {
-                setReviewing(ready);
-                setView("guide");
-                setFields({});
-                setAdminToken("");
-                setFocusTarget("im-guide");
-              }}
-            >
-              {ready
-                ? t("重看设置指引", "Review setup guide")
-                : t("返回设置指引", "Back to setup guide")}
-            </Button>
+
             {view === "gateway" && (
               <>
                 <section id="im-prepare" tabIndex={-1}>
@@ -862,13 +848,25 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
             {IM_CHANNELS.includes(view as ImChannel) && (
               <section id="im-bot" tabIndex={-1}>
                 <ManagementSection
+                  className="im-channel-section"
                   title={imChannelLabel(channel, t)}
-                  description={t(
-                    "先选一个平台完成单聊。团队已经配置机器人时，刷新后查看连接状态即可，无需重复填写密钥。",
-                    "Start with one platform. If your team already configured a bot, refresh and check its status; do not enter its secrets again.",
-                  )}
+                  description={imChannelConstraint(channel, t)}
+                  actions={
+                    <span className="im-status-pill">
+                      <span
+                        className="im-dot"
+                        data-state={
+                          imConnectionHealth(channelConnections).state
+                        }
+                        aria-hidden="true"
+                      />
+                      {imConnectionLabel(
+                        imConnectionHealth(channelConnections).state,
+                        t,
+                      )}
+                    </span>
+                  }
                 >
-                  <p>{imChannelConstraint(channel, t)}</p>
                   {accounts(true)}
                   {channelConnections.length > 1 && (
                     <Select
@@ -894,6 +892,8 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                         <>
                           <span>{t("已保存", "Saved")}</span>
                           <Button
+                            variant="quiet"
+                            className="management-text-action"
                             disabled={busy}
                             onClick={() => {
                               setFields(
@@ -1219,10 +1219,8 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                         data-state={connection.state}
                         aria-hidden="true"
                       />
-                      <span>
-                        {connection.name} ·{" "}
-                        {imConnectionLabel(connection.state, t)}
-                      </span>
+                      <code>{connection.name}</code>
+                      <strong>{imConnectionLabel(connection.state, t)}</strong>
                       {connection.error && (
                         <InlineNotice tone="danger">
                           {connection.error}
@@ -1231,6 +1229,8 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                     </div>
                   ))}
                   <Button
+                    variant="quiet"
+                    className="management-text-action im-secondary-action"
                     disabled={busy || !settings.deviceId}
                     onClick={() => void run(refresh)}
                   >
@@ -1238,6 +1238,8 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                   </Button>
                   {accounts()}
                   <Button
+                    variant="quiet"
+                    className="management-text-action im-secondary-action"
                     onClick={() => {
                       selectView("pairing");
                       setFocusTarget("im-pair");
@@ -1844,6 +1846,22 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                 </details>
               </section>
             )}
+            <Button
+              className="im-guide-link management-text-action"
+              variant="quiet"
+              disabled={busy}
+              onClick={() => {
+                setReviewing(ready);
+                setView("guide");
+                setFields({});
+                setAdminToken("");
+                setFocusTarget("im-guide");
+              }}
+            >
+              {ready
+                ? t("重看设置指引", "Review setup guide")
+                : t("返回设置指引", "Back to setup guide")}
+            </Button>
           </div>
         </div>
       )}

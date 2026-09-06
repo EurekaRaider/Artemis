@@ -75,7 +75,9 @@ export const FEEDBACK_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-color-interaction-hover",
   "--artemis-color-text-primary",
   "--artemis-color-text-secondary",
+  "--artemis-color-text-tertiary",
   "--artemis-color-border-default",
+  "--artemis-color-border-subtle",
   "--artemis-color-border-strong",
   "--artemis-color-accent-primary",
   "--artemis-color-status-info",
@@ -102,6 +104,7 @@ export const FEEDBACK_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-typography-body-family",
   "--artemis-typography-body-size",
   "--artemis-typography-label-size",
+  "--artemis-typography-metadata-size",
   "--artemis-typography-body-weight",
   "--artemis-motion-duration-fast",
   "--artemis-motion-duration-normal",
@@ -974,7 +977,22 @@ export interface InlineNoticeProps extends Omit<
 export function InlineNotice({
   action,
   children,
-  icon,
+  icon = (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 11v5M12 7.5v.5" />
+    </svg>
+  ),
   title,
   tone = "info",
   ...attributes

@@ -1086,9 +1086,7 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain(
       "searchText: `${model.providerId} ${model.name} ${model.modelId}`",
     );
-    expect(settingsSource).toContain(
-      "label: `${model.providerId} · ${model.name} · ${model.modelId}`",
-    );
+    expect(settingsSource).toContain("options={modelOptions}");
     expect(uiFormsSource).toContain('role="combobox"');
     expect(uiFormsSource).toContain('type="search"');
     expect(codexSelectSource).toContain(
@@ -1129,7 +1127,8 @@ describe("renderer layout contract", () => {
     expect(stylesSource).toContain(
       '.task-plan-progress [data-part="marker"][data-status="completed"]',
     );
-    expect(stylesSource).toContain("@keyframes task-step-spin");
+    expect(stylesSource).toContain("@keyframes task-step-breathe");
+    expect(stylesSource).toContain("@keyframes task-step-dot-pulse");
     expect(runtimeSource).toContain('name: "update_plan"');
     expect(runtimeSource).toContain('"update_plan"');
   });
@@ -1153,7 +1152,7 @@ describe("renderer layout contract", () => {
       publicUiCssRule('[data-artemis-component="conversation-surface"]'),
     ).toMatch(/\bcontainer-type:\s*inline-size/u);
     expect(taskPlanList).toMatch(
-      /\bwidth:\s*min\(560px,\s*calc\(100cqw\s*-\s*40px\)\)/u,
+      /\bwidth:\s*min\(520px,\s*72vw,\s*calc\(100cqw\s*-\s*40px\)\)/u,
     );
     expect(taskPlanList).not.toMatch(/100vw/u);
     expect(taskPlanList).toMatch(/\bz-index:\s*1/u);
@@ -2863,7 +2862,7 @@ describe("renderer layout contract", () => {
     );
     expect(resourceCenterSource).toContain("plugin-market-diagnostic");
     expect(resourceCenterSource).toContain("Boolean(conflict)");
-    expect(resourceCenterSource).toContain("label={item.name}");
+    expect(resourceCenterSource).toContain("title={item.name}");
     expect(resourceCenterSource).toContain(
       'resourceIconName(skill.name, "skill")',
     );

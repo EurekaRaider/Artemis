@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 305000,
+      "desktopCssBytes": 315000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -52,5 +52,15 @@
       "goal-parity": 600000,
       "desktop-skin-gallery-package": 900000
     }
-  }
+  },
+  "bundleBudgetRevisions": [
+    {
+      "date": "2026-09-06",
+      "baseHead": "bca777cb267f56a6e0d25969904f668343ab1889",
+      "baseDesktopCssBytes": 304933,
+      "measuredDesktopCssBytes": 313653,
+      "desktopCssIncreaseBytes": 8720,
+      "reason": "Screenshot alignment across usage, capabilities, settings, IM, grouped tool calls, the breathing plan capsule, goal rail and Agent panels adds 2.86% CSS. The previous 305000-byte limit had 67 bytes of headroom at baseHead. The 315000-byte CSS ceiling keeps 1347 bytes of headroom; JavaScript, shared UI, gallery and startup ceilings are unchanged. Measurements use the same Vite production pipeline with HEAD renderer and shared CSS substituted for the baseline."
+    }
+  ]
 }

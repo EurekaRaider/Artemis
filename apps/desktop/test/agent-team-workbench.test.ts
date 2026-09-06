@@ -46,7 +46,7 @@ describe("agent-team workbench", () => {
     );
     expect(
       findCssDeclarations(stylesSource, ".agent-team-collaboration"),
-    ).toContain("flex: 1 0 auto");
+    ).toContain("flex: 0 0 auto");
   });
 
   it("opens the subagent page directly from an accessible tree row", () => {
@@ -55,8 +55,8 @@ describe("agent-team workbench", () => {
     )?.[0];
 
     expect(memberButton).toContain("onClick={() => onOpenChildAgent(member)}");
-    expect(memberButton).toContain("<ChildAgentIcon");
-    expect(memberButton).toContain("identity={member.agentId}");
+    expect(memberButton).not.toContain("<ChildAgentIcon");
+    expect(memberButton).toContain("agentMemberStatus(member.status, locale)");
     expect(memberButton).toContain("{member.label}");
     expect(memberButton).not.toContain("member.role");
     expect(memberButton).not.toContain("member.task");
@@ -65,7 +65,7 @@ describe("agent-team workbench", () => {
     expect(appSource).not.toContain("agent-team-member-details");
     expect(appSource).toContain("aria-expanded={expanded}");
     expect(appSource).toContain("childrenByParent");
-    expect(appSource).toContain("memberCounts.total");
+    expect(appSource).toContain("currentMembers.length");
     expect(stylesSource).toContain("content-visibility: auto");
   });
 
@@ -76,7 +76,6 @@ describe("agent-team workbench", () => {
     );
     expect(childAgentIconSource).toContain("shape: (hash >>> 8) % 8");
     expect(appSource).toContain("identity={child.agentId}");
-    expect(appSource).toContain("identity={child?.agentId}");
     expect(childAgentIconSource).toContain('"#4f86ff"');
     expect(childAgentIconSource).toContain('"#1fc9ae"');
     expect(childAgentIconSource).toContain('opacity="0.32"');

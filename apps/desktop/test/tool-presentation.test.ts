@@ -283,7 +283,7 @@ describe("tool presentation", () => {
     expect(toolCard).not.toContain("JSON.stringify(tool.input, null, 2)");
   });
 
-  it("renders every operation kind with adjacent disclosure and running shimmer", () => {
+  it("renders every operation kind with adjacent disclosure and per-operation status", () => {
     expect(toolPresentation.toolActivityKind).toBeTypeOf("function");
     if (!toolPresentation.toolActivityKind) return;
 
@@ -324,10 +324,10 @@ describe("tool presentation", () => {
     expect(adapterSource).toContain("summarizeToolGroup(tools, locale)");
     expect(toolCard).toContain('className="tool-activity-icon"');
     expect(toolCard).toContain('className="tool-summary-label"');
-    expect(toolCard).toContain("onExpandedChange={setOpen}");
-    expect(toolCard).toContain("{view.fileActivity && (");
+    expect(toolCard).toContain("onExpandedChange={setExpanded}");
+    expect(toolCard).toContain("{(view.fileActivity || mixedActivity) && (");
     expect(toolCard).toContain(
-      '{view.kind === "bash" && view.bashTranscript && (',
+      '{!mixedActivity && view.kind === "bash" && view.bashTranscript && (',
     );
     expect(toolCard).toContain('className="tool-details"');
     const publicToolActivity = patternsSource.slice(

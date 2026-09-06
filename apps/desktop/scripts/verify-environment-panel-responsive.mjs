@@ -89,6 +89,10 @@ try {
     "Wide window environment panel is not visible.",
   );
   assert(
+    Math.abs(wide.environmentPanel.width - 280) <= 1,
+    "Environment panel must keep its compact 280px width.",
+  );
+  assert(
     wide.workflowComponents.includes("environment-control") &&
       wide.workflowComponents.includes("environment-panel"),
     "Wide window is not using the public Environment surfaces.",
@@ -308,6 +312,7 @@ try {
   assert(
     narrowOpen.environmentPanelOpen &&
       narrowOpen.environmentPanel?.visible &&
+      Math.abs(narrowOpen.environmentPanel.width - 280) <= 1 &&
       narrowOpen.environmentPanel.left >= 0 &&
       narrowOpen.environmentPanel.right <= narrowOpen.windowInnerWidth,
     "Explicitly opened narrow environment panel must remain inside the viewport.",

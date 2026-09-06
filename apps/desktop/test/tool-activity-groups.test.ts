@@ -24,6 +24,62 @@ function tool(
 }
 
 describe("timeline tool activity groups", () => {
+  it("keeps hidden reasoning from splitting an otherwise continuous group", () => {
+    const tools = {
+      a: tool("a", "read"),
+      b: tool("b", "shell", { command: "ls" }),
+    };
+    const order = ["tool:a", "part:thinking", "tool:b"];
+    const parts = {
+      thinking: {
+        id: "thinking",
+        type: "thinking" as const,
+        text: "Internal reasoning",
+      },
+    };
+    const grouped = groupTimelineActivities(order, tools, parts);
+    expect(grouped).toEqual([
+      { kind: "tool-group", key: "file-exploration:a", toolIds: ["a", "b"] },
+    ]);
+    expect(
+      appendTimelineActivities(grouped.slice(0, 0), order, tools, 0, parts),
+    ).toEqual(grouped);
+    expect(
+      groupTimelineActivities(order, tools, {
+        thinking: { ...parts.thinking, type: "text" },
+      }),
+    ).toHaveLength(3);
+  });
+  it("groups alternating shell and search calls without crossing messages or approvals", () => {
+    const tools = {
+      shell: tool("shell", "shell", { command: "sed -n '1,80p' App.tsx" }),
+      search: tool("search", "shell", { command: 'rg "state" App.tsx' }),
+      read: tool("read", "read", { path: "styles.css" }),
+      after: tool("after", "shell", { command: "npm test" }),
+    };
+    const order = [
+      "tool:shell",
+      "tool:search",
+      "tool:read",
+      "approval:write",
+      "part:answer",
+      "tool:after",
+    ];
+    const grouped = groupTimelineActivities(order, tools);
+    expect(grouped).toEqual([
+      {
+        kind: "tool-group",
+        key: "bash:shell",
+        toolIds: ["shell", "search", "read"],
+      },
+      { kind: "entry", key: "approval:write", entry: "approval:write" },
+      { kind: "entry", key: "part:answer", entry: "part:answer" },
+      { kind: "tool-group", key: "bash:after", toolIds: ["after"] },
+    ]);
+    const initial = groupTimelineActivities(order.slice(0, 1), tools);
+    expect(appendTimelineActivities(initial, order, tools, 1)).toEqual(grouped);
+    expect(initial[0]).toMatchObject({ toolIds: ["shell"] });
+  });
   it("updates grouping from only the newly appended timeline suffix", () => {
     const tools = {
       first: tool("first", "read", { path: "one.ts" }),

@@ -19,6 +19,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { Badge, Button } from "@artemis/ui/actions";
 import {
   ConversationEmptyState,
   ConversationMessage,
@@ -1142,11 +1143,9 @@ function FilesIcon() {
 }
 
 function WorkspaceTabIcon({
-  identity,
   kind,
   path,
 }: {
-  identity?: string | undefined;
   kind: WorkspaceTabKind;
   path?: string | undefined;
 }) {
@@ -1158,7 +1157,7 @@ function WorkspaceTabIcon({
   if (kind === "goal")
     return <ArtemisIcon height={16} name="task" width={16} />;
   if (kind === "agent-team" || kind === "child-agent") {
-    return <ChildAgentIcon identity={identity ?? kind} />;
+    return <FolderIcon />;
   }
   if (kind === "file") {
     return path ? (
@@ -5324,11 +5323,7 @@ export function App() {
       sidebarSize={projectSidebarWidth ?? defaultProjectSidebarWidth}
     >
       <ActivityBar
-        brand={
-          <div className="artemis-mark">
-            <ArtemisIcon name="artemis" width={18} height={18} />
-          </div>
-        }
+        brand={<ArtemisMark />}
         className="activity-bar"
         footer={
           <ActivityBarItem
@@ -7731,11 +7726,7 @@ export function App() {
                           closeLabel={`${t.closeTab}: ${tab.title}`}
                           closeTitle={t.closeTab}
                           icon={
-                            <WorkspaceTabIcon
-                              identity={tab.childAgentId ?? tab.agentTeamId}
-                              kind={tab.kind}
-                              path={tab.path}
-                            />
+                            <WorkspaceTabIcon kind={tab.kind} path={tab.path} />
                           }
                           id={workspaceTabDomId(tab.id)}
                           key={tab.id}
@@ -8640,7 +8631,42 @@ export function App() {
   );
 }
 
-function AgentTeamPanel({
+function agentMemberStatus(status: ChildAgentState["status"], locale: Locale) {
+  const copy = {
+    "zh-CN": {
+      queued: "等待开始",
+      running: "运行中",
+      blocked: "被依赖阻塞",
+      cancelling: "正在停止",
+      completed: "已完成",
+      failed: "失败",
+      cancelled: "已停止",
+    },
+    en: {
+      queued: "Queued",
+      running: "Running",
+      blocked: "Blocked by dependency",
+      cancelling: "Stopping",
+      completed: "Completed",
+      failed: "Failed",
+      cancelled: "Stopped",
+    },
+  }[legacyLocale(locale)];
+  return localizedCopy(locale, "app", { agentMemberStatusLabel: copy[status] })
+    .agentMemberStatusLabel;
+}
+
+function agentMemberTone(status: ChildAgentState["status"]) {
+  return status === "completed"
+    ? "success"
+    : status === "failed"
+      ? "danger"
+      : status === "running" || status === "blocked"
+        ? "warning"
+        : "neutral";
+}
+
+export function AgentTeamPanel({
   active,
   controlPending,
   locale,
@@ -8668,35 +8694,29 @@ function AgentTeamPanel({
     {
       "zh-CN": {
         title: "Agent 团队",
-        members: "成员与任务",
-        collaboration: "协作记录",
+        teamMembers: "成员",
+        teamMessages: "团队消息",
+        teamView: "查看",
         noMessages: "团队消息会在这里按顺序出现。",
         unavailable: "团队记录尚未加载或当前不可用。",
         history: "历史只读",
-        stop: "停止团队",
+        teamStop: "停止团队",
         parent: "主 Agent",
         everyone: "全体成员",
-        total: "总计",
-        active: "活跃",
-        queued: "排队",
-        waiting: "等待",
         expand: "展开子树",
         collapse: "折叠子树",
       },
       en: {
         title: "Agent team",
-        members: "Members and tasks",
-        collaboration: "Collaboration log",
+        teamMembers: "Members",
+        teamMessages: "Team messages",
+        teamView: "View",
         noMessages: "Team messages will appear here in sequence.",
         unavailable: "The team record is not loaded or is unavailable.",
         history: "Read-only history",
-        stop: "Stop team",
+        teamStop: "Stop team",
         parent: "Parent agent",
         everyone: "Everyone",
-        total: "Total",
-        active: "Active",
-        queued: "Queued",
-        waiting: "Waiting",
         expand: "Expand subtree",
         collapse: "Collapse subtree",
       },
@@ -8708,7 +8728,7 @@ function AgentTeamPanel({
     {
       "zh-CN": {
         forming: "正在组队",
-        running: "协作中",
+        teamRunning: "运行中",
         blocked: "存在阻塞",
         integrating: "等待主 Agent 集成",
         completed: "已完成",
@@ -8716,7 +8736,7 @@ function AgentTeamPanel({
       },
       en: {
         forming: "Forming",
-        running: "Collaborating",
+        teamRunning: "Running",
         blocked: "Blocked",
         integrating: "Awaiting parent integration",
         completed: "Completed",
@@ -8791,23 +8811,6 @@ function AgentTeamPanel({
   const visibleMembers = useMemo(() => {
     return visibleAgentTeamMembers(childrenByParent, expandedAgentIds);
   }, [childrenByParent, expandedAgentIds]);
-  const memberCounts = useMemo(
-    () => ({
-      total: currentMembers.length,
-      active: currentMembers.filter(
-        (member) =>
-          member.status === "running" || member.status === "cancelling",
-      ).length,
-      queued: currentMembers.filter((member) => member.status === "queued")
-        .length,
-      waiting: currentMembers.filter(
-        (member) =>
-          member.status === "blocked" ||
-          member.coordinationStatus === "waiting-dependency",
-      ).length,
-    }),
-    [currentMembers],
-  );
   const agentName = (agentId: string) =>
     agentId === "parent"
       ? labels.parent
@@ -8845,45 +8848,30 @@ function AgentTeamPanel({
       <header className="agent-team-header">
         <div>
           <span className="agent-team-eyebrow">{labels.title}</span>
-          <strong>{team.mission}</strong>
-          <small>
-            {teamStatusLabels[team.status]}
-            {!runtimeAvailable && teamRunning ? ` · ${labels.history}` : ""}
-          </small>
-        </div>
-        {teamRunning && runtimeAvailable && (
-          <button
-            className="secondary-button compact danger"
-            disabled={controlPending}
-            onClick={() => onStop(team)}
-            type="button"
+          <strong title={team.mission}>{team.mission}</strong>
+          <Badge
+            className="agent-panel-status"
+            tone={
+              team.status === "completed"
+                ? "success"
+                : team.status === "blocked" || team.status === "aborted"
+                  ? "danger"
+                  : "warning"
+            }
           >
-            {labels.stop}
-          </button>
-        )}
+            {(team.status === "running"
+              ? teamStatusLabels.teamRunning
+              : teamStatusLabels[team.status]) +
+              (!runtimeAvailable && teamRunning ? ` · ${labels.history}` : "")}
+          </Badge>
+        </div>
       </header>
       {team.error && <p className="agent-team-error">{team.error}</p>}
       <div className="agent-team-grid">
         <aside className="agent-team-members">
-          <h3>{labels.members}</h3>
-          <dl className="agent-team-member-counts">
-            <div>
-              <dt>{labels.total}</dt>
-              <dd>{memberCounts.total}</dd>
-            </div>
-            <div>
-              <dt>{labels.active}</dt>
-              <dd>{memberCounts.active}</dd>
-            </div>
-            <div>
-              <dt>{labels.queued}</dt>
-              <dd>{memberCounts.queued}</dd>
-            </div>
-            <div>
-              <dt>{labels.waiting}</dt>
-              <dd>{memberCounts.waiting}</dd>
-            </div>
-          </dl>
+          <h3>
+            {labels.teamMembers} · {currentMembers.length}
+          </h3>
           <div className="agent-team-member-list">
             {visibleMembers.map((member) => {
               const childCount =
@@ -8894,7 +8882,7 @@ function AgentTeamPanel({
                   className={`agent-team-member ${member.status}`}
                   key={member.agentId}
                   style={{
-                    paddingLeft: 8 + ((member.depth ?? 1) - 1) * 16,
+                    paddingInlineStart: ((member.depth ?? 1) - 1) * 16,
                   }}
                 >
                   {childCount > 0 ? (
@@ -8920,25 +8908,36 @@ function AgentTeamPanel({
                         <path d="m6 3.5 4.5 4.5L6 12.5" />
                       </svg>
                     </button>
-                  ) : (
-                    <span className="agent-team-member-disclosure spacer" />
-                  )}
+                  ) : null}
                   <button
                     className="agent-team-member-open"
                     onClick={() => onOpenChildAgent(member)}
                     type="button"
                   >
-                    <ChildAgentIcon
-                      className="agent-team-member-icon"
-                      identity={member.agentId}
-                    />
                     <span>
                       <strong>{member.label}</strong>
                       <small>
-                        {member.subtreeStatus ?? "leaf"}
-                        {childCount > 0 ? ` · ${childCount}` : ""}
+                        {member.status === "completed"
+                          ? agentMemberStatus(member.status, locale)
+                          : (member.currentTool ??
+                            member.activity
+                              ?.split("\n")
+                              .find((line) => line.trim()) ??
+                            agentMemberStatus(member.status, locale))}
                       </small>
                     </span>
+                    {member.status === "completed" ? (
+                      <span className="agent-team-member-view">
+                        {labels.teamView}
+                      </span>
+                    ) : (
+                      <Badge
+                        className="agent-panel-status"
+                        tone={agentMemberTone(member.status)}
+                      >
+                        {agentMemberStatus(member.status, locale)}
+                      </Badge>
+                    )}
                   </button>
                 </div>
               );
@@ -8946,7 +8945,7 @@ function AgentTeamPanel({
           </div>
         </aside>
         <section className="agent-team-collaboration">
-          <h3>{labels.collaboration}</h3>
+          <h3>{labels.teamMessages}</h3>
           <div className="agent-team-message-list" ref={messageList}>
             {messages.length === 0 ? (
               <p className="agent-team-message-empty">{labels.noMessages}</p>
@@ -8957,11 +8956,14 @@ function AgentTeamPanel({
                   key={message.messageId}
                 >
                   <header>
-                    <strong>
-                      {agentName(message.fromAgentId)} →{" "}
-                      {agentName(message.recipient)}
-                    </strong>
-                    <span>{messageKindLabels[message.kind]}</span>
+                    <strong>{agentName(message.fromAgentId)}</strong>
+                    <span title={agentName(message.recipient)}>
+                      {messageKindLabels[message.kind]}
+                      {message.recipient !== "all" &&
+                      message.recipient !== "parent"
+                        ? ` → ${agentName(message.recipient)}`
+                        : ""}
+                    </span>
                     <time>
                       {new Intl.DateTimeFormat(locale, {
                         hour: "2-digit",
@@ -8975,12 +8977,23 @@ function AgentTeamPanel({
             )}
           </div>
         </section>
+        {teamRunning && runtimeAvailable && (
+          <div className="agent-team-footer">
+            <Button
+              variant="quiet"
+              disabled={controlPending}
+              onClick={() => onStop(team)}
+            >
+              {labels.teamStop}
+            </Button>
+          </div>
+        )}
       </div>
     </section>
   );
 }
 
-function ChildAgentPanel({
+export function ChildAgentPanel({
   active,
   child,
   clockMs,
@@ -9006,16 +9019,12 @@ function ChildAgentPanel({
     "app",
     {
       "zh-CN": {
-        queued: "等待开始",
-        running: "已开始工作",
-        blocked: "被依赖阻塞",
-        cancelling: "正在停止",
-        completed: "已完成",
-        failed: "失败",
-        cancelled: "已停止",
         waiting: "等待子智能体输出…",
         unavailable: "此子智能体的输出当前不可用。",
         task: "任务",
+        activityLog: "活动记录",
+        result: "结果",
+        runtimeDetails: "运行详情",
         elapsed: "运行时长",
         lastActivity: "最后活动",
         currentTool: "当前工具",
@@ -9023,23 +9032,19 @@ function ChildAgentPanel({
         longRunning: "长时间运行",
         unresponsive: "疑似无响应",
         nudge: "催办",
-        stop: "停止此子代理",
+        childStop: "停止此子代理",
         retry: "重试",
         justNow: "刚刚",
         ago: "{{duration}}前",
         subagent: "子智能体",
       },
       en: {
-        queued: "Waiting to start",
-        running: "Started working",
-        blocked: "Blocked by dependency",
-        cancelling: "Stopping",
-        completed: "Completed",
-        failed: "Failed",
-        cancelled: "Stopped",
         waiting: "Waiting for subagent output…",
         unavailable: "This subagent output is currently unavailable.",
         task: "Task",
+        activityLog: "Activity log",
+        result: "Result",
+        runtimeDetails: "Runtime details",
         elapsed: "Runtime",
         lastActivity: "Last activity",
         currentTool: "Current tool",
@@ -9047,7 +9052,7 @@ function ChildAgentPanel({
         longRunning: "Long-running",
         unresponsive: "Possibly unresponsive",
         nudge: "Nudge",
-        stop: "Stop subagent",
+        childStop: "Stop subagent",
         retry: "Retry",
         justNow: "just now",
         ago: "{{duration}} ago",
@@ -9119,24 +9124,23 @@ function ChildAgentPanel({
       className={`child-agent-panel ${child?.status ?? "unavailable"} ${health}`}
     >
       <header className="child-agent-panel-header">
-        <ChildAgentIcon
-          className="child-agent-panel-icon"
-          identity={child?.agentId}
-        />
         <span>
           <strong>{child?.label ?? labels.subagent}</strong>
           {child && (
-            <small>
-              {labels[child.status]}
-              {healthLabel ? ` · ${healthLabel}` : ""}
-            </small>
+            <Badge
+              className="agent-panel-status"
+              tone={agentMemberTone(child.status)}
+            >
+              {agentMemberStatus(child.status, locale) +
+                (healthLabel ? ` · ${healthLabel}` : "")}
+            </Badge>
           )}
         </span>
-        {child && (
+        {child && child.status !== "completed" && (
           <div className="child-agent-panel-actions">
             {running && (
               <button
-                className="secondary-button compact"
+                className="child-agent-panel-control"
                 disabled={controlPending}
                 onClick={() => onControl(child, "steer")}
                 type="button"
@@ -9146,20 +9150,19 @@ function ChildAgentPanel({
             )}
             {(running || child.status === "cancelling") && (
               <button
-                className="secondary-button compact danger"
+                className="child-agent-panel-control danger"
                 disabled={controlPending || child.status === "cancelling"}
                 onClick={() => onControl(child, "cancel")}
                 type="button"
               >
-                {labels.stop}
+                {labels.childStop}
               </button>
             )}
-            {(child.status === "completed" ||
-              child.status === "failed" ||
+            {(child.status === "failed" ||
               child.status === "blocked" ||
               child.status === "cancelled") && (
               <button
-                className="secondary-button compact"
+                className="child-agent-panel-control"
                 disabled={controlPending}
                 onClick={() => onControl(child, "retry")}
                 type="button"
@@ -9170,8 +9173,9 @@ function ChildAgentPanel({
           </div>
         )}
       </header>
-      {child && (
-        <div className="child-agent-panel-runtime-bar">
+      {child && child.status !== "completed" && (
+        <details className="child-agent-panel-runtime-bar">
+          <summary>{labels.runtimeDetails}</summary>
           <dl className="child-agent-panel-runtime">
             <div>
               <dt>{labels.elapsed}</dt>
@@ -9197,7 +9201,7 @@ function ChildAgentPanel({
               </div>
             )}
           </dl>
-        </div>
+        </details>
       )}
       <div
         className="child-agent-panel-body"
@@ -9215,17 +9219,52 @@ function ChildAgentPanel({
                   <p>{child.task}</p>
                 </section>
               )}
-              {content ? (
-                <MarkdownContent
-                  className={
-                    child.error
-                      ? "child-agent-panel-output error"
-                      : "child-agent-panel-output"
-                  }
-                  text={content}
-                />
-              ) : (
+              {(child.activity || child.currentTool) && (
+                <section className="child-agent-panel-task">
+                  <span>{labels.activityLog}</span>
+                  {child.currentTool && (
+                    <div className="child-agent-activity-row">
+                      <span>{child.currentTool}</span>
+                      <Badge
+                        className="agent-panel-status"
+                        tone={agentMemberTone(child.status)}
+                      >
+                        {agentMemberStatus(child.status, locale)}
+                      </Badge>
+                    </div>
+                  )}
+                  {child.activity && (
+                    <MarkdownContent
+                      className="child-agent-activity-log"
+                      text={child.activity}
+                    />
+                  )}
+                </section>
+              )}
+              {child.output || child.error ? (
+                <section className="child-agent-panel-task">
+                  <span>{labels.result}</span>
+                  <MarkdownContent
+                    className={
+                      child.error
+                        ? "child-agent-panel-output error"
+                        : "child-agent-panel-output"
+                    }
+                    text={child.error ?? child.output ?? ""}
+                  />
+                </section>
+              ) : !child.activity && !child.currentTool ? (
                 <p className="child-agent-panel-empty">{labels.waiting}</p>
+              ) : null}
+              {child.status === "completed" && (
+                <Button
+                  className="child-agent-panel-retry"
+                  variant="quiet"
+                  disabled={controlPending}
+                  onClick={() => onControl(child, "retry")}
+                >
+                  {labels.retry}
+                </Button>
               )}
             </>
           )}
@@ -9562,7 +9601,7 @@ function UserInputCard({
   );
 }
 
-function ToolActivityGroupCard({
+export function ToolActivityGroupCard({
   active,
   locale,
   onFileLink,
@@ -9573,8 +9612,14 @@ function ToolActivityGroupCard({
   onFileLink: (href: string) => void;
   tools: readonly ToolState[];
 }) {
-  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState<boolean>();
+  const open = expanded ?? tools.length > 1;
   const view = toolActivityPatternView(tools, active, locale);
+  const mixedActivity =
+    tools.some((tool) => toolActivityKind(tool.name, tool.input) === "bash") &&
+    tools.some((tool) =>
+      ["read", "search"].includes(toolActivityKind(tool.name, tool.input)),
+    );
   const disclosureLabels = localizedCopy(
     locale,
     "app",
@@ -9582,13 +9627,26 @@ function ToolActivityGroupCard({
       en: {
         collapse: "Collapse",
         expand: "Expand",
+        toolGroupCalls: "Tool calls",
+        toolGroupRead: "Read files",
+        toolGroupEdit: "Edit files",
       },
       "zh-CN": {
         collapse: "收起",
         expand: "展开",
+        toolGroupCalls: "工具调用",
+        toolGroupRead: "读取文件",
+        toolGroupEdit: "编辑文件",
       },
     }[legacyLocale(locale)],
   );
+  const summary = mixedActivity
+    ? disclosureLabels.toolGroupCalls
+    : tools.length > 1 && view.fileActivity
+      ? view.kind === "write"
+        ? disclosureLabels.toolGroupEdit
+        : disclosureLabels.toolGroupRead
+      : view.summary;
 
   return (
     <ToolActivity
@@ -9599,34 +9657,39 @@ function ToolActivityGroupCard({
       expanded={open}
       icon={
         <span className="tool-activity-icon">
-          <ToolActivityIcon kind={view.kind} />
+          {view.actualStatus === "completed" ? (
+            <ArtemisIcon name="check" />
+          ) : view.actualStatus === "failed" ? (
+            <ArtemisIcon name="warning" />
+          ) : (
+            <ToolActivityIcon kind={view.kind} />
+          )}
         </span>
       }
-      label={`${view.summary}, ${view.statusLabel}`}
-      onExpandedChange={setOpen}
+      label={`${summary}, ${view.statusLabel}`}
+      onExpandedChange={setExpanded}
       state={view.state}
       statusLabel={view.statusLabel}
       summary={
-        <span className="tool-summary-label" title={view.summary}>
-          {view.summary}
+        <span className="tool-summary-label" title={summary}>
+          {summary}
+          {tools.length > 1 && (
+            <span className="tool-group-count">{tools.length}</span>
+          )}
         </span>
       }
     >
-      {view.fileActivity && (
+      {(view.fileActivity || mixedActivity) && (
         <ol className="tool-activity-list">
           {tools.map((tool) => {
-            const itemKind = toolActivityKind(tool.name, tool.input);
             const detail = summarizeToolDetail(tool, locale);
             const path = toolActivityPath(tool.input);
             const prefix =
               path && detail.endsWith(path)
                 ? detail.slice(0, -path.length)
                 : detail;
-            return (
-              <li className={tool.status} key={tool.id}>
-                <span aria-hidden="true" className="tool-item-icon">
-                  <ToolActivityIcon kind={itemKind} />
-                </span>
+            const row = (
+              <>
                 <span className="tool-item-label">
                   {prefix}
                   {path && detail.endsWith(path) && (
@@ -9639,12 +9702,39 @@ function ToolActivityGroupCard({
                     </button>
                   )}
                 </span>
+                <span className="tool-item-status" data-state={tool.status}>
+                  {toolActivityPatternView([tool], false, locale).statusLabel}
+                </span>
+              </>
+            );
+            return (
+              <li className={tool.status} key={tool.id}>
+                {mixedActivity && (tool.input !== undefined || tool.output) ? (
+                  <details className="tool-item-details">
+                    <summary
+                      aria-label={`${locale.startsWith("zh") ? "详情" : "Details"}: ${detail}`}
+                    >
+                      {row}
+                      <ArtemisIcon name="chev-right" height={12} width={12} />
+                    </summary>
+                    <pre>
+                      {[
+                        formatToolInput(tool.name, tool.input),
+                        formatToolOutput(tool.name, tool.output),
+                      ]
+                        .filter(Boolean)
+                        .join("\n")}
+                    </pre>
+                  </details>
+                ) : (
+                  row
+                )}
               </li>
             );
           })}
         </ol>
       )}
-      {view.kind === "bash" && view.bashTranscript && (
+      {!mixedActivity && view.kind === "bash" && view.bashTranscript && (
         <pre aria-live="polite" className="bash-transcript" role="log">
           {view.bashTranscript}
         </pre>
@@ -9821,7 +9911,11 @@ function Timeline({
       return [
         {
           turn,
-          entries: groupTimelineActivities(turn.order, state.tools),
+          entries: groupTimelineActivities(
+            turn.order,
+            state.tools,
+            state.messageParts,
+          ),
         },
       ];
     });
@@ -9830,9 +9924,16 @@ function Timeline({
       unassigned: groupTimelineActivities(
         state.order.filter((entry) => !assigned.has(entry)),
         state.tools,
+        state.messageParts,
       ),
     };
-  }, [state.order, state.tools, state.turnOrder, state.turns]);
+  }, [
+    state.order,
+    state.tools,
+    state.turnOrder,
+    state.turns,
+    state.messageParts,
+  ]);
   const activeTimelineEntries = groupedTimeline.turns.findLast(
     ({ turn }) => turn.status === "running",
   )?.entries;

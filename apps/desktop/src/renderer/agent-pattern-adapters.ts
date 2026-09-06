@@ -201,12 +201,12 @@ export function toolActivityPatternView(
     "app",
     {
       en: {
-        running: "Running",
+        toolRunning: "Running",
         completed: "Completed",
         failed: "Failed",
       },
       "zh-CN": {
-        running: "正在运行",
+        toolRunning: "正在运行",
         completed: "已完成",
         failed: "失败",
       },
@@ -218,7 +218,8 @@ export function toolActivityPatternView(
     fileActivity: kind === "read" || kind === "write" || kind === "search",
     kind,
     state: active && actualStatus === "completed" ? "running" : actualStatus,
-    statusLabel: copy[actualStatus],
+    statusLabel:
+      actualStatus === "running" ? copy.toolRunning : copy[actualStatus],
     summary: summarizeToolGroup(tools, locale),
   };
 }

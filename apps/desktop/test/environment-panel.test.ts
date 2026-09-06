@@ -220,7 +220,7 @@ describe("task environment panel state", () => {
   });
 
   it("keeps the v69 environment overlay independent of conversation width", () => {
-    expect(stylesSource).toContain("--environment-panel-inline-size: 340px");
+    expect(stylesSource).toContain("--environment-panel-inline-size: 280px");
     expect(stylesSource).not.toContain(
       "--environment-panel-content-safe-inline-size",
     );

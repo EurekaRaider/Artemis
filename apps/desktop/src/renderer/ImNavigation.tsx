@@ -163,18 +163,24 @@ export function ImNavigation({
                 tabIndex={view === item.id ? 0 : -1}
                 onClick={() => onSelect(item.id)}
               >
-                <span>
-                  {channel && (
+                <span className="im-channel-title">{item.label}</span>
+                {channel && (
+                  <small className="im-channel-status">
                     <span
                       aria-hidden="true"
                       className="im-dot"
                       data-state={health.state}
                     />
-                  )}
-                  {item.label}
-                </span>
-                {channel && !compact && (
-                  <small>{imConnectionSummary(channelConnections, t)}</small>
+                    {!compact &&
+                      (health.failed
+                        ? imConnectionSummary(channelConnections, t)
+                        : health.total
+                          ? t(
+                              `已配置(${health.total})`,
+                              `Configured (${health.total})`,
+                            )
+                          : t("未配置", "Not configured"))}
+                  </small>
                 )}
               </button>
             </div>

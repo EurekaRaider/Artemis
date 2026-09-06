@@ -408,7 +408,7 @@ export function TokenUsagePage({
                   <th>{t.outputTokens}</th>
                   <th>{t.cacheHitTokens}</th>
                   <th title={t.cacheHitRateDescription}>{t.cacheHitRate}</th>
-                  <th>{t.totalTokens}</th>
+                  <th>{t.modelTotalTokens}</th>
                 </tr>
               </thead>
               <tbody>
@@ -419,6 +419,7 @@ export function TokenUsagePage({
                   >
                     <td>
                       <Button
+                        className="token-usage-model-action"
                         selected={selectedModel === model.key}
                         onClick={() => {
                           setSelectedModel(model.key);

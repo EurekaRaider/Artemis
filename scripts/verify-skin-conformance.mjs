@@ -1228,6 +1228,40 @@ const CL3_EXPECTED_CSS_RULES = [
     },
   ],
   [
+    'normal|[data-artemis-component="inline-notice"][data-tone]',
+    {
+      padding: "var(--artemis-space-2) var(--artemis-space-3)",
+      color: "var(--artemis-color-text-secondary)",
+      background: "var(--artemis-color-surface-sunken)",
+      "border-color": "var(--artemis-color-border-subtle)",
+      "border-radius": "var(--artemis-radius-control)",
+      "font-size": "var(--artemis-typography-metadata-size)",
+      "line-height": "1.5",
+      "overflow-wrap": "anywhere",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="inline-notice"] > [data-part="icon"]',
+    {
+      display: "inline-flex",
+      flex: "0 0 auto",
+      "margin-block-start": "var(--artemis-space-1)",
+      color: "var(--artemis-color-text-tertiary)",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="inline-notice"][data-tone="warning"] > [data-part="icon"]',
+    { color: "var(--artemis-color-status-warning)" },
+  ],
+  [
+    'normal|[data-artemis-component="inline-notice"][data-tone="danger"] > [data-part="icon"]',
+    { color: "var(--artemis-color-status-danger)" },
+  ],
+  [
+    'normal|[data-artemis-component="inline-notice"][data-tone="success"] > [data-part="icon"]',
+    { color: "var(--artemis-color-status-success)" },
+  ],
+  [
     'normal|[data-artemis-component="inline-notice"] [data-part="message"], [data-artemis-component="error-state"] [data-part="message"]',
     {
       display: "grid",

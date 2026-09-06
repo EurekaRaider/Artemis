@@ -149,9 +149,7 @@
       "classNameSets": [
         ["child-agent-card", "suspect"],
         ["child-agent-card", "stalled"],
-        ["child-agent-card", "cancelled"],
-        ["child-agent-panel", "cancelled"],
-        ["child-agent-panel", "unavailable"]
+        ["child-agent-card", "cancelled"]
       ],
       "owner": "Desktop child-agent status surfaces",
       "reason": "Child status and health finite domains are appended to card and panel classes at runtime.",
@@ -404,6 +402,78 @@
       "important": false,
       "owner": "Discussion 151 v69 Desktop composition",
       "reason": "Catalogue card actions use v69 28px compact controls. Reference: docs/ui-prototype/apple-inspired-ui-validation.md."
+    },
+    {
+      "atRules": [],
+      "selector": ".added-model-row[data-artemis-component=\"management-row\"]",
+      "property": "border-bottom",
+      "value": "1px solid var(--border-soft)",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Model rows use a single divider to match the supplied settings reference. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".added-model-row[data-artemis-component=\"management-row\"]",
+      "property": "padding",
+      "value": "10px 0",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Flat model rows align their metadata and trailing text action. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".resource-installed-row[data-artemis-component=\"management-row\"]",
+      "property": "border-bottom",
+      "value": "1px solid var(--border-soft)",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Installed capabilities share a divided container matching the management reference. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".resource-installed-row[data-artemis-component=\"management-row\"]",
+      "property": "padding",
+      "value": "14px 4px",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Capability rows align the icon, name, status, settings action and switch. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".tool-card[data-artemis-component=\"tool-activity\"]",
+      "property": "gap",
+      "value": "6px",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Grouped calls separate their disclosure from the divided operation list. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".tool-card[data-artemis-component=\"tool-activity\"]",
+      "property": "padding",
+      "value": "6px 12px 0",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Grouped calls use a shared inset and flush final operation row. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".tool-card[data-artemis-component=\"tool-activity\"]",
+      "property": "border",
+      "value": "1px solid var(--border-soft)",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "Grouped calls share one quiet outline matching the supplied conversation reference. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": ".tool-card:not(.open)[data-artemis-component=\"tool-activity\"]",
+      "property": "padding-bottom",
+      "value": "6px",
+      "important": false,
+      "owner": "September 6 screenshot alignment",
+      "reason": "A collapsed tool group restores balanced vertical padding. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
     }
   ]
 }

@@ -124,6 +124,26 @@ const nav = (name: string) =>
   screen.getByRole("tab", { name: new RegExp(name) });
 
 describe("production IM settings", () => {
+  it("keeps the compact header, channel status, credential action, and guide in management order", async () => {
+    fixture();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    expect(
+      document.querySelector('.im-header [data-artemis-component="switch"]'),
+    ).toHaveAttribute("data-label-visibility", "hidden");
+    expect(
+      nav("企业微信").querySelector(".im-channel-status"),
+    ).toHaveTextContent("已配置(1)");
+    expect(document.querySelector(".im-block-header button")).toHaveAttribute(
+      "data-variant",
+      "quiet",
+    );
+    const guide = screen.getByRole("button", { name: "重看设置指引" });
+    const bot = document.getElementById("im-bot")!;
+    expect(
+      bot.compareDocumentPosition(guide) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
   it("keeps connection counts separate from partial failure and offers the existing guide in General", async () => {
     const f = fixture();
     const failed = {
@@ -229,7 +249,10 @@ describe("production IM settings", () => {
       fireEvent.click(screen.getByRole("switch", { name: "启用 IM 连接" })),
     );
     await act(async () => finishRefresh(old));
-    expect(screen.getByText("Test bot · 连接错误")).toBeVisible();
+    expect(
+      screen.getByText("Test bot", { selector: ".im-connection code" })
+        .parentElement,
+    ).toBeVisible();
     expect(
       screen.getByRole("switch", { name: "启用 IM 连接" }),
     ).not.toBeChecked();

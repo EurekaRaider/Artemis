@@ -940,7 +940,12 @@ export function TaskPlan({
               ? "in_progress"
               : step.status;
           return (
-            <li data-part="step" data-status={visibleStatus} key={step.id}>
+            <li
+              aria-current={step.id === currentStepId ? "step" : undefined}
+              data-part="step"
+              data-status={visibleStatus}
+              key={step.id}
+            >
               <span
                 aria-hidden="true"
                 data-part="marker"

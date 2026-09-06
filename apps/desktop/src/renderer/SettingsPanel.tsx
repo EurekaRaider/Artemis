@@ -469,6 +469,15 @@ function modelKey(providerId: string, modelId: string): string {
   return `${encodeURIComponent(providerId)}:${encodeURIComponent(modelId)}`;
 }
 
+function normalizedModelLabel(label: string): string {
+  return label
+    .normalize("NFKC")
+    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cc}]+/gu, "")
+    .replace(/\p{White_Space}+/gu, " ")
+    .trim()
+    .toLowerCase();
+}
+
 function parseModelKey(value: string): [string, string] {
   const separator = value.indexOf(":");
   return [
@@ -675,6 +684,39 @@ export function SettingsPanel({
       (model) => model.providerId === providerId && model.modelId === modelId,
     );
   }, [models, selectedModel]);
+  const modelOptions = useMemo(() => {
+    let labels = models.map((model) => model.name);
+    for (const includeId of [false, true]) {
+      const counts = new Map<string, number>();
+      for (const label of labels) {
+        const key = normalizedModelLabel(label);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      labels = labels.map((label, index) => {
+        const key = normalizedModelLabel(label);
+        if (key && counts.get(key) === 1) return label;
+        const model = models[index]!;
+        return includeId
+          ? `${model.name} · ${model.providerId} · ${model.modelId}`
+          : `${model.name} · ${model.providerId}`;
+      });
+    }
+    const usedLabels = new Set<string>();
+    return models.map((model, index) => {
+      const base = labels[index]!;
+      let label = base;
+      let suffix = 2;
+      while (usedLabels.has(normalizedModelLabel(label))) {
+        label = `${base} (${suffix++})`;
+      }
+      usedLabels.add(normalizedModelLabel(label));
+      return {
+        value: modelKey(model.providerId, model.modelId),
+        label,
+        searchText: `${model.providerId} ${model.name} ${model.modelId}`,
+      };
+    });
+  }, [models]);
   const selectedModelUsesCustomProvider = Boolean(
     selectedModelInfo &&
     settings?.providers.some(
@@ -1272,11 +1314,7 @@ export function SettingsPanel({
                           disabled={busy || models.length === 0}
                           onValueChange={selectModel}
                           noResultsLabel={t.modelSearchEmpty}
-                          options={models.map((model) => ({
-                            value: modelKey(model.providerId, model.modelId),
-                            label: `${model.providerId} · ${model.name} · ${model.modelId}`,
-                            searchText: `${model.providerId} ${model.name} ${model.modelId}`,
-                          }))}
+                          options={modelOptions}
                           searchPlaceholder={t.modelSearch}
                           value={selectedModel}
                         />
@@ -1317,7 +1355,7 @@ export function SettingsPanel({
                       {!selectedModelUsesCustomProvider && (
                         <SettingsRow
                           className="settings-row-wide"
-                          label={`${t.apiKey}${selectedModelInfo?.providerId ? ` · ${selectedModelInfo.providerId}` : ""}`}
+                          label={t.apiKey}
                           description={
                             settings.encryptionAvailable ? (
                               t.encrypted
@@ -1381,19 +1419,20 @@ export function SettingsPanel({
                             <ManagementRow
                               actions={
                                 <Button
+                                  className="management-text-action is-destructive"
                                   disabled={busy}
                                   label={`${t.delete}: ${catalogModel?.name ?? model.modelId}`}
                                   onClick={() => {
                                     setMessage("");
                                     setModelDeleteTarget(model);
                                   }}
-                                  variant="danger"
+                                  variant="quiet"
                                 >
                                   {t.delete}
                                 </Button>
                               }
                               className="added-model-row"
-                              description={`${model.providerId} · ${model.modelId} · ${model.contextWindow.toLocaleString(locale)} token`}
+                              description={`${model.providerId} · ${model.modelId} · ${new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(model.contextWindow)} token`}
                               key={modelKey(model.providerId, model.modelId)}
                               title={catalogModel?.name ?? model.modelId}
                             />
@@ -1407,6 +1446,8 @@ export function SettingsPanel({
                         )}
                       </div>
                       <Button
+                        className="management-text-action"
+                        variant="quiet"
                         disabled={busy || !settings.encryptionAvailable}
                         onClick={() =>
                           void run(async () => {
@@ -2175,7 +2216,13 @@ export function SettingsPanel({
                       </InlineNotice>
                     )}
                     {settings.update.message && (
-                      <InlineNotice tone="danger">
+                      <InlineNotice
+                        tone={
+                          settings.update.state === "error"
+                            ? "danger"
+                            : "neutral"
+                        }
+                      >
                         {settings.update.message}
                       </InlineNotice>
                     )}

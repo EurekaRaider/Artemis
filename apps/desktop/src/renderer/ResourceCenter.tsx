@@ -1855,6 +1855,14 @@ export function ResourceCenter({
     iconDataUrl?: string | undefined;
     brandColor?: string | undefined;
     iconKey?: ResourceIconName | undefined;
+    description: string;
+    enabled: boolean;
+    status?: string | undefined;
+    actionLabel?: string;
+    needsAttention?: boolean;
+    disabled?: boolean;
+    configure(): void;
+    toggle(enabled: boolean): Promise<void>;
   }> = [
     ...installedPlugins.map((plugin) => {
       const visual = visualForPlugin(plugin);
@@ -1862,6 +1870,11 @@ export function ResourceCenter({
         id: `plugin:${plugin.id}`,
         name: pluginPageText(plugin.displayName),
         kind: "plugin" as const,
+        description: `${t.plugins} · ${pluginMarketplaceLabel(plugin)}`,
+        enabled: pluginIsEnabled(plugin),
+        disabled: !plugin.installable,
+        configure: () => openManagement("plugins"),
+        toggle: (enabled: boolean) => setPluginEnabled(plugin, enabled),
         ...visual,
       };
     }),
@@ -1873,6 +1886,10 @@ export function ResourceCenter({
           id: `skill:${skill.id}`,
           name: skill.name,
           kind: "skill" as const,
+          description: t.skills,
+          enabled: skill.enabled,
+          configure: () => openManagement("skills"),
+          toggle: (enabled: boolean) => setSkillEnabled(skill.id, enabled),
           ...visual,
         };
       }),
@@ -1888,9 +1905,58 @@ export function ResourceCenter({
             server.config.resourceKind === "connector"
               ? ("connectors" as const)
               : ("mcp" as const),
+          description:
+            server.config.transport === "stdio"
+              ? `${t.mcp} · ${server.config.fullAccess ? (locale.startsWith("zh") ? "完整本地访问" : "Full local access") : locale.startsWith("zh") ? "沙盒运行" : "Sandboxed"}`
+              : `${t.mcp} · ${locale.startsWith("zh") ? "远程连接" : "Remote connection"}`,
+          enabled: server.config.enabled,
+          status:
+            server.state === "connected"
+              ? t.connected
+              : server.state === "failed" ||
+                  server.state === "authorization-required"
+                ? t.needsSetup
+                : undefined,
+          needsAttention:
+            server.state === "failed" ||
+            server.state === "authorization-required",
+          configure: () => openMcpEditor(server),
+          toggle: (enabled: boolean) =>
+            setMcpEnabled(server.config.id, enabled),
           ...visual,
         };
       }),
+    ...(settings?.trustedExtensions ?? []).map((extension) => ({
+      id: `extension:${extension.config.id}`,
+      name: extension.config.name,
+      kind: "plugin" as const,
+      iconKey: "terminal" as const,
+      description: t.executableExtension,
+      enabled: extension.config.enabled,
+      status:
+        extension.state === "changed"
+          ? locale.startsWith("zh")
+            ? "需信任"
+            : "Needs trust"
+          : extension.state === "failed"
+            ? t.needsSetup
+            : undefined,
+      actionLabel:
+        extension.state === "changed"
+          ? locale.startsWith("zh")
+            ? "信任"
+            : "Trust"
+          : t.configure,
+      needsAttention:
+        extension.state === "changed" || extension.state === "failed",
+      disabled: extension.state === "changed",
+      configure: () =>
+        extension.state === "changed"
+          ? runResourceOperation(() => retrustExtension(extension.config.id))
+          : openManagement("plugins"),
+      toggle: (enabled: boolean) =>
+        setExtensionEnabled(extension.config.id, enabled),
+    })),
   ];
   const runtimePendingPlugins = (runtimeMarketplace?.plugins ?? []).filter(
     (plugin) => plugin.installable && !installedPluginIds.has(plugin.id),
@@ -2568,14 +2634,15 @@ export function ResourceCenter({
               />
             }
             className="resource-installed-overview"
-            title={t.installed}
+            title={t.manage}
           >
-            <div className="resource-installed-icons">
-              {installedTiles.slice(0, 24).map((item) => (
-                <IconButton
-                  className="resource-installed-icon-button"
-                  disabled={operationPending}
-                  icon={
+            <div className="resource-installed-list">
+              {installedTiles.map((item) => (
+                <ManagementRow
+                  className="resource-installed-row"
+                  title={item.name}
+                  description={item.description}
+                  leading={
                     <ResourceAvatar
                       brandColor={item.brandColor}
                       iconKey={item.iconKey}
@@ -2585,26 +2652,46 @@ export function ResourceCenter({
                     />
                   }
                   key={item.id}
-                  label={item.name}
-                  onClick={() =>
-                    openManagement(
-                      item.kind === "plugin"
-                        ? "plugins"
-                        : item.kind === "skill"
-                          ? "skills"
-                          : "mcp",
-                    )
+                  actions={
+                    <>
+                      <span
+                        className="resource-capability-status"
+                        data-state={
+                          item.needsAttention
+                            ? "warning"
+                            : item.enabled
+                              ? "enabled"
+                              : "disabled"
+                        }
+                      >
+                        {item.status ?? (item.enabled ? t.enabled : t.disabled)}
+                      </span>
+                      <Button
+                        variant="quiet"
+                        className="management-text-action"
+                        disabled={operationPending || Boolean(busyId)}
+                        label={`${item.actionLabel ?? t.configure} ${item.name}`}
+                        onClick={item.configure}
+                      >
+                        {item.actionLabel ?? t.configure}
+                      </Button>
+                      <Switch
+                        checked={item.enabled}
+                        label={`${t.enabled}: ${item.name}`}
+                        labelVisibility="hidden"
+                        disabled={
+                          operationPending || Boolean(busyId) || item.disabled
+                        }
+                        onCheckedChange={(enabled) =>
+                          runResourceOperation(() => item.toggle(enabled))
+                        }
+                      />
+                    </>
                   }
-                  title={item.name}
                 />
               ))}
               {installedTiles.length === 0 && (
                 <span className="resource-empty-inline">{t.noPlugins}</span>
-              )}
-              {installedTiles.length > 24 && (
-                <span className="resource-installed-more">
-                  +{installedTiles.length - 24}
-                </span>
               )}
             </div>
           </ManagementSection>

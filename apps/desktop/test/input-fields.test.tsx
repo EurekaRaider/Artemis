@@ -34,6 +34,10 @@ import "../src/renderer/i18n.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 import { AutomationPage } from "../src/renderer/AutomationPage.js";
 import { SettingsPanel } from "../src/renderer/SettingsPanel.js";
+import {
+  filterVisibleModels,
+  loadBundledModelCatalog,
+} from "../src/main/model-catalog.js";
 import type { AgentModelInfo, Automation, Project } from "@artemis/protocol";
 import type { SettingsSnapshot } from "../src/shared/api.js";
 
@@ -451,6 +455,106 @@ describe("avatar file field contract (SettingsPanel general tab, §5 file-合同
 });
 
 describe("settings management operation contract (MIG5A)", () => {
+  it("opens model settings with the complete bundled catalog, including aliases with identical names", async () => {
+    const models = filterVisibleModels(await loadBundledModelCatalog());
+    expect(models.length).toBeGreaterThan(100);
+    const initial = settingsSnapshot({ models });
+    stubSettingsApi(initial);
+    await renderSettingsPanel(initial);
+    await userEvent.click(
+      screen.getByRole("tab", { name: "Providers & models" }),
+    );
+    await userEvent.click(screen.getByLabelText("Model"));
+    expect(screen.getAllByRole("option")).toHaveLength(models.length);
+    expect(
+      screen.getByRole("option", {
+        name: "Devstral 2 · mistral · devstral-2512",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("option", {
+        name: "Devstral 2 · mistral · devstral-latest",
+      }),
+    ).toBeVisible();
+  });
+
+  it("disambiguates normalized names and IDs while retaining the correct model selection", async () => {
+    const models = [
+      { ...syntheticModel, modelId: "first", name: "Model X" },
+      { ...syntheticModel, modelId: "second", name: "Ｍｏｄｅｌ　Ｘ" },
+      { ...syntheticModel, modelId: "THIRD", name: "model  x\u200b" },
+      { ...syntheticModel, modelId: "third", name: "MODEL X" },
+      { ...syntheticModel, modelId: "unique", name: "Unique Model" },
+    ];
+    const initial = settingsSnapshot({ models });
+    stubSettingsApi(initial);
+    await renderSettingsPanel(initial, "providers");
+    await userEvent.click(screen.getByLabelText("Model"));
+    const options = screen.getAllByRole("option");
+    expect(options).toHaveLength(models.length);
+    expect(screen.getByRole("option", { name: "Unique Model" })).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("option", {
+        name: "Model X · synthetic-provider · first",
+      }),
+    );
+    expect(screen.getByLabelText("Model")).toHaveTextContent(
+      "Model X · synthetic-provider · first",
+    );
+  });
+  it("keeps added models in compact rows with a quiet delete action and a readable picker", async () => {
+    const initial = settingsSnapshot({
+      models: [syntheticModel],
+      addedModels: [
+        {
+          providerId: syntheticModel.providerId,
+          modelId: syntheticModel.modelId,
+          contextWindow: 200_000,
+        },
+      ],
+    });
+    stubSettingsApi(initial);
+    await renderSettingsPanel(initial, "providers");
+    const row = document.querySelector(".added-model-row")!;
+    expect(row.querySelector('[data-part="copy"]')).toHaveTextContent(
+      "Synthetic Model",
+    );
+    expect(row.querySelector('[data-part="actions"] button')).toHaveAttribute(
+      "data-variant",
+      "quiet",
+    );
+    expect(screen.getByLabelText("Model")).toHaveTextContent("Synthetic Model");
+    expect(screen.getByLabelText("Model")).not.toHaveTextContent(
+      "synthetic-provider · Synthetic Model · synthetic-model",
+    );
+  });
+
+  it.each(["disabled", "idle", "error"] as const)(
+    "uses the update state to choose %s message severity",
+    async (state) => {
+      const initial = settingsSnapshot({
+        update: {
+          state,
+          currentVersion: "1.0.0",
+          rollbackAvailable: false,
+          message: "Update status detail",
+        },
+      });
+      stubSettingsApi(initial);
+      await renderSettingsPanel(initial, "maintenance");
+      const notice = screen
+        .getByText("Update status detail")
+        .closest('[data-artemis-component="inline-notice"]');
+      expect(notice).toHaveAttribute(
+        "data-tone",
+        state === "error" ? "danger" : "neutral",
+      );
+      expect(notice).toHaveAttribute(
+        "role",
+        state === "error" ? "alert" : "status",
+      );
+    },
+  );
   it("keeps every Settings tab linked to a mounted tabpanel", async () => {
     const initial = settingsSnapshot({ models: [syntheticModel] });
     stubSettingsApi(initial);

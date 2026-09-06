@@ -27,7 +27,7 @@ const goal = (changes: Partial<ThreadGoal> = {}): ThreadGoal => ({
   ...changes,
 });
 
-describe("Codex-style Goal rail", () => {
+describe("compact Goal rail", () => {
   it("shows budget progress for active and budget-limited Goals", () => {
     expect(formatGoalProgress(goal(), "en", Date.parse(goal().updatedAt))).toBe(
       "2.5K / 10K",
@@ -55,7 +55,7 @@ describe("Codex-style Goal rail", () => {
     ).toBe("1h 0m 0s");
   });
 
-  it("renders the Codex status and icon-only controls in the same order", () => {
+  it("keeps one status marker and plain progress beside the icon-only controls", () => {
     const markup = renderToStaticMarkup(
       <GoalBar
         clockMs={Date.parse(goal().updatedAt)}
@@ -72,7 +72,9 @@ describe("Codex-style Goal rail", () => {
     expect(markup).toContain('data-artemis-component="button"');
     expect(markup).toContain('data-artemis-component="icon-button"');
     expect(markup).toContain('data-artemis-component="badge"');
-    expect(markup).toContain('data-artemis-component="status"');
+    expect(markup).not.toContain('data-artemis-component="status"');
+    expect(markup.match(/data-part="indicator"/g)).toHaveLength(1);
+    expect(markup).toContain('class="goal-bar-progress">2.5K / 10K</span>');
     expect(markup.indexOf('aria-label="Clear goal"')).toBeLessThan(
       markup.indexOf('aria-label="Pause goal"'),
     );
@@ -91,6 +93,36 @@ describe("Codex-style Goal rail", () => {
 });
 
 describe("GoalBar interactions (jsdom)", () => {
+  it("retains labelled keyboard controls for editing, clearing and resuming paused goals", async () => {
+    const onClear = vi.fn(),
+      onEdit = vi.fn(),
+      onResume = vi.fn();
+    render(
+      <GoalBar
+        clockMs={Date.parse(goal().updatedAt)}
+        goal={goal({ status: "paused" })}
+        locale="en"
+        onClear={onClear}
+        onEdit={onEdit}
+        onPause={vi.fn()}
+        onResume={onResume}
+      />,
+    );
+    const user = userEvent.setup();
+    const clear = screen.getByRole("button", { name: "Clear goal" });
+    expect(clear).toHaveAttribute("title", "Clear goal");
+    clear.focus();
+    await user.keyboard("{Enter}");
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Resume goal" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    await user.tab();
+    await user.keyboard("{Enter}");
+    expect(onClear).toHaveBeenCalledTimes(1);
+    expect(onResume).toHaveBeenCalledTimes(1);
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Pause goal" })).toBeNull();
+  });
   it("pauses an active goal from a real click on the pause button", async () => {
     const onPause = vi.fn();
     render(

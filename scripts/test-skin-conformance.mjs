@@ -155,6 +155,29 @@ try {
 }
 
 const surfaceDeclaration = "background: var(--artemis-color-surface-base);";
+await rejectCss("saturated inline guidance", (css) =>
+  replaceRequired(
+    css,
+    `color: var(--artemis-color-text-secondary);
+    background: var(--artemis-color-surface-sunken);
+    border-color: var(--artemis-color-border-subtle);`,
+    `color: var(--artemis-color-text-secondary);
+    background: var(--artemis-color-status-warning-subtle);
+    border-color: var(--artemis-color-status-warning);`,
+  ),
+);
+await rejectCss("misaligned management actions", (css) =>
+  replaceRequired(css, "grid-column: -2 / -1;", "grid-column: auto;"),
+);
+await rejectCss("empty management leading column", (css) =>
+  replaceRequired(
+    css,
+    `[data-artemis-component="management-row"]:not(:has(> [data-part="leading"])) {
+    grid-template-columns: minmax(0, 1fr) auto;`,
+    `[data-artemis-component="management-row"]:not(:has(> [data-part="leading"])) {
+    grid-template-columns: auto minmax(0, 1fr) auto;`,
+  ),
+);
 await rejectCss("raw named color", (css) =>
   replaceRequired(css, surfaceDeclaration, "background: red;"),
 );
@@ -207,12 +230,12 @@ rejectCli(
   "unexpected positional argument",
 );
 
-if (rejected !== 25 || rejectedCss !== 7 || rejectedCli !== 5) {
+if (rejected !== 28 || rejectedCss !== 10 || rejectedCli !== 5) {
   throw new Error(
-    `Conformance negative coverage is incomplete: ${rejected}/25 total, ${rejectedCss}/7 CSS, ${rejectedCli}/5 CLI`,
+    `Conformance negative coverage is incomplete: ${rejected}/28 total, ${rejectedCss}/10 CSS, ${rejectedCli}/5 CLI`,
   );
 }
 
 console.log(
-  `Skin conformance negative verification passed (${rejected}/25 rejected; ${rejectedCss}/7 CSS fixtures; ${rejectedCli}/5 CLI fixtures)`,
+  `Skin conformance negative verification passed (${rejected}/28 rejected; ${rejectedCss}/10 CSS fixtures; ${rejectedCli}/5 CLI fixtures)`,
 );

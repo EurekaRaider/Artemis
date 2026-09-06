@@ -348,7 +348,14 @@
     {
       "display": "flex",
       "align-items": "center",
-      "gap": "var(--artemis-space-2)"
+      "gap": "var(--artemis-space-2)",
+      "grid-column": "-2 / -1"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"management-row\"]:not(:has(> [data-part=\"leading\"]))",
+    {
+      "grid-template-columns": "minmax(0, 1fr) auto"
     }
   ],
   [

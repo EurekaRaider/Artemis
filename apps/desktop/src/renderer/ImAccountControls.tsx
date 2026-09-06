@@ -116,7 +116,11 @@ export function ImAccounts({
       aria-label={t("已绑定账号与配对请求", "Paired accounts and requests")}
     >
       {requests.map((request) => (
-        <InlineNotice key={request.id} tone="info">
+        <InlineNotice
+          key={request.id}
+          tone="info"
+          className="im-pairing-request"
+        >
           <p>
             {t("配对请求 · 待确认", "Pairing request · Awaiting confirmation")}
           </p>
@@ -131,6 +135,7 @@ export function ImAccounts({
           </p>
           <div className="im-actions">
             <Button
+              variant="primary"
               disabled={busy}
               onClick={() =>
                 void resolve(request.id, true).then(() => root.current?.focus())
@@ -139,6 +144,8 @@ export function ImAccounts({
               {t("批准", "Approve")}
             </Button>
             <Button
+              variant="quiet"
+              className="management-text-action"
               disabled={busy}
               onClick={() =>
                 void resolve(request.id, false).then(() =>
@@ -159,8 +166,9 @@ export function ImAccounts({
         const key = imIdentityKey(identity);
         return (
           <div className="im-identity" key={key}>
-            <span className="im-identifier">
-              {identity.userId} · {identity.connectionId}
+            <span className="im-account-copy">
+              <strong>{identity.userId}</strong>
+              <code>{identity.connectionId}</code>
             </span>
             {confirming === key ? (
               <div
@@ -198,6 +206,8 @@ export function ImAccounts({
             ) : null}
             <span hidden={confirming === key}>
               <Button
+                variant="quiet"
+                className="management-text-action is-destructive"
                 disabled={busy}
                 onClick={(event) => {
                   trigger.current = event.currentTarget;

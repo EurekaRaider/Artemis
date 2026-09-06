@@ -22,6 +22,21 @@ export interface TimelineToolGroupEntry {
 
 export type TimelineActivityEntry = TimelineItemEntry | TimelineToolGroupEntry;
 
+function canAppendTool(
+  previous: TimelineActivityEntry | undefined,
+  groupKey: string,
+): previous is TimelineToolGroupEntry {
+  if (previous?.kind !== "tool-group") return false;
+  if (previous.key.startsWith(`${groupKey}:`)) return true;
+  // Shell reads and searches often alternate during one stretch of work.
+  return (
+    ["bash", "file-exploration"].includes(groupKey) &&
+    ["bash:", "file-exploration:"].some((prefix) =>
+      previous.key.startsWith(prefix),
+    )
+  );
+}
+
 export function latestVisibleToolGroupKey(
   entries: readonly TimelineActivityEntry[],
   messageParts: ThreadViewState["messageParts"],
@@ -41,10 +56,16 @@ export function latestVisibleToolGroupKey(
 export function groupTimelineActivities(
   order: readonly string[],
   tools: Readonly<Record<string, ToolState>>,
+  messageParts: ThreadViewState["messageParts"] = {},
 ): TimelineActivityEntry[] {
   const entries: TimelineActivityEntry[] = [];
 
   for (const entry of order) {
+    if (
+      entry.startsWith("part:") &&
+      messageParts[entry.slice(5)]?.type === "thinking"
+    )
+      continue;
     if (!entry.startsWith("tool:")) {
       entries.push({ kind: "entry", key: entry, entry });
       continue;
@@ -56,10 +77,7 @@ export function groupTimelineActivities(
 
     const groupKey = toolActivityGroupKey(tool.name, tool.input);
     const previous = entries.at(-1);
-    if (
-      previous?.kind === "tool-group" &&
-      previous.key.startsWith(`${groupKey}:`)
-    ) {
+    if (canAppendTool(previous, groupKey)) {
       previous.toolIds.push(toolId);
       continue;
     }
@@ -79,11 +97,17 @@ export function appendTimelineActivities(
   order: readonly string[],
   tools: Readonly<Record<string, ToolState>>,
   startIndex: number,
+  messageParts: ThreadViewState["messageParts"] = {},
 ): TimelineActivityEntry[] {
   if (startIndex >= order.length) return previous as TimelineActivityEntry[];
   const entries = [...previous];
   for (let index = startIndex; index < order.length; index += 1) {
     const entry = order[index]!;
+    if (
+      entry.startsWith("part:") &&
+      messageParts[entry.slice(5)]?.type === "thinking"
+    )
+      continue;
     if (!entry.startsWith("tool:")) {
       entries.push({ kind: "entry", key: entry, entry });
       continue;
@@ -93,10 +117,7 @@ export function appendTimelineActivities(
     if (!tool || HIDDEN_TIMELINE_TOOLS.has(tool.name)) continue;
     const groupKey = toolActivityGroupKey(tool.name, tool.input);
     const previousEntry = entries.at(-1);
-    if (
-      previousEntry?.kind === "tool-group" &&
-      previousEntry.key.startsWith(`${groupKey}:`)
-    ) {
+    if (canAppendTool(previousEntry, groupKey)) {
       entries[entries.length - 1] = {
         ...previousEntry,
         toolIds: [...previousEntry.toolIds, toolId],
