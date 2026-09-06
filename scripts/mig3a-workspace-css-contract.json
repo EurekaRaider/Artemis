@@ -366,6 +366,24 @@
     }
   ],
   [
+    "normal|[data-artemis-component=\"workspace-tab\"] > [data-part=\"close\"] > span",
+    {
+      "display": "flex",
+      "align-items": "center",
+      "justify-content": "center",
+      "inline-size": "100%",
+      "block-size": "100%"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"workspace-tab\"] > [data-part=\"close\"] svg",
+    {
+      "display": "block",
+      "inline-size": "100%",
+      "block-size": "100%"
+    }
+  ],
+  [
     "normal|[data-artemis-component=\"workspace-tab-pane\"]",
     {
       "display": "none",

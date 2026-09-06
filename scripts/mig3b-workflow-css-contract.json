@@ -114,13 +114,14 @@
     "normal|[data-artemis-component=\"review-diff\"][data-part=\"line\"]",
     {
       "display": "flex",
-      "min-inline-size": "max-content",
+      "min-inline-size": "0",
       "padding": "2px var(--artemis-space-3)",
       "color": "var(--artemis-color-text-secondary)",
       "font-family": "var(--artemis-typography-mono-family)",
       "font-size": "var(--artemis-typography-metadata-size)",
       "line-height": "1.65",
-      "white-space": "pre"
+      "white-space": "pre-wrap",
+      "overflow-wrap": "anywhere"
     }
   ],
   [

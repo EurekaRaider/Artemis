@@ -168,6 +168,37 @@ await rejectCss("select checkmark moves with label width", (css) =>
 await rejectCss("notice icon loses first-line alignment", (css) =>
   replaceRequired(css, "block-size: 1.5em;", "block-size: 1em;"),
 );
+await rejectCss("workspace tab close icon loses centering", (css) =>
+  replaceRequired(
+    css,
+    `[data-artemis-component="workspace-tab"] > [data-part="close"] > span {
+    display: flex;
+    align-items: center;`,
+    `[data-artemis-component="workspace-tab"] > [data-part="close"] > span {
+    display: flex;
+    align-items: start;`,
+  ),
+);
+await rejectCss("workspace tab close SVG regains a text baseline", (css) =>
+  replaceRequired(
+    css,
+    `[data-artemis-component="workspace-tab"] > [data-part="close"] svg {
+    display: block;`,
+    `[data-artemis-component="workspace-tab"] > [data-part="close"] svg {
+    display: inline;`,
+  ),
+);
+await rejectCss("review diff long lines stop wrapping", (css) =>
+  replaceRequired(
+    css,
+    `line-height: 1.65;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;`,
+    `line-height: 1.65;
+    white-space: pre;
+    overflow-wrap: normal;`,
+  ),
+);
 await rejectCss("saturated inline guidance", (css) =>
   replaceRequired(
     css,
@@ -243,12 +274,12 @@ rejectCli(
   "unexpected positional argument",
 );
 
-if (rejected !== 31 || rejectedCss !== 13 || rejectedCli !== 5) {
+if (rejected !== 34 || rejectedCss !== 16 || rejectedCli !== 5) {
   throw new Error(
-    `Conformance negative coverage is incomplete: ${rejected}/31 total, ${rejectedCss}/13 CSS, ${rejectedCli}/5 CLI`,
+    `Conformance negative coverage is incomplete: ${rejected}/34 total, ${rejectedCss}/16 CSS, ${rejectedCli}/5 CLI`,
   );
 }
 
 console.log(
-  `Skin conformance negative verification passed (${rejected}/31 rejected; ${rejectedCss}/13 CSS fixtures; ${rejectedCli}/5 CLI fixtures)`,
+  `Skin conformance negative verification passed (${rejected}/34 rejected; ${rejectedCss}/16 CSS fixtures; ${rejectedCli}/5 CLI fixtures)`,
 );

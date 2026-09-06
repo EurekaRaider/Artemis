@@ -270,6 +270,15 @@
   "rawComponentOverrides": [
     {
       "atRules": [],
+      "selector": ".im-settings :is([data-artemis-component=\"text-field\"], [data-artemis-component=\"select\"]) :is([data-part=\"control\"], [data-part=\"trigger\"])",
+      "property": "padding",
+      "value": "5px 10px",
+      "important": false,
+      "owner": "IM settings",
+      "reason": "IM setup text fields and select triggers share the existing compact 32px control geometry with aligned text insets."
+    },
+    {
+      "atRules": [],
       "selector": ".composer-context-picker [data-artemis-component=\"select\"] [data-part=\"menu\"]",
       "property": "z-index",
       "value": "80",

@@ -15181,13 +15181,22 @@ function createMainWindow(): BrowserWindow {
                     ?.click();
                   await wait(300);
                   if (view.startsWith('goal-editor')) {
-                    document.querySelector('.goal-bar-main')?.click();
-                    await wait(700);
+                    const waitForGoalElement = async (selector) => {
+                      const deadline = Date.now() + 8000;
+                      while (Date.now() < deadline) {
+                        const element = document.querySelector(selector);
+                        if (element) return element;
+                        await wait(100);
+                      }
+                      throw new Error('Goal editor element did not become ready: ' + selector);
+                    };
+                    const trigger = await waitForGoalElement('.goal-bar-main');
+                    trigger.click();
                     if (view === 'goal-editor-load-error') {
-                      await wait(300);
+                      await waitForGoalElement('.goal-editor-stale[role="alert"]');
                       return;
                     }
-                    const input = document.querySelector('.goal-editor-input');
+                    const input = await waitForGoalElement('.goal-editor-input');
                     if (!(input instanceof HTMLTextAreaElement)) {
                       throw new Error('Goal editor did not open.');
                     }

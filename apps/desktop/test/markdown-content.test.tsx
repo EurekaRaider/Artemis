@@ -124,22 +124,16 @@ describe("MarkdownContent", () => {
       'src="https://img.shields.io/badge/React-19-149ECA?logo=react&amp;logoColor=white"',
     );
     expect(html).toContain(
-      'data-workspace-image="docs/images/artemis-workspace-dark.png"',
+      'data-workspace-image="docs/images/screenshots/workspace-dark.png"',
     );
     expect(html).toContain(
-      'data-workspace-image="docs/images/artemis-workspace-en-125.png"',
+      'data-workspace-image="docs/images/screenshots/workspace-light.png"',
     );
     expect(html).toContain(
-      'data-workspace-image="docs/images/artemis-workspace-zh-CN-150.png"',
+      'data-workspace-image="docs/images/screenshots/workspace-zh-CN.png"',
     );
     expect(html).toContain(
-      'data-workspace-image="docs/images/plugin-marketplace.jpg"',
-    );
-    expect(html).toContain(
-      'data-workspace-image="docs/images/plugin-marketplace-add-plugin.jpg"',
-    );
-    expect(html).toContain(
-      'data-workspace-image="docs/images/plugin-marketplace-add-mcp.jpg"',
+      'data-workspace-image="docs/images/screenshots/resources.png"',
     );
     expect(html).toContain('<h2 id="product-preview">Product preview</h2>');
     expect(html).toContain('href="#product-preview"');

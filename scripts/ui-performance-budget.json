@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 315000,
+      "desktopCssBytes": 320000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -54,6 +54,15 @@
     }
   },
   "bundleBudgetRevisions": [
+    {
+      "date": "2026-09-06",
+      "baseHead": "22af9a1438eda49d7243225af41a12f06cc40dea",
+      "measurementHead": "ca5833bc6cf6dfa0cb8c6295b36a65583f266eb4",
+      "baseDesktopCssBytes": 314993,
+      "measuredDesktopCssBytes": 318876,
+      "desktopCssIncreaseBytes": 3883,
+      "reason": "IM platform setup, gateway deployment instructions and group member controls add 1.23% CSS. The previous 315000-byte ceiling had only 7 bytes of headroom at baseHead. The 320000-byte CSS ceiling keeps 1124 bytes of headroom; JavaScript, shared UI, gallery, startup and workload ceilings are unchanged. Both renderer revisions were measured with the same Vite production pipeline and installed dependencies; shared UI CSS is identical between these revisions."
+    },
     {
       "date": "2026-09-06",
       "baseHead": "bca777cb267f56a6e0d25969904f668343ab1889",
