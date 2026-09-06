@@ -32,6 +32,76 @@ function declarations(sheet: postcss.Root, selector: string) {
 }
 
 describe("screenshot visual contracts", () => {
+  it("uses plain text Token period tabs without a baseline or selected underline", () => {
+    expect(declarations(desktop, ".token-usage-tabs")["border-block-end"]).toBe(
+      "0",
+    );
+    expect(
+      declarations(desktop, '.token-usage-tabs [data-part="tab"]').border,
+    ).toBe("0");
+    expect(
+      declarations(desktop, '.token-usage-tabs [data-part="tab"]::after')
+        .display,
+    ).toBe("none");
+  });
+  it("keeps turn changes compact with inline totals and unframed actions", () => {
+    expect(declarations(desktop, ".turn-change-card")).toMatchObject({
+      "border-color": "var(--border-soft)",
+      "box-shadow": "none",
+    });
+    expect(declarations(desktop, ".turn-change-card > header")).toMatchObject({
+      "min-block-size": "44px",
+      "flex-wrap": "wrap",
+    });
+    expect(declarations(desktop, ".turn-change-heading").display).toBe("flex");
+    expect(declarations(desktop, ".turn-change-icon")).toMatchObject({
+      height: "16px",
+    });
+    expect(
+      declarations(desktop, ".turn-change-icon").background,
+    ).toBeUndefined();
+    expect(declarations(desktop, ".turn-change-actions button")).toMatchObject({
+      border: "0",
+      background: "transparent",
+      "min-height": "28px",
+    });
+    expect(declarations(desktop, ".turn-change-files li")["min-height"]).toBe(
+      "28px",
+    );
+  });
+  it("gives select options intrinsic menu width and a stable checkmark column", () => {
+    expect(
+      declarations(
+        shared,
+        '[data-artemis-component="select"] [data-part="menu"]',
+      ),
+    ).toMatchObject({
+      "inline-size": "max-content",
+      "min-inline-size": "100%",
+      "inset-inline-start": "0",
+    });
+    expect(
+      declarations(
+        shared,
+        '[data-artemis-component="select"] [data-part="option"]',
+      ),
+    ).toMatchObject({
+      display: "grid",
+      "grid-template-columns": "var(--artemis-space-4) minmax(0, 1fr)",
+      "text-align": "start",
+    });
+  });
+  it("centers inline notice icons in the first text line without a fixed top offset", () => {
+    const icon = declarations(
+      shared,
+      '[data-artemis-component="inline-notice"] > [data-part="icon"]',
+    );
+    expect(icon).toMatchObject({
+      "block-size": "1.5em",
+      "align-items": "center",
+    });
+    expect(icon["margin-block-start"]).toBeUndefined();
+  });
   it("keeps the goal rail borderless with a single plain status and quiet icon controls", () => {
     expect(declarations(desktop, ".goal-bar").border).toBe("0");
     for (const selector of [

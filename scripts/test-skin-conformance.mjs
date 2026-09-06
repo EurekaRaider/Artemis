@@ -155,6 +155,19 @@ try {
 }
 
 const surfaceDeclaration = "background: var(--artemis-color-surface-base);";
+await rejectCss("select constrained to trigger width", (css) =>
+  replaceRequired(css, "inline-size: max-content;", "inline-size: 100%;"),
+);
+await rejectCss("select checkmark moves with label width", (css) =>
+  replaceRequired(
+    css,
+    "grid-template-columns: var(--artemis-space-4) minmax(0, 1fr);",
+    "grid-template-columns: auto auto;",
+  ),
+);
+await rejectCss("notice icon loses first-line alignment", (css) =>
+  replaceRequired(css, "block-size: 1.5em;", "block-size: 1em;"),
+);
 await rejectCss("saturated inline guidance", (css) =>
   replaceRequired(
     css,
@@ -230,12 +243,12 @@ rejectCli(
   "unexpected positional argument",
 );
 
-if (rejected !== 28 || rejectedCss !== 10 || rejectedCli !== 5) {
+if (rejected !== 31 || rejectedCss !== 13 || rejectedCli !== 5) {
   throw new Error(
-    `Conformance negative coverage is incomplete: ${rejected}/28 total, ${rejectedCss}/10 CSS, ${rejectedCli}/5 CLI`,
+    `Conformance negative coverage is incomplete: ${rejected}/31 total, ${rejectedCss}/13 CSS, ${rejectedCli}/5 CLI`,
   );
 }
 
 console.log(
-  `Skin conformance negative verification passed (${rejected}/28 rejected; ${rejectedCss}/10 CSS fixtures; ${rejectedCli}/5 CLI fixtures)`,
+  `Skin conformance negative verification passed (${rejected}/31 rejected; ${rejectedCss}/13 CSS fixtures; ${rejectedCli}/5 CLI fixtures)`,
 );

@@ -9759,7 +9759,7 @@ export function ToolActivityGroupCard({
   );
 }
 
-function TurnChangeSetCard({
+export function TurnChangeSetCard({
   locale,
   onReview,
   onUndo,
@@ -9790,8 +9790,12 @@ function TurnChangeSetCard({
         <small>{t.binaryChange}</small>
       ) : (
         <span className="turn-change-file-stats">
-          <span className="addition">+{file.additions}</span>
-          <span className="deletion">−{file.deletions}</span>
+          <span className="addition" data-count={file.additions}>
+            +{file.additions}
+          </span>
+          <span className="deletion" data-count={file.deletions}>
+            −{file.deletions}
+          </span>
         </span>
       )}
     </li>
@@ -9799,22 +9803,28 @@ function TurnChangeSetCard({
 
   return (
     <TurnChangeSummary
+      aria-description={t.taskPeriodChanges}
       className={`turn-change-card ${changeSet.status}`}
       header={
         <>
-          <span className="turn-change-icon">
-            <FileIcon />
-          </span>
           <div className="turn-change-heading">
-            <strong>{title}</strong>
-            <small>{t.taskPeriodChanges}</small>
+            <span className="turn-change-icon">
+              <FileIcon />
+            </span>
+            <strong title={multiple ? title : changeSet.files[0]!.path}>
+              {title}
+            </strong>
             {singleBinary ? (
               <span className="turn-change-binary">{t.binaryChange}</span>
             ) : (
               hasTextChanges && (
                 <span className="turn-change-total">
-                  <span className="addition">+{changeSet.additions}</span>
-                  <span className="deletion">−{changeSet.deletions}</span>
+                  <span className="addition" data-count={changeSet.additions}>
+                    +{changeSet.additions}
+                  </span>
+                  <span className="deletion" data-count={changeSet.deletions}>
+                    −{changeSet.deletions}
+                  </span>
                 </span>
               )
             )}

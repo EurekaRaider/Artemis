@@ -560,7 +560,8 @@
     position: absolute;
     z-index: 20;
     inset-block-start: calc(100% + var(--artemis-space-1));
-    inset-inline: 0;
+    inset-inline-start: 0;
+    inline-size: max-content;
     min-inline-size: 100%;
     overflow: hidden;
     padding: var(--artemis-space-1);
@@ -580,12 +581,15 @@
   }
 
   [data-artemis-component="select"] [data-part="option"] {
-    display: flex;
+    display: grid;
+    grid-template-columns: var(--artemis-space-4) minmax(0, 1fr);
     align-items: center;
     gap: var(--artemis-space-2);
     min-block-size: var(--artemis-size-control-compact);
     padding-inline: var(--artemis-space-2);
     border-radius: var(--artemis-radius-control);
+    text-align: start;
+    overflow-wrap: anywhere;
     cursor: pointer;
   }
 
@@ -1104,8 +1108,9 @@
 
   [data-artemis-component="inline-notice"] > [data-part="icon"] {
     display: inline-flex;
+    align-items: center;
     flex: 0 0 auto;
-    margin-block-start: var(--artemis-space-1);
+    block-size: 1.5em;
     color: var(--artemis-color-text-tertiary);
   }
 

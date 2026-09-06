@@ -2118,32 +2118,51 @@ button.environment-row:disabled {
   transform: rotate(90deg);
 }
 
+.turn-change-card {
+  margin: 12px 0 18px;
+  background: var(--panel-3);
+  border-color: var(--border-soft);
+  box-shadow: none;
+}
+
+.turn-change-card > header {
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  min-block-size: 44px;
+  padding: 6px 12px;
+}
+
 .turn-change-icon {
   align-items: center;
-  background: var(--panel-3);
-  border-radius: 10px;
   color: var(--muted);
   display: inline-flex;
-  flex: 0 0 46px;
-  height: 46px;
+  flex: 0 0 16px;
+  height: 16px;
   justify-content: center;
 }
 
+.turn-change-icon .icon {
+  width: 16px;
+  height: 16px;
+}
+
 .turn-change-heading {
-  display: grid;
-  flex: 1;
-  gap: 2px;
+  display: flex;
+  align-items: center;
+  flex: 1 1 200px;
+  gap: 8px;
   min-width: 0;
 }
 
 .turn-change-heading > strong {
-  font-size: 15px;
+  font-size: 13px;
+  font-weight: 590;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.turn-change-heading > small,
 .turn-change-message,
 .goal-editor-footer > span {
   color: var(--muted-2);
@@ -2155,7 +2174,24 @@ button.environment-row:disabled {
   display: inline-flex;
   font-family: var(--mono-font);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
   gap: 7px;
+}
+
+.turn-change-total .addition,
+.turn-change-file-stats .addition {
+  color: var(--success);
+}
+
+.turn-change-total .deletion,
+.turn-change-file-stats .deletion {
+  color: var(--danger);
+}
+
+.turn-change-total [data-count="0"],
+.turn-change-file-stats [data-count="0"] {
+  color: var(--muted-2);
 }
 
 .turn-change-binary {
@@ -2174,16 +2210,25 @@ button.environment-row:disabled {
 }
 
 .turn-change-actions button {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
   cursor: pointer;
-  min-height: 32px;
-  padding: 0 11px;
+  font-size: 12px;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.turn-change-actions {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  gap: 4px;
 }
 
 .turn-change-actions button:hover:not(:disabled) {
   background: var(--hover);
+  color: var(--text);
 }
 
 .turn-change-actions button:disabled {
@@ -2204,15 +2249,16 @@ button.environment-row:disabled {
   border-top: 1px solid var(--border-soft);
   list-style: none;
   margin: 0;
-  padding: 8px 0;
+  padding: 4px 0;
 }
 
 .turn-change-files li {
   align-items: center;
   display: flex;
   gap: 12px;
-  min-height: 34px;
-  padding: 4px 15px;
+  min-height: 28px;
+  padding: 4px 12px;
+  font-size: 12px;
 }
 
 .turn-change-files li > :first-child {
@@ -2232,7 +2278,7 @@ button.environment-row:disabled {
 
 .turn-change-more > summary {
   align-items: center;
-  background: color-mix(in srgb, var(--panel-3) 52%, transparent);
+  background: transparent;
   border-top: 1px solid var(--border-soft);
   color: var(--muted);
   cursor: pointer;
@@ -2240,14 +2286,14 @@ button.environment-row:disabled {
   font-size: 12px;
   gap: 6px;
   list-style: none;
-  min-height: 38px;
-  padding: 0 15px;
+  min-height: 30px;
+  padding: 0 12px;
 }
 
 .turn-change-message {
   border-top: 1px solid var(--border-soft);
   margin: 0;
-  padding: 9px 15px 11px;
+  padding: 8px 12px;
 }
 
 .user-message-capability {
@@ -5627,20 +5673,6 @@ button.environment-row:disabled {
 }
 
 @container (max-width: 700px) {
-  .turn-change-card > header {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .turn-change-heading {
-    min-width: calc(100% - 62px);
-  }
-
-  .turn-change-actions {
-    justify-content: flex-end;
-    width: 100%;
-  }
-
   .user-input-timeout {
     text-align: left;
   }
@@ -9810,6 +9842,7 @@ kbd {
   flex: 0 0 auto;
   white-space: nowrap;
   gap: 20px;
+  border-block-end: 0;
 }
 
 .secondary-page-icon,

@@ -913,6 +913,7 @@ export function Select<Value extends string>({
   const errorId = `${controlId}-error`;
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const listbox = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
@@ -986,6 +987,73 @@ export function Select<Value extends string>({
     setOpen(false);
     setQuery("");
   }, [menuAvailable, open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const placeMenu = () => {
+      const element = menu.current;
+      const anchor = trigger.current;
+      if (!element || !anchor) return;
+      const scale = anchor.offsetWidth
+        ? anchor.getBoundingClientRect().width / anchor.offsetWidth
+        : 1;
+      let leftEdge = 0;
+      let rightEdge = window.innerWidth;
+      // Settings and inspectors can clip a menu before it reaches the window edge.
+      for (
+        let parent = element.parentElement;
+        parent;
+        parent = parent.parentElement
+      ) {
+        if (
+          !parent.clientWidth ||
+          !/(auto|scroll|hidden|clip)/u.test(getComputedStyle(parent).overflowX)
+        )
+          continue;
+        const bounds = parent.getBoundingClientRect();
+        const parentScale = parent.offsetWidth
+          ? bounds.width / parent.offsetWidth
+          : 1;
+        const left = bounds.left + parent.clientLeft * parentScale;
+        leftEdge = Math.max(leftEdge, left);
+        rightEdge = Math.min(
+          rightEdge,
+          left + parent.clientWidth * parentScale,
+        );
+      }
+      const available = Math.max(0, rightEdge - leftEdge - 16) / (scale || 1);
+      element.style.maxInlineSize = `min(32rem, ${available}px)`;
+      element.style.minInlineSize = `min(100%, ${available}px)`;
+      element.style.translate = "0px";
+      const bounds = element.getBoundingClientRect();
+      const left = Math.max(
+        leftEdge + 8,
+        Math.min(bounds.left, rightEdge - bounds.width - 8),
+      );
+      element.style.translate = `${(left - bounds.left) / (scale || 1)}px`;
+    };
+    placeMenu();
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(placeMenu);
+    if (menu.current) observer?.observe(menu.current);
+    if (trigger.current) observer?.observe(trigger.current);
+    for (
+      let parent = root.current?.parentElement;
+      parent;
+      parent = parent.parentElement
+    ) {
+      observer?.observe(parent);
+    }
+    window.addEventListener("resize", placeMenu);
+    window.addEventListener("scroll", placeMenu, true);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", placeMenu);
+      window.removeEventListener("scroll", placeMenu, true);
+    };
+  }, [open, visibleOptions]);
 
   useLayoutEffect(() => {
     if (!open || activeVisibleIndex < 0) return;
@@ -1117,7 +1185,7 @@ export function Select<Value extends string>({
         </p>
       )}
       {open ? (
-        <div data-part="menu">
+        <div data-part="menu" ref={menu}>
           {searchPlaceholder === undefined ? null : (
             <input
               aria-activedescendant={

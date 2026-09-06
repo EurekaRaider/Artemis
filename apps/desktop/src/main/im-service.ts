@@ -80,6 +80,7 @@ interface Binding {
   threadId: string;
   projectId: string;
   request: RemoteInvocationContext;
+  localExecution?: boolean;
 }
 interface Receipt {
   request: RemoteInvocationContext;
@@ -129,7 +130,10 @@ export class ImService {
   private timer: ReturnType<typeof setInterval> | undefined;
   private polling = false;
   private closed = false;
-  private starts = new Map<string, { projectId: string; remote: boolean }>();
+  private starts = new Map<
+    string,
+    { projectId: string | undefined; remote: boolean; mode: RunMode }
+  >();
   private controllers = new Map<string, Set<AbortController>>();
   private validatedSandboxes = new Set<string>();
   constructor(
@@ -331,6 +335,7 @@ export class ImService {
     this.put("settings", "current", settings);
     // Revoke before cancellation: no new tool request can pass while cancellation is in flight.
     for (const binding of this.list<Binding>("bindings")) {
+      if (binding.localExecution) continue;
       try {
         this.grant(binding);
       } catch {
@@ -512,8 +517,9 @@ export class ImService {
       );
       for (const binding of this.list<Binding>("bindings"))
         if (
+          !binding.localExecution &&
           imIdentityKey(binding.request.identity) ===
-          imIdentityKey(action.identity)
+            imIdentityKey(action.identity)
         ) {
           this.cancelOperations(binding.threadId);
           if (
@@ -624,25 +630,52 @@ export class ImService {
   }
   profile(threadId: string): RemoteExecutionProfile | undefined {
     const binding = this.get<Binding>("bindings", threadId);
-    if (!binding) return undefined;
-    // A persisted remote task stays remote even while disabled or revoked.
+    if (!binding || binding.localExecution) return undefined;
+    // Expiry alone never removes a remote execution boundary.
     const grant = this.config.grants.find(
       (g) => g.projectId === binding.projectId,
     );
     return { network: grant?.network ?? false, shell: grant?.shell ?? false };
   }
-  reserveStart(threadId: string, mode: RunMode): () => void {
+  async prepareLocalTurn(threadId: string, turnId: string): Promise<void> {
+    const binding = this.get<Binding>("bindings", threadId);
+    if (!binding) return;
+    const thread = this.ops.thread(threadId);
+    if (!thread || busy(thread))
+      throw new Error("Cannot change execution context during an active turn.");
+    // Reopen Pi with local tools while preserving the session and IM identity.
+    if (!binding.localExecution) await this.ops.close(threadId);
+    const current = this.ops.thread(threadId);
+    if (!current || busy(current))
+      throw new Error("Cannot change execution context during an active turn.");
+    this.put("bindings", threadId, { ...binding, localExecution: true });
+    this.put("local-turns", turnId, threadId);
+    for (const action of this.list<PendingAction>("actions"))
+      if (action.threadId === threadId) this.remove("actions", action.token);
+  }
+  reserveStart(
+    threadId: string,
+    mode: RunMode,
+    remoteOrigin?: boolean,
+  ): () => void {
+    if (this.starts.has(threadId))
+      throw new Error("Task is already starting a turn.");
     const thread = this.ops.thread(threadId),
-      remote = !!this.profile(threadId);
-    if (!thread?.projectId || mode !== "execute") return () => {};
+      remote = remoteOrigin ?? !!this.profile(threadId);
+    if (!thread) return () => {};
     for (const [id, pending] of this.starts)
       if (
+        mode === "execute" &&
+        pending.mode === "execute" &&
+        thread.projectId &&
         id !== threadId &&
         pending.projectId === thread.projectId &&
         (remote || pending.remote)
       )
         throw new Error("Project is starting another write task.");
     if (
+      mode === "execute" &&
+      thread.projectId &&
       !remote &&
       this.ops
         .threads()
@@ -656,7 +689,7 @@ export class ImService {
         )
     )
       throw new Error("Project is executing a remote write task.");
-    this.starts.set(threadId, { projectId: thread.projectId, remote });
+    this.starts.set(threadId, { projectId: thread.projectId, remote, mode });
     return () => {
       this.starts.delete(threadId);
     };
@@ -664,6 +697,7 @@ export class ImService {
   authorizeThread(threadId: string, mode: RunMode): void {
     const binding = this.get<Binding>("bindings", threadId);
     if (!binding) return;
+    if (binding.localExecution) throw new Error("Task is under local control.");
     const grant = this.grant(binding);
     if (mode === "execute" && grant.mode !== "execute")
       throw new Error("Remote Execute is not authorized for this project.");
@@ -698,6 +732,11 @@ export class ImService {
         .run(threadId);
       for (const namespace of ["bindings", "subscriptions", "progress-time"])
         this.remove(namespace, threadId);
+      this.db
+        .prepare(
+          "DELETE FROM im_state WHERE namespace='local-turns' AND value=?",
+        )
+        .run(JSON.stringify(threadId));
       for (const action of this.list<PendingAction>("actions"))
         if (action.threadId === threadId) this.remove("actions", action.token);
       // Keep receipts and assignment links: redelivery must not recreate a deleted task.
@@ -1139,7 +1178,11 @@ export class ImService {
       )
         throw new Error("确认码无效、已处理或已过期。");
       const binding = this.get<Binding>("bindings", action.threadId);
-      if (!binding || !this.ops.thread(action.threadId))
+      if (
+        !binding ||
+        binding.localExecution ||
+        !this.ops.thread(action.threadId)
+      )
         throw new Error("审批任务已失效。");
       this.grant(binding);
       const p = action.payload;
@@ -1292,9 +1335,14 @@ export class ImService {
     if (command === "continue") {
       if (!threadId) throw new Error("请指定完整任务编号。");
       const thread = this.accessibleThread(request, threadId, true);
-      if (!this.get("bindings", thread.id)) {
+      if (this.starts.has(thread.id))
+        throw new Error("任务正在启动，请稍后再从 IM 继续。");
+      if (!this.profile(thread.id)) {
         if (busy(thread)) throw new Error("请等待桌面任务结束后再接管到 IM。");
         await this.ops.close(thread.id);
+        const current = this.ops.thread(thread.id);
+        if (!current || busy(current) || this.starts.has(thread.id))
+          throw new Error("请等待桌面任务结束后再接管到 IM。");
       }
       this.put("bindings", thread.id, {
         threadId: thread.id,
@@ -1343,7 +1391,16 @@ export class ImService {
         "请先 /projects 查看项目，然后 /project 项目编号 明确选择。",
       );
     const grant = requireImGrant(this.config, request, projectId);
+    const localTurnActive = () => {
+      if (!existing) return false;
+      const current = this.ops.thread(existing.id);
+      return (
+        this.starts.has(existing.id) ||
+        (!!current && busy(current) && !this.profile(existing.id))
+      );
+    };
     if (
+      localTurnActive() ||
       this.ops
         .threads()
         .some(
@@ -1357,7 +1414,7 @@ export class ImService {
       if (!this.get("queued-notices", request.id)) {
         this.reply(
           request,
-          "项目已有写任务，当前请求已排队；设备恢复或项目空闲后会重新检查授权。",
+          "任务正在执行或启动，当前请求已排队；空闲后会重新检查授权。",
         );
         this.put("queued-notices", request.id, true);
       }
@@ -1373,6 +1430,12 @@ export class ImService {
       throw new Error("任务内容不能为空。");
     const attachments = await this.attachments(request); // Validation completes before any task is started.
     if (existing) this.accessibleThread(request, existing.id);
+    if (localTurnActive()) return;
+    if (existing && !this.profile(existing.id)) {
+      await this.ops.close(existing.id);
+      this.accessibleThread(request, existing.id);
+      if (localTurnActive()) return;
+    }
     receipt.threadId = threadId ?? receipt.threadId ?? randomUUID();
     receipt.state = "dispatching";
     this.put("receipts", request.id, receipt);
@@ -1493,6 +1556,11 @@ export class ImService {
     if (!binding || !this.get("subscriptions", event.threadId)) return;
     if (this.get("observed", event.eventId)) return;
     this.put("observed", event.eventId, true);
+    if (
+      binding.localExecution ||
+      (event.turnId && this.get("local-turns", event.turnId))
+    )
+      return;
     const payload = event.payload;
     if (payload.type === "assistant.usage") {
       this.put(
@@ -1705,6 +1773,7 @@ export class ImService {
       if (this.closed) return;
       for (const binding of this.list<Binding>("bindings"))
         try {
+          if (binding.localExecution) continue;
           this.grant(binding);
         } catch {
           this.cancelOperations(binding.threadId);
@@ -1743,6 +1812,7 @@ export class ImService {
       this.error = errorMessage(error);
       if (!this.closed && this.leaseUntil <= Date.now())
         for (const binding of this.list<Binding>("bindings")) {
+          if (binding.localExecution) continue;
           this.cancelOperations(binding.threadId);
           const thread = this.ops.thread(binding.threadId);
           if (thread && busy(thread))

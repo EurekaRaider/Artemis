@@ -318,6 +318,138 @@ describe("TextField and SearchField", () => {
 });
 
 describe("Select", () => {
+  it("keeps expanded menus inside a clipping settings panel as it resizes", async () => {
+    vi.stubGlobal("innerWidth", 1024);
+    const observed: Element[] = [];
+    let resizePanel = () => {};
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          resizePanel = callback;
+        }
+        observe(element: Element) {
+          observed.push(element);
+        }
+        disconnect() {}
+      },
+    );
+    let panelWidth = 500;
+    const bounds = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        const left =
+          this.dataset.part === "menu"
+            ? 620
+            : this.dataset.testid === "panel"
+              ? 200
+              : 0;
+        const width =
+          this.dataset.part === "menu"
+            ? 240
+            : this.dataset.testid === "panel"
+              ? panelWidth
+              : 100;
+        return {
+          left,
+          right: left + width,
+          width,
+          top: 0,
+          bottom: 32,
+          height: 32,
+          x: left,
+          y: 0,
+          toJSON: () => ({}),
+        };
+      });
+    const client = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.dataset.testid === "panel" ? panelWidth : 0;
+      });
+    const offset = vi
+      .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.dataset.testid === "panel" ? panelWidth : 100;
+      });
+    try {
+      const { container } = render(
+        <div data-testid="panel" style={{ overflowX: "hidden" }}>
+          <Select
+            label="Model"
+            value="alpha"
+            onValueChange={vi.fn()}
+            options={OPTIONS}
+          />
+        </div>,
+      );
+      await userEvent.click(screen.getByRole("button"));
+      const menu = container.querySelector<HTMLElement>('[data-part="menu"]')!;
+      expect(menu.style.translate).toBe("-168px");
+      expect(menu.style.maxInlineSize).toBe("min(32rem, 484px)");
+      expect(observed).toContain(screen.getByTestId("panel"));
+      panelWidth = 400;
+      resizePanel();
+      expect(menu.style.translate).toBe("-268px");
+      expect(menu.style.minInlineSize).toBe("min(100%, 384px)");
+    } finally {
+      bounds.mockRestore();
+      client.mockRestore();
+      offset.mockRestore();
+    }
+  });
+  it.each([
+    { left: 920, width: 240, scale: 1, offset: -144 },
+    { left: -160, width: 240, scale: 1, offset: 168 },
+    { left: 900, width: 320, scale: 2, offset: -102 },
+  ])(
+    "clamps an intrinsic menu at viewport edges under scale $scale",
+    async ({ left, width, scale, offset }) => {
+      vi.stubGlobal("innerWidth", 1024);
+      const bounds = vi
+        .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+        .mockImplementation(function () {
+          const isMenu = this.dataset.part === "menu";
+          return {
+            left: isMenu ? left : 0,
+            right: isMenu ? left + width : 100 * scale,
+            width: isMenu ? width : 100 * scale,
+            top: 0,
+            bottom: 32,
+            height: 32,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+          };
+        });
+      const offsetWidth = vi
+        .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+        .mockReturnValue(100);
+      try {
+        const { container } = render(
+          <Select
+            label="容量模式"
+            onValueChange={vi.fn()}
+            options={[
+              { value: "auto", label: "自动（推荐）" },
+              { value: "manual", label: "手动上限" },
+            ]}
+            value="manual"
+          />,
+        );
+        await userEvent.click(screen.getByRole("button"));
+        const menu =
+          container.querySelector<HTMLElement>('[data-part="menu"]')!;
+        expect(menu.style.translate).toBe(`${offset}px`);
+        expect(menu.style.maxInlineSize).toBe(`min(32rem, ${1008 / scale}px)`);
+        await userEvent.keyboard("{Escape}");
+        expect(container.querySelector('[data-part="menu"]')).toBeNull();
+      } finally {
+        bounds.mockRestore();
+        offsetWidth.mockRestore();
+      }
+    },
+  );
   it("filters normalized terms with substring and ordered fuzzy matching", () => {
     expect(
       filterSelectOptions(OPTIONS, "REASONER").map(({ value }) => value),

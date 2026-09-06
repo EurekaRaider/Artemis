@@ -2,7 +2,7 @@ import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { afterEach, describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { ArtemisGateway } from "../../../packages/gateway/src/server.js";
 import { ImService, type ImTaskOperations } from "../src/main/im-service.js";
 import {
@@ -153,6 +153,149 @@ async function fixture(channel: "wecom" | "feishu" | "slack" = "wecom") {
   };
 }
 describe("IM desktop and Gateway loop", () => {
+  it("lets the desktop start locally after IM expires or is disabled without removing the conversation binding", async () => {
+    const f = await fixture();
+    await f.send("/new remote task");
+    await f.send("/stop");
+    const id = f.threads[0]!.id;
+    await f.service.save({ ...f.service.status().settings, enabled: false });
+    const close = vi.spyOn(f.ops, "close");
+    await f.service.prepareLocalTurn(id, "desktop-turn");
+    expect(close).toHaveBeenCalledExactlyOnceWith(id);
+    expect(f.service.profile(id)).toBeUndefined();
+    expect(f.service.status().remoteTasks).toContainEqual(
+      expect.objectContaining({ threadId: id }),
+    );
+    expect(() =>
+      f.service.authorizeOperation(
+        id,
+        { action: "read", path: "README.md" },
+        "plan",
+      ),
+    ).toThrow(/local control/);
+    f.threads[0]!.status = "running";
+    const cancel = vi.spyOn(f.ops, "cancel");
+    await f.service.save({ ...f.service.status().settings, enabled: false });
+    expect(cancel).not.toHaveBeenCalled();
+  });
+  it("does not switch a live remote run to local execution", async () => {
+    const f = await fixture();
+    await f.send("/new active remote task");
+    const id = f.threads[0]!.id;
+    await expect(
+      f.service.prepareLocalTurn(id, "desktop-turn"),
+    ).rejects.toThrow(/active turn/);
+    expect(f.service.profile(id)).toBeDefined();
+  });
+  it("keeps the remote boundary if closing the old Pi session fails", async () => {
+    const f = await fixture();
+    await f.send("/new remote task");
+    await f.send("/stop");
+    const id = f.threads[0]!.id;
+    vi.spyOn(f.ops, "close").mockRejectedValueOnce(new Error("close failed"));
+    await expect(
+      f.service.prepareLocalTurn(id, "desktop-turn"),
+    ).rejects.toThrow("close failed");
+    expect(f.service.profile(id)).toEqual({ network: false, shell: false });
+  });
+  it("persists local control across restart without requiring a live IM request", async () => {
+    const f = await fixture();
+    await f.send("/new remote task");
+    await f.send("/stop");
+    const id = f.threads[0]!.id;
+    await f.service.save({
+      ...f.service.status().settings,
+      defaultProjectId: "",
+      grants: [],
+    });
+    await f.service.prepareLocalTurn(id, "desktop-turn");
+    await f.service.close();
+    const restored = new ImService(f.root, f.secure, f.ops);
+    cleanups.push(() => restored.close());
+    expect(restored.profile(id)).toBeUndefined();
+    await expect(
+      restored.prepareLocalTurn(id, "next-desktop-turn"),
+    ).resolves.toBeUndefined();
+    expect(() =>
+      restored.authorizeOperation(
+        id,
+        { action: "read", path: "README.md" },
+        "plan",
+      ),
+    ).toThrow(/local control/);
+  });
+  it("never forwards local approvals or late local results when IM resumes", async () => {
+    const f = await fixture();
+    await f.send("/new remote task");
+    await f.send("/stop");
+    const threadId = f.threads[0]!.id;
+    await f.service.prepareLocalTurn(threadId, "desktop-turn");
+    const event: AgentEvent = {
+      protocolVersion: 4,
+      eventId: randomUUID(),
+      threadId,
+      turnId: "desktop-turn",
+      seq: 1,
+      timestamp: new Date().toISOString(),
+      payload: {
+        type: "approval.requested",
+        approvalId: "local-operation",
+        nonce: randomUUID(),
+        summary: "Local private operation",
+        paths: ["private.txt"],
+        network: [],
+        risk: "medium",
+        allowedScopes: ["once"],
+      },
+    };
+    const deliveries = () =>
+      f.gateway.store.pending<{ text: string }>("outgoing");
+    const count = deliveries().length;
+    f.service.observe([event]);
+    await f.service.poll();
+    expect(deliveries()).toHaveLength(count);
+    await f.send("resume from IM");
+    expect(f.service.profile(threadId)).toBeDefined();
+    const resumedCount = deliveries().length;
+    f.service.observe([{ ...event, eventId: randomUUID() }]);
+    await f.service.poll();
+    expect(deliveries()).toHaveLength(resumedCount);
+    expect(f.approvals).toEqual([]);
+  });
+  it("waits for a local run before restoring a fresh remote profile, and never queues IM text into it", async () => {
+    const f = await fixture();
+    await f.send("/new remote task");
+    await f.send("/stop");
+    const id = f.threads[0]!.id;
+    await f.service.prepareLocalTurn(id, "desktop-turn");
+    f.threads[0]!.status = "running";
+    await f.send("continue from IM");
+    expect(f.queued).toEqual([]);
+    expect(f.starts).toHaveLength(1);
+    expect(f.service.profile(id)).toBeUndefined();
+    f.threads[0]!.status = "idle";
+    const close = vi.spyOn(f.ops, "close");
+    await f.service.poll();
+    expect(close).toHaveBeenCalledExactlyOnceWith(id);
+    expect(f.starts).toHaveLength(2);
+    expect(f.starts[1]).toBe("continue from IM");
+    expect(f.service.profile(id)).toEqual({ network: false, shell: false });
+  });
+  it("does not let an IM continuation change a local runtime while its start is pending", async () => {
+    const f = await fixture();
+    await f.send("/new remote task");
+    await f.send("/stop");
+    const id = f.threads[0]!.id;
+    const release = f.service.reserveStart(id, "execute", false);
+    try {
+      await f.service.prepareLocalTurn(id, "desktop-turn");
+      await f.send(`/continue ${id}`);
+      expect(f.service.profile(id)).toBeUndefined();
+      expect(() => f.service.reserveStart(id, "execute")).toThrow(/starting/);
+    } finally {
+      release();
+    }
+  });
   it("refreshes pairing while paused without accepting or running tasks", async () => {
     const f = await fixture();
     await f.service.save({ ...f.service.status().settings, enabled: false });

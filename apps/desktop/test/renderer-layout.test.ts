@@ -645,7 +645,12 @@ describe("renderer layout contract", () => {
     expect(uiStylesSource).toContain(
       '[data-artemis-component="select"] [data-part="menu"]',
     );
-    expect(uiStylesSource).toContain("inset-inline: 0");
+    expect(
+      publicUiCssRule('[data-artemis-component="select"] [data-part="menu"]'),
+    ).toContain("inset-inline-start: 0");
+    expect(
+      publicUiCssRule('[data-artemis-component="select"] [data-part="menu"]'),
+    ).toContain("inline-size: max-content");
     expect(cssRule(".composer-context-menu")).toMatch(
       /\bdisplay:\s*flex[\s\S]*\bwidth:\s*min\(350px,\s*calc\(100cqi\s*-\s*64px\)\)/u,
     );

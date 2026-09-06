@@ -5352,7 +5352,11 @@ async function startTaskTurn(
   input: StartTurnInput,
   options: Parameters<typeof startTaskTurnUnchecked>[1] = {},
 ): Promise<StartTurnResult> {
-  const release = imService?.reserveStart(input.threadId, input.mode);
+  const release = imService?.reserveStart(
+    input.threadId,
+    input.mode,
+    options.origin === undefined ? undefined : options.origin === "im",
+  );
   try {
     return await startTaskTurnUnchecked(input, options);
   } finally {
@@ -5363,6 +5367,7 @@ async function startTaskTurn(
 async function startTaskTurnUnchecked(
   input: StartTurnInput,
   options: {
+    origin?: "desktop" | "im";
     source?: "user" | "goal-continuation";
     expectedGoalId?: string;
   } = {},
@@ -5377,7 +5382,6 @@ async function startTaskTurnUnchecked(
   if (!thread) {
     throw new Error(`Thread not found: ${input.threadId}`);
   }
-  imService?.authorizeThread(thread.id, input.mode);
   if (thread.archived) {
     throw new Error("Archived tasks cannot start a turn.");
   }
@@ -5399,6 +5403,15 @@ async function startTaskTurnUnchecked(
   if (!text && attachments.length === 0) {
     throw new Error("Prompt cannot be empty.");
   }
+  const turnId = randomUUID();
+  if (
+    options.origin === "desktop" ||
+    (options.origin !== "im" && !imService?.profile(thread.id))
+  ) {
+    await imService?.prepareLocalTurn(thread.id, turnId);
+  } else if (options.origin === "im" || imService?.profile(thread.id)) {
+    imService?.authorizeThread(thread.id, input.mode);
+  }
   const requestText =
     text || `Inspect the attached file${attachments.length === 1 ? "" : "s"}.`;
   if (source === "user" && isAutomaticTaskTitle(thread.title)) {
@@ -5406,7 +5419,6 @@ async function startTaskTurnUnchecked(
       title: deriveTaskTitle(text, currentLocale()),
     });
   }
-  const turnId = randomUUID();
   const now = Date.now();
   const traceSelection = thread.modelSelection ?? activeRuntimeSelection;
   const trace: TurnLatencyTrace = {
@@ -9503,7 +9515,7 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.turnStart,
     (_event, input: StartTurnInput): Promise<StartTurnResult> =>
-      startTaskTurn(input),
+      startTaskTurn(input, { origin: "desktop" }),
   );
 
   ipcMain.on(IPC.turnRendered, (_event, turnId: string, renderedAt: number) => {
@@ -19819,6 +19831,7 @@ app
           return thread;
         },
         close: async (id) => {
+          await openingThreads.get(id);
           if (openedThreads.has(id) && agentProcess) {
             await agentProcess.request({
               type: "thread.close",
@@ -19829,7 +19842,10 @@ app
           }
         },
         start: async (id, text, mode, attachments) => {
-          await startTaskTurn({ threadId: id, text, mode, attachments });
+          await startTaskTurn(
+            { threadId: id, text, mode, attachments },
+            { origin: "im" },
+          );
         },
         queue: async (id, text, attachments) => {
           await queueTurn("turn.follow-up", {
