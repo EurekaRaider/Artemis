@@ -539,6 +539,31 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   line-height: 18px;
 }
 
+.thread-select:has(.im-thread-devices) {
+  grid-template-columns: var(--sidebar-marker-column) auto minmax(0, 1fr);
+}
+
+.thread-select:has(.im-thread-devices) .thread-title {
+  grid-column: 3;
+}
+
+.im-thread-devices {
+  align-items: center;
+  display: inline-flex;
+  gap: 2px;
+  grid-column: 2;
+}
+
+.im-thread-devices svg {
+  color: var(--muted);
+  flex: none;
+}
+
+.im-thread-devices svg[data-connected="false"] {
+  color: var(--muted-2);
+  opacity: 0.38;
+}
+
 .thread-title-text {
   display: block;
   overflow: hidden;
@@ -3787,7 +3812,7 @@ button.environment-row:disabled {
   text-transform: uppercase;
 }
 
-.agent-team-member-open > span:first-child {
+.agent-team-member-summary {
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -3853,7 +3878,7 @@ button.environment-row:disabled {
   cursor: pointer;
   display: grid;
   gap: 7px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
   flex: 1;
   min-width: 0;
   padding: 12px 0;

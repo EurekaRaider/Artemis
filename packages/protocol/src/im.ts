@@ -124,12 +124,22 @@ export const imSettingsSchema = z
   })
   .strict();
 export type ImSettings = z.infer<typeof imSettingsSchema>;
+export interface ImDevicePresence {
+  mobile: boolean;
+  desktop: boolean;
+}
 export interface ImStatus {
   settings: ImSettings;
   state: "disabled" | "connecting" | "connected" | "error";
   error?: string;
   identities: ImIdentity[];
   pairingRequests?: ImPairingRequest[];
+  remoteTasks?: Array<{
+    threadId: string;
+    channel: string;
+    kind: string;
+    devicePresence?: ImDevicePresence;
+  }>;
   localGateway?: { state: "stopped" | "running" | "error"; error?: string };
 }
 export const remoteInvocationSchema = z

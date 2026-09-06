@@ -13,11 +13,13 @@ describe("ArtemisIcon", () => {
     expect(ARTEMIS_ICON_SOURCE).toBe(
       "ui-prototype-v69:components.html#cat-icons;apple-inspired-ui.html",
     );
-    expect(ARTEMIS_ICON_NAMES).toHaveLength(101);
-    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(101);
+    expect(ARTEMIS_ICON_NAMES).toHaveLength(103);
+    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(103);
     expect(ARTEMIS_ICON_NAMES).toEqual(
       expect.arrayContaining([
         "artemis",
+        "mobile",
+        "monitor",
         "folder",
         "sidebar-l",
         "queue",

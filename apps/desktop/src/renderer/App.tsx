@@ -138,6 +138,7 @@ import { MarkdownContent } from "./MarkdownContent.js";
 import { normalizeBrowserAddress } from "./browser-navigation.js";
 import { CodexSelect } from "./CodexSelect.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
+import { ImThreadDevices, useImThreadDevices } from "./ImThreadDevices.js";
 import { ComposerContextBar } from "./ComposerContextBar.js";
 import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
 import { GoalBar } from "./GoalBar.js";
@@ -1142,10 +1143,12 @@ function FilesIcon() {
   return <ArtemisIcon className="icon" height={18} name="files" width={18} />;
 }
 
-function WorkspaceTabIcon({
+export function WorkspaceTabIcon({
+  childAgentId,
   kind,
   path,
 }: {
+  childAgentId?: string | undefined;
   kind: WorkspaceTabKind;
   path?: string | undefined;
 }) {
@@ -1156,9 +1159,8 @@ function WorkspaceTabIcon({
   if (kind === "sources") return <SourcesIcon />;
   if (kind === "goal")
     return <ArtemisIcon height={16} name="task" width={16} />;
-  if (kind === "agent-team" || kind === "child-agent") {
-    return <FolderIcon />;
-  }
+  if (kind === "child-agent") return <ChildAgentIcon identity={childAgentId} />;
+  if (kind === "agent-team") return <FolderIcon />;
   if (kind === "file") {
     return path ? (
       <WorkspaceFileIcon
@@ -1407,6 +1409,7 @@ function prepareThreadTitleScroll(
 }
 
 export function App() {
+  const imThreadDevices = useImThreadDevices();
   const { i18n } = useTranslation();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
   const [activeProjectId, setActiveProjectId] = useState<string>();
@@ -5845,6 +5848,12 @@ export function App() {
                                       className={`status-dot ${thread.status}`}
                                     />
                                   )}
+                                  {imThreadDevices[thread.id] && (
+                                    <ImThreadDevices
+                                      devices={imThreadDevices[thread.id]!}
+                                      locale={locale}
+                                    />
+                                  )}
                                   <span
                                     className="thread-title"
                                     onPointerEnter={prepareThreadTitleScroll}
@@ -6074,6 +6083,12 @@ export function App() {
                         {thread.status !== "idle" && (
                           <span className={`status-dot ${thread.status}`} />
                         )}
+                        {imThreadDevices[thread.id] && (
+                          <ImThreadDevices
+                            devices={imThreadDevices[thread.id]!}
+                            locale={locale}
+                          />
+                        )}
                         <span
                           className="thread-title"
                           onPointerEnter={prepareThreadTitleScroll}
@@ -6242,7 +6257,7 @@ export function App() {
                       }
                       agents={environmentAgents}
                       attachments={attachments}
-                      defaultOpen={false}
+                      defaultOpen
                       dockOpen={workspaceDockOpen}
                       key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}
                       locale={locale}
@@ -7726,7 +7741,11 @@ export function App() {
                           closeLabel={`${t.closeTab}: ${tab.title}`}
                           closeTitle={t.closeTab}
                           icon={
-                            <WorkspaceTabIcon kind={tab.kind} path={tab.path} />
+                            <WorkspaceTabIcon
+                              childAgentId={tab.childAgentId}
+                              kind={tab.kind}
+                              path={tab.path}
+                            />
                           }
                           id={workspaceTabDomId(tab.id)}
                           key={tab.id}
@@ -8914,7 +8933,8 @@ export function AgentTeamPanel({
                     onClick={() => onOpenChildAgent(member)}
                     type="button"
                   >
-                    <span>
+                    <ChildAgentIcon identity={member.agentId} />
+                    <span className="agent-team-member-summary">
                       <strong>{member.label}</strong>
                       <small>
                         {member.status === "completed"

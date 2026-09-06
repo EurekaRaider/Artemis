@@ -95,8 +95,8 @@ describe("task environment panel state", () => {
     expect(dock).toBeGreaterThan(environment);
   });
 
-  it("opens on request, closes with the dock, and can reopen beside the dock", () => {
-    expect(appSource).toContain("defaultOpen={false}");
+  it("enables automatic opening, closes with the dock, and can reopen beside the dock", () => {
+    expect(appSource).toMatch(/<EnvironmentPanel[\s\S]*?\sdefaultOpen\s/u);
     expect(panelSource).toContain("useState(defaultOpen)");
     expect(panelSource).toContain("openRef.current = false");
     expect(panelSource).toContain("setOpen(false)");
@@ -219,7 +219,7 @@ describe("task environment panel state", () => {
     expect(stylesSource).toContain("max-height: calc(100vh - 64px)");
   });
 
-  it("keeps the v69 environment overlay independent of conversation width", () => {
+  it("keeps the compact overlay styling while monitoring available space", () => {
     expect(stylesSource).toContain("--environment-panel-inline-size: 280px");
     expect(stylesSource).not.toContain(
       "--environment-panel-content-safe-inline-size",
@@ -227,7 +227,7 @@ describe("task environment panel state", () => {
     expect(stylesSource).not.toContain(
       "--environment-panel-min-conversation-inline-size",
     );
-    expect(panelSource).not.toContain("syncVisibility");
+    expect(panelSource).toContain("new window.ResizeObserver(syncVisibility)");
     expect(panelSource).toContain('className="environment-panel-header"');
     expect(panelSource).toContain("onClick={closePanel}");
     expect(publicUiStylesSource).toMatch(

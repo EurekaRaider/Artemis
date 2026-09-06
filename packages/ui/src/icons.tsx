@@ -6,6 +6,8 @@ export const ARTEMIS_ICON_SOURCE =
 export const ARTEMIS_ICON_NAMES = [
   "artemis",
   "message",
+  "mobile",
+  "monitor",
   "agent-configuration",
   "folder",
   "folder-open",
@@ -110,6 +112,18 @@ export const ARTEMIS_ICON_NAMES = [
 export type ArtemisIconName = (typeof ARTEMIS_ICON_NAMES)[number];
 
 const ARTEMIS_ICON_GLYPHS = {
+  mobile: (
+    <>
+      <rect x="6" y="3" width="12" height="18" rx="4" />
+      <path d="M10.4 6.5h3.2" />
+    </>
+  ),
+  monitor: (
+    <>
+      <rect x="3.5" y="4" width="17" height="12.5" rx="2" />
+      <path d="M4.5 13.5h15M12 16.5v2.6M9.2 20.5h5.6" />
+    </>
+  ),
   artemis: (
     <>
       <circle cx="12" cy="12" r="8.2" />

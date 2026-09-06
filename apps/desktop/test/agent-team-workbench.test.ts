@@ -55,7 +55,7 @@ describe("agent-team workbench", () => {
     )?.[0];
 
     expect(memberButton).toContain("onClick={() => onOpenChildAgent(member)}");
-    expect(memberButton).not.toContain("<ChildAgentIcon");
+    expect(memberButton).toContain("<ChildAgentIcon identity={member.agentId}");
     expect(memberButton).toContain("agentMemberStatus(member.status, locale)");
     expect(memberButton).toContain("{member.label}");
     expect(memberButton).not.toContain("member.role");

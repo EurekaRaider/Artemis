@@ -4,7 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ChildAgentState, AgentTeamState } from "@artemis/protocol";
 import "./renderer-test-utils.js";
-import { AgentTeamPanel, ChildAgentPanel } from "../src/renderer/App.js";
+import {
+  AgentTeamPanel,
+  ChildAgentPanel,
+  WorkspaceTabIcon,
+} from "../src/renderer/App.js";
 
 vi.mock("../src/renderer/desktop-skin-bootstrap.js", () => ({}));
 const updatedAt = "2026-09-06T02:00:00.000Z";
@@ -40,6 +44,52 @@ const team: AgentTeamState = {
 };
 
 describe("prototype-aligned agent panels", () => {
+  it("keeps each member's identity icon in its row and tab after status and label updates", () => {
+    const renderTeam = (items: ChildAgentState[]) => (
+      <AgentTeamPanel
+        active
+        controlPending={false}
+        locale="zh-CN"
+        members={items}
+        messages={[]}
+        onOpenChildAgent={vi.fn()}
+        onStop={vi.fn()}
+        runtimeAvailable
+        team={team}
+      />
+    );
+    const { rerender } = render(renderTeam(members));
+    const icons = members.map((member) => {
+      const row = screen.getByRole("button", {
+        name: new RegExp(member.label),
+      });
+      const icon = row.querySelector(".child-agent-mark");
+      expect(icon).toBe(row.firstElementChild);
+      expect(icon).toHaveAttribute("aria-hidden", "true");
+      expect(icon).not.toBeNull();
+      return icon!.outerHTML;
+    });
+    expect(icons[0]).not.toEqual(icons[1]);
+    const updated = [...members].reverse().map((member) => ({
+      ...member,
+      label: `${member.label}（已停止）`,
+      status: "cancelled" as const,
+    }));
+    rerender(renderTeam(updated));
+    members.forEach((member, index) => {
+      expect(
+        screen
+          .getByRole("button", { name: new RegExp(member.label) })
+          .querySelector(".child-agent-mark")?.outerHTML,
+      ).toBe(icons[index]);
+      const tab = render(
+        <WorkspaceTabIcon kind="child-agent" childAgentId={member.agentId} />,
+      );
+      expect(tab.container.firstElementChild?.outerHTML).toBe(icons[index]);
+      tab.unmount();
+    });
+  });
+
   it("renders member summaries, meaningful states and a trailing view action without protocol labels", async () => {
     const onOpenChildAgent = vi.fn(),
       onStop = vi.fn();

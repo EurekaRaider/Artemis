@@ -807,6 +807,8 @@ export function EnvironmentPanel({
   const branchMenu = useRef<HTMLDivElement>(null);
   const branchSearch = useRef<HTMLInputElement>(null);
   const checksCloseTimer = useRef<number | undefined>(undefined);
+  const wantsOpen = useRef(defaultOpen);
+  const focusOnOpen = useRef(false);
   const openRef = useRef(defaultOpen);
   const [open, setOpen] = useState(defaultOpen);
   const [gitInfo, setGitInfo] = useState<ProjectGitInfo>();
@@ -837,13 +839,20 @@ export function EnvironmentPanel({
   const [pendingSwitchBranch, setPendingSwitchBranch] = useState<string>();
   const [showAllAgents, setShowAllAgents] = useState(false);
 
-  const closePanel = useCallback(() => {
+  const hidePanel = useCallback(() => {
     openRef.current = false;
     setOpen(false);
   }, []);
 
+  const closePanel = useCallback(() => {
+    wantsOpen.current = false;
+    hidePanel();
+  }, [hidePanel]);
+
   const togglePanel = useCallback(() => {
     openRef.current = !openRef.current;
+    wantsOpen.current = openRef.current;
+    focusOnOpen.current = openRef.current;
     setOpen(openRef.current);
   }, []);
 
@@ -919,10 +928,34 @@ export function EnvironmentPanel({
   }, [branchMenuPosition, branchOpen, creatingMenuBranch]);
 
   useLayoutEffect(() => {
-    if (dockOpen) {
-      openRef.current = false;
-      setOpen(false);
-    }
+    const workspace = control.current?.closest(".workspace");
+    if (!(workspace instanceof HTMLElement)) return;
+    const syncVisibility = () => {
+      const panelWidth =
+        Number.parseFloat(
+          window
+            .getComputedStyle(workspace)
+            .getPropertyValue("--environment-panel-inline-size"),
+        ) || 280;
+      // Keep at least 720px for the conversation and a 24px gap.
+      const enoughSpace =
+        workspace.getBoundingClientRect().width >= panelWidth + 24 + 720;
+      const nextOpen = wantsOpen.current && !dockOpen && enoughSpace;
+      if (nextOpen === openRef.current) return;
+      openRef.current = nextOpen;
+      setOpen(nextOpen);
+    };
+    syncVisibility();
+    const observer =
+      typeof window.ResizeObserver === "function"
+        ? new window.ResizeObserver(syncVisibility)
+        : undefined;
+    observer?.observe(workspace);
+    window.addEventListener("resize", syncVisibility);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", syncVisibility);
+    };
   }, [dockOpen]);
 
   const loadGit = useCallback(async () => {
@@ -1018,9 +1051,12 @@ export function EnvironmentPanel({
       void loadPullRequest();
     };
     window.addEventListener("focus", refreshOnFocus);
-    const frame = window.requestAnimationFrame(() => panel.current?.focus());
+    const frame = focusOnOpen.current
+      ? window.requestAnimationFrame(() => panel.current?.focus())
+      : undefined;
+    focusOnOpen.current = false;
     return () => {
-      window.cancelAnimationFrame(frame);
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
       window.removeEventListener("focus", refreshOnFocus);
     };
   }, [loadGit, loadPullRequest, open]);
@@ -1241,7 +1277,7 @@ export function EnvironmentPanel({
   const hasSourcePanelDetails = attachmentCount + sourceCallCount > 0;
 
   const viewAllSources = () => {
-    closePanel();
+    hidePanel();
     onViewAllSources();
   };
 
@@ -1527,7 +1563,7 @@ export function EnvironmentPanel({
                   <button
                     className="environment-text-action"
                     onClick={() => {
-                      closePanel();
+                      hidePanel();
                       onOpenReview(
                         gitInfo.unstagedCount > 0 || gitInfo.untrackedCount > 0
                           ? "unstaged"
@@ -1650,7 +1686,7 @@ export function EnvironmentPanel({
                     className="environment-activity-row"
                     key={team.teamId}
                     onClick={() => {
-                      closePanel();
+                      hidePanel();
                       onOpenTeam(team);
                     }}
                     type="button"
@@ -1676,7 +1712,7 @@ export function EnvironmentPanel({
                     className="environment-activity-row"
                     key={agent.agentId}
                     onClick={() => {
-                      closePanel();
+                      hidePanel();
                       onOpenAgent(agent);
                     }}
                     type="button"
@@ -1804,7 +1840,7 @@ export function EnvironmentPanel({
                   className="environment-compare-action"
                   role="menuitem"
                   onClick={() => {
-                    closePanel();
+                    hidePanel();
                     onOpenReview("branch", gitInfo?.compareBase);
                   }}
                   type="button"
