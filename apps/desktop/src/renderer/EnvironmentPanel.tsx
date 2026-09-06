@@ -808,6 +808,7 @@ export function EnvironmentPanel({
   const branchSearch = useRef<HTMLInputElement>(null);
   const checksCloseTimer = useRef<number | undefined>(undefined);
   const wantsOpen = useRef(defaultOpen);
+  const manuallyOpened = useRef(false);
   const focusOnOpen = useRef(false);
   const openRef = useRef(defaultOpen);
   const [open, setOpen] = useState(defaultOpen);
@@ -840,6 +841,7 @@ export function EnvironmentPanel({
   const [showAllAgents, setShowAllAgents] = useState(false);
 
   const hidePanel = useCallback(() => {
+    manuallyOpened.current = false;
     openRef.current = false;
     setOpen(false);
   }, []);
@@ -851,6 +853,7 @@ export function EnvironmentPanel({
 
   const togglePanel = useCallback(() => {
     openRef.current = !openRef.current;
+    manuallyOpened.current = openRef.current;
     wantsOpen.current = openRef.current;
     focusOnOpen.current = openRef.current;
     setOpen(openRef.current);
@@ -930,6 +933,7 @@ export function EnvironmentPanel({
   useLayoutEffect(() => {
     const workspace = control.current?.closest(".workspace");
     if (!(workspace instanceof HTMLElement)) return;
+    manuallyOpened.current = false;
     const conversation = workspace.querySelector<HTMLElement>(".conversation");
     const viewport =
       conversation?.querySelector<HTMLElement>(".timeline-scroll");
@@ -940,6 +944,9 @@ export function EnvironmentPanel({
         ) ?? [],
       );
     const syncVisibility = () => {
+      // Explicitly opened menus keep their input/focus through theme and
+      // font changes. Dock transitions still restore automatic visibility.
+      if (manuallyOpened.current) return;
       const configuredWidth =
         Number.parseFloat(
           window

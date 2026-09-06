@@ -216,9 +216,18 @@ describe("environment panel automatic visibility", () => {
     expect(dialog()).toBeNull();
     await user.click(screen.getByRole("button", { name: "Task environment" }));
     expect(dialog()).toBeVisible();
-    resize(900);
-    expect(dialog()).toBeNull();
+    const focused = document.activeElement;
+    timelineWidth = 1200;
     resize(1800);
+    expect(dialog()).toBeVisible();
+    expect(document.activeElement).toBe(focused);
+    resize(900);
+    expect(dialog()).toBeVisible();
+    rerender(fixture({ dockOpen: true }));
+    expect(dialog()).toBeNull();
+    timelineWidth = 960;
+    resize(1800);
+    rerender(fixture());
     expect(dialog()).toBeVisible();
   });
 
