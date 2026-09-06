@@ -308,6 +308,13 @@ try {
           : actual?.[field] === expected?.[field],
       );
     const quietStyle = shared?.contractStyles?.quiet;
+    // The goal rail uses unframed controls; retain the shared typography,
+    // hit targets and focus treatment while checking its transparent chrome.
+    const railActionStyle = {
+      ...quietStyle,
+      backgroundColor: "rgba(0, 0, 0, 0)",
+      borderColor: "rgba(0, 0, 0, 0)",
+    };
     const focusMatches = requireFocus
       ? shared?.focus?.active === true &&
         shared.focus.outlineColor === quietStyle?.focusOutlineColor &&
@@ -324,15 +331,14 @@ try {
       shared.main.display !== "flex" ||
       shared.main.minBlockSize !== "28px" ||
       shared.main.justifyContent !== "flex-start" ||
-      !visualMatches(shared.main, quietStyle) ||
+      !visualMatches(shared.main, railActionStyle) ||
       shared?.badge?.component !== "badge" ||
       shared.badge.tone !== tone ||
       shared.badge.display !== "flex" ||
-      shared.badge.minBlockSize !== "26px" ||
-      shared?.status?.component !== "status" ||
-      shared.status.tone !== tone ||
-      shared.status.display !== "flex" ||
-      shared.status.minBlockSize !== "26px" ||
+      shared.badge.minBlockSize !== "0px" ||
+      shared.badge.borderWidth !== "0px" ||
+      shared.badge.backgroundColor !== "rgba(0, 0, 0, 0)" ||
+      shared?.status !== null ||
       shared.actions?.length !== expectedActions.length ||
       shared.actions.some(
         (action) =>
@@ -343,7 +349,7 @@ try {
           action.display !== "flex" ||
           action.inlineSize !== "28px" ||
           action.minBlockSize !== "28px" ||
-          !visualMatches(action, quietStyle),
+          !visualMatches(action, railActionStyle),
       ) ||
       !focusMatches
     ) {
