@@ -930,30 +930,76 @@ export function EnvironmentPanel({
   useLayoutEffect(() => {
     const workspace = control.current?.closest(".workspace");
     if (!(workspace instanceof HTMLElement)) return;
+    const conversation = workspace.querySelector<HTMLElement>(".conversation");
+    const viewport =
+      conversation?.querySelector<HTMLElement>(".timeline-scroll");
+    const contentElements = () =>
+      Array.from(
+        conversation?.querySelectorAll<HTMLElement>(
+          ".timeline, .composer-wrap, .conversation-empty-state",
+        ) ?? [],
+      );
     const syncVisibility = () => {
-      const panelWidth =
+      const configuredWidth =
         Number.parseFloat(
           window
             .getComputedStyle(workspace)
             .getPropertyValue("--environment-panel-inline-size"),
         ) || 280;
-      // Keep at least 720px for the conversation and a 24px gap.
+      const anchor = control.current?.getBoundingClientRect();
+      if (!anchor) return;
+      const panelWidth = Math.min(configuredWidth, window.innerWidth - 62);
+      const rtl = window.getComputedStyle(workspace).direction === "rtl";
+      const panelBounds = panel.current?.getBoundingClientRect();
+      const panelStart = panelBounds?.width
+        ? rtl
+          ? panelBounds.right
+          : panelBounds.left
+        : rtl
+          ? anchor.left + panelWidth
+          : anchor.right - panelWidth;
+      const contentBounds = contentElements()
+        .map((element) => element.getBoundingClientRect())
+        .filter((bounds) => bounds.width > 0);
+      // The timeline is centered: total workspace width alone cannot tell
+      // whether the floating panel fits in its side margin.
       const enoughSpace =
-        workspace.getBoundingClientRect().width >= panelWidth + 24 + 720;
+        contentBounds.length > 0 &&
+        contentBounds.every((bounds) =>
+          rtl
+            ? panelStart + 24 <= bounds.left
+            : bounds.right + 24 <= panelStart,
+        );
       const nextOpen = wantsOpen.current && !dockOpen && enoughSpace;
       if (nextOpen === openRef.current) return;
       openRef.current = nextOpen;
       setOpen(nextOpen);
     };
-    syncVisibility();
     const observer =
       typeof window.ResizeObserver === "function"
         ? new window.ResizeObserver(syncVisibility)
         : undefined;
-    observer?.observe(workspace);
+    const observeContent = () => {
+      observer?.disconnect();
+      for (const element of [
+        workspace,
+        control.current,
+        ...contentElements(),
+      ]) {
+        if (element) observer?.observe(element);
+      }
+      syncVisibility();
+    };
+    observeContent();
+    // Empty state / timeline and composer mounts change the protected column.
+    // Watch their containers, not the streamed message subtree.
+    const mutations = new MutationObserver(observeContent);
+    if (conversation) mutations.observe(conversation, { childList: true });
+    if (viewport) mutations.observe(viewport, { childList: true });
     window.addEventListener("resize", syncVisibility);
     return () => {
       observer?.disconnect();
+      mutations.disconnect();
       window.removeEventListener("resize", syncVisibility);
     };
   }, [dockOpen]);

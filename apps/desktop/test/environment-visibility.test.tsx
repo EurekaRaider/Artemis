@@ -37,9 +37,13 @@ const props: ComponentProps<typeof EnvironmentPanel> = {
 };
 
 let workspaceWidth: number;
+let timelineWidth: number;
+let composerWidth: number;
 const resizeCallbacks = new Set<() => void>();
 beforeEach(() => {
-  workspaceWidth = 1200;
+  workspaceWidth = 1800;
+  timelineWidth = 960;
+  composerWidth = 960;
   resizeCallbacks.clear();
   vi.stubGlobal(
     "ResizeObserver",
@@ -56,9 +60,29 @@ beforeEach(() => {
   const originalRect = HTMLElement.prototype.getBoundingClientRect;
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
     function () {
-      return this.classList.contains("workspace")
-        ? new DOMRect(0, 0, workspaceWidth, 780)
-        : originalRect.call(this);
+      const workspaceLeft = 260;
+      if (this.classList.contains("workspace"))
+        return new DOMRect(workspaceLeft, 0, workspaceWidth, 780);
+      if (
+        this.matches(
+          '[data-artemis-component="environment-control"][data-part="root"]',
+        )
+      )
+        return new DOMRect(workspaceLeft + workspaceWidth - 80, 0, 30, 40);
+      if (
+        this.matches(".timeline, .conversation-empty-state, .composer-wrap")
+      ) {
+        const width = this.classList.contains("composer-wrap")
+          ? composerWidth
+          : timelineWidth;
+        return new DOMRect(
+          workspaceLeft + (workspaceWidth - width) / 2,
+          40,
+          width,
+          600,
+        );
+      }
+      return originalRect.call(this);
     },
   );
   stubWindowArtemis({
@@ -82,7 +106,14 @@ function fixture(overrides: Partial<typeof props> = {}, panelWidth = 280) {
         } as CSSProperties
       }
     >
-      <input aria-label="Prompt" />
+      <div className="conversation">
+        <div className="timeline-scroll">
+          <div className="timeline">Timeline content</div>
+        </div>
+        <div className="composer-wrap">
+          <input aria-label="Prompt" />
+        </div>
+      </div>
       <EnvironmentPanel {...props} {...overrides} />
     </div>
   );
@@ -96,32 +127,67 @@ const dialog = () =>
 
 describe("environment panel automatic visibility", () => {
   it("opens with sufficient space and restores at the exact width threshold without moving prompt focus", async () => {
-    workspaceWidth = 1023;
+    workspaceWidth = 1667;
     render(fixture());
     expect(dialog()).toBeNull();
     const prompt = screen.getByRole("textbox", { name: "Prompt" });
     prompt.focus();
-    resize(1024);
+    resize(1668);
     expect(dialog()).toBeVisible();
     await waitFor(() =>
       expect(window.artemis.getProjectGitInfo).toHaveBeenCalled(),
     );
     expect(prompt).toHaveFocus();
-    resize(1023);
+    resize(1667);
     expect(dialog()).toBeNull();
-    resize(1200);
+    resize(1800);
     expect(dialog()).toBeVisible();
     expect(prompt).toHaveFocus();
   });
 
-  it("measures the workspace and configured panel width, including sidebar-only resizes", () => {
-    workspaceWidth = 1063;
+  it("measures actual content bounds and configured panel width, including sidebar-only resizes", () => {
+    workspaceWidth = 1747;
     render(fixture({}, 320));
     expect(dialog()).toBeNull();
-    resize(1064);
+    resize(1748);
     expect(dialog()).toBeVisible();
     resize(1000);
     expect(dialog()).toBeNull();
+  });
+
+  it("hides when either the timeline or composer would overlap, even in a wide workspace", () => {
+    workspaceWidth = 1200;
+    render(fixture());
+    expect(dialog()).toBeNull();
+    resize(1800);
+    expect(dialog()).toBeVisible();
+    timelineWidth = 1200;
+    resize(1800);
+    expect(dialog()).toBeNull();
+    timelineWidth = 960;
+    composerWidth = 1200;
+    resize(1800);
+    expect(dialog()).toBeNull();
+    composerWidth = 960;
+    resize(1800);
+    expect(dialog()).toBeVisible();
+  });
+
+  it("remeasures content mounted after the initial empty geometry", async () => {
+    timelineWidth = 0;
+    composerWidth = 0;
+    const { container } = render(fixture());
+    expect(dialog()).toBeNull();
+    timelineWidth = 960;
+    const empty = document.createElement("div");
+    empty.className = "conversation-empty-state";
+    container.querySelector(".timeline-scroll")!.replaceChildren(empty);
+    await waitFor(() => expect(dialog()).toBeVisible());
+    timelineWidth = 1200;
+    const timeline = document.createElement("div");
+    timeline.className = "timeline";
+    empty.replaceWith(timeline);
+    await waitFor(() => expect(dialog()).toBeNull());
   });
 
   it("restores after closing the dock, including when initially mounted with the dock open", () => {
@@ -131,7 +197,7 @@ describe("environment panel automatic visibility", () => {
     expect(dialog()).toBeVisible();
     rerender(fixture({ dockOpen: true }));
     expect(dialog()).toBeNull();
-    resize(1500);
+    resize(1900);
     expect(dialog()).toBeNull();
     rerender(fixture());
     expect(dialog()).toBeVisible();
@@ -144,7 +210,7 @@ describe("environment panel automatic visibility", () => {
       screen.getByRole("button", { name: "Close", exact: true }),
     );
     resize(900);
-    resize(1200);
+    resize(1800);
     rerender(fixture({ dockOpen: true }));
     rerender(fixture());
     expect(dialog()).toBeNull();
@@ -152,7 +218,7 @@ describe("environment panel automatic visibility", () => {
     expect(dialog()).toBeVisible();
     resize(900);
     expect(dialog()).toBeNull();
-    resize(1200);
+    resize(1800);
     expect(dialog()).toBeVisible();
   });
 
@@ -184,13 +250,13 @@ describe("environment panel automatic visibility", () => {
     expect(dialog()).toBeVisible();
     await userEvent.keyboard("{Escape}");
     expect(dialog()).toBeNull();
-    resize(1500);
+    resize(1900);
     expect(dialog()).toBeNull();
   });
 
   it("keeps explicitly disabled defaults closed and disconnects observation on unmount", () => {
     const { unmount } = render(fixture({ defaultOpen: false }));
-    resize(1500);
+    resize(1900);
     expect(dialog()).toBeNull();
     expect(resizeCallbacks.size).toBe(1);
     unmount();

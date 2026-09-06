@@ -304,12 +304,18 @@ try {
         [...states("timeline-turn")],
         ["completed", "cancelled", "running"],
       );
+      // A mixed group has one aggregate state; completed calls remain
+      // represented by the individual rows inside that group.
+      const toolStates = new Set([
+        ...states("tool-activity"),
+        ...(timeline.toolItemStates ?? []),
+      ]);
       assert(
         "tool-states",
         ["completed", "failed", "running"].every((state) =>
-          states("tool-activity").has(state),
+          toolStates.has(state),
         ),
-        [...states("tool-activity")],
+        [...toolStates],
         ["completed", "failed", "running"],
       );
       assert(

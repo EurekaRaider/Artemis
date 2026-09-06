@@ -19331,6 +19331,11 @@ function createMainWindow(): BrowserWindow {
                             interaction:
                               window.__conversationTimelineInteraction ?? null,
                             components: roots.map(describe),
+                            toolItemStates: [
+                              ...document.querySelectorAll(
+                                '.tool-activity-list .tool-item-status[data-state]',
+                              ),
+                            ].map((item) => item.getAttribute('data-state')),
                             componentCounts: Object.fromEntries(
                               componentNames.map((component) => [
                                 component,

@@ -90,6 +90,64 @@ describe("prototype-aligned agent panels", () => {
     });
   });
 
+  it.each(["zh-CN", "en"] as const)(
+    "uses red stopped badges for every member and child header in %s",
+    (locale) => {
+      const stopped = ["usb", "image", "network", "protocol"].map(
+        (agentId) => ({
+          ...members[0]!,
+          agentId,
+          label: agentId,
+          status: "cancelled" as const,
+        }),
+      );
+      const { container, unmount } = render(
+        <AgentTeamPanel
+          active
+          controlPending={false}
+          locale={locale}
+          members={stopped}
+          messages={[]}
+          onOpenChildAgent={vi.fn()}
+          onStop={vi.fn()}
+          runtimeAvailable
+          team={{
+            ...team,
+            status: "aborted",
+            memberAgentIds: stopped.map((m) => m.agentId),
+          }}
+        />,
+      );
+      const badges = container.querySelectorAll(
+        ".agent-team-member-open .agent-panel-status",
+      );
+      expect(badges).toHaveLength(4);
+      badges.forEach((badge) => {
+        expect(badge).toHaveAttribute("data-tone", "danger");
+        expect(badge).toHaveTextContent(locale === "en" ? "Stopped" : "已停止");
+      });
+      expect(
+        container.querySelectorAll(".agent-team-member-open .child-agent-mark"),
+      ).toHaveLength(4);
+      unmount();
+      const child = render(
+        <ChildAgentPanel
+          active
+          child={stopped[0]}
+          clockMs={Date.parse(updatedAt)}
+          locale={locale}
+          onControl={vi.fn()}
+          pendingAction={undefined}
+        />,
+      );
+      expect(
+        child.container.querySelector(
+          ".child-agent-panel-header .agent-panel-status",
+        ),
+      ).toHaveAttribute("data-tone", "danger");
+    },
+  );
+
   it("renders member summaries, meaningful states and a trailing view action without protocol labels", async () => {
     const onOpenChildAgent = vi.fn(),
       onStop = vi.fn();

@@ -8678,7 +8678,7 @@ function agentMemberStatus(status: ChildAgentState["status"], locale: Locale) {
 function agentMemberTone(status: ChildAgentState["status"]) {
   return status === "completed"
     ? "success"
-    : status === "failed"
+    : status === "failed" || status === "cancelled"
       ? "danger"
       : status === "running" || status === "blocked"
         ? "warning"

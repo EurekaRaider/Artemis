@@ -6439,7 +6439,7 @@ button.sources-panel-entry.attachment:focus-visible {
 .review-file {
   contain-intrinsic-size: auto 160px;
   content-visibility: auto;
-  min-width: 100%;
+  min-width: 0;
 }
 
 .changed-file {
@@ -6527,9 +6527,8 @@ button.sources-panel-entry.attachment:focus-visible {
   flex: 1;
   font-size: 9px;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .review-hunk-block {
@@ -6548,6 +6547,10 @@ button.sources-panel-entry.attachment:focus-visible {
   min-height: 21px;
 }
 
+.review-line:has(> .review-comment-trigger) {
+  grid-template-columns: 16px 22px 30px 30px minmax(0, 1fr);
+}
+
 .review-line.addition {
   background: color-mix(in srgb, var(--success) 12%, transparent);
 }
@@ -6557,10 +6560,10 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .review-line code {
-  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 3px 8px;
-  text-overflow: ellipsis;
-  white-space: pre;
+  white-space: pre-wrap;
 }
 
 .review-line-number {
@@ -6569,9 +6572,11 @@ button.sources-panel-entry.attachment:focus-visible {
   padding: 3px 5px;
   text-align: right;
   user-select: none;
+  white-space: pre;
 }
 
 .review-comment-trigger {
+  align-self: start;
   background: transparent;
   border: 0;
   color: var(--accent);

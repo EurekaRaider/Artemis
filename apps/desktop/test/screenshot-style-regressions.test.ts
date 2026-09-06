@@ -32,6 +32,52 @@ function declarations(sheet: postcss.Root, selector: string) {
 }
 
 describe("screenshot visual contracts", () => {
+  it("centers all workspace tab close glyphs independently of the text baseline", () => {
+    const close =
+      '[data-artemis-component="workspace-tab"] > [data-part="close"]';
+    expect(declarations(shared, close + " > span")).toMatchObject({
+      display: "flex",
+      "align-items": "center",
+      "justify-content": "center",
+      "inline-size": "100%",
+      "block-size": "100%",
+      "line-height": "0",
+    });
+    expect(declarations(shared, close + " svg").display).toBe("block");
+  });
+  it("wraps review text without expanding the reader or clipping highlighted lines", () => {
+    const line = declarations(
+      shared,
+      '[data-artemis-component="review-diff"][data-part="line"]',
+    );
+    expect(line).toMatchObject({
+      "min-inline-size": "0",
+      "white-space": "pre-wrap",
+      "overflow-wrap": "anywhere",
+    });
+    expect(declarations(desktop, ".review-file")["min-width"]).toBe("0");
+    for (const selector of [".review-line code", ".review-hunk code"]) {
+      const code = declarations(desktop, selector);
+      expect(code).toMatchObject({
+        "min-width": "0",
+        "white-space": "pre-wrap",
+        "overflow-wrap": "anywhere",
+      });
+      expect(code.overflow).not.toBe("hidden");
+      expect(code["text-overflow"]).not.toBe("ellipsis");
+    }
+    expect(
+      declarations(desktop, ".review-line:has(> .review-comment-trigger)")[
+        "grid-template-columns"
+      ],
+    ).toBe("16px 22px 30px 30px minmax(0, 1fr)");
+    expect(declarations(desktop, ".review-comment-trigger")["align-self"]).toBe(
+      "start",
+    );
+    expect(declarations(desktop, ".review-line-number")["white-space"]).toBe(
+      "pre",
+    );
+  });
   it("uses plain text Token period tabs without a baseline or selected underline", () => {
     expect(declarations(desktop, ".token-usage-tabs")["border-block-end"]).toBe(
       "0",
