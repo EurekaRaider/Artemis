@@ -12,6 +12,9 @@ source "$VF"
 #     与 ZCode α 分层的出厂现实；刻意降不透明度=刻意弱化的层级文本。阈值依旧强校验，无静默放行。
 #   - 配套 token 微调（ui/tokens.css 方向 A）：亮 text-3 α 0.40→0.47、暗 0.30→0.33（过 2.2 档）、
 #     亮 success-text #15803d→#12702f、warning-text #a16207→#8a5406（软底徽章过 4.5）。
+#   - v18.1（评审落地）：文字三档改不透明色后新增 token 值角色识别（计算色匹配 --text-2/--text-3
+#     解析值，优先于 alpha 轴）；新增 composer/popover/user-message 表面角色与 --brand（品牌蓝仅
+#     链接/焦点/信息徽章，主按钮保持黑白）；Composer 专用轻阴影统一组件页与工作区。
 # v17（原型完成门禁）:
 #   - T8 执行 73 张卡片通用契约与 23 个定向交互契约（22 历史 partial/uncovered + v19 13c 任务计划胶囊）
 #   - T9 执行主页面 normal / 200% zoom / Dock closed 布局与 ARIA 审计

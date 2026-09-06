@@ -75,7 +75,7 @@
     <!-- 令牌 -->
     <section class="cat" id="cat-tokens">
       <h2>设计令牌</h2>
-      <p class="sub">中性底 + 单一品牌强调 + 状态色只表达状态。文字对比度全部 ≥4.5。</p>
+      <p class="sub">中性底 + 主按钮黑白 + 品牌蓝仅链接/焦点/信息徽章 + 状态色只表达状态。文字对比按分级门限（正文 4.5 / 辅助 3.0 / 元信息 2.2）。</p>
       <div class="grid" id="tokenGrid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));"></div>
       <div class="spec" data-card="cat-tokens-01"><div class="spec-h"><span class="no">t0a</span><span class="name">字体排印</span><span class="en">Typography scale</span><span class="src">type scale</span></div>
         <div class="spec-d">
@@ -109,11 +109,11 @@
           <span style="font-size:12px;color:var(--text-3)">密度随方向切换（A 舒适 / B 紧凑 / C 宽松）</span></div>
       </div>
 
-      <div class="spec" data-card="cat-tokens-03"><div class="spec-h"><span class="no">t1</span><span class="name">圆角与阴影</span><span class="en">Radius · Elevation（阴影仅浮层）</span><span class="src">--r-* / --shadow-overlay</span></div>
+      <div class="spec" data-card="cat-tokens-03"><div class="spec-h"><span class="no">t1</span><span class="name">圆角与阴影</span><span class="en">Radius · Elevation（阴影仅浮层与 Composer）</span><span class="src">--r-* / --shadow-overlay / --shadow-composer</span></div>
         <div class="spec-d">
           <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">五枚 56×56 色块演示 <code>--r-sm</code> · <code>--r-md</code> · <code>--r-card</code> · <code>--r-composer</code> 四档圆角；末枚为浮层样例，带 <code>var(--shadow-overlay)</code></span></div>
           <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无脚本监听；圆角与阴影令牌随方向切换自动重算</span></div>
-          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">阴影仅浮层合法，静态卡片零阴影；A 档 8/10/16/18px · B 档 4/5/8/8px · C 档 10/14/22/24px，逐级同心递增</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">阴影仅浮层与 Composer 输入区合法（Composer 用专用轻阴影），静态卡片零阴影；A 档 8/10/16/18px · B 档 4/5/8/8px · C 档 10/14/22/24px，逐级同心递增</span></div>
         </div>
         <div class="spec-b col"><div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
             <div style="width:56px;height:56px;background:var(--surface-3);border-radius:var(--r-sm);display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px;font-size:9.5px;color:var(--text-3)">sm</div>
@@ -409,7 +409,7 @@
     <!-- 输入与选择 -->
     <section class="cat" id="cat-input">
       <h2>输入与选择</h2>
-      <p class="sub">文本框、下拉（键盘）、开关（品牌蓝）、复选。</p>
+      <p class="sub">文本框、下拉（键盘）、开关（主操作色）、复选；信息徽章与焦点用品牌蓝。</p>
       <div class="spec" data-card="cat-input-01"><div class="spec-h"><span class="no">04</span><span class="name">文本框</span><span class="en">Input / Textarea / 错误 / 禁用</span><span class="src">.input / .textarea</span></div>
         <div class="spec-d">
           <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.field</code>（label 加控件 · gap 5px）内 <code>.input</code> 与 <code>.textarea</code>：圆角 <code>var(--r-sm)</code> · 内距 <code>var(--sp-field-y)</code> 11px · <code>var(--border)</code> 描边</span></div>
@@ -465,11 +465,11 @@
           <span style="font-size:12px;color:var(--text-3)">点击展开 · ↑↓ 移动 · Enter 选择 · Esc 关闭</span>
         </div>
       </div>
-      <div class="spec" data-card="cat-input-05"><div class="spec-h"><span class="no">06</span><span class="name">开关与复选</span><span class="en">Switch（品牌蓝）/ Checkbox</span><span class="src">.resource-switch / .settings-checkbox</span></div>
+      <div class="spec" data-card="cat-input-05"><div class="spec-h"><span class="no">06</span><span class="name">开关与复选</span><span class="en">Switch（主操作色）/ Checkbox</span><span class="src">.resource-switch / .settings-checkbox</span></div>
         <div class="spec-d">
           <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.switch</code>（隐藏原生 input · <code>.track</code> 38×23px 胶囊 · 19px 圆钮）与 <code>.cbx</code>（17×17px <code>.box</code> · 内嵌 11px 对钩 SVG）</span></div>
           <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">label 整体可点切换；input <code>:focus-visible</code> 时轨道与方框出 3.5px <code>var(--focus-ring)</code></span></div>
-          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">开关选中轨道变 <code>var(--accent)</code> 品牌蓝 · 圆钮位移 15px；复选选中方框实底 accent · 对钩由 scale(0.5) 弹到 1；均用 <code>var(--t-quick)</code> 过渡 · 禁用态透明度 0.42</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">开关选中轨道变 <code>var(--accent)</code> 主操作黑白 · 圆钮位移 15px；复选选中方框实底 accent · 对钩由 scale(0.5) 弹到 1；均用 <code>var(--t-quick)</code> 过渡 · 禁用态透明度 0.42</span></div>
         </div>
         <div class="spec-b">
           <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="sw-lbl">启用通知</span></label>

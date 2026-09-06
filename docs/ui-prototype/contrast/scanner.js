@@ -406,6 +406,22 @@
   function markCapped(){ window.__samplingCapped=true; }
 
   /* ---------- 文本元素判定（text / probe 共用） ---------- */
+  /* v18.1：不透明 token 文字的角色识别——按计算色匹配主题 --text-2/--text-3 的解析值。
+     文字三档改为不透明色（评审建议：减少不同底色上的合成漂移）后，alpha 轴不再携带
+     角色信息；角色回归「用了哪个文字 token」。匹配优先于 alpha 分档，alpha 轴保留为
+     内联/派生色的兜底。 */
+  var TOKEN_TIERS=null;
+  function tokenTierOf(fg){
+    if(TOKEN_TIERS===null){
+      TOKEN_TIERS={};
+      var rs=getComputedStyle(document.documentElement);
+      [["--text-2",2],["--text-3",3]].forEach(function(pair){
+        var c=parseColor(String(rs.getPropertyValue(pair[0])||"").trim());
+        if(c)TOKEN_TIERS[c.c.join(",")]=pair[1];
+      });
+    }
+    return TOKEN_TIERS[fg.c.join(",")]||0;
+  }
   function judgeText(el){
     var cs=getComputedStyle(el);
     var fg=parseColor(cs.color);if(!fg)return null;
@@ -418,7 +434,8 @@
        ——判定依据：刻意降低不透明度=刻意弱化的层级文本；对齐 Apple secondaryLabel≈3.8 /
        tertiaryLabel≈2.8、白字系统红/绿按钮 ≈3.3-3.8 与 ZCode α 分层的出厂现实。
        large 只降不升（min(3.0, tier)）。fail-closed 不变：阈值依旧强校验，无静默放行。 */
-    var tier=fg.a<=0.50?2.2:fg.a<=0.70?3.0:4.5;
+    var tokenTier=tokenTierOf(fg);
+    var tier=tokenTier===3?2.2:tokenTier===2?3.0:(fg.a<=0.50?2.2:fg.a<=0.70?3.0:4.5);
     var symbolic=/^[\s!-\/:-@\[-`{-~\u00d7\u00b7\u2013\u2014\u2026\u2190-\u21ff\u2500-\u27bf]+$/u.test(txtPreview(el)||"x");
     var effHex=hexOf(best.eff),bgHex=hexOf(best.bg);
     var filled=false,mFill=/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(bgHex);
@@ -434,7 +451,7 @@
     return {kind:"text",el:label(el),txt:txtPreview(el),
             px:+px.toFixed(1),sizeClass:large?"L":"S",
             ratio:+best.r.toFixed(2),need:need,
-            role:large?"large":fg.a<=0.50?"tertiary":fg.a<=0.70?"secondary":"primary",
+            role:large?"large":tokenTier===3?"tertiary":tokenTier===2?"secondary":(fg.a<=0.50?"tertiary":fg.a<=0.70?"secondary":"primary"),
             fg:effHex,bg:bgHex,t:best.t,
             _pass:best.r>=need,_exempt:exemptInfo(el)};
   }
@@ -494,7 +511,7 @@
       var best=judgeFgMath(el,fg,ch);
       var cs=getComputedStyle(el);
       /* v18：placeholder 同样按 α 分级（提示文本即弱化文本） */
-      var ptier=fg.a<=0.50?2.2:fg.a<=0.70?3.0:4.5;
+      var pTok=tokenTierOf(fg);var ptier=pTok===3?2.2:pTok===2?3.0:(fg.a<=0.50?2.2:fg.a<=0.70?3.0:4.5);
       var rec={kind:"pseudo::placeholder",el:label(el),txt:ph||el.placeholder,
                px:+(parseFloat(cs.fontSize)||12).toFixed(1),sizeClass:"S",
                ratio:+best.r.toFixed(2),need:ptier,
