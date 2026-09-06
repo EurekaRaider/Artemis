@@ -1,7 +1,7 @@
 import type { ReactNode, SVGProps } from "react";
 
 export const ARTEMIS_ICON_SOURCE =
-  "ui-prototype-v69:components.html#cat-icons;apple-inspired-ui.html" as const;
+  "ui-prototype-v69:components.html#cat-icons;artemis-ui.html" as const;
 
 export const ARTEMIS_ICON_NAMES = [
   "artemis",
@@ -22,6 +22,7 @@ export const ARTEMIS_ICON_NAMES = [
   "close",
   "search",
   "edit",
+  "edit-square",
   "trash",
   "refresh",
   "chevron",
@@ -58,6 +59,7 @@ export const ARTEMIS_ICON_NAMES = [
   "send",
   "warning",
   "environment",
+  "layers",
   "branch",
   "git-branch",
   "changes",
@@ -202,6 +204,12 @@ const ARTEMIS_ICON_GLYPHS = {
     <>
       <path d="M4 20h4l11-11a2.1 2.1 0 00-3-3L5 17l-1 3z" />
       <path d="M13.5 7.5l3 3" />
+    </>
+  ),
+  "edit-square": (
+    <>
+      <path d="M12.5 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6.5" />
+      <path d="M17.6 3.4a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 8.6-8.6z" />
     </>
   ),
   trash: (
@@ -402,6 +410,13 @@ const ARTEMIS_ICON_GLYPHS = {
       <circle cx="6" cy="18" r="2.4" />
       <circle cx="18" cy="9" r="2.4" />
       <path d="M6 8.4v7.2M8 7l7.7 1.3M8 17l7.7-6.6" />
+    </>
+  ),
+  layers: (
+    <>
+      <path d="M12 3L3.5 7.5 12 12l8.5-4.5L12 3z" />
+      <path d="M3.5 12l8.5 4.5L20.5 12" />
+      <path d="M3.5 16.5l8.5 4.5 8.5-4.5" />
     </>
   ),
   branch: (

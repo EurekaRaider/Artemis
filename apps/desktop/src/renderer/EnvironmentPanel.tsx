@@ -522,7 +522,7 @@ export function environmentGitAction(
 }
 
 function EnvironmentIcon() {
-  return <ArtemisIcon height={20} name="environment" width={20} />;
+  return <ArtemisIcon height={20} name="layers" width={20} />;
 }
 
 function BranchIcon() {
