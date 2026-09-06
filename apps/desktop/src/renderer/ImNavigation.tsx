@@ -11,7 +11,7 @@ export function imChannelLabel(channel: ImChannel, t: ImTranslate) {
   return channel === "wecom"
     ? t("企业微信", "WeCom")
     : channel === "feishu"
-      ? t("飞书", "Feishu")
+      ? t("飞书 / Lark", "Feishu / Lark")
       : "Slack";
 }
 export function imChannelConstraint(channel: ImChannel, t: ImTranslate) {

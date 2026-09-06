@@ -76,11 +76,25 @@ export class GatewayRouter {
       );
       this.store.transaction(() => {
         this.store.mark("device", String(row.id), "expired");
-        this.queueDelivery(`expired:${String(row.id)}`, {
-          conversation: request.conversation,
-          invocationId: request.id,
-          text: "排队请求已超过截止时间，未启动任务。需要继续时请重新发送。",
-        });
+        const space = request.conversation.spaceId
+          ? this.findSpace(request.conversation)
+          : undefined;
+        const text =
+          "排队请求已超过截止时间，未启动任务。需要继续时请重新发送。";
+        if (space && space.revision === request.conversation.spaceRevision)
+          this.broadcast(
+            space,
+            `expired:${String(row.id)}`,
+            `[${this.participantName(space, request.deviceId)} 的 Agent]\n${text}`,
+            undefined,
+            request.id,
+          );
+        else
+          this.queueDelivery(`expired:${String(row.id)}`, {
+            conversation: request.conversation,
+            invocationId: request.id,
+            text,
+          });
       });
     }
     for (const item of this.store.pending<ChannelEvent>(
@@ -196,18 +210,51 @@ export class GatewayRouter {
             return;
           }
           const space = this.findSpace(event.conversation);
+          if (event.conversation.kind === "group" && !space) {
+            const configured = this.store
+              .list<CollaborationSpace>("spaces")
+              .find((candidate) =>
+                candidate.endpoints.some(
+                  (endpoint) =>
+                    imConversationKey(endpoint) ===
+                    imConversationKey(event.conversation),
+                ),
+              );
+            const confirmations = configured
+              ? (this.store.get<string[]>(
+                  "space-confirmations",
+                  configured.id,
+                ) ?? [])
+              : [];
+            const pending = configured?.endpoints.filter(
+              (endpoint) =>
+                !confirmations.includes(imConversationKey(endpoint)),
+            );
+            const confirmedHere = confirmations.includes(
+              imConversationKey(event.conversation),
+            );
+            const prefix = event.identity.channel === "slack" ? "" : "/";
+            this.queueDelivery(`${item.id}:group-setup`, {
+              conversation: event.conversation,
+              text: configured
+                ? `此群已加入协作空间“${configured.name}”。${confirmedHere ? "本群已确认" : "本群待确认"}，空间还有 ${pending!.length} 个群待确认。请让设置中选定的确认人在待确认群里 @机器人发送 ${prefix}space-confirm ${configured.id}。所有群确认后，每位成员再到 Artemis 的“项目授权”允许该空间使用自己的项目。当前不会启动任务。`
+                : "已发现这个群，机器人连接正常，群协作空间尚未配置。\n请回到 Artemis → 设置 → 消息接入 → 群协作空间：\n1. 点击“刷新群和成员”，勾选此群、参与账号与电脑，并选择群确认人。\n2. 点击“保存空间并等待各群确认”，按页面给出的指令在各群确认。\n3. 每位成员到“项目授权”允许该空间使用自己的项目。\n发现群不会自动授权或启动任务；完成后再 @机器人发送任务。",
+            });
+            this.store.mark("incoming", item.id, "done");
+            return;
+          }
           if (
             event.conversation.kind === "group" &&
-            (!space ||
-              !space.participants.some(
-                (p) =>
-                  p.deviceId === binding.deviceId &&
-                  imIdentityKey(p.identity) === imIdentityKey(event.identity),
-              ))
+            space &&
+            !space.participants.some(
+              (p) =>
+                p.deviceId === binding.deviceId &&
+                imIdentityKey(p.identity) === imIdentityKey(event.identity),
+            )
           ) {
             this.queueDelivery(`${item.id}:group-denied`, {
               conversation: event.conversation,
-              text: "此群尚未绑定协作空间，或该成员尚未获准参与。请由管理员配置空间，并在自己的 Artemis 中授权该空间。",
+              text: "群协作空间已确认，但你的已配对账号尚未加入这个空间。请让空间管理员在 Artemis 的“群协作空间”中勾选你的账号与电脑，保存后重新完成各群确认；再在自己的“项目授权”中允许该空间使用项目。当前不会启动任务。",
             });
             this.store.mark("incoming", item.id, "done");
             return;
@@ -218,6 +265,10 @@ export class GatewayRouter {
               ? { spaceId: space.id, spaceRevision: space.revision }
               : {}),
           };
+          if (this.routeTargetedCommand(event, space, item.id)) {
+            this.store.mark("incoming", item.id, "done");
+            return;
+          }
           const reply = event.replyTo
             ? this.store.get<{ taskId?: string; deviceId: string }>(
                 "message-map",
@@ -299,6 +350,121 @@ export class GatewayRouter {
         this.store.mark("incoming", item.id, "failed");
       }
     }
+  }
+  private routeTargetedCommand(
+    event: ChannelEvent,
+    space: CollaborationSpace | undefined,
+    id: string,
+  ): boolean {
+    const input = event.text.trim();
+    const command = /^\/(agents|ask)(?=\s|$)/u.exec(input)?.[1];
+    if (!command) return false;
+    if (event.conversation.kind !== "group" || !space)
+      throw new Error(
+        "请在已确认的协作空间群内 @机器人，发送 /agents 或 /ask 成员编号 任务内容。",
+      );
+    const participants = [
+      ...new Map(
+        space.participants
+          .filter(
+            (p) =>
+              this.store.get<IdentityBinding>(
+                "identities",
+                imIdentityKey(p.identity),
+              )?.deviceId === p.deviceId &&
+              this.store.get<{ revoked: boolean }>("devices", p.deviceId)
+                ?.revoked === false &&
+              space.endpoints.some(
+                (e) => e.connectionId === p.identity.connectionId,
+              ),
+          )
+          .map((p) => [p.deviceId, p]),
+      ).values(),
+    ];
+    if (command === "agents") {
+      if (input !== "/agents")
+        throw new Error("查看可选 Agent 请只发送 /agents。");
+      this.queueDelivery(`${id}:agents`, {
+        conversation: {
+          ...event.conversation,
+          spaceId: space.id,
+          spaceRevision: space.revision,
+        },
+        text: `协作空间 ${space.name} 的 Agent：\n${participants.map((p) => `${p.name} · ${{ wecom: "企业微信", feishu: "飞书 / Lark", slack: "Slack" }[p.identity.channel]}\n/ask ${p.deviceId} 任务内容`).join("\n\n")}\n\n复制目标成员的指令并替换任务内容。同名成员用编号区分；任务在目标电脑执行，仍需本人授权项目与空间。Slack 指令不加开头的 /。`,
+      });
+      return true;
+    }
+    const match = /^\/ask\s+(\S+)\s+([\s\S]+)$/u.exec(input);
+    if (!match?.[2]?.trim())
+      throw new Error(
+        "用法：/ask 成员编号 任务内容。先发送 /agents 获取准确编号。",
+      );
+    const targetIds = match[1]!.split(",");
+    if (targetIds.length > 16 || new Set(targetIds).size !== targetIds.length)
+      throw new Error("一次可选择 1–16 位不同成员，多个编号用英文逗号分隔。");
+    const targets = targetIds.map((targetId) => {
+      const target = participants.find((p) => p.deviceId === targetId);
+      if (!target)
+        throw new Error(
+          "目标 Agent 不可用或不在此空间，请发送 /agents 重新选择成员编号。不会转交给其他 Agent。",
+        );
+      return target;
+    });
+    if (event.attachments.length)
+      throw new Error(
+        "定向派发暂只支持文字任务，请移除附件后重发。文件需由主人显式发布后共享。",
+      );
+    const text = match[2].trim();
+    if (text.startsWith("/"))
+      throw new Error(
+        "请填写任务内容，不能代替目标主人发送审批、停止或其他控制指令。",
+      );
+    for (const target of targets) {
+      const requestId = targets.length === 1 ? id : `${id}:${target.deviceId}`;
+      const endpoint = space.endpoints.find(
+        (e) => e.connectionId === target.identity.connectionId,
+      )!;
+      const request = remoteInvocationSchema.parse({
+        version: 1,
+        id: requestId,
+        deviceId: target.deviceId,
+        identity: target.identity,
+        originator: event.identity,
+        conversation: {
+          ...endpoint,
+          spaceId: space.id,
+          spaceRevision: space.revision,
+        },
+        messageId: event.messageId,
+        text,
+        attachments: [],
+        expiresAt: this.now() + 30 * 60_000,
+      });
+      if (!this.isInvocationAuthorized(request))
+        throw new Error("空间或成员授权已失效，请刷新后重试。");
+      this.store.put("invocations", requestId, request);
+      this.store.enqueue("device", requestId, target.deviceId, request);
+      const online =
+        (this.store.get<{ expiresAt: number }>("device-leases", target.deviceId)
+          ?.expiresAt ?? 0) > this.now();
+      this.queueDelivery(`${requestId}:targeted`, {
+        conversation: {
+          ...event.conversation,
+          spaceId: space.id,
+          spaceRevision: space.revision,
+        },
+        invocationId: requestId,
+        text: `已定向提交给 ${target.name} 的 Agent（${target.deviceId}）。${online ? "等待目标电脑检查项目与空间授权。" : "目标电脑离线或已暂停，请在 30 分钟内恢复 Artemis 和 IM 连接；恢复后会检查授权，超时不执行。"}公开进度和结果会回到此空间的所有群。`,
+      });
+      this.broadcast(
+        space,
+        `${requestId}:targeted-task`,
+        `[${space.participants.find((p) => imIdentityKey(p.identity) === imIdentityKey(event.identity))!.name} → ${target.name} 的 Agent]\n${text}`,
+        event.conversation,
+        requestId,
+      );
+    }
+    return true;
   }
   findSpace(conversation: ImConversation): CollaborationSpace | undefined {
     return this.store
@@ -448,6 +614,8 @@ export class GatewayRouter {
       }
       if (
         request.identity.channel === "feishu" &&
+        !request.originator &&
+        !request.collaboration &&
         reply.taskId &&
         (reply.started || reply.status || reply.final)
       ) {
@@ -581,7 +749,7 @@ export class GatewayRouter {
                   `${task.coordinatorDeviceId}:${task.coordinatorThreadId}`,
                 )?.invocationId === item.id,
             );
-          if (parent) {
+          if (parent && !parent.desktopTurnId) {
             const result = {
               ...parent,
               id: `result:${task.id}`,
@@ -620,6 +788,98 @@ export class GatewayRouter {
           task.participantDeviceId === deviceId &&
           this.store.get<string>("assignment-threads", task.id) === threadId,
       );
+  }
+  groupConversationContext(
+    deviceId: string,
+    spaceId: string,
+  ): RemoteInvocationContext {
+    const space = this.store.get<CollaborationSpace>("spaces", spaceId);
+    const participant = space?.participants.find(
+      (p) =>
+        p.deviceId === deviceId &&
+        this.store.get<IdentityBinding>("identities", imIdentityKey(p.identity))
+          ?.deviceId === deviceId,
+    );
+    const endpoint =
+      participant &&
+      space?.endpoints.find(
+        (e) => e.connectionId === participant.identity.connectionId,
+      );
+    if (!space || !participant || !endpoint)
+      throw new Error(
+        "Only a paired member can open this group's conversation.",
+      );
+    const id = `group:${digest(JSON.stringify([deviceId, spaceId, space.revision]))}`;
+    const request = remoteInvocationSchema.parse({
+      version: 1,
+      id,
+      deviceId,
+      identity: participant.identity,
+      conversation: { ...endpoint, spaceId, spaceRevision: space.revision },
+      messageId: id,
+      text: "",
+      attachments: [],
+      expiresAt: this.now() + 30 * 60_000,
+    });
+    if (!this.isInvocationAuthorized(request))
+      throw new Error(
+        "Every group must be confirmed before opening the conversation.",
+      );
+    this.store.put("invocations", id, request);
+    return request;
+  }
+  desktopCollaborationContext(
+    deviceId: string,
+    invocationId: string,
+    threadId: string,
+    turnId: string,
+  ): string {
+    const original = this.store.get<RemoteInvocationContext>(
+      "invocations",
+      invocationId,
+    );
+    if (
+      !original ||
+      original.deviceId !== deviceId ||
+      original.conversation.kind !== "group" ||
+      !this.isInvocationAuthorized({ ...original, originator: undefined })
+    )
+      throw new Error(
+        "Desktop collaboration requires a current authorized group binding.",
+      );
+    const id = `desktop:${digest(JSON.stringify([deviceId, threadId, turnId]))}`;
+    const existing = this.store.get<RemoteInvocationContext>("invocations", id);
+    if (existing) {
+      if (existing.expiresAt <= this.now())
+        throw new Error(
+          "This desktop collaboration turn has expired. Start a new turn.",
+        );
+      return id;
+    }
+    const request = remoteInvocationSchema.parse({
+      version: 1,
+      id,
+      deviceId,
+      identity: original.identity,
+      conversation: original.conversation,
+      messageId: id,
+      text: "Desktop group collaboration",
+      desktopTurnId: turnId,
+      attachments: [],
+      expiresAt: this.now() + 30 * 60_000,
+    });
+    this.store.put("invocations", id, request);
+    this.store.put("thread-links", `${deviceId}:${threadId}`, {
+      version: 1,
+      id,
+      invocationId: id,
+      taskId: threadId,
+      text: "",
+      final: false,
+      visibility: "conversation",
+    } satisfies ImReply);
+    this.store.delete("finished-collaborations", `${deviceId}:${threadId}`);
+    return id;
   }
   collaborate(
     deviceId: string,
@@ -683,6 +943,26 @@ export class GatewayRouter {
           task.coordinatorThreadId === threadId,
       );
     if (command.action === "status") return tasks;
+    if (command.action === "delegate-many") {
+      const assignments = command.assignments;
+      if (
+        !assignments?.length ||
+        assignments.length > 16 ||
+        new Set(assignments.map((a) => a.participantId)).size !==
+          assignments.length
+      )
+        throw new Error("Choose 1–16 distinct participants for a batch.");
+      // Either every assignment is queued or none are; execution happens on each device independently.
+      return this.store.transaction(() =>
+        assignments.map((a) =>
+          this.collaborate(deviceId, invocationId, threadId, {
+            action: "delegate",
+            participantId: a.participantId,
+            text: a.text,
+          }),
+        ),
+      );
+    }
     if (command.action === "delegate") {
       if (assignment)
         throw new Error(
@@ -801,6 +1081,10 @@ export class GatewayRouter {
         if (!original || !targetThreadId)
           throw new Error(
             "Target has not started its collaboration session yet. Check status before messaging.",
+          );
+        if (original.desktopTurnId)
+          throw new Error(
+            "The desktop coordinator reads results through status. Publish group updates without participantId and return your final result.",
           );
         const followUp = {
           ...original,

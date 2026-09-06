@@ -128,10 +128,82 @@ export interface ImDevicePresence {
   mobile: boolean;
   desktop: boolean;
 }
+export const imGroupContextSchema = z.object({
+  spaceId: id,
+  name: z.string(),
+  confirmed: z.boolean(),
+  executingDeviceId: id,
+  stale: z.boolean(),
+  targetDeviceIds: z.array(id).max(100).optional(),
+  members: z.array(
+    z.object({
+      deviceId: id,
+      identity: imIdentitySchema,
+      name: z.string(),
+      deviceName: z.string().default(""),
+      state: z
+        .enum(["online", "offline", "unavailable", "unknown"])
+        .default("unknown"),
+    }),
+  ),
+});
+export type ImGroupContext = z.infer<typeof imGroupContextSchema>;
+
+// The picker and host resolve the same visible tokens against the current roster.
+export function imGroupMentionTargets(group: ImGroupContext) {
+  const members = [
+    ...new Map(group.members.map((m) => [m.deviceId, m])).values(),
+  ];
+  const label = (value: string) => value.replace(/\s+/gu, " ").trim();
+  return members
+    .filter(
+      (m) =>
+        !group.targetDeviceIds || group.targetDeviceIds.includes(m.deviceId),
+    )
+    .map((member) => {
+      const name =
+        label(member.name) || label(member.deviceName) || member.deviceId;
+      const sameName = members.filter(
+        (m) => label(m.name) === label(member.name),
+      );
+      let suffix = "";
+      if (sameName.length > 1) {
+        const computer = label(member.deviceName);
+        suffix =
+          computer &&
+          sameName.filter((m) => label(m.deviceName) === computer).length === 1
+            ? computer
+            : `${computer || "Artemis"} · ${member.deviceId}`;
+      }
+      return { ...member, token: `@${name}${suffix ? `（${suffix}）` : ""}` };
+    });
+}
+
+export function resolveImGroupMentions(group: ImGroupContext, text: string) {
+  const members = imGroupMentionTargets(group).sort(
+    (a, b) => b.token.length - a.token.length,
+  );
+  const found = new Map<string, (typeof members)[number]>();
+  for (const match of text.matchAll(/(^|[\s，。；：、(（])@/gu)) {
+    const start = match.index + match[1]!.length;
+    const member = members.find(
+      (m) =>
+        text.startsWith(m.token, start) &&
+        /^(?:$|[\s,.!?;:，。！？；：、)）])/u.test(
+          text.slice(start + m.token.length),
+        ),
+    );
+    if (!member)
+      throw new Error("无法识别 @成员，请从对话输入框的成员列表中选择。");
+    found.set(member.deviceId, member);
+  }
+  return [...found.values()];
+}
 export interface ImStatus {
   settings: ImSettings;
   state: "disabled" | "connecting" | "connected" | "error";
   error?: string;
+  groupConversationError?: string;
   identities: ImIdentity[];
   pairingRequests?: ImPairingRequest[];
   remoteTasks?: Array<{
@@ -139,6 +211,7 @@ export interface ImStatus {
     channel: string;
     kind: string;
     devicePresence?: ImDevicePresence;
+    group?: ImGroupContext;
   }>;
   localGateway?: { state: "stopped" | "running" | "error"; error?: string };
 }
@@ -153,6 +226,7 @@ export const remoteInvocationSchema = z
     text,
     taskId: id.optional(),
     originator: imIdentitySchema.optional(),
+    desktopTurnId: id.optional(),
     control: z.literal("cancel").optional(),
     expiresAt: z.number().int().positive(),
     attachments: channelEventSchema.shape.attachments,
@@ -209,12 +283,18 @@ export const collaborationCommandSchema = z
     action: z.enum([
       "participants",
       "delegate",
+      "delegate-many",
       "message",
       "status",
       "cancel",
       "finish",
     ]),
     participantId: id.optional(),
+    assignments: z
+      .array(z.object({ participantId: id, text: text.min(1) }).strict())
+      .min(1)
+      .max(16)
+      .optional(),
     taskId: id.optional(),
     text: text.default(""),
   })
@@ -329,6 +409,29 @@ export const remoteOperationSchema = z.discriminatedUnion("action", [
 ]);
 export type RemoteOperation = z.infer<typeof remoteOperationSchema>;
 export const imManagementSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      action: z.literal("remove-conversation-member"),
+      threadId: id,
+      deviceId: id,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("rename-group-member"),
+      deviceId: id,
+      name: z.string().trim().min(1).max(100),
+      deviceName: z.string().trim().min(1).max(100),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("open-group-conversation"),
+      spaceId: id,
+      participantIds: z.array(id).min(1).max(16),
+      projectId: id.optional(),
+    })
+    .strict(),
   z.object({ action: z.literal("preview-legacy") }).strict(),
   z
     .object({
@@ -370,7 +473,14 @@ export const imManagementSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("admin"),
-      operation: z.enum(["connections", "spaces", "status"]),
+      operation: z.enum([
+        "connections",
+        "remove-connection",
+        "remove-space",
+        "remove-space-member",
+        "spaces",
+        "status",
+      ]),
       adminToken: z.string().min(32).max(1024).optional(),
       configuration: z.unknown().optional(),
     })

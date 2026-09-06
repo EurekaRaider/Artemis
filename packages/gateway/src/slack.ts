@@ -28,7 +28,7 @@ const record = (value: unknown): Record<string, any> =>
 const string = (value: unknown): string =>
   typeof value === "string" ? value : "";
 const commands =
-  "pair|help|projects|project|new|tasks|continue|status|stop|approve|answer|publish|unsubscribe|space-confirm";
+  "pair|help|projects|project|new|tasks|continue|status|stop|approve|answer|publish|unsubscribe|space-confirm|agents|ask";
 const commandInput = new RegExp(`^(${commands})(?=\\s|$)`, "u");
 const commandOutput = new RegExp(
   `(^|[\\s\x60（(：:])/(?:${commands})(?=\\s|$|[\x60。，：:])`,

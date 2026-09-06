@@ -77,6 +77,22 @@ function api() {
   });
 }
 describe("Slack Socket Mode", () => {
+  it.each(["agents", "ask device-b Inspect the API"])(
+    "normalizes explicit group targeting: %s",
+    (text) => {
+      expect(
+        normalizeSlack(
+          config,
+          payload({
+            type: "app_mention",
+            channel_type: "channel",
+            channel: "C1",
+            text: `<@Ubot> ${text}`,
+          }),
+        )?.text,
+      ).toBe(`/${text}`);
+    },
+  );
   it("normalizes private commands and preserves the authenticated identity", () => {
     expect(normalizeSlack(config, payload())).toMatchObject({
       messageId: "Ev1",

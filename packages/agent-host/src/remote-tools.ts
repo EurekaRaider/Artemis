@@ -68,12 +68,13 @@ export function createRemoteTools(
       name: "collaborate",
       label: "Collaborate across IM",
       description:
-        "Within the explicitly shared collaboration space, list participants, delegate a bounded task, publish a finding/question/blocker, inspect status, cancel an assignment, or finish after reviewing results. Use participant IDs from participants. Delegation never expands another owner's permissions. Include deliverables and test evidence in messages. The initiator coordinates; participants cannot delegate across devices.",
+        "Within the explicitly shared collaboration space, list participants, delegate a bounded task, or use delegate-many with assignments [{participantId,text}] to start different members in parallel from one prompt. Resolve member names with participants first; never guess IDs or choose between duplicate names. Submit the batch once, then inspect status and wait for every result before summarizing. Delegation never expands another owner's permissions. Include deliverables and verification evidence. The initiator coordinates; participants cannot delegate across devices. Use message for findings/questions, cancel for an assignment, and finish with the combined summary after reviewing results. In desktop group turns, read member results through status and explicitly publish the summary with finish; local text is not automatically shared.",
       parameters: Type.Object({
         action: Type.Union(
           [
             "participants",
             "delegate",
+            "delegate-many",
             "message",
             "status",
             "cancel",
@@ -81,6 +82,15 @@ export function createRemoteTools(
           ].map((x) => Type.Literal(x)),
         ),
         participantId: Type.Optional(Type.String()),
+        assignments: Type.Optional(
+          Type.Array(
+            Type.Object({
+              participantId: Type.String(),
+              text: Type.String({ minLength: 1, maxLength: 64000 }),
+            }),
+            { minItems: 1, maxItems: 16 },
+          ),
+        ),
         taskId: Type.Optional(Type.String()),
         text: Type.Optional(Type.String({ maxLength: 64000 })),
       }),

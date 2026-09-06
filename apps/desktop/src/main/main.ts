@@ -3843,6 +3843,9 @@ async function openAgentThread(
       ...(imService?.profile(thread.id)
         ? { remoteExecution: imService.profile(thread.id)! }
         : {}),
+      ...(imService?.hasGroupCollaboration(thread.id)
+        ? { groupCollaboration: true }
+        : {}),
       requestId: randomUUID(),
       threadId: thread.id,
       workspacePath,
@@ -3899,10 +3902,19 @@ async function handleBrokerRequest(
     case "remote.operation": {
       try {
         if (!imService) throw new Error("IM service is unavailable.");
+        if (
+          activeTurns.get(request.threadId) !== request.turnId ||
+          store.getThread(request.threadId)?.mode !== request.mode ||
+          cancellingTurns.has(request.threadId)
+        )
+          throw new Error(
+            "Group or remote operations require the current active turn.",
+          );
         const grant = imService.authorizeOperation(
           request.threadId,
           request.operation,
           request.mode,
+          request.turnId,
         );
         if (request.operation.action !== "read" && grant.approval === "ask") {
           const nonce = randomUUID();
@@ -5140,6 +5152,7 @@ async function executeApprovedRemote(
       request.operation,
       request.mode,
       request.approvalId,
+      request.turnId,
     );
     emitPayload(request.threadId, request.turnId, {
       type: "approval.resolved",
@@ -5414,6 +5427,11 @@ async function startTaskTurnUnchecked(
   }
   const requestText =
     text || `Inspect the attached file${attachments.length === 1 ? "" : "s"}.`;
+  const collaborationContext = imService?.desktopGroupContext(
+    thread.id,
+    requestText,
+    input.mode,
+  );
   if (source === "user" && isAutomaticTaskTitle(thread.title)) {
     thread = store.updateThread(thread.id, {
       title: deriveTaskTitle(text, currentLocale()),
@@ -5587,6 +5605,7 @@ async function startTaskTurnUnchecked(
       ...(attachments.length > 0 ? { attachments } : {}),
       ...(thread.goal ? { goal: thread.goal } : {}),
       ...(memoryContext ? { memoryContext } : {}),
+      ...(collaborationContext ? { collaborationContext } : {}),
     })
     .catch((error) => {
       if (interruptedAgentHostTurns.delete(turnId)) return;

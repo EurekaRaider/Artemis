@@ -29,9 +29,9 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 
 ---
 
-<p align="center"><sub>macOS welcome workspace · dark theme</sub></p>
+<p align="center"><sub>Artemis desktop · persistent project conversation · dark theme</sub></p>
 
-![Artemis desktop workspace](docs/images/artemis-workspace-dark.png)
+![Artemis dark workspace with a research task, Markdown response and project sidebar](docs/images/screenshots/workspace-dark.png)
 
 <p align="center">
   <strong>Local-first</strong>&nbsp;&nbsp;·&nbsp;&nbsp;
@@ -145,21 +145,70 @@ recurring follow-up alongside the same coding and Git workflows.
 
 ## Product preview
 
+The screenshots below show the running Artemis desktop on macOS, using a
+sample **Field Notes** project. Conversations, Agent activity, usage totals and
+paused automations use demonstration data. Click a screenshot to view it at
+full size. [Capture details](docs/readme-visuals.md).
+
+### The project workspace
+
+![Artemis light workspace with persistent tasks, a completed conversation and model controls](docs/images/screenshots/workspace-light.png)
+
+Keep project tasks, conversation history and the composer together. Open a
+workspace tool alongside the conversation when it is time to inspect the work.
+
+### Review, read and run
+
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/artemis-workspace-en-125.png" alt="Artemis English workspace at 125 percent scale" /></td>
-    <td width="50%"><img src="docs/images/artemis-workspace-zh-CN-150.png" alt="Artemis Simplified Chinese workspace at 150 percent scale" /></td>
+    <td width="50%"><a href="docs/images/screenshots/git-review.png"><img src="docs/images/screenshots/git-review.png" alt="Artemis Git Review showing unstaged TypeScript changes, changed files, Stage and Revert controls" /></a></td>
+    <td width="50%"><a href="docs/images/screenshots/markdown-files.png"><img src="docs/images/screenshots/markdown-files.png" alt="Artemis Markdown reader with project documentation, rich text and source modes" /></a></td>
   </tr>
   <tr>
-    <td align="center"><sub>English · 125% scale · welcome workspace</sub></td>
-    <td align="center"><sub>Simplified Chinese · 150% scale · localized welcome workspace</sub></td>
+    <td align="center"><strong>Git Review</strong><br /><sub>Inspect a real diff with file and hunk controls.</sub></td>
+    <td align="center"><strong>Files &amp; Markdown</strong><br /><sub>Read and edit project documents beside the task.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/images/screenshots/terminal.png"><img src="docs/images/screenshots/terminal.png" alt="Artemis integrated terminal showing git status for the demonstration project" /></a></td>
+    <td width="50%"><a href="docs/images/screenshots/agent-team.png"><img src="docs/images/screenshots/agent-team.png" alt="Artemis Agent team panel showing two completed specialist tasks" /></a></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Native Terminal</strong><br /><sub>A real project terminal in the workspace dock.</sub></td>
+    <td align="center"><strong>Agent teams</strong><br /><sub>Follow member tasks and inspect their results.</sub></td>
   </tr>
 </table>
 
-The refreshed screenshot matrix covers all 14 supported locales at 100% zoom,
-plus English, Simplified Chinese, German and Arabic at 125% and 150%. Each image
-has a companion automated accessibility audit; the current manifest reports
-zero audited issues for all 22 variants, including the Arabic RTL layout.
+### Recurring work and usage
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/images/screenshots/automations.png"><img src="docs/images/screenshots/automations.png" alt="Artemis Automations with two paused weekly project tasks and schedule controls" /></a></td>
+    <td width="50%"><a href="docs/images/screenshots/token-usage.png"><img src="docs/images/screenshots/token-usage.png" alt="Artemis Token Usage with demonstration totals, activity heatmap and token composition" /></a></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Automations</strong><br /><sub>Schedule recurring project work and inspect run history.</sub></td>
+    <td align="center"><strong>Token insights</strong><br /><sub>Explore activity, cache usage and model breakdowns.</sub></td>
+  </tr>
+</table>
+
+<details>
+<summary><strong>Settings and Simplified Chinese UI</strong></summary>
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/images/screenshots/settings-general.png"><img src="docs/images/screenshots/settings-general.png" alt="Artemis General settings with profile picture, language and theme preferences" /></a></td>
+    <td width="50%"><a href="docs/images/screenshots/workspace-zh-CN.png"><img src="docs/images/screenshots/workspace-zh-CN.png" alt="Artemis workspace with Simplified Chinese navigation and composer controls" /></a></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Settings</strong><br /><sub>Focused pages for appearance, providers and execution access.</sub></td>
+    <td align="center"><strong>Localized workspace</strong><br /><sub>Simplified Chinese UI; demonstration content remains in English.</sub></td>
+  </tr>
+</table>
+
+Artemis supports 14 UI languages, including Arabic RTL, with theme and zoom
+coverage maintained separately by `npm run verify:screenshot-matrix`.
+
+</details>
 
 ### Plugin marketplace and capability center
 
@@ -192,20 +241,9 @@ enablement and removal visible to the user.
 </table>
 
 <p align="center">
-  <img src="docs/images/plugin-marketplace.jpg" alt="Artemis plugin marketplace with installed capabilities, search, categories and install controls" />
+  <a href="docs/images/screenshots/resources.png"><img src="docs/images/screenshots/resources.png" alt="Artemis Resource Center with Plugin, Connector, MCP and Skill tabs and four bundled document plugins" /></a>
 </p>
-<p align="center"><sub>Browse configured marketplaces, search by capability and manage installed plugins from one page</sub></p>
-
-<table>
-  <tr>
-    <td width="50%"><img src="docs/images/plugin-marketplace-add-plugin.jpg" alt="Artemis add plugin page with Git and offline marketplaces, local bundle and executable extension options" /></td>
-    <td width="50%"><img src="docs/images/plugin-marketplace-add-mcp.jpg" alt="Artemis dedicated MCP server editor" /></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Add a Git or offline marketplace, local plugin bundle or trusted executable extension</sub></td>
-    <td align="center"><sub>Configure a local MCP server in a dedicated structured editor</sub></td>
-  </tr>
-</table>
+<p align="center"><sub>Browse bundled capabilities and manage Plugins, Connectors, MCP servers and Skills from one place.</sub></p>
 
 <br />
 
@@ -1074,9 +1112,29 @@ verification and the remaining real-platform acceptance checks.
 
 ### Architecture
 
-![Artemis system architecture](docs/images/artemis-system-architecture.png)
+![Artemis architecture showing the sandboxed Renderer, Electron Main, Pi Agent Host, model providers, optional IM gateway and local persistence](docs/images/artemis-system-architecture.svg)
 
-<sub>[Open the architecture source](docs/diagrams/artemis-system-architecture.html)</sub>
+<sub>[Open the vector diagram](docs/images/artemis-system-architecture.svg) · [Open the self-contained HTML source](docs/diagrams/artemis-system-architecture.html)</sub>
+
+The Renderer calls the typed preload bridge; Electron Main owns desktop
+lifecycle, policy and local state; the utility process hosts Pi's single Agent
+loop. Raw Pi events pass through `PiAdapter` before reaching the Artemis
+protocol. Durable UI events receive authoritative IDs and sequences before
+persistence and publication; live child-Agent activity uses coalesced IPC
+batches. Model providers and the optional Feishu/Slack gateway remain separate
+integrations.
+
+| Boundary                       | Responsibility                                                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Renderer and UI foundation** | React workspace with `@artemis/ui`, `@artemis/theme-contract` and `@artemis/theme-artemis`; the private UI Gallery is excluded from the desktop bundle. |
+| **Electron Main**              | Typed IPC, project/task lifecycle, mode and approval policy, Git, native PTY, MCP, automations and OS-encrypted settings.                               |
+| **Pi Agent Host**              | Pi SDK sessions, model-aware prompt caching, in-memory child sessions and scheduling. Root sessions retain Pi JSONL persistence.                        |
+| **Protocol and local state**   | `PiAdapter` normalizes events and usage; `@artemis/protocol` defines the UI contracts; SQLite WAL stores local projections for replay.                  |
+| **Optional IM gateway**        | `@artemis/gateway` connects Feishu/Slack conversations to paired Artemis devices through the desktop IM service.                                        |
+
+Shell, Terminal, local stdio MCP and executable extensions have distinct
+permission boundaries, summarized beneath the diagram and detailed in
+[Execution permissions](#execution-permissions-and-trust-boundary).
 
 Desktop and Agent Host pin Pi to `0.85.0`. Both explicitly include
 `@earendil-works/pi-server` because this Pi release's public SDK imports that

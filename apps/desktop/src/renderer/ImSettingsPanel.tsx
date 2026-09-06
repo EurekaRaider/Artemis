@@ -41,8 +41,14 @@ import {
   type ImPairCode,
 } from "./ImAccountControls";
 
-import { ImDiagnostics } from "./ImDiagnostics";
+import { ImDiagnostics, diagnosticSchema } from "./ImDiagnostics";
+import { ImSpaceBuilder } from "./ImSpaceBuilder";
+import { ImGatewayDeployment } from "./ImGatewayDeployment";
+import { ImGroupTaskComposer } from "./ImGroupTaskComposer";
+import { ImSavedSpaces } from "./ImSavedSpaces";
 import { ImLegacyImport } from "./ImLegacyImport";
+import { ImPlatformSetup } from "./ImPlatformSetup";
+import { ImConnectionRemoval } from "./ImConnectionRemoval";
 
 const PUBLIC_BOT_FIELDS = [
   "id",
@@ -57,7 +63,13 @@ const PUBLIC_BOT_FIELDS = [
 type BotMetadata = Partial<Record<(typeof PUBLIC_BOT_FIELDS)[number], string>>;
 
 type Status = ImStatus & { connections?: unknown[]; spaces?: unknown[] };
-export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
+export function ImSettingsPanel({
+  locale,
+  onOpenThread,
+}: {
+  locale: AppLocale;
+  onOpenThread?: ((threadId: string) => Promise<void>) | undefined;
+}) {
   const zh = locale.startsWith("zh"),
     t = (cn: string, en: string) => (zh ? cn : en);
   const [status, setStatus] = useState<Status>();
@@ -84,9 +96,11 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
   const wasReady = useRef(false);
   const mounted = useRef(true);
   const [channel, setChannel] = useState<ImChannel>("wecom");
+  const [pairingPlatform, setPairingPlatform] = useState<ImChannel | "lark">();
   const [showRemote, setShowRemote] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [spaceJson, setSpaceJson] = useState("");
+  const [spaceFormRevision, setSpaceFormRevision] = useState(0);
   const [diagnostics, setDiagnostics] = useState<unknown>();
   const [spaceConfirmation, setSpaceConfirmation] = useState("");
   const [savedMetadata, setSavedMetadata] = useState<
@@ -98,6 +112,7 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
     setSpaceJson("");
     setSpaceConfirmation("");
     setPairCode(undefined);
+    setPairingPlatform(undefined);
     setFields({});
     setAdminToken("");
   }, [status?.settings.deviceId]);
@@ -214,6 +229,7 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
   }, [view, focusTarget]);
   function selectView(next: ImView) {
     setView(next);
+    setPairingPlatform(undefined);
     setFields({});
     setAdminToken("");
     setEditingCredentials(false);
@@ -300,13 +316,22 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
             channel === "slack"
               ? t("连接名称（可留空）", "Connection name (optional)")
               : t("连接名称", "Connection name"),
-          tenantId: t("企业 ID / Tenant Key", "Enterprise ID / Tenant Key"),
+          tenantId:
+            channel === "wecom"
+              ? t("企业 ID（Corp ID）", "Enterprise ID (Corp ID)")
+              : t(
+                  "Tenant Key（可留空，自动获取）",
+                  "Tenant Key (auto-detected if empty)",
+                ),
           botToken: "Bot User OAuth Token",
           appToken: "App-Level Token",
           botId: "Bot ID",
           secret: "Bot Secret",
           appId: "App ID",
-          botOpenId: "Bot Open ID",
+          botOpenId: t(
+            "Bot Open ID（可留空，自动获取）",
+            "Bot Open ID (auto-detected if empty)",
+          ),
           appSecret: "App Secret",
           verificationToken: "Verification Token",
           encryptKey: "Encrypt Key",
@@ -321,22 +346,22 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                   "Defaults to slack. Use a different ID, such as slack-team2, for another workspace.",
                 )
               : t(
-                  "由你起名，只用英文、数字、短横线或下划线，例如 wecom-team。保存后回调地址会用到它。",
-                  "Choose a stable ID using letters, numbers, hyphens or underscores, such as wecom-team. It is used in the callback URL.",
+                  "留空自动生成。连接多个机器人时才需要自定义，只能使用英文、数字、短横线或下划线。",
+                  "Generated when empty. Customize only for multiple bots; use letters, numbers, hyphens or underscores.",
                 ),
           name: t(
-            "显示名称，例如“研发团队机器人”。",
-            "A display name, such as Engineering Bot.",
+            "可留空；自动使用平台名称。也可改成你熟悉的名字，例如“我的机器人”。",
+            "Optional; defaults to the platform name. You can use a recognizable name such as My bot.",
           ),
           tenantId:
             channel === "wecom"
               ? t(
-                  "企业微信管理员提供的企业 ID（Corp ID）。",
-                  "The enterprise Corp ID supplied by your WeCom administrator.",
+                  "管理后台 → 我的企业 → 企业信息 → 页面底部「企业 ID」，通常以 ww 开头。个人开发者请展开上方“没有企业怎么办”。",
+                  "Admin console → My enterprise → Enterprise information → Enterprise ID at the bottom, usually starting with ww. See the personal-developer guide above if you have no organization.",
                 )
               : t(
-                  "飞书当前企业的 Tenant Key，请向应用管理员获取。",
-                  "Your Feishu enterprise's Tenant Key, supplied by its app administrator.",
+                  "通常无需填写。手动获取：飞书 API 调试台 → 获取企业信息 → data.tenant.tenant_key；不是页面展示的企业编号。",
+                  "Usually unnecessary. In Feishu API Explorer, run Get tenant information and copy data.tenant.tenant_key, not the displayed enterprise number.",
                 ),
           botToken: t(
             "粘贴 xoxb- 开头的机器人令牌，保存时自动识别工作区和机器人。",
@@ -354,17 +379,9 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
             "与这个 Bot ID 对应的 Secret，不是群 Webhook。",
             "The Secret for this Bot ID, not a group webhook.",
           ),
-          appId: t(
-            "飞书应用凭证中的 App ID。",
-            "App ID from the Feishu app credentials.",
-          ),
           botOpenId: t(
-            "机器人的 open_id，用于准确识别 @。请让应用管理员通过飞书“获取机器人信息”接口查询；不要填写 App ID 或个人 Open ID。",
-            "The bot's open_id, used to recognize mentions. Ask the app administrator to obtain it with Feishu's Get Bot Info API; do not use an App ID or a person's Open ID.",
-          ),
-          appSecret: t(
-            "与这个 App ID 对应的 App Secret。",
-            "The App Secret for this App ID.",
+            "保存时自动查询，用于识别群里的 @。手动填写时，使用「获取机器人信息」接口中的 bot.open_id。",
+            "Retrieved on save to recognize group mentions. For manual setup, use bot.open_id from Get bot information.",
           ),
           verificationToken: t(
             "复制飞书事件与回调配置中的 Verification Token。",
@@ -382,9 +399,13 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
           : "text"
       }
       value={fields[field] ?? ""}
-      onValueChange={(value) => setFields({ ...fields, [field]: value })}
+      size="compact"
+      onValueChange={(value) =>
+        setFields((previous) => ({ ...previous, [field]: value }))
+      }
       disabled={busy}
       autoComplete="off"
+      spellCheck={false}
     />
   );
   function updateGrant(projectId: string, changes: Record<string, unknown>) {
@@ -415,7 +436,33 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
     credentialMetadata?.transport ??
     (savedCredentials ? "webhook" : "websocket");
   const feishuDomain = fields.domain ?? credentialMetadata?.domain ?? "feishu";
+  const activePairingPlatform =
+    pairingPlatform ??
+    (channel === "feishu" && feishuDomain === "lark" ? "lark" : channel);
+  const pairingOptions = [
+    { value: "wecom", label: t("企业微信", "WeCom") },
+    { value: "feishu", label: t("飞书国内版", "Feishu") },
+    { value: "lark", label: t("Lark 国际版", "Lark") },
+    { value: "slack", label: "Slack" },
+  ] as const;
+  const pairingPlatformLabel = pairingOptions.find(
+    (option) => option.value === activePairingPlatform,
+  )!.label;
   const local = !!status?.localGateway;
+  useEffect(() => {
+    if (view !== "spaces" || !local || !status?.settings.deviceId) return;
+    let active = true;
+    void run(async () => {
+      const result = await window.artemis.manageIm({
+        action: "admin",
+        operation: "status",
+      });
+      if (active) setDiagnostics(result);
+    });
+    return () => {
+      active = false;
+    };
+  }, [view, local, status?.settings.deviceId]);
   const accounts = (requestsOnly = false) => (
     <ImAccounts
       key={`${view}:${requestsOnly}`}
@@ -478,6 +525,57 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                   : []),
               ]),
         ];
+  const optionalFields = [
+    "id",
+    "name",
+    ...(channel === "feishu" ? ["tenantId", "botOpenId"] : []),
+  ];
+  const requiredFields = fieldNames.filter(
+    (field) => !optionalFields.includes(field),
+  );
+  const availableSpaces = (status?.spaces ?? []).flatMap((value) => {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      !("id" in value) ||
+      !("name" in value) ||
+      typeof value.id !== "string" ||
+      typeof value.name !== "string"
+    )
+      return [];
+    return [{ id: value.id, name: value.name }];
+  });
+  const adminSpaces =
+    diagnostics &&
+    typeof diagnostics === "object" &&
+    "spaces" in diagnostics &&
+    Array.isArray(diagnostics.spaces)
+      ? diagnostics.spaces
+      : [];
+  let spaceReady = false;
+  try {
+    const parsed = diagnosticSchema.shape.spaces.element.safeParse(
+      JSON.parse(spaceJson),
+    );
+    if (parsed.success) {
+      const draft = parsed.data;
+      spaceReady =
+        !!draft.name.trim() &&
+        /^[\w-]{1,100}$/u.test(draft.id) &&
+        draft.endpoints.length > 0 &&
+        draft.endpoints.length <= 8 &&
+        draft.participants.length > 0 &&
+        draft.participants.every((p) => !!p.name.trim()) &&
+        draft.participants.length <= 50 &&
+        draft.endpoints.every(
+          (e) =>
+            e.kind === "group" &&
+            draft.administrators.some((a) => a.connectionId === e.connectionId),
+        );
+    }
+  } catch {
+    /* The advanced editor may contain incomplete JSON. */
+  }
   if (!settings)
     return message ? (
       <InlineNotice tone="danger">{message}</InlineNotice>
@@ -870,6 +968,7 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                   {accounts(true)}
                   {channelConnections.length > 1 && (
                     <Select
+                      labelVisibility="visible"
                       label={t("机器人连接", "Bot connection")}
                       value={selectedConnection?.id ?? ""}
                       onValueChange={(id) => {
@@ -885,9 +984,86 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                       disabled={busy}
                     />
                   )}
+                  {channel === "feishu" && (
+                    <>
+                      {savedCredentials && !editingCredentials ? (
+                        <p>
+                          {t("应用区域：", "App region: ")}
+                          {feishuDomain === "lark"
+                            ? "Lark · open.larksuite.com"
+                            : t(
+                                "飞书 · open.feishu.cn",
+                                "Feishu · open.feishu.cn",
+                              )}
+                        </p>
+                      ) : (
+                        <Select
+                          labelVisibility="visible"
+                          label={t("应用区域", "App region")}
+                          description={t(
+                            "选择创建应用的开放平台。Lark 国际版与飞书国内版的应用凭据不能混用。",
+                            "Choose the console where you created the app. Lark and Feishu app credentials are not interchangeable.",
+                          )}
+                          value={feishuDomain}
+                          options={[
+                            {
+                              value: "feishu",
+                              label: t(
+                                "飞书国内版（open.feishu.cn）",
+                                "Feishu (open.feishu.cn)",
+                              ),
+                            },
+                            {
+                              value: "lark",
+                              label: t(
+                                "Lark 国际版（open.larksuite.com）",
+                                "Lark (open.larksuite.com)",
+                              ),
+                            },
+                          ]}
+                          disabled={busy}
+                          onValueChange={(domain) =>
+                            setFields((previous) => ({ ...previous, domain }))
+                          }
+                        />
+                      )}
+                    </>
+                  )}
+                  {channel !== "slack" &&
+                    (!savedCredentials || editingCredentials) && (
+                      <ImPlatformSetup
+                        key={channel}
+                        channel={channel}
+                        transport={feishuTransport}
+                        domain={feishuDomain}
+                        t={t}
+                      />
+                    )}
+                  {!settings.deviceId && (
+                    <InlineNotice tone="info">
+                      <p>
+                        {t(
+                          "先为这台电脑启动消息服务，再保存机器人凭据。个人使用只需点一次启动并注册。",
+                          "Start the message service on this computer before saving credentials. Personal setup takes one start-and-register action.",
+                        )}
+                      </p>
+                      <Button onClick={() => navigateStep("im-prepare")}>
+                        {t(
+                          "去启动本机消息服务",
+                          "Set up the local message service",
+                        )}
+                      </Button>
+                    </InlineNotice>
+                  )}
                   <div className="im-block im-credentials">
                     <div className="im-block-header">
-                      <h4>{t("应用凭据", "App credentials")}</h4>
+                      <h4>
+                        {channel !== "slack" &&
+                          (!savedCredentials || editingCredentials) && (
+                            <span aria-hidden="true">2 · </span>
+                          )}
+                        {t("应用凭据", "App credentials")}
+                      </h4>
                       {savedCredentials && !editingCredentials && (
                         <>
                           <span>{t("已保存", "Saved")}</span>
@@ -927,67 +1103,47 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                     </p>
                     {(!savedCredentials || editingCredentials) && (
                       <>
-                        {channel === "feishu" && (
-                          <>
-                            <Select
-                              label={t("接入方式", "Transport")}
-                              value={feishuTransport}
-                              options={[
-                                {
-                                  value: "websocket",
-                                  label: t(
-                                    "长连接（无需公网地址）",
-                                    "Long connection (no public URL)",
-                                  ),
-                                },
-                                {
-                                  value: "webhook",
-                                  label: t("HTTPS 回调", "HTTPS callback"),
-                                },
-                              ]}
-                              disabled={busy}
-                              onValueChange={(transport) =>
-                                setFields((previous) => ({
-                                  ...previous,
-                                  transport,
-                                }))
-                              }
-                            />
-                            <Select
-                              label={t("应用区域", "App region")}
-                              value={feishuDomain}
-                              options={[
-                                { value: "feishu", label: t("飞书", "Feishu") },
-                                { value: "lark", label: "Lark" },
-                              ]}
-                              disabled={busy}
-                              onValueChange={(domain) =>
-                                setFields((previous) => ({
-                                  ...previous,
-                                  domain,
-                                }))
-                              }
-                            />
-                          </>
-                        )}
-                        {fieldNames
-                          .filter(
-                            (field) =>
-                              channel !== "slack" ||
-                              !["id", "name"].includes(field),
-                          )
-                          .map(renderBotField)}
-                        {channel === "slack" && (
-                          <details>
-                            <summary>
-                              {t(
-                                "高级：连接名称与多个工作区",
-                                "Advanced: connection name and multiple workspaces",
-                              )}
-                            </summary>
-                            {["id", "name"].map(renderBotField)}
-                          </details>
-                        )}
+                        {requiredFields.map(renderBotField)}
+                        <details className="im-advanced-fields">
+                          <summary>
+                            {t(
+                              "高级设置（通常无需修改）",
+                              "Advanced settings (usually unnecessary)",
+                            )}
+                          </summary>
+                          <div className="im-field-stack">
+                            {channel === "feishu" && (
+                              <>
+                                <Select
+                                  labelVisibility="visible"
+                                  label={t("接入方式", "Transport")}
+                                  value={feishuTransport}
+                                  options={[
+                                    {
+                                      value: "websocket",
+                                      label: t(
+                                        "长连接（无需公网地址）",
+                                        "Long connection (no public URL)",
+                                      ),
+                                    },
+                                    {
+                                      value: "webhook",
+                                      label: t("HTTPS 回调", "HTTPS callback"),
+                                    },
+                                  ]}
+                                  disabled={busy}
+                                  onValueChange={(transport) =>
+                                    setFields((previous) => ({
+                                      ...previous,
+                                      transport,
+                                    }))
+                                  }
+                                />
+                              </>
+                            )}
+                            {optionalFields.map(renderBotField)}
+                          </div>
+                        </details>
                         {!local && (
                           <TextField
                             label={t(
@@ -1013,18 +1169,24 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                             (local &&
                               channel === "feishu" &&
                               feishuTransport === "webhook") ||
-                            !fieldNames
-                              .filter(
-                                (key) =>
-                                  channel !== "slack" ||
-                                  !["id", "name"].includes(key),
-                              )
-                              .every((key) => fields[key]?.trim())
+                            !requiredFields.every((key) => fields[key]?.trim())
                           }
                           onClick={() =>
                             void run(async () => {
                               const token = adminToken;
                               setAdminToken("");
+                              const savedId =
+                                fields.id?.trim() ||
+                                credentialMetadata?.id ||
+                                `${channel}-${crypto.randomUUID()}`;
+                              const savedName =
+                                fields.name?.trim() ||
+                                credentialMetadata?.name ||
+                                (channel === "feishu"
+                                  ? feishuDomain === "lark"
+                                    ? "Lark"
+                                    : t("飞书", "Feishu")
+                                  : imChannelLabel(channel, t));
                               await window.artemis.manageIm({
                                 action: "admin",
                                 operation: "connections",
@@ -1042,22 +1204,18 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                                     fieldNames
                                       .filter(
                                         (key) =>
-                                          !(
-                                            channel === "slack" &&
-                                            ["id", "name"].includes(key) &&
-                                            !fields[key]?.trim()
-                                          ),
+                                          !optionalFields.includes(key) ||
+                                          !!fields[key]?.trim(),
                                       )
                                       .map((key) => [
                                         key,
                                         fields[key]?.trim() ?? "",
                                       ]),
                                   ),
+                                  id: savedId,
+                                  name: savedName,
                                 },
                               });
-                              const savedId =
-                                fields.id ||
-                                (channel === "slack" ? "slack" : "");
                               setConnectionId(savedId);
                               setSavedMetadata((previous) => ({
                                 ...previous,
@@ -1069,6 +1227,8 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                                         : [],
                                     ),
                                   ),
+                                  id: savedId,
+                                  name: savedName,
                                   ...(channel === "feishu"
                                     ? {
                                         transport: feishuTransport,
@@ -1135,8 +1295,8 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                   {channel === "feishu" && feishuTransport === "websocket" && (
                     <InlineNotice tone="info">
                       {t(
-                        "在飞书开放平台选择“使用长连接接收事件”，订阅 im.message.receive_v1 并发布应用。此连接不会同时接收 HTTPS 回调。",
-                        "Select long connection delivery in the Feishu console, subscribe to im.message.receive_v1 and publish the app. This connection does not also accept HTTPS callbacks.",
+                        `在 ${feishuDomain === "lark" ? "Lark" : "飞书"} 开放平台选择“使用长连接接收事件”，订阅 im.message.receive_v1 并发布应用。此连接不会同时接收 HTTPS 回调。`,
+                        `Select long connection delivery in the ${feishuDomain === "lark" ? "Lark" : "Feishu"} console, subscribe to im.message.receive_v1 and publish the app. This connection does not also accept HTTPS callbacks.`,
                       )}
                     </InlineNotice>
                   )}
@@ -1228,6 +1388,62 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                       )}
                     </div>
                   ))}
+                  {selectedConnection && (
+                    <ImConnectionRemoval
+                      key={`${settings.deviceId}:${selectedConnection.id}`}
+                      name={selectedConnection.name}
+                      local={local}
+                      busy={busy}
+                      t={t}
+                      remove={(token) =>
+                        run(async () => {
+                          const id = selectedConnection.id;
+                          await window.artemis.manageIm({
+                            action: "admin",
+                            operation: "remove-connection",
+                            ...(local ? {} : { adminToken: token }),
+                            configuration: { id },
+                          });
+                          setStatus((previous) =>
+                            previous
+                              ? {
+                                  ...previous,
+                                  connections: (
+                                    previous.connections as ImConnectionStatus[]
+                                  ).filter((c) => c.id !== id),
+                                  identities: previous.identities.filter(
+                                    (i) => i.connectionId !== id,
+                                  ),
+                                  pairingRequests: (
+                                    previous.pairingRequests ?? []
+                                  ).filter(
+                                    (r) => r.identity.connectionId !== id,
+                                  ),
+                                }
+                              : previous,
+                          );
+                          setSavedMetadata((previous) => ({
+                            ...previous,
+                            [channel]: undefined,
+                          }));
+                          setConnectionId("");
+                          setFields({});
+                          setAdminToken("");
+                          setEditingCredentials(false);
+                          setPairCode(undefined);
+                          setFocusTarget("im-bot");
+                          setMessage(
+                            t("机器人连接已移除。", "Bot connection removed."),
+                          );
+                          try {
+                            await refresh();
+                          } catch (error) {
+                            setRefreshError(String(error));
+                          }
+                        })
+                      }
+                    />
+                  )}
                   <Button
                     variant="quiet"
                     className="management-text-action im-secondary-action"
@@ -1237,6 +1453,14 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                     {t("刷新机器人连接状态", "Refresh bot connection status")}
                   </Button>
                   {accounts()}
+                  {savedCredentials && channel !== "slack" && (
+                    <p>
+                      {t(
+                        "3 · 连接后绑定本人账号，再选择项目并发送第一条任务。",
+                        "3 · Once connected, pair your account, allow a project and send your first task.",
+                      )}
+                    </p>
+                  )}
                   <Button
                     variant="quiet"
                     className="management-text-action im-secondary-action"
@@ -1247,88 +1471,40 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                   >
                     {t("前往配对与账号", "Open pairing & accounts")}
                   </Button>
-                  <details>
-                    <summary>
-                      {t("平台接入指引", "Platform setup guide")}
-                    </summary>
-                    {channel === "slack" ? (
-                      <ImSlackSetup
-                        t={t}
-                        busy={busy}
-                        copy={() =>
-                          void run(async () => {
-                            await navigator.clipboard.writeText(
-                              SLACK_APP_MANIFEST,
-                            );
-                            setMessage(
-                              t(
-                                "Slack 应用配置已复制。在 Slack 创建应用时选择 From a manifest 并粘贴。",
-                                "Manifest copied. Choose From a manifest when creating your Slack app and paste it.",
-                              ),
-                            );
-                          })
-                        }
-                      />
-                    ) : channel === "wecom" ? (
-                      <ol>
-                        <li>
-                          {t(
-                            "请企业微信管理员创建智能机器人，选择 API 模式并启用长连接，取得 Bot ID、Secret 和企业 ID。群机器人 Webhook 地址不能填在这里。",
-                            "Ask your WeCom administrator to create an intelligent bot in API mode with a long connection, then obtain its Bot ID, Secret and enterprise ID. A group webhook URL cannot be used here.",
-                          )}
-                        </li>
-                        <li>
-                          {t(
-                            "将下面的连接 ID 命名为 wecom-team，填写机器人信息，再输入管理凭据并保存。同一个 Bot ID 只连接这一份 Gateway。",
-                            "Use a connection ID such as wecom-team, fill in the bot details and administrator token, then save. Connect this Bot ID to only one Gateway.",
-                          )}
-                        </li>
-                        <li>
-                          {t(
-                            "状态显示“已连接”后，在企业微信中找到机器人，进入第 4 步配对。",
-                            "Once the status says Connected, find the bot in WeCom and continue to pairing in step 4.",
-                          )}
-                        </li>
-                      </ol>
-                    ) : (
-                      <ol>
-                        <li>
-                          {t(
-                            "请飞书管理员在开放平台创建企业自建应用，启用机器人能力，取得应用凭证、Tenant Key 和本机器人的 Bot Open ID。",
-                            "Ask your Feishu administrator to create a custom enterprise app with bot capability and obtain its credentials, Tenant Key and this bot's Open ID.",
-                          )}
-                        </li>
-                        <li>
-                          {feishuTransport === "websocket"
-                            ? t(
-                                "选择“使用长连接接收事件”，填写应用凭据和身份字段后保存。先停止旧版桌面直连，确保同一机器人只有一个订阅。",
-                                "Select long connection delivery, enter the app credentials and identity fields, and save. Stop the legacy desktop connection so only one subscription owns this bot.",
-                              )
-                            : t(
-                                "在应用的事件与回调配置中设置 Verification Token 和 Encrypt Key。填写下面的所有字段，先保存机器人配置。",
-                                "Configure Verification Token and Encrypt Key in the app's event/callback settings. Fill in all fields below and save the bot configuration first.",
-                              )}
-                        </li>
-                        <li>
-                          {t(
-                            "订阅 im.message.receive_v1 和 card.action.trigger；使用 HTTPS 时复制保存后显示的回调地址。按用途开启单聊、群聊 @、发送和更新消息、图片/文件资源、消息表情读写权限，发布版本并将自己加入可用范围。",
-                            "Subscribe to im.message.receive_v1 and card.action.trigger; for HTTPS, copy the callback URL shown after saving. Enable private/group-mention, send/update-message, image/file resource and message-reaction read/write permissions, publish and include yourself in the app's availability.",
-                          )}
-                        </li>
-                        <li>
-                          {feishuTransport === "websocket"
-                            ? t(
-                                "长连接状态反映平台握手与重连结果。仍需通过真实单聊完成本人配对和项目授权。",
-                                "Long connection status reflects the platform handshake and reconnect state. Verify a real private chat, pair your identity and grant a project.",
-                              )
-                            : t(
-                                "连接状态只确认应用凭证可用；是否收到消息，要在第 4、6 步通过真实单聊验证。",
-                                "Connection status confirms the app credentials. Steps 4 and 6 verify real message delivery.",
-                              )}
-                        </li>
-                      </ol>
-                    )}
-                  </details>
+                  {(channel === "slack" ||
+                    (savedCredentials && !editingCredentials)) && (
+                    <details>
+                      <summary>
+                        {t("平台接入指引", "Platform setup guide")}
+                      </summary>
+                      {channel === "slack" ? (
+                        <ImSlackSetup
+                          t={t}
+                          busy={busy}
+                          copy={() =>
+                            void run(async () => {
+                              await navigator.clipboard.writeText(
+                                SLACK_APP_MANIFEST,
+                              );
+                              setMessage(
+                                t(
+                                  "Slack 应用配置已复制。在 Slack 创建应用时选择 From a manifest 并粘贴。",
+                                  "Manifest copied. Choose From a manifest when creating your Slack app and paste it.",
+                                ),
+                              );
+                            })
+                          }
+                        />
+                      ) : (
+                        <ImPlatformSetup
+                          channel={channel}
+                          transport={feishuTransport}
+                          domain={feishuDomain}
+                          t={t}
+                        />
+                      )}
+                    </details>
+                  )}
                 </ManagementSection>
               </section>
             )}
@@ -1341,32 +1517,46 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                       "4 · Pair your IM account",
                     )}
                     description={t(
-                      "在企业微信、飞书或 Slack 里找到刚才的机器人，打开本人单聊。不要把配对码发到群里。",
-                      "Find the bot in WeCom, Feishu or Slack and open a private chat. Do not send pairing codes to a group.",
+                      `在 ${pairingPlatformLabel} 中找到刚配置的机器人，打开本人单聊。不要把配对码发到群里。`,
+                      `Find the configured bot in ${pairingPlatformLabel} and open a private chat. Do not send pairing codes to a group.`,
                     )}
                   >
                     {accounts(true)}
                     <Select
+                      labelVisibility="visible"
                       label={t("配对平台", "Pairing platform")}
-                      value={channel}
-                      onValueChange={setChannel}
-                      options={IM_CHANNELS.map((id) => ({
-                        value: id,
-                        label: imChannelLabel(id, t),
-                      }))}
+                      value={activePairingPlatform}
+                      onValueChange={setPairingPlatform}
+                      options={pairingOptions}
+                      disabled={busy}
                     />
                     <ol>
                       <li>
-                        {t(
-                          "复制已生成的配对指令；也可重新生成。Slack 使用 pair 配对码，不加开头的 /。",
-                          "Copy the generated pairing command, or generate a new one. Slack uses pair CODE without a leading /.",
-                        )}
+                        {activePairingPlatform === "slack"
+                          ? t(
+                              "复制下方的 pair 配对码指令，在 Slack 中作为普通消息发送，不加开头的 /。",
+                              "Copy pair CODE below and send it as a regular Slack message without a leading /.",
+                            )
+                          : t(
+                              `复制下方的 /pair 配对码指令；${pairingPlatformLabel} 使用带 / 的配对指令。`,
+                              `Copy /pair CODE below; ${pairingPlatformLabel} uses the leading / in its pairing command.`,
+                            )}
                       </li>
                       <li>
-                        {t(
-                          "切到 IM，把指令粘贴到机器人单聊，在 5 分钟内发送。",
-                          "Switch to IM, paste it into the bot's private chat and send within 5 minutes.",
-                        )}
+                        {activePairingPlatform === "wecom"
+                          ? t(
+                              "打开企业微信中刚配置的智能机器人单聊，粘贴完整指令，在 5 分钟内发送。",
+                              "Open a private chat with your configured WeCom intelligent bot, paste the complete command and send within 5 minutes.",
+                            )
+                          : activePairingPlatform === "slack"
+                            ? t(
+                                "在安装应用的 Slack 工作区中打开该应用的私信，粘贴完整指令，在 5 分钟内发送。",
+                                "Open a direct message with the app in the Slack workspace where it is installed, paste the complete command and send within 5 minutes.",
+                              )
+                            : t(
+                                `在 ${pairingPlatformLabel} 中搜索应用名称并打开机器人单聊，粘贴完整指令，在 5 分钟内发送。`,
+                                `Search for the app name in ${pairingPlatformLabel}, open the bot's private chat, paste the complete command and send within 5 minutes.`,
+                              )}
                       </li>
                       <li>
                         {t(
@@ -1378,7 +1568,7 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                     <ImPairingCode
                       t={t}
                       pair={pairCode}
-                      slack={channel === "slack"}
+                      slack={activePairingPlatform === "slack"}
                       busy={busy || !settings.deviceId}
                       generate={() => void run(generatePairCode)}
                       copy={(text) =>
@@ -1414,7 +1604,7 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                   <section id="im-test" tabIndex={-1}>
                     <ImFirstTaskInstructions
                       t={t}
-                      slack={channel === "slack"}
+                      slack={activePairingPlatform === "slack"}
                       copy={(text) =>
                         void run(async () => {
                           await navigator.clipboard.writeText(text);
@@ -1439,7 +1629,7 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                     "5 · Allow a project and enable IM",
                   )}
                   description={t(
-                    "仅开放选中的项目。群聊还需填写允许的协作空间；撤销授权会停止对应远程任务。",
+                    "仅开放选中的项目。群聊还需勾选允许的协作空间；撤销授权会停止对应远程任务。",
                     "Only selected projects are accessible. Groups also require an allowed space. Revocation cancels the affected remote work.",
                   )}
                 >
@@ -1516,6 +1706,7 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                             </summary>
                             <div className="im-grant-fields">
                               <Select
+                                labelVisibility="visible"
                                 label={t("任务模式", "Task mode")}
                                 value={grant.mode}
                                 onValueChange={(mode) =>
@@ -1547,6 +1738,7 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                                 ]}
                               />
                               <Select
+                                labelVisibility="visible"
                                 label={t("执行审批", "Execution approval")}
                                 value={grant.approval}
                                 onValueChange={(approval) =>
@@ -1593,26 +1785,73 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                                   updateGrant(project.id, { network })
                                 }
                               />
-                              <TextField
-                                label={t(
-                                  "允许的协作空间 ID（逗号分隔）",
-                                  "Allowed space IDs (comma separated)",
+                              <div className="im-field-stack">
+                                <h4>
+                                  {t(
+                                    "允许哪些群使用这个项目",
+                                    "Which groups may use this project",
+                                  )}
+                                </h4>
+                                {!availableSpaces.length && (
+                                  <p>
+                                    {t(
+                                      "还没有可选的群空间。先到“群协作空间”保存配置，再回来选择。",
+                                      "No group spaces yet. Save a space in Group spaces, then return here.",
+                                    )}
+                                  </p>
                                 )}
-                                value={grant.groups
-                                  .filter((g) => g.startsWith("space:"))
-                                  .map((g) => g.slice(6))
-                                  .join(", ")}
-                                onValueChange={(value) =>
-                                  updateGrant(project.id, {
-                                    groups: value
-                                      .split(",")
-                                      .map((v) => v.trim())
-                                      .filter(Boolean)
-                                      .map((v) => `space:${v}`),
-                                  })
-                                }
-                                disabled={busy}
-                              />
+                                {availableSpaces.map((space) => (
+                                  <Checkbox
+                                    key={space.id}
+                                    label={space.name}
+                                    checked={grant.groups.includes(
+                                      `space:${space.id}`,
+                                    )}
+                                    disabled={busy}
+                                    onCheckedChange={(checked) =>
+                                      updateGrant(project.id, {
+                                        groups: checked
+                                          ? [
+                                              ...grant.groups,
+                                              `space:${space.id}`,
+                                            ]
+                                          : grant.groups.filter(
+                                              (id) =>
+                                                id !== `space:${space.id}`,
+                                            ),
+                                      })
+                                    }
+                                  />
+                                ))}
+                              </div>
+                              <details>
+                                <summary>
+                                  {t(
+                                    "高级：手动填写空间编号",
+                                    "Advanced: enter space IDs manually",
+                                  )}
+                                </summary>
+                                <TextField
+                                  label={t(
+                                    "允许的协作空间 ID（逗号分隔）",
+                                    "Allowed space IDs (comma separated)",
+                                  )}
+                                  value={grant.groups
+                                    .filter((g) => g.startsWith("space:"))
+                                    .map((g) => g.slice(6))
+                                    .join(", ")}
+                                  onValueChange={(value) =>
+                                    updateGrant(project.id, {
+                                      groups: value
+                                        .split(",")
+                                        .map((v) => v.trim())
+                                        .filter(Boolean)
+                                        .map((v) => `space:${v}`),
+                                    })
+                                  }
+                                  disabled={busy}
+                                />
+                              </details>
                               <p>
                                 {t("授权到期：", "Grant expires: ")}
                                 {new Date(grant.expiresAt).toLocaleString(
@@ -1636,6 +1875,7 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                     );
                   })}
                   <Select
+                    labelVisibility="visible"
                     label={t("默认项目", "Default project")}
                     value={settings.defaultProjectId}
                     onValueChange={(defaultProjectId) =>
@@ -1671,79 +1911,191 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
             )}
             {view === "spaces" && (
               <section id="im-spaces" tabIndex={-1}>
-                <details>
-                  <summary>
+                <ManagementSection
+                  className="im-space-setup"
+                  title={t(
+                    "创建与连接 IM 群协作空间",
+                    "Create and connect an IM collaboration space",
+                  )}
+                  description={t(
+                    "协作空间在 Artemis 中创建，把一个或多个 IM 群或频道连接起来。可以连接同一平台的多个群，也可以组合任意已接入且支持群会话的平台；目前支持企业微信、飞书、Lark 和 Slack。",
+                    "Create a collaboration space in Artemis to connect one or more IM groups or channels. Combine groups from the same platform or any connected platforms that support group conversations. Currently supported: WeCom, Feishu, Lark and Slack.",
+                  )}
+                >
+                  <p>
                     {t(
-                      "进阶：群聊与跨 IM 协作（单聊成功后再设置）",
-                      "Advanced: groups and cross-IM collaboration (after private chat works)",
+                      "群建在哪里：各群或频道仍建在各自的 IM 平台，Artemis 负责把它们关联到同一个空间，不会自动在外部平台建群。成员留在自己使用的 IM 中，无需注册其他平台的账号。尚未接入 Artemis 的 IM 需先获得对应平台适配支持。",
+                      "Where groups live: create each group or channel in its own IM platform. Artemis links them into one space; it does not create external groups automatically. Members stay in their own IM without accounts on other platforms. An unsupported IM needs a platform adapter first.",
                     )}
-                  </summary>
-                  <ManagementSection
-                    title={t("协作空间", "Collaboration spaces")}
-                    description={t(
-                      "先配对成员，再配置所连接的群和管理员。每个群的指定管理员须 @机器人 /space-confirm 空间ID 确认共享；修改配置会重新要求各群确认。",
-                      "Pair members first, then configure groups and administrators. Each designated administrator confirms sharing by mentioning the bot with /space-confirm SPACE_ID. Changes require new confirmations.",
+                  </p>
+                  <p>
+                    {t(
+                      "空间由同一个 Gateway 保存和转发。使用内置服务时保存在运行它的电脑上；团队服务则保存在团队服务器。跨电脑协作需连接同一个可访问的团队 Gateway，各自启动独立内置服务不会自动合群。",
+                      "One Gateway stores the space and routes its messages. A built-in service stores it on its host computer; a team service stores it on the team's server. Computers must connect to the same reachable team Gateway. Separate built-in services do not merge automatically.",
                     )}
-                  >
-                    <ol>
-                      <li>
-                        {t(
-                          "请成员先完成第 4 步配对，再把机器人加入目标群。让已配对的群管理员在群里 @机器人发送 /help。",
-                          "Pair members in step 4, then add the bot to each target group. A paired group administrator should mention the bot with /help in the group.",
-                        )}
-                      </li>
-                      <li>
-                        {t(
-                          "输入管理凭据并查看下方诊断：groups 给出实际群 ID，identities 和 devices 给出成员身份及设备 ID。按字段说明填写空间配置。",
-                          "Enter the administrator token and view diagnostics below: groups contains the actual chat IDs; identities and devices contain member and device IDs. Use them to fill in the space configuration.",
-                        )}
-                      </li>
-                      <li>
-                        {t(
-                          "保存后，请每个群的指定管理员 @机器人发送 /space-confirm 空间ID。每位成员还需在第 5 步的项目授权中填写该空间 ID 并保存；多 Agent 分派需要 Execute 模式，命令和网络仍按需单独授权。",
-                          "After saving, each designated group administrator mentions the bot with /space-confirm SPACE_ID. Every member adds that space ID to the project grant in step 5 and saves it. Multi-agent assignments require Execute mode; shell and network remain separate permissions.",
-                        )}
-                      </li>
-                      <li>
-                        {t(
-                          "全部确认后，在任意已连接群 @机器人发起任务。普通群聊不会同步；只有明确发给机器人的协作内容和成果对所连接的群可见。",
-                          "Once all groups confirm, mention the bot in a connected group to start a task. Ordinary chat is not synchronized; explicitly addressed collaboration content and results are visible to the connected groups.",
-                        )}
-                      </li>
-                    </ol>
-                    {!local && (
-                      <TextField
-                        label={t(
-                          "协作空间管理凭据",
-                          "Collaboration administrator token",
-                        )}
-                        type="password"
-                        value={adminToken}
-                        onValueChange={setAdminToken}
-                        autoComplete="off"
-                        disabled={busy}
-                      />
+                  </p>
+                  <ImGatewayDeployment
+                    t={t}
+                    busy={busy}
+                    exportPackage={() =>
+                      void run(async () => {
+                        const path = await window.artemis.manageIm({
+                          action: "export-gateway",
+                        });
+                        if (path)
+                          setMessage(
+                            t(
+                              `独立运行包已导出到 ${path}，解压后按下方说明启动。`,
+                              `Standalone package exported to ${path}. Extract it and follow the instructions below.`,
+                            ),
+                          );
+                      })
+                    }
+                    connect={() => {
+                      setShowRemote(true);
+                      selectView("gateway");
+                      setFocusTarget("im-device");
+                    }}
+                  />
+                  <p>
+                    {t(
+                      "共享范围：只有发给机器人的任务消息、公开进度和成果会在这些群之间共享，普通聊天不会自动互通。加入空间不等于开放整台电脑，每位成员自行授权项目和操作权限。",
+                      "Sharing scope: bot-directed task messages, public progress and results are shared across these groups. Ordinary chatter is not relayed. Joining a space does not open the whole computer; each member grants project and operation access.",
                     )}
-                    <Button
-                      disabled={busy || (!local && !adminToken)}
-                      onClick={() =>
-                        void run(async () => {
-                          const token = adminToken;
-                          setAdminToken("");
-                          const result = await window.artemis.manageIm({
-                            action: "admin",
-                            operation: "status",
-                            ...(local ? {} : { adminToken: token }),
-                          });
-                          setDiagnostics(result);
-                        })
-                      }
-                    >
+                  </p>
+                  <h4>
+                    {t(
+                      "1 · 让 Artemis 发现你的群",
+                      "1 · Let Artemis find your group",
+                    )}
+                  </h4>
+                  {status?.groupConversationError && (
+                    <InlineNotice tone="warning">
                       {t(
-                        "查看连接、成员和投递诊断",
-                        "View connections, members and delivery diagnostics",
+                        "群协作对话同步失败：",
+                        "Group conversation sync failed: ",
                       )}
-                    </Button>
+                      {status.groupConversationError}
+                    </InlineNotice>
+                  )}
+                  <ImSavedSpaces
+                    spaces={[...adminSpaces, ...(status?.spaces ?? [])]}
+                    settings={status?.settings ?? settings}
+                    tasks={status?.remoteTasks}
+                    busy={busy}
+                    canRemove={local || !!adminToken}
+                    t={t}
+                    edit={(json, confirmation) => {
+                      setSpaceJson(json);
+                      setSpaceConfirmation(confirmation);
+                    }}
+                    remove={async (id) => {
+                      return run(async () => {
+                        const token = adminToken;
+                        setAdminToken("");
+                        await window.artemis.manageIm({
+                          action: "admin",
+                          operation: "remove-space",
+                          ...(local ? {} : { adminToken: token }),
+                          configuration: { id },
+                        });
+                        setSpaceJson("");
+                        setSpaceConfirmation("");
+                        setSpaceFormRevision((value) => value + 1);
+                        await refresh();
+                        const result = await window.artemis.manageIm({
+                          action: "admin",
+                          operation: "status",
+                          ...(local ? {} : { adminToken: token }),
+                        });
+                        setDiagnostics(result);
+                        setMessage(
+                          t(
+                            "协作空间已删除，原生 IM 群和对话历史已保留。",
+                            "Collaboration space deleted. Native IM groups and conversation history remain.",
+                          ),
+                        );
+                      });
+                    }}
+                  />
+                  <ol className="im-space-steps">
+                    <li>
+                      {t(
+                        "先把各平台的机器人连接到同一个 Gateway。在“配对与账号”绑定你自己；其他要参与的成员也连接这个 Gateway，分别绑定自己的账号和电脑。",
+                        "Connect each platform's bot to the same Gateway. Pair your account in Pairing & accounts; other participants connect to this Gateway and pair their own accounts and computers too.",
+                      )}
+                    </li>
+                    <li>
+                      {t(
+                        "在各 IM 平台创建或选择已有的群／频道，把该平台的机器人加入。在每个群里由已配对成员选中 @机器人，然后发送 /help（Slack 发 help）。普通群消息不会触发接入。",
+                        "Create or choose a group/channel in each IM and add that platform's bot. In every group, a paired member mentions the bot and sends /help (help in Slack). Ordinary group messages do not trigger discovery.",
+                      )}
+                    </li>
+                    <li>
+                      {t(
+                        "机器人回复“已发现这个群”表示发现成功，此时空间还没有配置。点击下面的“刷新群和成员”，第 2 步会列出刚发现的群和已配对成员；继续选择并保存，再按第 3 步确认和授权。",
+                        "The bot's ‘group discovered’ reply confirms discovery; the space is not configured yet. Select Refresh groups and members below, choose the groups and paired members in step 2 and save, then complete confirmation and permissions in step 3.",
+                      )}
+                    </li>
+                  </ol>
+                  <Button variant="quiet" onClick={() => selectView("pairing")}>
+                    {t("先去绑定账号", "Pair an account first")}
+                  </Button>
+                  {!local && (
+                    <TextField
+                      label={t(
+                        "协作空间管理凭据",
+                        "Collaboration administrator token",
+                      )}
+                      type="password"
+                      value={adminToken}
+                      onValueChange={setAdminToken}
+                      autoComplete="off"
+                      disabled={busy}
+                    />
+                  )}
+                  <Button
+                    disabled={busy || (!local && !adminToken)}
+                    onClick={() =>
+                      void run(async () => {
+                        const token = adminToken;
+                        setAdminToken("");
+                        const result = await window.artemis.manageIm({
+                          action: "admin",
+                          operation: "status",
+                          ...(local ? {} : { adminToken: token }),
+                        });
+                        setDiagnostics(result);
+                      })
+                    }
+                  >
+                    {t("刷新群和成员", "Refresh groups and members")}
+                  </Button>
+                  <h4>
+                    {t(
+                      "2 · 选择群和参与成员",
+                      "2 · Choose groups and participants",
+                    )}
+                  </h4>
+                  <ImSpaceBuilder
+                    key={spaceFormRevision}
+                    diagnostics={diagnostics}
+                    value={spaceJson}
+                    connections={connections}
+                    busy={busy}
+                    t={t}
+                    onChange={(value) => {
+                      setSpaceJson(value);
+                      setSpaceConfirmation("");
+                    }}
+                  />
+                  <details>
+                    <summary>
+                      {t(
+                        "高级：查看诊断或手动编辑配置",
+                        "Advanced: diagnostics and manual configuration",
+                      )}
+                    </summary>
                     {diagnostics !== undefined && (
                       <ImDiagnostics
                         value={diagnostics}
@@ -1772,78 +2124,173 @@ export function ImSettingsPanel({ locale }: { locale: AppLocale }) {
                       disabled={busy}
                       spellCheck={false}
                     />
-                    <Button
-                      disabled={busy || (!local && !adminToken) || !spaceJson}
-                      onClick={() =>
-                        void run(async () => {
-                          const configuration: unknown = JSON.parse(spaceJson);
-                          const token = adminToken;
-                          setAdminToken("");
-                          await window.artemis.manageIm({
-                            action: "admin",
-                            operation: "spaces",
-                            ...(local ? {} : { adminToken: token }),
-                            configuration,
-                          });
-                          setAdminToken("");
-                          if (
-                            configuration &&
-                            typeof configuration === "object" &&
-                            "id" in configuration &&
-                            typeof configuration.id === "string"
-                          )
-                            setSpaceConfirmation(
-                              `/space-confirm ${configuration.id}`,
-                            );
-                          setMessage(
+                  </details>
+                  <Button
+                    disabled={busy || (!local && !adminToken) || !spaceReady}
+                    onClick={() =>
+                      void run(async () => {
+                        const configuration: unknown = JSON.parse(spaceJson);
+                        const token = adminToken;
+                        setAdminToken("");
+                        await window.artemis.manageIm({
+                          action: "admin",
+                          operation: "spaces",
+                          ...(local ? {} : { adminToken: token }),
+                          configuration,
+                        });
+                        setAdminToken("");
+                        if (
+                          configuration &&
+                          typeof configuration === "object" &&
+                          "id" in configuration &&
+                          typeof configuration.id === "string"
+                        )
+                          setSpaceConfirmation(
+                            `/space-confirm ${configuration.id}`,
+                          );
+                        setMessage(
+                          t(
+                            "空间配置已保存，请按上方步骤完成各群确认和个人项目授权。",
+                            "Space saved. Complete group confirmations and each member's project permissions using the steps above.",
+                          ),
+                        );
+                        try {
+                          await refresh();
+                        } catch {
+                          setRefreshError(
                             t(
-                              "空间配置已保存，请按上方步骤完成各群确认和个人项目授权。",
-                              "Space saved. Complete group confirmations and each member's project permissions using the steps above.",
+                              "群配置已保存，请刷新后到项目授权中选择这个空间。",
+                              "Space saved. Refresh before selecting it in Project permissions.",
                             ),
                           );
-                        })
-                      }
-                    >
-                      {t(
-                        "保存空间并等待各群确认",
-                        "Save space and await group confirmations",
-                      )}
-                    </Button>
-                    {spaceConfirmation && (
-                      <InlineNotice tone="info">
-                        <p>
-                          {t(
-                            "各群指定管理员须 @机器人发送以下指令；成员仍需单独保存项目授权。",
-                            "Each designated group administrator must mention the bot with this command. Members must still save their own project grants.",
-                          )}
-                        </p>
-                        <code className="im-identifier">
-                          {spaceConfirmation}
-                        </code>
-                        <Button
-                          onClick={() =>
-                            void run(async () => {
-                              await navigator.clipboard.writeText(
-                                spaceConfirmation,
-                              );
-                              setMessage(
-                                t(
-                                  "群确认指令已复制。",
-                                  "Group confirmation command copied.",
-                                ),
-                              );
-                            })
-                          }
-                        >
-                          {t(
-                            "复制群确认指令",
-                            "Copy group confirmation command",
-                          )}
-                        </Button>
-                      </InlineNotice>
+                        }
+                      })
+                    }
+                  >
+                    {t(
+                      "保存空间并等待各群确认",
+                      "Save space and await group confirmations",
                     )}
-                  </ManagementSection>
-                </details>
+                  </Button>
+                  {spaceConfirmation && (
+                    <InlineNotice tone="info">
+                      <h4>
+                        {t(
+                          "3 · 在群里确认，再选择允许使用的项目",
+                          "3 · Confirm in the group, then allow a project",
+                        )}
+                      </h4>
+                      <p>
+                        {t(
+                          "让刚才选的确认人在每个已选群里 @机器人，发送下面的指令。收到“已确认协作空间”后，每位成员还要到“项目授权”允许该空间使用自己的项目。",
+                          "Have the selected confirmer mention the bot with this command in each group. After the bot confirms the space, each participant allows the space in their own Project permissions.",
+                        )}
+                      </p>
+                      <p>
+                        {t(
+                          "Slack 请删除指令开头的 /。修改群或成员后，需要重新确认。",
+                          "Remove the leading / in Slack. Changing groups or members requires confirmation again.",
+                        )}
+                      </p>
+                      <code className="im-identifier">{spaceConfirmation}</code>
+                      <Button
+                        onClick={() =>
+                          void run(async () => {
+                            await navigator.clipboard.writeText(
+                              spaceConfirmation,
+                            );
+                            setMessage(
+                              t(
+                                "群确认指令已复制。",
+                                "Group confirmation command copied.",
+                              ),
+                            );
+                          })
+                        }
+                      >
+                        {t("复制群确认指令", "Copy group confirmation command")}
+                      </Button>
+                      <Button onClick={() => selectView("permissions")}>
+                        {t(
+                          "去选择项目并授权",
+                          "Choose a project and grant access",
+                        )}
+                      </Button>
+                      <p>
+                        {t(
+                          "各群确认并保存项目授权后，保持 IM 连接启用，对话列表会自动出现“群协作 · 空间名称”，打开即可输入任务，无需先从 IM 发消息。多个项目都授权给该空间时，请选择默认项目。也可在群里 @机器人直接描述任务，进入同一个群协作对话；/new 会另建任务（Slack 使用 new）。",
+                          "After group confirmation and saved project permissions, keep IM enabled. A Group collaboration conversation appears automatically; open it to enter a task without first sending an IM message. Choose a default project if several projects allow this space. Mention the bot with a task to use the same conversation, or use /new for a separate task (new in Slack).",
+                        )}
+                      </p>
+                    </InlineNotice>
+                  )}
+                  <ImGroupTaskComposer
+                    spaces={status?.spaces ?? []}
+                    settings={settings}
+                    projects={projects}
+                    canRemove={local || !!adminToken}
+                    remove={(spaceId, deviceId) =>
+                      run(async () => {
+                        const token = adminToken;
+                        setAdminToken("");
+                        await window.artemis.manageIm({
+                          action: "admin",
+                          operation: "remove-space-member",
+                          ...(token ? { adminToken: token } : {}),
+                          configuration: { spaceId, deviceId },
+                        });
+                        const current = (await window.artemis.manageIm({
+                          action: "refresh",
+                        })) as Status;
+                        setStatus(current);
+                        setDiagnostics(
+                          await window.artemis.manageIm({
+                            action: "admin",
+                            operation: "status",
+                            ...(token ? { adminToken: token } : {}),
+                          }),
+                        );
+                        setMessage(
+                          t(
+                            "成员已从整个协作空间移除。",
+                            "Member removed from the entire collaboration space.",
+                          ),
+                        );
+                      })
+                    }
+                    busy={busy}
+                    t={t}
+                    open={(spaceId, participantIds, projectId) =>
+                      void run(async () => {
+                        const result = (await window.artemis.manageIm({
+                          action: "open-group-conversation",
+                          spaceId,
+                          participantIds,
+                          projectId,
+                        })) as { threadId: string };
+                        setStatus(await window.artemis.getImStatus());
+                        await onOpenThread?.(result.threadId);
+                      })
+                    }
+                    rename={(deviceId, name, deviceName) =>
+                      run(async () => {
+                        await window.artemis.manageIm({
+                          action: "rename-group-member",
+                          deviceId,
+                          name,
+                          deviceName,
+                        });
+                        setStatus(await window.artemis.getImStatus());
+                        setMessage(
+                          t(
+                            "名称已保存，重启 Artemis 后仍会保留。",
+                            "Names saved. They will remain after restarting Artemis.",
+                          ),
+                        );
+                      })
+                    }
+                  />
+                </ManagementSection>
               </section>
             )}
             <Button

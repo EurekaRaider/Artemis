@@ -145,6 +145,7 @@ export type AgentHostCommand =
   | {
       type: "thread.open";
       remoteExecution?: RemoteExecutionProfile;
+      groupCollaboration?: boolean;
       requestId: string;
       threadId: string;
       workspacePath: string;
@@ -176,6 +177,7 @@ export type AgentHostCommand =
       attachments?: PromptAttachment[];
       goal?: ThreadGoal;
       memoryContext?: string;
+      collaborationContext?: string;
     }
   | {
       type: "turn.cancel";

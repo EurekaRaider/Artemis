@@ -7,8 +7,10 @@ import { ArtemisGateway } from "../../../packages/gateway/src/server.js";
 import { ImService, type ImTaskOperations } from "../src/main/im-service.js";
 import {
   executionGrantSchema,
+  imConversationKey,
   type AgentEvent,
   type ChannelEvent,
+  type CollaborationTask,
   type Project,
   type RemoteInvocationContext,
   type Thread,
@@ -152,7 +154,835 @@ async function fixture(channel: "wecom" | "feishu" | "slack" = "wecom") {
     port,
   };
 }
+async function groupFixture() {
+  const f = await fixture("feishu");
+  const members = [];
+  for (const [name, channel] of [
+    ["Bob", "slack"],
+    ["Carol", "wecom"],
+  ] as const) {
+    const directory = join(f.root, name);
+    const project = {
+      ...f.ops.projects()[0]!,
+      path: join(directory, "project"),
+    };
+    await mkdir(project.path, { recursive: true });
+    const events: AgentEvent[] = [];
+    const threads: Thread[] = [],
+      starts: string[] = [],
+      queued: string[] = [];
+    const service = new ImService(directory, f.secure, {
+      ...f.ops,
+      events: () => events,
+      projects: () => [project],
+      threads: () => threads,
+      thread: (id) => threads.find((t) => t.id === id),
+      create: async (id, projectId, mode, title) => {
+        const thread: Thread = {
+          id,
+          projectId,
+          mode,
+          title,
+          target: "local",
+          status: "idle",
+          pinned: false,
+          archived: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        threads.push(thread);
+        return thread;
+      },
+      start: async (id, text) => {
+        starts.push(text);
+        threads.find((t) => t.id === id)!.status = "running";
+      },
+      queue: async (_id, text) => {
+        queued.push(text);
+      },
+      cancel: async (id) => {
+        threads.find((t) => t.id === id)!.status = "idle";
+      },
+    });
+    cleanups.push(() => service.close());
+    await service.manage({
+      action: "register",
+      gatewayUrl: `http://127.0.0.1:${f.port}`,
+      name,
+      adminToken: "a".repeat(32),
+    });
+    const identity = {
+      channel,
+      connectionId: name,
+      tenantId: "tenant",
+      appId: "bot",
+      userId: name,
+    };
+    const code = (await service.manage({ action: "pair" })) as { code: string };
+    f.gateway.store.pair(code.code, identity);
+    members.push({
+      name,
+      service,
+      identity,
+      threads,
+      events,
+      starts,
+      queued,
+      deviceId: service.status().settings.deviceId,
+      endpoint: {
+        connectionId: name,
+        id: `${name}-group`,
+        kind: "group" as const,
+      },
+    });
+  }
+  const source = {
+    connectionId: "w",
+    id: "source-group",
+    kind: "group" as const,
+  };
+  const space = {
+    id: "shared",
+    revision: "revision",
+    name: "Cross IM team",
+    endpoints: [source, ...members.map((m) => m.endpoint)],
+    administrators: [f.identity],
+    participants: [
+      {
+        deviceId: f.service.status().settings.deviceId,
+        identity: f.identity,
+        name: "Alice",
+      },
+      ...members.map((m) => ({
+        deviceId: m.deviceId,
+        identity: m.identity,
+        name: m.name,
+      })),
+    ],
+  };
+  f.gateway.store.put("spaces", space.id, space);
+  f.gateway.store.put(
+    "space-confirmations",
+    space.id,
+    space.endpoints.map(imConversationKey),
+  );
+  for (const service of [f.service, ...members.map((m) => m.service)]) {
+    await service.save({
+      ...service.status().settings,
+      enabled: true,
+      defaultProjectId: "project",
+      grants: [
+        executionGrantSchema.parse({
+          projectId: "project",
+          groups: ["space:shared"],
+          expiresAt: Date.now() + 600000,
+        }),
+      ],
+    });
+    await service.poll();
+  }
+  const send = async (text: string, patch: Partial<ChannelEvent> = {}) => {
+    f.gateway.router.ingest({
+      version: 1,
+      messageId: randomUUID(),
+      identity: f.identity,
+      conversation: source,
+      text,
+      mentioned: true,
+      bot: false,
+      timestamp: Date.now(),
+      attachments: [],
+      ...patch,
+    });
+    await f.service.poll();
+  };
+  return { ...f, members, source, space, send };
+}
 describe("IM desktop and Gateway loop", () => {
+  it("creates one idle conversation per confirmed space without an IM task, survives refresh and restart, and preserves explicit deletion", async () => {
+    const f = await groupFixture();
+    expect(f.threads).toHaveLength(1);
+    const thread = f.threads[0]!;
+    expect(thread).toMatchObject({
+      title: "群协作 · Cross IM team",
+      status: "idle",
+      projectId: "project",
+    });
+    expect(f.starts).toHaveLength(0);
+    expect(f.service.hasGroupCollaboration(thread.id)).toBe(true);
+    expect(f.service.profile(thread.id)).toBeUndefined();
+    expect(f.gateway.store.pending("device")).toHaveLength(0);
+    expect(f.gateway.store.pending("outgoing")).toHaveLength(0);
+    await Promise.all([
+      f.service.manage({ action: "refresh" }),
+      f.service.manage({ action: "refresh" }),
+    ]);
+    expect(f.threads).toHaveLength(1);
+    await f.service.close();
+    const restarted = new ImService(f.root, f.secure, f.ops);
+    cleanups.push(() => restarted.close());
+    await restarted.poll();
+    expect(f.threads.map((t) => t.id)).toEqual([thread.id]);
+    f.threads.splice(0, 1);
+    restarted.deleteThread(thread.id);
+    await restarted.poll();
+    expect(f.threads).toHaveLength(0);
+  });
+  it("opens idle conversations for exact target sets, persists member names across restart and rejects other targets", async () => {
+    const f = await groupFixture();
+    const bob = f.members[0]!,
+      carol = f.members[1]!;
+    await f.service.save({
+      ...f.service.status().settings,
+      grants: f.service
+        .status()
+        .settings.grants.map((g) => ({ ...g, mode: "execute" })),
+    });
+    await f.service.manage({
+      action: "rename-group-member",
+      deviceId: bob.deviceId,
+      name: "小博",
+      deviceName: "后端开发机",
+    });
+    const action = {
+      action: "open-group-conversation" as const,
+      spaceId: f.space.id,
+      participantIds: [bob.deviceId],
+      projectId: "project",
+    };
+    const opened = (await Promise.all([
+      f.service.manage(action),
+      f.service.manage(action),
+    ])) as { threadId: string }[];
+    const id = opened[0]!.threadId;
+    expect(opened[1]!.threadId).toBe(id);
+    expect(f.threads).toHaveLength(2);
+    expect(f.threads.find((t) => t.id === id)).toMatchObject({
+      title: "群协作 · 小博",
+      status: "idle",
+    });
+    expect(f.starts).toHaveLength(0);
+    expect(f.gateway.store.pending("device")).toHaveLength(0);
+    expect(f.gateway.store.pending("outgoing")).toHaveLength(0);
+    await f.send(`/task ${id}`);
+    await f.send("Continue the selected conversation from IM");
+    expect(
+      f.service.status().remoteTasks.find((t) => t.threadId === id)!.group!
+        .targetDeviceIds,
+    ).toEqual([bob.deviceId]);
+    expect(() =>
+      f.service.authorizeOperation(
+        id,
+        {
+          action: "collaborate",
+          command: {
+            action: "delegate",
+            participantId: carol.deviceId,
+            text: "Do not misroute",
+          },
+        },
+        "execute",
+      ),
+    ).toThrow("本对话中选择的成员");
+    f.threads.find((t) => t.id === id)!.status = "idle";
+    await f.service.close();
+    const service = new ImService(f.root, f.secure, f.ops);
+    cleanups.push(() => service.close());
+    await service.poll();
+    const group = service
+      .status()
+      .remoteTasks.find((t) => t.threadId === id)!.group!;
+    expect(group.targetDeviceIds).toEqual([bob.deviceId]);
+    expect(
+      group.members.find((m) => m.deviceId === bob.deviceId),
+    ).toMatchObject({ name: "小博", deviceName: "后端开发机" });
+    expect(await service.manage(action)).toEqual({ threadId: id });
+    await service.prepareLocalTurn(id, "target-turn");
+    const context = service.desktopGroupContext(
+      id,
+      "@小博 检查接口",
+      "execute",
+    )!;
+    expect(context).toContain(bob.deviceId);
+    expect(context).toContain("后端开发机");
+    expect(context).not.toContain(carol.deviceId);
+    expect(() =>
+      service.desktopGroupContext(id, "@小博 检查接口", "plan"),
+    ).toThrow("Execute");
+    expect(() =>
+      service.desktopGroupContext(id, "@Carol 检查接口", "execute"),
+    ).toThrow("@成员");
+    const delegate = (participantId: string) => ({
+      action: "collaborate" as const,
+      command: {
+        action: "delegate-many" as const,
+        text: "",
+        assignments: [{ participantId, text: "检查接口" }],
+      },
+    });
+    await expect(
+      service.operate(
+        id,
+        delegate(carol.deviceId),
+        "execute",
+        "wrong-target",
+        "target-turn",
+      ),
+    ).rejects.toThrow("本对话中选择的成员");
+    await service.operate(
+      id,
+      delegate(bob.deviceId),
+      "execute",
+      "right-target",
+      "target-turn",
+    );
+    await Promise.all(f.members.map((m) => m.service.poll()));
+    expect(bob.starts).toHaveLength(1);
+    expect(carol.starts).toHaveLength(0);
+    await expect(
+      service.manage({ ...action, participantIds: ["missing-device"] }),
+    ).rejects.toThrow();
+    await expect(
+      service.manage({
+        action: "rename-group-member",
+        deviceId: "missing-device",
+        name: "Forged",
+        deviceName: "Other",
+      }),
+    ).rejects.toThrow();
+    await service.manage({
+      action: "admin",
+      operation: "remove-space",
+      adminToken: "a".repeat(32),
+      configuration: { id: f.space.id },
+    });
+    await expect(
+      service.prepareLocalTurn(id, "deleted-space-turn"),
+    ).rejects.toThrow();
+  });
+  it("persists conversation-only removal and revokes removed space members without disrupting remaining confirmations", async () => {
+    const f = await groupFixture(),
+      bob = f.members[0]!,
+      carol = f.members[1]!;
+    const { threadId } = (await f.service.manage({
+      action: "open-group-conversation",
+      spaceId: f.space.id,
+      participantIds: [bob.deviceId, carol.deviceId],
+    })) as { threadId: string };
+    const thread = f.threads.find((t) => t.id === threadId)!;
+    thread.status = "running";
+    await expect(
+      f.service.manage({
+        action: "remove-conversation-member",
+        threadId,
+        deviceId: bob.deviceId,
+      }),
+    ).rejects.toThrow("停止当前任务");
+    thread.status = "idle";
+    await f.service.manage({
+      action: "remove-conversation-member",
+      threadId,
+      deviceId: bob.deviceId,
+    });
+    expect(
+      f.service.status().remoteTasks.find((t) => t.threadId === threadId)!
+        .group!.targetDeviceIds,
+    ).toEqual([carol.deviceId]);
+    expect(
+      f.gateway.store.get<{ participants: unknown[] }>("spaces", f.space.id)!
+        .participants,
+    ).toHaveLength(3);
+    await f.service.prepareLocalTurn(threadId, "restricted-grant-turn");
+    expect(() =>
+      f.service.desktopGroupContext(threadId, "@Carol 检查接口", "execute"),
+    ).toThrow("项目授权");
+    const bobRequest = f.gateway.router.groupConversationContext(
+      bob.deviceId,
+      f.space.id,
+    );
+    const carolRequest = f.gateway.router.groupConversationContext(
+      carol.deviceId,
+      f.space.id,
+    );
+    await f.send(`/ask ${bob.deviceId} queued task`);
+    await f.service.manage({
+      action: "admin",
+      operation: "remove-space-member",
+      adminToken: "a".repeat(32),
+      configuration: { spaceId: f.space.id, deviceId: bob.deviceId },
+    });
+    expect(f.gateway.router.isInvocationAuthorized(bobRequest)).toBe(false);
+    expect(f.gateway.router.isInvocationAuthorized(carolRequest)).toBe(true);
+    expect(f.gateway.store.get("space-confirmations", f.space.id)).toEqual(
+      f.space.endpoints.map(imConversationKey),
+    );
+    await bob.service.poll();
+    expect(bob.starts).toHaveLength(0);
+    await f.service.close();
+    const restarted = new ImService(f.root, f.secure, f.ops);
+    cleanups.push(() => restarted.close());
+    await restarted.poll();
+    expect(
+      restarted.status().remoteTasks.find((t) => t.threadId === threadId)!
+        .group!.targetDeviceIds,
+    ).toEqual([carol.deviceId]);
+    await restarted.manage({
+      action: "remove-conversation-member",
+      threadId,
+      deviceId: carol.deviceId,
+    });
+    await restarted.poll();
+    expect(
+      restarted.status().remoteTasks.find((t) => t.threadId === threadId)!
+        .group!.targetDeviceIds,
+    ).toEqual([]);
+    expect(f.threads.find((t) => t.id === threadId)).toBeDefined();
+  });
+  it("scopes collaboration retries to the conversation and turn when model tool call IDs repeat", async () => {
+    const f = await groupFixture(),
+      bob = f.members[0]!;
+    await f.service.save({
+      ...f.service.status().settings,
+      grants: f.service
+        .status()
+        .settings.grants.map((g) => ({ ...g, mode: "execute" })),
+    });
+    const first = f.threads[0]!.id;
+    const second = (
+      (await f.service.manage({
+        action: "open-group-conversation",
+        spaceId: f.space.id,
+        participantIds: [bob.deviceId],
+      })) as { threadId: string }
+    ).threadId;
+    const operation = {
+      action: "collaborate" as const,
+      command: {
+        action: "delegate" as const,
+        participantId: bob.deviceId,
+        text: "Inspect the project",
+      },
+    };
+    await f.service.prepareLocalTurn(first, "first-turn");
+    await f.service.operate(
+      first,
+      operation,
+      "execute",
+      "same-model-call",
+      "first-turn",
+    );
+    await f.service.prepareLocalTurn(second, "second-turn");
+    const result = await f.service.operate(
+      second,
+      operation,
+      "execute",
+      "same-model-call",
+      "second-turn",
+    );
+    expect(
+      f.gateway.store
+        .list<CollaborationTask>("collaboration-tasks")
+        .map((t) => t.coordinatorThreadId)
+        .sort(),
+    ).toEqual([first, second].sort());
+    expect(
+      await f.service.operate(
+        second,
+        operation,
+        "execute",
+        "same-model-call",
+        "second-turn",
+      ),
+    ).toEqual(result);
+    expect(f.gateway.store.list("collaboration-tasks")).toHaveLength(2);
+    await expect(
+      f.service.operate(
+        second,
+        {
+          ...operation,
+          command: { ...operation.command, text: "Different task" },
+        },
+        "execute",
+        "same-model-call",
+        "second-turn",
+      ),
+    ).rejects.toThrow("different command");
+    await f.service.prepareLocalTurn(second, "third-turn");
+    await f.service.operate(
+      second,
+      operation,
+      "execute",
+      "same-model-call",
+      "third-turn",
+    );
+    expect(f.gateway.store.list("collaboration-tasks")).toHaveLength(3);
+  });
+  it("waits for every group confirmation and a local project grant before creating a group conversation", async () => {
+    const f = await fixture("feishu");
+    const endpoint = { connectionId: "w", id: "group", kind: "group" as const };
+    const space = {
+      id: "waiting",
+      revision: "v1",
+      name: "Waiting",
+      endpoints: [endpoint],
+      participants: [
+        {
+          deviceId: f.service.status().settings.deviceId,
+          identity: f.identity,
+          name: "Alice",
+        },
+      ],
+    };
+    f.gateway.store.put("spaces", space.id, space);
+    await f.service.poll();
+    expect(f.threads).toHaveLength(0);
+    f.gateway.store.put("space-confirmations", space.id, [
+      imConversationKey(endpoint),
+    ]);
+    await f.service.poll();
+    expect(f.threads).toHaveLength(0);
+    await f.service.save({
+      ...f.service.status().settings,
+      grants: f.service
+        .status()
+        .settings.grants.map((g) => ({ ...g, groups: ["space:waiting"] })),
+    });
+    await f.service.poll();
+    expect(f.threads).toHaveLength(1);
+    expect(f.starts).toHaveLength(0);
+    await f.send("Private task remains separate");
+    expect(f.threads).toHaveLength(2);
+  });
+  it("reuses the automatic conversation for an IM prompt and retains history while deletion revokes remote work", async () => {
+    const f = await groupFixture();
+    const id = f.threads[0]!.id;
+    await f.send("Inspect this project");
+    expect(f.threads).toHaveLength(1);
+    expect(f.threads[0]!.id).toBe(id);
+    expect(f.starts).toHaveLength(1);
+    await f.service.manage({
+      action: "admin",
+      operation: "remove-space",
+      adminToken: "a".repeat(32),
+      configuration: { id: f.space.id },
+    });
+    await f.service.poll();
+    expect(f.gateway.store.get("spaces", f.space.id)).toBeUndefined();
+    expect(f.threads).toHaveLength(1);
+    expect(f.threads[0]!.status).toBe("idle");
+    expect(() => f.service.authorizeThread(id, "plan")).toThrow();
+    expect(f.service.status().remoteTasks[0]!.group?.confirmed).toBe(false);
+    await f.send("Do not execute after deletion");
+    expect(f.starts).toHaveLength(1);
+    expect(f.threads).toHaveLength(1);
+  });
+  it("reports a failed automatic conversation separately and continues delivering other IM tasks", async () => {
+    const f = await fixture("feishu");
+    const endpoint = { connectionId: "w", id: "group", kind: "group" as const };
+    f.gateway.store.put("spaces", "sync-failure", {
+      id: "sync-failure",
+      revision: "v1",
+      name: "Group",
+      endpoints: [endpoint],
+      participants: [
+        {
+          deviceId: f.service.status().settings.deviceId,
+          identity: f.identity,
+          name: "Alice",
+        },
+      ],
+    });
+    f.gateway.store.put("space-confirmations", "sync-failure", [
+      imConversationKey(endpoint),
+    ]);
+    await f.service.save({
+      ...f.service.status().settings,
+      grants: f.service
+        .status()
+        .settings.grants.map((g) => ({ ...g, groups: ["space:sync-failure"] })),
+    });
+    const create = f.ops.create;
+    f.ops.create = async (...args) => {
+      if (args[3].startsWith("群协作"))
+        throw new Error("Group creation failed");
+      return create(...args);
+    };
+    await f.send("Continue private task");
+    expect(f.starts).toHaveLength(1);
+    expect(f.service.status().groupConversationError).toBe(
+      "Group creation failed",
+    );
+    f.ops.create = create;
+    await f.service.poll();
+    expect(
+      f.threads.filter((thread) => thread.title.startsWith("群协作")),
+    ).toHaveLength(1);
+    expect(f.service.status().groupConversationError).toBeUndefined();
+  });
+  it("lets an active desktop group turn delegate without reopening IM access to its local tools", async () => {
+    const f = await groupFixture();
+    await f.service.save({
+      ...f.service.status().settings,
+      grants: f.service
+        .status()
+        .settings.grants.map((g) => ({ ...g, mode: "execute" })),
+    });
+    const thread = f.threads[0]!;
+    thread.status = "idle";
+    await f.service.prepareLocalTurn(thread.id, "desktop-turn");
+    expect(f.service.profile(thread.id)).toBeUndefined();
+    const operation = {
+      action: "collaborate" as const,
+      command: {
+        action: "delegate-many" as const,
+        text: "",
+        assignments: f.members.map((m) => ({
+          participantId: m.deviceId,
+          text: `Inspect ${m.name}'s part`,
+        })),
+      },
+    };
+    await expect(
+      f.service.operate(thread.id, operation, "execute", "bad", "other-turn"),
+    ).rejects.toThrow();
+    await expect(
+      f.service.operate(
+        thread.id,
+        operation,
+        "plan",
+        "bad-plan",
+        "desktop-turn",
+      ),
+    ).rejects.toThrow();
+    await f.service.operate(
+      thread.id,
+      operation,
+      "execute",
+      "desktop-batch",
+      "desktop-turn",
+    );
+    await Promise.all(f.members.map((m) => m.service.poll()));
+    expect(f.members.map((m) => m.starts.length)).toEqual([1, 1]);
+    for (const task of f.gateway.store.list<CollaborationTask>(
+      "collaboration-tasks",
+    )) {
+      const member = f.members.find(
+        (m) => m.deviceId === task.participantDeviceId,
+      )!;
+      f.gateway.router.receiveReply(member.deviceId, {
+        version: 1,
+        id: `final:${task.id}`,
+        invocationId: task.invocationId,
+        taskId: member.threads.find((t) => t.status === "running")!.id,
+        text: `${member.name} findings`,
+        final: true,
+        visibility: "conversation",
+      });
+    }
+    const completed = (await f.service.operate(
+      thread.id,
+      { action: "collaborate", command: { action: "status", text: "" } },
+      "execute",
+      "desktop-results",
+      "desktop-turn",
+    )) as CollaborationTask[];
+    expect(completed.map((t) => t.state)).toEqual(["completed", "completed"]);
+    expect(completed.map((t) => t.result).sort()).toEqual([
+      "Bob findings",
+      "Carol findings",
+    ]);
+    expect(
+      f.gateway.store
+        .pending<RemoteInvocationContext>("device")
+        .filter((r) => r.recipient === f.service.status().settings.deviceId),
+    ).toHaveLength(0);
+    await f.service.operate(
+      thread.id,
+      {
+        action: "collaborate",
+        command: { action: "finish", text: "Combined findings" },
+      },
+      "execute",
+      "desktop-summary",
+      "desktop-turn",
+    );
+    expect(
+      f.gateway.store
+        .pending<{ text: string }>("outgoing")
+        .filter((r) => r.payload.text.includes("Combined findings")),
+    ).toHaveLength(3);
+    expect(f.service.profile(thread.id)).toBeUndefined();
+    await expect(
+      f.service.operate(
+        thread.id,
+        { action: "read", path: "README.md" },
+        "execute",
+        "read",
+        "desktop-turn",
+      ),
+    ).rejects.toThrow("local control");
+  });
+  it("queues different members through the real collaboration operation in one idempotent batch", async () => {
+    const f = await groupFixture();
+    await f.service.save({
+      ...f.service.status().settings,
+      grants: f.service
+        .status()
+        .settings.grants.map((g) => ({ ...g, mode: "execute" })),
+    });
+    await f.send("让 Bob 检查接口，同时让 Carol 检查前端，完成后汇总。");
+    const threadId = f.threads[0]!.id;
+    const command = {
+      action: "delegate-many" as const,
+      text: "",
+      assignments: f.members.map((m) => ({
+        participantId: m.deviceId,
+        text: m.name === "Bob" ? "检查接口" : "检查前端",
+      })),
+    };
+    await expect(
+      f.service.operate(
+        threadId,
+        { action: "collaborate", command },
+        "plan",
+        "denied-batch",
+      ),
+    ).rejects.toThrow("Plan");
+    const first = await f.service.operate(
+      threadId,
+      { action: "collaborate", command },
+      "execute",
+      "batch",
+    );
+    expect(
+      await f.service.operate(
+        threadId,
+        { action: "collaborate", command },
+        "execute",
+        "batch",
+      ),
+    ).toEqual(first);
+    await Promise.all(f.members.map((m) => m.service.poll()));
+    expect(f.members[0]!.starts).toHaveLength(1);
+    expect(f.members[0]!.starts[0]).toContain("检查接口");
+    expect(f.members[1]!.starts).toHaveLength(1);
+    expect(f.members[1]!.starts[0]).toContain("检查前端");
+  });
+  it("starts two explicitly targeted member sessions without starting the sender, and exposes their current group roster", async () => {
+    const f = await groupFixture();
+    await f.send(
+      `/ask ${f.members.map((m) => m.deviceId).join(",")} Inspect your project`,
+    );
+    expect(f.starts).toHaveLength(0);
+    await Promise.all(f.members.map((m) => m.service.poll()));
+    for (const member of f.members) {
+      expect(member.starts).toHaveLength(1);
+      expect(member.starts[0]).toContain("Inspect your project");
+      expect(member.starts[0]).toContain("协作成员 feishu:alice");
+      const group = member.service.status().remoteTasks[0]!.group!;
+      expect(group).toMatchObject({
+        name: "Cross IM team",
+        executingDeviceId: member.deviceId,
+        confirmed: true,
+        stale: false,
+      });
+      expect(group.members.map((m) => m.name)).toEqual([
+        "Alice",
+        "Bob",
+        "Carol",
+      ]);
+      expect(
+        group.members.find((m) => m.deviceId === member.deviceId),
+      ).toMatchObject({ deviceName: member.name, state: "online" });
+    }
+    const bob = f.members[0]!;
+    const threadId = bob.threads.find((t) => t.status === "running")!.id;
+    const envelope = (payload: AgentEvent["payload"]): AgentEvent => ({
+      protocolVersion: 4,
+      eventId: randomUUID(),
+      threadId,
+      turnId: "turn",
+      seq: 1,
+      timestamp: new Date().toISOString(),
+      payload,
+    });
+    bob.events.push(
+      envelope({
+        type: "message.part.delta",
+        partType: "text",
+        partId: "answer",
+        delta: "BOB_RESULT",
+      }),
+    );
+    bob.service.observe([
+      envelope({
+        type: "turn.completed",
+        reason: "completed",
+        finalPartId: "answer",
+      }),
+    ]);
+    await bob.service.poll();
+    const outputs = f.gateway.store.pending<{
+      text: string;
+      conversation: { id: string };
+    }>("outgoing");
+    expect(
+      outputs
+        .filter((o) => o.payload.text.includes("BOB_RESULT"))
+        .map((o) => o.payload.conversation.id)
+        .sort(),
+    ).toEqual(f.space.endpoints.map((e) => e.id).sort());
+    await bob.service.save({
+      ...bob.service.status().settings,
+      enabled: false,
+    });
+    expect(bob.service.status().remoteTasks[0]!.group!.stale).toBe(true);
+  });
+  it.each(["project", "space"])(
+    "denies a targeted task before creating a thread when the target has no %s grant",
+    async (scope) => {
+      const f = await groupFixture(),
+        bob = f.members[0]!;
+      await bob.service.save({
+        ...bob.service.status().settings,
+        defaultProjectId: scope === "project" ? "" : "project",
+        grants:
+          scope === "project"
+            ? []
+            : [
+                executionGrantSchema.parse({
+                  projectId: "project",
+                  expiresAt: Date.now() + 600000,
+                }),
+              ],
+      });
+      await f.send(`/ask ${bob.deviceId} Inspect`);
+      await bob.service.poll();
+      expect(bob.threads).toHaveLength(1); // The pre-existing idle group conversation remains.
+      expect(bob.starts).toHaveLength(0);
+      expect(f.starts).toHaveLength(0);
+      expect(
+        f.gateway.store
+          .pending<{ text: string }>("outgoing")
+          .some((o) => /authorized|授权/u.test(o.payload.text)),
+      ).toBe(true);
+    },
+  );
+  it("denies owner control commands and stops delivering after the requesting member is removed", async () => {
+    const f = await groupFixture(),
+      bob = f.members[0]!;
+    await f.send(`/ask ${bob.deviceId} /approve secret yes`);
+    await bob.service.poll();
+    expect(bob.starts).toHaveLength(0);
+    expect(f.approvals).toHaveLength(0);
+    await f.send(`/ask ${bob.deviceId} Inspect`);
+    f.gateway.store.put("spaces", f.space.id, {
+      ...f.space,
+      participants: f.space.participants.slice(1),
+    });
+    await bob.service.poll();
+    expect(bob.starts).toHaveLength(0);
+  });
   it("lets the desktop start locally after IM expires or is disabled without removing the conversation binding", async () => {
     const f = await fixture();
     await f.send("/new remote task");
@@ -806,7 +1636,8 @@ describe("IM desktop and Gateway loop", () => {
     ) as { id: string; invocationId: string };
     await bob.poll();
     expect(bobStarts).toHaveLength(1);
-    expect(bobThreads[0]?.id).not.toBe(f.threads[0]?.id);
+    const delegatedThread = bobThreads.find((t) => t.status === "running")!;
+    expect(delegatedThread.id).not.toBe(f.threads[0]?.id);
     expect(bobProject.path).not.toBe(f.ops.projects()[0]?.path);
     expect(
       f.gateway.store.get<{ state: string }>(
@@ -845,7 +1676,7 @@ describe("IM desktop and Gateway loop", () => {
       f.gateway.router.collaborate(
         bob.status().settings.deviceId,
         peerMessage.id,
-        bobThreads[0]!.id,
+        delegatedThread.id,
         {
           action: "delegate",
           participantId: rootRequest.deviceId,
@@ -858,7 +1689,7 @@ describe("IM desktop and Gateway loop", () => {
       id: "bob-final",
       invocationId: assignment.invocationId,
       text: "Second dataset checked: 3 cases passed.",
-      taskId: bobThreads[0]!.id,
+      taskId: delegatedThread.id,
       final: true,
     });
     await f.service.poll();
@@ -873,7 +1704,7 @@ describe("IM desktop and Gateway loop", () => {
       f.gateway.router.collaborate(
         bob.status().settings.deviceId,
         assignment.invocationId,
-        bobThreads[0]!.id,
+        delegatedThread.id,
         {
           action: "delegate",
           participantId: rootRequest.deviceId,
@@ -881,7 +1712,7 @@ describe("IM desktop and Gateway loop", () => {
         },
       ),
     ).toThrow("initiating coordinator");
-    bobThreads[0]!.mode = "execute";
+    delegatedThread.mode = "execute";
     const queuedAssignment = f.gateway.router.collaborate(
       rootRequest.deviceId,
       rootRequest.id,
@@ -902,7 +1733,7 @@ describe("IM desktop and Gateway loop", () => {
     ) as { state: string };
     expect(cancelling.state).toBe("cancelling");
     await bob.poll();
-    bobThreads[0]!.status = "idle";
+    delegatedThread.status = "idle";
     await bob.poll();
     expect(bobStarts).toHaveLength(1);
     expect(
@@ -911,7 +1742,11 @@ describe("IM desktop and Gateway loop", () => {
         queuedAssignment.id,
       )?.state,
     ).toBe("cancelled");
-    const deletedId = bobThreads.shift()!.id;
+    const deletedId = delegatedThread.id;
+    bobThreads.splice(
+      bobThreads.findIndex((t) => t.id === deletedId),
+      1,
+    );
     bob.deleteThread(deletedId);
     const originalAssignment = f.gateway.store.get<RemoteInvocationContext>(
       "invocations",
@@ -922,7 +1757,9 @@ describe("IM desktop and Gateway loop", () => {
       id: randomUUID(),
       text: "A late message must not recreate the deleted assignment",
     });
-    expect(bobThreads).toEqual([]);
+    expect(
+      bobThreads.every((t) => t.id !== deletedId && t.status === "idle"),
+    ).toBe(true);
     expect(bobStarts).toHaveLength(1);
   });
   it.runIf(process.platform === "darwin")(

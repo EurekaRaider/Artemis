@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   imConversationKey,
   imIdentityKey,
@@ -17,6 +17,7 @@ async function fixture(withCards = false) {
   const cards: Array<{ text: string; messageId: string | undefined }> = [];
   let receive: ((event: ChannelEvent) => void) | undefined;
   let downloads = 0;
+  const stop = vi.fn();
   const gateway = new ArtemisGateway({
     databasePath: ":memory:",
     encryptionKey: "e".repeat(32),
@@ -25,7 +26,7 @@ async function fixture(withCards = false) {
       receive = callback;
       return {
         start() {},
-        stop() {},
+        stop,
         status: () => ({
           id: config.id,
           channel: config.channel,
@@ -107,11 +108,186 @@ async function fixture(withCards = false) {
     input,
     sent,
     cards,
+    stop,
     receive: (event: ChannelEvent) => receive!(event),
     downloads: () => downloads,
   };
 }
 describe("Gateway lifecycle and delivery authorization", () => {
+  it("opens idle group contexts only for confirmed paired members and lets only administrators remove a space", async () => {
+    const f = await fixture();
+    const endpoint = {
+      ...f.input.conversation,
+      id: "group",
+      kind: "group" as const,
+    };
+    const space = {
+      id: "team",
+      revision: "v1",
+      name: "Team",
+      endpoints: [endpoint],
+      participants: [
+        { deviceId: f.device.id, identity: f.input.identity, name: "Alice" },
+      ],
+      administrators: [f.input.identity],
+    };
+    f.gateway.store.put("spaces", space.id, space);
+    const open = (headers = f.headers) =>
+      fetch(`${f.url}/v1/device/group-context`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ spaceId: space.id }),
+      });
+    expect((await open()).status).toBe(400);
+    f.gateway.store.put("space-confirmations", space.id, [
+      imConversationKey(endpoint),
+    ]);
+    const request = await (await open()).json();
+    expect(request).toMatchObject({
+      deviceId: f.device.id,
+      conversation: { spaceId: space.id },
+      text: "",
+    });
+    expect(f.gateway.store.pending("device")).toHaveLength(0);
+    expect(f.sent).toHaveLength(0);
+    const other = f.gateway.store.register("Other");
+    expect(
+      (
+        await open({
+          ...f.headers,
+          authorization: `Bearer ${other.token}`,
+          "x-artemis-device": other.id,
+        })
+      ).status,
+    ).toBe(400);
+    const otherIdentity = { ...f.input.identity, userId: "Other" };
+    f.gateway.store.pair(f.gateway.store.pairCode(other.id), otherIdentity);
+    f.gateway.store.put("spaces", space.id, {
+      ...space,
+      participants: [
+        ...space.participants,
+        { deviceId: other.id, identity: otherIdentity, name: "Other" },
+      ],
+    });
+    const removeMember = (headers: Record<string, string>, deviceId: string) =>
+      fetch(`${f.url}/v1/admin/remove-space-member`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ spaceId: space.id, deviceId }),
+      });
+    expect((await removeMember(f.headers, f.device.id)).status).toBe(401);
+    expect(f.gateway.router.isInvocationAuthorized(request)).toBe(true);
+    expect(
+      (
+        await removeMember(
+          { authorization: `Bearer ${"a".repeat(32)}` },
+          f.device.id,
+        )
+      ).status,
+    ).toBe(200);
+    expect(f.gateway.router.isInvocationAuthorized(request)).toBe(false);
+    expect(
+      f.gateway.router.findSpace(endpoint)?.participants.map((p) => p.deviceId),
+    ).toEqual([other.id]);
+    expect(
+      (
+        await removeMember(
+          { authorization: `Bearer ${"a".repeat(32)}` },
+          other.id,
+        )
+      ).status,
+    ).toBe(400);
+    const remove = (headers: Record<string, string>) =>
+      fetch(`${f.url}/v1/admin/remove-space`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ id: space.id }),
+      });
+    expect((await remove(f.headers)).status).toBe(401);
+    expect(
+      (await remove({ authorization: `Bearer ${"a".repeat(32)}` })).status,
+    ).toBe(200);
+    expect(f.gateway.router.isInvocationAuthorized(request)).toBe(false);
+    expect((await open()).status).toBe(400);
+    expect(
+      f.gateway.store.get("space-confirmations", space.id),
+    ).toBeUndefined();
+    expect(f.gateway.store.get("connections", "wecom")).toBeDefined();
+    const resave = await fetch(`${f.url}/v1/admin/spaces`, {
+      method: "PUT",
+      headers: { authorization: `Bearer ${"a".repeat(32)}` },
+      body: JSON.stringify({
+        id: space.id,
+        name: space.name,
+        endpoints: space.endpoints,
+        participants: space.participants,
+        administrators: space.administrators,
+      }),
+    });
+    expect(resave.status).toBe(400);
+    expect((await resave.json()).error).toContain("空间 ID 已删除");
+  });
+  it("removes a connection only for administrators, revokes pairing, and never reuses its routing ID", async () => {
+    const f = await fixture();
+    const pendingDevice = f.gateway.store.register("Pending");
+    const pending = f.gateway.store.requestPair(
+      f.gateway.store.pairCode(pendingDevice.id, Date.now(), true),
+      { ...f.input.identity, userId: "pending" },
+      f.input.conversation,
+    )!;
+    f.gateway.store.put(
+      "direct-routes",
+      imIdentityKey(f.input.identity),
+      f.input.conversation,
+    );
+    const remove = (headers: Record<string, string>) =>
+      fetch(`${f.url}/v1/admin/remove-connection`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ id: "wecom" }),
+      });
+    expect((await remove(f.headers)).status).toBe(401);
+    expect(f.gateway.store.get("connections", "wecom")).toBeDefined();
+    expect(
+      (await remove({ authorization: `Bearer ${"a".repeat(32)}` })).status,
+    ).toBe(200);
+    expect(f.gateway.store.get("connections", "wecom")).toBeUndefined();
+    expect(
+      f.gateway.store.get("identities", imIdentityKey(f.input.identity)),
+    ).toBeUndefined();
+    expect(
+      f.gateway.store.get("direct-routes", imIdentityKey(f.input.identity)),
+    ).toBeUndefined();
+    expect(() =>
+      f.gateway.store.resolvePairRequest(pendingDevice.id, pending.id, true),
+    ).toThrow();
+    const status = await (
+      await fetch(`${f.url}/v1/device/status`, { headers: f.headers })
+    ).json();
+    expect(status.connections).toEqual([]);
+    expect(f.stop).toHaveBeenCalledTimes(1);
+    expect(status.identities).toEqual([]);
+    f.receive({ ...f.input, messageId: "late-after-removal" });
+    expect(
+      f.gateway.store.get("direct-routes", imIdentityKey(f.input.identity)),
+    ).toBeUndefined();
+    const resave = await fetch(`${f.url}/v1/admin/connections`, {
+      method: "PUT",
+      headers: { authorization: `Bearer ${"a".repeat(32)}` },
+      body: JSON.stringify({
+        id: "wecom",
+        channel: "wecom",
+        name: "Replacement",
+        tenantId: "other",
+        enabled: true,
+        botId: "other",
+        secret: "secret",
+      }),
+    });
+    expect(resave.status).toBe(400);
+    expect((await resave.json()).error).toContain("连接 ID");
+  });
+
   it("excludes HTTPS ingress while a Feishu socket owns the connection and preserves identity on transport rollback", async () => {
     const f = await fixture();
     const config = {

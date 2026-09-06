@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "capturedAt": "2026-09-06T09:21:35.461Z",
+  "appVersion": "1.4.62",
+  "sourceHead": "22af9a1438eda49d7243225af41a12f06cc40dea",
+  "sourceState": "Local working tree, including in-progress changes present at capture time.",
+  "platform": "macOS arm64",
+  "renderer": "Production Electron build",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "data": "Isolated synthetic project, conversation, usage, agent and disabled automation fixtures. Presentation identity replaced with Artemis in the isolated snapshot handler. No provider turn was submitted. Native titlebar excluded.",
+  "privacy": {
+    "displayName": "Artemis",
+    "visiblePersonalNames": false,
+    "visibleHomePaths": false
+  },
+  "security": {
+    "sandbox": true,
+    "contextIsolation": true,
+    "nodeIntegration": false
+  },
+  "errors": [],
+  "screenshots": [
+    {
+      "file": "workspace-light.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 107107,
+      "sha256": "139464f10ff347bc105cdf8d9d5ef736168a4cd0ce5fa4bddd19858097f14df8"
+    },
+    {
+      "file": "workspace-dark.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 107208,
+      "sha256": "0dc9911311d7875a4e5c67042094a3fd50ba7e067bf7611f61b31927d364c7be"
+    },
+    {
+      "file": "git-review.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 158689,
+      "sha256": "06e40668b6a3700a0fb01c02bc6b20cab2d876710d58f78cd3b171d37f1a29ad"
+    },
+    {
+      "file": "markdown-files.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 165621,
+      "sha256": "81447d55faddb2a837c4df4fa6c3f9c296917dc6de091765ffe7aca75c36a14a"
+    },
+    {
+      "file": "terminal.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 118844,
+      "sha256": "85b585c3ca512723bae8e130249f3e5f194766985132d8507f7669734ff9ce1a"
+    },
+    {
+      "file": "agent-team.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 129224,
+      "sha256": "60addf7e63fca3170466e2b7bf9f88606616ec66bb57582ce0e2cea3b094fadb"
+    },
+    {
+      "file": "settings-general.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 91372,
+      "sha256": "4c4a6ee376b7a8333b8fcc021bb95196ca5ba943980e256ea4c822bc3a2bbba9"
+    },
+    {
+      "file": "resources.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 116065,
+      "sha256": "45bf56ce70f9c5d2d9b53eecc06a423b24bd53bfc913aa3992b1952073a9b049"
+    },
+    {
+      "file": "token-usage.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 94668,
+      "sha256": "7161bd4e791b1b52c64ffd6aea1d3fd44ec5298de34b964be67f6e0f0ae791ff"
+    },
+    {
+      "file": "automations.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 84723,
+      "sha256": "f04c7c67ff699e9482bb14ca780d202fb95540f3d5baf436630043cea09e2403"
+    },
+    {
+      "file": "workspace-zh-CN.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 105521,
+      "sha256": "ee87cb720037abd8a0baca488788830cedc3a130d93abc17480b2d2be5b9f689"
+    }
+  ]
+}

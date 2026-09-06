@@ -64,6 +64,7 @@ interface SettingsPanelProps {
   initialTab?: SettingsTab;
   locale: AppLocale;
   onClose(): void;
+  onOpenThread?: ((threadId: string) => Promise<void>) | undefined;
   returnFocusRef?: RefObject<HTMLElement | null> | undefined;
   onSettingsChange(
     settings: SettingsSnapshot,
@@ -542,6 +543,7 @@ export function SettingsPanel({
   initialTab = "general",
   locale,
   onClose,
+  onOpenThread,
   onSettingsChange,
   returnFocusRef,
 }: SettingsPanelProps) {
@@ -1252,7 +1254,9 @@ export function SettingsPanel({
               id={`settings-tab-${activeTab}`}
               role="tabpanel"
             >
-              {activeTab === "im" && <ImSettingsPanel locale={locale} />}
+              {activeTab === "im" && (
+                <ImSettingsPanel locale={locale} onOpenThread={onOpenThread} />
+              )}
               {activeTab === "providers" && (
                 <>
                   <Tabs<"builtin" | "custom">

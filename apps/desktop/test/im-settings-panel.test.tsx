@@ -44,7 +44,10 @@ const connection: ImConnectionStatus = {
     botId: "test-bot",
   },
 };
-type Status = ImStatus & { connections: ImConnectionStatus[] };
+type Status = ImStatus & {
+  connections: ImConnectionStatus[];
+  spaces?: unknown[];
+};
 const t = (cn: string) => cn;
 function fixture(ready = true) {
   let current: Status = {
@@ -124,6 +127,377 @@ const nav = (name: string) =>
   screen.getByRole("tab", { name: new RegExp(name) });
 
 describe("production IM settings", () => {
+  it("loads local groups automatically on entry and restores a saved space after reopening settings", async () => {
+    const f = fixture();
+    const space = {
+      id: "saved",
+      name: "Saved team",
+      confirmed: true,
+      endpoints: [
+        { connectionId: connection.id, id: "existing-group", kind: "group" },
+      ],
+      participants: [{ deviceId: "test-device", identity, name: "Alice" }],
+      administrators: [identity],
+    };
+    f.set({ localGateway: { state: "running" }, spaces: [space] });
+    const original = f.manage.getMockImplementation()!;
+    f.manage.mockImplementation(async (input) =>
+      input.action === "admin" && input.operation === "status"
+        ? {
+            identities: [{ identity, deviceId: "test-device" }],
+            groups: [
+              { conversation: space.endpoints[0], lastSeenAt: Date.now() },
+            ],
+            spaces: [space],
+            deliveries: [],
+          }
+        : original(input),
+    );
+    const user = userEvent.setup();
+    const first = render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(nav("群协作空间"));
+    expect(
+      await screen.findByRole("checkbox", {
+        name: "Test bot · existing-group",
+      }),
+    ).toBeVisible();
+    expect(f.manage).toHaveBeenCalledWith({
+      action: "admin",
+      operation: "status",
+    });
+    first.unmount();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(nav("群协作空间"));
+    await user.click(
+      await screen.findByRole("button", { name: "打开已保存配置：Saved team" }),
+    );
+    expect(screen.getByLabelText("给这组群起个名字")).toHaveValue("Saved team");
+    expect(
+      screen.getByRole("button", { name: "复制群确认指令" }),
+    ).toBeVisible();
+    expect(screen.queryByText(/还没有已配对账号/)).not.toBeInTheDocument();
+  });
+  it("recognizes a configured Lark bot when pairing and uses the selected platform for all commands", async () => {
+    const f = fixture();
+    f.set({
+      identities: [],
+      connections: [
+        {
+          id: "lark-team",
+          name: "Lark bot",
+          channel: "feishu",
+          state: "connected",
+          configuration: { domain: "lark", transport: "websocket" },
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await user.click(
+      await screen.findByRole("button", { name: /^绑定你的 IM 账号/ }),
+    );
+    expect(
+      screen.getByRole("button", { name: "配对平台 Lark 国际版" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/在 Lark 国际版 中找到刚配置的机器人/),
+    ).toBeVisible();
+    expect(document.querySelector("#im-pair ol")).not.toHaveTextContent(
+      "Slack",
+    );
+    await user.click(screen.getByRole("button", { name: "生成一次性配对码" }));
+    expect(screen.getByText("/pair 0123456789abcdef")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /^配对平台/ }));
+    expect(screen.getAllByRole("option")).toHaveLength(4);
+    for (const label of ["企业微信", "飞书国内版", "Lark 国际版", "Slack"])
+      expect(
+        screen.getByRole("option", { name: label, exact: true }),
+      ).toBeVisible();
+    await user.click(
+      screen.getByRole("option", { name: "Slack", exact: true }),
+    );
+    expect(screen.getByText("pair 0123456789abcdef")).toBeVisible();
+    expect(document.querySelector("#im-pair ol")).toHaveTextContent(
+      "Slack 工作区",
+    );
+    await user.click(screen.getByText("试试第一条任务"));
+    expect(document.querySelector("#im-test")).toHaveTextContent("projects");
+    expect(document.querySelector("#im-test")).not.toHaveTextContent(
+      "/projects",
+    );
+    await user.click(screen.getByRole("button", { name: /^配对平台/ }));
+    await user.click(
+      screen.getByRole("option", { name: "Lark 国际版", exact: true }),
+    );
+    expect(screen.getByText("/pair 0123456789abcdef")).toBeVisible();
+    expect(document.querySelector("#im-test")).toHaveTextContent("/projects");
+    for (const label of ["飞书国内版", "企业微信"]) {
+      await user.click(screen.getByRole("button", { name: /^配对平台/ }));
+      await user.click(
+        screen.getByRole("option", { name: label, exact: true }),
+      );
+      expect(screen.getByText("/pair 0123456789abcdef")).toBeVisible();
+      expect(document.querySelector("#im-pair ol")).toHaveTextContent(label);
+      expect(document.querySelector("#im-pair ol")).not.toHaveTextContent(
+        "Slack",
+      );
+    }
+    expect(f.manage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ action: "admin" }),
+    );
+  });
+  it("shows the Lark region before credentials and switches the setup links and saved domain", async () => {
+    const f = fixture();
+    f.set({ localGateway: { state: "running" } });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await user.click(await screen.findByRole("tab", { name: /飞书/ }));
+    const region = screen.getByRole("button", { name: /^应用区域/ });
+    expect(region.closest("details")).toBeNull();
+    await user.click(region);
+    await user.click(screen.getByRole("option", { name: /Lark 国际版/ }));
+    expect(
+      screen.getByRole("link", { name: "打开 Lark 开发者后台" }),
+    ).toHaveAttribute("href", "https://open.larksuite.com/app");
+    await user.type(screen.getByLabelText("App ID"), "cli_lark");
+    await user.type(screen.getByLabelText("App Secret"), "synthetic-secret");
+    await user.click(screen.getByRole("button", { name: "保存并连接机器人" }));
+    expect(f.manage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "admin",
+        operation: "connections",
+        configuration: expect.objectContaining({
+          domain: "lark",
+          id: expect.stringMatching(/^feishu-/),
+          name: "Lark",
+        }),
+      }),
+    );
+  });
+  it.each([
+    {
+      channel: "wecom",
+      label: /企业微信.*无需公网地址/,
+      secretLabel: "Bot Secret",
+    },
+    { channel: "feishu", label: /^飞书.*HTTPS/, secretLabel: "App Secret" },
+    {
+      channel: "slack",
+      label: /^Slack.*Socket Mode/,
+      secretLabel: "Bot User OAuth Token",
+    },
+  ] as const)(
+    "removes a $channel bot without paired accounts, supports cancellation, and clears saved credentials",
+    async ({ channel, label, secretLabel }) => {
+      const f = fixture();
+      const selected = {
+        ...connection,
+        id: `${channel}-team`,
+        channel,
+        state: "error" as const,
+      };
+      f.set({
+        localGateway: { state: "running" },
+        identities: [],
+        connections: [selected],
+      });
+      const original = f.manage.getMockImplementation()!;
+      f.manage.mockImplementation(async (input) => {
+        if (
+          input.action === "admin" &&
+          input.operation === "remove-connection"
+        ) {
+          f.set({ connections: [] });
+          return { removed: true };
+        }
+        return original(input);
+      });
+      const user = userEvent.setup();
+      render(<ImSettingsPanel locale="zh-CN" />);
+      await user.click(await screen.findByRole("button", { name: label }));
+      await user.click(screen.getByRole("button", { name: "移除连接" }));
+      await user.keyboard("{Escape}");
+      expect(
+        screen.queryByRole("button", { name: "确认移除" }),
+      ).not.toBeInTheDocument();
+      expect(f.manage).not.toHaveBeenCalledWith(
+        expect.objectContaining({ operation: "remove-connection" }),
+      );
+      await user.click(screen.getByRole("button", { name: "移除连接" }));
+      f.manage.mockRejectedValueOnce(new Error("Cannot remove"));
+      await user.click(screen.getByRole("button", { name: "确认移除" }));
+      expect(await screen.findByText("Cannot remove")).toBeVisible();
+      expect(screen.getByRole("button", { name: "确认移除" })).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "确认移除" }));
+      expect(f.manage).toHaveBeenCalledWith({
+        action: "admin",
+        operation: "remove-connection",
+        configuration: { id: selected.id },
+      });
+      expect(await screen.findByText("尚未保存机器人连接")).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "更换" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByLabelText(secretLabel)).toBeVisible();
+    },
+  );
+  it("removes only the selected connection and requires an administrator token on a team Gateway", async () => {
+    const f = fixture();
+    const second = { ...connection, id: "second-bot", name: "Second bot" };
+    f.set({ connections: [connection, second] });
+    const original = f.manage.getMockImplementation()!;
+    f.manage.mockImplementation(async (input) => {
+      if (input.action === "admin" && input.operation === "remove-connection") {
+        f.set({ connections: [connection] });
+        return { removed: true };
+      }
+      return original(input);
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await user.click(
+      await screen.findByRole("button", { name: /^机器人连接/ }),
+    );
+    await user.click(screen.getByRole("option", { name: "Second bot" }));
+    await user.click(screen.getByRole("button", { name: "移除连接" }));
+    expect(screen.getByText(/确认移除“Second bot”/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "确认移除" })).toBeDisabled();
+    const token = "synthetic-administrator-credential";
+    await user.type(screen.getByLabelText("移除连接的管理凭据"), token);
+    await user.click(screen.getByRole("button", { name: "确认移除" }));
+    expect(f.manage).toHaveBeenCalledWith({
+      action: "admin",
+      operation: "remove-connection",
+      adminToken: token,
+      configuration: { id: second.id },
+    });
+    expect(
+      await screen.findByText(connection.name, { selector: "code" }),
+    ).toBeVisible();
+    expect(screen.getByText(identity.userId)).toBeVisible();
+    expect(
+      screen.queryByLabelText("移除连接的管理凭据"),
+    ).not.toBeInTheDocument();
+  });
+  it("connects a new Feishu bot from two credentials with generated metadata and actionable personal setup help", async () => {
+    const f = fixture();
+    f.set({ localGateway: { state: "running" } });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(nav("飞书"));
+    expect(
+      screen.getByText("高级设置（通常无需修改）").closest("details"),
+    ).not.toHaveAttribute("open");
+    expect(
+      screen.getByLabelText("Tenant Key（可留空，自动获取）"),
+    ).not.toBeVisible();
+    await user.click(screen.getByText("我是个人开发者，没有企业怎么办？"));
+    expect(screen.getByText(/这里的“企业”指飞书团队/)).toBeVisible();
+    await user.type(screen.getByLabelText("App ID"), "cli_example");
+    await user.type(
+      screen.getByLabelText("App Secret"),
+      "synthetic-app-secret",
+    );
+    const save = screen.getByRole("button", { name: "保存并连接机器人" });
+    expect(save).toBeEnabled();
+    await user.click(save);
+    expect(f.manage).toHaveBeenCalledWith({
+      action: "admin",
+      operation: "connections",
+      configuration: {
+        channel: "feishu",
+        enabled: true,
+        transport: "websocket",
+        domain: "feishu",
+        appId: "cli_example",
+        appSecret: "synthetic-app-secret",
+        id: expect.stringMatching(/^feishu-/),
+        name: "飞书",
+      },
+    });
+    expect(screen.queryByLabelText("App Secret")).not.toBeInTheDocument();
+    expect(f.manage).toHaveBeenCalledWith({
+      action: "pair",
+      requireConfirmation: true,
+    });
+  });
+  it("builds a group configuration from discovered groups and paired members without editing JSON", async () => {
+    const f = fixture();
+    f.set({ localGateway: { state: "running" } });
+    const original = f.manage.getMockImplementation()!;
+    const conversation = {
+      connectionId: connection.id,
+      id: "group-123",
+      kind: "group",
+    };
+    f.manage.mockImplementation(async (input) => {
+      if (input.action === "admin" && input.operation === "status")
+        return {
+          identities: [{ identity, deviceId: "test-device" }],
+          groups: [{ conversation, lastSeenAt: Date.now() }],
+          spaces: [],
+          deliveries: [],
+        };
+      return original(input);
+    });
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await screen.findByRole("heading", { name: "应用凭据" });
+    await user.click(nav("群协作空间"));
+    const save = screen.getByRole("button", { name: "保存空间并等待各群确认" });
+    expect(save).toBeDisabled();
+    expect(screen.getByLabelText("空间配置（JSON）")).not.toBeVisible();
+    await user.click(screen.getByRole("button", { name: "刷新群和成员" }));
+    await user.type(screen.getByLabelText("给这组群起个名字"), "我的讨论群");
+    await user.click(
+      screen.getByRole("checkbox", { name: "Test bot · group-123" }),
+    );
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "test-user · 企业微信 · test-device",
+      }),
+    );
+    expect(save).toBeDisabled();
+    await user.click(
+      screen.getByRole("button", { name: /^谁来确认群接入 · Test bot/ }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: "test-user", exact: true }),
+    );
+    expect(save).toBeEnabled();
+    await user.click(save);
+    const input = f.manage.mock.calls
+      .map(([input]) => input)
+      .find(
+        (input) => input.action === "admin" && input.operation === "spaces",
+      );
+    expect(input).toMatchObject({
+      action: "admin",
+      operation: "spaces",
+      configuration: {
+        id: expect.stringMatching(/^space-/),
+        name: "我的讨论群",
+        endpoints: [conversation],
+        participants: [
+          { identity, deviceId: "test-device", name: "test-user" },
+        ],
+        administrators: [identity],
+      },
+    });
+    expect(
+      await screen.findByRole("button", { name: "复制群确认指令" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "去选择项目并授权" }),
+    ).toBeVisible();
+    await user.type(screen.getByLabelText("给这组群起个名字"), "2");
+    expect(
+      screen.queryByRole("button", { name: "复制群确认指令" }),
+    ).not.toBeInTheDocument();
+  });
   it("keeps the compact header, channel status, credential action, and guide in management order", async () => {
     fixture();
     render(<ImSettingsPanel locale="zh-CN" />);
@@ -208,7 +582,7 @@ describe("production IM settings", () => {
     for (const [label, value] of [
       ["连接 ID", "wecom-team"],
       ["连接名称", "Test bot"],
-      ["企业 ID / Tenant Key", "test-corp"],
+      ["企业 ID（Corp ID）", "test-corp"],
       ["Bot ID", "test-bot"],
       ["Bot Secret", "synthetic-secret"],
       ["机器人配置的管理凭据", "a".repeat(32)],
@@ -482,19 +856,17 @@ describe("production IM settings", () => {
       ).not.toBeInTheDocument(),
     );
   });
-  it("keeps advanced collaboration collapsed, clears diagnostic credentials and rejects invalid JSON locally", async () => {
+  it("shows guided groups with advanced JSON collapsed, clears diagnostic credentials and rejects invalid JSON locally", async () => {
     const f = fixture();
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("heading", { name: "应用凭据" });
     await user.click(nav("群协作空间"));
-    const summary = screen.getByText(/进阶：群聊与跨 IM 协作/);
+    const summary = screen.getByText("高级：查看诊断或手动编辑配置");
     expect(summary.closest("details")).not.toHaveAttribute("open");
     await user.click(summary);
     await user.type(screen.getByLabelText("协作空间管理凭据"), "a".repeat(32));
-    await user.click(
-      screen.getByRole("button", { name: "查看连接、成员和投递诊断" }),
-    );
+    await user.click(screen.getByRole("button", { name: "刷新群和成员" }));
     await waitFor(() =>
       expect(screen.getByLabelText("协作空间管理凭据")).toHaveValue(""),
     );

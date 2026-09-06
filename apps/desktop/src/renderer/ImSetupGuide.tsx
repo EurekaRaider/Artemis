@@ -43,8 +43,8 @@ export function ImSetupGuide({
       id: "im-bot",
       title: t("连接一个机器人", "Connect a bot"),
       description: t(
-        "选择企业微信、飞书或 Slack；团队已配置时可跳过填写。",
-        "Choose WeCom, Feishu or Slack. Skip the form if your team already configured a bot.",
+        "选择企业微信、飞书 / Lark 或 Slack；团队已配置时可跳过填写。",
+        "Choose WeCom, Feishu / Lark or Slack. Skip the form if your team already configured a bot.",
       ),
       done: hasBot,
     },
@@ -156,8 +156,8 @@ export function ImGatewayInstructions({
       </Button>
       <p>
         {t(
-          "企业微信、飞书长连接和 Slack 可直接连接，无需公网地址。服务随 Artemis 启动和退出；接收远程任务时请保持电脑唤醒、Artemis 运行。项目权限在第 5 步由你选择。",
-          "WeCom, Feishu long connections and Slack connect without a public URL. The service runs with Artemis; keep this computer awake and Artemis open for remote tasks. Choose project permissions in step 5.",
+          "企业微信、飞书 / Lark 长连接和 Slack 可直接连接，无需公网地址。服务随 Artemis 启动和退出；接收远程任务时请保持电脑唤醒、Artemis 运行。项目权限在第 5 步由你选择。",
+          "WeCom, Feishu / Lark long connections and Slack connect without a public URL. The service runs with Artemis; keep this computer awake and Artemis open for remote tasks. Choose project permissions in step 5.",
         )}
       </p>
       <details>
@@ -169,8 +169,8 @@ export function ImGatewayInstructions({
         </summary>
         <p>
           {t(
-            "团队已有 Gateway 时，填写管理员提供的 HTTPS 地址和管理凭据。飞书选择 HTTPS 回调方式时，仍需要公网回调地址。",
-            "For an existing team Gateway, use the HTTPS URL and administrator token supplied by your administrator. Feishu's HTTPS callback transport still needs a public callback URL.",
+            "团队已有 Gateway 时，填写管理员提供的 HTTPS 地址和管理凭据。飞书 / Lark 选择 HTTPS 回调方式时，仍需要公网回调地址。",
+            "For an existing team Gateway, use the HTTPS URL and administrator token supplied by your administrator. The Feishu / Lark HTTPS callback transport still needs a public callback URL.",
           )}
         </p>
         <div className="im-actions">
@@ -263,8 +263,8 @@ export function ImFirstTaskInstructions({
         <ul>
           <li>
             {t(
-              "机器人不回复：检查第 3 步的机器人状态；企业微信确认没有另一处连接相同 Bot ID，飞书确认应用已发布、你在可用范围内且消息事件已订阅；Slack 确认应用已安装，两个令牌来自同一个应用，并使用不带 / 的普通消息命令。",
-              "No bot reply: check step 3. For WeCom, ensure no other service uses the same Bot ID. For Feishu, publish the app, include yourself in its availability and subscribe to message events. For Slack, install the app, use two tokens from the same app and send plain commands without /.",
+              "机器人不回复：检查第 3 步的机器人状态；企业微信确认没有另一处连接相同 Bot ID，飞书 / Lark 确认应用已发布、你在可用范围内且消息事件已订阅；Slack 确认应用已安装，两个令牌来自同一个应用，并使用不带 / 的普通消息命令。",
+              "No bot reply: check step 3. For WeCom, ensure no other service uses the same Bot ID. For Feishu / Lark, publish the app, include yourself in its availability and subscribe to message events. For Slack, install the app, use two tokens from the same app and send plain commands without /.",
             )}
           </li>
           <li>

@@ -8980,6 +8980,7 @@ kbd {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   gap: 12px;
   padding: 0;
   box-sizing: border-box;
@@ -9090,9 +9091,8 @@ kbd {
 .im-wizard {
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 0;
+  /* The settings surface owns scrolling; keep room for controls' focus rings. */
+  padding: 4px;
 }
 .im-detail [data-artemis-component="management-section"],
 .resource-management-section {
@@ -9142,6 +9142,7 @@ kbd {
   justify-content: space-between;
 }
 .im-identity > .im-identifier,
+.im-identity > .im-account-copy,
 .sidebar-header [data-part="actions"],
 .sources-agent-row > div {
   min-width: 0;
@@ -10422,6 +10423,101 @@ kbd {
 }
 .im-credentials {
   gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+}
+.im-settings
+  :is(
+    [data-artemis-component="text-field"],
+    [data-artemis-component="select"],
+    [data-artemis-component="textarea-field"]
+  ) {
+  min-width: 0;
+  max-width: 100%;
+}
+.im-settings
+  :is([data-artemis-component="text-field"], [data-artemis-component="select"])
+  :is([data-part="control"], [data-part="trigger"]) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  height: 32px;
+  padding: 5px 10px;
+  border-radius: var(--artemis-radius-control);
+  border-color: var(--artemis-color-border-surface);
+  font-size: 12px;
+  line-height: 20px;
+}
+.im-settings :is([data-part="description"], [data-part="label"], p, li) {
+  overflow-wrap: anywhere;
+}
+.im-platform-setup,
+.im-space-setup,
+.im-field-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  align-content: start;
+}
+.im-platform-setup {
+  padding: 4px 0 12px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.im-platform-setup details > summary,
+.im-advanced-fields > summary {
+  padding-block: 6px;
+}
+.im-platform-help {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 4px 16px;
+}
+.im-platform-help details[open] {
+  grid-column: 1 / -1;
+}
+.im-space-setup > [data-part="content"] > [data-artemis-component="button"] {
+  justify-self: start;
+  align-self: start;
+}
+.im-space-builder.im-field-stack {
+  margin-block: 0;
+}
+.im-platform-setup p,
+.im-space-setup p {
+  margin: 0;
+  line-height: 1.6;
+}
+.im-platform-setup h4,
+.im-space-setup h4 {
+  font-size: 13px;
+}
+.im-platform-steps,
+.im-space-steps {
+  padding-inline-start: 22px;
+  margin-block: 10px 0;
+}
+.im-platform-steps li,
+.im-space-steps li {
+  margin-block: 8px;
+}
+.im-setup-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 12px;
+}
+.im-setup-links a {
+  color: var(--artemis-color-accent-text);
+  text-underline-offset: 3px;
+}
+.im-field-stack {
+  margin-block: 12px;
+}
+.im-advanced-fields {
+  margin-block: 4px;
 }
 .im-credential-location,
 .im-connection,
@@ -10430,6 +10526,7 @@ kbd {
 }
 .im-credential-location {
   color: var(--muted);
+  margin: 0;
 }
 .im-settings h4 {
   font-size: 12px;
@@ -10589,4 +10686,36 @@ kbd {
   .resource-installed-row .resource-capability-status {
     display: none;
   }
+}
+
+.im-target-member {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.im-target-member > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.im-member-name-editor {
+  flex-basis: 100%;
+}
+.im-member-mention-menu strong,
+.im-member-mention-menu small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.im-member-removal {
+  flex-basis: 100%;
+  min-width: 0;
+}
+.im-group-members .environment-setting-row {
+  flex-wrap: wrap;
+}
+.im-group-members .environment-setting-row > .environment-setting-copy {
+  flex-basis: 100%;
 }

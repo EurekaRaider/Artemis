@@ -807,6 +807,7 @@ export interface AgentHostSink {
 
 export interface OpenThreadRequest {
   remoteExecution?: RemoteExecutionProfile;
+  groupCollaboration?: boolean;
   threadId: string;
   workspacePath: string;
   target: WorkspaceTarget;
@@ -2737,7 +2738,11 @@ export class ArtemisAgentHost {
     };
     const remoteTools = request.remoteExecution
       ? createRemoteTools(invokeRemoteOperation)
-      : [];
+      : request.groupCollaboration
+        ? createRemoteTools(invokeRemoteOperation).filter(
+            (tool) => tool.name === "collaborate",
+          )
+        : [];
     const readTool = defineTool({
       name: "read",
       label: "Read file",
@@ -5278,6 +5283,7 @@ export class ArtemisAgentHost {
     attachments?: PromptAttachment[],
     goal?: ThreadGoal,
     memoryContext?: string,
+    collaborationContext?: string,
   ): Promise<void> {
     const hosted = this.threads.get(threadId);
     if (!hosted) {
@@ -5304,7 +5310,14 @@ export class ArtemisAgentHost {
       mode === "execute" ? hosted.executeTools : hosted.delegatedTools;
 
     const prompt = appendPromptFiles(
-      buildTurnPrompt(mode, text, goal, memoryContext, interruptedTeamContext),
+      buildTurnPrompt(
+        mode,
+        text,
+        goal,
+        memoryContext,
+        interruptedTeamContext,
+        collaborationContext,
+      ),
       attachments,
     );
     const expandedPrompt = await expandSkillInvocations(

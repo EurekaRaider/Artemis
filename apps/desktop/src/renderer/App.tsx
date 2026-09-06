@@ -1,3 +1,4 @@
+import { ImMemberMentionMenu, useImMemberMentions } from "./ImMemberMentions";
 import {
   lazy,
   Suspense,
@@ -1818,6 +1819,12 @@ export function App() {
     },
     [updateActiveComposerDraft],
   );
+  const groupMentions = useImMemberMentions({
+    group: activeThreadId ? imThreadDevices[activeThreadId]?.group : undefined,
+    text: prompt,
+    setText: setPrompt,
+    input: promptInput,
+  });
   const copyConversationText = useCallback(
     async (text: string) => {
       try {
@@ -6256,6 +6263,38 @@ export function App() {
                         Boolean(activeThread?.archived)
                       }
                       agents={environmentAgents}
+                      onMentionMember={groupMentions.insert}
+                      memberRemovalDisabled={turnActive || busy}
+                      onRemoveMember={async (deviceId) => {
+                        if (!activeThread) return false;
+                        try {
+                          await window.artemis.manageIm({
+                            action: "remove-conversation-member",
+                            threadId: activeThread.id,
+                            deviceId,
+                          });
+                          setToast(
+                            locale.startsWith("zh")
+                              ? "成员已从本对话移除。"
+                              : "Member removed from this conversation.",
+                          );
+                          return true;
+                        } catch (error) {
+                          setToast({
+                            error: true,
+                            message:
+                              error instanceof Error
+                                ? error.message
+                                : String(error),
+                          });
+                          return false;
+                        }
+                      }}
+                      imGroup={
+                        activeThread
+                          ? imThreadDevices[activeThread.id]?.group
+                          : undefined
+                      }
                       attachments={attachments}
                       defaultOpen
                       dockOpen={workspaceDockOpen}
@@ -7058,24 +7097,37 @@ export function App() {
                             ))}
                           </div>
                         )}
+                        <ImMemberMentionMenu
+                          mentions={groupMentions}
+                          zh={locale.startsWith("zh")}
+                        />
                         <div className="composer-input">
                           <textarea
                             aria-activedescendant={
-                              skillCommandMenuOpen &&
-                              slashCommandSuggestions.length > 0
-                                ? `skill-command-option-${activeSlashSuggestion}`
-                                : undefined
+                              groupMentions.open
+                                ? `im-member-mention-${groupMentions.activeIndex}`
+                                : skillCommandMenuOpen &&
+                                    slashCommandSuggestions.length > 0
+                                  ? `skill-command-option-${activeSlashSuggestion}`
+                                  : undefined
                             }
                             aria-autocomplete="list"
                             aria-controls={
-                              skillCommandMenuOpen
-                                ? "skill-command-menu"
-                                : undefined
+                              groupMentions.open
+                                ? "im-member-mention-menu"
+                                : skillCommandMenuOpen
+                                  ? "skill-command-menu"
+                                  : undefined
                             }
-                            aria-expanded={skillCommandMenuOpen}
+                            aria-expanded={
+                              groupMentions.open || skillCommandMenuOpen
+                            }
                             aria-label={t.prompt}
                             onChange={(event) => {
                               const value = event.target.value;
+                              groupMentions.changed(
+                                event.target.selectionStart,
+                              );
                               setPrompt(value);
                               setSkillMenuDismissed(false);
                               promptHistoryNavigation.current = {
@@ -7083,7 +7135,13 @@ export function App() {
                                 draft: value,
                               };
                             }}
+                            onSelect={(event) =>
+                              groupMentions.selected(
+                                event.currentTarget.selectionStart,
+                              )
+                            }
                             onKeyDown={(event) => {
+                              if (groupMentions.keyDown(event)) return;
                               if (
                                 event.key === "Tab" &&
                                 event.shiftKey &&
@@ -7190,7 +7248,14 @@ export function App() {
                               }
                             }}
                             onPaste={handleAttachmentPaste}
-                            placeholder={t.prompt}
+                            placeholder={
+                              activeThread &&
+                              imThreadDevices[activeThread.id]?.group
+                                ? locale.startsWith("zh")
+                                  ? "输入 @ 选择成员，描述要它完成的任务…"
+                                  : "Type @ to choose a member and describe their task…"
+                                : t.prompt
+                            }
                             ref={promptInput}
                             rows={2}
                             value={prompt}
@@ -8507,6 +8572,11 @@ export function App() {
             initialTab={settingsTab}
             locale={locale}
             onClose={() => setSettingsOpen(false)}
+            onOpenThread={async (threadId) => {
+              await openAutomationThread(threadId);
+              setSettingsOpen(false);
+              window.requestAnimationFrame(() => promptInput.current?.focus());
+            }}
             returnFocusRef={settingsTrigger}
             onSettingsChange={(value, options) => {
               setRuntimeSettings(value);

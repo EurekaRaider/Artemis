@@ -9,7 +9,8 @@ import { TextAreaField } from "@artemis/ui/forms";
 import { InlineNotice } from "@artemis/ui/feedback";
 import { imChannelLabel, type ImTranslate } from "./ImNavigation";
 
-const diagnosticSchema = z.object({
+export const diagnosticSchema = z.object({
+  devices: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
   identities: z.array(
     z.object({ deviceId: z.string(), identity: imIdentitySchema }),
   ),

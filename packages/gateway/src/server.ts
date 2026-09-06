@@ -20,6 +20,7 @@ import { GatewayStore, sameSecret, digest } from "./store.js";
 import { GatewayRouter, type Delivery } from "./router.js";
 import { resolveSlackConnection, SlackAdapter } from "./slack.js";
 import { FeishuSocketAdapter } from "./feishu-socket.js";
+import { resolveFeishuConnection } from "./feishu-setup.js";
 import type { FeishuTyping } from "./feishu-typing.js";
 import {
   normalizeFeishuApproval,
@@ -119,6 +120,8 @@ export class ArtemisGateway {
       this.install(this.store.unseal<ChannelConnection>(sealed.sealed));
   }
   private receiveChannelEvent(event: ChannelEvent): void {
+    if (this.store.get("removed-connections", event.identity.connectionId))
+      return;
     if (!this.router.ingest(event)) return;
     if (
       event.attachments.length &&
@@ -366,13 +369,111 @@ export class ArtemisGateway {
         return;
       }
       if (
+        url.pathname === "/v1/admin/remove-space" &&
+        request.method === "PUT"
+      ) {
+        const { id } = z
+          .object({ id: z.string().min(1).max(256) })
+          .strict()
+          .parse(body);
+        this.store.transaction(() => {
+          this.store.delete("spaces", id);
+          this.store.delete("space-confirmations", id);
+          this.store.put("removed-spaces", id, { id });
+        });
+        respond(response, 200, { removed: true });
+        return;
+      }
+      if (
+        url.pathname === "/v1/admin/remove-space-member" &&
+        request.method === "PUT"
+      ) {
+        const { spaceId, deviceId } = z
+          .object({
+            spaceId: z.string().min(1).max(256),
+            deviceId: z.string().min(1).max(256),
+          })
+          .strict()
+          .parse(body);
+        const space = this.store.get<CollaborationSpace>("spaces", spaceId);
+        if (!space) throw new Error("协作空间不存在。");
+        const participants = space.participants.filter(
+          (p) => p.deviceId !== deviceId,
+        );
+        if (!participants.length)
+          throw new Error(
+            "不能移除空间的最后一名成员；不再需要时请删除整个空间。",
+          );
+        // Removing participants only narrows access. Keep the confirmed endpoints and
+        // revision so remaining members' tasks continue; authorization checks use the
+        // current participant list for both queued work and active operations.
+        this.store.put("spaces", spaceId, { ...space, participants });
+        respond(response, 200, { removed: true });
+        return;
+      }
+      if (
+        url.pathname === "/v1/admin/remove-connection" &&
+        request.method === "PUT"
+      ) {
+        const { id } = z
+          .object({ id: z.string().min(1).max(100) })
+          .strict()
+          .parse(body);
+        if (!this.store.get("connections", id))
+          throw new Error(
+            "机器人连接不存在。 / Bot connection does not exist.",
+          );
+        if (
+          this.store
+            .list<CollaborationSpace>("spaces")
+            .some((space) =>
+              space.endpoints.some((endpoint) => endpoint.connectionId === id),
+            )
+        )
+          throw new Error(
+            "请先从群协作空间中移除此连接，再移除机器人。 / Remove this connection from collaboration spaces first.",
+          );
+        this.store.transaction(() => {
+          this.store.delete("connections", id);
+          // Retain only the ID so queued/history routes can never target a replacement bot.
+          this.store.put("removed-connections", id, { id });
+          for (const { identity } of this.store.list<{ identity: ImIdentity }>(
+            "identities",
+          )) {
+            if (identity.connectionId !== id) continue;
+            const key = imIdentityKey(identity);
+            this.store.delete("identities", key);
+            this.store.delete("direct-routes", key);
+          }
+          for (const pending of this.store.list<{
+            deviceId: string;
+            identity: ImIdentity;
+          }>("pairing-requests"))
+            if (pending.identity.connectionId === id)
+              this.store.delete("pairing-requests", pending.deviceId);
+        });
+        const adapter = this.adapters.get(id);
+        this.adapters.delete(id);
+        adapter?.stop();
+        respond(response, 200, { removed: true });
+        return;
+      }
+      if (
         url.pathname === "/v1/admin/connections" &&
         request.method === "PUT"
       ) {
         const config =
           body?.channel === "slack"
             ? await resolveSlackConnection(body)
-            : channelConnectionSchema.parse(body);
+            : body?.channel === "feishu"
+              ? channelConnectionSchema.parse(
+                  await resolveFeishuConnection(body),
+                )
+              : channelConnectionSchema.parse(body);
+        if (this.store.get("removed-connections", config.id))
+          throw new Error(
+            "此连接 ID 已移除，请使用新的连接 ID。 / This connection ID was removed. Use a new connection ID.",
+          );
         const previous = this.store.get<{ sealed: string }>(
           "connections",
           config.id,
@@ -420,6 +521,10 @@ export class ArtemisGateway {
       }
       if (url.pathname === "/v1/admin/spaces" && request.method === "PUT") {
         const config = spaceSchema.parse(body);
+        if (this.store.get("removed-spaces", config.id))
+          throw new Error(
+            "此空间 ID 已删除，请使用新的空间 ID。 / Use a new ID for a deleted space.",
+          );
         if (
           new Set(config.endpoints.map(imConversationKey)).size !==
             config.endpoints.length ||
@@ -482,7 +587,12 @@ export class ArtemisGateway {
       if (url.pathname === "/v1/admin/status" && request.method === "GET") {
         respond(response, 200, {
           connections: [...this.adapters.values()].map((a) => a.status()),
-          spaces: this.store.list("spaces"),
+          spaces: this.store
+            .list<CollaborationSpace>("spaces")
+            .map((space) => ({
+              ...space,
+              confirmed: !!this.router.findSpace(space.endpoints[0]!),
+            })),
           identities: this.store.list("identities"),
           groups: this.store.list("observed-groups"),
           devices: this.store
@@ -621,6 +731,32 @@ export class ArtemisGateway {
           .map((s) => ({
             ...s,
             confirmed: !!this.router.findSpace(s.endpoints[0]!),
+            participants: s.participants.map((p) => {
+              const device = this.store.get<{ name: string; revoked: boolean }>(
+                "devices",
+                p.deviceId,
+              );
+              const paired =
+                this.store.get<{ deviceId: string }>(
+                  "identities",
+                  imIdentityKey(p.identity),
+                )?.deviceId === p.deviceId;
+              const online =
+                (this.store.get<{ expiresAt: number }>(
+                  "device-leases",
+                  p.deviceId,
+                )?.expiresAt ?? 0) > Date.now();
+              return {
+                ...p,
+                deviceName: device?.name ?? "",
+                state:
+                  !device || device.revoked || !paired
+                    ? "unavailable"
+                    : online
+                      ? "online"
+                      : "offline",
+              };
+            }),
           })),
       });
       return;
@@ -708,6 +844,23 @@ export class ArtemisGateway {
     }
     if (request.method !== "POST") throw new Error("Unknown device operation.");
     const body = JSON.parse(await readBody(request));
+    if (
+      url.pathname === "/v1/device/group-context" &&
+      request.method === "POST"
+    ) {
+      const input = z
+        .object({ spaceId: z.string().min(1).max(256) })
+        .strict()
+        .parse(body);
+      respond(
+        response,
+        200,
+        this.store.transaction(() =>
+          this.router.groupConversationContext(deviceId, input.spaceId),
+        ),
+      );
+      return;
+    }
     if (url.pathname === "/v1/device/artifacts") {
       const input = z
         .object({
@@ -839,24 +992,59 @@ export class ArtemisGateway {
           id: z.string().min(1).max(256),
           invocationId: z.string().min(1),
           threadId: z.string().min(1),
+          desktopTurnId: z.string().min(1).max(256).optional(),
           command: collaborationCommandSchema,
         })
         .strict()
         .parse(body);
-      const key = JSON.stringify([deviceId, input.id]);
-      const old = this.store.get("collaboration-receipts", key);
+      const invocationId = input.desktopTurnId
+        ? this.store.transaction(() =>
+            this.router.desktopCollaborationContext(
+              deviceId,
+              input.invocationId,
+              input.threadId,
+              input.desktopTurnId!,
+            ),
+          )
+        : input.invocationId;
+      const key = JSON.stringify([
+        deviceId,
+        invocationId,
+        input.threadId,
+        input.id,
+      ]);
+      const old = this.store.get<{ command: unknown; result: unknown }>(
+        "collaboration-receipts",
+        key,
+      );
       if (old) {
-        respond(response, 200, old);
+        if (JSON.stringify(old.command) !== JSON.stringify(input.command))
+          throw new Error(
+            "Collaboration call ID cannot be reused for a different command.",
+          );
+        respond(response, 200, old.result);
         return;
       }
+      if (
+        this.store.get(
+          "collaboration-receipts",
+          JSON.stringify([deviceId, input.id]),
+        )
+      )
+        throw new Error(
+          "Legacy collaboration receipt has no conversation scope. Use a new tool call ID.",
+        );
       const result = this.store.transaction(() => {
         const value = this.router.collaborate(
           deviceId,
-          input.invocationId,
+          invocationId,
           input.threadId,
           input.command,
         );
-        this.store.put("collaboration-receipts", key, value);
+        this.store.put("collaboration-receipts", key, {
+          command: input.command,
+          result: value,
+        });
         return value;
       });
       respond(response, 200, result);

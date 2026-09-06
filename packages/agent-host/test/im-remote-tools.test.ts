@@ -4,9 +4,99 @@ import { tmpdir } from "node:os";
 import { describe, it, expect } from "vitest";
 import { ArtemisAgentHost } from "../src/runtime.js";
 import type { BrokerExecutionRequest } from "@artemis/protocol";
-import { createRemoteChildTools } from "../src/remote-tools.js";
+import {
+  createRemoteChildTools,
+  createRemoteTools,
+} from "../src/remote-tools.js";
 
 describe("remote Pi tool boundary", () => {
+  it("adds only the group collaboration tool to an explicitly enabled local Execute session", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "artemis-local-group-"));
+    const calls: BrokerExecutionRequest[] = [];
+    const host = new ArtemisAgentHost(
+      {
+        async request(request) {
+          calls.push(request);
+          return { approved: true, data: [] };
+        },
+      },
+      { emit() {} },
+    );
+    try {
+      await host.openThread({
+        threadId: "local-group",
+        workspacePath: workspace,
+        target: "local",
+        groupCollaboration: true,
+      });
+      await host.openThread({
+        threadId: "ordinary",
+        workspacePath: workspace,
+        target: "local",
+      });
+      const threads = (
+        host as unknown as {
+          threads: Map<
+            string,
+            {
+              currentTurnId?: string;
+              currentMode?: string;
+              executeTools: Array<{
+                name: string;
+                execute(id: string, args: unknown): Promise<unknown>;
+              }>;
+              delegatedTools: Array<{ name: string }>;
+            }
+          >;
+        }
+      ).threads;
+      const group = threads.get("local-group")!;
+      expect(group.executeTools.map((t) => t.name)).toContain("collaborate");
+      expect(group.executeTools.map((t) => t.name)).not.toContain(
+        "remote_write",
+      );
+      expect(group.delegatedTools.map((t) => t.name)).not.toContain(
+        "collaborate",
+      );
+      expect(
+        threads.get("ordinary")!.executeTools.map((t) => t.name),
+      ).not.toContain("collaborate");
+      group.currentTurnId = "desktop-turn";
+      group.currentMode = "execute";
+      await group.executeTools
+        .find((t) => t.name === "collaborate")!
+        .execute("list", { action: "participants" });
+      expect(calls[0]).toMatchObject({
+        threadId: "local-group",
+        turnId: "desktop-turn",
+        operation: { action: "collaborate" },
+      });
+    } finally {
+      host.dispose();
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+  it("exposes one structured batch for different group member assignments", async () => {
+    const calls: unknown[] = [];
+    const tool = createRemoteTools(async (operation) => {
+      calls.push(operation);
+      return "queued";
+    }).find((t) => t.name === "collaborate")!;
+    const assignments = [
+      { participantId: "bob", text: "Check API" },
+      { participantId: "carol", text: "Check UI" },
+    ];
+    await tool.execute("batch", {
+      action: "delegate-many",
+      assignments,
+    } as never);
+    expect(calls).toEqual([
+      {
+        action: "collaborate",
+        command: { action: "delegate-many", assignments, text: "" },
+      },
+    ]);
+  });
   it("enforces a child's current write scope before contacting the broker", async () => {
     const calls: unknown[] = [];
     const tools = createRemoteChildTools(

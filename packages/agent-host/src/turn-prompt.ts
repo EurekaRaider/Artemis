@@ -14,6 +14,7 @@ export function buildTurnPrompt(
   goal?: ThreadGoal,
   memoryContext?: string,
   interruptedTeamContext?: string,
+  collaborationContext?: string,
 ): string {
   const skillInvocations = parseLeadingSkillInvocations(text);
   const userRequest =
@@ -27,7 +28,10 @@ export function buildTurnPrompt(
   const interruptedTeamSection = interruptedTeamContext?.trim()
     ? `\n\nPrevious interrupted agent-team context:\n${interruptedTeamContext.trim()}`
     : "";
-  const prompt = `${modeInstruction(mode)}${goalSection}${memorySection}${interruptedTeamSection}\n\nUser request:\n${userRequest}`;
+  const collaborationSection = collaborationContext
+    ? `\n\nCurrent group collaboration context:\n${collaborationContext}`
+    : "";
+  const prompt = `${modeInstruction(mode)}${goalSection}${memorySection}${interruptedTeamSection}${collaborationSection}\n\nUser request:\n${userRequest}`;
   const skillPrefix = skillInvocations.names
     .map((name) => `/skill:${name}`)
     .join(" ");

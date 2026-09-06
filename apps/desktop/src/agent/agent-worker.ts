@@ -121,6 +121,7 @@ async function handle(command: AgentHostCommand): Promise<void> {
           ...(command.remoteExecution
             ? { remoteExecution: command.remoteExecution }
             : {}),
+          ...(command.groupCollaboration ? { groupCollaboration: true } : {}),
           ...(command.sessionFile ? { sessionFile: command.sessionFile } : {}),
           ...(command.selection ? { selection: command.selection } : {}),
           ...(command.contextWindow
@@ -154,6 +155,7 @@ async function handle(command: AgentHostCommand): Promise<void> {
           command.attachments,
           command.goal,
           command.memoryContext,
+          command.collaborationContext,
         );
         break;
       }

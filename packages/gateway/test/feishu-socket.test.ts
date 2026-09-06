@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { EventDispatcher, type WSClient } from "@larksuiteoapi/node-sdk";
+import {
+  Domain,
+  EventDispatcher,
+  type WSClient,
+} from "@larksuiteoapi/node-sdk";
 import {
   channelConnectionSchema,
   type ChannelConnection,
@@ -76,6 +80,28 @@ function fixture(receive = vi.fn(), receiveCard = vi.fn()) {
 }
 
 describe("Feishu Gateway long connection", () => {
+  it("uses the Lark SDK domain and gives a region-specific error without exposing credentials", () => {
+    const createSocket = vi.fn(() => ({
+      start: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+      getConnectionStatus: () => ({
+        state: "failed" as const,
+        reconnectAttempts: 0,
+      }),
+    }));
+    const adapter = new FeishuSocketAdapter(
+      { ...config, domain: "lark" },
+      vi.fn(),
+      createSocket,
+    );
+    adapter.start();
+    expect(createSocket).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: Domain.Lark }),
+    );
+    expect(adapter.status().error).toContain("open.larksuite.com");
+    expect(adapter.status().error).not.toContain(config.appSecret);
+    adapter.stop();
+  });
   it("keeps legacy callback credentials mandatory and permits a socket without callback secrets", () => {
     expect(channelConnectionSchema.safeParse(config).success).toBe(true);
     expect(

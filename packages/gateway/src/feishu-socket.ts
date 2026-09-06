@@ -138,7 +138,7 @@ export class FeishuSocketAdapter extends FeishuAdapter {
     const error = this.ingestionError
       ? "Feishu event could not be saved. Check Gateway storage."
       : lifecycle === "failed" || this.connectionError
-        ? "Feishu long connection failed. Check app credentials, tenant and event subscription."
+        ? `无法连接 ${this.config.domain === "lark" ? "Lark（open.larksuite.com）" : "飞书（open.feishu.cn）"}。请核对应用区域与 App ID / App Secret；Lark 国际版应用需选择 Lark。区域选错时请移除连接后重新配置。确认机器人已启用，再配置长连接事件订阅。 / ${this.config.domain === "lark" ? "Lark" : "Feishu"} long connection failed. Check app region and credentials; remove and recreate the connection if the region is wrong, then enable the bot and configure long connection events.`
         : undefined;
     return {
       id: this.config.id,

@@ -16,6 +16,7 @@ import {
   type AgentTeamState,
   type AppLocale,
   type ChildAgentState,
+  type ImGroupContext,
   type McpToolUsageState,
   type Project,
   type PromptAttachment,
@@ -41,6 +42,7 @@ import type {
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
+import { ImGroupMembers } from "./ImGroupMembers.js";
 import {
   EnvironmentAddIcon,
   EnvironmentBranchIcon as CodexBranchIcon,
@@ -751,6 +753,10 @@ export function EnvironmentPanel({
   attachments,
   defaultOpen,
   dockOpen,
+  imGroup,
+  onMentionMember,
+  onRemoveMember,
+  memberRemovalDisabled,
   locale,
   mcpUsages,
   onAddProject,
@@ -775,6 +781,10 @@ export function EnvironmentPanel({
   attachments: PromptAttachment[];
   defaultOpen: boolean;
   dockOpen: boolean;
+  imGroup?: ImGroupContext | undefined;
+  onMentionMember?: ((token: string) => void) | undefined;
+  onRemoveMember?: ((deviceId: string) => Promise<boolean>) | undefined;
+  memberRemovalDisabled?: boolean | undefined;
   locale: AppLocale;
   mcpUsages: McpToolUsageState[];
   onAddProject: () => void;
@@ -1544,6 +1554,15 @@ export function EnvironmentPanel({
               {t.close}
             </button>
           </header>
+          {imGroup && (
+            <ImGroupMembers
+              group={imGroup}
+              locale={locale}
+              onMention={onMentionMember}
+              onRemove={onRemoveMember}
+              removalDisabled={memberRemovalDisabled}
+            />
+          )}
           <EnvironmentSection
             action={
               <button

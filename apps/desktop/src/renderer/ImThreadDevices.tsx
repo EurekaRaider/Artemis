@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
-import type { AppLocale, ImDevicePresence } from "@artemis/protocol";
+import type {
+  AppLocale,
+  ImDevicePresence,
+  ImGroupContext,
+} from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
 
 const unknownDevices: ImDevicePresence = { mobile: false, desktop: true };
 
 export function useImThreadDevices() {
-  const [devices, setDevices] = useState<Record<string, ImDevicePresence>>({});
+  const [devices, setDevices] = useState<
+    Record<string, ImDevicePresence & { group?: ImGroupContext }>
+  >({});
   useEffect(() => {
     let mounted = true;
     let pending = false;
@@ -18,7 +24,12 @@ export function useImThreadDevices() {
           const next = Object.fromEntries(
             (status.remoteTasks ?? []).map((task) => [
               task.threadId,
-              task.devicePresence ?? unknownDevices,
+              {
+                ...(task.devicePresence ?? unknownDevices),
+                ...(task.kind === "group" && task.group
+                  ? { group: task.group }
+                  : {}),
+              },
             ]),
           );
           setDevices((current) =>
@@ -26,7 +37,9 @@ export function useImThreadDevices() {
             Object.entries(next).every(
               ([id, value]) =>
                 current[id]?.mobile === value.mobile &&
-                current[id]?.desktop === value.desktop,
+                current[id]?.desktop === value.desktop &&
+                JSON.stringify(current[id]?.group) ===
+                  JSON.stringify(value.group),
             )
               ? current
               : next,
@@ -34,6 +47,17 @@ export function useImThreadDevices() {
         }
       } catch {
         // Keep known IM identities during a temporary status lookup failure.
+        if (mounted)
+          setDevices((current) =>
+            Object.fromEntries(
+              Object.entries(current).map(([id, value]) => [
+                id,
+                value.group
+                  ? { ...value, group: { ...value.group, stale: true } }
+                  : value,
+              ]),
+            ),
+          );
       } finally {
         pending = false;
       }
@@ -42,6 +66,7 @@ export function useImThreadDevices() {
     const timer = window.setInterval(() => void refresh(), 2000);
     const unsubscribe = window.artemis.onImTaskCreated?.((thread) => {
       setDevices((current) => ({ ...current, [thread.id]: unknownDevices }));
+      void refresh();
     });
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
