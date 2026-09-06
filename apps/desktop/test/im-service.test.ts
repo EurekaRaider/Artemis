@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { ArtemisGateway } from "../../../packages/gateway/src/server.js";
 import { ImService, type ImTaskOperations } from "../src/main/im-service.js";
+import * as imSandbox from "../src/main/im-sandbox.js";
 import {
   executionGrantSchema,
   imConversationKey,
@@ -16,10 +17,48 @@ import {
   type Thread,
 } from "@artemis/protocol";
 
+// Routing tests simulate only sandbox preflight; im-sandbox.test.ts exercises
+// the real platform policy and native execution boundaries.
+function mockSandboxPreflight() {
+  vi.spyOn(imSandbox, "buildRemoteShellLaunch").mockImplementation(
+    (workspace, command) => ({
+      executable: "test-im-sandbox",
+      args: [command],
+      cwd: workspace,
+      env: {},
+    }),
+  );
+  return vi
+    .spyOn(imSandbox, "runRemoteShell")
+    .mockImplementation(async (launch) => {
+      const command = launch.args[0];
+      if (
+        command === "printf ARTEMIS_REMOTE_SANDBOX_READY" ||
+        command === "Write-Output 'ARTEMIS_REMOTE_SANDBOX_READY'"
+      ) {
+        return {
+          output: "ARTEMIS_REMOTE_SANDBOX_READY",
+          exitCode: 0,
+          cancelled: false,
+        };
+      }
+      if (
+        command?.includes("private-probe.txt") &&
+        /^(?:cat |Get-Content )/u.test(command)
+      ) {
+        return { output: "Permission denied", exitCode: 1, cancelled: false };
+      }
+      throw new Error(
+        `Unexpected shell command in IM routing test: ${command}`,
+      );
+    });
+}
+
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   for (const clean of cleanups.reverse()) await clean();
   cleanups.length = 0;
+  vi.restoreAllMocks();
 });
 async function fixture(channel: "wecom" | "feishu" | "slack" = "wecom") {
   const root = await mkdtemp(join(tmpdir(), "artemis-im-test-"));
@@ -299,6 +338,22 @@ async function groupFixture() {
   return { ...f, members, source, space, send };
 }
 describe("IM desktop and Gateway loop", () => {
+  it("rejects an Execute grant when sandbox preflight fails", async () => {
+    const f = await fixture();
+    const settings = f.service.status().settings;
+    mockSandboxPreflight().mockResolvedValueOnce({
+      output: "Sandbox unavailable",
+      exitCode: 1,
+      cancelled: false,
+    });
+    await expect(
+      f.service.save({
+        ...settings,
+        grants: settings.grants.map((grant) => ({ ...grant, mode: "execute" })),
+      }),
+    ).rejects.toThrow("原生沙箱验证失败");
+    expect(f.service.status().settings.grants).toEqual(settings.grants);
+  });
   it("creates one idle conversation per confirmed space without an IM task, survives refresh and restart, and preserves explicit deletion", async () => {
     const f = await groupFixture();
     expect(f.threads).toHaveLength(1);
@@ -329,6 +384,7 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.threads).toHaveLength(0);
   });
   it("opens idle conversations for exact target sets, persists member names across restart and rejects other targets", async () => {
+    mockSandboxPreflight();
     const f = await groupFixture();
     const bob = f.members[0]!,
       carol = f.members[1]!;
@@ -539,6 +595,7 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.threads.find((t) => t.id === threadId)).toBeDefined();
   });
   it("scopes collaboration retries to the conversation and turn when model tool call IDs repeat", async () => {
+    mockSandboxPreflight();
     const f = await groupFixture(),
       bob = f.members[0]!;
     await f.service.save({
@@ -720,6 +777,7 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.service.status().groupConversationError).toBeUndefined();
   });
   it("lets an active desktop group turn delegate without reopening IM access to its local tools", async () => {
+    mockSandboxPreflight();
     const f = await groupFixture();
     await f.service.save({
       ...f.service.status().settings,
@@ -823,6 +881,7 @@ describe("IM desktop and Gateway loop", () => {
     ).rejects.toThrow("local control");
   });
   it("queues different members through the real collaboration operation in one idempotent batch", async () => {
+    mockSandboxPreflight();
     const f = await groupFixture();
     await f.service.save({
       ...f.service.status().settings,
