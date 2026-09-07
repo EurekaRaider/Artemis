@@ -105,11 +105,23 @@
     });
   });
   $("#leftToggle").addEventListener("click", function () {
+    /* v130：收起时挂 snap——立即隐藏抽屉并压制 hover 粘滞（点击后鼠标
+       未动，Chromium 保留 .sidebar:hover，浮层会原地不收）。直到下一次
+       鼠标移动才解除，此后 hover peek 的平滑过渡照常。 */
+    var wasCollapsed = body.classList.contains("sidebar-collapsed");
     body.classList.toggle("sidebar-collapsed");
     this.classList.toggle(
       "active",
       !body.classList.contains("sidebar-collapsed"),
     );
+    if (!wasCollapsed) {
+      body.classList.add("sidebar-snap");
+      var clearSnap = function () {
+        body.classList.remove("sidebar-snap");
+        window.removeEventListener("mousemove", clearSnap);
+      };
+      window.addEventListener("mousemove", clearSnap, { once: true });
+    }
   });
 
   /* v123：新建会话入口（nav-row，归档会话之下）——进入工作台视图并聚焦输入框 */

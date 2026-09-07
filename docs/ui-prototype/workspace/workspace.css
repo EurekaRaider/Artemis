@@ -5321,6 +5321,19 @@ html[data-theme="dark"] body::before {
   flex: none;
   margin-left: auto;
 }
+/* v130：收起瞬间禁用抽屉过渡，并硬压制浮层/保 rail 可见——绕过点击后
+   鼠标未动导致的 :hover 粘滞（否则浮层停在原地，看起来没收起）。
+   snap 由下一次 mousemove 移除，之后 hover peek 照常平滑浮出。 */
+body.sidebar-snap .sidebar-main {
+  transition: none !important;
+  transform: translateX(-100%) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+body.sidebar-snap .sidebar-rail {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
 /* v128：收起态 peek 浮层内，品牌 Logo 与 rail 顶部 Logo 同位——可点击固定展开 */
 body.sidebar-collapsed .sidebar-brand .activity-mark {
   cursor: pointer;
