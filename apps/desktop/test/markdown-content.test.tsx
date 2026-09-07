@@ -253,7 +253,7 @@ describe("MarkdownContent", () => {
     );
   });
 
-  it("uses iconified file and external links only for assistant timeline messages", () => {
+  it("keeps file icons without automatic remote favicon requests in assistant messages", () => {
     const appSource = readFileSync(
       fileURLToPath(new URL("../src/renderer/App.tsx", import.meta.url)),
       "utf8",
@@ -267,7 +267,7 @@ describe("MarkdownContent", () => {
     )?.[0];
 
     expect(assistantMessage).toContain("fileLinkIcons");
-    expect(assistantMessage).toContain("externalLinkIcons");
+    expect(assistantMessage).not.toContain("externalLinkIcons");
     expect(stylesSource).toMatch(
       /\.markdown-body a\.workspace-file-link\s*\{[\s\S]*?text-decoration:\s*none;[\s\S]*?\}/u,
     );
@@ -302,7 +302,7 @@ describe("MarkdownContent", () => {
     expect(assistantMessage).toBeDefined();
     expect(assistantMessage).toContain("<MarkdownContent");
     expect(assistantMessage).toContain("fileLinkIcons");
-    expect(assistantMessage).toContain("externalLinkIcons");
+    expect(assistantMessage).not.toContain("externalLinkIcons");
     expect(assistantMessage).toContain("onExternalLink={onExternalLink}");
     expect(assistantMessage).toContain("onFileLink={onFileLink}");
     expect(assistantMessage).toContain(

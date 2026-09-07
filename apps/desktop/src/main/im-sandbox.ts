@@ -1,8 +1,13 @@
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { lstat, realpath } from "node:fs/promises";
+import { lstat, realpath, readdir } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { RunMode } from "@artemis/protocol";
+import {
+  normalizeImPath,
+  isImProtectedPath,
+  type ImDataScope,
+} from "@artemis/protocol";
 import {
   buildSeatbeltLaunch,
   buildWindowsAppContainerLaunch,
@@ -101,6 +106,120 @@ export function buildRemoteShellLaunch(
   throw new Error(
     "Remote Execute requires an available native macOS or Windows sandbox.",
   );
+}
+
+/** Strict IM policies never inherit the legacy workspace-wide sandbox grant. */
+export async function validateImShellScope(
+  workspace: string,
+  scope: ImDataScope,
+): Promise<void> {
+  let remaining = 50000;
+  const visit = async (path: string): Promise<void> => {
+    if (--remaining < 0)
+      throw new Error("命令范围过大，无法验证文件链接；请缩小范围。");
+    if (isImProtectedPath(path)) return;
+    const full = await checkedRemotePath(workspace, path);
+    let info;
+    try {
+      info = await lstat(full);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    if (info.isDirectory() && scope.filePaths?.includes(path))
+      throw new Error("授权文件已被替换为目录。");
+    if (info.isDirectory())
+      for (const name of await readdir(full)) await visit(`${path}/${name}`);
+  };
+  for (const path of new Set(scope.readPaths))
+    await visit(normalizeImPath(path));
+}
+
+export function buildScopedImShellLaunch(
+  workspace: string,
+  command: string,
+  network: boolean,
+  scope: ImDataScope,
+  platform: NodeJS.Platform = process.platform,
+): SandboxLaunch {
+  // Windows' current SandboxSpec only has allow trees; classic AppContainer also
+  // inherits directory ACLs. Neither can enforce protection of future credential
+  // files beneath an allowed directory. Keep commands closed until supported.
+  if (platform !== "darwin")
+    throw new Error(
+      "此平台尚不能强制执行细粒度 IM 命令范围；可继续使用授权的文件读写。",
+    );
+  const quote = (s: string) =>
+    `"${s.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+  const roots = (paths: string[]) =>
+    paths.map((p) => {
+      normalizeImPath(p);
+      if (isImProtectedPath(p)) throw new Error("Protected shell scope.");
+      return resolve(workspace, p);
+    });
+  const read = roots(scope.readPaths),
+    write = roots(scope.writePaths);
+  const rules = (operation: string, paths: string[]) =>
+    paths.length
+      ? [
+          `(allow ${operation} ${paths.map((p) => `(${scope.filePaths?.some((file) => resolve(workspace, file) === p) ? "literal" : "subpath"} ${quote(p)})`).join(" ")})`,
+        ]
+      : [];
+  // ASCII case folding is explicit: Seatbelt regular expressions do not support
+  // JavaScript flags/lookarounds. Hidden configuration is conservatively denied.
+  const folded = (s: string) =>
+    [...s]
+      .map((c) => (/[a-z]/u.test(c) ? `[${c}${c.toUpperCase()}]` : c))
+      .join("");
+  const control = [
+    "agents[.]md",
+    "skill[.]md",
+    "auth[.]json",
+    "credentials",
+    "credentials[.]json",
+    "id_rsa",
+    "id_ed25519",
+    "mcp[.]json",
+    "opencode[.]json",
+    "opencode[.]jsonc",
+    "claude_desktop_config[.]json",
+    "windows-im-files[.]cs",
+    "windows-im-files[.]ps1",
+    "windows-sandbox[.]ps1",
+    "windows-sandbox-setup[.]ps1",
+  ]
+    .map(folded)
+    .join("|");
+  const profile = [
+    "(version 1)",
+    "(deny default)",
+    "(allow process*)",
+    "(allow signal (target self))",
+    "(allow sysctl-read)",
+    '(allow file-read* (subpath "/System") (subpath "/usr/bin") (subpath "/usr/lib") (subpath "/usr/libexec") (subpath "/usr/share") (subpath "/bin") (subpath "/sbin") (literal "/private/var/select/sh"))',
+    '(allow file-read-data (literal "/"))',
+    "(allow file-read-metadata)",
+    '(allow file-read* file-write* (literal "/dev/null") (subpath "/dev/fd"))',
+    ...rules("file-read*", read),
+    ...rules("file-write*", write),
+    `(deny file-read-data file-write* (regex #"/([.][^/]+|${control})(/|$)"))`,
+    `(deny file-read-data file-write* (regex #"/[^/]*[.](${["pem", "key", "p12", "pfx", "keystore"].map(folded).join("|")})$"))`,
+    "(deny mach-lookup)",
+    "(deny ipc-posix-shm)",
+    network ? "(allow network-outbound)" : "(deny network*)",
+  ].join("\n");
+  return {
+    executable: "/usr/bin/sandbox-exec",
+    args: ["-p", profile, "/bin/sh", "-c", command],
+    cwd: workspace,
+    env: {
+      PATH: "/usr/bin:/bin:/usr/sbin:/sbin",
+      HOME: workspace,
+      TMPDIR: workspace,
+      LANG: "en_US.UTF-8",
+    },
+    implementation: "macos-seatbelt",
+  };
 }
 export function runRemoteShell(
   launch: SandboxLaunch,

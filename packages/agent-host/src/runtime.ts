@@ -8,10 +8,10 @@ import type {
   RemoteExecutionProfile,
   RemoteOperation,
 } from "@artemis/protocol";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { join, relative, resolve, sep, isAbsolute } from "node:path";
 
 import {
   DefaultResourceLoader,
@@ -2712,6 +2712,8 @@ export class ArtemisAgentHost {
   async openThread(request: OpenThreadRequest): Promise<{
     sessionFile?: string;
   }> {
+    if (request.groupCollaboration && !request.remoteExecution?.security)
+      throw new Error("Group sessions require a verified IM security context.");
     const current = this.threads.get(request.threadId);
     if (current) {
       return current.session.sessionFile
@@ -4558,7 +4560,9 @@ export class ArtemisAgentHost {
                     }),
                     "child",
                   ),
-                  ...(request.remoteExecution ? remoteResourceOverrides() : {}),
+                  ...(request.remoteExecution
+                    ? remoteResourceOverrides(request.remoteExecution)
+                    : {}),
                 });
                 await childResourceLoader.reload();
                 const modelRuntime = await this.getModelRuntime();
@@ -4882,12 +4886,41 @@ export class ArtemisAgentHost {
       return child;
     };
 
+    const scopedAgentDir = request.remoteExecution
+      ? join(
+          this.agentDir,
+          "im-scoped",
+          createHash("sha256")
+            .update(
+              JSON.stringify([
+                request.threadId,
+                request.remoteExecution.security?.identityKey,
+                request.remoteExecution.security?.audience,
+                request.remoteExecution.security?.revision,
+                request.remoteExecution.security?.spaceRevision,
+              ]),
+            )
+            .digest("hex"),
+        )
+      : this.agentDir;
+    const sessionRelative = request.sessionFile
+      ? relative(scopedAgentDir, resolve(request.sessionFile))
+      : "";
+    const compatibleSession =
+      request.sessionFile &&
+      (!request.remoteExecution ||
+        (!!sessionRelative &&
+          sessionRelative !== ".." &&
+          !sessionRelative.startsWith(`..${sep}`) &&
+          !isAbsolute(sessionRelative)));
     const sessionManager =
-      request.sessionFile && existsSync(request.sessionFile)
+      compatibleSession &&
+      request.sessionFile &&
+      existsSync(request.sessionFile)
         ? omitReasoningFromSession(SessionManager.open(request.sessionFile))
         : createLazySessionManager(
             request.workspacePath,
-            this.agentDir,
+            scopedAgentDir,
             (sessionFile) =>
               this.onSessionFile?.(request.threadId, sessionFile),
           );
@@ -4926,7 +4959,9 @@ export class ArtemisAgentHost {
             : {}),
         };
       }),
-      ...(request.remoteExecution ? remoteResourceOverrides() : {}),
+      ...(request.remoteExecution
+        ? remoteResourceOverrides(request.remoteExecution)
+        : {}),
     });
     await resourceLoader.reload();
     const { session } = await createAgentSession({

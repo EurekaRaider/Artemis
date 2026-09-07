@@ -79,6 +79,7 @@ jobs:
           test/mcp-client-manager.test.ts
           test/terminal-service.integration.test.ts
           test/trusted-extension-manager.integration.test.ts
+          test/im-windows-files.test.ts
 
       - name: Verify Terminal and Browser professional shells in Electron
         run: npm run verify:workspace-dock -w @artemis/desktop

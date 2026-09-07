@@ -655,18 +655,20 @@ public static class ArtemisNativeSandbox
         SecurityIdentifier sid,
         FileSystemRights rights)
     {
+        var isDirectory = Directory.Exists(path);
         var rule = new FileSystemAccessRule(
             sid,
             rights,
-            InheritanceFlags.ContainerInherit |
-                InheritanceFlags.ObjectInherit,
+            isDirectory ? InheritanceFlags.ContainerInherit |
+                InheritanceFlags.ObjectInherit : InheritanceFlags.None,
             PropagationFlags.None,
             AccessControlType.Allow);
-        var directory = new DirectoryInfo(path);
-        var security = directory.GetAccessControl(
-            AccessControlSections.Access);
+        FileSystemSecurity security = isDirectory
+            ? (FileSystemSecurity)new DirectoryInfo(path).GetAccessControl(AccessControlSections.Access)
+            : new FileInfo(path).GetAccessControl(AccessControlSections.Access);
         security.AddAccessRule(rule);
-        directory.SetAccessControl(security);
+        if (isDirectory) new DirectoryInfo(path).SetAccessControl((DirectorySecurity)security);
+        else new FileInfo(path).SetAccessControl((FileSecurity)security);
         return rule;
     }
 
@@ -700,11 +702,13 @@ public static class ArtemisNativeSandbox
         string path,
         FileSystemAccessRule rule)
     {
-        var directory = new DirectoryInfo(path);
-        var security = directory.GetAccessControl(
-            AccessControlSections.Access);
+        var isDirectory = Directory.Exists(path);
+        FileSystemSecurity security = isDirectory
+            ? (FileSystemSecurity)new DirectoryInfo(path).GetAccessControl(AccessControlSections.Access)
+            : new FileInfo(path).GetAccessControl(AccessControlSections.Access);
         security.RemoveAccessRuleSpecific(rule);
-        directory.SetAccessControl(security);
+        if (isDirectory) new DirectoryInfo(path).SetAccessControl((DirectorySecurity)security);
+        else new FileInfo(path).SetAccessControl((FileSecurity)security);
     }
 
     public static int Launch(

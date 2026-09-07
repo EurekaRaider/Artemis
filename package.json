@@ -37,7 +37,7 @@
     "package:gateway": "npm run build:gateway && node scripts/package-gateway.mjs",
     "build:gateway": "npm run build -w @artemis/protocol && npm run build -w @artemis/gateway",
     "gateway": "node packages/gateway/dist/cli.js",
-    "test:im": "npm run build:core && vitest run packages/gateway/test packages/protocol/test/im.test.ts packages/agent-host/test/im-remote-tools.test.ts apps/desktop/test/im-*.test.ts",
+    "test:im": "npm run build:core && vitest run packages/gateway/test packages/protocol/test/im*.test.ts packages/agent-host/test/im-remote-tools.test.ts apps/desktop/test/im-*.test.ts apps/desktop/test/im-*.test.tsx",
     "verify:im": "npm run build && node apps/desktop/scripts/verify-im.mjs",
     "audit:production": "node scripts/audit-production-dependencies.mjs",
     "build": "npm run build:core && npm run build:ui-foundation && npm run build -w @artemis/desktop",

@@ -4,6 +4,7 @@ import {
   imConversationKey,
   imIdentityKey,
   imReplySchema,
+  type ImSecurityContext,
   remoteInvocationSchema,
   type ChannelEvent,
   type CollaborationCommand,
@@ -20,6 +21,12 @@ import type { FeishuTyping } from "./feishu-typing.js";
 import type { FeishuApprovalCard } from "./feishu-approval.js";
 
 export interface Delivery {
+  security?: {
+    deviceId: string;
+    projectId: string;
+    revision: string;
+    audience: string;
+  };
   conversation: ImConversation;
   text: string;
   invocationId?: string;
@@ -54,6 +61,13 @@ export class GatewayRouter {
     return digest(`${event.identity.connectionId}\0${event.messageId}`);
   }
   queueDelivery(id: string, delivery: Delivery): void {
+    if (delivery.invocationId) {
+      const security = this.store.get<NonNullable<Delivery["security"]>>(
+        "invocation-security",
+        delivery.invocationId,
+      );
+      if (security) delivery = { ...delivery, security };
+    }
     const chunks = splitImText(delivery.text);
     chunks.forEach((text, index) =>
       this.store.enqueue(
@@ -482,7 +496,30 @@ export class GatewayRouter {
           ),
       );
   }
+  private inheritSecurity(sourceId: string, targetId: string): void {
+    const own = this.store.get<NonNullable<Delivery["security"]>>(
+      "invocation-security",
+      sourceId,
+    );
+    const inherited =
+      this.store.get<Array<NonNullable<Delivery["security"]>>>(
+        "invocation-dependencies",
+        sourceId,
+      ) ?? [];
+    const dependencies = [...inherited, ...(own ? [own] : [])];
+    if (dependencies.length)
+      this.store.put("invocation-dependencies", targetId, dependencies);
+  }
   isInvocationAuthorized(request: RemoteInvocationContext): boolean {
+    if (
+      (
+        this.store.get<Array<NonNullable<Delivery["security"]>>>(
+          "invocation-dependencies",
+          request.id,
+        ) ?? []
+      ).some((s) => !this.securityAllowed(s))
+    )
+      return false;
     const device = this.store.get<{ revoked: boolean }>(
       "devices",
       request.deviceId,
@@ -528,13 +565,92 @@ export class GatewayRouter {
     }
     return true;
   }
+  securityAllowed(
+    security: NonNullable<Delivery["security"]> | undefined,
+  ): boolean {
+    if (!security) return false;
+    const state = this.store.get<{
+      grants: Array<{
+        projectId: string;
+        revision: string;
+        audience: string;
+        expiresAt: number;
+      }>;
+    }>("device-security", security.deviceId);
+    const lease = this.store.get<{ expiresAt: number }>(
+      "device-leases",
+      security.deviceId,
+    );
+    return (
+      !!lease &&
+      lease.expiresAt > this.now() &&
+      !!state?.grants.some(
+        (g) =>
+          g.projectId === security.projectId &&
+          g.revision === security.revision &&
+          g.audience === security.audience &&
+          g.expiresAt > this.now(),
+      )
+    );
+  }
+  acceptSecurity(
+    deviceId: string,
+    invocationId: string,
+    security: ImReply["security"],
+  ): void {
+    if (!security || !this.securityAllowed({ ...security, deviceId }))
+      throw new Error(
+        "Shared operation requires a current data grant. Upgrade and confirm IM permissions.",
+      );
+    const invocation = this.store.get<RemoteInvocationContext>(
+      "invocations",
+      invocationId,
+    );
+    if (
+      !invocation ||
+      invocation.deviceId !== deviceId ||
+      security.audience !==
+        (invocation.conversation.kind === "direct"
+          ? "owner"
+          : `space:${invocation.conversation.spaceId}`)
+    )
+      throw new Error("Sharing audience does not match the invocation.");
+    const old = this.store.get<NonNullable<Delivery["security"]>>(
+      "invocation-security",
+      invocationId,
+    );
+    if (
+      old &&
+      (old.revision !== security.revision ||
+        old.projectId !== security.projectId ||
+        old.audience !== security.audience)
+    )
+      throw new Error("An invocation cannot change its security scope.");
+    this.store.put("invocation-security", invocationId, {
+      ...security,
+      deviceId,
+    });
+  }
   canDeliver(delivery: Delivery): boolean {
+    if (delivery.security && !this.securityAllowed(delivery.security))
+      return false;
     if (delivery.invocationId) {
       const request = this.store.get<RemoteInvocationContext>(
         "invocations",
         delivery.invocationId,
       );
       if (!request || !this.isInvocationAuthorized(request)) return false;
+      const stamp = this.store.get<NonNullable<Delivery["security"]>>(
+        "invocation-security",
+        request.id,
+      );
+      if (stamp && !this.securityAllowed(stamp)) return false;
+      if (
+        this.store.get("device-security", request.deviceId) &&
+        delivery.taskId &&
+        !delivery.security
+      )
+        return false;
     }
     if (delivery.conversation.spaceId) {
       const space = this.findSpace(delivery.conversation);
@@ -734,7 +850,8 @@ export class GatewayRouter {
       if (assignment && reply.final) {
         const task = assignment;
         if (task && task.state !== "cancelled") {
-          task.result = reply.text;
+          task.deliveryState = reply.deliveryState ?? "delivered";
+          if (task.deliveryState === "delivered") task.result = reply.text;
           task.state = reply.outcome ?? "completed";
           this.store.put("collaboration-tasks", task.id, task);
           // Completion is delivered once to the original coordinator; it has no authority to expand grants.
@@ -749,15 +866,21 @@ export class GatewayRouter {
                   `${task.coordinatorDeviceId}:${task.coordinatorThreadId}`,
                 )?.invocationId === item.id,
             );
-          if (parent && !parent.desktopTurnId) {
+          if (
+            parent &&
+            !parent.desktopTurnId &&
+            task.deliveryState === "delivered"
+          ) {
             const result = {
               ...parent,
               id: `result:${task.id}`,
+              sourceKind: "tool-result" as const,
               taskId: task.coordinatorThreadId,
               text: `[协作结果 ${task.id}]\n${task.result}`,
               attachments: [],
               expiresAt: Math.min(parent.expiresAt, task.expiresAt),
             };
+            this.inheritSecurity(request.id, result.id);
             this.store.put("invocations", result.id, result);
             this.store.enqueue("device", result.id, parent.deviceId, result);
           }
@@ -1023,6 +1146,7 @@ export class GatewayRouter {
       });
       this.store.transaction(() => {
         this.store.put("collaboration-tasks", task.id, task);
+        this.inheritSecurity(request.id, invocation.id);
         this.store.put("invocations", invocation.id, invocation);
         this.store.enqueue(
           "device",
@@ -1094,6 +1218,7 @@ export class GatewayRouter {
           attachments: [],
           originator: request.identity,
         };
+        this.inheritSecurity(request.id, followUp.id);
         this.store.put("invocations", followUp.id, followUp);
         this.store.enqueue("device", followUp.id, target.deviceId, followUp);
       }

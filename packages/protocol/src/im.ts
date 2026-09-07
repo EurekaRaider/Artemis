@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  imGrantSecuritySchema,
+  imDeliverySecuritySchema,
+  type ImSecurityContext,
+  type ImDataScope,
+} from "./im-security.js";
 
 export const IM_PROTOCOL_VERSION = 1 as const;
 const id = z.string().min(1).max(256);
@@ -110,6 +116,7 @@ export const executionGrantSchema = z
     shell: z.boolean().default(false),
     groups: z.array(z.string().min(1).max(1024)).max(100).default([]),
     expiresAt: z.number().int().positive(),
+    security: imGrantSecuritySchema.optional(),
   })
   .strict();
 export type ExecutionGrant = z.infer<typeof executionGrantSchema>;
@@ -200,6 +207,8 @@ export function resolveImGroupMentions(group: ImGroupContext, text: string) {
   return [...found.values()];
 }
 export interface ImStatus {
+  scopedShellSupported?: boolean;
+  scopedFileCreationSupported?: boolean;
   settings: ImSettings;
   state: "disabled" | "connecting" | "connected" | "error";
   error?: string;
@@ -217,6 +226,7 @@ export interface ImStatus {
 }
 export const remoteInvocationSchema = z
   .object({
+    sourceKind: z.enum(["direct", "tool-result", "member"]).optional(),
     version: z.literal(IM_PROTOCOL_VERSION),
     id,
     deviceId: id,
@@ -244,6 +254,8 @@ export const remoteInvocationSchema = z
 export type RemoteInvocationContext = z.infer<typeof remoteInvocationSchema>;
 export const imReplySchema = z
   .object({
+    deliveryState: z.enum(["pending", "delivered"]).optional(),
+    security: imDeliverySecuritySchema.optional(),
     version: z.literal(IM_PROTOCOL_VERSION),
     id,
     invocationId: id,
@@ -275,8 +287,10 @@ export const imReplySchema = z
   .strict();
 export type ImReply = z.infer<typeof imReplySchema>;
 export interface RemoteExecutionProfile {
+  dataScope?: ImDataScope;
   network: boolean;
   shell: boolean;
+  security?: ImSecurityContext;
 }
 export const collaborationCommandSchema = z
   .object({
@@ -308,6 +322,7 @@ export interface CollaborationSpace {
   participants: Array<{ deviceId: string; identity: ImIdentity; name: string }>;
 }
 export interface CollaborationTask {
+  deliveryState?: "pending" | "delivered";
   id: string;
   spaceId: string;
   coordinatorDeviceId: string;
@@ -409,6 +424,31 @@ export const remoteOperationSchema = z.discriminatedUnion("action", [
 ]);
 export type RemoteOperation = z.infer<typeof remoteOperationSchema>;
 export const imManagementSchema = z.discriminatedUnion("action", [
+  z
+    .object({
+      action: z.literal("scope-entries"),
+      projectId: id,
+      path: z.string().max(4096).default(""),
+    })
+    .strict(),
+  z.object({ action: z.literal("outbound-list") }).strict(),
+  z.object({ action: z.literal("outbound-preview"), id }).strict(),
+  z
+    .object({
+      action: z.literal("outbound-resolve"),
+      id,
+      contentHash: id,
+      approve: z.boolean(),
+      text: z.string().max(64000).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("handoff"),
+      threadId: id,
+      text: z.string().max(64000).default(""),
+    })
+    .strict(),
   z
     .object({
       action: z.literal("remove-conversation-member"),

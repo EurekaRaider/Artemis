@@ -2,6 +2,7 @@ import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { ArtemisGateway } from "../../../packages/gateway/src/server.js";
 import { ImService, type ImTaskOperations } from "../src/main/im-service.js";
@@ -15,6 +16,7 @@ import {
   type Project,
   type RemoteInvocationContext,
   type Thread,
+  type ImOutboundCandidate,
 } from "@artemis/protocol";
 
 // Routing tests simulate only sandbox preflight; im-sandbox.test.ts exercises
@@ -54,6 +56,25 @@ function mockSandboxPreflight() {
     });
 }
 
+function security(...audiences: string[]) {
+  return {
+    version: 2 as const,
+    revision: "test",
+    confirmedAt: Date.now(),
+    scopes: audiences.map((audience) => ({
+      audience,
+      filePaths: ["README.md", "result.txt", "report.txt", "artifact.txt"],
+      readPaths: [
+        "src",
+        "README.md",
+        "result.txt",
+        "report.txt",
+        "artifact.txt",
+      ],
+      writePaths: ["src", "result.txt", "report.txt"],
+    })),
+  };
+}
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   for (const clean of cleanups.reverse()) await clean();
@@ -147,6 +168,7 @@ async function fixture(channel: "wecom" | "feishu" | "slack" = "wecom") {
     grants: [
       executionGrantSchema.parse({
         projectId: "project",
+        security: security("owner"),
         expiresAt: Date.now() + 600000,
       }),
     ],
@@ -193,7 +215,7 @@ async function fixture(channel: "wecom" | "feishu" | "slack" = "wecom") {
     port,
   };
 }
-async function groupFixture() {
+async function groupFixture(mode: "plan" | "execute" = "plan") {
   const f = await fixture("feishu");
   const members = [];
   for (const [name, channel] of [
@@ -314,6 +336,8 @@ async function groupFixture() {
         executionGrantSchema.parse({
           projectId: "project",
           groups: ["space:shared"],
+          mode,
+          security: security("owner", "space:shared"),
           expiresAt: Date.now() + 600000,
         }),
       ],
@@ -349,7 +373,11 @@ describe("IM desktop and Gateway loop", () => {
     await expect(
       f.service.save({
         ...settings,
-        grants: settings.grants.map((grant) => ({ ...grant, mode: "execute" })),
+        grants: settings.grants.map((grant) => ({
+          ...grant,
+          mode: "execute",
+          shell: true,
+        })),
       }),
     ).rejects.toThrow("原生沙箱验证失败");
     expect(f.service.status().settings.grants).toEqual(settings.grants);
@@ -365,7 +393,9 @@ describe("IM desktop and Gateway loop", () => {
     });
     expect(f.starts).toHaveLength(0);
     expect(f.service.hasGroupCollaboration(thread.id)).toBe(true);
-    expect(f.service.profile(thread.id)).toBeUndefined();
+    expect(f.service.profile(thread.id)).toMatchObject({
+      security: { version: 2, audience: "space:shared" },
+    });
     expect(f.gateway.store.pending("device")).toHaveLength(0);
     expect(f.gateway.store.pending("outgoing")).toHaveLength(0);
     await Promise.all([
@@ -385,7 +415,7 @@ describe("IM desktop and Gateway loop", () => {
   });
   it("opens idle conversations for exact target sets, persists member names across restart and rejects other targets", async () => {
     mockSandboxPreflight();
-    const f = await groupFixture();
+    const f = await groupFixture("execute");
     const bob = f.members[0]!,
       carol = f.members[1]!;
     await f.service.save({
@@ -596,7 +626,7 @@ describe("IM desktop and Gateway loop", () => {
   });
   it("scopes collaboration retries to the conversation and turn when model tool call IDs repeat", async () => {
     mockSandboxPreflight();
-    const f = await groupFixture(),
+    const f = await groupFixture("execute"),
       bob = f.members[0]!;
     await f.service.save({
       ...f.service.status().settings,
@@ -700,9 +730,11 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.threads).toHaveLength(0);
     await f.service.save({
       ...f.service.status().settings,
-      grants: f.service
-        .status()
-        .settings.grants.map((g) => ({ ...g, groups: ["space:waiting"] })),
+      grants: f.service.status().settings.grants.map((g) => ({
+        ...g,
+        groups: ["space:waiting"],
+        security: security("owner", "space:waiting"),
+      })),
     });
     await f.service.poll();
     expect(f.threads).toHaveLength(1);
@@ -754,9 +786,11 @@ describe("IM desktop and Gateway loop", () => {
     ]);
     await f.service.save({
       ...f.service.status().settings,
-      grants: f.service
-        .status()
-        .settings.grants.map((g) => ({ ...g, groups: ["space:sync-failure"] })),
+      grants: f.service.status().settings.grants.map((g) => ({
+        ...g,
+        groups: ["space:sync-failure"],
+        security: security("owner", "space:sync-failure"),
+      })),
     });
     const create = f.ops.create;
     f.ops.create = async (...args) => {
@@ -778,7 +812,7 @@ describe("IM desktop and Gateway loop", () => {
   });
   it("lets an active desktop group turn delegate without reopening IM access to its local tools", async () => {
     mockSandboxPreflight();
-    const f = await groupFixture();
+    const f = await groupFixture("execute");
     await f.service.save({
       ...f.service.status().settings,
       grants: f.service
@@ -788,7 +822,9 @@ describe("IM desktop and Gateway loop", () => {
     const thread = f.threads[0]!;
     thread.status = "idle";
     await f.service.prepareLocalTurn(thread.id, "desktop-turn");
-    expect(f.service.profile(thread.id)).toBeUndefined();
+    expect(f.service.profile(thread.id)).toMatchObject({
+      security: { version: 2, audience: "space:shared" },
+    });
     const operation = {
       action: "collaborate" as const,
       command: {
@@ -869,7 +905,9 @@ describe("IM desktop and Gateway loop", () => {
         .pending<{ text: string }>("outgoing")
         .filter((r) => r.payload.text.includes("Combined findings")),
     ).toHaveLength(3);
-    expect(f.service.profile(thread.id)).toBeUndefined();
+    expect(f.service.profile(thread.id)).toMatchObject({
+      security: { version: 2, audience: "space:shared" },
+    });
     await expect(
       f.service.operate(
         thread.id,
@@ -878,11 +916,11 @@ describe("IM desktop and Gateway loop", () => {
         "read",
         "desktop-turn",
       ),
-    ).rejects.toThrow("local control");
+    ).rejects.toThrow(/ENOENT/u);
   });
   it("queues different members through the real collaboration operation in one idempotent batch", async () => {
     mockSandboxPreflight();
-    const f = await groupFixture();
+    const f = await groupFixture("execute");
     await f.service.save({
       ...f.service.status().settings,
       grants: f.service
@@ -1042,145 +1080,46 @@ describe("IM desktop and Gateway loop", () => {
     await bob.service.poll();
     expect(bob.starts).toHaveLength(0);
   });
-  it("lets the desktop start locally after IM expires or is disabled without removing the conversation binding", async () => {
+  it("keeps the restricted profile after disabling IM and across restart", async () => {
     const f = await fixture();
     await f.send("/new remote task");
     await f.send("/stop");
     const id = f.threads[0]!.id;
     await f.service.save({ ...f.service.status().settings, enabled: false });
-    const close = vi.spyOn(f.ops, "close");
-    await f.service.prepareLocalTurn(id, "desktop-turn");
-    expect(close).toHaveBeenCalledExactlyOnceWith(id);
-    expect(f.service.profile(id)).toBeUndefined();
-    expect(f.service.status().remoteTasks).toContainEqual(
-      expect.objectContaining({ threadId: id }),
-    );
-    expect(() =>
-      f.service.authorizeOperation(
-        id,
-        { action: "read", path: "README.md" },
-        "plan",
-      ),
-    ).toThrow(/local control/);
-    f.threads[0]!.status = "running";
-    const cancel = vi.spyOn(f.ops, "cancel");
-    await f.service.save({ ...f.service.status().settings, enabled: false });
-    expect(cancel).not.toHaveBeenCalled();
+    await expect(
+      f.service.prepareLocalTurn(id, "desktop-turn"),
+    ).rejects.toThrow();
+    expect(f.service.profile(id)?.security?.version).toBe(2);
+    await f.service.close();
+    const restored = new ImService(f.root, f.secure, f.ops);
+    cleanups.push(() => restored.close());
+    expect(restored.profile(id)?.security?.version).toBe(2);
+    await expect(restored.prepareLocalTurn(id, "next-turn")).rejects.toThrow();
   });
-  it("does not switch a live remote run to local execution", async () => {
+  it("keeps desktop turns within the same data scope and prevents switching active turns", async () => {
     const f = await fixture();
     await f.send("/new active remote task");
     const id = f.threads[0]!.id;
     await expect(
       f.service.prepareLocalTurn(id, "desktop-turn"),
     ).rejects.toThrow(/active turn/);
-    expect(f.service.profile(id)).toBeDefined();
-  });
-  it("keeps the remote boundary if closing the old Pi session fails", async () => {
-    const f = await fixture();
-    await f.send("/new remote task");
     await f.send("/stop");
-    const id = f.threads[0]!.id;
-    vi.spyOn(f.ops, "close").mockRejectedValueOnce(new Error("close failed"));
-    await expect(
-      f.service.prepareLocalTurn(id, "desktop-turn"),
-    ).rejects.toThrow("close failed");
-    expect(f.service.profile(id)).toEqual({ network: false, shell: false });
-  });
-  it("persists local control across restart without requiring a live IM request", async () => {
-    const f = await fixture();
-    await f.send("/new remote task");
-    await f.send("/stop");
-    const id = f.threads[0]!.id;
-    await f.service.save({
-      ...f.service.status().settings,
-      defaultProjectId: "",
-      grants: [],
-    });
     await f.service.prepareLocalTurn(id, "desktop-turn");
-    await f.service.close();
-    const restored = new ImService(f.root, f.secure, f.ops);
-    cleanups.push(() => restored.close());
-    expect(restored.profile(id)).toBeUndefined();
+    expect(f.service.profile(id)?.security?.audience).toBe("owner");
     await expect(
-      restored.prepareLocalTurn(id, "next-desktop-turn"),
-    ).resolves.toBeUndefined();
-    expect(() =>
-      restored.authorizeOperation(
+      f.service.operate(
         id,
-        { action: "read", path: "README.md" },
+        { action: "read", path: "private.txt" },
         "plan",
+        "read",
+        "desktop-turn",
       ),
-    ).toThrow(/local control/);
-  });
-  it("never forwards local approvals or late local results when IM resumes", async () => {
-    const f = await fixture();
-    await f.send("/new remote task");
-    await f.send("/stop");
-    const threadId = f.threads[0]!.id;
-    await f.service.prepareLocalTurn(threadId, "desktop-turn");
-    const event: AgentEvent = {
-      protocolVersion: 4,
-      eventId: randomUUID(),
-      threadId,
-      turnId: "desktop-turn",
-      seq: 1,
-      timestamp: new Date().toISOString(),
-      payload: {
-        type: "approval.requested",
-        approvalId: "local-operation",
-        nonce: randomUUID(),
-        summary: "Local private operation",
-        paths: ["private.txt"],
-        network: [],
-        risk: "medium",
-        allowedScopes: ["once"],
-      },
-    };
-    const deliveries = () =>
-      f.gateway.store.pending<{ text: string }>("outgoing");
-    const count = deliveries().length;
-    f.service.observe([event]);
-    await f.service.poll();
-    expect(deliveries()).toHaveLength(count);
-    await f.send("resume from IM");
-    expect(f.service.profile(threadId)).toBeDefined();
-    const resumedCount = deliveries().length;
-    f.service.observe([{ ...event, eventId: randomUUID() }]);
-    await f.service.poll();
-    expect(deliveries()).toHaveLength(resumedCount);
-    expect(f.approvals).toEqual([]);
-  });
-  it("waits for a local run before restoring a fresh remote profile, and never queues IM text into it", async () => {
-    const f = await fixture();
-    await f.send("/new remote task");
-    await f.send("/stop");
-    const id = f.threads[0]!.id;
-    await f.service.prepareLocalTurn(id, "desktop-turn");
-    f.threads[0]!.status = "running";
-    await f.send("continue from IM");
-    expect(f.queued).toEqual([]);
-    expect(f.starts).toHaveLength(1);
-    expect(f.service.profile(id)).toBeUndefined();
-    f.threads[0]!.status = "idle";
-    const close = vi.spyOn(f.ops, "close");
-    await f.service.poll();
-    expect(close).toHaveBeenCalledExactlyOnceWith(id);
-    expect(f.starts).toHaveLength(2);
-    expect(f.starts[1]).toBe("continue from IM");
-    expect(f.service.profile(id)).toEqual({ network: false, shell: false });
-  });
-  it("does not let an IM continuation change a local runtime while its start is pending", async () => {
-    const f = await fixture();
-    await f.send("/new remote task");
-    await f.send("/stop");
-    const id = f.threads[0]!.id;
-    const release = f.service.reserveStart(id, "execute", false);
+    ).rejects.toThrow(/授权范围/);
+    const release = f.service.reserveStart(id, "plan", false);
     try {
-      await f.service.prepareLocalTurn(id, "desktop-turn");
       await f.send(`/continue ${id}`);
-      expect(f.service.profile(id)).toBeUndefined();
-      expect(() => f.service.reserveStart(id, "execute")).toThrow(/starting/);
+      expect(f.service.profile(id)).toBeDefined();
+      expect(() => f.service.reserveStart(id, "plan")).toThrow(/starting/);
     } finally {
       release();
     }
@@ -1206,7 +1145,7 @@ describe("IM desktop and Gateway loop", () => {
       expect(
         f.service.profile(args[0]),
         "remote profile must precede eager Pi session creation",
-      ).toEqual({ network: false, shell: false });
+      ).toMatchObject({ network: false, shell: false });
       return create(...args);
     };
     await f.send("/new analyze", "same");
@@ -1214,7 +1153,8 @@ describe("IM desktop and Gateway loop", () => {
     expect(f.threads).toHaveLength(1);
     expect(f.starts).toHaveLength(1);
     await f.send("extra detail");
-    expect(f.queued).toEqual(["extra detail"]);
+    expect(f.queued).toHaveLength(1);
+    expect(f.queued[0]).toContain("extra detail");
     await f.send("/stop");
     expect(f.threads[0]?.status).toBe("idle");
   });
@@ -1428,6 +1368,246 @@ describe("IM desktop and Gateway loop", () => {
       .join("\n");
     expect(outbound).toContain("Public final");
     expect(outbound).not.toContain("PRIVATE");
+  });
+  async function pendingReply() {
+    const f = await fixture();
+    await f.send("/new analyze");
+    const secret = "Authorization: Bearer " + "q".repeat(32);
+    const envelope = (payload: AgentEvent["payload"]): AgentEvent => ({
+      protocolVersion: 4,
+      eventId: randomUUID(),
+      threadId: f.threads[0]!.id,
+      turnId: "sensitive-turn",
+      seq: f.events.length + 1,
+      timestamp: new Date().toISOString(),
+      payload,
+    });
+    const answer = envelope({
+      type: "message.part.delta",
+      partId: "answer",
+      partType: "text",
+      delta: secret,
+    });
+    f.events.push(answer);
+    f.service.observe([
+      answer,
+      envelope({
+        type: "turn.completed",
+        reason: "completed",
+        finalPartId: "answer",
+      }),
+    ]);
+    await f.service.poll();
+    const items = (await f.service.manage({
+      action: "outbound-list",
+    })) as ImOutboundCandidate[];
+    expect(items).toHaveLength(1);
+    expect(JSON.stringify(f.gateway.store.pending("outgoing"))).not.toContain(
+      secret,
+    );
+    return { ...f, item: items[0]!, secret };
+  }
+  it("holds a credential result locally and approves the exact candidate only once without rerunning", async () => {
+    const f = await pendingReply();
+    const preview = await f.service.manage({
+      action: "outbound-preview",
+      id: f.item.id,
+    });
+    expect(JSON.stringify(preview)).toContain(f.secret);
+    await expect(
+      f.service.manage({
+        action: "outbound-resolve",
+        id: f.item.id,
+        contentHash: "changed",
+        approve: true,
+      }),
+    ).rejects.toThrow();
+    const approval = {
+      action: "outbound-resolve" as const,
+      id: f.item.id,
+      contentHash: f.item.contentHash,
+      approve: true,
+      text: "Reviewed safe result",
+    };
+    await f.service.manage(approval);
+    await f.service.poll();
+    await f.service.poll();
+    await expect(f.service.manage(approval)).rejects.toThrow();
+    expect(
+      f.gateway.store
+        .pending<{ text: string }>("outgoing")
+        .filter((x) => x.payload.text === "Reviewed safe result"),
+    ).toHaveLength(1);
+    expect(f.starts).toHaveLength(1);
+    expect(JSON.stringify(f.gateway.store.pending("outgoing"))).not.toContain(
+      f.secret,
+    );
+  });
+  it("retries an approved frozen reply after restart without duplicate delivery", async () => {
+    const f = await pendingReply();
+    await f.service.manage({
+      action: "outbound-resolve",
+      id: f.item.id,
+      contentHash: f.item.contentHash,
+      approve: true,
+      text: "ONCE_AFTER_RESTART",
+    });
+    const originalFetch = globalThis.fetch;
+    let lost = false;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (...args) => {
+        const response = await originalFetch(...args);
+        if (!lost && String(args[0]).endsWith("/v1/device/reply")) {
+          lost = true;
+          throw new Error("Acknowledgement lost");
+        }
+        return response;
+      });
+    await f.service.poll();
+    fetchSpy.mockRestore();
+    await f.service.close();
+    const restored = new ImService(f.root, f.secure, f.ops);
+    cleanups.push(() => restored.close());
+    await restored.poll();
+    await restored.poll();
+    expect(
+      f.gateway.store
+        .pending<{ text: string }>("outgoing")
+        .filter((x) => x.payload.text === "ONCE_AFTER_RESTART"),
+    ).toHaveLength(1);
+    expect(f.starts).toHaveLength(1);
+  });
+  it("requires reconfirmation when a space recipient roster changes", async () => {
+    const f = await groupFixture();
+    const prior = f.threads[0]!.id;
+    f.gateway.store.put("spaces", f.space.id, {
+      ...f.space,
+      revision: "new-roster",
+    });
+    await f.service.poll();
+    await f.send("Work with changed recipients");
+    expect(f.starts).toHaveLength(0);
+    await expect(
+      f.service.prepareLocalTurn(prior, "new-turn"),
+    ).rejects.toThrow();
+    await f.service.save({
+      ...f.service.status().settings,
+      grants: f.service.status().settings.grants.map((g) => ({
+        ...g,
+        security: {
+          ...g.security!,
+          confirmedAt: Date.now(),
+          scopes: g.security!.scopes.map((scope) =>
+            scope.audience === "space:shared"
+              ? { ...scope, spaceRevision: "new-roster" }
+              : scope,
+          ),
+        },
+      })),
+    });
+    await f.send("Fresh confirmed task");
+    expect(f.starts).toHaveLength(1);
+    expect(f.threads.at(-1)!.id).not.toBe(prior);
+  });
+  it("invalidates pending deliveries when a scope changes and starts a fresh context", async () => {
+    const f = await pendingReply();
+    const oldId = f.threads[0]!.id;
+    await f.service.save({
+      ...f.service.status().settings,
+      grants: f.service.status().settings.grants.map((g) => ({
+        ...g,
+        security: {
+          ...g.security!,
+          scopes: [
+            { audience: "owner", readPaths: ["README.md"], writePaths: [] },
+          ],
+        },
+      })),
+    });
+    await expect(
+      f.service.manage({
+        action: "outbound-resolve",
+        id: f.item.id,
+        contentHash: f.item.contentHash,
+        approve: true,
+      }),
+    ).rejects.toThrow();
+    await f.send("Fresh task after scope change");
+    expect(f.threads.at(-1)!.id).not.toBe(oldId);
+    expect(JSON.stringify(f.gateway.store.pending("outgoing"))).not.toContain(
+      f.secret,
+    );
+  });
+  it("preserves v2 grants while leaving a paused configuration for rollback", async () => {
+    const f = await fixture();
+    const database = new DatabaseSync(join(f.root, "im.sqlite"));
+    try {
+      const legacy = JSON.parse(
+        String(
+          database
+            .prepare(
+              "SELECT value FROM im_state WHERE namespace='settings' AND id='current'",
+            )
+            .get()!.value,
+        ),
+      );
+      expect(legacy.enabled).toBe(false);
+      expect(legacy.grants).toEqual([]);
+      const modern = JSON.parse(
+        String(
+          database
+            .prepare(
+              "SELECT value FROM im_state WHERE namespace='settings-v2' AND id='current'",
+            )
+            .get()!.value,
+        ),
+      );
+      expect(modern.grants[0].security.version).toBe(2);
+      expect(modern.deviceId).toBe(legacy.deviceId);
+    } finally {
+      database.close();
+    }
+  });
+  it("retains legacy settings but blocks new work until the one-time scope confirmation", async () => {
+    const f = await fixture();
+    await f.service.save({
+      ...f.service.status().settings,
+      grants: [
+        executionGrantSchema.parse({
+          projectId: "project",
+          expiresAt: Date.now() + 600000,
+        }),
+      ],
+    });
+    await f.send("Do work despite missing confirmation");
+    expect(f.starts).toHaveLength(0);
+    expect(f.service.status().identities).toHaveLength(1);
+    expect(JSON.stringify(f.gateway.store.pending("outgoing"))).toContain(
+      "确认",
+    );
+  });
+  it("hands off a private task into an independent restricted task without its history", async () => {
+    const f = await fixture();
+    const original = await f.ops.create(
+      "private-task",
+      "project",
+      "execute",
+      "Private work",
+    );
+    await f.send(`/continue ${original.id}`);
+    const shared = f.threads.at(-1)!;
+    expect(shared.id).not.toBe(original.id);
+    expect(f.service.profile(original.id)).toBeUndefined();
+    expect(f.service.profile(shared.id)?.security?.audience).toBe("owner");
+    expect(f.starts).toHaveLength(0);
+    await f.service.manage({
+      action: "handoff",
+      threadId: shared.id,
+      text: "Owner selected summary",
+    });
+    expect(f.starts).toHaveLength(1);
+    expect(f.starts[0]).toContain("Owner selected summary");
   });
   it("binds approval commands to the owner, task and nonce, then invalidates duplicates", async () => {
     const f = await fixture();
@@ -1649,6 +1829,7 @@ describe("IM desktop and Gateway loop", () => {
         executionGrantSchema.parse({
           projectId: "project",
           groups: ["space:space"],
+          security: security("owner", "space:space"),
           expiresAt: Date.now() + 600000,
         }),
       ],
@@ -1661,6 +1842,7 @@ describe("IM desktop and Gateway loop", () => {
         executionGrantSchema.parse({
           projectId: "project",
           groups: ["space:space"],
+          security: security("owner", "space:space"),
           expiresAt: Date.now() + 600000,
         }),
       ],
