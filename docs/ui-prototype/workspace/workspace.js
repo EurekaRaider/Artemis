@@ -110,6 +110,17 @@
     );
   });
 
+  /* v123：新建会话入口（nav-row，归档会话之下）——进入工作台视图并聚焦输入框 */
+  $("#newThreadBtn").addEventListener("click", function () {
+    body.classList.remove("sidebar-collapsed");
+    body.setAttribute("data-view", "workspace");
+    $$(".activity-button").forEach(function (b) {
+      b.classList.remove("active");
+    });
+    var composer = $(".composer textarea");
+    if (composer) composer.focus();
+  });
+
 
   /* Dock panels share one registry, one tab selection, and one close lifecycle. */
   var panelRegistry = {

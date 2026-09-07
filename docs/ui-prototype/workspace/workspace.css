@@ -5153,7 +5153,8 @@ html[data-theme="dark"] body::before {
   min-height: 32px;
 }
 
-/* v95：搜索会话——独立固定区，紧贴「项目」分组之上，不随会话列表滚动 */
+/* v95：搜索会话——独立固定区，紧贴「项目」分组之上，不随会话列表滚动
+   （v123：新建会话入口移入 sidebar-nav「归档会话」之下，搜索区恢复单行） */
 .sidebar-searchzone {
   flex: none;
   padding: 8px 10px 2px;
