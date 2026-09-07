@@ -857,11 +857,11 @@ body[data-view="automations"] .pg-auto {
 }
 /* v140：毛玻璃浮层。需三重特异性夺回材质：
    .ui-floating 组件类（controls.css，最后加载 + 双类）默认盖成实底 surface-material + blur(6px)。
-   v145：加浓配方 surface 88% + blur(40px)——对话文字透出仅剩色块感，不再映出字 形 */
+   v148：再加重——surface 93% + blur(64px)：透出压到 7%，穿透文字彻底雾化不可辨 */
 .workspace-header .environment-popover.ui-floating {
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: blur(40px) saturate(1.3);
-  -webkit-backdrop-filter: blur(40px) saturate(1.3);
+  background: color-mix(in srgb, var(--surface) 93%, transparent);
+  backdrop-filter: blur(64px) saturate(1.5);
+  -webkit-backdrop-filter: blur(64px) saturate(1.5);
 }
 .environment-popover.open {
   opacity: 1;
