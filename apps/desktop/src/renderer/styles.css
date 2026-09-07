@@ -1032,6 +1032,9 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   );
   border: 1px solid var(--artemis-color-border-surface);
   border-radius: 14px;
+  box-shadow: var(--artemis-shadow-overlay);
+  inset-inline-end: 0;
+  position: absolute;
   max-height: calc(100dvh - 72px);
   outline: none;
   overflow-x: hidden;
