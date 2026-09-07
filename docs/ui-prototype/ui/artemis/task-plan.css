@@ -109,10 +109,12 @@
 .task-step-marker.pending {
   background: transparent;
 }
+/* v119：进行中呼吸灯用 warning 橙（与全局「运行中」语义一致：会话信号点/状态胶囊），
+   单色 accent 下黑白灰太素 */
 .task-step-marker.in_progress {
   animation: plan-breathe 1.6s ease-in-out infinite;
-  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 42%, transparent);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
   position: relative;
 }
 .task-step-marker.in_progress::after {
@@ -120,16 +122,16 @@
   position: absolute;
   inset: 3.5px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--warning);
   animation: plan-dot-pulse 1.6s ease-in-out infinite;
 }
 @keyframes plan-breathe {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 38%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning) 38%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 0%, transparent);
   }
 }
 @keyframes plan-dot-pulse {
