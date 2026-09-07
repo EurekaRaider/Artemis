@@ -7,9 +7,9 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=154" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=155" rel="stylesheet"/>
 
-<link href="workspace-composition.css?v=111" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=125"/>
+<link href="workspace-composition.css?v=111" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=126"/>
 </head>
 <body data-dock="closed" data-empty="0" data-view="workspace">
 <div class="app-shell">
@@ -298,7 +298,7 @@
 </div>
 </div>
 <div class="goal-pill" id="goalPill">
-<button class="goal-main" data-open-panel="goal" title="任务目标 · 悬停显示操作" type="button"><span aria-hidden="true">◎</span><span class="goal-text">目标 · UI 设计语言改版</span></button>
+<button class="goal-main" data-open-panel="goal" title="任务目标 · 悬停显示操作" type="button"><span aria-hidden="true"><svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="11"><circle cx="12" cy="12" r="8.5"></circle><circle cx="12" cy="12" r="4.8"></circle><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"></circle></svg></span><span class="goal-text">目标 · UI 设计语言改版</span></button>
 <span class="goal-acts">
 <button aria-label="暂停目标" class="goal-act pause" id="goalPause" title="暂停目标" type="button"><svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-width="1.9" viewbox="0 0 24 24" width="11"><path d="M9.5 5.5v13M14.5 5.5v13"></path></svg><svg class="alt" fill="none" height="11" stroke="currentColor" stroke-linejoin="round" stroke-width="1.9" viewbox="0 0 24 24" width="11"><path d="M8.5 5.5 18 12l-9.5 6.5z"></path></svg></button>
 <button aria-label="编辑目标" class="goal-act" data-open-panel="goal" title="编辑目标" type="button"><svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="11"><path d="M12.5 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6.5"></path><path d="M17.6 3.4a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 8.6-8.6z"></path></svg></button>
@@ -544,7 +544,11 @@
 <div class="heat-scroll"><div class="heat-chart"><div aria-hidden="true" class="heat-grid" id="heatmap"></div><div aria-hidden="true" class="heat-months" id="heatMonths"></div></div></div>
 </section>
 <section aria-label="按模型统计" class="usage-models">
+<div class="usage-activity-head">
 <h2 class="usage-h2">按模型统计</h2>
+<span style="flex:1"></span>
+<label class="heat-filter"><span>模型</span><select aria-label="按模型统计的模型条件" class="select-pill" id="modelFilter"><option selected>全部模型</option><option>zai · glm-5.3</option><option>anthropic · claude-sonnet-4.6</option><option>较早用量（模型信息不可用）</option></select></label>
+</div>
 <div class="usage-models-scroll">
 <table class="usage-table">
 <thead><tr><th>模型</th><th>输入 Token</th><th>输出 Token</th><th>缓存命中 Token</th><th title="缓存读取 Token ÷ 已报告缓存数据的输入 Token（输入 + 缓存读取 + 缓存写入）。">缓存命中率</th><th>总 Token</th></tr></thead>
@@ -873,8 +877,8 @@
 <li class="im-binding-row">
 <div class="im-binding-main"><span class="im-binding-name">王小明</span><code class="im-identifier">u_9f3a</code><span class="im-binding-meta">Plan 模式</span></div>
 <div class="im-binding-actions">
-<button class="btn btn-ghost" data-toast="已静音（演示）" type="button">静音</button>
-<button class="btn btn-ghost danger" data-im-unbind="" type="button">解除绑定</button>
+<button aria-label="静音" class="im-icon-btn" data-toast="已静音（演示）" title="静音" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M5 5l14 14"></path></svg></button>
+<button aria-label="解除绑定" class="im-icon-btn danger" data-im-unbind="" title="解除绑定" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m9.2 14.8 5.6-5.6"></path><path d="M11 16.2 8.6 18.6a2.55 2.55 0 0 1-3.6-3.6l2.4-2.4"></path><path d="M13 7.8l2.4-2.4a2.55 2.55 0 0 1 3.6 3.6l-2.4 2.4"></path></svg></button>
 </div>
 <div class="im-unbind-confirm" hidden="">
 <span>确认解除与该账号的绑定？</span>
@@ -885,8 +889,8 @@
 <li class="im-binding-row">
 <div class="im-binding-main"><span class="im-binding-name">李四</span><code class="im-identifier">u_2c71</code><span class="im-binding-meta">Execute 模式</span></div>
 <div class="im-binding-actions">
-<button class="btn btn-ghost" data-toast="已恢复输出（演示）" type="button">恢复</button>
-<button class="btn btn-ghost danger" data-im-unbind="" type="button">解除绑定</button>
+<button aria-label="恢复输出" class="im-icon-btn" data-toast="已恢复输出（演示）" title="恢复输出" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M7 16.5h10c-.9-1.1-1.5-2.7-1.5-5a3.5 3.5 0 0 0-7 0c0 2.3-.6 3.9-1.5 5z"></path><path d="M10.3 19a1.8 1.8 0 0 0 3.4 0"></path><path d="M12 4.2v1.6"></path><path d="M6.8 6.3l1.1 1.1"></path><path d="M17.2 6.3l-1.1 1.1"></path></svg></button>
+<button aria-label="解除绑定" class="im-icon-btn danger" data-im-unbind="" title="解除绑定" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="m9.2 14.8 5.6-5.6"></path><path d="M11 16.2 8.6 18.6a2.55 2.55 0 0 1-3.6-3.6l2.4-2.4"></path><path d="M13 7.8l2.4-2.4a2.55 2.55 0 0 1 3.6 3.6l-2.4 2.4"></path></svg></button>
 </div>
 <div class="im-unbind-confirm" hidden="">
 <span>确认解除与该账号的绑定？</span>
@@ -1208,6 +1212,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=118"></script>
+<script src="workspace/workspace.js?v=119"></script>
 </body>
 </html>

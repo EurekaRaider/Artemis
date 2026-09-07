@@ -124,15 +124,42 @@
     }
   });
 
-  /* v123：新建会话入口（nav-row，归档会话之下）——进入工作台视图并聚焦输入框 */
-  $("#newThreadBtn").addEventListener("click", function () {
-    body.classList.remove("sidebar-collapsed");
+  /* v123：新建会话入口（nav-row，归档会话之下）——进入工作台视图并聚焦输入框
+     v124：接线修正——三个新建入口统一走 startNewThread：重置为空会话态
+     （data-empty=1 空态文案 + 标题「新会话」+ 清除会话选中），不再残留旧会话面板 */
+  function startNewThread(label) {
+    body.classList.remove("sidebar-collapsed", "sidebar-snap");
     body.setAttribute("data-view", "workspace");
+    body.dataset.empty = "1";
     $$(".activity-button").forEach(function (b) {
       b.classList.remove("active");
     });
+    $$(".thread").forEach(function (t) {
+      t.classList.remove("active", "running");
+    });
+    var title = $(".workspace-thread-title");
+    if (title) title.textContent = "新会话";
+    var emptyProject = $(".empty-project");
+    if (emptyProject) emptyProject.textContent = label + " · 新会话";
     var composer = $(".composer textarea");
     if (composer) composer.focus();
+  }
+  $("#newThreadBtn").addEventListener("click", function () {
+    var selected = $('#projList button.selected span');
+    startNewThread(selected ? selected.textContent.trim() : "Artemis");
+  });
+  /* 项目行「新会话」笔形按钮：以该项目为上下文开新会话 */
+  document.addEventListener("click", function (ev) {
+    var act = ev.target.closest('.proj-act[title="新会话"]');
+    if (!act) return;
+    var head = act.closest(".project-item").querySelector(".project-head");
+    startNewThread(head ? head.textContent.trim() : "项目");
+  });
+  /* 临时会话组的 +：新建临时会话 */
+  document.addEventListener("click", function (ev) {
+    var add = ev.target.closest('.group-add[title="新建临时会话"]');
+    if (!add) return;
+    startNewThread("临时会话");
   });
 
 
@@ -1085,17 +1112,37 @@
   /* 模型表：点击模型名迁移选中行（对齐真实 aria-pressed + tr.selected 过滤行为） */
   var modelsTable = document.querySelector(".usage-models table");
   if (modelsTable) {
+    var selectModelRow = function (name) {
+      modelsTable.querySelectorAll("tbody tr").forEach(function (tr) {
+        var b = tr.querySelector("td:first-child button");
+        var selected = b && b.textContent.trim() === name;
+        tr.classList.toggle("selected", selected);
+        if (b) b.setAttribute("aria-pressed", String(selected));
+      });
+    };
     modelsTable.addEventListener("click", function (ev) {
       var btn = ev.target.closest("td:first-child button");
       if (!btn) return;
-      var row = btn.closest("tr");
-      modelsTable.querySelectorAll("tbody tr").forEach(function (tr) {
-        var selected = tr === row;
-        tr.classList.toggle("selected", selected);
-        var b = tr.querySelector("td:first-child button");
-        if (b) b.setAttribute("aria-pressed", String(selected));
-      });
+      var name = btn.textContent.trim();
+      selectModelRow(name);
+      var filter = $("#modelFilter");
+      if (filter) filter.value = name; /* 行点击反向同步模型条件 */
     });
+    /* v124：按模型统计的模型条件——选择即迁移表格选中行 */
+    var modelFilter = $("#modelFilter");
+    if (modelFilter) {
+      modelFilter.addEventListener("change", function () {
+        if (modelFilter.value === "全部模型") {
+          modelsTable.querySelectorAll("tbody tr").forEach(function (tr) {
+            tr.classList.remove("selected");
+            var b = tr.querySelector("td:first-child button");
+            if (b) b.setAttribute("aria-pressed", "false");
+          });
+        } else {
+          selectModelRow(modelFilter.value);
+        }
+      });
+    }
   }
 
   /* ---------- 定时任务（结构/行为对齐真实 AutomationPage） ---------- */
@@ -1917,6 +1964,7 @@
   function sendDemo() {
     var value = input.value.trim();
     if (!value) return;
+    body.dataset.empty = "0"; /* v124：空会话态发首条消息即回时间线（原空态隐藏滚动区导致消息不可见） */
     var message = document.createElement("article");
     message.className = "user-message";
     message.textContent = value;

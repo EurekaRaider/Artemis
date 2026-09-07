@@ -54,6 +54,14 @@ select:focus-visible,
 input:focus {
   outline: none;
 }
+/* v155：设置弹窗内一律不加聚焦光圈（收敛克制；选中态/光标已承担焦点指示） */
+.settings-panel button:focus-visible,
+.settings-panel a:focus-visible,
+.settings-panel select:focus-visible,
+.settings-panel [tabindex]:focus-visible,
+.settings-panel input:focus-visible {
+  outline: none;
+}
 ::selection {
   background: var(--accent-soft);
 }
@@ -1745,7 +1753,8 @@ body[data-empty="1"] .timeline-scroll {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--accent);
+  /* v155：与上下文环同源——健康绿 */
+  background: var(--success);
   transition: width 180ms var(--ease);
 }
 .ctx-pop-meta {
@@ -1778,29 +1787,31 @@ body[data-empty="1"] .timeline-scroll {
   height: 100%;
   min-width: 1.5px;
 }
+/* v155：构成分段染 sky 单色阶梯（tokens --ctx-bd-1..6，参照 ZCode context-breakdown：
+   系统提示词最深 → 消息最浅；free/buf 保持中性底） */
 .ctx-seg .s1,
 .seg-dot.s1 {
-  background: color-mix(in srgb, var(--accent) 24%, var(--surface-3));
+  background: var(--ctx-bd-1);
 }
 .ctx-seg .s2,
 .seg-dot.s2 {
-  background: color-mix(in srgb, var(--accent) 38%, var(--surface-3));
+  background: var(--ctx-bd-2);
 }
 .ctx-seg .s3,
 .seg-dot.s3 {
-  background: color-mix(in srgb, var(--accent) 54%, var(--surface-3));
+  background: var(--ctx-bd-3);
 }
 .ctx-seg .s4,
 .seg-dot.s4 {
-  background: color-mix(in srgb, var(--accent) 68%, var(--surface-3));
+  background: var(--ctx-bd-4);
 }
 .ctx-seg .s5,
 .seg-dot.s5 {
-  background: color-mix(in srgb, var(--accent) 82%, var(--surface-3));
+  background: var(--ctx-bd-5);
 }
 .ctx-seg .s6,
 .seg-dot.s6 {
-  background: var(--accent);
+  background: var(--ctx-bd-6);
 }
 .ctx-seg .s-free,
 .seg-dot.s-free {
@@ -3193,7 +3204,9 @@ body[data-dock="open"] .dock-resizer {
   border-bottom: 0;
 }
 .usage-table tbody tr.selected {
-  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  /* v155：选中行染 usage-c1 蓝底 + 左缘条（原 9% 灰底过于沉闷） */
+  background: color-mix(in srgb, var(--usage-c1) 12%, transparent);
+  box-shadow: inset 2px 0 0 var(--usage-c1);
 }
 .usage-table td button {
   color: var(--text);
@@ -3245,21 +3258,22 @@ body[data-dock="open"] .dock-resizer {
   align-items: center;
   gap: 10px;
 }
+/* v155：Token 构成色块染 usage-chart 四色（tokens --usage-c1..4：sky/teal/violet/rose） */
 .comp-marker {
   flex: 0 0 auto;
   width: 20px;
   height: 20px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--accent) 38%, var(--surface-3));
+  background: var(--usage-c1);
 }
 .comp-marker.output {
-  background: color-mix(in srgb, var(--accent) 76%, var(--surface-3));
+  background: var(--usage-c2);
 }
 .comp-marker.cache-read {
-  background: color-mix(in srgb, var(--accent) 54%, var(--surface-3));
+  background: var(--usage-c3);
 }
 .comp-marker.cache-write {
-  background: color-mix(in srgb, var(--accent) 24%, var(--surface-3));
+  background: var(--usage-c4);
 }
 .auto-state {
   font-size: 10px;
@@ -4080,6 +4094,41 @@ body[data-archived-demo] .composer-wrap .composer {
 .im-dot.idle {
   background: var(--text-3);
 }
+/* v155：pending = 连接中/待确认——警告琥珀 + 呼吸（与 ok/bad 同构的 soft 光晕） */
+.im-dot.pending {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 22%, transparent);
+  animation: im-dot-pulse 1.6s ease-in-out infinite;
+}
+@keyframes im-dot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 22%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--warning) 8%, transparent);
+  }
+}
+/* v155：绑定行静音/解绑改图标按钮（图标库 bell-off / unlink） */
+.im-icon-btn {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-control);
+  color: var(--text-3);
+  transition:
+    background var(--t-quick),
+    color var(--t-quick);
+}
+.im-icon-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.im-icon-btn.danger:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
 .im-detail {
   min-width: 0;
   display: flex;
@@ -4140,21 +4189,24 @@ body[data-archived-demo] .composer-wrap .composer {
   min-width: 0;
 }
 /* 条件卡：配对请求（置顶插入，处理完移除） */
+/* v155：配对请求条警告态——背板与状态条从 --warning 派生（边 35% / 底 8%），
+   状态条文字 --warning-text；待确认信号灯同染并呼吸 */
 .im-pairing-request-card {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
   padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border-soft));
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
   border-radius: var(--r-card);
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
 }
 .im-pair-head {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   font-size: 12px;
+  color: var(--warning-text);
 }
 .im-pair-head strong {
   font-weight: 600;

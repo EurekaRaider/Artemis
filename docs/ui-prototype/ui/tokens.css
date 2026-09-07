@@ -313,6 +313,18 @@ body {
   --usage-hm-3: color-mix(in oklab, #0284c7 58%, var(--surface));
   --usage-hm-4: color-mix(in oklab, #0369a1 82%, var(--surface));
   --goal-gold: #b8860b;
+  /* v125：上下文构成 sky 单色阶梯（参照 ZCode context-breakdown 1→浅）+
+     Token 构成四色（参照 ZCode usage-chart：sky/teal/violet/rose） */
+  --ctx-bd-1: #0284c7;
+  --ctx-bd-2: #0ea5e9;
+  --ctx-bd-3: #38bdf8;
+  --ctx-bd-4: #7dd3fc;
+  --ctx-bd-5: #bae6fd;
+  --ctx-bd-6: #e0f2fe;
+  --usage-c1: #0284c7;
+  --usage-c2: #0f766e;
+  --usage-c3: #7c3aed;
+  --usage-c4: #e11d48;
 }
 [data-theme="dark"] {
   --usage-hm-1: color-mix(in oklab, #38bdf8 24%, var(--surface));
@@ -320,4 +332,14 @@ body {
   --usage-hm-3: color-mix(in oklab, #38bdf8 62%, var(--surface));
   --usage-hm-4: color-mix(in oklab, #7dd3fc 78%, var(--surface));
   --goal-gold: #e7c664;
+  --ctx-bd-1: #0ea5e9;
+  --ctx-bd-2: #38bdf8;
+  --ctx-bd-3: #55cbfa;
+  --ctx-bd-4: #7dd3fc;
+  --ctx-bd-5: #9ce0fd;
+  --ctx-bd-6: #bae6fd;
+  --usage-c1: #38bdf8;
+  --usage-c2: #2dd4bf;
+  --usage-c3: #a78bfa;
+  --usage-c4: #fb7185;
 }
