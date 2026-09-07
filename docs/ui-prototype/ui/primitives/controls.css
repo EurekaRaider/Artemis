@@ -307,7 +307,8 @@ button.ui-switch::after {
 }
 .ui-switch input:checked + .track,
 button.ui-switch[aria-checked="true"] {
-  background: var(--accent);
+  /* v120：开启态用设计令牌成功色（与组件层/上下文环同一绿色来源） */
+  background: var(--success);
   border-color: transparent;
 }
 .ui-switch input:checked + .track::after,

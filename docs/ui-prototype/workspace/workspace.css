@@ -730,8 +730,11 @@ body[data-view="automations"] .pg-auto {
 /* v149：目标胶囊（执行钮之后）——方圆角对齐会话条(--r-control)；高度对齐 ctx-select(26px)。
    v150：宽度自适应——默认收缩到内容宽（92~150px 之间，超长截断），
    悬停平滑延伸至最大 360px 并淡入操作钮（暂停/继续、编辑、删除）
-   v152：背板绿色标注（视觉关注强化，配方对齐 status-pill ok：边框 40% / 底 9%
-   从 --success 派生，文字 --success-text）；延伸动画放缓至 360ms */
+   v152：背板绿色标注（配方对齐 status-pill ok：边框 40% / 底 9%
+   从 --success 派生）；延伸动画放缓至 360ms
+   v153：胶囊内图标与文字回归中性色（--text-2），颜色标注只由背板+边框承担
+   v154：换鎏金（tokens --goal-gold）——边框 45% / 底 9% 派生，◎ 图标直接取金色，
+   文字保持中性 --text-2 */
 .goal-pill {
   flex: none;
   display: inline-flex;
@@ -740,9 +743,9 @@ body[data-view="automations"] .pg-auto {
   min-width: 92px;
   max-width: 150px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--success) 40%, transparent);
+  border: 1px solid color-mix(in srgb, var(--goal-gold) 45%, transparent);
   border-radius: var(--r-control);
-  background: color-mix(in srgb, var(--success) 9%, var(--surface));
+  background: color-mix(in srgb, var(--goal-gold) 9%, var(--surface));
   transition: max-width 360ms var(--ease);
 }
 .goal-pill:hover {
@@ -757,12 +760,20 @@ body[data-view="automations"] .pg-auto {
   height: 100%;
   padding: 0 8px 0 10px;
   font-size: 11px;
-  color: var(--success-text);
+  color: var(--text-2);
   white-space: nowrap;
+  transition: color var(--t-quick);
+}
+.goal-main:hover {
+  color: var(--text);
 }
 .goal-main .goal-text {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* 鎏金标注：◎ 图标取金色，文字保持中性 */
+.goal-main > span[aria-hidden="true"] {
+  color: var(--goal-gold);
 }
 .goal-acts {
   display: inline-flex;
@@ -795,8 +806,8 @@ body[data-view="automations"] .pg-auto {
     color var(--t-quick);
 }
 .goal-act:hover {
-  background: color-mix(in srgb, var(--success) 16%, transparent);
-  color: var(--success-text);
+  background: var(--hover);
+  color: var(--text);
 }
 /* 暂停/继续：默认示「暂停」，点击切换到「继续」三角 */
 .goal-act .alt {
@@ -1643,25 +1654,28 @@ body[data-empty="1"] .timeline-scroll {
   outline-offset: 2px;
   border-radius: 50%;
 }
-/* 上下文环图标 = 组件层卡 13f 定义：22px · r=9 · stroke 2.5 · 周长 56.5 ·
-   bg-c surface-3 轨道 + fg-c accent 圆头进度 · rotate -90° 顶点起 · t-med 过渡 */
+/* 上下文环图标（v153 参照 ZCode 真实 ContextUsageRing 缩小一档并取其几何）：
+   16px（ZCode 14px/size-3.5 与原 22px 之间取一档）· viewBox 24 · r=10 ·
+   stroke 4（相对更粗，ZCode 同款）· 周长 62.8 · bg-c surface-3 轨道 +
+   fg-c 绿色（--success-text 表健康；高用量由使用方行内转 --warning）·
+   rotate -90° 顶点起 · t-med 过渡 */
 .ctx-ring {
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
   transform: rotate(-90deg);
   display: block;
 }
 .ctx-ring circle {
   fill: none;
-  stroke-width: 2.5;
+  stroke-width: 4;
 }
 .ctx-ring .bg-c {
   stroke: var(--surface-3);
 }
 .ctx-ring .fg-c {
-  stroke: var(--accent-text);
+  stroke: var(--success);
   stroke-linecap: round;
-  stroke-dasharray: 56.5;
+  stroke-dasharray: 62.8;
   transition: stroke-dashoffset var(--t-med);
 }
 .ctx-popover {
@@ -3127,17 +3141,19 @@ body[data-dock="open"] .dock-resizer {
   border-radius: 99px;
   padding: 1.5px 7px;
 }
+/* v153：色阶对齐组件层/ZCode 使用统计——单色 5 档浓度阶梯（tokens.css --usage-hm-1..4，
+   浅 sky-500/600/700 · 深 sky-400/300），L0 空档保持 surface-3 底面 */
 .heat-cell.l1 {
-  background: color-mix(in srgb, var(--accent) 30%, var(--surface-3));
+  background: var(--usage-hm-1);
 }
 .heat-cell.l2 {
-  background: color-mix(in srgb, var(--accent) 48%, var(--surface-3));
+  background: var(--usage-hm-2);
 }
 .heat-cell.l3 {
-  background: color-mix(in srgb, var(--accent) 68%, var(--surface-3));
+  background: var(--usage-hm-3);
 }
 .heat-cell.l4 {
-  background: color-mix(in srgb, var(--accent) 92%, white);
+  background: var(--usage-hm-4);
 }
 /* 模型表（真实 .token-usage-models：圆角描边滚动壳 · 右对齐等宽数字 · 行选中 9% 底 · 模型名为按钮） */
 .usage-models {
@@ -3262,6 +3278,13 @@ body[data-dock="open"] .dock-resizer {
   color: var(--text-3);
   background: var(--hover);
   border-color: transparent;
+}
+/* v153：定时任务「需要授权」——警告态（配方对齐 status-pill warn：边框 40% / 底 9%
+   从 --warning 派生，文字 --warning-text） */
+.auto-state.pending {
+  color: var(--warning-text);
+  background: color-mix(in srgb, var(--warning) 9%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 40%, transparent);
 }
 .auto-prompt {
   font-size: 12.5px;

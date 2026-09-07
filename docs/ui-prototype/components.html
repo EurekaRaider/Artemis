@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Artemis 组件层 · 方向 A/B/C 对比</title>
 <link rel="stylesheet" href="showcase/showcase.css" />
-<link rel="stylesheet" href="ui/index.css?v=123"/>
+<link rel="stylesheet" href="ui/index.css?v=125"/>
 </head>
 <body class="ui-anatomy">
 <header class="top">
@@ -465,11 +465,11 @@
           <span style="font-size:12px;color:var(--text-3)">点击展开 · ↑↓ 移动 · Enter 选择 · Esc 关闭</span>
         </div>
       </div>
-      <div class="spec" data-card="cat-input-05"><div class="spec-h"><span class="no">06</span><span class="name">开关与复选</span><span class="en">Switch（通识绿开启态）/ Checkbox</span><span class="src">.resource-switch / .settings-checkbox</span></div>
+      <div class="spec" data-card="cat-input-05"><div class="spec-h"><span class="no">06</span><span class="name">开关与复选</span><span class="en">Switch（成功色开启态）/ Checkbox</span><span class="src">.resource-switch / .settings-checkbox</span></div>
         <div class="spec-d">
           <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.switch</code>（隐藏原生 input · <code>.track</code> 38×23px 胶囊 · 19px 圆钮）与 <code>.cbx</code>（17×17px <code>.box</code> · 内嵌 11px 对钩 SVG）</span></div>
           <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">label 整体可点切换；input <code>:focus-visible</code> 时轨道与方框出 3.5px <code>var(--focus-ring)</code></span></div>
-          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">开关选中轨道变通识绿 <code>#34c759</code>（深色 <code>#30d158</code>）· 圆钮位移 15px；关闭态维持灰底 surface-3；复选选中方框实底 accent · 对钩由 scale(0.5) 弹到 1；均用 <code>var(--t-quick)</code> 过渡 · 禁用态透明度 0.42</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">开关选中轨道变设计令牌成功色 <code>--success</code>（浅 #16a34a · 深 #22c55e）· 圆钮位移 15px；关闭态维持灰底 surface-3；复选选中方框实底 accent · 对钩由 scale(0.5) 弹到 1；均用 <code>var(--t-quick)</code> 过渡 · 禁用态透明度 0.42</span></div>
         </div>
         <div class="spec-b">
           <label class="switch"><input type="checkbox" checked><span class="track"></span><span class="sw-lbl">启用通知</span></label>
@@ -1013,15 +1013,15 @@
 
       <div class="spec" data-card="cat-artemis-06"><div class="spec-h"><span class="no">13f</span><span class="name">上下文环</span><span class="en">Context ring · 用量指示</span><span class="src">.ctx-ring</span></div>
         <div class="spec-d">
-          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">22px <code>svg.ctx-ring</code>（rotate -90° 起点置顶）：<code>.bg-c</code> 轨道弧 + <code>.fg-c</code> 进度弧，stroke-width 2.5 · 周长 56.5（r=9）</span></div>
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v">16px <code>svg.ctx-ring</code>（rotate -90° 起点置顶，参照 ZCode ContextUsageRing 几何）：<code>.bg-c</code> 轨道弧 + <code>.fg-c</code> 进度弧，stroke-width 4 · 周长 62.8（r=10）</span></div>
           <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">无脚本监听；每环 role=img 且 aria-label 报百分比；<code>.fg-c</code> 的 dashoffset 变化以 var(--t-med) 过渡</span></div>
-          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">dashoffset 42.4/22.6/5.7 对应 25%/60%/90% 三档；90% 档行内 stroke 转 <code>--warning</code> 表高用量告警，其余为 accent</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">设计令牌成功色 <code>--success</code> 表健康；dashoffset 47.1/25.1/6.3 对应 25%/60%/90% 三档；90% 档行内 stroke 转 <code>--warning</code> 表高用量告警</span></div>
         </div>
         <div class="spec-b"><div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
-            <svg class="ctx-ring" viewBox="0 0 22 22" role="img" aria-label="用量 25%"><circle class="bg-c" cx="11" cy="11" r="9"/><circle class="fg-c" cx="11" cy="11" r="9" stroke-dasharray="56.5" stroke-dashoffset="42.4"/></svg>
-            <svg class="ctx-ring" viewBox="0 0 22 22" role="img" aria-label="用量 60%"><circle class="bg-c" cx="11" cy="11" r="9"/><circle class="fg-c" cx="11" cy="11" r="9" stroke-dasharray="56.5" stroke-dashoffset="22.6"/></svg>
-            <svg class="ctx-ring" viewBox="0 0 22 22" role="img" aria-label="用量 90%"><circle class="bg-c" cx="11" cy="11" r="9"/><circle class="fg-c" cx="11" cy="11" r="9" stroke-dasharray="56.5" stroke-dashoffset="5.7" style="stroke:var(--warning)"/></svg>
-            <span style="font-size:12px;color:var(--text-3)">25% / 60% / 90%（高用量转警告色）</span>
+            <svg class="ctx-ring" viewBox="0 0 24 24" role="img" aria-label="用量 25%"><circle class="bg-c" cx="12" cy="12" r="10"/><circle class="fg-c" cx="12" cy="12" r="10" stroke-dasharray="62.8" stroke-dashoffset="47.1"/></svg>
+            <svg class="ctx-ring" viewBox="0 0 24 24" role="img" aria-label="用量 60%"><circle class="bg-c" cx="12" cy="12" r="10"/><circle class="fg-c" cx="12" cy="12" r="10" stroke-dasharray="62.8" stroke-dashoffset="25.1"/></svg>
+            <svg class="ctx-ring" viewBox="0 0 24 24" role="img" aria-label="用量 90%"><circle class="bg-c" cx="12" cy="12" r="10"/><circle class="fg-c" cx="12" cy="12" r="10" stroke-dasharray="62.8" stroke-dashoffset="6.3" style="stroke:var(--warning)"/></svg>
+            <span style="font-size:12px;color:var(--text-3)">25% / 60% / 90%（绿=健康，高用量转警告色）</span>
           </div></div>
       </div>
 

@@ -7,9 +7,9 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=152" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=154" rel="stylesheet"/>
 
-<link href="workspace-composition.css?v=111" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=123"/>
+<link href="workspace-composition.css?v=111" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=125"/>
 </head>
 <body data-dock="closed" data-empty="0" data-view="workspace">
 <div class="app-shell">
@@ -333,7 +333,7 @@
 </div>
 <div class="composer-trailing">
 <div aria-label="上下文窗口：34% 已用（剩余 66%）。已用 6.8万 Token，共 20万。上次模型实测输入 5.9万 Token。按类别估算的用量：系统提示词 1.2万 Token (6.0%)。系统工具 8,600 Token (4.3%)。MCP 工具 6,200 Token (3.1%)。记忆文件 2,400 Token (1.2%)。Skills 1,800 Token (0.9%)。消息 3.7万 Token (18.5%)。可用空间 12.4万 Token (62.0%)。自动压缩缓冲区 8,000 Token (4.0%)。" class="ctx-usage" id="ctxUsage" role="img" tabindex="0">
-<svg aria-hidden="true" class="ctx-ring" viewbox="0 0 22 22"><circle class="bg-c" cx="11" cy="11" r="9"></circle><circle class="fg-c" cx="11" cy="11" r="9" stroke-dasharray="56.5" stroke-dashoffset="37.3"></circle></svg>
+<svg aria-hidden="true" class="ctx-ring" viewbox="0 0 24 24"><circle class="bg-c" cx="12" cy="12" r="10"></circle><circle class="fg-c" cx="12" cy="12" r="10" stroke-dasharray="62.8" stroke-dashoffset="41.4"></circle></svg>
 <div class="ctx-popover" role="tooltip">
 <div class="ctx-pop-head"><strong>上下文窗口</strong><span class="ctx-pct">34%</span></div>
 <div aria-hidden="true" class="ctx-bar"><i style="width: 34%"></i></div>
@@ -381,7 +381,7 @@
 </div>
 <span class="run-actions">
 <button aria-label="停止" class="run-btn" title="停止" type="button">
-<svg fill="currentColor" height="10" viewbox="0 0 24 24" width="10"><rect height="12" rx="2" width="12" x="6" y="6"></rect></svg>
+<svg fill="currentColor" height="12" viewbox="0 0 24 24" width="12"><rect height="15" rx="2" width="15" x="4.5" y="4.5"></rect></svg>
 </button>
 </span>
 <button aria-label="发送" class="send-btn" id="sendBtn" type="button"><svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewbox="0 0 24 24" width="13"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"></path></svg></button>
@@ -607,7 +607,7 @@
 </div>
 </article>
 <article class="card" data-project="token-lab">
-<div class="card-row"><div><h2 class="card-title">周报草稿</h2><div class="card-sub">token-lab</div></div><span class="sp"></span><span class="auto-state">需要授权</span></div>
+<div class="card-row"><div><h2 class="card-title">周报草稿</h2><div class="card-sub">token-lab</div></div><span class="sp"></span><span class="auto-state pending">需要授权</span></div>
 <p class="auto-prompt">汇总本周合并的 PR 与 CHANGELOG 变更，生成英文周报草稿并发送审批。</p>
 <div class="auto-meta"><span>五 · 18:00 · Asia/Shanghai</span><span>PLAN · 托管 Worktree</span><span>下次: 2026年9月11日 18:00</span><span>上次: 2026年8月28日 18:00</span></div>
 <div class="card-actions"><button class="btn btn-quiet" data-toast="已发起授权（演示）" type="button">授权</button><button class="btn btn-quiet" disabled type="button">立即运行</button><button class="btn btn-quiet" data-auto-toggle type="button">已启用</button><button class="btn btn-quiet" data-auto-edit type="button">编辑</button><button class="btn btn-quiet danger" data-toast="已删除定时任务（演示）" type="button">删除</button></div>

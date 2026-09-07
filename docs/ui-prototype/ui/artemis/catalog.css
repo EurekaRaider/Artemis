@@ -137,11 +137,11 @@
     box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.25);
     transition: transform var(--t-quick);
   }
-  /* v123：开启态背板用通识绿（iOS 系统绿先例：浅 #34c759 · 深 #30d158，值在
-     tokens.css --switch-on）。注意 @scope (.ui-anatomy) 内不能写 [data-theme]
-     祖先选择器（html 在作用域根之外永不匹配），主题差异一律走令牌 */
+  /* v124：开启态背板用设计令牌成功色（--success，与上下文环同源），
+     关闭态维持灰底 surface-3 现状。注意 @scope (.ui-anatomy) 内不能写
+     [data-theme] 祖先选择器（html 在作用域根之外永不匹配），主题差异一律走令牌 */
   .switch input:checked + .track {
-    background: var(--switch-on);
+    background: var(--success);
     border-color: transparent;
   }
   .switch input:checked + .track::after {
@@ -1020,19 +1020,19 @@
     box-shadow: 0 0 0 3px var(--focus-ring);
   }
   .ctx-ring {
-    width: 22px;
-    height: 22px;
+    width: 16px;
+    height: 16px;
     transform: rotate(-90deg);
   }
   .ctx-ring circle {
     fill: none;
-    stroke-width: 2.5;
+    stroke-width: 4;
   }
   .ctx-ring .bg-c {
     stroke: var(--surface-3);
   }
   .ctx-ring .fg-c {
-    stroke: var(--accent);
+    stroke: var(--success-text);
     stroke-linecap: round;
     transition: stroke-dashoffset var(--t-med);
   }

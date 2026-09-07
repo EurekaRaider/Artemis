@@ -304,7 +304,7 @@ body {
    单色 5 档浓度阶梯：L0 = 空档底面（组件层用 surface-3），L1–L4 以 sky 单色与
    当前方向的 --surface 做 color-mix（var 惰性求值，各方向/主题自动取各自表面色）。
    浅色档位 500→600→700 递进加浓；深色档位 400 加浓、L4 换 300 提亮（与 ZCode 一致）。
-   v123 追加 --switch-on：开关开启态通识绿（iOS 系统绿先例）。
+   v124 追加 --goal-gold：目标胶囊鎏金标注（背板/边框 color-mix 派生、图标直取）。
    注意：catalog.css 包在 @scope (.ui-anatomy) 里，[data-theme] 祖先选择器在 scope
    内永远匹配不到 html——主题差异值必须落在这里，组件层用 var() 取。 */
 [data-theme="light"] {
@@ -312,12 +312,12 @@ body {
   --usage-hm-2: color-mix(in oklab, #0ea5e9 36%, var(--surface));
   --usage-hm-3: color-mix(in oklab, #0284c7 58%, var(--surface));
   --usage-hm-4: color-mix(in oklab, #0369a1 82%, var(--surface));
-  --switch-on: #34c759;
+  --goal-gold: #b8860b;
 }
 [data-theme="dark"] {
   --usage-hm-1: color-mix(in oklab, #38bdf8 24%, var(--surface));
   --usage-hm-2: color-mix(in oklab, #38bdf8 42%, var(--surface));
   --usage-hm-3: color-mix(in oklab, #38bdf8 62%, var(--surface));
   --usage-hm-4: color-mix(in oklab, #7dd3fc 78%, var(--surface));
-  --switch-on: #30d158;
+  --goal-gold: #e7c664;
 }
