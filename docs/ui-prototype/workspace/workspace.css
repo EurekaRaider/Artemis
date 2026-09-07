@@ -42,12 +42,17 @@ button {
 }
 button:focus-visible,
 a:focus-visible,
-input:focus-visible,
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible,
 select:focus-visible,
 [tabindex]:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
   border-radius: var(--r-control);
+}
+/* v139：文本类输入聚焦不加光环（克制；光标即为焦点指示）——搜索条/表单域同此 */
+input:focus {
+  outline: none;
 }
 ::selection {
   background: var(--accent-soft);
@@ -172,8 +177,9 @@ body.sidebar-collapsed .project-sidebar-resizer {
     box-shadow var(--t-quick);
 }
 .sidebar-search:focus-within {
-  border-color: var(--accent-text);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  /* v139：输入光环已去（克制），规则保留占位避免回退 */
+  border-color: var(--border-soft);
+  box-shadow: none;
 }
 .sidebar-search input {
   flex: 1;
@@ -2689,8 +2695,9 @@ body[data-dock="open"] .dock-resizer {
     box-shadow var(--t-quick);
 }
 .search-field:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  /* v139：输入光环已去（克制） */
+  border-color: var(--border-soft);
+  box-shadow: none;
 }
 .search-field input {
   flex: 1;
@@ -4396,9 +4403,10 @@ body[data-archived-demo] .composer-wrap .composer {
   width: 128px;
 }
 .im-field-input:focus {
+  /* v139：输入光环已去（克制；光标为指示） */
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--border);
+  box-shadow: none;
 }
 .im-binding-list {
   list-style: none;
@@ -4604,8 +4612,8 @@ body {
 /* v115：Composer 统一专用轻阴影（catalog 与 workspace 同一变体） */
 /* 聚焦指示收敛在 .composer-input；其余文本域保留键盘焦点描边 */
 .editor-area:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
+  /* v139：文本域聚焦描边已去（克制；光标为指示） */
+  outline: none;
 }
 .tool-card,
 .approval-card {
