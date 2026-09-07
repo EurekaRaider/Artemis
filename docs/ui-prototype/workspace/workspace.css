@@ -482,9 +482,9 @@ body.sidebar-collapsed .project-sidebar-resizer {
 /* 版本徽标（对齐真实 sidebar-footer app-version：点击进设置） */
 .app-version {
   flex: none;
-  font-size: 10.5px;
+  font-size: 10px;
   color: var(--text-3);
-  padding: 2px 8px;
+  padding: 1.5px 6px;
   border-radius: 99px;
   border: 1px solid var(--border-soft);
   transition:
@@ -494,6 +494,62 @@ body.sidebar-collapsed .project-sidebar-resizer {
 .app-version:hover {
   color: var(--text);
   border-color: var(--border);
+}
+/* 版本更新按钮：仅在检测到新版本时渲染/可见（demo 默认呈现可更新态）。
+   has-update=可点击更新（品牌点+墨水图标）· updating=下载中 · updated=完成回填版本号 */
+.update-btn {
+  flex: none;
+  display: none;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 4px;
+  margin-left: -2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--brand);
+  cursor: pointer;
+}
+.update-btn.has-update,
+.update-btn.updating,
+.update-btn.updated {
+  display: inline-flex;
+}
+.update-btn:hover {
+  background: var(--hover);
+}
+.update-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.update-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+.update-btn.has-update .update-dot {
+  animation: update-pulse 2.2s ease-in-out infinite;
+}
+@keyframes update-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.update-btn.updating svg {
+  animation: update-spin 1s linear infinite;
+}
+@keyframes update-spin {
+  to { transform: rotate(360deg); }
+}
+.update-btn.updated {
+  color: var(--success);
+}
+@media (prefers-reduced-motion: reduce) {
+  .update-btn.has-update .update-dot,
+  .update-btn.updating svg {
+    animation: none;
+  }
 }
 
 .sidebar-footer {
@@ -4876,7 +4932,7 @@ body.sidebar-collapsed .app-shell {
   height: 52px;
   padding: 0 10px 0 12px;
   gap: 8px;
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  background: var(--surface-header);
   backdrop-filter: blur(20px) saturate(1.35);
   -webkit-backdrop-filter: blur(20px) saturate(1.35);
   z-index: 20;
@@ -4919,7 +4975,7 @@ body:not([data-view="workspace"]) .workspace-heading {
   width: var(--dock-w, 480px);
   max-width: min(1080px, calc(100% - 568px));
   min-width: min(360px, calc(100% - 568px));
-  background: var(--surface);
+  background: var(--surface-dock);
   border-left: 1px solid var(--border);
   box-shadow: none;
 }

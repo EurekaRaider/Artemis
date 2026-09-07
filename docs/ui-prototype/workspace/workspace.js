@@ -2240,3 +2240,32 @@
     }, 120);
   }
 })();
+
+/* 版本更新按钮演示（生产语义：仅当检测到新版本时渲染）：
+   has-update 点击 → updating（下载中自旋）→ 2.4s 后 updated（成功色）并回填版本号，
+   再 2.2s 后回到 has-update 初始态供继续评审。 */
+(function () {
+  var btn = document.getElementById("updateBtn");
+  var chip = document.getElementById("versionChip");
+  if (!btn || !chip) return;
+  var baseLabel = "发现新版本 v1.4.41，点击立即更新";
+  btn.addEventListener("click", function () {
+    if (!btn.classList.contains("has-update")) return;
+    btn.classList.replace("has-update", "updating");
+    btn.setAttribute("aria-label", "正在下载 v1.4.41");
+    btn.title = "正在下载 v1.4.41…";
+    setTimeout(function () {
+      btn.classList.replace("updating", "updated");
+      btn.setAttribute("aria-label", "已更新到 v1.4.41，重启后生效");
+      btn.title = "已更新到 v1.4.41，重启后生效";
+      chip.textContent = "v1.4.41";
+      chip.setAttribute("aria-label", "当前版本 v1.4.41");
+      chip.title = "当前版本 v1.4.41";
+      setTimeout(function () {
+        btn.classList.replace("updated", "has-update");
+        btn.setAttribute("aria-label", baseLabel);
+        btn.title = baseLabel;
+      }, 2200);
+    }, 2400);
+  });
+})();
