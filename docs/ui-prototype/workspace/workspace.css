@@ -5375,11 +5375,14 @@ body.sidebar-snap .sidebar-rail {
   opacity: 1 !important;
   pointer-events: auto !important;
 }
-/* v132：任务计划胶囊浮层化——钉在对话可视底部，消息从胶囊底下滚过穿透 */
-.timeline-scroll .task-plan-progress {
-  position: sticky;
-  bottom: 14px;
-  margin: 16px auto 0;
+/* v137：任务计划胶囊定身——绝对定位于输入区顶沿之上（脱离对话滚动流），
+   恒定钉在对话可视底部：无论滚到顶/底都不位移；输入区高度变化时自然跟随 */
+.composer-wrap .task-plan-progress {
+  position: absolute;
+  top: -48px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
 }
 /* v128：收起态 peek 浮层内，品牌 Logo 与 rail 顶部 Logo 同位——可点击固定展开 */
 body.sidebar-collapsed .sidebar-brand .activity-mark {
