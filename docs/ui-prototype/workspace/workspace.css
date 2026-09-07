@@ -934,9 +934,8 @@ body[data-view="automations"] .pg-auto {
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  /* v143：可视底与胶囊底沿齐平（内容完整穿过胶囊条、毛玻璃透出），
-     止于输入框顶沿上方 12px，不贴边 */
-  margin-bottom: 12px;
+  /* v146：可视底越过胶囊底沿 6px（穿透更满），止于输入框顶沿上方 6px */
+  margin-bottom: 6px;
 }
 .timeline-scroll::-webkit-scrollbar {
   width: 8px;
