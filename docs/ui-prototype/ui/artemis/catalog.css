@@ -137,8 +137,11 @@
     box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.25);
     transition: transform var(--t-quick);
   }
+  /* v123：开启态背板用通识绿（iOS 系统绿先例：浅 #34c759 · 深 #30d158，值在
+     tokens.css --switch-on）。注意 @scope (.ui-anatomy) 内不能写 [data-theme]
+     祖先选择器（html 在作用域根之外永不匹配），主题差异一律走令牌 */
   .switch input:checked + .track {
-    background: var(--accent);
+    background: var(--switch-on);
     border-color: transparent;
   }
   .switch input:checked + .track::after {
