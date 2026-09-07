@@ -933,9 +933,9 @@ body[data-view="automations"] .pg-auto {
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  /* v142：可视底常驻空隙——内容滚动穿过时最低只能到输入框上方 52px 处，
-     不再贴输入框顶沿被裁切；悬浮胶囊(高36+距12)完整悬于此空隙内不遮内容 */
-  margin-bottom: 52px;
+  /* v143：可视底与胶囊底沿齐平（内容完整穿过胶囊条、毛玻璃透出），
+     止于输入框顶沿上方 12px，不贴边 */
+  margin-bottom: 12px;
 }
 .timeline-scroll::-webkit-scrollbar {
   width: 8px;
