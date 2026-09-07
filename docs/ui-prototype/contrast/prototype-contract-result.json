@@ -264,9 +264,9 @@
    ],
    "targeted": [
     {
-     "name": "102-unique-icons",
+     "name": "105-unique-icons",
      "ok": true,
-     "detail": "count=102, unique=102"
+     "detail": "count=105, unique=105"
     }
    ]
   },
