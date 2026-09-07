@@ -1493,15 +1493,14 @@ body[data-empty="1"] .timeline-scroll {
 /* 输入区（附件 + 文本域）：聚焦指示只作用于这里，不圈住整卡 */
 .composer-input {
   margin-top: 8px;
-  /* 文字与 2px 聚焦环保持呼吸：上 9 / 左右 12 / 下 8 */
+  /* 文字与内距呼吸：上 9 / 左右 12 / 下 8 */
   padding: 9px 12px 8px;
   border-radius: var(--r-md);
   min-width: 0;
-  transition: box-shadow var(--t-quick);
 }
-.composer-input:focus-within {
-  box-shadow: 0 0 0 1px var(--accent-text);
-}
+/* v135：输入区不加聚焦环（对齐 ZCode 的克制处理）——文本域的焦点可见性
+   由闪烁光标承担（text entry 恒匹配 :focus-visible，无法按输入方式区分）；
+   其余控件的键盘 focus-visible 描边全部保留 */
 .composer-policy {
   position: relative;
   display: inline-flex;
