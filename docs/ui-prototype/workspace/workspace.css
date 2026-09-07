@@ -729,7 +729,9 @@ body[data-view="automations"] .pg-auto {
 }
 /* v149：目标胶囊（执行钮之后）——方圆角对齐会话条(--r-control)；高度对齐 ctx-select(26px)。
    v150：宽度自适应——默认收缩到内容宽（92~150px 之间，超长截断），
-   悬停平滑延伸至最大 360px 并淡入操作钮（暂停/继续、编辑、删除） */
+   悬停平滑延伸至最大 360px 并淡入操作钮（暂停/继续、编辑、删除）
+   v152：背板绿色标注（视觉关注强化，配方对齐 status-pill ok：边框 40% / 底 9%
+   从 --success 派生，文字 --success-text）；延伸动画放缓至 360ms */
 .goal-pill {
   flex: none;
   display: inline-flex;
@@ -738,10 +740,10 @@ body[data-view="automations"] .pg-auto {
   min-width: 92px;
   max-width: 150px;
   overflow: hidden;
-  border: 1px solid var(--border-soft);
+  border: 1px solid color-mix(in srgb, var(--success) 40%, transparent);
   border-radius: var(--r-control);
-  background: var(--surface);
-  transition: max-width 220ms var(--ease);
+  background: color-mix(in srgb, var(--success) 9%, var(--surface));
+  transition: max-width 360ms var(--ease);
 }
 .goal-pill:hover {
   max-width: 360px;
@@ -755,12 +757,8 @@ body[data-view="automations"] .pg-auto {
   height: 100%;
   padding: 0 8px 0 10px;
   font-size: 11px;
-  color: var(--text-2);
+  color: var(--success-text);
   white-space: nowrap;
-  transition: color var(--t-quick);
-}
-.goal-main:hover {
-  color: var(--text);
 }
 .goal-main .goal-text {
   overflow: hidden;
@@ -776,9 +774,9 @@ body[data-view="automations"] .pg-auto {
   overflow: hidden;
   opacity: 0;
   transition:
-    max-width 220ms var(--ease),
-    padding 220ms var(--ease),
-    opacity var(--t-quick);
+    max-width 360ms var(--ease),
+    padding 360ms var(--ease),
+    opacity 220ms ease;
 }
 .goal-pill:hover .goal-acts {
   max-width: 80px;
@@ -797,8 +795,8 @@ body[data-view="automations"] .pg-auto {
     color var(--t-quick);
 }
 .goal-act:hover {
-  background: var(--hover);
-  color: var(--text);
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success-text);
 }
 /* 暂停/继续：默认示「暂停」，点击切换到「继续」三角 */
 .goal-act .alt {
