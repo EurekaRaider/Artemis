@@ -449,71 +449,35 @@ describe("renderer layout contract", () => {
     expect(stylesSource).not.toMatch(/\.toast\s*\{[^}]*\bbottom:/su);
   });
 
-  it("lets the active projects button restore a collapsed sidebar", () => {
-    expect(appSource).toContain('activeView === "workspace"');
-    expect(appSource).toContain('setActiveView("workspace")');
-    expect(appSource).toContain("setSidebarOpen(true)");
+  it("keeps the rail operable and lets it pin the collapsed sidebar", () => {
+    expect(appSource).toContain('layout="integrated"');
+    expect(appSource).toContain('className="rail-brand"');
+    expect(appSource).toContain('className="rail-anchor"');
+    expect(appSource).toContain("changeSidebarOpen(true)");
+    expect(appSource).toContain("peek={sidebarPeek && !sidebarOpen}");
+    expect(publicUiSurfacesSource).toContain('data-part="rail"');
   });
 
-  it("keeps settings as the final activity action without the obsolete command menu", () => {
-    const activityBarStart = appSource.indexOf("<ActivityBar");
-    const activityBarEnd = appSource.indexOf(
-      "</ActivityBar>",
-      activityBarStart,
+  it("keeps settings in the footer and collapsed rail without the obsolete command menu", () => {
+    const sidebar = appSource.slice(
+      appSource.indexOf("<NavigationSidebar"),
+      appSource.indexOf("</NavigationSidebar>"),
     );
-    const activityBarSource = appSource.slice(activityBarStart, activityBarEnd);
-    const settingsLabelIndex = activityBarSource.indexOf("label={t.settings}");
-    const settingsButtonStart = activityBarSource.lastIndexOf(
-      "<ActivityBarItem",
-      settingsLabelIndex,
-    );
-    const settingsButtonEnd =
-      activityBarSource.indexOf("/>", settingsLabelIndex) + "/>".length;
-    const settingsButtonSource = activityBarSource.slice(
-      settingsButtonStart,
-      settingsButtonEnd,
-    );
-    const settingsIconStart = appSource.indexOf("function SettingsIcon()");
-    const settingsIconEnd = appSource.indexOf(
-      "function ReviewIcon()",
-      settingsIconStart,
-    );
-    const settingsIconSource = appSource.slice(
-      settingsIconStart,
-      settingsIconEnd,
-    );
-    const sidebarFooterStart = appSource.indexOf('className="sidebar-footer"');
-    const sidebarFooterEnd = appSource.indexOf(
-      "</NavigationSidebar>",
-      sidebarFooterStart,
-    );
-    const sidebarFooterSource = appSource.slice(
-      sidebarFooterStart,
-      sidebarFooterEnd,
-    );
-
-    expect(activityBarStart).toBeGreaterThan(-1);
-    expect(activityBarEnd).toBeGreaterThan(activityBarStart);
-    expect(settingsLabelIndex).toBeGreaterThan(-1);
-    expect(settingsButtonSource).toContain("<SettingsIcon />");
-    expect(activityBarSource.slice(settingsButtonEnd)).toContain(
-      "label={t.activityBar}",
-    );
-    expect(publicUiSurfacesSource).toMatch(
-      /<div data-part="items">\{children\}<\/div>[\s\S]*<div data-part="footer">\{footer\}<\/div>/u,
-    );
-    expect(activityBarSource).not.toContain("t.commandMenu");
+    expect(sidebar).toContain('className="rail-item"');
+    expect(sidebar).toContain('className="activity-button foot-icon"');
+    expect(sidebar).toContain("ref={settingsTrigger}");
+    expect(sidebar).toContain("onClick={() => openSettings()}");
+    expect(sidebar).toContain("<SettingsIcon />");
+    expect(sidebar).not.toContain("t.commandMenu");
     expect(appSource).not.toContain("commandMenuOpen");
     expect(appSource).not.toContain('className="command-backdrop"');
     expect(stylesSource).not.toContain(".command-backdrop");
-    expect(settingsIconSource).toContain('<ArtemisIcon className="icon"');
-    expect(settingsIconSource).toContain('name="gear"');
-    expect(settingsIconSource).toContain("height={17}");
-    expect(sidebarFooterStart).toBeGreaterThan(-1);
-    expect(sidebarFooterEnd).toBeGreaterThan(sidebarFooterStart);
-    expect(sidebarFooterSource).not.toContain('className="avatar-button"');
-    expect(sidebarFooterSource).not.toContain("setSettingsOpen(true)");
-    expect(sidebarFooterSource).not.toMatch(/>\s*TS\s*</u);
+    const icon = appSource.slice(
+      appSource.indexOf("function SettingsIcon()"),
+      appSource.indexOf("function ReviewIcon()"),
+    );
+    expect(icon).toContain('name="gear"');
+    expect(icon).toContain("height={17}");
   });
 
   it("preserves the former command menu actions through their existing entry points", () => {
@@ -2157,7 +2121,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('className="status-pill-label"');
     expect(appSource).toContain("aria-expanded={sidebarOpen}");
     expect(appSource).toContain(
-      "onClick={() => setSidebarOpen((open) => !open)}",
+      "onClick={() => changeSidebarOpen((open) => !open)}",
     );
     expect(appSource).toContain("open={workspaceDockOpen}");
     expect(appSource).toContain('controls="conversation workspace-tool-dock"');
@@ -2370,13 +2334,13 @@ describe("renderer layout contract", () => {
     expect(stylesSource).toContain(".resource-switch");
   });
 
-  it("uses the requested plug mark for the capability-center entry", () => {
+  it("uses the latest prototype grid mark for the resource entry", () => {
     const iconStart = appSource.indexOf("function ResourceIcon()");
     const iconEnd = appSource.indexOf("function TokenUsageIcon()", iconStart);
     const icon = appSource.slice(iconStart, iconEnd);
 
     expect(icon).toContain('<ArtemisIcon className="icon"');
-    expect(icon).toContain('name="resource"');
+    expect(icon).toContain('name="grid"');
     expect(icon).not.toContain('name="source"');
   });
 

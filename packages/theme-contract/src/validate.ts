@@ -66,6 +66,31 @@ const SKIN_ID_PATTERN =
   /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)+$/u;
 const DISPLAY_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/u;
 const SEMVER_PATTERN = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/u;
+// Legacy skins inherit new visual roles from their own validated palette.
+// These aliases are fixed code, never token expressions supplied by a skin.
+const LEGACY_ROLE_SOURCES: Readonly<Record<string, string>> = {
+  "color.surface.header": "color.canvas",
+  "color.surface.dock": "color.surface.base",
+  "color.surface.popover": "color.surface.raised",
+  "color.surface.composerHead": "color.surface.sunken",
+  "color.brand": "color.status.info",
+  "color.goal": "color.status.warning",
+  "color.switch.on": "color.status.success",
+  "color.status.successText": "color.status.success",
+  "color.status.warningText": "color.status.warning",
+  "color.status.dangerText": "color.status.danger",
+  "color.context.1": "color.status.info",
+  "color.context.2": "color.status.info",
+  "color.context.3": "color.status.info",
+  "color.context.4": "color.status.infoSubtle",
+  "color.context.5": "color.status.infoSubtle",
+  "color.context.6": "color.status.infoSubtle",
+  "color.usage.1": "color.status.info",
+  "color.usage.2": "color.status.success",
+  "color.usage.3": "color.status.warning",
+  "color.usage.4": "color.status.danger",
+};
+
 const COLOR_PATTERN = /^#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$/u;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
 
@@ -572,7 +597,10 @@ export function validateThemeTokenDocument(input: unknown): ConformanceReport<{
     }
     for (const name of OPTIONAL_SEMANTIC_TOKENS) {
       if (!Object.hasOwn(candidate.tokens, name)) {
-        resolvedTokens[name] = SAFE_FALLBACK_TOKENS[name];
+        const source = LEGACY_ROLE_SOURCES[name];
+        resolvedTokens[name] =
+          (source ? resolvedTokens[source] : undefined) ??
+          SAFE_FALLBACK_TOKENS[name];
         fallbackTokens.push(name);
       } else {
         const value = candidate.tokens[name];

@@ -253,10 +253,26 @@ export function ContextUsageIndicator({
         {breakdown.length > 0 && (
           <div className="context-usage-breakdown">
             <span>{labels.breakdown}</span>
+            <div className="context-usage-breakdown-bar" aria-hidden="true">
+              {breakdown.map((item, index) => (
+                <span
+                  key={item.id}
+                  data-context-category={Math.min(index, 5)}
+                  style={{ flex: Math.max(0, item.tokens) }}
+                />
+              ))}
+            </div>
             <dl>
-              {breakdown.map((item) => (
+              {breakdown.map((item, index) => (
                 <div key={item.id}>
-                  <dt>{item.label}</dt>
+                  <dt>
+                    <i
+                      aria-hidden="true"
+                      className="context-usage-swatch"
+                      data-context-category={Math.min(index, 5)}
+                    />
+                    {item.label}
+                  </dt>
                   <dd>{breakdownValue(item)}</dd>
                 </div>
               ))}

@@ -22,7 +22,9 @@
   ],
   [
     "normal|[data-artemis-component=\"data-surface\"] > [data-part=\"header\"], [data-artemis-component=\"data-surface\"] > [data-part=\"toolbar\"], [data-artemis-component=\"data-surface\"] > [data-part=\"content\"]",
-    { "min-inline-size": "0" }
+    {
+      "min-inline-size": "0"
+    }
   ],
   [
     "normal|[data-artemis-component=\"data-surface\"] > [data-part=\"content\"]",
@@ -69,7 +71,10 @@
   ],
   [
     "normal|[data-artemis-component=\"data-heatmap\"]",
-    { "inline-size": "100%", "min-inline-size": "45rem" }
+    {
+      "inline-size": "100%",
+      "min-inline-size": "45rem"
+    }
   ],
   [
     "normal|[data-artemis-component=\"data-heatmap\"] [data-part=\"grid\"]",
@@ -105,24 +110,26 @@
   [
     "normal|[data-artemis-component=\"data-heatmap\"] [data-part=\"cell\"][data-level=\"1\"]",
     {
-      "background": "color-mix(in srgb, var(--artemis-color-accent-primary) 28%, var(--artemis-color-surface-sunken))"
+      "background": "color-mix(in oklab, var(--artemis-color-context-2) 18%, var(--artemis-color-surface-base))"
     }
   ],
   [
     "normal|[data-artemis-component=\"data-heatmap\"] [data-part=\"cell\"][data-level=\"2\"]",
     {
-      "background": "color-mix(in srgb, var(--artemis-color-accent-primary) 48%, var(--artemis-color-surface-sunken))"
+      "background": "color-mix(in oklab, var(--artemis-color-context-2) 36%, var(--artemis-color-surface-base))"
     }
   ],
   [
     "normal|[data-artemis-component=\"data-heatmap\"] [data-part=\"cell\"][data-level=\"3\"]",
     {
-      "background": "color-mix(in srgb, var(--artemis-color-accent-primary) 70%, var(--artemis-color-surface-base))"
+      "background": "color-mix(in oklab, var(--artemis-color-context-1) 58%, var(--artemis-color-surface-base))"
     }
   ],
   [
     "normal|[data-artemis-component=\"data-heatmap\"] [data-part=\"cell\"][data-level=\"4\"]",
-    { "background": "var(--artemis-color-accent-primary)" }
+    {
+      "background": "color-mix(in oklab, var(--artemis-color-brand) 82%, var(--artemis-color-surface-base))"
+    }
   ],
   [
     "normal|[data-artemis-component=\"data-heatmap\"] [data-part=\"cell\"][data-period-active=\"true\"]",
@@ -162,7 +169,10 @@
   ],
   [
     "normal|[data-artemis-component=\"data-heatmap\"] [data-part=\"tooltip\"][data-align=\"end\"]",
-    { "inset-inline": "auto 0", "transform": "none" }
+    {
+      "inset-inline": "auto 0",
+      "transform": "none"
+    }
   ],
   [
     "normal|[data-artemis-component=\"data-heatmap\"] [data-part=\"column-labels\"]",
@@ -176,26 +186,39 @@
   ],
   [
     "normal|[data-artemis-component=\"data-heatmap\"] [data-part=\"column-label\"]",
-    { "overflow": "visible", "white-space": "nowrap" }
+    {
+      "overflow": "visible",
+      "white-space": "nowrap"
+    }
   ],
   [
     "normal|[data-artemis-component=\"data-surface\"][data-state=\"disabled\"], [data-artemis-component=\"data-heatmap\"][data-state=\"disabled\"]",
-    { "opacity": "var(--artemis-opacity-disabled)" }
+    {
+      "opacity": "var(--artemis-opacity-disabled)"
+    }
   ],
   [
     "normal|[data-artemis-component=\"data-heatmap\"][data-state=\"disabled\"] [data-part=\"cell\"]",
-    { "cursor": "not-allowed" }
+    {
+      "cursor": "not-allowed"
+    }
   ],
   [
     "compact-width|[data-artemis-component=\"data-stat\"]",
-    { "padding": "var(--artemis-space-4) var(--artemis-space-3)" }
+    {
+      "padding": "var(--artemis-space-4) var(--artemis-space-3)"
+    }
   ],
   [
     "reduced-motion|[data-artemis-component=\"data-heatmap\"] [data-part=\"cell\"]",
-    { "transition": "none" }
+    {
+      "transition": "none"
+    }
   ],
   [
     "reduced-motion|[data-artemis-component=\"data-heatmap\"] [data-part=\"cell\"]:is(:hover, :focus-visible)",
-    { "transform": "none" }
+    {
+      "transform": "none"
+    }
   ]
 ]

@@ -35,6 +35,7 @@ import {
 } from "@artemis/ui/conversation";
 import { Dialog, LoadingState, Toast } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
+import artemisIcon from "../../build/icon.png";
 import { PanelHeader, Toolbar } from "@artemis/ui/layout";
 import {
   ApprovalCard as ApprovalPatternCard,
@@ -50,8 +51,6 @@ import {
   TerminalViewport,
 } from "@artemis/ui/professional";
 import {
-  ActivityBar,
-  ActivityBarItem,
   ApplicationShell,
   ApplicationShellResizer,
   ComposerSurface,
@@ -119,7 +118,6 @@ import type {
 } from "../shared/api.js";
 import { legacyLocale, localeDirection } from "../shared/locales.js";
 import { I18N_RESOURCES, localizedCopy } from "../shared/i18n-resources.js";
-import artemisIcon from "../../build/icon.png";
 import { ArchivePage } from "./ArchivePage.js";
 import {
   isMultiQuestionUserInput,
@@ -1079,9 +1077,7 @@ function ArchiveIcon() {
 }
 
 function ResourceIcon() {
-  return (
-    <ArtemisIcon className="icon" height={18} name="resource" width={18} />
-  );
+  return <ArtemisIcon className="icon" height={18} name="grid" width={18} />;
 }
 
 function TokenUsageIcon() {
@@ -1390,7 +1386,11 @@ function prepareThreadTitleScroll(
   const content = viewport.firstElementChild;
   if (!(content instanceof HTMLElement)) return;
 
-  const distance = Math.ceil(content.scrollWidth - viewport.clientWidth);
+  const titleWidth =
+    content.firstElementChild instanceof HTMLElement
+      ? content.firstElementChild.scrollWidth
+      : content.scrollWidth;
+  const distance = Math.ceil(titleWidth - viewport.clientWidth);
   if (distance <= 1) {
     delete viewport.dataset.overflowing;
     viewport.style.removeProperty("--thread-title-scroll-distance");
@@ -1401,11 +1401,11 @@ function prepareThreadTitleScroll(
   viewport.dataset.overflowing = "true";
   viewport.style.setProperty(
     "--thread-title-scroll-distance",
-    `-${distance}px`,
+    `${document.documentElement.dir === "rtl" ? "" : "-"}${titleWidth + 24}px`,
   );
   viewport.style.setProperty(
     "--thread-title-scroll-duration",
-    `${Math.max(4, distance / 36 + 2).toFixed(2)}s`,
+    `${Math.max(4, (titleWidth + 24) / 30).toFixed(2)}s`,
   );
 }
 
@@ -1435,6 +1435,7 @@ export function App() {
     useState<ModelSelection>();
   const [approvalMenuOpen, setApprovalMenuOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [modelFilter, setModelFilter] = useState("");
   const [modelPickerSection, setModelPickerSection] =
     useState<ModelPickerSection>("model");
   const [mode, setMode] = useState<RunMode>("execute");
@@ -1555,16 +1556,47 @@ export function App() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => window.innerWidth > 1060,
+  );
+  const [sidebarPeek, setSidebarPeek] = useState(false);
+  const sidebarHoverSuppressed = useRef(false);
+  const changeSidebarOpen = useCallback(
+    (open: boolean | ((current: boolean) => boolean)) => {
+      const restoreFocus =
+        projectSidebar.current?.contains(document.activeElement) ||
+        document.activeElement?.classList.contains("left-sidebar-toggle");
+      setSidebarPeek(false);
+      sidebarHoverSuppressed.current = true;
+      setSidebarOpen(open);
+      // The rail remains available after the main navigation becomes inert.
+      requestAnimationFrame(() => {
+        if (!restoreFocus) return;
+        const collapsed =
+          projectSidebar.current?.getAttribute("data-state") === "collapsed";
+        projectSidebar.current
+          ?.querySelector<HTMLButtonElement>(
+            collapsed ? ".rail-brand" : ".sidebar-collapse",
+          )
+          ?.focus({ preventScroll: true });
+      });
+    },
+    [],
+  );
   const [projectSidebarWidth, setProjectSidebarWidth] = useState<number>();
   const [defaultProjectSidebarWidth, setDefaultProjectSidebarWidth] = useState(
-    () => (window.innerWidth <= 1100 ? 220 : PROJECT_SIDEBAR_WIDTH_DEFAULT),
+    () => (window.innerWidth <= 1100 ? 240 : PROJECT_SIDEBAR_WIDTH_DEFAULT),
   );
   useEffect(() => {
-    const resize = () =>
+    let compact = window.innerWidth <= 1060;
+    const resize = () => {
       setDefaultProjectSidebarWidth(
-        window.innerWidth <= 1100 ? 220 : PROJECT_SIDEBAR_WIDTH_DEFAULT,
+        window.innerWidth <= 1100 ? 240 : PROJECT_SIDEBAR_WIDTH_DEFAULT,
       );
+      const nextCompact = window.innerWidth <= 1060;
+      if (nextCompact && !compact) changeSidebarOpen(false);
+      compact = nextCompact;
+    };
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, []);
@@ -1583,6 +1615,8 @@ export function App() {
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
 
   const openSettings = (tab: SettingsEntryTab = "general") => {
+    if (document.activeElement instanceof HTMLButtonElement)
+      settingsTrigger.current = document.activeElement;
     setSettingsTab(tab);
     setSettingsOpen(true);
   };
@@ -3897,6 +3931,14 @@ export function App() {
           left.providerId.localeCompare(right.providerId, locale),
       );
   }, [activeSelection, locale, runtimeSettings]);
+  const filteredModels = useMemo(() => {
+    const query = modelFilter.trim().toLocaleLowerCase(locale);
+    return switchableModels.filter((model) =>
+      [model.name, model.modelId, model.providerId].some((value) =>
+        value.toLocaleLowerCase(locale).includes(query),
+      ),
+    );
+  }, [switchableModels, modelFilter, locale]);
   const modelPickerThinkingLevels = thinkingLevelsForModel(activeModel);
 
   const switchComposerModel = useCallback(
@@ -5302,7 +5344,7 @@ export function App() {
         toggleReviewPanel();
       } else if (modifier && event.key.toLowerCase() === "b") {
         event.preventDefault();
-        setSidebarOpen((open) => !open);
+        changeSidebarOpen((open) => !open);
       } else if (modifier && event.key.toLowerCase() === "j") {
         event.preventDefault();
         toggleTerminalPanel();
@@ -5313,7 +5355,12 @@ export function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [beginNewConversation, toggleReviewPanel, toggleTerminalPanel]);
+  }, [
+    beginNewConversation,
+    changeSidebarOpen,
+    toggleReviewPanel,
+    toggleTerminalPanel,
+  ]);
 
   if (!snapshot) {
     return (
@@ -5324,88 +5371,145 @@ export function App() {
     );
   }
 
+  const navigationItems = [
+    [
+      "resources",
+      locale.startsWith("zh") ? "插件市场" : t.resourceCenter,
+      <ResourceIcon />,
+    ],
+    [
+      "token-usage",
+      locale.startsWith("zh") ? "用量统计" : t.tokenUsage,
+      <TokenUsageIcon />,
+    ],
+    ["automations", t.automations, <AutomationIcon />],
+    [
+      "archive",
+      locale.startsWith("zh") ? "归档会话" : t.archiveLibrary,
+      <ArchiveIcon />,
+    ],
+  ] as const;
+
   return (
     <ApplicationShell
+      layout="integrated"
       className="app-shell"
+      style={
+        {
+          "--sidebar-expanded-width": `${projectSidebarWidth ?? defaultProjectSidebarWidth}px`,
+        } as CSSProperties
+      }
       data-platform={snapshot.platform}
       data-renderer-ready="true"
       sidebarOpen={sidebarOpen}
       sidebarSize={projectSidebarWidth ?? defaultProjectSidebarWidth}
     >
-      <ActivityBar
-        brand={<ArtemisMark />}
-        className="activity-bar"
-        footer={
-          <ActivityBarItem
-            className="activity-button"
-            icon={<SettingsIcon />}
-            label={t.settings}
-            onClick={() => openSettings()}
-            ref={settingsTrigger}
-            title={t.settings}
-          />
-        }
-        label={t.activityBar}
-      >
-        <ActivityBarItem
-          aria-current={activeView === "workspace" ? "page" : undefined}
-          aria-expanded={sidebarOpen}
-          className="activity-button"
-          icon={<FolderIcon />}
-          label={t.projects}
-          onClick={() => {
-            if (activeView === "workspace") {
-              setSidebarOpen((open) => !open);
-            } else {
-              setActiveView("workspace");
-              setSidebarOpen(true);
-            }
-          }}
-          selected={activeView === "workspace"}
-          title={t.projects}
-        />
-        <ActivityBarItem
-          aria-current={activeView === "resources" ? "page" : undefined}
-          className="activity-button"
-          icon={<ResourceIcon />}
-          label={t.resourceCenter}
-          onClick={() => setActiveView("resources")}
-          selected={activeView === "resources"}
-          title={t.resourceCenter}
-        />
-        <ActivityBarItem
-          aria-current={activeView === "token-usage" ? "page" : undefined}
-          className="activity-button"
-          icon={<TokenUsageIcon />}
-          label={t.tokenUsage}
-          onClick={() => setActiveView("token-usage")}
-          selected={activeView === "token-usage"}
-          title={t.tokenUsage}
-        />
-        <ActivityBarItem
-          aria-current={activeView === "automations" ? "page" : undefined}
-          className="activity-button"
-          icon={<AutomationIcon />}
-          label={t.automations}
-          onClick={() => setActiveView("automations")}
-          selected={activeView === "automations"}
-          title={t.automations}
-        />
-        <ActivityBarItem
-          aria-current={activeView === "archive" ? "page" : undefined}
-          className="activity-button"
-          icon={<ArchiveIcon />}
-          label={t.archiveLibrary}
-          onClick={() => setActiveView("archive")}
-          selected={activeView === "archive"}
-          title={t.archiveLibrary}
-        />
-      </ActivityBar>
-
       <NavigationSidebar
         className="sidebar"
+        peek={sidebarPeek && !sidebarOpen}
+        onMouseEnter={() => {
+          if (!sidebarOpen && !sidebarHoverSuppressed.current)
+            setSidebarPeek(true);
+        }}
+        onMouseMove={() => {
+          if (sidebarHoverSuppressed.current) {
+            sidebarHoverSuppressed.current = false;
+            return;
+          }
+          if (!sidebarOpen) setSidebarPeek(true);
+        }}
+        onMouseLeave={() => {
+          sidebarHoverSuppressed.current = false;
+          if (!projectSidebar.current?.contains(document.activeElement))
+            setSidebarPeek(false);
+        }}
+        onBlur={(event) => {
+          if (
+            !event.currentTarget.contains(event.relatedTarget) &&
+            !event.currentTarget.matches(":hover")
+          )
+            setSidebarPeek(false);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && sidebarPeek) {
+            setSidebarPeek(false);
+            projectSidebar.current
+              ?.querySelector<HTMLButtonElement>(".rail-brand")
+              ?.focus();
+          }
+        }}
+        rail={
+          <div className="sidebar-rail">
+            <button
+              className="rail-brand"
+              type="button"
+              aria-label={t.leftSidebar}
+              onClick={() => changeSidebarOpen(true)}
+            >
+              <ArtemisMark />
+            </button>
+            <nav aria-label={t.activityBar}>
+              {navigationItems.map(([view, label, icon]) => (
+                <button
+                  type="button"
+                  className="activity-button rail-item"
+                  key={view}
+                  data-nav-view={view}
+                  aria-label={label}
+                  title={label}
+                  aria-current={activeView === view ? "page" : undefined}
+                  onClick={() => setActiveView(view)}
+                >
+                  {icon}
+                </button>
+              ))}
+            </nav>
+            <span aria-hidden="true" className="rail-sep" />
+            <button
+              className="rail-anchor"
+              type="button"
+              title={activeWorkspaceLabel}
+              aria-label={t.projects}
+              onClick={() => {
+                setActiveView("workspace");
+                changeSidebarOpen(true);
+              }}
+            >
+              <FolderIcon />
+            </button>
+            <span className="rail-sp" />
+            <button
+              type="button"
+              className="rail-avatar"
+              title={username}
+              aria-label={username}
+              onClick={() => openSettings("general")}
+            >
+              {userInitials(username)}
+            </button>
+            <button
+              type="button"
+              className="rail-item"
+              aria-label={t.settings}
+              title={t.settings}
+              onClick={() => openSettings()}
+            >
+              <SettingsIcon />
+            </button>
+          </div>
+        }
         footer={
           <div className="sidebar-footer">
+            <button
+              className="activity-button foot-icon"
+              type="button"
+              aria-label={t.settings}
+              title={t.settings}
+              onClick={() => openSettings()}
+              ref={settingsTrigger}
+            >
+              <SettingsIcon />
+            </button>
             <span className="local-indicator" title={username}>
               <span aria-hidden="true" className="sidebar-profile-avatar">
                 {runtimeSettings?.profileAvatar ? (
@@ -5416,6 +5520,42 @@ export function App() {
               </span>
               <span className="local-user-name">{username}</span>
             </span>
+            {runtimeSettings?.update.availableVersion && (
+              <button
+                className={`update-btn ${runtimeSettings.update.state}`}
+                type="button"
+                aria-label={`${t.currentVersion} ${runtimeSettings.update.availableVersion}`}
+                title={`${runtimeSettings.update.availableVersion} · ${runtimeSettings.update.state}`}
+                disabled={["checking", "downloading"].includes(
+                  runtimeSettings.update.state,
+                )}
+                onClick={async () => {
+                  try {
+                    if (runtimeSettings.update.state === "downloaded") {
+                      await window.artemis.installUpdate();
+                    } else {
+                      const update = await window.artemis.checkForUpdates();
+                      setRuntimeSettings((current) =>
+                        current ? { ...current, update } : current,
+                      );
+                      if (update.state === "error")
+                        setToast({
+                          error: true,
+                          message: update.message ?? update.state,
+                        });
+                    }
+                  } catch (error) {
+                    setToast({
+                      error: true,
+                      message:
+                        error instanceof Error ? error.message : String(error),
+                    });
+                  }
+                }}
+              >
+                <ArtemisIcon name="download" />
+              </button>
+            )}
             {runtimeSettings?.update.currentVersion && (
               <button
                 aria-label={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
@@ -5430,28 +5570,80 @@ export function App() {
           </div>
         }
         header={
-          <PanelHeader
-            actions={
-              <div className="sidebar-header-actions">
-                <label
-                  className={
-                    query ? "sidebar-search has-query" : "sidebar-search"
-                  }
+          <>
+            <div className="sidebar-top">
+              <div className="sidebar-brand">
+                <button
+                  type="button"
+                  className="brand-button"
+                  aria-label="Artemis"
+                  onClick={() => changeSidebarOpen(true)}
                 >
-                  <SearchIcon />
-                  <input
-                    aria-label={t.search}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder={t.search}
-                    value={query}
-                  />
-                </label>
+                  <ArtemisMark />
+                  <strong>Artemis</strong>
+                </button>
+                <button
+                  type="button"
+                  className="sidebar-collapse"
+                  aria-label={t.leftSidebar}
+                  aria-expanded={sidebarOpen}
+                  title={t.leftSidebar}
+                  onClick={() => changeSidebarOpen((open) => !open)}
+                >
+                  <LeftSidebarIcon />
+                </button>
               </div>
-            }
-            className="sidebar-header"
-            headingLevel={2}
-            title={t.tasks}
-          />
+              <nav className="sidebar-nav" aria-label={t.activityBar}>
+                {navigationItems.map(([view, label, icon]) => (
+                  <button
+                    type="button"
+                    className="activity-button nav-row"
+                    key={view}
+                    data-nav-view={view}
+                    aria-label={label}
+                    title={label}
+                    aria-current={activeView === view ? "page" : undefined}
+                    onClick={() => setActiveView(view)}
+                  >
+                    {icon}
+                    <span>{label}</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="nav-row"
+                  onClick={() => beginNewConversation()}
+                >
+                  <ArtemisIcon name="edit-square" />
+                  <span>
+                    {locale.startsWith("zh") ? "新建会话" : t.newTask}
+                  </span>
+                </button>
+              </nav>
+            </div>
+            <PanelHeader
+              actions={
+                <div className="sidebar-header-actions">
+                  <label
+                    className={
+                      query ? "sidebar-search has-query" : "sidebar-search"
+                    }
+                  >
+                    <SearchIcon />
+                    <input
+                      aria-label={t.search}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder={t.search}
+                      value={query}
+                    />
+                  </label>
+                </div>
+              }
+              className="sidebar-header"
+              headingLevel={2}
+              title={t.tasks}
+            />
+          </>
         }
         label={t.projects}
         open={sidebarOpen}
@@ -5867,7 +6059,15 @@ export function App() {
                                     title={visibleThreadTitle(thread.title)}
                                   >
                                     <span className="thread-title-text">
-                                      {visibleThreadTitle(thread.title)}
+                                      <span>
+                                        {visibleThreadTitle(thread.title)}
+                                      </span>
+                                      <span
+                                        aria-hidden="true"
+                                        className="thread-title-copy"
+                                      >
+                                        {visibleThreadTitle(thread.title)}
+                                      </span>
                                     </span>
                                   </span>
                                 </button>
@@ -6102,7 +6302,13 @@ export function App() {
                           title={visibleThreadTitle(thread.title)}
                         >
                           <span className="thread-title-text">
-                            {visibleThreadTitle(thread.title)}
+                            <span>{visibleThreadTitle(thread.title)}</span>
+                            <span
+                              aria-hidden="true"
+                              className="thread-title-copy"
+                            >
+                              {visibleThreadTitle(thread.title)}
+                            </span>
                           </span>
                         </span>
                       </button>
@@ -6349,7 +6555,7 @@ export function App() {
                   aria-expanded={sidebarOpen}
                   aria-label={t.leftSidebar}
                   className="left-sidebar-toggle"
-                  onClick={() => setSidebarOpen((open) => !open)}
+                  onClick={() => changeSidebarOpen((open) => !open)}
                   title={t.leftSidebar}
                 >
                   <LeftSidebarIcon />
@@ -6362,17 +6568,6 @@ export function App() {
                       <span className="workspace-thread-title">
                         {activeThread.title}
                       </span>
-                      {activeThread.goal && (
-                        <button
-                          className="goal-pill"
-                          onClick={openGoalEditor}
-                          type="button"
-                          title={activeThread.goal.objective}
-                        >
-                          <ArtemisIcon height={12} name="task" width={12} />
-                          {t.goal}
-                        </button>
-                      )}
                     </>
                   )}
                 </div>
@@ -6747,41 +6942,45 @@ export function App() {
                           })}
                         </QueuedMessageGroup>
                       )}
-                      {activeThread?.goal && (
-                        <GoalBar
-                          clockMs={clockMs}
-                          disabled={goalMutationPending}
-                          goal={activeThread.goal}
-                          locale={locale}
-                          onClear={() => void updateActiveGoal("clear")}
-                          onEdit={openGoalEditor}
-                          onPause={() => void updateActiveGoal("pause")}
-                          onResume={() => void updateActiveGoal("resume")}
-                        />
-                      )}
                       <ComposerSurface
                         context={
-                          <ComposerContextBar
-                            {...(activeProject ? { activeProject } : {})}
-                            branchActionsDisabled={projectBranchActionsDisabled}
-                            locale={locale}
-                            mode={mode}
-                            modeActionsDisabled={turnActive || busy}
-                            onClearProject={() => {
-                              discardNewConversationDraft();
-                              beginTemporaryConversation();
-                            }}
-                            onError={(message) =>
-                              setToast({ error: true, message })
-                            }
-                            onModeChange={setMode}
-                            onOpenProject={openProject}
-                            onSelectProject={(project) => {
-                              discardNewConversationDraft();
-                              beginNewConversation(project.id);
-                            }}
-                            projects={projects}
-                          />
+                          <div className="composer-context-row">
+                            <ComposerContextBar
+                              {...(activeProject ? { activeProject } : {})}
+                              branchActionsDisabled={
+                                projectBranchActionsDisabled
+                              }
+                              locale={locale}
+                              mode={mode}
+                              modeActionsDisabled={turnActive || busy}
+                              onClearProject={() => {
+                                discardNewConversationDraft();
+                                beginTemporaryConversation();
+                              }}
+                              onError={(message) =>
+                                setToast({ error: true, message })
+                              }
+                              onModeChange={setMode}
+                              onOpenProject={openProject}
+                              onSelectProject={(project) => {
+                                discardNewConversationDraft();
+                                beginNewConversation(project.id);
+                              }}
+                              projects={projects}
+                            />
+                            {activeThread?.goal && (
+                              <GoalBar
+                                clockMs={clockMs}
+                                disabled={goalMutationPending}
+                                goal={activeThread.goal}
+                                locale={locale}
+                                onClear={() => void updateActiveGoal("clear")}
+                                onEdit={openGoalEditor}
+                                onPause={() => void updateActiveGoal("pause")}
+                                onResume={() => void updateActiveGoal("resume")}
+                              />
+                            )}
+                          </div>
                         }
                         className="composer"
                         label={t.prompt}
@@ -7425,6 +7624,7 @@ export function App() {
                                 onClick={() => {
                                   setApprovalMenuOpen(false);
                                   setModelPickerSection("model");
+                                  setModelFilter("");
                                   setModelPickerOpen((current) => !current);
                                 }}
                                 title={t.modelPicker}
@@ -7448,6 +7648,7 @@ export function App() {
                                 <div
                                   aria-label={t.modelPicker}
                                   className="model-picker-menu"
+                                  data-section={modelPickerSection}
                                   onMouseEnter={cancelModelPickerHoverClose}
                                   onMouseLeave={scheduleModelPickerHoverClose}
                                   role="menu"
@@ -7500,6 +7701,37 @@ export function App() {
                                       </i>
                                     </button>
                                   </div>
+                                  {modelPickerSection === "model" && (
+                                    <label className="model-picker-search">
+                                      <SearchIcon />
+                                      <input
+                                        aria-label={t.search}
+                                        placeholder={t.search}
+                                        value={modelFilter}
+                                        onChange={(event) =>
+                                          setModelFilter(event.target.value)
+                                        }
+                                        onKeyDown={(event) => {
+                                          if (
+                                            event.key !== "Escape" &&
+                                            event.key !== "Tab"
+                                          )
+                                            event.stopPropagation();
+                                        }}
+                                      />
+                                    </label>
+                                  )}
+                                  {modelPickerSection === "model" &&
+                                    filteredModels.length === 0 && (
+                                      <span
+                                        className="model-picker-empty"
+                                        role="status"
+                                      >
+                                        {locale.startsWith("zh")
+                                          ? "没有匹配的模型"
+                                          : "No matching models"}
+                                      </span>
+                                    )}
                                   <div
                                     aria-label={
                                       modelPickerSection === "model"
@@ -7515,7 +7747,7 @@ export function App() {
                                       </div>
                                     )}
                                     {modelPickerSection === "model"
-                                      ? switchableModels.map((model) => {
+                                      ? filteredModels.map((model) => {
                                           const selected =
                                             model.providerId ===
                                               activeSelection?.providerId &&

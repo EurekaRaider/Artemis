@@ -483,6 +483,15 @@
       "important": false,
       "owner": "September 6 screenshot alignment",
       "reason": "A collapsed tool group restores balanced vertical padding. Covered by apps/desktop/test/screenshot-style-regressions.test.ts."
+    },
+    {
+      "atRules": [],
+      "selector": "[data-artemis-component=\"workspace-dock\"]",
+      "property": "border-inline-start",
+      "value": "1px solid var(--border-soft)",
+      "important": false,
+      "owner": "Desktop 9556fac Dock composition",
+      "reason": "The frozen prototype uses a one CSS-pixel divider between conversation and Dock."
     }
   ]
 }

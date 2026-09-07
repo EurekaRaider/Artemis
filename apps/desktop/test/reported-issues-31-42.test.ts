@@ -78,7 +78,7 @@ describe("reported issue regressions #31-#42", () => {
 
   it("marks the active conversation model instead of the global default", () => {
     const picker = appSource.slice(
-      appSource.indexOf("switchableModels.map((model)"),
+      appSource.indexOf("filteredModels.map((model)"),
       appSource.indexOf(": modelPickerThinkingLevels.map("),
     );
     expect(picker).toContain("activeSelection?.providerId");

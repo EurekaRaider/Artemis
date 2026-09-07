@@ -2715,6 +2715,18 @@ for (const [key, declarations] of MIG5B_EXPECTED_CSS_RULES) {
   expectedCssRules.set(key, declarations);
 }
 
+const LATEST_UI_EXPECTED_CSS_RULES = JSON.parse(
+  await readFile(
+    join(root, "scripts/latest-ui-structural-css-contract.json"),
+    "utf8",
+  ),
+);
+for (const [key, declarations] of LATEST_UI_EXPECTED_CSS_RULES) {
+  if (expectedCssRules.has(key))
+    throw new Error(`Latest UI rule duplicates ${key}`);
+  expectedCssRules.set(key, declarations);
+}
+
 function verifyStructuralCss(css, from, tokenFamilies) {
   const parsed = postcss.parse(css, { from });
   const rootNodes = parsed.nodes ?? [];
@@ -2877,7 +2889,7 @@ function verifyStructuralCss(css, from, tokenFamilies) {
     }
     if (
       media === "(prefers-reduced-motion: reduce)" &&
-      node.nodes.length === 15
+      node.nodes.length === 16
     ) {
       for (const nested of node.nodes) verifyRule(nested, "reduced-motion");
       continue;

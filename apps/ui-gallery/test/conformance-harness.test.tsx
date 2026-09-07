@@ -2947,7 +2947,7 @@ describe("default and synthetic stress skin conformance", () => {
     },
   );
 
-  it("renders all 77 computed formal CSS tokens at every Gallery vertex", async () => {
+  it("renders all 97 computed formal CSS tokens at every Gallery vertex", async () => {
     installFormalComputedStyle();
     const user = userEvent.setup();
     const { container } = render(<GalleryApp />);
@@ -2957,18 +2957,18 @@ describe("default and synthetic stress skin conformance", () => {
     expect(provenance?.getAttribute("data-gallery-token-provenance")).toBe(
       GALLERY_TOKEN_PROVENANCE,
     );
-    expect(Object.keys(SEMANTIC_TOKEN_REGISTRY)).toHaveLength(77);
+    expect(Object.keys(SEMANTIC_TOKEN_REGISTRY)).toHaveLength(97);
     expect(formalCssModes.size).toBe(8);
 
     for (const mode of galleryVertices) {
       await selectMode(user, mode);
       const expected = formalCssModes.get(rootModeKey())!;
-      expect(expected.size).toBe(77);
+      expect(expected.size).toBe(97);
       await waitFor(() => {
         const outputs = container.querySelectorAll<HTMLOutputElement>(
           "output[data-gallery-token]",
         );
-        expect(outputs).toHaveLength(77);
+        expect(outputs).toHaveLength(97);
         for (const output of outputs) {
           const name = output.dataset.galleryToken!;
           const variable =

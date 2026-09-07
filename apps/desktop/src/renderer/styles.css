@@ -882,22 +882,6 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   font-weight: 510;
 }
 
-.goal-pill {
-  align-items: center;
-  background: transparent;
-  border: 1px solid var(--artemis-color-border-subtle);
-  border-radius: 999px;
-  color: var(--artemis-color-text-secondary);
-  display: inline-flex;
-  flex: 0 0 auto;
-  font-size: 10px;
-  gap: 4px;
-  margin-left: 0;
-  padding: 0.5px 8px;
-  cursor: pointer;
-}
-
-.goal-pill span,
 .automation-history > strong,
 .environment-popover .environment-row-copy strong {
   font-size: 12px;
@@ -2054,7 +2038,6 @@ button.environment-row:disabled {
 
   .workspace-heading .workspace-thread-title,
   .workspace-heading .header-separator,
-  .workspace-heading .goal-pill,
   .status-pill time {
     display: none;
   }
@@ -5115,9 +5098,6 @@ button.environment-row:disabled {
   padding: 9px 12px 8px;
   border-radius: var(--artemis-radius-input);
   min-width: 0;
-}
-.composer-input:focus-within {
-  box-shadow: 0 0 0 1px var(--artemis-color-focus-ring);
 }
 
 .composer-drop-overlay {
@@ -9372,10 +9352,6 @@ kbd {
   background: var(--artemis-color-accent-subtle);
   color: var(--artemis-color-accent-primary);
 }
-.activity-button svg {
-  width: 17px;
-  height: 17px;
-}
 .composer-context-trigger > svg:last-child {
   width: 9px;
   height: 9px;
@@ -9474,7 +9450,7 @@ kbd {
   background-clip: padding-box;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1060px) {
   .settings-panel
     [data-artemis-component="settings-surface"]
     > [data-part="body"] {

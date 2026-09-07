@@ -61,6 +61,7 @@ export const SURFACE_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-motion-easing-standard",
   "--artemis-motion-easing-shell",
   "--artemis-shadow-composer",
+  "--artemis-shadow-overlay",
 ] as const);
 
 export type SurfaceState = "ready" | "selected" | "collapsed";
@@ -156,6 +157,7 @@ export const SURFACE_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
     uiContractVersion: 1,
     name: "navigation-sidebar",
     parts: ["root", "header", "content", "footer"],
+    optionalParts: ["rail", "main"],
     states: ["ready", "collapsed"],
     accessibility: [
       "named-complementary-landmark",
@@ -241,12 +243,14 @@ export interface ApplicationShellProps extends Omit<
   readonly children: ReactNode;
   readonly sidebarOpen: boolean;
   readonly sidebarSize: number;
+  readonly layout?: "separate" | "integrated";
 }
 
 export function ApplicationShell({
   children,
   sidebarOpen,
   sidebarSize,
+  layout = "separate",
   style,
   ...attributes
 }: ApplicationShellProps) {
@@ -265,6 +269,7 @@ export function ApplicationShell({
       data-artemis-component="application-shell"
       data-part="root"
       data-sidebar-open={sidebarOpen}
+      data-layout={layout}
       data-state="ready"
       style={shellStyle}
     >
@@ -382,30 +387,52 @@ export interface NavigationSidebarProps extends Omit<
   readonly header: ReactNode;
   readonly label: string;
   readonly open: boolean;
+  readonly rail?: ReactNode;
+  readonly peek?: boolean;
 }
 
 export const NavigationSidebar = /* @__PURE__ */ forwardRef<
   HTMLElement,
   NavigationSidebarProps
 >(function NavigationSidebar(
-  { children, footer, header, label, open, ...attributes },
+  { children, footer, header, label, open, rail, peek = false, ...attributes },
   ref,
 ) {
   requirePerceptibleText(label);
   return (
     <aside
       {...attributes}
-      aria-hidden={!open}
+      aria-hidden={rail ? undefined : !open}
       aria-label={label}
       data-artemis-component="navigation-sidebar"
       data-part="root"
       data-state={open ? "ready" : "collapsed"}
-      inert={!open}
+      data-peek={peek || undefined}
+      inert={rail ? undefined : !open}
       ref={ref}
     >
-      <div data-part="header">{header}</div>
-      <div data-part="content">{children}</div>
-      <div data-part="footer">{footer}</div>
+      {rail ? (
+        <>
+          <div data-part="rail" inert={open || peek} aria-hidden={open || peek}>
+            {rail}
+          </div>
+          <div
+            data-part="main"
+            inert={!open && !peek}
+            aria-hidden={!open && !peek}
+          >
+            <div data-part="header">{header}</div>
+            <div data-part="content">{children}</div>
+            <div data-part="footer">{footer}</div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div data-part="header">{header}</div>
+          <div data-part="content">{children}</div>
+          <div data-part="footer">{footer}</div>
+        </>
+      )}
     </aside>
   );
 });

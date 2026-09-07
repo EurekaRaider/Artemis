@@ -49,6 +49,86 @@ export const SEMANTIC_TOKEN_REGISTRY = {
     ...color("#eef0f3"),
     cssVariable: "--artemis-color-surface-user",
   },
+  "color.surface.header": {
+    ...color("#fafafa", false),
+    cssVariable: "--artemis-color-surface-header",
+  },
+  "color.surface.dock": {
+    ...color("#ffffff", false),
+    cssVariable: "--artemis-color-surface-dock",
+  },
+  "color.surface.popover": {
+    ...color("#ffffff", false),
+    cssVariable: "--artemis-color-surface-popover",
+  },
+  "color.surface.composerHead": {
+    ...color("#f5f5f5", false),
+    cssVariable: "--artemis-color-surface-composer-head",
+  },
+  "color.switch.on": {
+    ...color("#22c55e", false),
+    cssVariable: "--artemis-color-switch-on",
+  },
+  "color.brand": {
+    ...color("#0369a1", false),
+    cssVariable: "--artemis-color-brand",
+  },
+  "color.goal": {
+    ...color("#b8860b", false),
+    cssVariable: "--artemis-color-goal",
+  },
+  "color.status.successText": {
+    ...color("#12702f", false),
+    cssVariable: "--artemis-color-status-success-text",
+  },
+  "color.status.warningText": {
+    ...color("#8a5406", false),
+    cssVariable: "--artemis-color-status-warning-text",
+  },
+  "color.status.dangerText": {
+    ...color("#b91c1c", false),
+    cssVariable: "--artemis-color-status-danger-text",
+  },
+  "color.context.1": {
+    ...color("#0284c7", false),
+    cssVariable: "--artemis-color-context-1",
+  },
+  "color.context.2": {
+    ...color("#0ea5e9", false),
+    cssVariable: "--artemis-color-context-2",
+  },
+  "color.context.3": {
+    ...color("#38bdf8", false),
+    cssVariable: "--artemis-color-context-3",
+  },
+  "color.context.4": {
+    ...color("#7dd3fc", false),
+    cssVariable: "--artemis-color-context-4",
+  },
+  "color.context.5": {
+    ...color("#bae6fd", false),
+    cssVariable: "--artemis-color-context-5",
+  },
+  "color.context.6": {
+    ...color("#e0f2fe", false),
+    cssVariable: "--artemis-color-context-6",
+  },
+  "color.usage.1": {
+    ...color("#0284c7", false),
+    cssVariable: "--artemis-color-usage-1",
+  },
+  "color.usage.2": {
+    ...color("#0f766e", false),
+    cssVariable: "--artemis-color-usage-2",
+  },
+  "color.usage.3": {
+    ...color("#7c3aed", false),
+    cssVariable: "--artemis-color-usage-3",
+  },
+  "color.usage.4": {
+    ...color("#e11d48", false),
+    cssVariable: "--artemis-color-usage-4",
+  },
   "color.interaction.hover": {
     ...color("#0000000a"),
     cssVariable: "--artemis-color-interaction-hover",

@@ -146,11 +146,58 @@ describe("semantic token documents", () => {
     expect(report.value?.modes[0]?.fallbackTokens).toEqual(
       OPTIONAL_SEMANTIC_TOKENS,
     );
-    for (const name of OPTIONAL_SEMANTIC_TOKENS) {
+    // Existing fallback roles retain their registered values.
+    for (const name of [
+      "color.overlay.scrim",
+      "color.selection.background",
+      "color.selection.text",
+    ]) {
       expect(report.value?.modes[0]?.tokens[name]).toEqual(
         SAFE_FALLBACK_TOKENS[name],
       );
     }
+  });
+
+  it("keeps omitted new surfaces readable in a legacy dark skin and honors explicit overrides", () => {
+    const legacy = document("dark");
+    const tokens = {
+      ...requiredTokens(),
+      "color.canvas": { kind: "color", value: "#101020" },
+      "color.surface.base": { kind: "color", value: "#202030" },
+      "color.surface.raised": { kind: "color", value: "#303040" },
+      "color.surface.sunken": { kind: "color", value: "#080810" },
+    };
+    const input = { ...legacy, modes: [{ ...legacy.modes[0], tokens }] };
+    const report = validateThemeTokenDocument(input);
+    expect(report.valid).toBe(true);
+    const resolved = report.value!.modes[0]!.tokens;
+    expect(resolved["color.surface.header"]).toEqual(tokens["color.canvas"]);
+    expect(resolved["color.surface.dock"]).toEqual(
+      tokens["color.surface.base"],
+    );
+    expect(resolved["color.surface.popover"]).toEqual(
+      tokens["color.surface.raised"],
+    );
+    expect(resolved["color.surface.composerHead"]).toEqual(
+      tokens["color.surface.sunken"],
+    );
+    const explicit = { kind: "color", value: "#404050" };
+    const override = validateThemeTokenDocument({
+      ...legacy,
+      modes: [
+        {
+          ...legacy.modes[0],
+          tokens: { ...tokens, "color.surface.header": explicit },
+        },
+      ],
+    });
+    expect(override.valid).toBe(true);
+    expect(override.value!.modes[0]!.tokens["color.surface.header"]).toEqual(
+      explicit,
+    );
+    expect(override.value!.modes[0]!.fallbackTokens).not.toContain(
+      "color.surface.header",
+    );
   });
 
   it("rejects unknown/prototype token names and missing required tokens", () => {

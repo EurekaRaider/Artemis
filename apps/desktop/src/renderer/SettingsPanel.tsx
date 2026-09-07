@@ -559,10 +559,10 @@ export function SettingsPanel({
     ),
   } as (typeof labels)["en"];
   const [narrowNavigation, setNarrowNavigation] = useState(
-    () => window.matchMedia?.("(max-width: 980px)").matches ?? false,
+    () => window.matchMedia?.("(max-width: 1060px)").matches ?? false,
   );
   useEffect(() => {
-    const media = window.matchMedia?.("(max-width: 980px)");
+    const media = window.matchMedia?.("(max-width: 1060px)");
     if (!media) return;
     const update = () => setNarrowNavigation(media.matches);
     update();

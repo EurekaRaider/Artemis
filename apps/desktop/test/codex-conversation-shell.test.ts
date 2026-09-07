@@ -301,16 +301,17 @@ describe("Codex conversation shell contract", () => {
     expect(appSource).toContain("setMode((current) => nextRunMode(current))");
   });
 
-  it("uses v69 semantic shell tones and typography", () => {
+  it("uses 9556fac semantic shell tones and typography", () => {
     const sidebar =
       artemisDarkTokens.modes[0].tokens["color.background.sidebar"].value;
     const workspace =
       artemisDarkTokens.modes[0].tokens["color.surface.base"].value;
 
-    expect(relativeLuminance(sidebar)).toBeGreaterThan(
+    expect(relativeLuminance(sidebar)).toBeLessThan(
       relativeLuminance(workspace),
     );
-    expect(workspace).toBe("#232325");
+    expect(sidebar).toBe("#1d1d1d");
+    expect(workspace).toBe("#202020");
     expect(stylesSource).toContain(
       '--ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;',
     );

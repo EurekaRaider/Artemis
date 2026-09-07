@@ -6,6 +6,7 @@ import { bootstrapDesktopSkin } from "./desktop-skin-bootstrap.js";
 import "./i18n.js";
 import "@artemis/ui/styles.css";
 import "./styles.css";
+import "./prototype-migration.css";
 import "@artemis/theme-artemis/theme.css";
 
 function diagnosticDetails(value: unknown): {

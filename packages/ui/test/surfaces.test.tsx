@@ -51,6 +51,54 @@ describe("Surface component contracts", () => {
 });
 
 describe("Reference-slice surfaces", () => {
+  it("keeps the collapsed rail usable and preserves draft nodes through peek and pin", async () => {
+    const user = userEvent.setup();
+    const sidebar = (open: boolean, peek = false) => (
+      <ApplicationShell
+        layout="integrated"
+        sidebarOpen={open}
+        sidebarSize={318}
+      >
+        <NavigationSidebar
+          label="Projects"
+          open={open}
+          peek={peek}
+          rail={<button>Pin navigation</button>}
+          header={
+            <input aria-label="Search tasks" defaultValue="draft query" />
+          }
+          footer={<button>Settings</button>}
+        >
+          <button>Current task</button>
+        </NavigationSidebar>
+      </ApplicationShell>
+    );
+    const { container, rerender } = render(sidebar(false));
+    const aside = container.querySelector("aside")!;
+    const rail = aside.querySelector('[data-part="rail"]')!;
+    const main = aside.querySelector('[data-part="main"]')!;
+    const search = main.querySelector("input")!;
+    expect(aside.hasAttribute("inert")).toBe(false);
+    expect(rail.hasAttribute("inert")).toBe(false);
+    expect(main.hasAttribute("inert")).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Pin navigation" }));
+    expect(document.activeElement).toBe(rail.querySelector("button"));
+    rerender(sidebar(false, true));
+    expect(rail.hasAttribute("inert")).toBe(true);
+    expect(main.hasAttribute("inert")).toBe(false);
+    await user.type(
+      screen.getByRole("textbox", { name: "Search tasks" }),
+      " kept",
+    );
+    rerender(sidebar(true));
+    expect(main.querySelector("input")).toBe(search);
+    expect(search.value).toBe("draft query kept");
+    rerender(sidebar(false));
+    expect(main.hasAttribute("inert")).toBe(true);
+    expect(rail.hasAttribute("inert")).toBe(false);
+    expect(search.value).toBe("draft query kept");
+  });
+
   it("keeps shell size caller-controlled without changing its children", () => {
     const { rerender } = render(
       <ApplicationShell sidebarOpen sidebarSize={252}>

@@ -4212,30 +4212,34 @@
 
   [data-artemis-component="data-heatmap"] [data-part="cell"][data-level="1"] {
     background: color-mix(
-      in srgb,
-      var(--artemis-color-accent-primary) 28%,
-      var(--artemis-color-surface-sunken)
+      in oklab,
+      var(--artemis-color-context-2) 18%,
+      var(--artemis-color-surface-base)
     );
   }
 
   [data-artemis-component="data-heatmap"] [data-part="cell"][data-level="2"] {
     background: color-mix(
-      in srgb,
-      var(--artemis-color-accent-primary) 48%,
-      var(--artemis-color-surface-sunken)
+      in oklab,
+      var(--artemis-color-context-2) 36%,
+      var(--artemis-color-surface-base)
     );
   }
 
   [data-artemis-component="data-heatmap"] [data-part="cell"][data-level="3"] {
     background: color-mix(
-      in srgb,
-      var(--artemis-color-accent-primary) 70%,
+      in oklab,
+      var(--artemis-color-context-1) 58%,
       var(--artemis-color-surface-base)
     );
   }
 
   [data-artemis-component="data-heatmap"] [data-part="cell"][data-level="4"] {
-    background: var(--artemis-color-accent-primary);
+    background: color-mix(
+      in oklab,
+      var(--artemis-color-brand) 82%,
+      var(--artemis-color-surface-base)
+    );
   }
 
   [data-artemis-component="data-heatmap"]
@@ -4803,6 +4807,11 @@
     [data-artemis-component="environment-control"][data-part="trigger"] {
       transition: none;
     }
+    [data-layout="integrated"]
+      [data-artemis-component="navigation-sidebar"][data-state="collapsed"][data-peek="true"]
+      > [data-part="main"] {
+      transition: none;
+    }
   }
 
   [data-artemis-component="settings-surface"]
@@ -4842,5 +4851,157 @@
 
   [data-artemis-component="workspace-editor-toolbar"] [data-part="segment"] {
     min-block-size: calc(var(--artemis-space-6) - 1px);
+  }
+  [data-artemis-component="application-shell"][data-layout="integrated"] {
+    --_artemis-application-shell-rail-size: 0px;
+    grid-template-columns:
+      var(--_artemis-application-shell-sidebar-size)
+      minmax(0, 1fr);
+    transition: none;
+  }
+  [data-artemis-component="application-shell"][data-layout="integrated"][data-sidebar-open="false"] {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+  [data-layout="integrated"] [data-artemis-component="navigation-sidebar"] {
+    position: relative;
+    overflow: visible;
+    z-index: 80;
+    background: transparent;
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    pointer-events: auto;
+    transition: none;
+  }
+  [data-layout="integrated"]
+    [data-artemis-component="navigation-sidebar"]
+    > [data-part="main"] {
+    display: flex;
+    flex-direction: column;
+    min-block-size: 0;
+    block-size: 100%;
+    min-inline-size: 0;
+    background: color-mix(
+      in srgb,
+      var(--artemis-color-background-sidebar) 72%,
+      transparent
+    );
+    backdrop-filter: blur(24px) saturate(1.35);
+  }
+  [data-layout="integrated"]
+    [data-artemis-component="navigation-sidebar"]
+    [data-part="main"]
+    > [data-part="content"] {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-block-size: 0;
+    overflow: hidden;
+  }
+  [data-layout="integrated"]
+    [data-artemis-component="navigation-sidebar"]
+    [data-part="main"]
+    > :is([data-part="header"], [data-part="footer"]) {
+    flex: none;
+  }
+  [data-layout="integrated"]
+    [data-artemis-component="navigation-sidebar"]
+    > [data-part="rail"] {
+    display: none;
+    block-size: 100%;
+  }
+  [data-layout="integrated"]
+    [data-artemis-component="navigation-sidebar"][data-state="collapsed"]
+    > [data-part="rail"] {
+    display: flex;
+  }
+  [data-layout="integrated"]
+    [data-artemis-component="navigation-sidebar"][data-state="collapsed"]
+    > [data-part="main"] {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    inline-size: var(--sidebar-expanded-width, 260px);
+    transform: translateX(-100%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    border-inline-end: 1px solid var(--artemis-color-border-subtle);
+    box-shadow: var(--artemis-shadow-overlay);
+    background: color-mix(
+      in srgb,
+      var(--artemis-color-background-sidebar) 96%,
+      transparent
+    );
+    backdrop-filter: blur(28px) saturate(1.35);
+  }
+  [dir="rtl"]
+    [data-layout="integrated"]
+    [data-artemis-component="navigation-sidebar"][data-state="collapsed"]
+    > [data-part="main"] {
+    transform: translateX(100%);
+  }
+  [data-layout="integrated"]
+    [data-artemis-component="navigation-sidebar"][data-state="collapsed"][data-peek="true"]
+    > [data-part="main"] {
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition:
+      transform 220ms var(--artemis-motion-easing-standard),
+      opacity 180ms var(--artemis-motion-easing-standard);
+    transition-delay: 80ms;
+  }
+  [data-layout="integrated"]
+    [data-artemis-component="navigation-sidebar"][data-peek="true"]
+    > [data-part="rail"] {
+    visibility: hidden;
+  }
+  [data-artemis-theme="dark"]
+    [data-layout="integrated"]
+    [data-artemis-component="navigation-sidebar"]
+    > [data-part="main"] {
+    background: color-mix(
+      in srgb,
+      var(--artemis-color-background-sidebar) 92%,
+      transparent
+    );
+  }
+  [data-artemis-theme="dark"]
+    [data-artemis-component="data-heatmap"]
+    [data-part="cell"][data-level="1"] {
+    background: color-mix(
+      in oklab,
+      var(--artemis-color-context-2) 24%,
+      var(--artemis-color-surface-base)
+    );
+  }
+  [data-artemis-theme="dark"]
+    [data-artemis-component="data-heatmap"]
+    [data-part="cell"][data-level="2"] {
+    background: color-mix(
+      in oklab,
+      var(--artemis-color-context-2) 42%,
+      var(--artemis-color-surface-base)
+    );
+  }
+  [data-artemis-theme="dark"]
+    [data-artemis-component="data-heatmap"]
+    [data-part="cell"][data-level="3"] {
+    background: color-mix(
+      in oklab,
+      var(--artemis-color-context-2) 62%,
+      var(--artemis-color-surface-base)
+    );
+  }
+  [data-artemis-theme="dark"]
+    [data-artemis-component="data-heatmap"]
+    [data-part="cell"][data-level="4"] {
+    background: color-mix(
+      in oklab,
+      var(--artemis-color-context-4) 78%,
+      var(--artemis-color-surface-base)
+    );
   }
 }

@@ -29,12 +29,12 @@ assert.equal(
 );
 const manifest = JSON.parse(
   await readFile(
-    join(root, "docs/discussion-151/prototype-manifest.json"),
+    join(root, "docs/ui-migration-9556fac/prototype-manifest.json"),
     "utf8",
   ),
 );
 for (const entry of manifest.files) {
-  const bytes = await readFile(join(root, "docs", entry.path));
+  const bytes = await readFile(join(root, entry.path));
   assert.equal(bytes.length, entry.bytes, entry.path);
   assert.equal(
     createHash("sha256").update(bytes).digest("hex"),
@@ -43,8 +43,8 @@ for (const entry of manifest.files) {
   );
 }
 const chromeInset = process.platform === "darwin" ? 28 : 0;
-const out = process.argv[2] || join(root, "artifacts/prototype-parity");
-const temp = await mkdtemp(join(tmpdir(), "artemis-151-parity-"));
+const out = process.argv[2] || join(root, "artifacts/prototype-parity-9556fac");
+const temp = await mkdtemp(join(tmpdir(), "artemis-9556fac-parity-"));
 const data = join(temp, "user-data"),
   project = join(temp, "Artemis");
 await Promise.all([
@@ -235,9 +235,11 @@ try {
   const pairs = {
     goalInput: ["#goalInput", ".goal-editor-input"],
     shell: [".app-shell", ".app-shell"],
-    activity: [".activity-bar", ".activity-bar"],
-    brand: [".activity-mark", ".artemis-mark"],
-    activityButton: [".activity-button", ".activity-button"],
+    brand: [".sidebar-brand .activity-mark", ".sidebar-brand .artemis-mark"],
+    activityButton: [
+      ".sidebar-nav .activity-button",
+      ".sidebar-nav .activity-button",
+    ],
     sidebar: [".sidebar", ".sidebar"],
     sidebarHeader: [".sidebar-header", ".sidebar-header"],
     search: [".sidebar-search", ".sidebar-search"],
@@ -315,6 +317,7 @@ try {
     platform: process.platform,
     architecture: process.arch,
     prototypeFiles: manifest.files.length,
+    prototypeCommit: manifest.sourceCommit,
     checks,
     engine: await product.evaluate(() => navigator.userAgent),
     data,
@@ -350,7 +353,6 @@ try {
     await writeFile(join(out, "metrics.json"), JSON.stringify(result, null, 2));
     const comparison = result.sizes[`${w}x${h}`];
     for (const part of [
-      "activity",
       "sidebar",
       "header",
       "conversation",
@@ -370,7 +372,7 @@ try {
         );
       }
     }
-    for (const part of ["activity", "sidebar", "conversation", "composer"]) {
+    for (const part of ["sidebar", "conversation", "composer"]) {
       assert.equal(
         comparison.product[part].style.backgroundColor,
         comparison.reference[part].style.backgroundColor,
@@ -394,7 +396,7 @@ try {
   }, chromeInset);
   async function chooseTheme(theme) {
     await product
-      .locator(".activity-bar")
+      .locator(".sidebar-footer")
       .getByRole("button", { name: "设置", exact: true })
       .click();
     await product.locator("#settings-tab-general-button").click();
@@ -448,7 +450,7 @@ try {
         product: await measure(product, 1),
       };
       result.appearances[`${theme}-${contrast}`] = pair;
-      for (const part of ["activity", "sidebar", "conversation", "composer"]) {
+      for (const part of ["sidebar", "conversation", "composer"]) {
         assert.equal(
           pair.product[part].style.backgroundColor,
           pair.reference[part].style.backgroundColor,
@@ -508,10 +510,7 @@ try {
   });
   async function captureDock(name) {
     await reference.goto(
-      "file://" +
-        root +
-        "/docs/ui-prototype/artemis-ui.html#tab=" +
-        name,
+      "file://" + root + "/docs/ui-prototype/artemis-ui.html#tab=" + name,
     );
     await reference.reload();
     await product.waitForTimeout(500);
@@ -577,10 +576,7 @@ try {
       checks.push("Terminal viewport background");
     }
   }
-  await product
-    .locator(".workspace-heading")
-    .getByRole("button", { name: /目标/ })
-    .click();
+  await product.locator(".goal-bar-main").click();
   await captureDock("goal");
   // Exercise the actual goal editor; fixture is paused to avoid starting an agent run.
   const input = product.locator(".goal-editor-input");
@@ -623,7 +619,7 @@ try {
     .click();
   await captureDock("markdown");
   await product
-    .locator(".activity-bar")
+    .locator(".sidebar-footer")
     .getByRole("button", { name: "设置", exact: true })
     .click();
   await reference.locator("#settingsBtn").click();
@@ -724,10 +720,12 @@ try {
     "archive",
   ].entries()) {
     await product
-      .locator(".activity-button")
+      .locator(".sidebar-nav .activity-button")
       .nth(index + 1)
       .click();
-    await reference.locator(".activity-button[data-goto=" + name + "]").click();
+    await reference
+      .locator(".sidebar-nav .activity-button[data-goto=" + name + "]")
+      .click();
     await product.waitForTimeout(500);
     await reference.waitForTimeout(200);
     await product.screenshot({

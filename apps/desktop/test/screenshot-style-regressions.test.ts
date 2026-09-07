@@ -188,14 +188,15 @@ describe("screenshot visual contracts", () => {
       ).color,
     ).toBe("var(--danger)");
   });
-  it("restores the shipped brand asset in the activity bar", () => {
+  it("uses the Artemis brand artwork in the integrated sidebar", () => {
     const app = readFileSync(
       new URL("../src/renderer/App.tsx", import.meta.url),
       "utf8",
     );
-    expect(app).toContain("brand={<ArtemisMark />}");
+    expect(app).toContain('className="sidebar-brand"');
+    expect(app).toContain('className="rail-brand"');
     expect(app).toContain('import artemisIcon from "../../build/icon.png"');
-    expect(app).toContain("src={artemisIcon}");
+    expect(app).toContain('<img alt="" aria-hidden="true" src={artemisIcon} />');
     expect(declarations(desktop, ".artemis-mark").background).toBe(
       "transparent",
     );

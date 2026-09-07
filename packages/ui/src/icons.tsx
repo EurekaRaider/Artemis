@@ -1,7 +1,7 @@
 import type { ReactNode, SVGProps } from "react";
 
 export const ARTEMIS_ICON_SOURCE =
-  "ui-prototype-v69:components.html#cat-icons;artemis-ui.html" as const;
+  "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html" as const;
 
 export const ARTEMIS_ICON_NAMES = [
   "artemis",
@@ -48,6 +48,8 @@ export const ARTEMIS_ICON_NAMES = [
   "sun",
   "list",
   "task",
+  "target",
+  "download",
   "circle",
   "plus-circle",
   "info",
@@ -354,6 +356,18 @@ const ARTEMIS_ICON_GLYPHS = {
       <circle cx="4.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
       <circle cx="4.5" cy="12" r="1" fill="currentColor" stroke="none" />
       <circle cx="4.5" cy="17.5" r="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  target: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="4.5" />
+      <circle cx="12" cy="12" r="1" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 4v10M7.5 10.5 12 15l4.5-4.5M5.5 19h13" />
     </>
   ),
   task: (

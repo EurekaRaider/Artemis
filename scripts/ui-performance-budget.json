@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 320000,
+      "desktopCssBytes": 342000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -70,6 +70,14 @@
       "measuredDesktopCssBytes": 313653,
       "desktopCssIncreaseBytes": 8720,
       "reason": "Screenshot alignment across usage, capabilities, settings, IM, grouped tool calls, the breathing plan capsule, goal rail and Agent panels adds 2.86% CSS. The previous 305000-byte limit had 67 bytes of headroom at baseHead. The 315000-byte CSS ceiling keeps 1347 bytes of headroom; JavaScript, shared UI, gallery and startup ceilings are unchanged. Measurements use the same Vite production pipeline with HEAD renderer and shared CSS substituted for the baseline."
+    },
+    {
+      "date": "2026-09-07",
+      "baseHead": "9556fac",
+      "measuredDesktopCssBytes": 337772,
+      "reason": "Full 9556fac prototype migration adds integrated navigation, rail/peek structure, composer and goal treatments, context colors, and 20 optional semantic token fallbacks. Isolated builds with identical installed dependencies measure 319175 bytes before and 337772 bytes after (+18597, 5.83%). The 342000-byte ceiling leaves 4228 bytes of headroom. JavaScript, shared UI, gallery, startup and workload ceilings remain unchanged.",
+      "baseDesktopCssBytes": 319175,
+      "desktopCssIncreaseBytes": 18597
     }
   ]
 }

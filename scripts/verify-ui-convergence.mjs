@@ -790,6 +790,20 @@ export async function verifyUiConvergence(root = defaultRoot) {
   const violations = [];
   const cssPath = join(root, "apps/desktop/src/renderer/styles.css");
   const css = postcss.parse(await readFile(cssPath, "utf8"), { from: cssPath });
+  const migrationCssPath = join(
+    root,
+    "apps/desktop/src/renderer/prototype-migration.css",
+  );
+  // Older fixture repositories predate the integrated navigation stylesheet.
+  try {
+    const migrationCss = postcss.parse(
+      await readFile(migrationCssPath, "utf8"),
+      { from: migrationCssPath },
+    );
+    css.append(migrationCss.nodes);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
   const selectors = selectorFacts(css);
   const contract = await loadContract(root, violations);
 

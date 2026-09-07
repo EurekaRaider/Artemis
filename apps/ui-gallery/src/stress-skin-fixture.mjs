@@ -160,11 +160,11 @@ export const stressSkinIntegrity = Object.freeze({
     "manifest.json":
       "6aefe92e8559145e2f9d25ff6c84c8d010a0754ba675024d24b97aa042898ad7",
     "tokens.light.json":
-      "4303409dade3af0895c3aa41dc7ba7bbaf33c6c76e5eac0e9f95add57aa19046",
+      "1aa8cd8d4a40785c378256f1e0f3b2b0913dc87bb64fb9b576ccf6c23cfd50bb",
     "tokens.dark.json":
-      "ceaf9489f86de9c258a3eda1d5a200748e61adfa329eadfb0bb7cbdca3426042",
+      "73a95aa030d67ba206a1a0314c9d9a7741afa7de3c5fe60dd5119ab468e9db83",
     "tokens.contrast.json":
-      "2ec9b811bde4a2f1bd52e0897449d9ed1e7f1bfc29bb57ce8899348680b9c152",
+      "5559b2ef0213e6c9733d6443d3b7e818c3105196b71f0fc2d1bc8e1a17a0e3b0",
   },
 });
 export const stressSkinPackageFiles = Object.freeze({

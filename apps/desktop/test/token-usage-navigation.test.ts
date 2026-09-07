@@ -130,37 +130,32 @@ describe("token usage navigation", () => {
     expect(focusBranch).not.toContain("window.showInactive()");
   });
 
-  it("places the Token Usage button immediately after MCP & Skills and opens its page", () => {
-    const activityStart = appSource.indexOf("<ActivityBar");
-    const activityEnd = appSource.indexOf("</ActivityBar>", activityStart);
-    const activity = appSource.slice(activityStart, activityEnd);
-    const resourceLabel = activity.indexOf("label={t.resourceCenter}");
-    const resourceButtonEnd =
-      activity.indexOf("/>", resourceLabel) + "/>".length;
-    const tokenLabel = activity.indexOf("label={t.tokenUsage}");
-    const tokenButtonStart = activity.lastIndexOf(
-      "<ActivityBarItem",
-      tokenLabel,
+  it("places usage immediately after resources in the integrated navigation and opens its page", () => {
+    const start = appSource.indexOf('<nav className="sidebar-nav"');
+    const navigation = appSource.slice(
+      start,
+      appSource.indexOf("</nav>", start),
     );
-    const tokenButtonEnd = activity.indexOf("/>", tokenLabel) + "/>".length;
-    const tokenButton = activity.slice(tokenButtonStart, tokenButtonEnd);
-
-    expect(activityStart).toBeGreaterThan(-1);
-    expect(activityEnd).toBeGreaterThan(activityStart);
-    expect(resourceLabel).toBeGreaterThan(-1);
-    expect(tokenLabel).toBeGreaterThan(resourceLabel);
-    expect(activity.slice(resourceButtonEnd, tokenButtonStart).trim()).toBe("");
-    expect(tokenButton).toContain('activeView === "token-usage"');
-    expect(tokenButton).toContain('setActiveView("token-usage")');
+    expect(start).toBeGreaterThan(-1);
+    expect(appSource.search(/\[\s*"token-usage",/u)).toBeGreaterThan(
+      appSource.search(/\[\s*"resources",/u),
+    );
+    expect(appSource.search(/\[\s*"automations",/u)).toBeGreaterThan(
+      appSource.search(/\[\s*"token-usage",/u),
+    );
+    expect(navigation).toContain("onClick={() => setActiveView(view)}");
+    expect(navigation).toContain(
+      'aria-current={activeView === view ? "page" : undefined}',
+    );
     expect(appSource).toContain("<TokenUsagePage");
     expect(appSource).toContain('activeView === "token-usage"');
   });
 
-  it("localizes the Token Usage activity button in English and Simplified Chinese", () => {
+  it("localizes the usage navigation label and accessible name", () => {
     expect(appSource).toContain('tokenUsage: "Token usage"');
-    expect(appSource).toContain('tokenUsage: "Token 用量"');
-    expect(appSource).toContain("title={t.tokenUsage}");
-    expect(appSource).toContain("label={t.tokenUsage}");
+    expect(appSource).toContain('"用量统计" : t.tokenUsage');
+    expect(appSource).toContain("aria-label={label}");
+    expect(appSource).toContain("title={label}");
   });
 
   it("wires persisted token usage history through the isolated IPC API", () => {

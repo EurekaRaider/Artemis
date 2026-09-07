@@ -15176,7 +15176,7 @@ function createMainWindow(): BrowserWindow {
                     }
                     return;
                   }
-                  document.querySelectorAll('.activity-button')[1]?.click();
+                  document.querySelector('.sidebar-nav [data-nav-view=resources]')?.click();
                   await wait(1_000);
                   if (view === 'icon-sizing-add-plugin') {
                     document.querySelector('.resource-add-button')?.click();
@@ -15277,23 +15277,21 @@ function createMainWindow(): BrowserWindow {
                   };
                   const routes = {
                     'secondary-pages-token-usage': {
-                      activityIndex: 2,
+                      navigationView: 'token-usage',
                       selector: '.token-usage-page',
                     },
                     'secondary-pages-automations': {
-                      activityIndex: 3,
+                      navigationView: 'automations',
                       selector: '.automation-page',
                     },
                     'secondary-pages-archive': {
-                      activityIndex: 4,
+                      navigationView: 'archive',
                       selector: '.archive-page',
                     },
                   };
                   const route = routes[view];
                   const activity = route
-                    ? document.querySelectorAll('.activity-button')[
-                        route.activityIndex
-                      ]
+                    ? document.querySelector('.sidebar-nav [data-nav-view=' + route.navigationView + ']')
                     : null;
                   if (!(activity instanceof HTMLButtonElement) || !route) {
                     throw new Error('Unknown secondary-pages smoke view: ' + view);
@@ -16170,7 +16168,7 @@ function createMainWindow(): BrowserWindow {
                     });
                   };
                   const openManageMcpTab = async () => {
-                    document.querySelectorAll('.activity-button')[1]?.click();
+                    document.querySelector('.sidebar-nav [data-nav-view=resources]')?.click();
                     const mcpTab = await waitFor('#resource-management-tab-mcp');
                     mcpTab?.click();
                     const selectedMcpTab = await waitFor(
@@ -17111,7 +17109,7 @@ function createMainWindow(): BrowserWindow {
                     }
                     return null;
                   };
-                  document.querySelectorAll('.activity-button')[2]?.click();
+                  document.querySelector('.sidebar-nav [data-nav-view=token-usage]')?.click();
                   await waitForSelector(
                     '[data-artemis-component="data-heatmap"] [data-part="grid"]',
                   );
@@ -17145,14 +17143,14 @@ function createMainWindow(): BrowserWindow {
                   return;
                 }
                 if (view === 'token-usage' || view === 'navigation-token-usage') {
-                  document.querySelectorAll('.activity-button')[2]?.click();
+                  document.querySelector('.sidebar-nav [data-nav-view=token-usage]')?.click();
                   await wait(1_000);
                   const page = document.querySelector('.token-usage-page');
                   if (page) page.scrollTop = page.scrollHeight;
                   await wait(300);
                   return;
                 }
-                document.querySelectorAll('.activity-button')[1]?.click();
+                document.querySelector('.sidebar-nav [data-nav-view=resources]')?.click();
                 await wait(1_000);
                 if (view === 'add-plugin') {
                   document.querySelector('.resource-add-button')?.click();

@@ -111,6 +111,8 @@ export function GoalBar({
       aria-busy={disabled || undefined}
       aria-label={copy[goal.status]}
       className="goal-bar"
+      data-goal-state={goal.status}
+      title={`${copy[goal.status]} · ${objective}`}
     >
       <Button
         align="start"
@@ -121,6 +123,7 @@ export function GoalBar({
         title={objective}
         variant="quiet"
       >
+        <ArtemisIcon className="goal-bar-icon" name="target" />
         <Badge className="goal-bar-status" tone={tone}>
           {copy[goal.status]}
         </Badge>
@@ -128,14 +131,6 @@ export function GoalBar({
         <span className="goal-bar-progress">{progress}</span>
       </Button>
       <div className="goal-bar-actions">
-        <IconButton
-          disabled={disabled}
-          icon={<ArtemisIcon name="trash" />}
-          iconSize="sm"
-          label={copy.clear}
-          onClick={onClear}
-          title={copy.clear}
-        />
         {goal.status === "active" && (
           <IconButton
             disabled={disabled}
@@ -163,6 +158,14 @@ export function GoalBar({
           label={copy.edit}
           onClick={onEdit}
           title={copy.edit}
+        />
+        <IconButton
+          disabled={disabled}
+          icon={<ArtemisIcon name="trash" />}
+          iconSize="sm"
+          label={copy.clear}
+          onClick={onClear}
+          title={copy.clear}
         />
       </div>
     </section>

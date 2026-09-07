@@ -75,8 +75,8 @@ describe("compact Goal rail", () => {
     expect(markup).not.toContain('data-artemis-component="status"');
     expect(markup.match(/data-part="indicator"/g)).toHaveLength(1);
     expect(markup).toContain('class="goal-bar-progress">2.5K / 10K</span>');
-    expect(markup.indexOf('aria-label="Clear goal"')).toBeLessThan(
-      markup.indexOf('aria-label="Pause goal"'),
+    expect(markup.lastIndexOf('aria-label="Edit goal"')).toBeLessThan(
+      markup.indexOf('aria-label="Clear goal"'),
     );
     expect(markup.indexOf('aria-label="Pause goal"')).toBeLessThan(
       markup.lastIndexOf('aria-label="Edit goal"'),
@@ -111,12 +111,15 @@ describe("GoalBar interactions (jsdom)", () => {
     const user = userEvent.setup();
     const clear = screen.getByRole("button", { name: "Clear goal" });
     expect(clear).toHaveAttribute("title", "Clear goal");
-    clear.focus();
+    screen.getByRole("button", { name: "Resume goal" }).focus();
     await user.keyboard("{Enter}");
     await user.tab();
-    expect(screen.getByRole("button", { name: "Resume goal" })).toHaveFocus();
+    expect(
+      screen.getAllByRole("button", { name: "Edit goal" }).at(-1),
+    ).toHaveFocus();
     await user.keyboard("{Enter}");
     await user.tab();
+    expect(clear).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(onClear).toHaveBeenCalledTimes(1);
     expect(onResume).toHaveBeenCalledTimes(1);

@@ -295,7 +295,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(resourceIconsSource).toContain('from "@artemis/ui/icons"');
     expect(resourceIconsSource).not.toContain("@phosphor-icons/react");
     expect(artemisIconsSource).toContain(
-      "ui-prototype-v69:components.html#cat-icons;artemis-ui.html",
+      "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html",
     );
     expect(artemisIconsSource).toContain("data-artemis-icon={name}");
     expect(stylesSource).not.toContain("--resource-icon-accent");
