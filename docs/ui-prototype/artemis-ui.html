@@ -7,9 +7,9 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=131" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=132" rel="stylesheet"/>
 
-<link href="workspace-composition.css?v=111" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=119"/>
+<link href="workspace-composition.css?v=111" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=120"/>
 </head>
 <body data-dock="closed" data-empty="0" data-view="workspace">
 <div class="app-shell">
@@ -219,6 +219,8 @@
 </div>
 </div>
 </div>
+<!-- 任务计划（浮层胶囊：钉在对话可视底部，内容从底下穿过） -->
+<div class="task-plan-progress" id="taskPlan"></div>
 </div>
 <!-- 空会话状态（#empty=1 查看） -->
 <div class="conversation-empty">
@@ -236,8 +238,6 @@
 <span><strong>已归档对话</strong><small>归档状态下只能阅读；恢复后才能继续对话。</small></span>
 <button class="btn btn-primary" id="archivedRestore" type="button">恢复</button>
 </div>
-<!-- 任务计划 -->
-<div class="task-plan-progress" id="taskPlan"></div>
 <div class="composer">
 <div class="composer-status"><button class="goal-pill" data-open-panel="goal" title="编辑任务目标" type="button"><span aria-hidden="true">◎</span>目标 · UI 设计语言改版</button></div>
 <div aria-label="任务上下文" class="composer-topbar">

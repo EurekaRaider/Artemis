@@ -9,9 +9,12 @@
 .task-plan-progress.plan-gone {
   display: none;
 }
+/* v120：胶囊改浮层材质（半透明毛玻璃，对话内容穿透可见），弃实底 surface-3 */
 .task-plan-trigger {
   align-items: center;
-  background: var(--surface-3);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
   border: 1px solid var(--border);
   border-radius: calc(var(--row-h) / 2);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
@@ -31,7 +34,7 @@
 }
 .task-plan-trigger:hover,
 .task-plan-trigger[aria-expanded="true"] {
-  background: color-mix(in srgb, var(--surface-3) 82%, var(--text));
+  background: color-mix(in srgb, var(--surface) 86%, var(--text) 4%);
   color: var(--text);
 }
 .task-plan-trigger:focus-visible {
@@ -109,12 +112,12 @@
 .task-step-marker.pending {
   background: transparent;
 }
-/* v119：进行中呼吸灯用 warning 橙（与全局「运行中」语义一致：会话信号点/状态胶囊），
-   单色 accent 下黑白灰太素 */
+/* v120：进行中呼吸灯用 success 绿（用户拍板；完成绿/进行中绿同族，
+   以实心+呼吸动画与完成的静态勾区分） */
 .task-step-marker.in_progress {
   animation: plan-breathe 1.6s ease-in-out infinite;
-  border-color: color-mix(in srgb, var(--warning) 42%, transparent);
-  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-color: color-mix(in srgb, var(--success) 46%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
   position: relative;
 }
 .task-step-marker.in_progress::after {
@@ -122,16 +125,16 @@
   position: absolute;
   inset: 3.5px;
   border-radius: 50%;
-  background: var(--warning);
+  background: var(--success);
   animation: plan-dot-pulse 1.6s ease-in-out infinite;
 }
 @keyframes plan-breathe {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--warning) 38%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 40%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 0%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 0%, transparent);
   }
 }
 @keyframes plan-dot-pulse {
