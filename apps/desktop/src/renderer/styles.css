@@ -10719,3 +10719,20 @@ kbd {
 .im-group-members .environment-setting-row > .environment-setting-copy {
   flex-basis: 100%;
 }
+
+.im-security-scope,
+.im-outbound-review {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.im-security-scope ul {
+  padding-inline-start: 20px;
+}
+
+.im-outbound-review pre {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

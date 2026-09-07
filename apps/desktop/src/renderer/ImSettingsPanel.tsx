@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import { ImDataPermissions } from "./ImDataPermissions";
+import { ImHandoff } from "./ImHandoff";
+import { ImOutboundReview } from "./ImOutboundReview";
 import {
   executionGrantSchema,
   type AppLocale,
   type ImConnectionStatus,
   type ImSettings,
   type ImStatus,
+  type CollaborationSpace,
   type Project,
 } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
@@ -414,7 +418,23 @@ export function ImSettingsPanel({
       ...settings,
       grants: settings.grants.map((g) =>
         g.projectId === projectId
-          ? executionGrantSchema.parse({ ...g, ...changes })
+          ? executionGrantSchema.parse({
+              ...g,
+              ...changes,
+              ...(changes.groups && g.security
+                ? {
+                    security: {
+                      ...g.security,
+                      confirmedAt: 0,
+                      scopes: g.security.scopes.filter(
+                        (s) =>
+                          s.audience === "owner" ||
+                          (changes.groups as string[]).includes(s.audience),
+                      ),
+                    },
+                  }
+                : {}),
+            })
           : g,
       ),
     });
@@ -1621,6 +1641,12 @@ export function ImSettingsPanel({
                 </details>
               </>
             )}
+            {view === "permissions" ? (
+              <>
+                <ImOutboundReview t={t} />
+                <ImHandoff tasks={status?.remoteTasks ?? []} t={t} />
+              </>
+            ) : null}
             {view === "permissions" && (
               <section id="im-permissions" tabIndex={-1}>
                 <ManagementSection
@@ -1696,14 +1722,38 @@ export function ImSettingsPanel({
                           }
                         />
                         {grant && (
-                          <details className="im-grant-details">
+                          <details className="im-grant-details" open>
                             <summary>
                               {t("授权设置", "Permission settings")} ·{" "}
                               {grant.mode} ·{" "}
-                              {grant.expiresAt > Date.now()
-                                ? t("有效", "Active")
-                                : t("已过期", "Expired")}
+                              {!grant.security?.confirmedAt
+                                ? t("待确认范围", "Confirm scope")
+                                : grant.expiresAt > Date.now()
+                                  ? t("有效", "Active")
+                                  : t("已过期", "Expired")}
                             </summary>
+                            <ImDataPermissions
+                              grant={grant}
+                              t={t}
+                              disabled={busy}
+                              onChange={(security) =>
+                                updateGrant(project.id, { security })
+                              }
+                              audiences={grant.groups.map((value) => {
+                                const space = (
+                                  (status?.spaces ?? []) as CollaborationSpace[]
+                                ).find((s) => `space:${s.id}` === value);
+                                return {
+                                  value,
+                                  ...(space?.revision
+                                    ? { revision: space.revision as string }
+                                    : {}),
+                                  label: space
+                                    ? `${space.name} · ${(space.endpoints ?? []).map((e) => `${e.connectionId}: ${e.id}`).join(", ")} · ${(space.participants ?? []).map((p) => p.name || p.deviceId).join(", ")}`
+                                    : value,
+                                };
+                              })}
+                            />
                             <div className="im-grant-fields">
                               <Select
                                 labelVisibility="visible"
@@ -1759,13 +1809,25 @@ export function ImSettingsPanel({
                                   },
                                 ]}
                               />
+                              {status?.scopedShellSupported === false ? (
+                                <InlineNotice tone="warning">
+                                  {t(
+                                    "当前平台缺少受限文件与命令组件，请更新 Artemis 后使用目录枚举、新建文件和命令执行。",
+                                    "Scoped file and command components are unavailable. Update Artemis to use directory listing, file creation and commands.",
+                                  )}
+                                </InlineNotice>
+                              ) : null}
                               <Checkbox
                                 label={t(
                                   "允许沙箱命令",
                                   "Allow sandboxed commands",
                                 )}
                                 checked={grant.shell}
-                                disabled={busy || grant.mode !== "execute"}
+                                disabled={
+                                  busy ||
+                                  grant.mode !== "execute" ||
+                                  status?.scopedShellSupported === false
+                                }
                                 onCheckedChange={(shell) =>
                                   updateGrant(project.id, { shell })
                                 }
@@ -1774,6 +1836,10 @@ export function ImSettingsPanel({
                                 label={t(
                                   "允许命令访问网络",
                                   "Allow command network access",
+                                )}
+                                description={t(
+                                  "开启通用网络访问；首版不按域名或数据内容限制网络外发。",
+                                  "Enables general network access; this version does not filter network destinations or payloads.",
                                 )}
                                 checked={grant.network}
                                 disabled={

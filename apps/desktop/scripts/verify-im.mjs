@@ -352,7 +352,7 @@ try {
       `control: ${expression}`,
     );
     const rect = await evaluate(
-      `(()=>{const e=${expression};if(!e)throw new Error('Missing control');e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`,
+      `(()=>{const e=${expression};if(!e)throw new Error('Missing control');e.scrollIntoView({block:'center',behavior:'instant'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`,
     );
     await send("Input.dispatchMouseEvent", {
       type: "mousePressed",
@@ -538,7 +538,7 @@ try {
       `window.artemis.setModelSelection(${JSON.stringify({ providerId: "im-provider", modelId: "im-model", thinkingLevel: "off" })})`,
     );
     await evaluate(
-      `window.artemis.saveImSettings({...${JSON.stringify(registered.settings)}, enabled:true, defaultProjectId:'im-project', grants:[{projectId:'im-project', mode:'plan', groups:['space:members-team'], expiresAt:Date.now()+600000}]})`,
+      `window.artemis.saveImSettings({...${JSON.stringify(registered.settings)}, enabled:true, defaultProjectId:'im-project', grants:[{projectId:'im-project', mode:'plan', groups:['space:members-team'], security:{version:2,revision:'draft',confirmedAt:Date.now(),scopes:[{audience:'owner',readPaths:['README.md'],writePaths:[]},{audience:'space:members-team',readPaths:['README.md'],writePaths:[]}]}, expiresAt:Date.now()+600000}]})`,
     );
     await evaluate("window.artemis.manageIm({action:'refresh'})");
   } else {
@@ -1043,6 +1043,68 @@ try {
     await click(
       "document.querySelector('#im-permissions input[type=checkbox]')",
     );
+    if (!(await evaluate("document.querySelector('.im-grant-details').open")))
+      await click("document.querySelector('.im-grant-details > summary')");
+    await click(button("选择目录或文件"));
+    await until(
+      () =>
+        evaluate(
+          "Array.from(document.querySelectorAll('input[type=checkbox]')).some(i=>i.closest('label')?.textContent.includes('可处理 README.md'))",
+        ),
+      "scope directory tree",
+    );
+    await click(
+      "Array.from(document.querySelectorAll('input[type=checkbox]')).find(i=>i.closest('label')?.textContent.includes('可处理 README.md'))",
+    );
+    await evaluate(
+      "Array.from(document.querySelectorAll('input[type=checkbox]')).find(i=>i.closest('label')?.textContent.includes('我确认以上文件范围')).focus()",
+    );
+    await send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: " ",
+      code: "Space",
+      windowsVirtualKeyCode: 32,
+    });
+    await send("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key: " ",
+      code: "Space",
+      windowsVirtualKeyCode: 32,
+    });
+    assert.equal(
+      await evaluate(
+        "Array.from(document.querySelectorAll('input[type=checkbox]')).find(i=>i.closest('label')?.textContent.includes('我确认以上文件范围')).checked",
+      ),
+      true,
+    );
+    const nativeWindow = nativeContents.replace(/\.webContents$/u, "");
+    const savedWindowSize = await mainEvaluate(
+      `(()=>{const w=${nativeWindow};const state={size:w.getSize(),minimum:w.getMinimumSize()};w.setMinimumSize(640,480);w.setSize(820,900);return state;})()`,
+    );
+    await pause(200);
+    await evaluate(
+      "(()=>{const scope=document.querySelector('.im-security-scope');scope.scrollIntoView({block:'start',behavior:'instant'});for(let p=scope.parentElement;p;p=p.parentElement){if(p.scrollHeight>p.clientHeight && /auto|scroll/.test(getComputedStyle(p).overflowY)){p.scrollTop+=scope.getBoundingClientRect().top-p.getBoundingClientRect().top-12;break;}}})()",
+    );
+    const scopeGeometry = await evaluate(
+      "(()=>{const d=document.querySelector('.im-detail');return {viewport:innerWidth,width:d.clientWidth,scroll:d.scrollWidth};})()",
+    );
+    assert.equal(scopeGeometry.viewport, 820);
+    assert.ok(scopeGeometry.scroll <= scopeGeometry.width + 1);
+    const scopeCapture = await send("Page.captureScreenshot", {
+      format: "png",
+    });
+    await writeFile(
+      join(output, "security-scope-native-narrow.png"),
+      Buffer.from(scopeCapture.data, "base64"),
+    );
+    records.push({
+      name: "native-scope-keyboard-and-narrow-layout",
+      geometry: scopeGeometry,
+    });
+    await mainEvaluate(
+      `${nativeWindow}.setMinimumSize(${savedWindowSize.minimum[0]},${savedWindowSize.minimum[1]});${nativeWindow}.setSize(${savedWindowSize.size[0]},${savedWindowSize.size[1]})`,
+    );
+    await pause(200);
     await click(button("保存项目授权"));
     await click("document.querySelector('.im-header [role=switch]')");
     await until(
@@ -1210,7 +1272,7 @@ try {
   await gateway.tick();
   const callsBeforeGroupSetup = modelCalls.length;
   await evaluate(
-    `(async()=>{const s=await window.artemis.getImStatus();await window.artemis.saveImSettings({...s.settings,grants:s.settings.grants.map(g=>({...g,groups:[${JSON.stringify(`space:${savedSpace.id}`)}]}))});})()`,
+    `(async()=>{const s=await window.artemis.getImStatus();await window.artemis.saveImSettings({...s.settings,grants:s.settings.grants.map(g=>({...g,mode:'execute',approval:'automatic',groups:[${JSON.stringify(`space:${savedSpace.id}`)}],security:{version:2,revision:'draft',confirmedAt:Date.now(),scopes:[{audience:'owner',readPaths:['README.md'],writePaths:[]},{audience:${JSON.stringify(`space:${savedSpace.id}`)},readPaths:['README.md'],writePaths:[]}]}}))});})()`,
   );
   const groupTask = await until(
     async () =>

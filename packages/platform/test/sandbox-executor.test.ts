@@ -31,6 +31,26 @@ const buildDesktopUserLaunch = (
 ).buildDesktopUserLaunch;
 
 describe("sandbox execution contracts", () => {
+  it("limits explicit workspace write grants without changing desktop defaults", () => {
+    expect(
+      normalizeSandboxPolicy({
+        workspacePath: "C:\\stage",
+        workspaceAccess: "read",
+        mode: "execute",
+        network: "deny",
+        writablePaths: ["C:\\stage\\src"],
+      }).writablePaths,
+    ).toEqual(["C:\\stage\\src"]);
+    expect(() =>
+      normalizeSandboxPolicy({
+        workspacePath: "C:\\stage",
+        workspaceAccess: "read",
+        mode: "plan",
+        network: "deny",
+        writablePaths: ["C:\\stage\\src"],
+      }),
+    ).toThrow(/cannot add writable/);
+  });
   it("builds an explicit current-user launch without wrapping the command", () => {
     const command = {
       executable: "C:\\runtime\\node.exe",

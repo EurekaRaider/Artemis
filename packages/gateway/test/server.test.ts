@@ -81,6 +81,7 @@ async function fixture(withCards = false) {
     authorization: `Bearer ${device.token}`,
     "x-artemis-device": device.id,
     "x-artemis-session": randomUUID(),
+    "x-artemis-security-version": "2",
   };
   const input: ChannelEvent = {
     version: 1,
@@ -114,6 +115,54 @@ async function fixture(withCards = false) {
   };
 }
 describe("Gateway lifecycle and delivery authorization", () => {
+  it("requires security capability and drops queued output after grant revocation", async () => {
+    const f = await fixture();
+    const oldHeaders = { ...f.headers, "x-artemis-security-version": "1" };
+    expect(
+      (await fetch(`${f.url}/v1/device/inbox`, { headers: oldHeaders })).ok,
+    ).toBe(false);
+    const security = {
+      version: 2,
+      projectId: "project",
+      revision: "revision",
+      audience: "owner",
+    };
+    const setPolicy = async (grants: unknown[]) => {
+      const response = await fetch(`${f.url}/v1/device/security`, {
+        method: "POST",
+        headers: f.headers,
+        body: JSON.stringify({ version: 2, grants }),
+      });
+      expect(response.ok).toBe(true);
+    };
+    await setPolicy([
+      { ...security, expiresAt: Date.now() + 60000, version: undefined },
+    ]);
+    f.gateway.router.ingest(f.input);
+    f.gateway.router.processIncoming();
+    const invocation =
+      f.gateway.store.list<RemoteInvocationContext>("invocations")[0]!;
+    const send = (revision: string, id: string) =>
+      fetch(`${f.url}/v1/device/reply`, {
+        method: "POST",
+        headers: f.headers,
+        body: JSON.stringify({
+          version: 1,
+          id,
+          invocationId: invocation.id,
+          taskId: "task",
+          text: "PRIVATE_QUEUED_SENTINEL",
+          final: true,
+          security: { ...security, revision },
+        }),
+      });
+    expect((await send("forged", "bad")).ok).toBe(false);
+    expect((await send("revision", "valid")).ok).toBe(true);
+    await setPolicy([]);
+    await f.gateway.tick();
+    expect(f.sent.join("\n")).not.toContain("PRIVATE_QUEUED_SENTINEL");
+    expect((await send("revision", "replay")).ok).toBe(false);
+  });
   it("opens idle group contexts only for confirmed paired members and lets only administrators remove a space", async () => {
     const f = await fixture();
     const endpoint = {

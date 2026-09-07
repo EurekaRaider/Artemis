@@ -10,6 +10,8 @@ export interface SandboxPolicy {
   network: NetworkPolicy;
   writablePaths?: string[];
   readOnlyPaths?: string[];
+  /** Explicit scopes may grant writes without implicitly granting the workspace. */
+  workspaceAccess?: "read";
 }
 
 export interface SandboxCommand {
@@ -48,11 +50,11 @@ export function normalizeSandboxPolicy(policy: SandboxPolicy): SandboxPolicy {
   const workspacePath = resolveSandboxPath(policy.workspacePath);
   const isWritableMode = policy.mode === "execute";
   const writablePaths = [
-    workspacePath,
+    ...(policy.workspaceAccess === "read" ? [] : [workspacePath]),
     ...(policy.writablePaths ?? []).map(resolveSandboxPath),
   ];
 
-  if (!isWritableMode && writablePaths.length > 1) {
+  if (!isWritableMode && (policy.writablePaths?.length ?? 0) > 0) {
     throw new Error(`${policy.mode} mode cannot add writable paths`);
   }
 

@@ -352,6 +352,7 @@ interface PendingApproval {
   request: BrokerExecutionRequest;
   projectId: string;
   fingerprint: string;
+  expiresAt?: number;
 }
 
 type SingleQuestionUserInputRequest = Extract<
@@ -3924,9 +3925,15 @@ async function handleBrokerRequest(
             allowedScopes: ["once"],
             value: {
               workerRequestId,
-              request,
+              request: structuredClone(request),
               projectId: store.getThread(request.threadId)!.projectId!,
-              fingerprint: request.approvalId,
+              fingerprint: imService.operationFingerprint(
+                request.threadId,
+                request.operation,
+                request.mode,
+                request.turnId,
+              ),
+              expiresAt: Date.now() + 300000,
             },
           });
           emitPayload(request.threadId, request.turnId, {
@@ -5210,6 +5217,29 @@ async function resolveApproval(resolution: ApprovalResolution): Promise<void> {
     });
   }
   if (pending.request.kind === "remote.operation") {
+    try {
+      if (
+        !pending.expiresAt ||
+        pending.expiresAt <= Date.now() ||
+        pending.fingerprint !==
+          imService?.operationFingerprint(
+            pending.request.threadId,
+            pending.request.operation,
+            pending.request.mode,
+            pending.request.turnId,
+          )
+      )
+        throw new Error(
+          "Operation approval expired or its permissions changed.",
+        );
+    } catch (error) {
+      rejectBrokerRequest(
+        pending.workerRequestId,
+        pending.request,
+        error instanceof Error ? error.message : String(error),
+      );
+      return;
+    }
     await executeApprovedRemote(
       pending.workerRequestId,
       pending.request,

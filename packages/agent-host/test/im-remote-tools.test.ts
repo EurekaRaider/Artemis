@@ -10,7 +10,7 @@ import {
 } from "../src/remote-tools.js";
 
 describe("remote Pi tool boundary", () => {
-  it("adds only the group collaboration tool to an explicitly enabled local Execute session", async () => {
+  it("requires the same restricted tool boundary for desktop group sessions", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "artemis-local-group-"));
     const calls: BrokerExecutionRequest[] = [];
     const host = new ArtemisAgentHost(
@@ -28,6 +28,19 @@ describe("remote Pi tool boundary", () => {
         workspacePath: workspace,
         target: "local",
         groupCollaboration: true,
+        remoteExecution: {
+          network: false,
+          shell: false,
+          security: {
+            version: 2,
+            projectId: "p",
+            revision: "r",
+            audience: "space:team",
+            identityKey: "owner",
+            source: "desktop",
+            messageId: "m",
+          },
+        },
       });
       await host.openThread({
         threadId: "ordinary",
@@ -52,9 +65,7 @@ describe("remote Pi tool boundary", () => {
       ).threads;
       const group = threads.get("local-group")!;
       expect(group.executeTools.map((t) => t.name)).toContain("collaborate");
-      expect(group.executeTools.map((t) => t.name)).not.toContain(
-        "remote_write",
-      );
+      expect(group.executeTools.map((t) => t.name)).toContain("remote_write");
       expect(group.delegatedTools.map((t) => t.name)).not.toContain(
         "collaborate",
       );

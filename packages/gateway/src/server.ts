@@ -1,3 +1,8 @@
+import {
+  IM_SECURITY_VERSION,
+  imDeliverySecuritySchema,
+  imReplySchema,
+} from "@artemis/protocol";
 import { randomUUID, randomBytes, createHash } from "node:crypto";
 import {
   createServer,
@@ -283,7 +288,10 @@ export class ArtemisGateway {
         artifact.expiresAt <= Date.now() ||
         !sameSecret(capability ?? "", artifact.token) ||
         !invocation ||
-        !this.identityStillBound(invocation)
+        !this.identityStillBound(invocation) ||
+        !this.router.securityAllowed(
+          this.store.get("invocation-security", invocation.id),
+        )
       ) {
         respond(response, 404, {
           error: "Artifact is unavailable or expired.",
@@ -306,7 +314,11 @@ export class ArtemisGateway {
     if (request.headers.origin)
       throw new Error("Browser-origin requests are not accepted.");
     if (url.pathname === "/health" && request.method === "GET") {
-      respond(response, 200, { ok: true, version: 1 });
+      respond(response, 200, {
+        ok: true,
+        version: 1,
+        securityVersion: IM_SECURITY_VERSION,
+      });
       return;
     }
     if (
@@ -593,6 +605,7 @@ export class ArtemisGateway {
               ...space,
               confirmed: !!this.router.findSpace(space.endpoints[0]!),
             })),
+          securityVersion: IM_SECURITY_VERSION,
           identities: this.store.list("identities"),
           groups: this.store.list("observed-groups"),
           devices: this.store
@@ -676,14 +689,38 @@ export class ArtemisGateway {
       respond(response, 200, { released: true });
       return;
     }
+    if (
+      request.headers["x-artemis-security-version"] !==
+        String(IM_SECURITY_VERSION) &&
+      this.store.get("device-security", deviceId)
+    )
+      this.store.put("device-security", deviceId, {
+        version: IM_SECURITY_VERSION,
+        grants: [],
+      });
     const leaseUntil = Date.now() + 45000;
     this.store.put("device-leases", deviceId, {
       sessionId,
       expiresAt: leaseUntil,
     });
     response.setHeader("X-Artemis-Lease-Until", String(leaseUntil));
+    if (
+      [
+        "/v1/device/inbox",
+        "/v1/device/attachment",
+        "/v1/device/poll",
+        "/v1/device/collaborate",
+        "/v1/device/reply",
+        "/v1/device/artifacts",
+        "/v1/device/group-context",
+      ].includes(url.pathname) &&
+      request.headers["x-artemis-security-version"] !==
+        String(IM_SECURITY_VERSION)
+    )
+      throw new Error("Upgrade Artemis to use IM security version 2.");
     if (url.pathname === "/v1/device/status" && request.method === "GET") {
       respond(response, 200, {
+        securityVersion: IM_SECURITY_VERSION,
         identities: this.store
           .list<{ deviceId: string; identity: ImIdentity }>("identities")
           .filter((b) => b.deviceId === deviceId)
@@ -844,6 +881,29 @@ export class ArtemisGateway {
     }
     if (request.method !== "POST") throw new Error("Unknown device operation.");
     const body = JSON.parse(await readBody(request));
+    if (url.pathname === "/v1/device/security" && request.method === "POST") {
+      const policy = z
+        .object({
+          version: z.literal(IM_SECURITY_VERSION),
+          grants: z
+            .array(
+              z
+                .object({
+                  projectId: z.string().min(1),
+                  revision: z.string().min(1),
+                  audience: z.string().min(1),
+                  expiresAt: z.number().int().positive(),
+                })
+                .strict(),
+            )
+            .max(10100),
+        })
+        .strict()
+        .parse(body);
+      this.store.put("device-security", deviceId, policy);
+      respond(response, 200, { accepted: true });
+      return;
+    }
     if (
       url.pathname === "/v1/device/group-context" &&
       request.method === "POST"
@@ -864,6 +924,7 @@ export class ArtemisGateway {
     if (url.pathname === "/v1/device/artifacts") {
       const input = z
         .object({
+          security: imDeliverySecuritySchema,
           invocationId: z.string().min(1),
           name: z
             .string()
@@ -877,6 +938,7 @@ export class ArtemisGateway {
         })
         .strict()
         .parse(body);
+      this.router.acceptSecurity(deviceId, input.invocationId, input.security);
       const invocation = this.store.get<RemoteInvocationContext>(
         "invocations",
         input.invocationId,
@@ -901,6 +963,10 @@ export class ArtemisGateway {
       const data = Buffer.from(input.data, "base64");
       if (data.length > 10 * 1024 * 1024)
         throw new Error("Artifact exceeds 10 MiB.");
+      if (old && old.sha256 !== createHash("sha256").update(data).digest("hex"))
+        throw new Error(
+          "Artifact invocation cannot be reused for different bytes.",
+        );
       const artifact = old ?? {
         id: input.invocationId,
         invocationId: input.invocationId,
@@ -982,7 +1048,14 @@ export class ArtemisGateway {
       return;
     }
     if (url.pathname === "/v1/device/reply") {
-      this.router.receiveReply(deviceId, body);
+      const reply = imReplySchema.parse(body);
+      if (reply.taskId)
+        this.router.acceptSecurity(
+          deviceId,
+          reply.invocationId,
+          reply.security,
+        );
+      this.router.receiveReply(deviceId, reply);
       respond(response, 200, { accepted: true });
       return;
     }
@@ -994,9 +1067,11 @@ export class ArtemisGateway {
           threadId: z.string().min(1),
           desktopTurnId: z.string().min(1).max(256).optional(),
           command: collaborationCommandSchema,
+          security: imDeliverySecuritySchema,
         })
         .strict()
         .parse(body);
+      this.router.acceptSecurity(deviceId, input.invocationId, input.security);
       const invocationId = input.desktopTurnId
         ? this.store.transaction(() =>
             this.router.desktopCollaborationContext(
@@ -1007,6 +1082,8 @@ export class ArtemisGateway {
             ),
           )
         : input.invocationId;
+      if (invocationId !== input.invocationId)
+        this.router.acceptSecurity(deviceId, invocationId, input.security);
       const key = JSON.stringify([
         deviceId,
         invocationId,

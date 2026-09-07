@@ -13,8 +13,83 @@ import { describe, it, expect } from "vitest";
 import {
   checkedRemotePath,
   buildRemoteShellLaunch,
+  buildScopedImShellLaunch,
+  validateImShellScope,
   runRemoteShell,
 } from "../src/main/im-sandbox.js";
+
+it("never falls back to a broad Windows or Linux shell for scoped work", () => {
+  for (const platform of ["win32", "linux"] as const)
+    expect(() =>
+      buildScopedImShellLaunch(
+        "/project",
+        "echo test",
+        false,
+        { audience: "owner", readPaths: ["src"], writePaths: ["src"] },
+        platform,
+      ),
+    ).toThrow(/细粒度/);
+});
+
+it.runIf(process.platform === "darwin")(
+  "enforces scoped native reads, writes and protected files independently of command text",
+  async () => {
+    const { readFile, link } = await import("node:fs/promises");
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-im-scoped-")),
+    );
+    try {
+      await mkdir(join(root, "src"));
+      await mkdir(join(root, "docs"));
+      await writeFile(join(root, "private.txt"), "OUTSIDE_SCOPE_SENTINEL");
+      await writeFile(join(root, "src", ".env"), "PROTECTED_SENTINEL");
+      await writeFile(join(root, "src", "AGENTS.md"), "CONTROL_SENTINEL");
+      await writeFile(join(root, "docs", "guide.txt"), "READABLE_SENTINEL");
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          root,
+          "cat docs/guide.txt; cat private.txt; cat src/.env; cat src/AGENTS.md; printf altered > docs/guide.txt; printf altered > src/.env; printf allowed > src/output.txt; ln private.txt src/link.txt; cat src/link.txt",
+          false,
+          {
+            audience: "owner",
+            readPaths: ["src", "docs"],
+            writePaths: ["src"],
+          },
+        ),
+        new AbortController().signal,
+        10,
+      );
+      expect(result.output, JSON.stringify(result)).toContain(
+        "READABLE_SENTINEL",
+      );
+      expect(result.output).not.toMatch(
+        /OUTSIDE_SCOPE_SENTINEL|PROTECTED_SENTINEL|CONTROL_SENTINEL/,
+      );
+      expect(await readFile(join(root, "src", "output.txt"), "utf8")).toBe(
+        "allowed",
+      );
+      expect(await readFile(join(root, "src", ".env"), "utf8")).toBe(
+        "PROTECTED_SENTINEL",
+      );
+      expect(await readFile(join(root, "docs", "guide.txt"), "utf8")).toBe(
+        "READABLE_SENTINEL",
+      );
+      await link(
+        join(root, "private.txt"),
+        join(root, "src", "preexisting-link.txt"),
+      );
+      await expect(
+        validateImShellScope(root, {
+          audience: "owner",
+          readPaths: ["src"],
+          writePaths: ["src"],
+        }),
+      ).rejects.toThrow(/links/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
 
 describe("remote filesystem policy", () => {
   it("rejects traversal and symlink escapes before executing", async () => {

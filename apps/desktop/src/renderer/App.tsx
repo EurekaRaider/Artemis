@@ -10230,7 +10230,6 @@ function Timeline({
           state={turn?.status === "running" ? "streaming" : "ready"}
         >
           <MarkdownContent
-            externalLinkIcons
             fileLinkIcons
             onExternalLink={onExternalLink}
             onFileLink={onFileLink}
