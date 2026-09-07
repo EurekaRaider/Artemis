@@ -754,21 +754,26 @@ UI.enhance(document);
     });
   });
 
-  /* ===== 热力图（伪随机生成，令牌着色） ===== */
+  /* ===== 热力图（伪随机强度 → ZCode 使用统计式 5 档色阶） ===== */
   (function () {
     var hm = document.getElementById("heatmapDemo");
     if (!hm) return;
-    var cs = getComputedStyle(root);
     function build() {
       hm.innerHTML = "";
-      var acc = cs.getPropertyValue("--accent").trim();
+      var vals = [];
+      var max = 0;
+      for (var i = 0; i < 56; i++) {
+        var v = Math.random();
+        vals.push(v);
+        if (v > max) max = v;
+      }
       for (var i = 0; i < 56; i++) {
         var c = document.createElement("div");
         c.className = "hm-cell";
-        var lvl = Math.random();
-        if (lvl > 0.62) {
-          c.style.background = acc;
-          c.style.opacity = 0.25 + Math.round(((lvl - 0.62) / 0.38) * 7) / 10;
+        var v = vals[i];
+        /* ZCode 等级公式：ceil(值/峰值×4) 夹在 1..4；低于阈值视为无活动保持 L0 */
+        if (v > 0.62) {
+          c.dataset.level = Math.min(4, Math.max(1, Math.ceil((v / max) * 4)));
         }
         hm.appendChild(c);
       }

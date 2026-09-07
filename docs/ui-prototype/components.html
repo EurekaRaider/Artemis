@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Artemis 组件层 · 方向 A/B/C 对比</title>
 <link rel="stylesheet" href="showcase/showcase.css" />
-<link rel="stylesheet" href="ui/index.css"/>
+<link rel="stylesheet" href="ui/index.css?v=121"/>
 </head>
 <body class="ui-anatomy">
 <header class="top">
@@ -726,9 +726,9 @@
 
       <div class="spec" data-card="cat-data-12"><div class="spec-h"><span class="no">12d</span><span class="name">热力图 + 终端</span><span class="en">Heatmap / Terminal</span><span class="src">.heatmap / .terminal</span></div>
         <div class="spec-d">
-          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.heatmap</code> 14 列栅格 · gap 3px · 56 枚 <code>.hm-cell</code>；<code>.terminal</code> 固定深底 #101014 · 等宽 11.5px</span></div>
-          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">载入即伪随机上色：阈值 0.62 以上格填 <code>var(--accent)</code>，透明度按强度 0.25 到 0.95 分八档</span></div>
-          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v"><code>MutationObserver</code> 监听根节点 <code>data-direction/data-theme</code> 变更整图重建；终端不随主题切换，<code>.t-cursor</code> 以 1s 步进闪烁</span></div>
+          <div class="sd-row"><span class="sd-k">构成</span><span class="sd-v"><code>.heatmap</code> 14 列栅格 · gap 3px · 56 枚 <code>.hm-cell</code>（L0–L4 五档色阶）；<code>.terminal</code> 固定深底 #101014 · 等宽 11.5px</span></div>
+          <div class="sd-row"><span class="sd-k">事件</span><span class="sd-v">载入即伪随机分档：阈值 0.62 以上按 <code>ceil(值/峰值×4)</code> 映射 <code>data-level</code> 1–4，取色 <code>--usage-hm-1..4</code> 单色浓度阶梯，其余保持 L0 底面</span></div>
+          <div class="sd-row"><span class="sd-k">行为</span><span class="sd-v">色阶参照 ZCode 使用统计：浅色 sky-500/600/700 与表面 <code>color-mix</code> 18/36/58/82%，深色 sky-400/300 递进 24/42/62/78%；格子 hover 放大 1.1；<code>MutationObserver</code> 监听主题变更整图重建；终端不随主题切换，<code>.t-cursor</code> 以 1s 步进闪烁</span></div>
         </div>
         <div class="spec-b col"><div class="heatmap" id="heatmapDemo" aria-label="活动热力图"></div>
           <div class="terminal"><span class="t-p">$</span> artemis build --direction b<br><span class="t-c"><svg class="ic xs" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-2px"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg></span> 编译令牌…<br><span class="t-ok">✓</span> 完成，耗时 0.8s<br><span class="t-p">$</span> <span class="t-cursor"></span></div>
@@ -1348,6 +1348,6 @@
 
 <script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js"></script>
-<script src="showcase/showcase.js"></script>
+<script src="showcase/showcase.js?v=121"></script>
 </body>
 </html>

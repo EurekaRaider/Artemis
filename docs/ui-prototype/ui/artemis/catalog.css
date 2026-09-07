@@ -1862,10 +1862,29 @@
     width: 100%;
     max-width: 360px;
   }
+  /* v121：Token 活动热力色阶（参照 ZCode 使用统计 usage-heatmap）——
+     L0 空档保持底面；L1–L4 为 --usage-hm-* 单色浓度阶梯（tokens.css 按
+     浅/深主题定义），强度由 JS 按 ceil(值/峰值×4) 分档写入 data-level */
   .hm-cell {
     aspect-ratio: 1;
-    border-radius: 3px;
+    border-radius: 4px;
     background: var(--surface-3);
+    transition: transform 120ms ease;
+  }
+  .hm-cell:hover {
+    transform: scale(1.1);
+  }
+  .hm-cell[data-level="1"] {
+    background: var(--usage-hm-1);
+  }
+  .hm-cell[data-level="2"] {
+    background: var(--usage-hm-2);
+  }
+  .hm-cell[data-level="3"] {
+    background: var(--usage-hm-3);
+  }
+  .hm-cell[data-level="4"] {
+    background: var(--usage-hm-4);
   }
   /* 终端（产品决策：默认深色） */
   .terminal {

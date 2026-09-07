@@ -299,3 +299,20 @@ html,
 body {
   font-family: var(--ui-font);
 }
+
+/* ============ v121 追加：Token 活动热力色阶（取自 ZCode 使用统计 usage-heatmap） ============
+   单色 5 档浓度阶梯：L0 = 空档底面（组件层用 surface-3），L1–L4 以 sky 单色与
+   当前方向的 --surface 做 color-mix（var 惰性求值，各方向/主题自动取各自表面色）。
+   浅色档位 500→600→700 递进加浓；深色档位 400 加浓、L4 换 300 提亮（与 ZCode 一致）。 */
+[data-theme="light"] {
+  --usage-hm-1: color-mix(in oklab, #0ea5e9 18%, var(--surface));
+  --usage-hm-2: color-mix(in oklab, #0ea5e9 36%, var(--surface));
+  --usage-hm-3: color-mix(in oklab, #0284c7 58%, var(--surface));
+  --usage-hm-4: color-mix(in oklab, #0369a1 82%, var(--surface));
+}
+[data-theme="dark"] {
+  --usage-hm-1: color-mix(in oklab, #38bdf8 24%, var(--surface));
+  --usage-hm-2: color-mix(in oklab, #38bdf8 42%, var(--surface));
+  --usage-hm-3: color-mix(in oklab, #38bdf8 62%, var(--surface));
+  --usage-hm-4: color-mix(in oklab, #7dd3fc 78%, var(--surface));
+}
