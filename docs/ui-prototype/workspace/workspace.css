@@ -4935,7 +4935,10 @@ body.sidebar-collapsed .app-shell {
   background: var(--surface-header);
   backdrop-filter: blur(20px) saturate(1.35);
   -webkit-backdrop-filter: blur(20px) saturate(1.35);
-  z-index: 20;
+  /* v118：通栏承载环境面板浮窗，层级须压过工作区兄弟层（composer-wrap z20/thread-menu z24）。
+     取 --z-menu(30)：高于一切工作区内容，低于 dialog(100)/toast(200)。原 z:20 与
+     composer-wrap 同值且 DOM 靠前，浮窗下半被 composer 盖住。 */
+  z-index: var(--z-menu, 30);
 }
 .workspace-header .ws-toggle {
   width: 30px;
