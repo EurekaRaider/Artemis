@@ -68,9 +68,12 @@ html[data-direction="a"] {
   color-scheme: light;
 }
 [data-direction="a"][data-theme="dark"] {
-  /* ZCode 基底：neutral 灰阶 + sky 品牌蓝 + 近白主按钮 */
-  --bg: #171717;
-  --bg-sidebar: #141414;
+  /* ZCode 基底：neutral 灰阶 + 品牌蓝仅墨水 + 近白主按钮。
+     v116：画布与导航深浅对调（用户决定，对齐 ZCode 观感）——主内容区更深（#141414）承托内容，
+     导航抬到 #1d1d1d；纯字面交换（#171717↔#141414）差值 3/255 不可辨，故导航再加一档。
+     阶梯：画布 14 → 导航 1d → 面板 20 → Composer 26 → popover 2b → user/ctx 30。 */
+  --bg: #141414;
+  --bg-sidebar: #1d1d1d;
   --surface: #202020;
   --surface-2: #262626;
   --surface-3: #303030;
@@ -101,7 +104,7 @@ html[data-direction="a"] {
   --shadow-composer: 0 1px 2px rgb(0 0 0 / 0.4);
   --hover: rgba(229, 229, 229, 0.1);
   --selected: rgba(229, 229, 229, 0.1);
-  --bg-activity: #141414;
+  --bg-activity: #1d1d1d;
   --terminal-bg: #0a0a0a;
   --terminal-fg: #fafafa;
   --shadow-overlay:

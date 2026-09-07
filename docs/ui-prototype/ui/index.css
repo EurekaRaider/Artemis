@@ -1,5 +1,5 @@
 /* Public stylesheet entry for both offline prototype consumers. */
-@import url("tokens.css");
-@import url("primitives/controls.css");
-@import url("artemis/catalog.css");
-@import url("artemis/task-plan.css");
+@import url("tokens.css?v=116");
+@import url("primitives/controls.css?v=116");
+@import url("artemis/catalog.css?v=116");
+@import url("artemis/task-plan.css?v=116");
