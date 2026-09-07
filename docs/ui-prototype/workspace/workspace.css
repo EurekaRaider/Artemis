@@ -936,7 +936,9 @@ body[data-view="automations"] .pg-auto {
 .timeline {
   max-width: 960px;
   margin: 0 auto;
-  padding: 34px 20px 24px;
+  /* v138：底部 64px = 悬浮胶囊区(48) + 呼吸(16)：触底消息停在胶囊上方，
+     与输入框顶沿留距，不贴边不钻胶囊底下 */
+  padding: 34px 20px 64px;
   width: 100%;
   display: flex;
   flex-direction: column;
