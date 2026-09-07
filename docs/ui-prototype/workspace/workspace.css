@@ -4109,10 +4109,11 @@ body[data-archived-demo] .composer-wrap .composer {
     box-shadow: 0 0 0 5px color-mix(in srgb, var(--warning) 8%, transparent);
   }
 }
-/* v155：绑定行静音/解绑改图标按钮（图标库 bell-off / unlink） */
+/* v155：绑定行静音/解绑改图标按钮（图标库 bell-off / unlink）
+   v156：加大一档（26→28px · 图标 15px，与 IM 行高更协调） */
 .im-icon-btn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   border-radius: var(--r-control);
@@ -4120,6 +4121,10 @@ body[data-archived-demo] .composer-wrap .composer {
   transition:
     background var(--t-quick),
     color var(--t-quick);
+}
+.im-icon-btn svg {
+  width: 15px;
+  height: 15px;
 }
 .im-icon-btn:hover {
   background: var(--hover);
@@ -4253,6 +4258,13 @@ body[data-archived-demo] .composer-wrap .composer {
 .im-identifier.lg {
   font-size: 13.5px;
   padding: 5px 10px;
+}
+/* v156：配对请求卡的账号 ID 与配对码卡的 /pair 指令去掉背板，直接以文本呈现 */
+.im-pair-who .im-identifier,
+.im-code-card .im-identifier {
+  background: none;
+  border: none;
+  padding: 0;
 }
 .im-callback {
   display: flex;

@@ -22,8 +22,9 @@
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: var(--fs);
-  font-weight: 550;
+  /* v121：胶囊文字降一档（14→12px）降重（550→480），仅步数数字加粗 */
+  font-size: 12px;
+  font-weight: 480;
   gap: 9px;
   height: var(--row-h);
   letter-spacing: -0.01em;
@@ -43,6 +44,9 @@
 }
 .task-plan-trigger .plan-num {
   font-variant-numeric: tabular-nums;
+}
+.task-plan-trigger .plan-num b {
+  font-weight: 660;
 }
 .task-plan-list {
   animation: plan-pop var(--t-quick);

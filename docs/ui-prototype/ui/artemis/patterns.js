@@ -270,7 +270,8 @@
           list.append(row);
         });
         mark(marker, states[index]);
-        label.textContent = "第 " + (index + 1) + " / " + steps.length + " 步";
+        /* v122：步数数字用 <b> 包裹加粗（task-plan.css .plan-num b），正文保持常规字重 */
+        label.innerHTML = "第 <b>" + (index + 1) + " / " + steps.length + "</b> 步";
         if (states.every((state) => state === "completed")) {
           setOpen(false);
           hideTimer = setTimeout(() => {
