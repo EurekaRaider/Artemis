@@ -306,23 +306,12 @@ html[data-theme="dark"] .sidebar-main {
 }
 
 
-/* v105：展开态头像放大（ZCode 头像:文字 ≈ 2.2:1）；版本胶囊黑白实底（随主题反转） */
+/* v105：展开态头像放大（ZCode 头像:文字 ≈ 2.2:1）；
+   v120：版本改为无胶囊纯文本（样式权威在 workspace.css），更新钮改圆形黑白 */
 .sidebar-footer .avatar {
   width: 30px;
   height: 30px;
   font-size: 13px;
-}
-.app-version,
-.app-version:hover {
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border-color: transparent;
-  transition:
-    background var(--t-quick),
-    color var(--t-quick);
-  font-weight: 550;
-  letter-spacing: 0.01em;
-  padding: 2.5px 8px;
 }
 
 
