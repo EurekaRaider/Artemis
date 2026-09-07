@@ -69,7 +69,7 @@ svg {
   height: calc(100dvh - 28px);
   display: grid;
   grid-template-columns: 46px var(--sidebar-w, 252px) minmax(0, 1fr);
-  transition: grid-template-columns 240ms var(--shell-ease);
+  /* v128：收起/固定展开即时切换（无网格动画）；hover-peek 滑出仍由抽屉自身 transform 过渡 */
   position: relative;
 }
 body.sidebar-collapsed .app-shell {
@@ -5294,4 +5294,8 @@ html[data-theme="dark"] body::before {
 .sidebar-brand #leftToggle {
   flex: none;
   margin-left: auto;
+}
+/* v128：收起态 peek 浮层内，品牌 Logo 与 rail 顶部 Logo 同位——可点击固定展开 */
+body.sidebar-collapsed .sidebar-brand .activity-mark {
+  cursor: pointer;
 }

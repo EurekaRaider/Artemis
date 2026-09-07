@@ -57,13 +57,15 @@
     if (slot) slot.textContent = formatRelTime(+t.getAttribute("data-ts"));
   });
 
-  /* v102：rail 展开与当前会话定位 */
+  /* v102：rail 展开与当前会话定位
+     v128：rail 底部展开钮移除（hover 即浮出）；固定展开入口 = rail 顶部 Logo
+     或 peek 浮层内同位置的品牌 Logo / 品牌行展开钮 */
   function expandSidebar() {
     body.classList.remove("sidebar-collapsed");
     var t = $("#leftToggle");
     if (t) t.classList.add("active");
   }
-  $$("#railExpand, .rail-brand").forEach(function (b) {
+  $$(".rail-brand, .sidebar-brand .activity-mark").forEach(function (b) {
     b.addEventListener("click", expandSidebar);
   });
   $("#railSettings").addEventListener("click", function () {
