@@ -843,9 +843,6 @@ body[data-view="automations"] .pg-auto {
   top: calc(100% + 18px);
   right: 0;
   width: 320px;
-  background: var(--material);
-  backdrop-filter: saturate(1.5) blur(28px);
-  -webkit-backdrop-filter: saturate(1.5) blur(28px);
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: var(--shadow-overlay);
@@ -857,6 +854,13 @@ body[data-view="automations"] .pg-auto {
   transition:
     opacity var(--t-quick),
     transform var(--t-quick);
+}
+/* v140：毛玻璃浮层——半透面 + 背景模糊。需三重特异性夺回材质：
+   .ui-floating 组件类（controls.css，最后加载 + 双类）默认盖成实底 surface-material + blur(6px) */
+.workspace-header .environment-popover.ui-floating {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
 }
 .environment-popover.open {
   opacity: 1;
