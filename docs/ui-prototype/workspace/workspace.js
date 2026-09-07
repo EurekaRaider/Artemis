@@ -2359,3 +2359,16 @@
     },
   );
 })();
+
+/* v149：目标操作——暂停/继续切换（图标与语义同步；编辑/删除走既有委托） */
+(function () {
+  "use strict";
+  var btn = document.getElementById("goalPause");
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    var paused = btn.classList.toggle("paused");
+    var label = paused ? "继续目标" : "暂停目标";
+    btn.setAttribute("aria-label", label);
+    btn.title = label;
+  });
+})();

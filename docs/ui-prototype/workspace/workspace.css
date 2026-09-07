@@ -727,18 +727,19 @@ body[data-view="automations"] .pg-auto {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* v134：目标胶囊（执行钮之后）——高度对齐 ctx-select(26px)；更改/删除内嵌胶囊右端，
-   平时胶囊收缩到 150px（文本截断、操作被裁），悬停平滑延伸(≤360px)露出操作钮。
-   删除用组件库 trash 图标（✕ 语义是关闭） */
+/* v149：目标胶囊（执行钮之后）——方圆角对齐会话条(--r-control)；高度对齐 ctx-select(26px)。
+   v150：宽度自适应——默认收缩到内容宽（92~150px 之间，超长截断），
+   悬停平滑延伸至最大 360px 并淡入操作钮（暂停/继续、编辑、删除） */
 .goal-pill {
   flex: none;
   display: inline-flex;
   align-items: center;
   height: 26px;
+  min-width: 92px;
   max-width: 150px;
   overflow: hidden;
   border: 1px solid var(--border-soft);
-  border-radius: 999px;
+  border-radius: var(--r-control);
   background: var(--surface);
   transition: max-width 220ms var(--ease);
 }
@@ -770,7 +771,19 @@ body[data-view="automations"] .pg-auto {
   align-items: center;
   gap: 2px;
   flex: none;
+  max-width: 0;
+  padding-right: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    max-width 220ms var(--ease),
+    padding 220ms var(--ease),
+    opacity var(--t-quick);
+}
+.goal-pill:hover .goal-acts {
+  max-width: 80px;
   padding-right: 5px;
+  opacity: 1;
 }
 .goal-act {
   width: 18px;
@@ -786,6 +799,16 @@ body[data-view="automations"] .pg-auto {
 .goal-act:hover {
   background: var(--hover);
   color: var(--text);
+}
+/* 暂停/继续：默认示「暂停」，点击切换到「继续」三角 */
+.goal-act .alt {
+  display: none;
+}
+.goal-act.paused .alt {
+  display: block;
+}
+.goal-act.paused svg:not(.alt) {
+  display: none;
 }
 .header-actions {
   margin-left: auto;

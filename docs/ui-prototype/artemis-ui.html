@@ -7,7 +7,7 @@
 <title>Artemis · 工作空间原型</title>
 
 <link href="ui/compat.css?v=100" rel="stylesheet"/>
-<link href="workspace/workspace.css?v=148" rel="stylesheet"/>
+<link href="workspace/workspace.css?v=151" rel="stylesheet"/>
 
 <link href="workspace-composition.css?v=111" rel="stylesheet"/><link rel="stylesheet" href="ui/index.css?v=120"/>
 </head>
@@ -298,9 +298,10 @@
 </div>
 </div>
 <div class="goal-pill" id="goalPill">
-<button class="goal-main" data-open-panel="goal" title="任务目标 · 悬停展开操作" type="button"><span aria-hidden="true">◎</span><span class="goal-text">目标 · UI 设计语言改版</span></button>
+<button class="goal-main" data-open-panel="goal" title="任务目标 · 悬停显示操作" type="button"><span aria-hidden="true">◎</span><span class="goal-text">目标 · UI 设计语言改版</span></button>
 <span class="goal-acts">
-<button aria-label="更改目标" class="goal-act" data-open-panel="goal" title="更改目标" type="button"><svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="11"><path d="M12.5 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6.5"></path><path d="M17.6 3.4a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 8.6-8.6z"></path></svg></button>
+<button aria-label="暂停目标" class="goal-act pause" id="goalPause" title="暂停目标" type="button"><svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-width="1.9" viewbox="0 0 24 24" width="11"><path d="M9.5 5.5v13M14.5 5.5v13"></path></svg><svg class="alt" fill="none" height="11" stroke="currentColor" stroke-linejoin="round" stroke-width="1.9" viewbox="0 0 24 24" width="11"><path d="M8.5 5.5 18 12l-9.5 6.5z"></path></svg></button>
+<button aria-label="编辑目标" class="goal-act" data-open-panel="goal" title="编辑目标" type="button"><svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="11"><path d="M12.5 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6.5"></path><path d="M17.6 3.4a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 8.6-8.6z"></path></svg></button>
 <button aria-label="删除目标" class="goal-act" data-toast="已删除目标（演示）" title="删除目标" type="button"><svg fill="none" height="11" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewbox="0 0 24 24" width="11"><path d="M4 7h16M9.5 7V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v2M6.5 7l.8 12a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4l.8-12"></path><path d="M10 11v6M14 11v6"></path></svg></button>
 </span>
 </div>
@@ -1207,6 +1208,6 @@
 <dialog aria-labelledby="archConfirmTitle" class="prototype-dialog" id="archConfirmDialog"><form method="dialog"><header class="panel-toolbar"><strong id="archConfirmTitle">归档这个任务？</strong><span class="sp"></span><button aria-label="关闭对话框" class="icon-btn" type="submit" value="cancel">×</button></header><div class="panel-scroll"><p class="card-sub" id="archConfirmBody">归档后可随时在「已归档对话」中恢复。</p></div><footer class="panel-actions"><button class="btn btn-quiet" type="submit" value="cancel">取消</button><button class="btn btn-primary" id="archConfirmOk" type="submit" value="confirm">归档</button></footer></form></dialog><script src="ui/index.js"></script>
 <script src="ui/artemis/patterns.js"></script>
 <script src="workspace/fixtures.js"></script>
-<script src="workspace/workspace.js?v=117"></script>
+<script src="workspace/workspace.js?v=118"></script>
 </body>
 </html>
