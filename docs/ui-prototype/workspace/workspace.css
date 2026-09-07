@@ -457,8 +457,8 @@ body.sidebar-collapsed .project-sidebar-resizer {
 .thread-menu button.danger {
   color: var(--danger);
 }
-/* 端在线指示（组件层 ic3 mobile/monitor；亮=在线、暗=离线，一个通道可多端并存）
-   v124：在线端图标右上叠 5px 绿点（Slack 式状态徽标），底色描边与侧栏融合；离线端维持暗图标 */
+/* 端在线指示（组件层 ic3 mobile/monitor；一个通道可多端并存）
+   v126：在线端整图标绿色线条（--success-text 档，保证侧栏底上的对比度）；离线端维持暗图标 */
 .im-devices {
   flex: none;
   display: inline-flex;
@@ -470,25 +470,12 @@ body.sidebar-collapsed .project-sidebar-resizer {
   height: 12px;
   color: var(--text-2);
 }
+.im-devices svg.on {
+  color: var(--success-text);
+}
 .im-devices svg:not(.on) {
   color: var(--text-3);
   opacity: 0.38;
-}
-.im-devices .dev {
-  position: relative;
-  display: inline-flex;
-  flex: none;
-}
-.im-devices .dev.on::after {
-  content: "";
-  position: absolute;
-  top: -2.5px;
-  right: -2.5px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 0 1.5px var(--bg-sidebar);
 }
 /* 侧栏头：仅搜索（placeholder 已表意，「任务」标签按用户要求移除；无独立新建按钮） */
 .sidebar-header-actions {
