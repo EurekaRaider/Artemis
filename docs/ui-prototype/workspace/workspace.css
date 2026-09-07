@@ -609,10 +609,10 @@ body[data-view="automations"] .pg-auto {
   color: var(--accent-text);
   background: var(--accent-soft);
 }
-/* 侧栏品牌行版本区（无胶囊纯文本，点击进设置）：推到行尾，字色与侧栏背景保持反差 */
+/* 侧栏版本区（无胶囊纯文本，点击进设置；位于底部账户行，由 foot-sp 推右）：
+   字色与侧栏背景保持反差 */
 .app-version {
   flex: none;
-  margin-left: auto;
   font-size: 10px;
   letter-spacing: 0.01em;
   color: var(--text-2);
@@ -5291,6 +5291,7 @@ html[data-theme="dark"] body::before {
   margin: 0 4px;
   background: var(--border);
 }
-.sidebar-footer #leftToggle {
+.sidebar-brand #leftToggle {
   flex: none;
+  margin-left: auto;
 }
