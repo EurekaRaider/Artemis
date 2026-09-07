@@ -353,6 +353,32 @@ body.sidebar-collapsed .project-sidebar-resizer {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* v129：长会话标题 hover 跑马灯（对齐 ZCode task-title-marquee：
+   双拷贝无缝单向匀速滚动、副本 24px 间隔、右缘 1.5rem 渐隐遮罩；~30px/s 缓和速度） */
+.tt-in {
+  white-space: nowrap;
+}
+.tt.marquee {
+  text-overflow: clip;
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
+}
+.tt.marquee .tt-in {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  gap: 24px;
+  animation: tt-marquee var(--tt-dur, 8s) linear infinite;
+}
+@keyframes tt-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(var(--tt-shift, -120px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt.marquee .tt-in {
+    animation: none;
+  }
+}
 .pulse {
   width: 6px;
   height: 6px;

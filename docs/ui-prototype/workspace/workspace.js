@@ -2282,3 +2282,68 @@
     }, 2400);
   });
 })();
+
+/* v129：会话标题跑马灯——悬停且标题溢出时，双拷贝无缝单向慢速滚动（~30px/s）。
+   结构对齐 ZCode task-title-marquee：外层 .tt 固定窗口裁剪，.tt-in 为轨道，
+   溢出才克隆副本（aria-hidden），移出即还原省略号静态态。 */
+(function () {
+  "use strict";
+  var GAP = 24;
+  var SPEED = 30; /* px/s */
+  Array.prototype.forEach.call(document.querySelectorAll(".tt"), function (tt) {
+    if (tt.querySelector(".tt-in")) return;
+    var text = tt.textContent;
+    tt.textContent = "";
+    var inner = document.createElement("span");
+    inner.className = "tt-in";
+    var copy = document.createElement("span");
+    copy.className = "tt-copy";
+    copy.textContent = text;
+    inner.appendChild(copy);
+    tt.appendChild(inner);
+  });
+  function arm(tt) {
+    if (tt.classList.contains("marquee") || tt.dataset.armed) return;
+    tt.dataset.armed = "1";
+    var inner = tt.querySelector(".tt-in");
+    var copy = inner && inner.firstElementChild;
+    if (!copy) return;
+    /* 静止态 .tt-in 为 inline（保 ellipsis），其 scrollWidth 恒 0，
+       溢出检测改用外层块容器 .tt 的 scrollWidth */
+    if (tt.scrollWidth - tt.clientWidth <= 4) return; /* 未溢出保持省略号 */
+    var dup = copy.cloneNode(true);
+    dup.classList.add("tt-dup");
+    dup.setAttribute("aria-hidden", "true");
+    inner.appendChild(dup);
+    tt.classList.add("marquee"); /* .tt-in 切 inline-flex 后 copy 才有可测宽度 */
+    var shift = copy.offsetWidth + GAP;
+    tt.style.setProperty("--tt-shift", -shift + "px");
+    tt.style.setProperty("--tt-dur", (shift / SPEED).toFixed(2) + "s");
+  }
+  function disarm(tt) {
+    delete tt.dataset.armed;
+    var dup = tt.querySelector(".tt-dup");
+    if (dup) dup.remove();
+    tt.classList.remove("marquee");
+  }
+  document.addEventListener(
+    "mouseover",
+    function (e) {
+      var wrap = e.target.closest && e.target.closest(".thread-wrap");
+      if (!wrap) return;
+      var tt = wrap.querySelector(".tt");
+      if (tt) arm(tt);
+    },
+  );
+  document.addEventListener(
+    "mouseout",
+    function (e) {
+      var wrap = e.target.closest && e.target.closest(".thread-wrap");
+      if (!wrap) return;
+      var next = e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".thread-wrap");
+      if (next === wrap) return;
+      var tt = wrap.querySelector(".tt");
+      if (tt) disarm(tt);
+    },
+  );
+})();
