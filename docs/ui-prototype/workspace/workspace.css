@@ -721,46 +721,55 @@ body[data-view="automations"] .pg-auto {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* v134：目标胶囊（执行钮之后）——高度对齐 ctx-select(26px)；更改/删除内嵌胶囊右端，
+   平时胶囊收缩到 150px（文本截断、操作被裁），悬停平滑延伸(≤360px)露出操作钮。
+   删除用组件库 trash 图标（✕ 语义是关闭） */
 .goal-pill {
-  flex: 1;
-  min-width: 0;
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  color: var(--text-2);
+  height: 26px;
+  max-width: 150px;
+  overflow: hidden;
   border: 1px solid var(--border-soft);
   border-radius: 999px;
-  padding: 0.5px 8px;
-  white-space: nowrap;
+  background: var(--surface);
+  transition: max-width 220ms var(--ease);
 }
-.goal-pill .goal-text {
+.goal-pill:hover {
+  max-width: 360px;
+}
+.goal-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 0 1 auto;
+  height: 100%;
+  padding: 0 8px 0 10px;
+  font-size: 11px;
+  color: var(--text-2);
+  white-space: nowrap;
+  transition: color var(--t-quick);
+}
+.goal-main:hover {
+  color: var(--text);
+}
+.goal-main .goal-text {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* v133：目标区块（执行钮之后）——平时收缩到最小宽度（文本截断），
-   悬停弹性展开露出「更改/删除」操作；宽度过渡即可，操作钮随容器扩展自然显现 */
-.goal-control {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  max-width: 150px;
-  overflow: hidden;
-  transition: max-width 220ms var(--ease);
-}
-.goal-control:hover {
-  max-width: 360px;
-}
 .goal-acts {
   display: inline-flex;
-  flex: none;
+  align-items: center;
   gap: 2px;
+  flex: none;
+  padding-right: 5px;
 }
 .goal-act {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
   display: grid;
   place-items: center;
   color: var(--text-3);
