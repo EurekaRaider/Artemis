@@ -779,8 +779,11 @@ body[data-view="automations"] .pg-auto {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* 鎏金标注：◎ 图标取金色，文字保持中性 */
+/* 鎏金标注：◎ 图标取金色，文字保持中性（v157：图标容器转为 flex 并清零
+   行高，消除 inline 基线下伸空隙，与文字光学居中对齐） */
 .goal-main > span[aria-hidden="true"] {
+  display: inline-flex;
+  line-height: 0;
   color: var(--goal-gold);
 }
 .goal-acts {
@@ -4110,7 +4113,8 @@ body[data-archived-demo] .composer-wrap .composer {
   }
 }
 /* v155：绑定行静音/解绑改图标按钮（图标库 bell-off / unlink）
-   v156：加大一档（26→28px · 图标 15px，与 IM 行高更协调） */
+   v156：加大一档（26→28px · 图标 15px，与 IM 行高更协调）
+   v157：图标再放大至 17px；hover 弃背板，仅颜色变化（更克制） */
 .im-icon-btn {
   width: 28px;
   height: 28px;
@@ -4118,20 +4122,16 @@ body[data-archived-demo] .composer-wrap .composer {
   place-items: center;
   border-radius: var(--r-control);
   color: var(--text-3);
-  transition:
-    background var(--t-quick),
-    color var(--t-quick);
+  transition: color var(--t-quick);
 }
 .im-icon-btn svg {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
 }
 .im-icon-btn:hover {
-  background: var(--hover);
   color: var(--text);
 }
 .im-icon-btn.danger:hover {
-  background: var(--danger-soft);
   color: var(--danger);
 }
 .im-detail {
