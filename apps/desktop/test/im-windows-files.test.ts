@@ -129,11 +129,13 @@ describe.runIf(process.platform === "win32")(
           "../private/secret.txt",
         ]) {
           await expect(files.read(root, path, scope)).rejects.toThrow(
-            /reparse|hard links|protected|path|grant/i,
+            /reparse|hard links|protected|path|grant|受保护|路径|范围/i,
           );
           await expect(
             files.write(root, path, "BAD", scope, () => {}),
-          ).rejects.toThrow(/reparse|hard links|protected|path|grant/i);
+          ).rejects.toThrow(
+            /reparse|hard links|protected|path|grant|受保护|路径|范围/i,
+          );
         }
         expect(
           await readFile(join(root, "private", "secret.txt"), "utf8"),

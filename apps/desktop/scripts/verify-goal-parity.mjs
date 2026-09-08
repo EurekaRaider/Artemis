@@ -50,32 +50,32 @@ const actionLabels = {
 const stateDefinitions = [
   {
     view: "goal-active",
-    actions: ["clear", "pause", "edit"],
+    actions: ["pause", "edit", "clear"],
     tone: "info",
   },
   {
     view: "goal-paused",
-    actions: ["clear", "resume", "edit"],
+    actions: ["resume", "edit", "clear"],
     tone: "neutral",
   },
   {
     view: "goal-blocked",
-    actions: ["clear", "resume", "edit"],
+    actions: ["resume", "edit", "clear"],
     tone: "danger",
   },
   {
     view: "goal-usage-limited",
-    actions: ["clear", "resume", "edit"],
+    actions: ["resume", "edit", "clear"],
     tone: "warning",
   },
   {
     view: "goal-budget-limited",
-    actions: ["clear", "edit"],
+    actions: ["edit", "clear"],
     tone: "warning",
   },
   {
     view: "goal-complete",
-    actions: ["clear", "edit"],
+    actions: ["edit", "clear"],
     tone: "success",
   },
 ];
@@ -112,7 +112,7 @@ for (const mode of [
   cases.push({
     id: `goal-editor-${mode}`,
     view: `goal-editor-${mode}`,
-    actions: ["clear", "resume", "edit"],
+    actions: ["resume", "edit", "clear"],
     locale: "zh-CN",
     theme: "dark",
     width: 1_512,
@@ -124,7 +124,7 @@ for (const mode of [
 cases.push({
   id: "goal-active-reduced-motion",
   view: "goal-active",
-  actions: ["clear", "pause", "edit"],
+  actions: ["pause", "edit", "clear"],
   locale: "en",
   theme: "dark",
   width: 1_512,
@@ -286,7 +286,12 @@ try {
       audit.goalBar.top < contextRow.top - 1 ||
       audit.goalBar.bottom > contextRow.bottom + 1 ||
       audit.goalBar.width < Math.min(92, contextRow.width) - 1 ||
-      audit.goalBar.width > Math.min(360, contextRow.width) + 1 ||
+      audit.goalBar.width >
+        Math.min(
+          audit.windowInnerWidth <= 820 ? contextRow.width : 360,
+          contextRow.width,
+        ) +
+          1 ||
       audit.goalBar.height < 26 ||
       contextRow.top < audit.goalComposer.top
     ) {

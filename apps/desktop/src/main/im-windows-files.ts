@@ -370,8 +370,12 @@ export async function runWindowsImShell(input: {
         cwd: stage,
         env: {
           SystemRoot: systemRoot,
+          WINDIR: systemRoot,
+          ComSpec: win32.join(systemRoot, "System32", "cmd.exe"),
           PATH: win32.join(systemRoot, "System32"),
           USERPROFILE: stage,
+          APPDATA: stage,
+          LOCALAPPDATA: stage,
           TEMP: stage,
           TMP: stage,
         },

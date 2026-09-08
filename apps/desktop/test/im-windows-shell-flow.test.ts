@@ -51,6 +51,12 @@ describe("Windows scoped shell orchestration", () => {
       vi.spyOn(sandbox, "runRemoteShell").mockImplementation(async (launch) => {
         stage = launch.cwd!;
         expect(stage).not.toBe(workspace);
+        expect(launch.env).toMatchObject({
+          USERPROFILE: stage,
+          APPDATA: stage,
+          LOCALAPPDATA: stage,
+          WINDIR: launch.env?.SystemRoot,
+        });
         expect(launch.args[launch.args.indexOf("-HostTempPath") + 1]).toBe(
           tmpdir(),
         );
