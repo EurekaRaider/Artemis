@@ -373,3 +373,1047 @@ body.sidebar-collapsed[data-sidebar-peek="false"] .sidebar-main {transform:trans
 body.sidebar-collapsed[data-sidebar-peek="false"] .sidebar-rail {opacity:1;visibility:visible;pointer-events:auto;}
 body.sidebar-collapsed[data-sidebar-peek="true"] .sidebar-main {transform:none;opacity:1;pointer-events:auto;}
 body.sidebar-collapsed[data-sidebar-peek="true"] .sidebar-rail {opacity:0;visibility:hidden;pointer-events:none;}
+
+
+/* ============================================================
+   v113 · 顶部穿透（借鉴 EasyReading hiddenInset 做法）
+   无独立顶条：侧栏/主区头各自给红绿灯让位，材质直铺 y=0。
+   红绿灯模拟件恒浮于所有层之上（含 peek 抽屉 z80 / 设置背板 z60），
+   pointer-events:none 永不拦截点击（真实应用为原生控件）。
+   主区头 48 → 108（28 避让 + 80 内容）：居中标题 18px + 副题 12px
+   承接原面包屑；环境（layer）/右栏（dock）触发钮 30→36、图标 16→18。
+   ============================================================ */
+.titlebar-lights {
+  position: fixed;
+  top: 20px;
+  left: 18px;
+  display: flex;
+  gap: 8px;
+  z-index: 400;
+  pointer-events: none;
+}
+.titlebar-lights i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.titlebar-lights i:nth-child(1) {background:#ff5f57;}
+.titlebar-lights i:nth-child(2) {background:#febc2e;}
+.titlebar-lights i:nth-child(3) {background:#28c840;}
+html[data-theme="dark"] .titlebar-lights i {filter:saturate(0.88) brightness(0.9);}
+
+/* 左侧：侧栏玻璃直铺 y=0；品牌行落到灯带（y 20..32）之下 */
+.sidebar-top {padding-top:38px;}
+/* 折叠 rail 同理：品牌块下移，顶部空区留给红绿灯横向溢出（灯带到 x≈70，
+   rail 仅 48px 宽；主区头左端为空，无需避让规则） */
+.sidebar-rail {padding-top:44px;}
+
+/* 右侧：主区头穿透 + 抬高至 108px（28 避让 + 80 内容） */
+.workspace-header {
+  position: relative;
+  flex: 0 0 108px;
+  height: 108px;
+  padding: 28px 16px 0 18px;
+}
+.workspace-heading {
+  position: absolute;
+  left: 50%;
+  top: 28px;
+  bottom: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: min(560px, calc(100% - 420px));
+  text-align: center;
+}
+.workspace-heading strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.heading-sub {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.header-actions {
+  position: absolute;
+  right: 16px;
+  top: 28px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.workspace-header .environment-trigger,
+.workspace-header .ws-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+.workspace-header .environment-trigger svg,
+.workspace-header .ws-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+
+/* ============================================================
+   v114 · 顶栏回调：高度对齐 ZCode（h-12 = 48px），会话信息恢复左置面包屑
+   撤销 v113 的 108px 居中式；顶部穿透、红绿灯、侧栏避让、
+   环境/右栏图标放大（36px 钮 / 18px 图标）全部保留。
+   折叠态面包屑起点避让红绿灯横向溢出（灯带终点 x≈70）。
+   ============================================================ */
+.workspace-header {
+  position: static;
+  flex: 0 0 48px;
+  height: 48px;
+  padding: 0 12px 0 18px;
+}
+.workspace-heading {
+  position: static;
+  transform: none;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  max-width: min(62%, 680px);
+  text-align: left;
+}
+.workspace-heading strong {
+  font-size: 13px;
+  font-weight: 590;
+  letter-spacing: normal;
+  max-width: 200px;
+}
+.header-actions {
+  position: static;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  gap: 8px;
+}
+body.sidebar-collapsed .workspace-header {
+  padding-left: 34px;
+}
+
+
+/* ============================================================
+   v115 · 折叠态：顶栏左延通栏 + 极简栏浮岛
+   动机：红绿灯（x 18..70）原本横跨 rail 玻璃与顶栏两个色块。
+   方案：折叠时顶栏经负外边距延伸至 x=0，灯完整落在同一色块上；
+   rail 下压到顶栏下方，变为右缘圆角的浮岛条——
+   距顶栏下沿 2px、距窗口底部 2px，左缘贴窗口保持平直。
+   ============================================================ */
+body.sidebar-collapsed .workspace-header {
+  margin-left: -48px;
+  padding-left: 78px; /* 48 rail 车道 + 18 基础内边距 + 灯带(终点x≈70)避让 */
+}
+/* 车道竖线由浮岛自身的描边接管，避免与岛右缘出现双线 */
+body.sidebar-collapsed .sidebar {
+  border-right: 0;
+}
+body.sidebar-collapsed .sidebar-rail {
+  margin-top: 50px; /* 48 顶栏 + 2px 边距 */
+  margin-bottom: 2px;
+  padding-top: 10px; /* 岛已在灯带之下，撤销 v113 的 44px 避让 */
+  border-radius: 0 12px 12px 0;
+  border: 1px solid var(--border-soft);
+  border-left: 0;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.07);
+}
+html[data-theme="dark"] body.sidebar-collapsed .sidebar-rail {
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.28),
+    0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+
+/* ============================================================
+   v116 · 收起态浮岛去掉 2px 上下边距：上贴顶栏下沿、下贴窗口底
+   （顶栏 border-bottom 已提供分隔，浮岛撤销 border-top 避免双线）
+   ============================================================ */
+body.sidebar-collapsed .sidebar-rail {
+  margin-top: 48px;
+  margin-bottom: 0;
+  border-top: 0;
+}
+
+
+/* ============================================================
+   v117 · 收起态浮岛撤销投影
+   v115 的 box-shadow 沿圆角外溢，在右上/右下圆角缺口处积出灰色残影；
+   贴边实心页签风格下由 1px 描边单独定义形状即可。
+   ============================================================ */
+body.sidebar-collapsed .sidebar-rail {
+  box-shadow: none;
+}
+html[data-theme="dark"] body.sidebar-collapsed .sidebar-rail {
+  box-shadow: none;
+}
+
+
+/* ============================================================
+   v118 · 折叠车道铺实底，挡住 body::before 氛围渐变
+   根因：body::before 是 z:-1 的全屏 accent 径向渐变（中心在左上
+   10%/-6%）。主区有实底遮住它，但折叠车道透明——浮岛右上圆角的
+   缺口把渐变透出来，形成约 8% 的灰晕（右下角远离渐变中心故无恙）。
+   车道铺 var(--bg) 后缺口与主区同色，浮岛玻璃改在实底上成像。
+   ============================================================ */
+body.sidebar-collapsed .sidebar {
+  background: var(--bg);
+}
+
+
+/* ============================================================
+   v119 · 恢复浮岛投影（v118 已修掉灰晕真因 body::before 渐变，
+   投影回到实底车道上，浮起层次感回归）
+   ============================================================ */
+body.sidebar-collapsed .sidebar-rail {
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.07);
+}
+html[data-theme="dark"] body.sidebar-collapsed .sidebar-rail {
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.28),
+    0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+
+/* ============================================================
+   v120 · 抽屉与浮岛同高带 + 动效放缓
+   抽屉不再全高（top:0），改为 top:48px——与浮岛同一高度带
+   （顶栏之下到窗口底），整条横向推出；右缘样式（圆角/描边/
+   投影）与浮岛一致，读感为"同一条横向变宽"。
+   推出 220ms → 340ms，淡入 180ms → 260ms。
+   ============================================================ */
+body.sidebar-collapsed .sidebar-main {
+  top: 48px;
+  border-radius: 0 12px 12px 0;
+  border: 1px solid var(--border-soft);
+  border-top: 0;
+  border-left: 0;
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.07);
+  transition:
+    transform 340ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 260ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+html[data-theme="dark"] body.sidebar-collapsed .sidebar-main {
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.28),
+    0 8px 24px rgba(0, 0, 0, 0.32);
+}
+/* 抽屉已在灯带之下：品牌行撤销 v113 的 38px 顶部避让 */
+body.sidebar-collapsed .sidebar-top {
+  padding-top: 10px;
+}
+
+
+/* ============================================================
+   v121 · 展开↔收起切换动画（门控：body.sidebar-anim）
+   JS 在 sidebar-collapsed 变化瞬间挂类 440ms，仅此窗口内：
+   · 车道宽度（grid-template-columns）360ms 缓动
+   · 顶栏左延负边距与红绿灯避让内边距同步 360ms
+   · 车道内容按目标宽裁剪（overflow）+ min-width 防挤压
+   · 拖宽器暂隐，动画结束后淡回
+   窗口缩放/拖宽侧栏不经过该类，零影响；fixed 抽屉不受 overflow 裁剪。
+   ============================================================ */
+body.sidebar-anim .app-shell {
+  transition: grid-template-columns 360ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+body.sidebar-anim .workspace-header {
+  transition:
+    margin-left 360ms cubic-bezier(0.32, 0.72, 0, 1),
+    padding-left 360ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+body.sidebar-anim .sidebar {
+  overflow: hidden;
+}
+body.sidebar-anim .sidebar-main {
+  min-width: var(--sidebar-w, 260px);
+}
+.project-sidebar-resizer {
+  transition: opacity 200ms var(--ease);
+}
+body.sidebar-anim .project-sidebar-resizer {
+  opacity: 0;
+}
+
+
+/* ============================================================
+   v122 · 收起态浮岛：液态玻璃背板（Liquid Glass）
+   配方：顶层高光 sheen + 135° 镜面斜光 + 底缘微光三层叠加，
+   基底降不透明度（72%→55%）提高通透；backdrop 提饱和、微提亮；
+   内棱高光（顶缘 0.55 白）+ 1px 折射内环勾出玻璃厚度感。
+   浮起投影沿用 v119。车道仍是 v118 实底，圆角缺口不会渗色。
+   ============================================================ */
+body.sidebar-collapsed .sidebar-rail {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.42),
+      rgba(255, 255, 255, 0.08) 28%,
+      rgba(255, 255, 255, 0) 50%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.26) 0%,
+      rgba(255, 255, 255, 0.04) 34%,
+      rgba(255, 255, 255, 0) 60%
+    ),
+    linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.12),
+      rgba(255, 255, 255, 0) 30%
+    ),
+    color-mix(in srgb, var(--bg-sidebar) 55%, transparent);
+  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset -1px 0 0 rgba(255, 255, 255, 0.1),
+    0 1px 4px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.07);
+}
+html[data-theme="dark"] body.sidebar-collapsed .sidebar-rail {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.14),
+      rgba(255, 255, 255, 0.03) 30%,
+      rgba(255, 255, 255, 0) 55%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(255, 255, 255, 0.02) 40%,
+      rgba(255, 255, 255, 0) 65%
+    ),
+    color-mix(in srgb, var(--bg-sidebar) 62%, transparent);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 1px 4px rgba(0, 0, 0, 0.28),
+    0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+
+/* ============================================================
+   v123-v126 · 液态玻璃背板（v126：均匀液态——去污）
+   v125 的斜阴影带/光池/颗粒被判"污、不干净"（深浅主题皆然）。
+   v126 回归均匀：车道光影衬底整个撤销（车道回到 v118 纯实底），
+   玻璃只保留"均质"要素：
+   · 通体一条柔和纵向光泽渐变（无斜向、无光斑、无颗粒）；
+   · backdrop 走 #railGlass 滤镜：均匀结霜 + 整体提亮，
+     位移 scale 降到 22——只在玻璃边缘留一条细而均匀的折射线
+     （液态签名），不再向内拖曳条纹；
+   · 干净亮缘 rim + 柔和小投影，浮岛感来自边缘而非内里。
+   ============================================================ */
+body.sidebar-collapsed .sidebar-rail {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.34),
+      rgba(255, 255, 255, 0.1) 38%,
+      rgba(255, 255, 255, 0) 62%
+    ),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 22%),
+    color-mix(in srgb, var(--bg-sidebar) 40%, transparent);
+  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  backdrop-filter: url(#railGlass);
+  -webkit-backdrop-filter: url(#railGlass);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
+    inset 1px 0 0 rgba(255, 255, 255, 0.2),
+    inset -1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    0 1px 4px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.08);
+}
+html[data-theme="dark"] body.sidebar-collapsed .sidebar-rail {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.06),
+      rgba(255, 255, 255, 0.015) 40%,
+      rgba(255, 255, 255, 0) 65%
+    ),
+    color-mix(in srgb, var(--bg-sidebar) 46%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    inset -1px 0 0 rgba(255, 255, 255, 0.05),
+    0 1px 4px rgba(0, 0, 0, 0.28),
+    0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+
+/* ============================================================
+   v128 · 展开态左侧底部修复：钉底 + 树内滚
+   根因：app-shell 的网格行是隐式 auto，被 803px 的侧栏内容撑过
+   720px 视口（v113 红绿灯避让 +38px 后越过临界值），footer 整段
+   被推出窗口底 83px、文档出现纵向滚动。行轨道钉死后侧栏回到
+   720px，project-tree 自带的 flex:1 + overflow:auto 立即生效，
+   footer 钉回窗口底；收起态共用该行轨道，几何不受影响。
+   ============================================================ */
+.app-shell {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+
+/* ============================================================
+   v129 · hover 抽屉同款液态 + 展开↔收起动效再放缓
+   1) 抽屉（收起态 hover 浮层 sidebar-main）从旧毛玻璃
+      （72% 实底 + blur24）换成与浮岛 v126/v127 完全同源的
+      均匀液态：同一条纵向光泽渐变、同款 #drawerGlass 滤镜
+      （位移 22 / 结霜 1.6 / 提亮 0.04，贴图 260×672、18px
+      边缘带）、同款亮缘 rim。唯一差别：基底加浓到 58%/55%
+      ——抽屉承载文字列表，可读性优先，仍明显透于内容之上。
+   2) 展开↔收起：v121 的 360ms → 640ms，曲线改缓入长滑
+      (0.38, 0.08, 0.22, 1)；JS 门控 440ms → 720ms 同步放长
+      （workspace.js v125）。
+   ============================================================ */
+body.sidebar-collapsed .sidebar-main {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.34),
+      rgba(255, 255, 255, 0.1) 38%,
+      rgba(255, 255, 255, 0) 62%
+    ),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 22%),
+    color-mix(in srgb, var(--bg-sidebar) 58%, transparent);
+  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  backdrop-filter: url(#drawerGlass);
+  -webkit-backdrop-filter: url(#drawerGlass);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
+    inset -1px 0 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    0 1px 4px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.08);
+}
+html[data-theme="dark"] body.sidebar-collapsed .sidebar-main {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.06),
+      rgba(255, 255, 255, 0.015) 40%,
+      rgba(255, 255, 255, 0) 65%
+    ),
+    color-mix(in srgb, var(--bg-sidebar) 55%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    inset -1px 0 0 rgba(255, 255, 255, 0.05),
+    0 1px 4px rgba(0, 0, 0, 0.28),
+    0 8px 24px rgba(0, 0, 0, 0.3);
+}
+/* 动效放缓：仅覆盖 v121 的时长/曲线，门控机制不变 */
+body.sidebar-anim .app-shell {
+  transition: grid-template-columns 640ms cubic-bezier(0.38, 0.08, 0.22, 1);
+}
+body.sidebar-anim .workspace-header {
+  transition:
+    margin-left 640ms cubic-bezier(0.38, 0.08, 0.22, 1),
+    padding-left 640ms cubic-bezier(0.38, 0.08, 0.22, 1);
+}
+
+
+/* ============================================================
+   v130/v131 · 展开态精修：footer 压扁 + 去搜索条 + 抽屉防抖
+   1) footer 高度 54px → 44px：原 16px 底内距是为与活动栏
+      「设置」图标中心对齐而留（该布局已不存在），收回到 8px；
+   2) v131 更正：版本+更新钮保持在右缘（v130 曾误左打包，
+      用户更正为往右）——foot-sp 维持自然位置，布局仍是
+      [设置][头像][名称] —弹簧— [版本][更新钮]；
+   3) 会话搜索条隐藏（v134 起全态——含收起态 peek 抽屉，用户要求），树整体上移；
+   4) peek 抽屉开启缓冲 80ms → 200ms：鼠标快速进出不再频闪，
+      收回方向零延迟不变（防抖只加在开启侧）。
+   ============================================================ */
+.sidebar-footer {
+  padding: 6px 10px 8px 14px;
+}
+.sidebar-searchzone {
+  display: none;
+}
+body.sidebar-collapsed .sidebar:hover .sidebar-main {
+  transition-delay: 200ms;
+}
+
+
+/* ============================================================
+   v132 · 收起态防闪烁补全 + 项目行按钮改悬停显隐
+   1) v130 只给抽屉开了 200ms 防抖，简洁条淡出仍是 0ms 起播——
+      快速进出时抽屉不动、rail 独自闪烁（"频闪更厉害"的真因）。
+      rail 淡出同步加 200ms 延迟，与抽屉同进退；淡回路径不变。
+   2) 行内按钮（项目行 .acts、分组行 +项目/眼睛/收起）此前
+      :focus-within 常亮——鼠标点击行后按钮保持焦点，从此
+      永不隐藏。改为严格悬停显隐：非悬停且非键盘焦点时压回
+      隐藏；键盘 Tab（:focus-visible）路径不受影响。
+   ============================================================ */
+body.sidebar-collapsed .sidebar:hover .sidebar-rail {
+  opacity: 0;
+  transition: opacity 120ms var(--ease) 200ms;
+}
+.project-head:not(:hover):not(:focus-visible) .acts:focus-within {
+  opacity: 0;
+  visibility: hidden;
+}
+.group-row:not(:hover):not(:focus-visible):focus-within .group-add,
+.group-row:not(:hover):not(:focus-visible):focus-within .grp-eye,
+.group-row:not(:hover):not(:focus-visible):focus-within .group-toggle {
+  opacity: 0;
+}
+/* v132 补：.project-item.active 的行内按钮原本无条件常亮（选中即显示），
+   一并改为悬停显隐；键盘焦点路径仍放行 */
+.project-item.active > .project-head:not(:hover):not(:focus-visible) .acts {
+  opacity: 0;
+  visibility: hidden;
+}
+
+
+/* ============================================================
+   v135 · 环境浮层（layer 背板）换同款液态玻璃
+   原 v140/v148 毛玻璃（surface 93% + blur64）近乎实底。
+   换成与收起态浮岛/hover 抽屉同源的均匀液态：同一条纵向
+   光泽渐变 + #drawerGlass 滤镜（位移折射 22 / 结霜 1.6 /
+   提亮 0.04）+ 同款亮缘 rim。基底沿用抽屉的 58%（暗 55%）——
+   浮层承载密集设置文字，可读性优先。浮层悬于会话内容之上，
+   边缘折射是"真折射"（背后有实际内容被弯折）。
+   ============================================================ */
+.workspace-header .environment-popover.ui-floating {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.34),
+      rgba(255, 255, 255, 0.1) 38%,
+      rgba(255, 255, 255, 0) 62%
+    ),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 22%),
+    color-mix(in srgb, var(--bg-sidebar) 58%, transparent);
+  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  backdrop-filter: url(#drawerGlass);
+  -webkit-backdrop-filter: url(#drawerGlass);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    0 1px 4px rgba(0, 0, 0, 0.05),
+    0 12px 32px rgba(0, 0, 0, 0.14);
+}
+html[data-theme="dark"] .workspace-header .environment-popover.ui-floating {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.06),
+      rgba(255, 255, 255, 0.015) 40%,
+      rgba(255, 255, 255, 0) 65%
+    ),
+    color-mix(in srgb, var(--bg-sidebar) 55%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    0 1px 4px rgba(0, 0, 0, 0.28),
+    0 12px 32px rgba(0, 0, 0, 0.36);
+}
+
+
+/* ============================================================
+   v136 · 频闪根治：rail 的 visibility 必须与 opacity 同步延迟
+   EOF peek 规则（372-375）用 opacity:0 + visibility:hidden 双开关
+   切 rail，但 visibility 从未在任何 transition 列表里——鼠标一进，
+   图标瞬间消失（v132 只延迟了 opacity，visibility:hidden 无视
+   透明度立即隐藏）；移出又瞬间弹回。这就是"快速进出频闪"的
+   真身。修法：peek=true 时 visibility 与 opacity 同享 200ms
+   延迟（图标在抽屉真正开始滑出时才隐去）；peek=false 时
+   visibility 即刻恢复（此刻抽屉仍在收回途中、物理盖住 rail，
+   瞬时恢复不可见副作用），opacity 沿用 v110 的 150ms 延迟回归。
+   ============================================================ */
+body.sidebar-collapsed[data-sidebar-peek="true"] .sidebar-rail {
+  transition:
+    opacity 120ms var(--ease) 200ms,
+    visibility 0s linear 200ms;
+}
+body.sidebar-collapsed[data-sidebar-peek="false"] .sidebar-rail {
+  transition:
+    opacity 160ms var(--ease) 150ms,
+    visibility 0s linear 0s;
+}
+
+
+/* ============================================================
+   v137 · v136 修正：特异性夺回 rail 的 visibility 过渡权
+   v136 败因：v132 的 :hover 规则 (0,4,1) 高于 peek 属性规则
+   (0,3,1)——悬停瞬间 v132 的 transition 列表（只含 opacity）
+   赢走级联，visibility 不在列表、瞬切，图标依旧秒消失。
+   v137 用同形 :hover 选择器 + 更晚位置，把两个方向的
+   transition 都钉成「opacity 与 visibility 同 200ms 延迟」。
+   ============================================================ */
+body.sidebar-collapsed .sidebar:hover .sidebar-rail {
+  transition:
+    opacity 120ms var(--ease) 200ms,
+    visibility 0s linear 200ms;
+}
+
+
+/* ============================================================
+   v138 · 环境浮层加重成雾（ZCode 参照）+ 阴影与浮岛统一
+   v135 的抽屉档（58% 基底 + 1.6px 结霜）悬在会话文字上透字干扰。
+   专开 panelGlass 滤镜：同位移折射（scale 22）但结霜 1.6→5px——
+   背后文字糊成影子不可辨（ZCode 的穿透效果）；基底 58%→68%
+   （暗 55%→62%）。阴影从 0 12px 32px @0.14 降回收起态浮岛同款
+   0 8px 24px @0.08（暗 0.3），全套面板阴影一致。
+   ============================================================ */
+.workspace-header .environment-popover.ui-floating {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.34),
+      rgba(255, 255, 255, 0.1) 38%,
+      rgba(255, 255, 255, 0) 62%
+    ),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 22%),
+    color-mix(in srgb, var(--bg-sidebar) 68%, transparent);
+  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  backdrop-filter: url(#panelGlass);
+  -webkit-backdrop-filter: url(#panelGlass);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+    0 1px 4px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.08);
+}
+html[data-theme="dark"] .workspace-header .environment-popover.ui-floating {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.06),
+      rgba(255, 255, 255, 0.015) 40%,
+      rgba(255, 255, 255, 0) 65%
+    ),
+    color-mix(in srgb, var(--bg-sidebar) 62%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    0 1px 4px rgba(0, 0, 0, 0.28),
+    0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+
+/* ============================================================
+   v139 · 环境面板同步真机实现（EnvironmentPanel.tsx + styles.css）
+   布局/图标/按钮全部对齐真机：280px 宽、padding 0 12px 10px；
+   节头 = 标题 + 右侧动作钮（Git 节 +项目、来源节 +来源）；
+   行结构 24px 图标列 + copy(粗标题+小描述) + 右控；分支控件为
+   environment-row 按钮（strong 分支名 + chevron 图标）；
+   新增 PR 检查卡（PR 标题行 + 检查摘要行，external/check 图标）；
+   Agent 活动行改 activity-row（agent mark + 双行文本 + ›）+
+   汇总行；图标补齐：官方 Octicon GitHub（真机同路径）、
+   真机分支图标（r2 圆点变体）、chevron-down、external-link、
+   pull-request、ChildAgentIcon 彩色几何 mark（青/琥珀两枚）。
+   以上图标真机组件库（packages/ui + EnvironmentPanelIcons）均已有
+   定义，原型按同路径内联，无缺库新增项。
+   雾度同步加浓：基底 68%→82%（暗 62%→74%），panelGlass 结霜
+   5px 不变——背后文字彻底不可辨（用户确认要"实"）。
+   ============================================================ */
+.workspace-header .environment-popover.ui-floating {
+  width: 280px;
+  padding: 0 12px 10px;
+  max-height: calc(100vh - 72px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.workspace-header .environment-popover.ui-floating {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.34),
+      rgba(255, 255, 255, 0.1) 38%,
+      rgba(255, 255, 255, 0) 62%
+    ),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 22%),
+    color-mix(in srgb, var(--bg-sidebar) 94%, white);
+}
+html[data-theme="dark"] .workspace-header .environment-popover.ui-floating {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.06),
+      rgba(255, 255, 255, 0.015) 40%,
+      rgba(255, 255, 255, 0) 65%
+    ),
+    color-mix(in srgb, var(--bg-sidebar) 90%, black);
+}
+.environment-popover .environment-panel-header {
+  align-items: center;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 0;
+}
+.environment-popover .environment-panel-header > strong {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.environment-popover .environment-header-action {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  height: 24px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 24px;
+}
+.environment-popover .environment-header-action svg {
+  height: 20px;
+  width: 20px;
+}
+.environment-popover .environment-header-action:hover,
+.environment-popover .environment-header-action:focus-visible {
+  background: var(--hover);
+}
+.environment-popover .environment-section {
+  margin: 14px 0 0;
+}
+.environment-popover .git-environment-section {
+  margin-top: 6px;
+}
+.environment-popover .environment-section > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  min-height: 17px;
+}
+.environment-popover .environment-section h2 {
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.06em;
+  line-height: 16.5px;
+  margin: 0;
+  text-transform: uppercase;
+}
+.environment-popover .git-environment-section > header > h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+}
+.environment-popover .git-environment-section > header > h2 > svg {
+  color: var(--text);
+  display: block;
+  flex-shrink: 0;
+  height: 16px;
+  width: 16px;
+}
+.environment-popover .environment-text-action {
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 5px 10px;
+}
+.environment-popover .environment-text-action:hover,
+.environment-popover .environment-text-action:focus-visible {
+  background: var(--hover);
+}
+.environment-popover .environment-rows,
+.environment-popover .environment-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+}
+.environment-popover .environment-setting-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-height: 32px;
+  padding: 5px 0;
+}
+.environment-popover .environment-setting-row > svg,
+.environment-popover .environment-panel-actions button > svg {
+  flex-shrink: 0;
+  height: 16px;
+  width: 16px;
+}
+.environment-popover .environment-setting-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.environment-popover .environment-setting-copy strong {
+  font-size: 12.5px;
+  font-weight: 560;
+  line-height: 1.35;
+}
+.environment-popover .environment-setting-copy small {
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 16px;
+}
+.environment-popover .environment-local-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 18px;
+  padding-inline: 6px;
+  color: var(--text-2);
+}
+.environment-popover .environment-branch-control {
+  flex: 0 1 52%;
+  min-width: 0;
+  position: static;
+}
+.environment-popover .environment-branch-control .environment-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  gap: 4px;
+  justify-content: flex-end;
+  min-height: 28px;
+  padding: 4px 6px;
+  width: 100%;
+}
+.environment-popover .environment-branch-control .environment-row:hover,
+.environment-popover .environment-branch-control .environment-row[aria-expanded="true"] {
+  background: var(--selected);
+}
+.environment-popover .environment-row-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.environment-popover .environment-row-copy strong {
+  font-size: 12px;
+  font-weight: 560;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.environment-popover .environment-chevron,
+.environment-popover .environment-external,
+.environment-popover .environment-activity-row > i {
+  align-items: center;
+  color: var(--text-3);
+  display: inline-flex;
+  justify-content: center;
+  font-size: 18px;
+  font-style: normal;
+}
+.environment-popover .environment-chevron svg,
+.environment-popover .environment-external svg {
+  height: 16px;
+  width: 16px;
+}
+.environment-popover .environment-panel-actions {
+  border-top: 1px solid var(--border-soft);
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 8px 0 0;
+}
+.environment-popover .environment-panel-actions .environment-text-action {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: grid;
+  font-weight: 500;
+  gap: 6px;
+  grid-template-columns: 16px minmax(0, 1fr);
+  min-height: 30px;
+  padding: 5px 10px;
+}
+.environment-popover .environment-pr-card {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+.environment-popover .environment-pr-title {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-height: 48px;
+  padding: 6px 8px;
+  text-align: start;
+  width: 100%;
+}
+.environment-popover .environment-pr-title:hover,
+.environment-popover .environment-pr-title:focus-visible {
+  background: var(--hover);
+}
+.environment-popover .environment-pr-title > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.environment-popover .environment-pr-title strong {
+  font-size: 12.5px;
+  font-weight: 560;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.environment-popover .environment-pr-title small {
+  color: var(--text-3);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.environment-popover .environment-row-icon {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+}
+.environment-popover .environment-row-icon svg:not(.environment-agent-mark) {
+  height: 20px;
+  width: 20px;
+}
+.environment-popover .environment-agent-mark {
+  height: 16px;
+  width: 16px;
+}
+.environment-popover .environment-pr-check-summary {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-2);
+  cursor: pointer;
+  display: grid;
+  font-size: 11px;
+  gap: 8px;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  min-height: 34px;
+  padding: 5px 10px;
+  text-align: start;
+  width: 100%;
+}
+.environment-popover .environment-pr-check-summary:hover,
+.environment-popover .environment-pr-check-summary:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+.environment-popover .environment-check-indicator {
+  border: 2px solid var(--text-3);
+  border-radius: 50%;
+  display: inline-block;
+  height: 11px;
+  width: 11px;
+}
+.environment-popover .environment-check-indicator[data-status="passed"] {
+  background: #42c878;
+  border-color: #42c878;
+  box-shadow: inset 0 0 0 2px var(--bg);
+}
+.environment-popover .environment-activity-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-height: 28px;
+  padding: 2px 6px;
+  text-align: start;
+  width: 100%;
+}
+.environment-popover .environment-activity-row:hover,
+.environment-popover .environment-activity-row:focus-visible {
+  background: var(--selected);
+}
+.environment-popover .environment-activity-row > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.environment-popover .environment-activity-row strong {
+  font-size: 12.5px;
+  font-weight: 560;
+  line-height: 1.35;
+}
+.environment-popover .environment-activity-row small {
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.environment-popover .environment-agent-summary {
+  color: var(--text-3);
+  font-size: 10.5px;
+  margin: 8px 0 0;
+}
+.environment-popover .environment-task-state {
+  color: var(--text-2);
+  flex-shrink: 0;
+  font-size: 10.5px;
+}
+
+
+/* ============================================================
+   v143 · 收起态 peek 抽屉动效放缓
+   v120 的推出 340ms / 淡入 260ms 偏快，与 v129 放缓后的
+   展开↔收起（640ms）不协调。推出/收回统一 560ms，淡入淡出
+   420ms，曲线与 v129 同款缓入长滑 (0.38, 0.08, 0.22, 1)。
+   防抖（开启 200ms 延迟、收回零延迟）与 rail 协同节奏不变。
+   ============================================================ */
+body.sidebar-collapsed .sidebar-main {
+  transition:
+    transform 560ms cubic-bezier(0.38, 0.08, 0.22, 1),
+    opacity 420ms cubic-bezier(0.38, 0.08, 0.22, 1);
+}

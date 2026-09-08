@@ -21,7 +21,7 @@
     sidebarHandle.setAttribute("aria-valuenow", String(width));
   }
   UI.splitPane(sidebarHandle, {
-    initial: window.innerWidth <= 1100 ? 240 : 260,
+    initial: window.innerWidth <= 1100 ? 250 : 280,
     step: 16,
     home: function () {
       return 208;
@@ -337,7 +337,7 @@
   }
   function applyBranch(value) {
     $("#branchName").textContent = value;
-    $("#environmentBranch").textContent = value + " ▾";
+    $("#environmentBranch .environment-row-copy strong").textContent = value;
     notice("原型分支已切换");
   }
   function setupContext(trigger, menu, apply) {
@@ -1840,7 +1840,7 @@
   var gitDemo = { branch: "main", changes: 3, ahead: 0, pendingBranch: null };
   var commitForm = $("#commitForm");
   function syncGitDemo() {
-    $("#environmentBranch").textContent = gitDemo.branch + " ▾";
+    $("#environmentBranch .environment-row-copy strong").textContent = gitDemo.branch;
     $("#gitChangeCount").textContent = gitDemo.changes + " 个文件待提交";
     $("#commitDestination option[value='main']").textContent = gitDemo.branch;
     $("#commitNewBranchRow").hidden = $("#commitDestination").value !== "new";
@@ -2229,6 +2229,9 @@
   var sidebarRail =
     sidebarEl && sidebarEl.querySelector(".sidebar-rail");
   var sidebarPeeked = false;
+  /* v121：折叠/展开切换动画门控（见 syncNavigation） */
+  var sidebarAnimPrev = body.classList.contains("sidebar-collapsed");
+  var sidebarAnimTimer = 0;
   function syncSidebarInert() {
     if (!sidebarEl || !sidebarMain) return;
     var collapsed = body.classList.contains("sidebar-collapsed");
@@ -2282,6 +2285,38 @@
     });
     syncSidebarInert();
     var collapsed = body.classList.contains("sidebar-collapsed");
+    /* v121/v129：折叠/展开切换瞬间挂 sidebar-anim 类 720ms，
+       CSS 仅在该类存在时对车道宽度（grid）与顶栏避让做 640ms 过渡
+       （v121 是 360ms/440ms，v129 应要求再放缓）；
+       窗口缩放、拖宽侧栏不经过此路径，不受过渡拖慢。
+       点击路径里 focus() 等会在微任务前强制重排，目标值已瞬时落定，
+       因此先钉回旧值强制回流、再挂类清钉，保证过渡必定起播。 */
+    if (collapsed !== sidebarAnimPrev) {
+      sidebarAnimPrev = collapsed;
+      var shell = document.querySelector(".app-shell");
+      var header = document.querySelector(".workspace-header");
+      var prevTrack =
+        (getComputedStyle(document.documentElement).getPropertyValue("--sidebar-w") || "").trim() ||
+        "280px";
+      if (shell) {
+        shell.style.gridTemplateColumns = (collapsed ? prevTrack : "48px") + " minmax(0, 1fr)";
+      }
+      if (header) {
+        header.style.marginLeft = collapsed ? "0px" : "-48px";
+        header.style.paddingLeft = collapsed ? "18px" : "78px";
+      }
+      void (shell && shell.offsetWidth);
+      body.classList.add("sidebar-anim");
+      if (shell) shell.style.gridTemplateColumns = "";
+      if (header) {
+        header.style.marginLeft = "";
+        header.style.paddingLeft = "";
+      }
+      clearTimeout(sidebarAnimTimer);
+      sidebarAnimTimer = setTimeout(function () {
+        body.classList.remove("sidebar-anim");
+      }, 720);
+    }
     $("#leftToggle").setAttribute("aria-expanded", String(!collapsed));
     sidebarHandle.tabIndex = collapsed ? -1 : 0;
   }
