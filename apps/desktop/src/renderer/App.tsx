@@ -1574,7 +1574,8 @@ export function App() {
   const [reviewTurnId, setReviewTurnId] = useState<string>();
   const [reviewBaseRef, setReviewBaseRef] = useState("");
   const [reviewFileQuery, setReviewFileQuery] = useState("");
-  const [selectedReviewFileId, setSelectedReviewFileId] = useState<string>();
+  const [selectedReviewFilePath, setSelectedReviewFilePath] =
+    useState<string>();
   const [reviewBusy, setReviewBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
@@ -3688,9 +3689,9 @@ export function App() {
   }, [reviewDiff, reviewFileQuery]);
   const selectedReviewFile = useMemo(
     () =>
-      reviewDiff?.files.find((file) => file.id === selectedReviewFileId) ??
+      reviewDiff?.files.find((file) => file.path === selectedReviewFilePath) ??
       reviewDiff?.files[0],
-    [reviewDiff, selectedReviewFileId],
+    [reviewDiff, selectedReviewFilePath],
   );
   useEffect(() => {
     if (!activeThreadId) return;
@@ -4261,7 +4262,7 @@ export function App() {
     setReviewScope("branch");
     setReviewTurnId(undefined);
     setReviewDiff(undefined);
-    setSelectedReviewFileId(undefined);
+    setSelectedReviewFilePath(undefined);
     setCommentLineId(undefined);
     setCommentBody("");
   }, [activeThreadId]);
@@ -4394,7 +4395,7 @@ export function App() {
       ? reviewDiffCache.current.get(reviewDiffCacheKey(activeThreadId, scope))
       : undefined;
     setReviewDiff(cached);
-    setSelectedReviewFileId(undefined);
+    setSelectedReviewFilePath(undefined);
     setCommentLineId(undefined);
     setCommentBody("");
   };
@@ -4406,17 +4407,19 @@ export function App() {
   };
 
   const openReviewTurnPanel = useCallback(
-    (turnId: string) => {
-      reviewRequestId.current += 1;
+    (turnId: string, path?: string) => {
+      if (reviewScope !== "turn" || reviewTurnId !== turnId) {
+        reviewRequestId.current += 1;
+        setReviewDiff(undefined);
+      }
       setReviewTurnId(turnId);
       setReviewScope("turn");
-      setReviewDiff(undefined);
-      setSelectedReviewFileId(undefined);
+      setSelectedReviewFilePath(path);
       setCommentLineId(undefined);
       setCommentBody("");
       openReviewPanel();
     },
-    [openReviewPanel],
+    [openReviewPanel, reviewScope, reviewTurnId],
   );
 
   const undoTurnChanges = useCallback(
@@ -8695,7 +8698,7 @@ export function App() {
                                         }
                                         key={file.id}
                                         onClick={() =>
-                                          setSelectedReviewFileId(file.id)
+                                          setSelectedReviewFilePath(file.path)
                                         }
                                         title={file.path}
                                         type="button"
@@ -10231,7 +10234,7 @@ export function TurnChangeSetCard({
   undoEnabled,
 }: {
   locale: Locale;
-  onReview: (turnId: string) => void;
+  onReview: (turnId: string, path?: string) => void;
   onUndo: (turnId: string) => void;
   turn: TurnViewState;
   undoEnabled: boolean;
@@ -10240,30 +10243,46 @@ export function TurnChangeSetCard({
   const changeSet = turn.changeSet;
   if (!changeSet || changeSet.files.length === 0) return null;
   const multiple = changeSet.files.length > 1;
-  const previewFiles = multiple ? changeSet.files.slice(0, 3) : [];
+  const previewFiles = changeSet.files.slice(0, 3);
   const remainingFiles = multiple ? changeSet.files.slice(3) : [];
   const hasTextChanges = changeSet.files.some((file) => !file.binary);
   const singleBinary = !multiple && changeSet.files[0]!.binary;
   const title = multiple
     ? t.editedFiles.replace("{{count}}", String(changeSet.files.length))
     : `${t.editedFile} ${changeSet.files[0]!.path.split("/").at(-1)}`;
-  const fileRow = (file: (typeof changeSet.files)[number]) => (
-    <li key={file.path}>
-      <span title={file.path}>{file.path}</span>
-      {file.binary ? (
-        <small>{t.binaryChange}</small>
-      ) : (
-        <span className="turn-change-file-stats">
-          <span className="addition" data-count={file.additions}>
-            +{file.additions}
+  const fileRow = (file: (typeof changeSet.files)[number]) => {
+    const separator = file.path.lastIndexOf("/") + 1;
+    return (
+      <li key={file.path}>
+        <button
+          aria-label={`${t.reviewChanges} ${file.path}`}
+          className="turn-change-file"
+          onClick={() => onReview(turn.id, file.path)}
+          title={file.path}
+          type="button"
+        >
+          <span className="turn-change-file-path">
+            <span className="turn-change-directory">
+              {file.path.slice(0, separator)}
+            </span>
+            <span>{file.path.slice(separator)}</span>
           </span>
-          <span className="deletion" data-count={file.deletions}>
-            −{file.deletions}
-          </span>
-        </span>
-      )}
-    </li>
-  );
+          {file.binary ? (
+            <small>{t.binaryChange}</small>
+          ) : (
+            <span className="turn-change-file-stats">
+              <span className="addition" data-count={file.additions}>
+                +{file.additions}
+              </span>
+              <span className="deletion" data-count={file.deletions}>
+                −{file.deletions}
+              </span>
+            </span>
+          )}
+        </button>
+      </li>
+    );
+  };
 
   return (
     <TurnChangeSummary
@@ -10272,26 +10291,39 @@ export function TurnChangeSetCard({
       header={
         <>
           <div className="turn-change-heading">
-            <span className="turn-change-icon">
-              <FileIcon />
+            <span className="turn-change-icon" aria-hidden="true">
+              <svg
+                className="icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="5" y="3" width="14" height="18" rx="3" />
+                <path d="M9 9h6m-3-3v6m-3 5h6" />
+              </svg>
             </span>
-            <strong title={multiple ? title : changeSet.files[0]!.path}>
-              {title}
-            </strong>
-            {singleBinary ? (
-              <span className="turn-change-binary">{t.binaryChange}</span>
-            ) : (
-              hasTextChanges && (
-                <span className="turn-change-total">
-                  <span className="addition" data-count={changeSet.additions}>
-                    +{changeSet.additions}
+            <div className="turn-change-heading-copy">
+              <strong title={multiple ? title : changeSet.files[0]!.path}>
+                {title}
+              </strong>
+              {singleBinary ? (
+                <span className="turn-change-binary">{t.binaryChange}</span>
+              ) : (
+                hasTextChanges && (
+                  <span className="turn-change-total">
+                    <span className="addition" data-count={changeSet.additions}>
+                      +{changeSet.additions}
+                    </span>
+                    <span className="deletion" data-count={changeSet.deletions}>
+                      −{changeSet.deletions}
+                    </span>
                   </span>
-                  <span className="deletion" data-count={changeSet.deletions}>
-                    −{changeSet.deletions}
-                  </span>
-                </span>
-              )
-            )}
+                )
+              )}
+            </div>
           </div>
           <div className="turn-change-actions">
             {changeSet.status === "undone" ? (
@@ -10304,9 +10336,25 @@ export function TurnChangeSetCard({
                 type="button"
               >
                 {t.undoChanges}
+                <svg
+                  aria-hidden="true"
+                  className="icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12h-3" />
+                </svg>
               </button>
             )}
-            <button onClick={() => onReview(turn.id)} type="button">
+            <button
+              className="turn-change-review"
+              onClick={() => onReview(turn.id)}
+              type="button"
+            >
               {t.reviewChanges}
             </button>
           </div>
@@ -10364,7 +10412,7 @@ function Timeline({
     position: { x: number; y: number },
   ) => void;
   onOpenChildAgent: (child: ChildAgentState) => void;
-  onOpenTurnReview: (turnId: string) => void;
+  onOpenTurnReview: (turnId: string, path?: string) => void;
   onCopyText: (text: string) => Promise<void>;
   onEditUserMessage: ((text: string) => void) | undefined;
   onResolve: (

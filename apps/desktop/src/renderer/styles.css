@@ -1066,6 +1066,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 
 .environment-section + .environment-section,
 .turn-change-more .turn-change-files {
+  background: var(--panel-2);
   border-top: 0;
 }
 
@@ -2167,8 +2168,12 @@ button.environment-row:disabled {
   width: 15px;
 }
 
+.turn-change-more > summary .icon {
+  transform: none;
+}
+
 .turn-change-more[open] > summary .icon {
-  transform: rotate(90deg);
+  transform: rotate(180deg);
 }
 
 .turn-change-card {
@@ -2181,22 +2186,24 @@ button.environment-row:disabled {
 .turn-change-card > header {
   flex-wrap: wrap;
   gap: 6px 12px;
-  min-block-size: 44px;
-  padding: 6px 12px;
+  min-block-size: 64px;
+  padding: 12px;
 }
 
 .turn-change-icon {
   align-items: center;
   color: var(--muted);
   display: inline-flex;
-  flex: 0 0 16px;
-  height: 16px;
+  background: var(--bg);
+  border-radius: 10px;
+  flex: 0 0 40px;
+  height: 40px;
   justify-content: center;
 }
 
 .turn-change-icon .icon {
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
 }
 
 .turn-change-heading {
@@ -2207,7 +2214,14 @@ button.environment-row:disabled {
   min-width: 0;
 }
 
-.turn-change-heading > strong {
+.turn-change-heading-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.turn-change-heading-copy > strong {
   font-size: 13px;
   font-weight: 590;
   min-width: 0;
@@ -2242,11 +2256,6 @@ button.environment-row:disabled {
   color: var(--danger);
 }
 
-.turn-change-total [data-count="0"],
-.turn-change-file-stats [data-count="0"] {
-  color: var(--muted-2);
-}
-
 .turn-change-binary {
   color: var(--muted-2);
   font-size: 12px;
@@ -2266,11 +2275,25 @@ button.environment-row:disabled {
   background: transparent;
   border: 0;
   border-radius: 6px;
-  color: var(--muted);
+  color: var(--text);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   min-height: 28px;
   padding: 0 8px;
+}
+
+.turn-change-actions .icon {
+  height: 14px;
+  width: 14px;
+}
+
+.turn-change-actions .turn-change-review {
+  border: 1px solid var(--border);
+  background: var(--panel-3);
+  border-radius: 9px;
 }
 
 .turn-change-actions {
@@ -2299,22 +2322,54 @@ button.environment-row:disabled {
 }
 
 .turn-change-files {
+  background: var(--panel-2);
   border-top: 1px solid var(--border-soft);
   list-style: none;
   margin: 0;
   padding: 4px 0;
 }
 
-.turn-change-files li {
+.turn-change-file {
   align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text);
+  cursor: pointer;
   display: flex;
   gap: 12px;
-  min-height: 28px;
-  padding: 4px 12px;
-  font-size: 12px;
+  min-height: 36px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
 }
 
-.turn-change-files li > :first-child {
+.turn-change-file:hover {
+  background: var(--hover);
+}
+
+.turn-change-file:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
+}
+
+.turn-change-directory {
+  color: var(--muted);
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.turn-change-file-path > :last-child {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.turn-change-file-path {
+  display: flex;
   direction: ltr;
   flex: 1;
   min-width: 0;
@@ -2331,7 +2386,7 @@ button.environment-row:disabled {
 
 .turn-change-more > summary {
   align-items: center;
-  background: transparent;
+  background: var(--panel-3);
   border-top: 1px solid var(--border-soft);
   color: var(--muted);
   cursor: pointer;
@@ -2339,7 +2394,7 @@ button.environment-row:disabled {
   font-size: 12px;
   gap: 6px;
   list-style: none;
-  min-height: 30px;
+  min-height: 36px;
   padding: 0 12px;
 }
 

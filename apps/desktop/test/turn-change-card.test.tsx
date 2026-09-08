@@ -38,7 +38,7 @@ const turn: TurnViewState = {
 };
 
 describe("compact turn changes", () => {
-  it("keeps summary totals inline and routes keyboard review and undo to this turn", async () => {
+  it("shows summary totals and routes keyboard review and undo to this turn", async () => {
     const onReview = vi.fn(),
       onUndo = vi.fn();
     const { container } = render(
@@ -57,16 +57,22 @@ describe("compact turn changes", () => {
       container.querySelector(".turn-change-heading .turn-change-total"),
     ).toHaveTextContent("+260−0");
     expect(within(card).getAllByRole("listitem")).toHaveLength(2);
-    expect(screen.getByText(".artemis/MEMORY.md")).toHaveAttribute(
-      "title",
-      ".artemis/MEMORY.md",
-    );
+    expect(
+      screen.getByRole("button", { name: "审核 .artemis/MEMORY.md" }),
+    ).toHaveAttribute("title", ".artemis/MEMORY.md");
     await userEvent.tab();
     await userEvent.keyboard("{Enter}");
     expect(onUndo).toHaveBeenCalledExactlyOnceWith("turn-1");
     await userEvent.tab();
     await userEvent.keyboard("{Enter}");
     expect(onReview).toHaveBeenCalledExactlyOnceWith("turn-1");
+    await userEvent.tab();
+    await userEvent.keyboard("{Enter}");
+    expect(onReview).toHaveBeenLastCalledWith("turn-1", ".artemis/MEMORY.md");
+    await userEvent.click(
+      screen.getByRole("button", { name: "审核 AI_HANDOFF_V2.md" }),
+    );
+    expect(onReview).toHaveBeenLastCalledWith("turn-1", "AI_HANDOFF_V2.md");
   });
 
   it("preserves disabled undo, unavailable explanations, and review access", async () => {
@@ -114,6 +120,7 @@ describe("compact turn changes", () => {
         binary: true,
       },
     ];
+    const onReview = vi.fn();
     const { container } = render(
       <TurnChangeSetCard
         locale="zh-CN"
@@ -123,7 +130,7 @@ describe("compact turn changes", () => {
         }}
         undoEnabled={false}
         onUndo={vi.fn()}
-        onReview={vi.fn()}
+        onReview={onReview}
       />,
     );
     expect(screen.queryByRole("button", { name: "撤销" })).toBeNull();
@@ -131,11 +138,16 @@ describe("compact turn changes", () => {
     const details = container.querySelector("details")!;
     expect(details).not.toHaveAttribute("open");
     await userEvent.click(details.querySelector("summary")!);
-    expect(screen.getByText("assets/icon.png")).toBeVisible();
+    const binaryFile = screen.getByRole("button", {
+      name: "审核 assets/icon.png",
+    });
+    expect(binaryFile).toBeVisible();
+    await userEvent.click(binaryFile);
+    expect(onReview).toHaveBeenCalledWith("turn-1", "assets/icon.png");
     expect(within(details).getByText("二进制文件")).toBeVisible();
   });
 
-  it("keeps a single long file path discoverable and omits empty change sets", () => {
+  it("opens a single long file path and omits empty change sets", async () => {
     const path = "src/very/long/directory/name/implementation.ts";
     const props = {
       locale: "zh-CN" as const,
@@ -158,6 +170,8 @@ describe("compact turn changes", () => {
     expect(
       container.querySelector(".turn-change-heading strong"),
     ).toHaveAttribute("title", path);
+    await userEvent.click(screen.getByRole("button", { name: `审核 ${path}` }));
+    expect(props.onReview).toHaveBeenCalledWith("turn-1", path);
     rerender(
       <TurnChangeSetCard
         {...props}
