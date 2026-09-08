@@ -69,9 +69,9 @@ const helper = fileURLToPath(
 describe.runIf(process.platform === "win32")(
   "Windows IM native file and shell boundary",
   () => {
-    // Each native request starts PowerShell and compiles the broker. This case
-    // performs multiple real requests; each still has its own 60-second limit.
-    it("creates files and lists a scoped directory while rejecting junctions, hard links and secrets", async () => {
+    // Keep native scenarios separate: every request starts PowerShell and
+    // compiles the broker, with a 60-second operation limit of its own.
+    it("creates, edits, reads and lists files within the grant", async () => {
       const root = await mkdtemp(join(tmpdir(), "artemis-im-files-"));
       const scope = {
         audience: "owner",
@@ -95,6 +95,24 @@ describe.runIf(process.platform === "win32")(
         expect(await files.list(root, "src", scope)).toEqual([
           { path: "src/new.txt", directory: false },
         ]);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    }, 120000);
+
+    it("rejects junctions, hard links and secrets without modifying private data", async () => {
+      const root = await mkdtemp(join(tmpdir(), "artemis-im-files-denied-"));
+      const scope = {
+        audience: "owner",
+        readPaths: ["src"],
+        writePaths: ["src"],
+      };
+      const files = new WindowsImFiles(helper);
+      try {
+        await mkdir(join(root, "src"));
+        await mkdir(join(root, "private"));
+        await writeFile(join(root, "private", "secret.txt"), "PRIVATE");
+        await writeFile(join(root, "src", ".env"), "PROTECTED");
         await symlink(
           join(root, "private"),
           join(root, "src", "junction"),
@@ -110,11 +128,31 @@ describe.runIf(process.platform === "win32")(
           "src/.env",
           "../private/secret.txt",
         ]) {
-          await expect(files.read(root, path, scope)).rejects.toThrow();
+          await expect(files.read(root, path, scope)).rejects.toThrow(
+            /reparse|hard links|protected|path|grant/i,
+          );
           await expect(
             files.write(root, path, "BAD", scope, () => {}),
-          ).rejects.toThrow();
+          ).rejects.toThrow(/reparse|hard links|protected|path|grant/i);
         }
+        expect(
+          await readFile(join(root, "private", "secret.txt"), "utf8"),
+        ).toBe("PRIVATE");
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    }, 120000);
+
+    it("rechecks authorization before committing a native write", async () => {
+      const root = await mkdtemp(join(tmpdir(), "artemis-im-files-revoked-"));
+      const scope = {
+        audience: "owner",
+        readPaths: ["src"],
+        writePaths: ["src"],
+      };
+      const files = new WindowsImFiles(helper);
+      try {
+        await mkdir(join(root, "src"));
         let authorizationChecks = 0;
         await expect(
           files.write(root, "src/revoked.txt", "BAD", scope, () => {
@@ -124,13 +162,10 @@ describe.runIf(process.platform === "win32")(
         await expect(
           readFile(join(root, "src", "revoked.txt")),
         ).rejects.toThrow();
-        expect(
-          await readFile(join(root, "private", "secret.txt"), "utf8"),
-        ).toBe("PRIVATE");
       } finally {
         await rm(root, { recursive: true, force: true });
       }
-    }, 180000);
+    }, 60000);
 
     it("executes PowerShell on authorized data and applies only scoped changes", async () => {
       const root = await mkdtemp(join(tmpdir(), "artemis-im-shell-"));

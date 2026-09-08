@@ -32,7 +32,7 @@ const steps = [
     id: "archive",
     view: "form-controls-archive",
     scenario:
-      "Archive renders the public SearchField, accepts a controlled query, and retains a visible focus ring.",
+      "Archive renders the public SearchField, accepts a controlled query, and retains keyboard focus with the approved no-halo appearance.",
   },
   {
     id: "settings",
@@ -297,25 +297,31 @@ try {
         "resolved background and non-zero solid border",
       );
     };
-    const verifyFocusEvidence = (prefix, found, visual = false) => {
+    const verifyFocusEvidence = (
+      prefix,
+      found,
+      visual = false,
+      noHalo = false,
+    ) => {
       const outlineStyle = visual
         ? found.focus.visualOutlineStyle
         : found.focus.outlineStyle;
       const outlineWidth = visual
         ? found.focus.visualOutlineWidth
         : found.focus.outlineWidth;
-      const activeVisible =
+      const activeWithExpectedAppearance =
         formControls.documentHasFocus === true &&
         found.control.documentActive === true &&
-        outlineStyle !== "none" &&
-        outlineWidth !== "0px";
+        (noHalo
+          ? outlineStyle === "none" && outlineWidth === "0px"
+          : outlineStyle !== "none" && outlineWidth !== "0px");
       const foregroundUnavailable =
         audit.windowFocused === false &&
         formControls.documentHasFocus === false &&
         found.control.tabIndex >= 0;
       assert(
         `${prefix}-focus-evidence`,
-        activeVisible || foregroundUnavailable,
+        activeWithExpectedAppearance || foregroundUnavailable,
         {
           windowFocused: audit.windowFocused,
           documentHasFocus: formControls.documentHasFocus,
@@ -323,8 +329,9 @@ try {
           tabIndex: found.control.tabIndex,
           outlineStyle,
           outlineWidth,
+          noHalo,
         },
-        "active target with visible outline, or an explicitly inactive OS foreground with a focusable target",
+        `active target with ${noHalo ? "the approved no-halo appearance" : "visible outline"}, or an explicitly inactive OS foreground with a focusable target`,
       );
     };
 
@@ -359,7 +366,7 @@ try {
         formControls.interaction,
         true,
       );
-      verifyFocusEvidence("archive", search);
+      verifyFocusEvidence("archive", search, false, true);
     } else if (id === "settings") {
       const field = verifyComponent(
         "text-field",
@@ -381,7 +388,7 @@ try {
           type: "number",
         },
       );
-      verifyFocusEvidence("settings-number-field", field);
+      verifyFocusEvidence("settings-number-field", field, false, true);
       assert(
         "settings-select-semantics",
         select.control.tagName === "button" &&

@@ -51,6 +51,9 @@ describe("Windows scoped shell orchestration", () => {
       vi.spyOn(sandbox, "runRemoteShell").mockImplementation(async (launch) => {
         stage = launch.cwd!;
         expect(stage).not.toBe(workspace);
+        expect(launch.args[launch.args.indexOf("-HostTempPath") + 1]).toBe(
+          tmpdir(),
+        );
         expect(await readFile(join(stage, "src/input.txt"), "utf8")).toBe(
           "AUTHORIZED",
         );

@@ -386,6 +386,7 @@ export async function runWindowsImShell(input: {
       },
       {
         helperPath: input.helper,
+        hostTempPath: tmpdir(),
         runtimePath: stage,
         hostAccessPath: stage,
         identity: `Artemis.Im.${randomUUID()}`,
