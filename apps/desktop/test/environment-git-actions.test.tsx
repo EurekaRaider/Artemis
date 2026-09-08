@@ -71,6 +71,7 @@ it("keeps AI generation errors visible and lets the user retry with a manual mes
     />,
   );
   const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "任务环境" }));
   const entry = await screen.findByRole("button", { name: "提交或推送" });
   expect(entry.querySelector("svg")).not.toBeNull();
   await user.click(entry);

@@ -86,7 +86,13 @@ beforeEach(() => {
     },
   );
   stubWindowArtemis({
-    getProjectGitInfo: vi.fn().mockResolvedValue({ managed: false }),
+    getProjectGitInfo: vi.fn().mockResolvedValue({
+      managed: true,
+      branches: [],
+      changeCount: 0,
+      ahead: 0,
+      behind: 0,
+    }),
     getProjectPullRequest: vi.fn().mockResolvedValue({ status: "none" }),
     onProjectGitChanged: () => () => {},
   });
@@ -118,6 +124,13 @@ function fixture(overrides: Partial<typeof props> = {}, panelWidth = 280) {
     </div>
   );
 }
+async function renderReady(ui: ReturnType<typeof fixture>) {
+  let result!: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(ui);
+  });
+  return result;
+}
 function resize(width: number) {
   workspaceWidth = width;
   act(() => resizeCallbacks.forEach((callback) => callback()));
@@ -126,9 +139,58 @@ const dialog = () =>
   screen.queryByRole("dialog", { name: "Environment", exact: true });
 
 describe("environment panel automatic visibility", () => {
+  it("keeps a new conversation closed, then opens after the conversation starts", async () => {
+    const { rerender } = render(fixture({ defaultOpen: false }));
+    resize(1900);
+    expect(dialog()).toBeNull();
+    expect(window.artemis.getProjectGitInfo).not.toHaveBeenCalled();
+    rerender(fixture({ defaultOpen: true }));
+    await waitFor(() => expect(dialog()).toBeVisible());
+  });
+
+  it("waits for Git confirmation without flashing an open panel", async () => {
+    let resolveGit!: (
+      value: Awaited<ReturnType<typeof window.artemis.getProjectGitInfo>>,
+    ) => void;
+    vi.mocked(window.artemis.getProjectGitInfo).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveGit = resolve;
+        }),
+    );
+    render(fixture());
+    expect(dialog()).toBeNull();
+    await act(async () =>
+      resolveGit({ managed: true, branches: [], changeCount: 0 } as never),
+    );
+    expect(dialog()).toBeVisible();
+  });
+
+  it.each(["unmanaged", "failed"])(
+    "keeps a started conversation closed when Git is %s",
+    async (state) => {
+      const getGit = vi.mocked(window.artemis.getProjectGitInfo);
+      if (state === "failed")
+        getGit.mockRejectedValue(new Error("Git unavailable"));
+      else getGit.mockResolvedValue({ managed: false } as never);
+      await act(async () => {
+        render(fixture());
+      });
+      expect(getGit).toHaveBeenCalled();
+      resize(1900);
+      expect(dialog()).toBeNull();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Task environment" }),
+      );
+      expect(dialog()).toBeVisible();
+    },
+  );
+
   it("reserves content space on manual open and releases it on close and unmount", async () => {
     workspaceWidth = 1200;
-    const { container, unmount } = render(fixture({ defaultOpen: false }));
+    const { container, unmount } = await renderReady(
+      fixture({ defaultOpen: false }),
+    );
     const conversation = container.querySelector<HTMLElement>(".conversation")!;
     const safeSpace = () =>
       conversation.style.getPropertyValue(
@@ -153,7 +215,7 @@ describe("environment panel automatic visibility", () => {
 
   it("opens with sufficient space and restores at the exact width threshold without moving prompt focus", async () => {
     workspaceWidth = 833;
-    render(fixture());
+    await renderReady(fixture());
     expect(dialog()).toBeNull();
     const prompt = screen.getByRole("textbox", { name: "Prompt" });
     prompt.focus();
@@ -170,9 +232,9 @@ describe("environment panel automatic visibility", () => {
     expect(prompt).toHaveFocus();
   });
 
-  it("measures actual content bounds and configured panel width, including sidebar-only resizes", () => {
+  it("measures actual content bounds and configured panel width, including sidebar-only resizes", async () => {
     workspaceWidth = 873;
-    render(fixture({}, 320));
+    await renderReady(fixture({}, 320));
     expect(dialog()).toBeNull();
     resize(874);
     expect(dialog()).toBeVisible();
@@ -180,9 +242,9 @@ describe("environment panel automatic visibility", () => {
     expect(dialog()).toBeNull();
   });
 
-  it("keeps the panel open when content changes width because both rows reserve space", () => {
+  it("keeps the panel open when content changes width because both rows reserve space", async () => {
     workspaceWidth = 1200;
-    const { container } = render(fixture());
+    const { container } = await renderReady(fixture());
     expect(dialog()).toBeVisible();
     timelineWidth = 1200;
     composerWidth = 1200;
@@ -195,10 +257,10 @@ describe("environment panel automatic visibility", () => {
     ).toBe("354px");
   });
 
-  it("reserves the same space before and after the empty state becomes a timeline", () => {
+  it("reserves the same space before and after the empty state becomes a timeline", async () => {
     timelineWidth = 0;
     composerWidth = 0;
-    const { container } = render(fixture());
+    const { container } = await renderReady(fixture());
     expect(dialog()).toBeVisible();
     const viewport = container.querySelector(".timeline-scroll")!;
     const empty = document.createElement("div");
@@ -220,8 +282,8 @@ describe("environment panel automatic visibility", () => {
     ).toBe("354px");
   });
 
-  it("restores after closing the dock, including when initially mounted with the dock open", () => {
-    const { rerender } = render(fixture({ dockOpen: true }));
+  it("restores after closing the dock, including when initially mounted with the dock open", async () => {
+    const { rerender } = await renderReady(fixture({ dockOpen: true }));
     expect(dialog()).toBeNull();
     rerender(fixture());
     expect(dialog()).toBeVisible();
@@ -235,7 +297,7 @@ describe("environment panel automatic visibility", () => {
 
   it("respects manual dismissal through resize and dock transitions, and still allows reopening", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(fixture());
+    const { rerender } = await renderReady(fixture());
     await user.click(
       screen.getByRole("button", { name: "Close", exact: true }),
     );
@@ -271,7 +333,7 @@ describe("environment panel automatic visibility", () => {
     };
     const onOpenAgent = vi.fn();
     const overrides = { agents: [child], onOpenAgent };
-    const { rerender } = render(fixture(overrides));
+    const { rerender } = await renderReady(fixture(overrides));
     await userEvent.click(screen.getByRole("button", { name: /Layout check/ }));
     expect(onOpenAgent).toHaveBeenCalledWith(child);
     expect(dialog()).toBeNull();
@@ -282,7 +344,7 @@ describe("environment panel automatic visibility", () => {
 
   it("allows explicit opening beside the dock when there is enough content space", async () => {
     workspaceWidth = 1200;
-    render(fixture({ dockOpen: true }));
+    await renderReady(fixture({ dockOpen: true }));
     await userEvent.click(
       screen.getByRole("button", { name: "Task environment" }),
     );
@@ -295,7 +357,7 @@ describe("environment panel automatic visibility", () => {
 
   it("closes even a manually opened panel when it would leave less than 480px", async () => {
     workspaceWidth = 800;
-    const { container } = render(fixture({ defaultOpen: false }));
+    const { container } = await renderReady(fixture({ defaultOpen: false }));
     await userEvent.click(
       screen.getByRole("button", { name: "Task environment" }),
     );
@@ -309,8 +371,8 @@ describe("environment panel automatic visibility", () => {
     expect(dialog()).toBeVisible();
   });
 
-  it("keeps explicitly disabled defaults closed and disconnects observation on unmount", () => {
-    const { unmount } = render(fixture({ defaultOpen: false }));
+  it("keeps explicitly disabled defaults closed and disconnects observation on unmount", async () => {
+    const { unmount } = await renderReady(fixture({ defaultOpen: false }));
     resize(1900);
     expect(dialog()).toBeNull();
     expect(resizeCallbacks.size).toBe(1);

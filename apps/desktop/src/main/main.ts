@@ -14528,6 +14528,10 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
     createdAt: now,
     updatedAt: now,
   });
+  if (view === "environment-non-git") {
+    await rm(join(workspace, ".git"), { recursive: true, force: true });
+  }
+  if (view === "environment-unstarted") return;
   type SmokeEnvironmentEvent = { id: string; payload: AgentPayload };
   const approvalEvents: SmokeEnvironmentEvent[] = [];
   if (view.startsWith("environment-feedback-approval")) {
@@ -14710,6 +14714,28 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
       continue;
     }
     store.appendEvent(event.id, threadId, turnId, event.payload);
+  }
+  if (view === "environment-context-usage") {
+    store.appendEvent("environment-context-usage", threadId, turnId, {
+      type: "context.usage",
+      tokens: 325_802,
+      contextWindow: 1_000_000,
+      compacting: false,
+      estimated: true,
+      source: "local-estimate",
+      providerInputTokens: 325_000,
+      breakdown: {
+        systemPromptTokens: 2712,
+        systemToolTokens: 7522,
+        mcpToolTokens: 135,
+        customAgentTokens: 0,
+        memoryFileTokens: 2170,
+        skillTokens: 6263,
+        messageTokens: 307_000,
+        freeSpaceTokens: 574_198,
+        autocompactBufferTokens: 100_000,
+      },
+    });
   }
   if (process.env.ARTEMIS_SMOKE_VIEW !== "environment-empty") {
     await taskSourceImages().save(threadId, "source-screen", {
@@ -15003,9 +15029,11 @@ function createMainWindow(): BrowserWindow {
       // onFocus -> hovered -> tooltip chain for the §6 focus evidence.
       if (
         smokeMode &&
-        ["card-heatmap", "secondary-pages-token-usage"].includes(
-          requestedSmokeView ?? "",
-        )
+        [
+          "card-heatmap",
+          "secondary-pages-token-usage",
+          "environment-context-usage",
+        ].includes(requestedSmokeView ?? "")
       ) {
         window.webContents.focus();
       }
@@ -16630,8 +16658,21 @@ function createMainWindow(): BrowserWindow {
                 if (view.startsWith('environment')) {
                   document.querySelector('.thread-select')?.click();
                   await wait(600);
-                  // v69 starts with the environment closed. Open it through its
-                  // trigger before exercising its sources, branches or actions.
+                  if (view === 'environment-new-conversation') {
+                    const create = document.querySelector('[data-tree-row-id="project:artemis-smoke-environment-project"] .project-new-thread');
+                    if (!create) throw new Error('Project new conversation button missing.');
+                    create.click();
+                    await wait(350);
+                    if (!document.querySelector('.conversation-empty-state')) throw new Error('New conversation did not reach the empty state: ' + create.outerHTML);
+                    return;
+                  }
+                  if (view === 'environment-unstarted' || view === 'environment-non-git') return;
+                  if (view === 'environment-context-usage') {
+                    document.querySelector('.context-usage-indicator')?.focus();
+                    await wait(250);
+                    return;
+                  }
+                  // Exercise manual actions after the automatic visibility check.
                   if (
                     !view.startsWith('environment-feedback') &&
                     view !== 'environment' &&
@@ -17694,6 +17735,13 @@ function createMainWindow(): BrowserWindow {
                   workspaceWidth: workspaceBounds?.width ?? null,
                   environmentPanelOpen:
                     environmentTrigger?.getAttribute("aria-expanded") === "true",
+                  contextUsagePalette: [...document.querySelectorAll('.context-usage-swatch')].map((swatch) => {
+                    const category = swatch.getAttribute('data-context-category');
+                    const segment = [...document.querySelectorAll('.context-usage-breakdown-bar span')]
+                      .find((element) => element.getAttribute('data-context-category') === category);
+                    return { category, color: getComputedStyle(swatch).backgroundColor,
+                      segmentColor: segment ? getComputedStyle(segment).backgroundColor : null };
+                  }),
                   environmentControl: environmentTrigger
                     ? {
                         controls: environmentControls,

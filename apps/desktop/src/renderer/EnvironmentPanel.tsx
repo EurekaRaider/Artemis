@@ -825,11 +825,11 @@ export function EnvironmentPanel({
   const branchMenu = useRef<HTMLDivElement>(null);
   const branchSearch = useRef<HTMLInputElement>(null);
   const checksCloseTimer = useRef<number | undefined>(undefined);
-  const wantsOpen = useRef(defaultOpen);
+  const wantsOpen = useRef<boolean | undefined>(undefined);
   const manuallyOpened = useRef(false);
   const focusOnOpen = useRef(false);
-  const openRef = useRef(defaultOpen);
-  const [open, setOpen] = useState(defaultOpen);
+  const openRef = useRef(false);
+  const [open, setOpen] = useState(false);
   const [gitInfo, setGitInfo] = useState<ProjectGitInfo>();
   const [gitError, setGitError] = useState<string>();
   const [gitLoading, setGitLoading] = useState(false);
@@ -985,16 +985,19 @@ export function EnvironmentPanel({
   }, []);
 
   useLayoutEffect(() => {
+    manuallyOpened.current = false;
+  }, [dockOpen]);
+
+  useLayoutEffect(() => {
     const workspace = control.current?.closest(".workspace");
     if (!(workspace instanceof HTMLElement)) return;
-    manuallyOpened.current = false;
     const syncVisibility = () => {
       const space = measureContentSpace();
       if (!space) return;
       // Preserve explicit opening and menu focus until the reading area
       // becomes too narrow. Dock transitions restore automatic visibility.
       const nextOpen =
-        wantsOpen.current &&
+        (wantsOpen.current ?? (defaultOpen && gitInfo?.managed === true)) &&
         space.enoughSpace &&
         (manuallyOpened.current || !dockOpen);
       if (nextOpen === openRef.current) return;
@@ -1018,7 +1021,7 @@ export function EnvironmentPanel({
       observer?.disconnect();
       window.removeEventListener("resize", syncVisibility);
     };
-  }, [dockOpen, measureContentSpace]);
+  }, [defaultOpen, dockOpen, gitInfo?.managed, measureContentSpace]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -1100,6 +1103,9 @@ export function EnvironmentPanel({
 
   useEffect(() => {
     setGitInfo(undefined);
+  }, [project.id, threadId]);
+
+  useEffect(() => {
     setPullRequestLookup(undefined);
     setPullRequestError(undefined);
     setChecksOpen(false);
@@ -1123,26 +1129,31 @@ export function EnvironmentPanel({
     setChecksOpen(false);
   }, [closeBranchMenu, open]);
 
+  const gitActive = defaultOpen || open;
+  useEffect(() => {
+    if (!gitActive) return;
+    void loadGit();
+  }, [gitActive, loadGit, refreshKey]);
+
   useEffect(() => {
     if (!open) return;
-    void loadGit();
     void loadPullRequest();
-  }, [loadGit, loadPullRequest, open, refreshKey]);
+  }, [loadPullRequest, open, refreshKey]);
 
   useEffect(
     () =>
       window.artemis.onProjectGitChanged((context) => {
         if (
-          !openRef.current ||
+          (!defaultOpen && !openRef.current) ||
           context.projectId !== project.id ||
           context.threadId !== threadId
         ) {
           return;
         }
         void loadGit();
-        void loadPullRequest();
+        if (openRef.current) void loadPullRequest();
       }),
-    [loadGit, loadPullRequest, project.id, threadId],
+    [defaultOpen, loadGit, loadPullRequest, project.id, threadId],
   );
 
   useEffect(() => {

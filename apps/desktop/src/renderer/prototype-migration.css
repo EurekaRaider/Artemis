@@ -484,23 +484,32 @@
   border-radius: 2px;
   flex: none;
 }
-.context-usage-breakdown [data-context-category="0"] {
-  background: var(--artemis-color-context-1);
+[data-context-category="system-prompt"] {
+  background: var(--artemis-color-context-7);
 }
-.context-usage-breakdown [data-context-category="1"] {
-  background: var(--artemis-color-context-2);
+[data-context-category="system-tools"] {
+  background: var(--artemis-color-context-8);
 }
-.context-usage-breakdown [data-context-category="2"] {
-  background: var(--artemis-color-context-3);
+[data-context-category="mcp-tools"] {
+  background: var(--artemis-color-context-9);
 }
-.context-usage-breakdown [data-context-category="3"] {
-  background: var(--artemis-color-context-4);
+[data-context-category="custom-agents"] {
+  background: var(--artemis-color-context-10);
 }
-.context-usage-breakdown [data-context-category="4"] {
-  background: var(--artemis-color-context-5);
+[data-context-category="memory-files"] {
+  background: var(--artemis-color-context-11);
 }
-.context-usage-breakdown [data-context-category="5"] {
-  background: var(--artemis-color-context-6);
+[data-context-category="skills"] {
+  background: var(--artemis-color-context-12);
+}
+[data-context-category="messages"] {
+  background: var(--artemis-color-context-13);
+}
+[data-context-category="free-space"] {
+  background: var(--artemis-color-context-14);
+}
+[data-context-category="autocompact-buffer"] {
+  background: var(--artemis-color-context-15);
 }
 .settings-panel,
 .resource-page {

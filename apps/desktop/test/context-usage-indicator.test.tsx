@@ -77,6 +77,49 @@ describe("ContextUsageIndicator", () => {
     expect(html).not.toContain("自定义代理</dt>");
   });
 
+  it.each([false, true])(
+    "keeps bar and legend category identities stable with optional sources: %s",
+    (includeOptional) => {
+      const html = renderToStaticMarkup(
+        <ContextUsageIndicator
+          contextWindow={1_000_000}
+          locale="zh-CN"
+          usage={{
+            tokens: 326_000,
+            contextWindow: 1_000_000,
+            compacting: false,
+            breakdown: {
+              systemPromptTokens: 2712,
+              systemToolTokens: 7522,
+              mcpToolTokens: includeOptional ? 135 : 0,
+              customAgentTokens: includeOptional ? 200 : 0,
+              memoryFileTokens: includeOptional ? 2170 : 0,
+              skillTokens: includeOptional ? 6263 : 0,
+              messageTokens: 307_000,
+              freeSpaceTokens: 574_000,
+              autocompactBufferTokens: 100_000,
+            },
+          }}
+        />,
+      );
+      const categories = [
+        "system-prompt",
+        "system-tools",
+        "messages",
+        "free-space",
+        "autocompact-buffer",
+      ];
+      if (includeOptional)
+        categories.push("mcp-tools", "custom-agents", "memory-files", "skills");
+      for (const category of categories) {
+        expect(
+          html.match(new RegExp(`data-context-category="${category}"`, "g")),
+        ).toHaveLength(2);
+      }
+      expect(html).not.toMatch(/data-context-category="[0-9]"/u);
+    },
+  );
+
   it("matches the Claude Code category names and order in English", () => {
     const html = renderToStaticMarkup(
       <ContextUsageIndicator

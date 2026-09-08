@@ -353,7 +353,7 @@ describe("Desktop skin resolver and host", () => {
 });
 
 describe("Desktop semantic token snapshots", () => {
-  it("requires all 97 semantic custom properties without inline fallback", () => {
+  it("requires every registered semantic custom property without inline fallback", () => {
     const values = new Map(
       Object.values(SEMANTIC_TOKEN_REGISTRY).map((definition) => [
         definition.cssVariable,
@@ -363,7 +363,9 @@ describe("Desktop semantic token snapshots", () => {
     const complete = completeDesktopSkinTokenSnapshot({
       getPropertyValue: (name) => values.get(name) ?? "",
     });
-    expect(Object.keys(complete ?? {})).toHaveLength(97);
+    expect(Object.keys(complete ?? {})).toHaveLength(
+      Object.keys(SEMANTIC_TOKEN_REGISTRY).length,
+    );
     values.delete("--artemis-color-canvas");
     expect(
       completeDesktopSkinTokenSnapshot({

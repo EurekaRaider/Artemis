@@ -78,6 +78,40 @@ async function runCase(
 }
 
 try {
+  for (const view of [
+    "environment-new-conversation",
+    "environment-unstarted",
+    "environment-non-git",
+  ]) {
+    const snapshot = await runCase(view, 1420, view);
+    assert(
+      !snapshot.environmentPanelOpen,
+      `${view} unexpectedly opened the environment panel.`,
+    );
+  }
+  const started = await runCase("started-git", 1420, "environment");
+  assert(
+    started.environmentPanelOpen,
+    "Started Git conversation did not automatically open the environment panel.",
+  );
+  for (const theme of ["light", "dark"]) {
+    const snapshot = await runCase(
+      `context-usage-${theme}`,
+      1420,
+      "environment-context-usage",
+      { theme },
+    );
+    const palette = snapshot.contextUsagePalette;
+    assert(palette.length === 8, "Context usage categories are missing.");
+    assert(
+      new Set(palette.map((item) => item.color)).size === 8,
+      "Context categories must have distinct colors.",
+    );
+    assert(
+      palette.every((item) => item.color === item.segmentColor),
+      "Context legend and bar colors differ.",
+    );
+  }
   const wide = await runCase("wide", 1_420, "environment-open");
   assert(wide.windowInnerWidth >= 1_400, "Wide window width was not applied.");
   assert(

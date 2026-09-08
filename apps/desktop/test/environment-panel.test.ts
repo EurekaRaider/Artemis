@@ -96,8 +96,10 @@ describe("task environment panel state", () => {
   });
 
   it("enables automatic opening, closes with the dock, and can reopen beside the dock", () => {
-    expect(appSource).toMatch(/<EnvironmentPanel[\s\S]*?\sdefaultOpen\s/u);
-    expect(panelSource).toContain("useState(defaultOpen)");
+    expect(appSource).toContain(
+      "defaultOpen={Boolean(threadState?.turnOrder.length)}",
+    );
+    expect(panelSource).toContain("useState(false)");
     expect(panelSource).toContain("openRef.current = false");
     expect(panelSource).toContain("setOpen(false)");
     expect(panelSource).toContain("data-dock-open={dockOpen}");

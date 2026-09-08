@@ -113,6 +113,42 @@ export const SEMANTIC_TOKEN_REGISTRY = {
     ...color("#e0f2fe", false),
     cssVariable: "--artemis-color-context-6",
   },
+  "color.context.systemPrompt": {
+    ...color("#5856d6", false),
+    cssVariable: "--artemis-color-context-7",
+  },
+  "color.context.systemTools": {
+    ...color("#00a4d6", false),
+    cssVariable: "--artemis-color-context-8",
+  },
+  "color.context.mcpTools": {
+    ...color("#af52de", false),
+    cssVariable: "--artemis-color-context-9",
+  },
+  "color.context.customAgents": {
+    ...color("#e0448b", false),
+    cssVariable: "--artemis-color-context-10",
+  },
+  "color.context.memoryFiles": {
+    ...color("#e8ae00", false),
+    cssVariable: "--artemis-color-context-11",
+  },
+  "color.context.skills": {
+    ...color("#ff9500", false),
+    cssVariable: "--artemis-color-context-12",
+  },
+  "color.context.messages": {
+    ...color("#007aff", false),
+    cssVariable: "--artemis-color-context-13",
+  },
+  "color.context.freeSpace": {
+    ...color("#d9dcdf", false),
+    cssVariable: "--artemis-color-context-14",
+  },
+  "color.context.autocompactBuffer": {
+    ...color("#afb4bd", false),
+    cssVariable: "--artemis-color-context-15",
+  },
   "color.usage.1": {
     ...color("#0284c7", false),
     cssVariable: "--artemis-color-usage-1",

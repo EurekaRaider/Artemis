@@ -71,7 +71,9 @@ describe("reported issue regressions #94-#97", () => {
   });
 
   it("closes the environment panel with the dock and permits explicitly reopening it", () => {
-    expect(appSource).toMatch(/<EnvironmentPanel[\s\S]*?\sdefaultOpen\s/u);
+    expect(appSource).toContain(
+      "defaultOpen={Boolean(threadState?.turnOrder.length)}",
+    );
     expect(panelSource).toContain("setOpen(false)");
     expect(panelSource).toContain("data-dock-open={dockOpen}");
     expect(panelSource).not.toContain("dockOffset");

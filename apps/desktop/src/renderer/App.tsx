@@ -6591,7 +6591,7 @@ export function App() {
                           : undefined
                       }
                       attachments={attachments}
-                      defaultOpen
+                      defaultOpen={Boolean(threadState?.turnOrder.length)}
                       dockOpen={workspaceDockOpen}
                       key={`${activeProject.id}:${activeThread?.id ?? "draft"}`}
                       locale={locale}
