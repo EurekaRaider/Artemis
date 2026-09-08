@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import { tmpdir } from "node:os";
 import {
   WindowsImFiles,
@@ -56,6 +56,13 @@ describe("Windows scoped shell orchestration", () => {
           APPDATA: stage,
           LOCALAPPDATA: stage,
           WINDIR: launch.env?.SystemRoot,
+          PSModulePath: win32.join(
+            launch.env!.SystemRoot!,
+            "System32",
+            "WindowsPowerShell",
+            "v1.0",
+            "Modules",
+          ),
         });
         expect(launch.args[launch.args.indexOf("-HostTempPath") + 1]).toBe(
           tmpdir(),

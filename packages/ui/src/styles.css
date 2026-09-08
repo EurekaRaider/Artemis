@@ -4858,6 +4858,10 @@
   [data-artemis-component="application-shell"][data-layout="integrated"][data-sidebar-open="false"] {
     grid-template-columns: 48px minmax(0, 1fr);
   }
+  [data-layout="integrated"]
+    [data-artemis-component="application-shell-resizer"] {
+    z-index: 81;
+  }
   [data-layout="integrated"] [data-artemis-component="navigation-sidebar"] {
     position: relative;
     overflow: visible;

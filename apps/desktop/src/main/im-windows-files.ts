@@ -373,6 +373,14 @@ export async function runWindowsImShell(input: {
           WINDIR: systemRoot,
           ComSpec: win32.join(systemRoot, "System32", "cmd.exe"),
           PATH: win32.join(systemRoot, "System32"),
+          // Only Windows' built-in modules are available; never inherit user modules.
+          PSModulePath: win32.join(
+            systemRoot,
+            "System32",
+            "WindowsPowerShell",
+            "v1.0",
+            "Modules",
+          ),
           USERPROFILE: stage,
           APPDATA: stage,
           LOCALAPPDATA: stage,
