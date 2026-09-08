@@ -921,6 +921,117 @@ describe("IM desktop and Gateway loop", () => {
       ),
     ).rejects.toThrow(/ENOENT/u);
   });
+  it("runs a same-device assignment in a separate authorized task and returns its result", async () => {
+    mockSandboxPreflight();
+    const f = await groupFixture("execute");
+    const deviceId = f.service.status().settings.deviceId;
+    const alias = {
+      ...f.identity,
+      channel: "slack" as const,
+      connectionId: "same-device-slack",
+      userId: "slack-owner",
+    };
+    f.gateway.store.pair(f.gateway.store.pairCode(deviceId), alias);
+    const space = {
+      ...f.space,
+      endpoints: [
+        ...f.space.endpoints,
+        {
+          connectionId: alias.connectionId,
+          id: "slack-group",
+          kind: "group" as const,
+        },
+      ],
+      participants: [
+        ...f.space.participants,
+        { deviceId, identity: alias, name: "Slack" },
+      ],
+    };
+    f.gateway.store.put("spaces", space.id, space);
+    f.gateway.store.put(
+      "space-confirmations",
+      space.id,
+      space.endpoints.map(imConversationKey),
+    );
+    await f.service.poll();
+    const thread = f.threads[0]!;
+    await f.service.prepareLocalTurn(thread.id, "same-device-turn");
+    const operation = {
+      action: "collaborate" as const,
+      command: {
+        action: "delegate" as const,
+        participantId: deviceId,
+        text: "Inspect the shared project",
+      },
+    };
+    await expect(
+      f.service.operate(
+        thread.id,
+        operation,
+        "plan",
+        "denied",
+        "same-device-turn",
+      ),
+    ).rejects.toThrow("Plan and Review");
+    const task = (await f.service.operate(
+      thread.id,
+      operation,
+      "execute",
+      "same-device",
+      "same-device-turn",
+    )) as CollaborationTask;
+    await f.service.poll();
+    const child = f.threads.find((t) => t.status === "running")!;
+    expect(child.id).not.toBe(thread.id);
+    expect(f.starts).toEqual([
+      expect.stringContaining("Inspect the shared project"),
+    ]);
+    expect(f.service.profile(child.id)).toMatchObject({
+      security: { audience: "space:shared", projectId: "project" },
+    });
+    await expect(
+      f.service.operate(child.id, operation, "execute", "recurse"),
+    ).rejects.toThrow("Only the initiating coordinator");
+    f.gateway.router.receiveReply(deviceId, {
+      version: 1,
+      id: "same-device-result",
+      invocationId: task.invocationId,
+      taskId: child.id,
+      text: "Checked the shared project",
+      final: true,
+      visibility: "conversation",
+      security: {
+        version: 2,
+        projectId: "project",
+        audience: "space:shared",
+        revision: f.service.profile(child.id)!.security!.revision,
+      },
+    });
+    const results = (await f.service.operate(
+      thread.id,
+      { action: "collaborate", command: { action: "status", text: "" } },
+      "execute",
+      "same-device-status",
+      "same-device-turn",
+    )) as CollaborationTask[];
+    expect(results).toMatchObject([
+      { state: "completed", result: "Checked the shared project" },
+    ]);
+    await f.service.save({
+      ...f.service.status().settings,
+      defaultProjectId: undefined,
+      grants: [],
+    });
+    await expect(
+      f.service.operate(
+        thread.id,
+        operation,
+        "execute",
+        "revoked",
+        "same-device-turn",
+      ),
+    ).rejects.toThrow();
+  });
   it("queues different members through the real collaboration operation in one idempotent batch", async () => {
     mockSandboxPreflight();
     const f = await groupFixture("execute");

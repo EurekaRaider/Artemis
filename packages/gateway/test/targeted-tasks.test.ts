@@ -159,6 +159,108 @@ describe("explicit group Agent targeting", () => {
       }),
     ).toThrow("Wait");
   });
+  it("lists one execution target per computer and delegates to its selected account on the same device", () => {
+    const f = fixture("slack", "feishu");
+    store.db
+      .prepare("DELETE FROM state WHERE namespace='identities' AND id=?")
+      .run(imIdentityKey(f.b));
+    store.pair(store.pairCode(f.alice.id), f.b);
+    store.put("spaces", "team", {
+      ...f.space,
+      participants: [
+        { deviceId: f.alice.id, identity: f.a, name: "Slack" },
+        { deviceId: f.alice.id, identity: f.b, name: "Lark" },
+      ],
+    });
+    f.send({ text: "Ask Lark to inspect the API" });
+    const root = store.pending<RemoteInvocationContext>("device")[0]!.payload;
+    expect(
+      f.router.collaborate(f.alice.id, root.id, "coordinator", {
+        action: "participants",
+        text: "",
+      }),
+    ).toEqual([{ id: f.alice.id, name: "Lark" }]);
+    const task = f.router.collaborate(f.alice.id, root.id, "coordinator", {
+      action: "delegate",
+      participantId: f.alice.id,
+      text: "Inspect the API",
+    }) as { id: string; invocationId: string };
+    const request = store.get<RemoteInvocationContext>(
+      "invocations",
+      task.invocationId,
+    )!;
+    expect(request).toMatchObject({
+      deviceId: f.alice.id,
+      identity: f.b,
+      conversation: { connectionId: f.b.connectionId },
+      collaboration: { taskId: task.id },
+    });
+    expect(f.router.isInvocationAuthorized(request)).toBe(true);
+    expect(() =>
+      f.router.collaborate(f.alice.id, request.id, "child", {
+        action: "delegate",
+        participantId: f.alice.id,
+        text: "Recurse",
+      }),
+    ).toThrow("Only the initiating coordinator");
+    f.router.collaborate(f.alice.id, root.id, "coordinator", {
+      action: "message",
+      participantId: f.alice.id,
+      taskId: task.id,
+      text: "Check tests too",
+    });
+    f.router.collaborate(f.alice.id, request.id, "child", {
+      action: "message",
+      participantId: f.alice.id,
+      text: "Returning findings",
+    });
+    const messages = store
+      .pending<RemoteInvocationContext>("device")
+      .map((entry) => entry.payload)
+      .filter((entry) => entry.id.startsWith("message:"));
+    expect(messages.map((entry) => entry.taskId)).toEqual([
+      "child",
+      "coordinator",
+    ]);
+    f.router.receiveReply(f.alice.id, {
+      version: 1,
+      id: "result",
+      invocationId: request.id,
+      taskId: "child",
+      text: "Checked",
+      final: true,
+      visibility: "conversation",
+    });
+    expect(
+      f.router.collaborate(f.alice.id, root.id, "coordinator", {
+        action: "status",
+        text: "",
+      }),
+    ).toMatchObject([{ state: "completed", result: "Checked" }]);
+    expect(
+      store
+        .pending<RemoteInvocationContext>("device")
+        .find((entry) => entry.payload.id === `result:${task.id}`)?.payload,
+    ).toMatchObject({ taskId: "coordinator", sourceKind: "tool-result" });
+    expect(
+      f
+        .outgoing()
+        .filter((delivery) => delivery.text.includes("Checked"))
+        .map((delivery) => delivery.conversation.id)
+        .sort(),
+    ).toEqual(["alice-group", "bob-group"]);
+    store.db
+      .prepare("DELETE FROM state WHERE namespace='identities' AND id=?")
+      .run(imIdentityKey(f.b));
+    expect(f.router.isInvocationAuthorized(request)).toBe(false);
+    expect(() =>
+      f.router.collaborate(f.alice.id, root.id, "coordinator", {
+        action: "delegate",
+        participantId: f.alice.id,
+        text: "Retry",
+      }),
+    ).toThrow("unpaired");
+  });
   const channels = ["wecom", "feishu", "slack"] as const;
   for (const source of channels)
     for (const target of channels) {

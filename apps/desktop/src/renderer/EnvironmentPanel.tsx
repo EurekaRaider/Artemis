@@ -948,54 +948,55 @@ export function EnvironmentPanel({
     branchSearch.current?.focus({ preventScroll: true });
   }, [branchMenuPosition, branchOpen, creatingMenuBranch]);
 
+  const measureContentSpace = useCallback(() => {
+    const workspace = control.current?.closest(".workspace");
+    const conversation = workspace?.querySelector<HTMLElement>(".conversation");
+    if (!(workspace instanceof HTMLElement) || !conversation) return;
+    const bounds = conversation.getBoundingClientRect();
+    const anchor = control.current?.getBoundingClientRect();
+    if (!anchor || bounds.width === 0) return;
+    const style = window.getComputedStyle(workspace);
+    const configuredWidth =
+      Number.parseFloat(
+        style.getPropertyValue("--environment-panel-inline-size"),
+      ) || 280;
+    const panelWidth = Math.min(configuredWidth, window.innerWidth - 62);
+    const panelBounds = panel.current?.getBoundingClientRect();
+    const rtl = style.direction === "rtl";
+    const panelStart = panelBounds?.width
+      ? rtl
+        ? panelBounds.right
+        : panelBounds.left
+      : rtl
+        ? anchor.left + panelWidth
+        : anchor.right - panelWidth;
+    // Measure against the conversation, so a panel above the tool dock
+    // reserves nothing when it is already outside the reading area.
+    const inset = Math.max(
+      0,
+      rtl ? panelStart + 24 - bounds.left : bounds.right - panelStart + 24,
+    );
+    return {
+      workspace,
+      conversation,
+      inset,
+      enoughSpace: inset === 0 || bounds.width - inset >= 480,
+    };
+  }, []);
+
   useLayoutEffect(() => {
     const workspace = control.current?.closest(".workspace");
     if (!(workspace instanceof HTMLElement)) return;
     manuallyOpened.current = false;
-    const conversation = workspace.querySelector<HTMLElement>(".conversation");
-    const viewport =
-      conversation?.querySelector<HTMLElement>(".timeline-scroll");
-    const contentElements = () =>
-      Array.from(
-        conversation?.querySelectorAll<HTMLElement>(
-          ".timeline, .composer-wrap, .conversation-empty-state",
-        ) ?? [],
-      );
     const syncVisibility = () => {
-      // Explicitly opened menus keep their input/focus through theme and
-      // font changes. Dock transitions still restore automatic visibility.
-      if (manuallyOpened.current) return;
-      const configuredWidth =
-        Number.parseFloat(
-          window
-            .getComputedStyle(workspace)
-            .getPropertyValue("--environment-panel-inline-size"),
-        ) || 280;
-      const anchor = control.current?.getBoundingClientRect();
-      if (!anchor) return;
-      const panelWidth = Math.min(configuredWidth, window.innerWidth - 62);
-      const rtl = window.getComputedStyle(workspace).direction === "rtl";
-      const panelBounds = panel.current?.getBoundingClientRect();
-      const panelStart = panelBounds?.width
-        ? rtl
-          ? panelBounds.right
-          : panelBounds.left
-        : rtl
-          ? anchor.left + panelWidth
-          : anchor.right - panelWidth;
-      const contentBounds = contentElements()
-        .map((element) => element.getBoundingClientRect())
-        .filter((bounds) => bounds.width > 0);
-      // The timeline is centered: total workspace width alone cannot tell
-      // whether the floating panel fits in its side margin.
-      const enoughSpace =
-        contentBounds.length > 0 &&
-        contentBounds.every((bounds) =>
-          rtl
-            ? panelStart + 24 <= bounds.left
-            : bounds.right + 24 <= panelStart,
-        );
-      const nextOpen = wantsOpen.current && !dockOpen && enoughSpace;
+      const space = measureContentSpace();
+      if (!space) return;
+      // Preserve explicit opening and menu focus until the reading area
+      // becomes too narrow. Dock transitions restore automatic visibility.
+      const nextOpen =
+        wantsOpen.current &&
+        space.enoughSpace &&
+        (manuallyOpened.current || !dockOpen);
       if (nextOpen === openRef.current) return;
       openRef.current = nextOpen;
       setOpen(nextOpen);
@@ -1004,30 +1005,59 @@ export function EnvironmentPanel({
       typeof window.ResizeObserver === "function"
         ? new window.ResizeObserver(syncVisibility)
         : undefined;
-    const observeContent = () => {
-      observer?.disconnect();
-      for (const element of [
-        workspace,
-        control.current,
-        ...contentElements(),
-      ]) {
-        if (element) observer?.observe(element);
-      }
-      syncVisibility();
-    };
-    observeContent();
-    // Empty state / timeline and composer mounts change the protected column.
-    // Watch their containers, not the streamed message subtree.
-    const mutations = new MutationObserver(observeContent);
-    if (conversation) mutations.observe(conversation, { childList: true });
-    if (viewport) mutations.observe(viewport, { childList: true });
+    for (const element of [
+      workspace,
+      control.current,
+      workspace.querySelector(".conversation"),
+    ]) {
+      if (element) observer?.observe(element);
+    }
+    syncVisibility();
     window.addEventListener("resize", syncVisibility);
     return () => {
       observer?.disconnect();
-      mutations.disconnect();
       window.removeEventListener("resize", syncVisibility);
     };
-  }, [dockOpen]);
+  }, [dockOpen, measureContentSpace]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const workspace = control.current?.closest(".workspace");
+    const conversation = workspace?.querySelector<HTMLElement>(".conversation");
+    if (!workspace || !conversation) return;
+    const property = "--environment-panel-content-safe-inline-size";
+    const reserveSpace = () => {
+      const next = measureContentSpace();
+      if (!next) return;
+      if (!next.enoughSpace) {
+        hidePanel();
+        return;
+      }
+      const value = `${next.inset}px`;
+      if (next.conversation.style.getPropertyValue(property) !== value) {
+        next.conversation.style.setProperty(property, value);
+      }
+    };
+    reserveSpace();
+    const observer =
+      typeof window.ResizeObserver === "function"
+        ? new window.ResizeObserver(reserveSpace)
+        : undefined;
+    for (const element of [
+      workspace,
+      conversation,
+      control.current,
+      panel.current,
+    ]) {
+      if (element) observer?.observe(element);
+    }
+    window.addEventListener("resize", reserveSpace);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", reserveSpace);
+      conversation.style.removeProperty(property);
+    };
+  }, [hidePanel, measureContentSpace, open]);
 
   const loadGit = useCallback(async () => {
     const id = ++gitRequest.current;

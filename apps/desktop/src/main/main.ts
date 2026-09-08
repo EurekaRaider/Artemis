@@ -16644,6 +16644,23 @@ function createMainWindow(): BrowserWindow {
                       await wait(500);
                     }
                   }
+                  if (view.startsWith('environment-notice')) {
+                    if (view.endsWith('-closed')) {
+                      document.querySelector('.environment-panel-header .environment-header-action')?.click();
+                      await wait(350);
+                    }
+                    navigator.clipboard.writeText = async () => {
+                      throw new Error('This operation was aborted');
+                    };
+                    document.querySelector('.user-message .message-action')?.click();
+                    await wait(350);
+                    return;
+                  }
+                  if (view === 'environment-closed') {
+                    document.querySelector('.environment-panel-header .environment-header-action')?.click();
+                    await wait(350);
+                    return;
+                  }
                   if (view === 'environment-open') {
                     const trigger = document.querySelector('.environment-trigger');
                     if (trigger?.getAttribute('aria-expanded') !== 'true') {

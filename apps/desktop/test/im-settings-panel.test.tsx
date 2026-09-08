@@ -506,7 +506,7 @@ describe("production IM settings", () => {
       screen.getByRole("button", { name: /^谁来确认群接入 · Test bot/ }),
     );
     await user.click(
-      screen.getByRole("option", { name: "test-user", exact: true }),
+      screen.getByRole("option", { name: "test-user · 1", exact: true }),
     );
     expect(save).toBeEnabled();
     await user.click(save);

@@ -219,9 +219,9 @@ describe("task environment panel state", () => {
     expect(stylesSource).toContain("max-height: calc(100vh - 64px)");
   });
 
-  it("keeps the compact overlay styling while monitoring available space", () => {
+  it("keeps the compact panel styling while reserving conversation content space", () => {
     expect(stylesSource).toContain("--environment-panel-inline-size: 280px");
-    expect(stylesSource).not.toContain(
+    expect(stylesSource).toContain(
       "--environment-panel-content-safe-inline-size",
     );
     expect(stylesSource).not.toContain(

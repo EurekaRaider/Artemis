@@ -117,12 +117,90 @@ try {
     Math.abs(wide.timelineScroll.right - wide.workspaceContent.right) <= 1,
     "Environment popover moved the timeline scrollbar away from the workspace edge.",
   );
+  function assertContentSpace(snapshot, direction = "ltr") {
+    const panel = snapshot.environmentPanel;
+    assert(
+      panel?.visible,
+      "Environment panel did not remain visible in the usable workspace.",
+    );
+    for (const [name, content] of Object.entries({
+      timeline: snapshot.timelineContent,
+      composer: snapshot.goalComposer,
+    })) {
+      assert(content, `${name} bounds are missing.`);
+      assert(
+        direction === "rtl"
+          ? content.left >= panel.right + 23
+          : content.right <= panel.left - 23,
+        `${name} does not leave a 24px gap beside the environment panel: ${JSON.stringify({ content, panel })}`,
+      );
+    }
+    assert(
+      snapshot.timelineContent.width >= 480 &&
+        snapshot.goalComposer.width >= 440,
+      "Environment panel leaves too little usable conversation width.",
+    );
+  }
+  assertContentSpace(wide);
+
+  for (const [name, width, view, options] of [
+    ["notice-open", 1420, "environment-notice", { theme: "dark" }],
+    ["notice-closed", 1420, "environment-notice-closed", {}],
+    ["notice-narrow", 980, "environment-notice", {}],
+    ["notice-rtl", 1420, "environment-notice", { direction: "rtl" }],
+    ["notice-zoomed", 1420, "environment-notice", { scale: 2 }],
+  ]) {
+    const snapshot = await runCase(name, width, view, options);
+    const notice = snapshot.feedbackLayout?.components.find(
+      (component) =>
+        component.component === "toast" && component.context === "app-notice",
+    );
+    const composer = snapshot.goalComposer;
+    assert(
+      notice?.role === "alert" && notice.tone === "danger",
+      `${name}: error notice missing`,
+    );
+    assert(
+      composer &&
+        Math.abs(notice.geometry.left - composer.left) <= 1 &&
+        Math.abs(notice.geometry.right - composer.right) <= 1,
+      `${name}: error notice is not aligned with the composer: ${JSON.stringify({ notice: notice.geometry, composer })}`,
+    );
+    assert(
+      notice.geometry.bottom <= composer.top,
+      `${name}: error notice overlaps the composer`,
+    );
+    assert(
+      notice.withinViewport && notice.contentFitsInline,
+      `${name}: error notice is clipped`,
+    );
+  }
+
+  const closed = await runCase("closed", 1_420, "environment-closed");
+  assert(
+    !closed.environmentPanelOpen,
+    "Closed fixture unexpectedly opened the panel.",
+  );
   assert(
     Math.abs(
-      wide.timelineContent.width - Math.min(960, wide.timelineScroll.width - 8),
+      closed.timelineContent.width -
+        Math.min(960, closed.timelineScroll.width - 8),
     ) <= 1,
-    "Environment overlay changed the centered timeline reading width.",
+    "Closing the panel did not restore the original reading width.",
   );
+  assert(
+    wide.timelineContent.left < closed.timelineContent.left &&
+      wide.goalComposer.left < closed.goalComposer.left,
+    "Opening the panel did not move both timeline and composer left.",
+  );
+  const medium = await runCase("medium", 1_200, "environment-open");
+  assertContentSpace(medium);
+  const rtl = await runCase("rtl-open", 1_420, "environment-open", {
+    direction: "rtl",
+    theme: "dark",
+    scale: 1,
+  });
+  assertContentSpace(rtl, "rtl");
   assert(
     Math.abs(wide.turnStatus.left - wide.timelineContent.left) <= 1 &&
       Math.abs(wide.turnStatus.right - wide.timelineContent.right) <= 1,
@@ -301,23 +379,17 @@ try {
     narrow.windowInnerWidth <= 1_000,
     "Narrow window width was not applied.",
   );
-  assert(
-    !narrow.environmentPanelOpen,
-    "Narrow window must start with the environment panel closed.",
-  );
-  assert(
-    !narrow.environmentPanel?.visible,
-    "Narrow window environment panel remains visible.",
-  );
-
+  // The sidebar automatically collapses at this width. The panel may stay
+  // open because the conversation still has at least 480px of usable space.
+  assertContentSpace(narrow);
   const narrowOpen = await runCase("narrow-open", 980, "environment-open");
+  assertContentSpace(narrowOpen);
+  const zoomed = await runCase("zoomed", 1_420, "environment-open", {
+    scale: 2,
+  });
   assert(
-    narrowOpen.environmentPanelOpen &&
-      narrowOpen.environmentPanel?.visible &&
-      Math.abs(narrowOpen.environmentPanel.width - 280) <= 1 &&
-      narrowOpen.environmentPanel.left >= 0 &&
-      narrowOpen.environmentPanel.right <= narrowOpen.windowInnerWidth,
-    "Explicitly opened narrow environment panel must remain inside the viewport.",
+    !zoomed.environmentPanelOpen && !zoomed.environmentPanel?.visible,
+    "An explicitly opened panel must close when less than 480px would remain for content.",
   );
 
   const stages = wide.startupTimings.map((timing) => timing.stage);

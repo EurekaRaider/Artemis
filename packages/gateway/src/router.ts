@@ -665,7 +665,8 @@ export class GatewayRouter {
   }
   private participantName(space: CollaborationSpace, deviceId: string): string {
     return (
-      space.participants.find((p) => p.deviceId === deviceId)?.name ?? "Artemis"
+      space.participants.findLast((p) => p.deviceId === deviceId)?.name ??
+      "Artemis"
     );
   }
   private broadcast(
@@ -1055,8 +1056,12 @@ export class GatewayRouter {
       command.action !== "status"
     )
       throw new Error("This collaboration has ended.");
+    // Match the desktop mention picker: multiple IM accounts share one executor.
+    const participants = [
+      ...new Map(space.participants.map((p) => [p.deviceId, p])).values(),
+    ];
     if (command.action === "participants")
-      return space.participants.map(({ deviceId: id, name }) => ({ id, name }));
+      return participants.map(({ deviceId: id, name }) => ({ id, name }));
     const tasks = this.store
       .list<CollaborationTask>("collaboration-tasks")
       .filter(
@@ -1095,8 +1100,8 @@ export class GatewayRouter {
         throw new Error("Collaboration task budget reached (16 assignments).");
       if (!command.text.trim())
         throw new Error("A bounded task with a deliverable is required.");
-      const participant = space.participants.find(
-        (p) => p.deviceId === command.participantId && p.deviceId !== deviceId,
+      const participant = participants.find(
+        (p) => p.deviceId === command.participantId,
       );
       if (!participant)
         throw new Error("Participant is not available in this space.");
@@ -1123,6 +1128,7 @@ export class GatewayRouter {
         result: "",
         expiresAt: request.expiresAt,
       };
+      // Even on this device, the assignment gets a fresh invocation and task.
       const invocation = remoteInvocationSchema.parse({
         version: 1,
         id: task.invocationId,
@@ -1167,9 +1173,8 @@ export class GatewayRouter {
       this.store.put("collaboration-messages", rootKey, count + 1);
       const messageId = randomUUID();
       if (command.participantId) {
-        const target = space.participants.find(
-          (p) =>
-            p.deviceId === command.participantId && p.deviceId !== deviceId,
+        const target = participants.find(
+          (p) => p.deviceId === command.participantId,
         );
         if (!target)
           throw new Error("Target is not a participant in this space.");
@@ -1180,13 +1185,15 @@ export class GatewayRouter {
               t.spaceId === space.id &&
               `${t.coordinatorDeviceId}:${t.coordinatorThreadId}` === rootKey,
           );
-        const assignment = candidates.find(
+        const targetAssignment = candidates.find(
           (t) =>
             t.participantDeviceId === target.deviceId &&
-            (!command.taskId || t.id === command.taskId),
+            (command.taskId
+              ? t.id === command.taskId
+              : t.id !== assignment?.id),
         );
-        const targetThreadId = assignment
-          ? this.store.get<string>("assignment-threads", assignment.id)
+        const targetThreadId = targetAssignment
+          ? this.store.get<string>("assignment-threads", targetAssignment.id)
           : rootKey.startsWith(`${target.deviceId}:`)
             ? rootKey.slice(target.deviceId.length + 1)
             : undefined;

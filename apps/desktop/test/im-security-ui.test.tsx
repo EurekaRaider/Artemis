@@ -61,6 +61,65 @@ it("requires explicit file selection and confirmation and keeps writes within re
   expect(value!.security!.confirmedAt).toBe(0);
 });
 
+it("bulk selects only explicit unprotected entries for the chosen audience and resets confirmation", async () => {
+  const user = userEvent.setup();
+  stubWindowArtemis({
+    manageIm: vi.fn(async () => [
+      { path: "src", directory: true, protected: false },
+      { path: "README.md", directory: false, protected: false },
+      { path: ".env", directory: false, protected: true },
+      { path: ".git", directory: true, protected: true },
+    ]),
+  });
+  let value: ExecutionGrant;
+  function Editor() {
+    const [grant, setGrant] = useState(
+      executionGrantSchema.parse({
+        projectId: "p",
+        expiresAt: Date.now() + 60000,
+      }),
+    );
+    value = grant;
+    return (
+      <ImDataPermissions
+        grant={grant}
+        onChange={(security) => setGrant({ ...grant, security })}
+        t={t}
+        audiences={[{ value: "space:team", label: "Team", revision: "v1" }]}
+        disabled={false}
+      />
+    );
+  }
+  render(<Editor />);
+  await user.click(screen.getByRole("button", { name: "全选可处理" }));
+  expect(value!.security!.scopes[0]).toMatchObject({
+    audience: "owner",
+    readPaths: ["src", "README.md"],
+    writePaths: [],
+    filePaths: ["README.md"],
+  });
+  await user.click(screen.getByRole("checkbox", { name: /我确认以上/ }));
+  await user.click(screen.getByRole("button", { name: "全选可修改" }));
+  expect(value!.security!.confirmedAt).toBe(0);
+  expect(value!.security!.scopes[0]!.writePaths).toEqual(["src", "README.md"]);
+  await user.click(screen.getByRole("button", { name: /^分享给谁/ }));
+  await user.click(screen.getByRole("option", { name: "Team", exact: true }));
+  await user.click(screen.getByRole("button", { name: "全选可处理" }));
+  expect(value!.security!.scopes[1]).toMatchObject({
+    audience: "space:team",
+    readPaths: ["src", "README.md"],
+    writePaths: [],
+    spaceRevision: "v1",
+  });
+  await user.click(screen.getByRole("button", { name: "清除此范围" }));
+  expect(
+    value!.security!.scopes.find((s) => s.audience === "space:team")!.readPaths,
+  ).toEqual([]);
+  expect(
+    value!.security!.scopes.find((s) => s.audience === "owner")!.writePaths,
+  ).toEqual(["src", "README.md"]);
+});
+
 it("shows sensitive previews as inert text and sends only the reviewed content hash", async () => {
   const user = userEvent.setup();
   const candidate: ImOutboundCandidate = {

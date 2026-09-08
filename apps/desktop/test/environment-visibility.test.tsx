@@ -61,7 +61,7 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
     function () {
       const workspaceLeft = 260;
-      if (this.classList.contains("workspace"))
+      if (this.matches(".workspace, .conversation, .timeline-scroll"))
         return new DOMRect(workspaceLeft, 0, workspaceWidth, 780);
       if (
         this.matches(
@@ -126,19 +126,44 @@ const dialog = () =>
   screen.queryByRole("dialog", { name: "Environment", exact: true });
 
 describe("environment panel automatic visibility", () => {
+  it("reserves content space on manual open and releases it on close and unmount", async () => {
+    workspaceWidth = 1200;
+    const { container, unmount } = render(fixture({ defaultOpen: false }));
+    const conversation = container.querySelector<HTMLElement>(".conversation")!;
+    const safeSpace = () =>
+      conversation.style.getPropertyValue(
+        "--environment-panel-content-safe-inline-size",
+      );
+    expect(safeSpace()).toBe("");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Task environment" }),
+    );
+    expect(dialog()).toBeVisible();
+    expect(safeSpace()).toBe("354px");
+    await userEvent.keyboard("{Escape}");
+    expect(dialog()).toBeNull();
+    expect(safeSpace()).toBe("");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Task environment" }),
+    );
+    expect(safeSpace()).toBe("354px");
+    unmount();
+    expect(safeSpace()).toBe("");
+  });
+
   it("opens with sufficient space and restores at the exact width threshold without moving prompt focus", async () => {
-    workspaceWidth = 1667;
+    workspaceWidth = 833;
     render(fixture());
     expect(dialog()).toBeNull();
     const prompt = screen.getByRole("textbox", { name: "Prompt" });
     prompt.focus();
-    resize(1668);
+    resize(834);
     expect(dialog()).toBeVisible();
     await waitFor(() =>
       expect(window.artemis.getProjectGitInfo).toHaveBeenCalled(),
     );
     expect(prompt).toHaveFocus();
-    resize(1667);
+    resize(833);
     expect(dialog()).toBeNull();
     resize(1800);
     expect(dialog()).toBeVisible();
@@ -146,48 +171,53 @@ describe("environment panel automatic visibility", () => {
   });
 
   it("measures actual content bounds and configured panel width, including sidebar-only resizes", () => {
-    workspaceWidth = 1747;
+    workspaceWidth = 873;
     render(fixture({}, 320));
     expect(dialog()).toBeNull();
-    resize(1748);
+    resize(874);
     expect(dialog()).toBeVisible();
-    resize(1000);
+    resize(800);
     expect(dialog()).toBeNull();
   });
 
-  it("hides when either the timeline or composer would overlap, even in a wide workspace", () => {
+  it("keeps the panel open when content changes width because both rows reserve space", () => {
     workspaceWidth = 1200;
-    render(fixture());
-    expect(dialog()).toBeNull();
-    resize(1800);
+    const { container } = render(fixture());
     expect(dialog()).toBeVisible();
     timelineWidth = 1200;
-    resize(1800);
-    expect(dialog()).toBeNull();
-    timelineWidth = 960;
     composerWidth = 1200;
-    resize(1800);
-    expect(dialog()).toBeNull();
-    composerWidth = 960;
-    resize(1800);
+    resize(1200);
     expect(dialog()).toBeVisible();
+    expect(
+      container
+        .querySelector<HTMLElement>(".conversation")!
+        .style.getPropertyValue("--environment-panel-content-safe-inline-size"),
+    ).toBe("354px");
   });
 
-  it("remeasures content mounted after the initial empty geometry", async () => {
+  it("reserves the same space before and after the empty state becomes a timeline", () => {
     timelineWidth = 0;
     composerWidth = 0;
     const { container } = render(fixture());
-    expect(dialog()).toBeNull();
-    timelineWidth = 960;
+    expect(dialog()).toBeVisible();
+    const viewport = container.querySelector(".timeline-scroll")!;
     const empty = document.createElement("div");
     empty.className = "conversation-empty-state";
-    container.querySelector(".timeline-scroll")!.replaceChildren(empty);
-    await waitFor(() => expect(dialog()).toBeVisible());
-    timelineWidth = 1200;
-    const timeline = document.createElement("div");
-    timeline.className = "timeline";
-    empty.replaceWith(timeline);
-    await waitFor(() => expect(dialog()).toBeNull());
+    viewport.replaceChildren(empty);
+    const conversation = container.querySelector<HTMLElement>(".conversation")!;
+    expect(
+      conversation.style.getPropertyValue(
+        "--environment-panel-content-safe-inline-size",
+      ),
+    ).toBe("354px");
+    empty.className = "timeline";
+    resize(1200);
+    expect(dialog()).toBeVisible();
+    expect(
+      conversation.style.getPropertyValue(
+        "--environment-panel-content-safe-inline-size",
+      ),
+    ).toBe("354px");
   });
 
   it("restores after closing the dock, including when initially mounted with the dock open", () => {
@@ -221,8 +251,8 @@ describe("environment panel automatic visibility", () => {
     resize(1800);
     expect(dialog()).toBeVisible();
     expect(document.activeElement).toBe(focused);
-    resize(900);
-    expect(dialog()).toBeVisible();
+    resize(800);
+    expect(dialog()).toBeNull();
     rerender(fixture({ dockOpen: true }));
     expect(dialog()).toBeNull();
     timelineWidth = 960;
@@ -250,8 +280,8 @@ describe("environment panel automatic visibility", () => {
     expect(dialog()).toBeVisible();
   });
 
-  it("allows explicit opening in narrow layouts and beside the dock", async () => {
-    workspaceWidth = 800;
+  it("allows explicit opening beside the dock when there is enough content space", async () => {
+    workspaceWidth = 1200;
     render(fixture({ dockOpen: true }));
     await userEvent.click(
       screen.getByRole("button", { name: "Task environment" }),
@@ -261,6 +291,22 @@ describe("environment panel automatic visibility", () => {
     expect(dialog()).toBeNull();
     resize(1900);
     expect(dialog()).toBeNull();
+  });
+
+  it("closes even a manually opened panel when it would leave less than 480px", async () => {
+    workspaceWidth = 800;
+    const { container } = render(fixture({ defaultOpen: false }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Task environment" }),
+    );
+    expect(dialog()).toBeNull();
+    expect(
+      container
+        .querySelector<HTMLElement>(".conversation")!
+        .style.getPropertyValue("--environment-panel-content-safe-inline-size"),
+    ).toBe("");
+    resize(1200);
+    expect(dialog()).toBeVisible();
   });
 
   it("keeps explicitly disabled defaults closed and disconnects observation on unmount", () => {

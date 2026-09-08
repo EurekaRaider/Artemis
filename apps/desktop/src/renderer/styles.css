@@ -4153,6 +4153,22 @@ button.environment-row:disabled {
   z-index: 20;
 }
 
+/* Keep the scrollbar at the workspace edge while centering both content rows
+   in the space beside the environment panel. Logical offsets also support RTL. */
+.conversation .timeline,
+.conversation .timeline-scroll > .turn-status,
+.conversation .composer-wrap,
+.conversation .conversation-empty-state {
+  position: relative;
+  inline-size: calc(
+    100% - var(--environment-panel-content-safe-inline-size, 0px)
+  );
+  margin-inline: auto;
+  inset-inline-end: calc(
+    var(--environment-panel-content-safe-inline-size, 0px) / 2
+  );
+}
+
 .goal-bar {
   align-items: center;
   background: var(--panel-3);
@@ -10899,8 +10915,72 @@ kbd {
   overflow-wrap: anywhere;
 }
 
-.im-security-scope ul {
-  padding-inline-start: 20px;
+.im-scope-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 12px;
+}
+
+.im-scope-tree {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.im-scope-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.im-scope-list .im-scope-list {
+  margin-inline-start: 16px;
+}
+
+.im-scope-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 64px;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.im-scope-row > :not(:first-child) {
+  justify-self: center;
+}
+
+.im-scope-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.im-scope-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.im-scope-name > span:last-child {
+  overflow-wrap: anywhere;
+}
+
+.im-scope-indent {
+  flex: 0 0 28px;
+}
+
+.im-scope-protected {
+  grid-column: 2 / 4;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .im-outbound-review pre {

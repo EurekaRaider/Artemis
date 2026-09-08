@@ -34,6 +34,11 @@ await writeFile(
   join(project, "README.md"),
   "IM_SMOKE_PROJECT: a project for verifying remote Artemis tasks.",
 );
+for (const directory of [".git", "src", "docs", "packages", "scripts"]) {
+  await mkdir(join(project, directory));
+}
+await writeFile(join(project, ".env"), "SYNTHETIC_TEST_VALUE=private");
+await writeFile(join(project, "src", "index.ts"), "export const demo = true;");
 const db = new DatabaseSync(join(data, "artemis.sqlite"));
 db.exec(
   "CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT NOT NULL,path TEXT NOT NULL UNIQUE,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,hidden INTEGER NOT NULL DEFAULT 0)",
@@ -369,7 +374,7 @@ try {
     await pause(150);
   };
   const button = (text) =>
-    `Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()===${JSON.stringify(text)})`;
+    `Array.from(document.querySelectorAll('button')).find(b=>b.getClientRects().length && (b.textContent.trim()===${JSON.stringify(text)} || b.getAttribute('aria-label')===${JSON.stringify(text)}))`;
   failureSnapshot = async () => {
     const value = await evaluate(
       "(async()=>({text:document.body.innerText,hidden:document.hidden,environment:document.querySelector('.environment-trigger')?.getAttribute('aria-expanded'),groups:(await window.artemis.getImStatus()).remoteTasks,createButton:document.querySelector('.im-group-task-composer > button')?.outerHTML}))()",
@@ -487,7 +492,12 @@ try {
   );
   assert.match(await evaluate("document.title"), /Artemis/u);
   await evaluate('window.artemis.setLanguage("zh-CN")');
+  await evaluate("window.__imVerificationBeforeReload = true");
   await send("Page.reload");
+  await until(
+    () => evaluate("!window.__imVerificationBeforeReload"),
+    "new document after locale reload",
+  );
   await until(
     () =>
       evaluate("Boolean(window.artemis && document.querySelector('button'))"),
@@ -543,7 +553,7 @@ try {
     await evaluate("window.artemis.manageIm({action:'refresh'})");
   } else {
     await click(
-      "Array.from(document.querySelectorAll('button')).find(b=>['Settings','设置'].includes(b.getAttribute('aria-label')))",
+      "Array.from(document.querySelectorAll('button')).find(b=>b.getClientRects().length && ['Settings','设置'].includes(b.getAttribute('aria-label')))",
     );
     await until(
       () =>
@@ -867,11 +877,58 @@ try {
     await click(
       "document.querySelectorAll('.im-space-builder input[type=checkbox]')[1]",
     );
+    await replaceText(
+      ".im-space-builder .im-field-stack input[type=text]",
+      "Lark",
+    );
+    const memberNameSelector =
+      ".im-space-builder .im-field-stack input[type=text]";
+    await click(
+      `document.querySelector(${JSON.stringify(memberNameSelector)})`,
+    );
+    await evaluate(
+      `document.querySelector(${JSON.stringify(memberNameSelector)}).select()`,
+    );
+    await send("Input.dispatchKeyEvent", {
+      type: "keyDown",
+      key: "Backspace",
+      code: "Backspace",
+      windowsVirtualKeyCode: 8,
+    });
+    await send("Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key: "Backspace",
+      code: "Backspace",
+      windowsVirtualKeyCode: 8,
+    });
+    assert.equal(
+      await evaluate(
+        `document.querySelector(${JSON.stringify(memberNameSelector)}).value`,
+      ),
+      "",
+    );
+    assert.equal(
+      await evaluate("Boolean(document.querySelector('.im-space-builder'))"),
+      true,
+    );
+    assert.equal(
+      await evaluate(`${button("保存空间并等待各群确认")}.disabled`),
+      true,
+    );
+    const emptyNameCapture = await send("Page.captureScreenshot", {
+      format: "png",
+    });
+    await writeFile(
+      join(output, "empty-member-name.png"),
+      Buffer.from(emptyNameCapture.data, "base64"),
+    );
+    await fill(memberNameSelector, "alice");
+    records.push({ name: "cleared-member-name-remains-editable" });
     await click(
       "document.querySelector('.im-space-builder [data-part=trigger]')",
     );
     await click(
-      "Array.from(document.querySelectorAll('[role=option]')).find(e=>e.textContent.trim()==='alice')",
+      "Array.from(document.querySelectorAll('[role=option]')).find(e=>e.textContent.trim()==='alice · 1')",
     );
     await fill(
       "#im-spaces input[type=password]",
@@ -898,7 +955,7 @@ try {
       Buffer.from(groupSetupCapture.data, "base64"),
     );
     records.push({ name: "guided-group-setup", spaceId: savedSpace.id });
-    await openView("wecom");
+    await openView("pairing");
     // Inline confirmation must not close the real settings dialog on Escape.
     await click(button("解除绑定"));
     assert.equal(
@@ -919,13 +976,14 @@ try {
     });
     await pause(100);
     assert.equal(
-      await evaluate("document.activeElement.textContent.trim()"),
+      await evaluate("document.activeElement.getAttribute('aria-label')"),
       "解除绑定",
     );
     assert.equal(
       await evaluate("Boolean(document.querySelector('.settings-panel'))"),
       true,
     );
+    await openView("wecom");
     for (const variant of [
       {
         name: "manage-light",
@@ -1053,9 +1111,43 @@ try {
         ),
       "scope directory tree",
     );
-    await click(
-      "Array.from(document.querySelectorAll('input[type=checkbox]')).find(i=>i.closest('label')?.textContent.includes('可处理 README.md'))",
+    await click(button("全选可处理"));
+    assert.equal(
+      await evaluate(
+        "Array.from(document.querySelectorAll('.im-scope-row input[type=checkbox]')).filter(i=>i.closest('label')?.textContent.includes('可处理')).every(i=>i.checked)",
+      ),
+      true,
     );
+    assert.equal(
+      await evaluate(
+        "Array.from(document.querySelectorAll('.im-scope-row input[type=checkbox]')).some(i=>i.closest('label')?.textContent.includes('.env'))",
+      ),
+      false,
+    );
+    await click(button("全选可修改"));
+    assert.equal(
+      await evaluate(
+        "Array.from(document.querySelectorAll('.im-scope-row input[type=checkbox]')).every(i=>i.checked)",
+      ),
+      true,
+    );
+    await click(button("清除此范围"));
+    assert.equal(
+      await evaluate(
+        "Array.from(document.querySelectorAll('.im-scope-row input[type=checkbox]')).some(i=>i.checked)",
+      ),
+      false,
+    );
+    await click(button("全选可处理"));
+    await click("document.querySelector('.im-scope-tree')");
+    const scopeWideCapture = await send("Page.captureScreenshot", {
+      format: "png",
+    });
+    await writeFile(
+      join(output, "security-scope-wide.png"),
+      Buffer.from(scopeWideCapture.data, "base64"),
+    );
+    records.push({ name: "bulk-scope-selection-excludes-protected-files" });
     await evaluate(
       "Array.from(document.querySelectorAll('input[type=checkbox]')).find(i=>i.closest('label')?.textContent.includes('我确认以上文件范围')).focus()",
     );
@@ -1082,8 +1174,16 @@ try {
       `(()=>{const w=${nativeWindow};const state={size:w.getSize(),minimum:w.getMinimumSize()};w.setMinimumSize(640,480);w.setSize(820,900);return state;})()`,
     );
     await pause(200);
-    await evaluate(
-      "(()=>{const scope=document.querySelector('.im-security-scope');scope.scrollIntoView({block:'start',behavior:'instant'});for(let p=scope.parentElement;p;p=p.parentElement){if(p.scrollHeight>p.clientHeight && /auto|scroll/.test(getComputedStyle(p).overflowY)){p.scrollTop+=scope.getBoundingClientRect().top-p.getBoundingClientRect().top-12;break;}}})()",
+    await click("document.querySelector('.im-scope-tree')");
+    const scopeColumns = await evaluate(`(() => {
+      const heading = document.querySelector('.im-scope-heading');
+      const center = element => { const rect = element.getBoundingClientRect(); return rect.x + rect.width / 2; };
+      return Array.from(document.querySelectorAll('.im-scope-row')).filter(row => row.querySelector('input')).every(row => [1, 2].every(index => Math.abs(center(row.children[index]) - center(heading.children[index])) < 1));
+    })()`);
+    assert.equal(
+      scopeColumns,
+      true,
+      "read/write columns align at native narrow width",
     );
     const scopeGeometry = await evaluate(
       "(()=>{const d=document.querySelector('.im-detail');return {viewport:innerWidth,width:d.clientWidth,scroll:d.scrollWidth};})()",
@@ -1183,6 +1283,12 @@ try {
     await click(
       "Array.from(document.querySelectorAll('button')).find(b=>['关闭','Close'].includes(b.textContent.trim()))",
     );
+    if (
+      await evaluate(
+        "document.querySelector('.left-sidebar-toggle')?.getAttribute('aria-expanded') === 'false'",
+      )
+    )
+      await click("document.querySelector('.left-sidebar-toggle')");
     assert.ok(
       (await evaluate("document.body.innerText")).includes(remote[0].title),
       "IM-created task appears in the sidebar without a reload",
@@ -1346,7 +1452,7 @@ try {
     ),
   );
   await click(
-    "Array.from(document.querySelectorAll('button')).find(b=>['Settings','设置'].includes(b.getAttribute('aria-label')))",
+    "Array.from(document.querySelectorAll('button')).find(b=>b.getClientRects().length && ['Settings','设置'].includes(b.getAttribute('aria-label')))",
   );
   await click("document.querySelector('#settings-tab-im-button')");
   await openView("spaces");
@@ -1393,7 +1499,7 @@ try {
     "Array.from(document.querySelectorAll('.settings-panel button')).find(b=>['Close','关闭'].includes(b.textContent.trim()))",
   );
   await click(
-    "Array.from(document.querySelectorAll('button')).find(b=>['Settings','设置'].includes(b.getAttribute('aria-label')))",
+    "Array.from(document.querySelectorAll('button')).find(b=>b.getClientRects().length && ['Settings','设置'].includes(b.getAttribute('aria-label')))",
   );
   await click("document.querySelector('#settings-tab-im-button')");
   await openView("spaces");
@@ -1581,7 +1687,7 @@ try {
     threadId: targetTask.threadId,
   });
   await click(
-    "Array.from(document.querySelectorAll('button')).find(b=>['Settings','设置'].includes(b.getAttribute('aria-label')))",
+    "Array.from(document.querySelectorAll('button')).find(b=>b.getClientRects().length && ['Settings','设置'].includes(b.getAttribute('aria-label')))",
   );
   await click("document.querySelector('#settings-tab-im-button')");
   await openView("spaces");

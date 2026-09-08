@@ -45,7 +45,10 @@ export function ImDataPermissions({
         s.spaceRevision ===
           audiences.find((a) => a.value === s.audience)?.revision,
     );
-  function change(next: ImDataScope) {
+  function change(
+    next: ImDataScope,
+    knownEntries = Object.values(entries).flat(),
+  ) {
     onChange({
       version: IM_SECURITY_VERSION,
       revision: grant.security?.revision ?? "draft",
@@ -57,9 +60,7 @@ export function ImDataPermissions({
           ...next,
           filePaths: next.readPaths.filter(
             (path) =>
-              Object.values(entries)
-                .flat()
-                .find((e) => e.path === path)?.directory === false ||
+              knownEntries.find((e) => e.path === path)?.directory === false ||
               scope.filePaths?.includes(path),
           ),
           ...(audiences.find((a) => a.value === audience)?.revision
@@ -71,6 +72,38 @@ export function ImDataPermissions({
         },
       ],
     });
+  }
+  async function selectAll(write: boolean) {
+    setPending(true);
+    setError("");
+    try {
+      const root =
+        entries[""] ??
+        ((await window.artemis.manageIm({
+          action: "scope-entries",
+          projectId: grant.projectId,
+          path: "",
+        })) as ImScopeEntry[]);
+      setEntries((old) => ({ ...old, "": root }));
+      // Enumerate explicit roots; never grant a wildcard or protected entry.
+      const paths = root
+        .filter((entry) => !entry.protected)
+        .map((entry) => entry.path);
+      change(
+        {
+          ...scope,
+          readPaths: paths,
+          writePaths: write
+            ? paths
+            : scope.writePaths.filter((path) => imPathWithinScope(path, paths)),
+        },
+        root,
+      );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setPending(false);
+    }
   }
   async function expand(path: string) {
     if (entries[path]) {
@@ -98,76 +131,87 @@ export function ImDataPermissions({
   }
   function renderEntries(path: string): React.ReactNode {
     return (
-      <ul>
+      <ul className="im-scope-list">
         {(entries[path] ?? []).map((entry) => (
           <li key={entry.path}>
-            <span>{entry.path}</span>
-            {entry.protected ? (
-              <span> · {t("受保护", "Protected")}</span>
-            ) : (
-              <>
-                {entry.directory ? (
+            <div className="im-scope-row">
+              <div className="im-scope-name" title={entry.path}>
+                {entry.directory && !entry.protected ? (
                   <Button
                     size="compact"
                     disabled={pending || disabled}
+                    aria-label={`${entries[entry.path] ? t("收起", "Collapse") : t("展开", "Expand")} ${entry.path}`}
                     aria-expanded={!!entries[entry.path]}
                     onClick={() => void expand(entry.path)}
                   >
-                    {entries[entry.path]
-                      ? t("收起", "Collapse")
-                      : t("展开", "Expand")}
+                    {entries[entry.path] ? "▾" : "▸"}
                   </Button>
-                ) : null}
-                <Checkbox
-                  label={`${t("可处理", "Read")} ${entry.path}`}
-                  checked={imPathWithinScope(entry.path, scope.readPaths)}
-                  disabled={
-                    disabled ||
-                    scope.readPaths.some(
-                      (p) =>
-                        p !== entry.path && imPathWithinScope(entry.path, [p]),
-                    )
-                  }
-                  onCheckedChange={(checked) =>
-                    change({
-                      ...scope,
-                      readPaths: checked
-                        ? [...scope.readPaths, entry.path]
-                        : scope.readPaths.filter(
-                            (p) => !imPathWithinScope(p, [entry.path]),
-                          ),
-                      writePaths: checked
-                        ? scope.writePaths
-                        : scope.writePaths.filter(
-                            (p) => !imPathWithinScope(p, [entry.path]),
-                          ),
-                    })
-                  }
-                />
-                <Checkbox
-                  label={`${t("可修改", "Write")} ${entry.path}`}
-                  checked={imPathWithinScope(entry.path, scope.writePaths)}
-                  disabled={
-                    disabled ||
-                    !imPathWithinScope(entry.path, scope.readPaths) ||
-                    scope.writePaths.some(
-                      (p) =>
-                        p !== entry.path && imPathWithinScope(entry.path, [p]),
-                    )
-                  }
-                  onCheckedChange={(checked) =>
-                    change({
-                      ...scope,
-                      writePaths: checked
-                        ? [...scope.writePaths, entry.path]
-                        : scope.writePaths.filter(
-                            (p) => !imPathWithinScope(p, [entry.path]),
-                          ),
-                    })
-                  }
-                />
-              </>
-            )}
+                ) : (
+                  <span className="im-scope-indent" aria-hidden="true" />
+                )}
+                <span>{entry.path.split("/").at(-1)}</span>
+              </div>
+              {entry.protected ? (
+                <span className="im-scope-protected">
+                  {t("受保护", "Protected")}
+                </span>
+              ) : (
+                <>
+                  <Checkbox
+                    label={`${t("可处理", "Read")} ${entry.path}`}
+                    labelVisibility="hidden"
+                    checked={imPathWithinScope(entry.path, scope.readPaths)}
+                    disabled={
+                      disabled ||
+                      scope.readPaths.some(
+                        (p) =>
+                          p !== entry.path &&
+                          imPathWithinScope(entry.path, [p]),
+                      )
+                    }
+                    onCheckedChange={(checked) =>
+                      change({
+                        ...scope,
+                        readPaths: checked
+                          ? [...scope.readPaths, entry.path]
+                          : scope.readPaths.filter(
+                              (p) => !imPathWithinScope(p, [entry.path]),
+                            ),
+                        writePaths: checked
+                          ? scope.writePaths
+                          : scope.writePaths.filter(
+                              (p) => !imPathWithinScope(p, [entry.path]),
+                            ),
+                      })
+                    }
+                  />
+                  <Checkbox
+                    label={`${t("可修改", "Write")} ${entry.path}`}
+                    labelVisibility="hidden"
+                    checked={imPathWithinScope(entry.path, scope.writePaths)}
+                    disabled={
+                      disabled ||
+                      !imPathWithinScope(entry.path, scope.readPaths) ||
+                      scope.writePaths.some(
+                        (p) =>
+                          p !== entry.path &&
+                          imPathWithinScope(entry.path, [p]),
+                      )
+                    }
+                    onCheckedChange={(checked) =>
+                      change({
+                        ...scope,
+                        writePaths: checked
+                          ? [...scope.writePaths, entry.path]
+                          : scope.writePaths.filter(
+                              (p) => !imPathWithinScope(p, [entry.path]),
+                            ),
+                      })
+                    }
+                  />
+                </>
+              )}
+            </div>
             {entry.directory && entries[entry.path]
               ? renderEntries(entry.path)
               : null}
@@ -177,7 +221,7 @@ export function ImDataPermissions({
     );
   }
   return (
-    <fieldset className="im-security-scope" disabled={disabled}>
+    <fieldset className="im-security-scope" disabled={disabled || pending}>
       <legend>{t("数据与分享范围", "Data and sharing scope")}</legend>
       <Select
         labelVisibility="visible"
@@ -203,23 +247,48 @@ export function ImDataPermissions({
         {t("可修改的文件：", "Writable: ")}
         {scope.writePaths.join(", ") || t("无", "None")}
       </p>
-      <Button
-        size="compact"
-        disabled={pending || disabled}
-        onClick={() => void expand("")}
-      >
-        {entries[""]
-          ? t("收起目录", "Collapse files")
-          : t("选择目录或文件", "Choose files or directories")}
-      </Button>
-      <Button
-        size="compact"
-        disabled={disabled}
-        onClick={() => change({ ...scope, readPaths: [], writePaths: [] })}
-      >
-        {t("清除此范围", "Clear this scope")}
-      </Button>
-      {entries[""] ? renderEntries("") : null}
+      <div className="im-scope-actions">
+        <Button
+          size="compact"
+          disabled={pending || disabled}
+          onClick={() => void expand("")}
+        >
+          {entries[""]
+            ? t("收起目录", "Collapse files")
+            : t("选择目录或文件", "Choose files or directories")}
+        </Button>
+        <Button
+          size="compact"
+          disabled={pending || disabled}
+          onClick={() => void selectAll(false)}
+        >
+          {t("全选可处理", "Select all readable")}
+        </Button>
+        <Button
+          size="compact"
+          disabled={pending || disabled}
+          onClick={() => void selectAll(true)}
+        >
+          {t("全选可修改", "Select all writable")}
+        </Button>
+        <Button
+          size="compact"
+          disabled={disabled}
+          onClick={() => change({ ...scope, readPaths: [], writePaths: [] })}
+        >
+          {t("清除此范围", "Clear this scope")}
+        </Button>
+      </div>
+      {entries[""] ? (
+        <div className="im-scope-tree">
+          <div className="im-scope-row im-scope-heading" aria-hidden="true">
+            <span>{t("目录或文件", "Directory or file")}</span>
+            <span>{t("可处理", "Read")}</span>
+            <span>{t("可修改", "Write")}</span>
+          </div>
+          {renderEntries("")}
+        </div>
+      ) : null}
       {error ? <InlineNotice tone="danger">{error}</InlineNotice> : null}
       {!confirmed ? (
         <InlineNotice tone="warning">

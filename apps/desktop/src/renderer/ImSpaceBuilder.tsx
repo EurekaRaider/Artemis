@@ -220,9 +220,9 @@ export function ImSpaceBuilder({
               },
               ...draft.participants
                 .filter((p) => p.identity.connectionId === connectionId)
-                .map((p) => ({
+                .map((p, index) => ({
                   value: imIdentityKey(p.identity),
-                  label: p.name,
+                  label: `${p.name.trim() || p.identity.userId} · ${index + 1}`,
                 })),
             ]}
             disabled={busy}
