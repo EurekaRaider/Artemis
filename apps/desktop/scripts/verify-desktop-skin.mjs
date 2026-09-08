@@ -319,8 +319,8 @@ const snapshot = () => {
     '[data-artemis-component="terminal-host"]',
   );
   const appShell = document.querySelector(".app-shell");
-  const activityBar = document.querySelector(
-    '[data-artemis-component="activity-bar"]',
+  const sidebarMain = document.querySelector(
+    '[data-artemis-component="navigation-sidebar"] > [data-part="main"]',
   );
   const navigationSidebar = document.querySelector(
     '[data-artemis-component="navigation-sidebar"]',
@@ -338,13 +338,15 @@ const snapshot = () => {
     workspace instanceof HTMLElement ? workspace.getBoundingClientRect() : null;
   const conversationBounds = document.querySelector('[data-artemis-component="conversation-surface"]')?.getBoundingClientRect();
   const environmentBounds = document.querySelector('.environment-popover')?.getBoundingClientRect();
-  const surfaceStyle = (element, tokenName) => {
+  const surfaceStyle = (element, tokenName, opacity) => {
     if (!(element instanceof HTMLElement)) return null;
     const computed = getComputedStyle(element);
     const tokenValue = computed.getPropertyValue(tokenName).trim();
     return {
       tokenValue,
-      resolvedTokenColor: resolvedColor(tokenValue),
+      resolvedTokenColor: resolvedColor(opacity
+        ? "color-mix(in srgb, " + tokenValue + " " + opacity + "%, transparent)"
+        : tokenValue),
       backgroundColor: computed.backgroundColor,
       color: computed.color,
     };
@@ -410,13 +412,15 @@ const snapshot = () => {
         ]),
       ),
       shell: surfaceStyle(appShell, "--artemis-color-canvas"),
-      activity: surfaceStyle(
-        activityBar,
-        "--artemis-color-background-activity",
-      ),
+      sidebarParts: {
+        main: navigationSidebar?.querySelectorAll(':scope > [data-part="main"]').length,
+        rail: navigationSidebar?.querySelectorAll(':scope > [data-part="rail"]').length,
+      },
       sidebar: surfaceStyle(
-        navigationSidebar,
+        sidebarMain,
         "--artemis-color-background-sidebar",
+        root.dataset.artemisTheme === "dark" ? 92
+          : navigationSidebar?.dataset.state === "collapsed" ? 96 : 72,
       ),
       composer: surfaceStyle(
         composerSurface,
@@ -430,7 +434,6 @@ const snapshot = () => {
           scrollHeight: document.documentElement.scrollHeight,
         },
         shell: elementRect(appShell),
-        activity: elementRect(activityBar),
         sidebar: elementRect(navigationSidebar),
         workspace: elementRect(workspace),
         composer: elementRect(composerSurface),
@@ -849,11 +852,12 @@ async function setReferenceSliceViewport(connection, width, height) {
         environment.click();
         await wait(350);
       }
+      await wait(350);
       const sidebar = document.querySelector(
-        '[data-artemis-component="activity-bar-item"][aria-expanded]',
+        '[data-artemis-component="navigation-sidebar"]',
       );
-      if (sidebar?.getAttribute("aria-expanded") !== "true") {
-        sidebar?.click();
+      if (sidebar?.getAttribute("data-state") === "collapsed") {
+        sidebar.querySelector(".rail-brand")?.click();
         await wait(500);
       }
       const dock = document.querySelector(".right-sidebar-toggle");
@@ -921,7 +925,6 @@ async function referenceSliceGeometry(connection) {
           documentScrollWidth: document.documentElement.scrollWidth,
         },
         shell: rect('[data-artemis-component="application-shell"]'),
-        activity: rect('[data-artemis-component="activity-bar"]'),
         sidebar: rect('[data-artemis-component="navigation-sidebar"]'),
         sidebarResizer: rect(
           '[data-artemis-component="application-shell-resizer"]',
@@ -964,8 +967,8 @@ async function verifyReferenceSliceGeometry(connection) {
   const compactInitial = await referenceSliceGeometry(connection);
   const initialSidebarWidth = Math.round(compactInitial.sidebar.width);
   assert(
-    initialSidebarWidth === 220,
-    `Compact resize fixture started at ${String(initialSidebarWidth)}px instead of 220px: ${JSON.stringify(compactInitial)}`,
+    initialSidebarWidth === 240,
+    `Compact resize fixture started at ${String(initialSidebarWidth)}px instead of 240px: ${JSON.stringify(compactInitial)}`,
   );
   await evaluate(
     connection,
@@ -1090,24 +1093,13 @@ async function verifyReferenceSliceGeometry(connection) {
   const contentWidthCases = [];
   for (const contentWidth of contentWidths) {
     const workspaceFrameInlineChrome = 0;
-    const requestedViewportWidth =
-      46 + initialSidebarWidth + workspaceFrameInlineChrome + contentWidth;
-    await setReferenceSliceViewport(connection, requestedViewportWidth, 900);
-    let geometry = await referenceSliceGeometry(connection);
-    const responsiveRailWidth = Math.round(geometry.activity.width);
     const viewportWidth =
-      responsiveRailWidth +
-      initialSidebarWidth +
-      workspaceFrameInlineChrome +
-      contentWidth;
-    if (viewportWidth !== requestedViewportWidth) {
-      await setReferenceSliceViewport(connection, viewportWidth, 900);
-      geometry = await referenceSliceGeometry(connection);
-    }
+      initialSidebarWidth + workspaceFrameInlineChrome + contentWidth;
+    await setReferenceSliceViewport(connection, viewportWidth, 900);
+    const geometry = await referenceSliceGeometry(connection);
     assert(
       geometry.viewport.width === viewportWidth &&
         geometry.viewport.height === 900 &&
-        [44, 46].includes(Math.round(geometry.activity.width)) &&
         Math.abs(geometry.sidebar.width - initialSidebarWidth) <= 1 &&
         Math.abs(
           geometry.workspace.width -
@@ -1155,27 +1147,23 @@ async function verifyReferenceSliceGeometry(connection) {
       };
       const nodes = {
         shell: document.querySelector('[data-artemis-component="application-shell"]'),
-        activity: document.querySelector('[data-artemis-component="activity-bar"]'),
+        rail: document.querySelector('[data-artemis-component="navigation-sidebar"] > [data-part="rail"]'),
         sidebar: document.querySelector('[data-artemis-component="navigation-sidebar"]'),
         composer: document.querySelector('[data-artemis-component="composer-surface"]'),
       };
-      let sidebarToggle = document.querySelector(
-        '[data-artemis-component="activity-bar-item"][aria-expanded]',
-      );
-      if (sidebarToggle?.getAttribute("aria-expanded") === "true") {
-        sidebarToggle.click();
-      }
+      document.querySelector(".sidebar-collapse")?.click();
       await wait(50);
       const collapsedSidebar = document.querySelector(
         '[data-artemis-component="navigation-sidebar"]',
       );
-      const collapsedSidebarControl = collapsedSidebar?.querySelector(
+      const collapsedMain = collapsedSidebar?.querySelector(':scope > [data-part="main"]');
+      const collapsedSidebarControl = collapsedMain?.querySelector(
         "button, input, select, textarea, a[href], [tabindex]",
       );
       collapsedSidebarControl?.focus();
       const sidebarCollapsedInteractionBlocked =
         collapsedSidebar instanceof HTMLElement &&
-        collapsedSidebar.hasAttribute("inert") &&
+        collapsedMain?.hasAttribute("inert") &&
         document.activeElement !== collapsedSidebarControl;
       await wait(850);
       const sidebarClosed = {
@@ -1185,12 +1173,7 @@ async function verifyReferenceSliceGeometry(connection) {
           .querySelector('[data-artemis-component="navigation-sidebar"]')
           ?.getAttribute("data-state"),
       };
-      sidebarToggle = document.querySelector(
-        '[data-artemis-component="activity-bar-item"][aria-expanded]',
-      );
-      if (sidebarToggle?.getAttribute("aria-expanded") !== "true") {
-        sidebarToggle?.click();
-      }
+      document.querySelector(".rail-brand")?.click();
       await wait(900);
       const sidebarRestored = {
         workspace: rect(".workspace"),
@@ -1241,8 +1224,8 @@ async function verifyReferenceSliceGeometry(connection) {
           node === document.querySelector(
             name === "shell"
               ? '[data-artemis-component="application-shell"]'
-              : name === "activity"
-                ? '[data-artemis-component="activity-bar"]'
+              : name === "rail"
+                ? '[data-artemis-component="navigation-sidebar"] > [data-part="rail"]'
                 : name === "sidebar"
                   ? '[data-artemis-component="navigation-sidebar"]'
                   : '[data-artemis-component="composer-surface"]',
@@ -1268,10 +1251,8 @@ async function verifyReferenceSliceGeometry(connection) {
   assert(
     before.viewport.width === 1440 &&
       before.viewport.height === 900 &&
-      Math.abs(before.activity.width - 46) <= 1 &&
       Math.abs(before.sidebar.width - initialSidebarWidth) <= 1 &&
-      Math.abs(before.workspace.width - (1440 - 46 - initialSidebarWidth)) <=
-        1 &&
+      Math.abs(before.workspace.width - (1440 - initialSidebarWidth)) <= 1 &&
       before.headerControls.every(
         ({ geometry: control }) =>
           control &&
@@ -1281,6 +1262,7 @@ async function verifyReferenceSliceGeometry(connection) {
       transitions.sameNodes &&
       transitions.sidebarCollapsedInteractionBlocked &&
       transitions.sidebarClosed.state === "collapsed" &&
+      Math.abs(transitions.sidebarClosed.sidebar.width - 48) <= 1 &&
       transitions.sidebarClosed.workspace.width > before.workspace.width &&
       transitions.sidebarRestored.state === "ready" &&
       Math.abs(
@@ -1801,8 +1783,8 @@ async function driveElectron() {
 
     const expectedCanvas = {
       default: {
-        light: { normal: "#f5f5f7", high: "#f5f5f7" },
-        dark: { normal: "#1d1d1f", high: "#1d1d1f" },
+        light: { normal: "#fafafa", high: "#fafafa" },
+        dark: { normal: "#141414", high: "#141414" },
       },
       stress: {
         light: { normal: "#fff0a6", high: "#ffffff" },
@@ -1900,16 +1882,14 @@ async function driveElectron() {
             Number(snapshot.environment.zoomFactor) - configuration.zoomFactor,
           ) < 0.001 &&
           snapshot.environment.reducedMotion === configuration.reducedMotion &&
-          (configuration.reducedMotion
-            ? snapshot.environment.appShellTransitionDuration === "0s"
-            : snapshot.environment.appShellTransitionDuration !== "0s"),
+          snapshot.environment.appShellTransitionDuration === "0s",
         `Runtime environment failed: ${JSON.stringify({ configuration, environment: snapshot.environment })}`,
       );
       const expectedSurfaceCounts = {
         "application-shell": 1,
         "application-shell-resizer": 1,
-        "activity-bar": 1,
-        "activity-bar-item": 6,
+        "activity-bar": 0,
+        "activity-bar-item": 0,
         "navigation-sidebar": 1,
         "composer-surface": 1,
         "panel-header": 1,
@@ -1917,15 +1897,13 @@ async function driveElectron() {
       };
       assert(
         JSON.stringify(snapshot.surfaces?.counts) ===
-          JSON.stringify(expectedSurfaceCounts),
+          JSON.stringify(expectedSurfaceCounts) &&
+          snapshot.surfaces?.sidebarParts?.main === 1 &&
+          snapshot.surfaces?.sidebarParts?.rail === 1,
         `Public surface identity failed: ${JSON.stringify({ configuration, surfaces: snapshot.surfaces })}`,
       );
       const surfaceTokenBindings = [
         [snapshot.surfaces?.shell, snapshot.tokens?.["color.canvas"]],
-        [
-          snapshot.surfaces?.activity,
-          snapshot.tokens?.["color.background.activity"],
-        ],
         [
           snapshot.surfaces?.sidebar,
           snapshot.tokens?.["color.background.sidebar"],
@@ -1947,7 +1925,6 @@ async function driveElectron() {
         snapshot.surfaces?.geometry?.horizontalOverflow <= 1 &&
           snapshot.surfaces?.geometry?.composerHorizontalOverflow <= 1 &&
           snapshot.surfaces?.geometry?.shell?.width > 0 &&
-          snapshot.surfaces?.geometry?.activity?.width > 0 &&
           snapshot.surfaces?.geometry?.sidebar?.width > 0 &&
           snapshot.surfaces?.geometry?.workspace?.width > 0 &&
           snapshot.surfaces?.geometry?.composer?.width > 0 &&
