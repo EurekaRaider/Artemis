@@ -361,14 +361,11 @@ export async function runWindowsImShell(input: {
     // volume-root metadata (PowerShell/PowerShell#27253). Mount only the
     // already-accessible runtime and copied data; this changes no OS rights.
     const command = [
-      String.raw`$artemisState = $ExecutionContext.SessionState
-$artemisFileSystem = $artemisState.Provider.GetOne('FileSystem')
-$null = $artemisState.Drive.New([System.Management.Automation.PSDriveInfo]::new('ArtemisRuntime', $artemisFileSystem, $PSHOME, 'System modules', $null), 'Global')
-$null = $artemisState.Drive.New([System.Management.Automation.PSDriveInfo]::new('ArtemisWorkspace', $artemisFileSystem, $env:USERPROFILE, 'Scoped data', $null), 'Global')
-$null = $artemisState.Path.SetLocation('ArtemisWorkspace:\')
-foreach ($artemisModule in @('Microsoft.PowerShell.Management', 'Microsoft.PowerShell.Utility')) {
-  Import-Module ('ArtemisRuntime:\Modules\' + $artemisModule + '\' + $artemisModule + '.psd1') -ErrorAction Stop
-}`,
+      String.raw`foreach ($artemisModule in @('Microsoft.PowerShell.Management', 'Microsoft.PowerShell.Utility')) {
+  Import-Module ('Microsoft.PowerShell.Core\FileSystem::' + $PSHOME + '\Modules\' + $artemisModule + '\' + $artemisModule + '.psd1') -ErrorAction Stop
+}
+$null = New-PSDrive -Name ArtemisWorkspace -PSProvider FileSystem -Root $env:USERPROFILE -Scope Global -ErrorAction Stop
+Set-Location -LiteralPath 'ArtemisWorkspace:\' -ErrorAction Stop`,
       input.command,
     ].join("\n");
     const launch = buildWindowsAppContainerLaunch(
