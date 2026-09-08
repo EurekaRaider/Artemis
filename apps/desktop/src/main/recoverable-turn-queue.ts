@@ -203,6 +203,14 @@ export class RecoverableTurnQueues {
     this.#queues.set(replacement.threadId, replacement.previous);
   }
 
+  snapshot(threadId: string): { steering: string[]; followUp: string[] } {
+    const queue = this.#queues.get(threadId);
+    return {
+      steering: queue?.steering.map((item) => item.text) ?? [],
+      followUp: queue?.followUp.map((item) => item.text) ?? [],
+    };
+  }
+
   discard(threadId: string): void {
     this.#queues.delete(threadId);
   }

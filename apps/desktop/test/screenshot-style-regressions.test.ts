@@ -120,29 +120,27 @@ describe("screenshot visual contracts", () => {
         .display,
     ).toBe("none");
   });
-  it("keeps turn changes compact with inline totals and unframed actions", () => {
+  it("keeps turn changes readable with file review buttons and unframed actions", () => {
     expect(declarations(desktop, ".turn-change-card")).toMatchObject({
       "border-color": "var(--border-soft)",
       "box-shadow": "none",
     });
     expect(declarations(desktop, ".turn-change-card > header")).toMatchObject({
-      "min-block-size": "44px",
+      "min-block-size": "64px",
       "flex-wrap": "wrap",
     });
     expect(declarations(desktop, ".turn-change-heading").display).toBe("flex");
     expect(declarations(desktop, ".turn-change-icon")).toMatchObject({
-      height: "16px",
+      height: "40px",
+      background: "var(--bg)",
     });
-    expect(
-      declarations(desktop, ".turn-change-icon").background,
-    ).toBeUndefined();
     expect(declarations(desktop, ".turn-change-actions button")).toMatchObject({
       border: "0",
       background: "transparent",
       "min-height": "28px",
     });
-    expect(declarations(desktop, ".turn-change-files li")["min-height"]).toBe(
-      "28px",
+    expect(declarations(desktop, ".turn-change-file")["min-height"]).toBe(
+      "36px",
     );
   });
   it("gives select options intrinsic menu width and a stable checkmark column", () => {

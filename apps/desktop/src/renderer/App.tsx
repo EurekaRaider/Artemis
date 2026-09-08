@@ -1689,6 +1689,10 @@ export function App() {
   const [commentBody, setCommentBody] = useState("");
   const [confirmation, setConfirmation] = useState<ConfirmationState>();
   const [busy, setBusy] = useState(false);
+  const [compactingThreadIds, setCompactingThreadIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
+  const deletingThreadIds = useRef(new Set<string>());
   const [goalMutationPending, setGoalMutationPending] = useState(false);
   const toastSerial = useRef(0);
   const [toast, setToastState] = useState<ToastState>();
@@ -3911,10 +3915,16 @@ export function App() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [activePendingUserInputId]);
-  const turnActive =
+  const contextCompacting =
+    (activeThreadId !== undefined && compactingThreadIds.has(activeThreadId)) ||
+    Object.values(threadState?.contextCompactions ?? {}).some(
+      (item) => item.status === "running",
+    );
+  const turnRunning =
     threadState?.status === "running" ||
     threadState?.status === "waiting-approval" ||
     threadState?.status === "waiting-user-input";
+  const turnActive = contextCompacting || turnRunning;
   const projectBranchActionsDisabled =
     turnActive ||
     (snapshot?.threads ?? []).some(
@@ -4643,7 +4653,12 @@ export function App() {
 
   const deleteThread = useCallback(
     async (thread: Thread) => {
+      if (deletingThreadIds.current.has(thread.id)) return;
       if (!(await requestConfirmation(t.deleteTaskConfirm, "danger"))) return;
+      if (deletingThreadIds.current.has(thread.id)) return;
+      deletingThreadIds.current.add(thread.id);
+      setThreadMenuId(undefined);
+      setToast(locale === "zh-CN" ? "正在删除会话…" : "Deleting conversation…");
       const siblingThreads = (snapshot?.threads ?? []).filter(
         (item) => item.projectId === thread.projectId && !item.archived,
       );
@@ -4681,6 +4696,7 @@ export function App() {
           return next;
         });
         setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        setToast(undefined);
         if (activeThreadId === thread.id) {
           setActiveThreadId(nextThread?.id);
           setMode(nextThread?.mode ?? "execute");
@@ -4688,15 +4704,18 @@ export function App() {
           window.requestAnimationFrame(() => promptInput.current?.focus());
         }
       } catch (error) {
-        setToast(
-          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
-        );
+        setToast({
+          error: true,
+          message: `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        });
       } finally {
+        deletingThreadIds.current.delete(thread.id);
         setThreadMenuId(undefined);
       }
     },
     [
       activeThreadId,
+      locale,
       requestConfirmation,
       snapshot?.threads,
       t.deleteTaskConfirm,
@@ -5111,16 +5130,28 @@ export function App() {
     if (!text || busy) return;
     const submittedAt = Date.now();
     let createdThread: Thread | undefined;
+    if (compactMatch && activeThread) {
+      const threadId = activeThread.id;
+      clearSubmittedPrompt(rawPrompt);
+      setCompactingThreadIds((current) => new Set([...current, threadId]));
+      try {
+        await window.artemis.compactThread(threadId, compactInstructions);
+      } catch (error) {
+        setToast({
+          error: true,
+          message: `${t.compactFailed} ${error instanceof Error ? error.message : String(error)}`,
+        });
+      } finally {
+        setCompactingThreadIds((current) => {
+          const next = new Set(current);
+          next.delete(threadId);
+          return next;
+        });
+      }
+      return;
+    }
     setBusy(true);
     try {
-      if (compactMatch && activeThread) {
-        clearSubmittedPrompt(rawPrompt);
-        await window.artemis.compactThread(
-          activeThread.id,
-          compactInstructions,
-        );
-        return;
-      }
       if (goalCommand?.kind === "pause" && activeThread) {
         const updated = await window.artemis.pauseThreadGoal(activeThread.id);
         updateThreadInSnapshot(updated);
@@ -6987,7 +7018,7 @@ export function App() {
                                       <button
                                         aria-label={`${t.queueSteer}: ${itemLabel}`}
                                         className="queued-message-steer"
-                                        disabled={busy}
+                                        disabled={busy || contextCompacting}
                                         onClick={() =>
                                           void steerQueuedMessage(index)
                                         }
@@ -8014,6 +8045,7 @@ export function App() {
                                 </button>
                                 <button
                                   className="send-button stop"
+                                  disabled={!turnRunning}
                                   onClick={() => void cancelActiveTurn()}
                                   title={t.stop}
                                 >

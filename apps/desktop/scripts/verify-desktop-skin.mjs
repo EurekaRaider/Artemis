@@ -1896,7 +1896,8 @@ async function driveElectron() {
             Number(snapshot.environment.zoomFactor) - configuration.zoomFactor,
           ) < 0.001 &&
           snapshot.environment.reducedMotion === configuration.reducedMotion &&
-          snapshot.environment.appShellTransitionDuration === "0s",
+          snapshot.environment.appShellTransitionDuration ===
+            (configuration.reducedMotion ? "0s" : "0.56s"),
         `Runtime environment failed: ${JSON.stringify({ configuration, environment: snapshot.environment })}`,
       );
       const expectedSurfaceCounts = {

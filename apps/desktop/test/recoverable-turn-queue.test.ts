@@ -12,6 +12,31 @@ const screenshot = {
 };
 
 describe("recoverable turn queues", () => {
+  it("reads pending compaction messages without consuming attachments or another thread", () => {
+    const queues = new RecoverableTurnQueues();
+    queues.add("compacting", "followUp", "first", [screenshot]);
+    queues.add("other", "followUp", "independent");
+    expect(queues.snapshot("compacting")).toEqual({
+      steering: [],
+      followUp: ["first"],
+    });
+    queues.replaceFollowUp(
+      "compacting",
+      ["first"],
+      [{ sourceIndex: 0, text: "edited" }],
+      (text) => text,
+    );
+    expect(queues.snapshot("compacting").followUp).toEqual(["edited"]);
+    expect(queues.recover("compacting")).toEqual([
+      { text: "edited", attachments: [screenshot] },
+    ]);
+    expect(queues.snapshot("compacting")).toEqual({
+      steering: [],
+      followUp: [],
+    });
+    expect(queues.snapshot("other").followUp).toEqual(["independent"]);
+  });
+
   it("restores the mirrored queue before marking a crashed Host turn failed", () => {
     const mainSource = readFileSync(
       fileURLToPath(new URL("../src/main/main.ts", import.meta.url)),

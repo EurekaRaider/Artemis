@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="2340 passing tests" src="https://img.shields.io/badge/Tests-2340_passing-2EA44F" />
+  <img alt="2373 passing tests" src="https://img.shields.io/badge/Tests-2373_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -302,7 +302,10 @@ other everyday tasks.
   and create, rename, search, archive, restore, fork, delete or switch tasks
   from the sidebar. Running and approval-waiting tasks stay at the top, ordered
   by the most recently submitted prompt when several are active. Sidebar action
-  menus dismiss on outside click or Escape.
+  menus dismiss on outside click or Escape. Project folder centers and task
+  status lights share a column, and project/task labels share their text origin.
+  Deletion reports progress and errors; Agent Host cleanup requests have a bounded
+  timeout so an unresponsive host cannot silently stall project-task removal.
 - **Temporary chats** — start, persist, archive, fork and delete a
   conversation without adding a project. Each conversation and fork has an
   isolated workspace under application data. Temporary chats do not
@@ -352,6 +355,10 @@ other everyday tasks.
   directly from the timeline; cancelled or failed user turns can restore their
   visible text and selected Skills to the composer for editing without replaying
   the turn.
+- **Compaction queues** — while `/compact` runs, the same task accepts follow-up
+  messages with attachments in order, including queue editing and removal. Other
+  tasks remain usable. After compaction, queued messages enter the existing Pi
+  execution flow; a failed compaction or rejected dispatch restores unsent drafts.
 - **Task environment** — open a compact header panel for Git changes, local
   repository and branch state from the active task checkout, branch search,
   local/remote switching, branch creation/publishing, commit/push actions, child
@@ -1199,17 +1206,21 @@ audit step; all other gates remain required.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.63`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.64`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.63
-git push origin v1.4.63
+git tag v1.4.64
+git push origin v1.4.64
 ```
 
 ### Build and test matrix
+
+The desktop CSS ceiling is 353,000 bytes: the same Vite pipeline measured
+352,353 bytes at the prior main commit and 352,296 bytes after this fix.
+Startup and JavaScript budgets remain unchanged.
 
 ```powershell
 npm test
@@ -1219,13 +1230,13 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current package test suites contain **2340 passing tests** (12 skipped).
+The current package test suites contain **2373 passing tests** (12 skipped).
 Repeated UI and UI Gallery runs inside the verification pipeline are counted
 once:
 
 | Gateway | Protocol | Platform | Agent Host | Theme Contract |  UI | Theme Artemis | UI Gallery | Desktop | **Total** |
 | ------: | -------: | -------: | ---------: | -------------: | --: | ------------: | ---------: | ------: | --------: |
-|     113 |      143 |       25 |        159 |             15 | 304 |             5 |        142 |    1434 |  **2340** |
+|     114 |      143 |       25 |        165 |             15 | 304 |             5 |        142 |    1460 |  **2373** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1254,13 +1265,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.63` packaging configuration produces:
+The `1.4.64` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.63.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.63.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.63.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.64.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.64.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.64.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

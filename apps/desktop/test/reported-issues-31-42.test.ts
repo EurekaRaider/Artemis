@@ -45,7 +45,7 @@ describe("reported issue regressions #31-#42", () => {
 
   it("adds the requested environment offset and activity/sidebar divider", () => {
     expect(cssDeclarations(".environment-popover")).toContain(
-      "top: calc(100% + 8px)",
+      "top: calc(100% + 18px)",
     );
     expect(publicUiStylesSource).toMatch(
       /\[data-artemis-component="activity-bar"\]\s*\{[^}]*border-inline-end:\s*var\(--artemis-border-width-default\) solid\s*var\(--artemis-color-border-subtle\)/u,

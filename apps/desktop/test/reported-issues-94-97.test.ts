@@ -66,7 +66,7 @@ describe("reported issue regressions #94-#97", () => {
       ),
     ).toContain("position: absolute");
     expect(cssDeclarations(".environment-popover")).toContain(
-      "top: calc(100% + 8px)",
+      "top: calc(100% + 18px)",
     );
   });
 

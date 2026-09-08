@@ -680,6 +680,7 @@ const openingThreads = new Map<string, Promise<void>>();
 const activeTurns = new Map<string, string>();
 const cancellingTurns = new Set<string>();
 const compactingThreads = new Set<string>();
+const compactionFollowUps = new RecoverableTurnQueues();
 const pendingApprovals = new PendingApprovalRegistry<PendingApproval>();
 const pendingUserInputs = new PendingUserInputRegistry<PendingUserInput>();
 const pendingMultiUserInputs =
@@ -2791,7 +2792,7 @@ function emitPayload(
   }
   const preparedPayload = withPersistedTurnDuration(
     turnId,
-    prepareRecoverableQueuePayload(threadId, payload),
+    prepareRecoverableQueuePayload(threadId, payload, turnId),
   );
   observeTurnPayload(turnId, preparedPayload);
   const event = store.appendEvent(
@@ -2815,7 +2816,11 @@ function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
     ...event,
     payload: withPersistedTurnDuration(
       event.turnId,
-      prepareRecoverableQueuePayload(event.threadId, event.payload),
+      prepareRecoverableQueuePayload(
+        event.threadId,
+        event.payload,
+        event.turnId,
+      ),
     ),
   }));
   const { durable: durableEvents, liveActivities } =
@@ -2902,7 +2907,9 @@ function scheduleTurnChangeSetCompletion(
 function prepareRecoverableQueuePayload(
   threadId: string,
   payload: AgentPayload,
+  turnId?: string,
 ): AgentPayload {
+  if (turnId === `compaction-queue:${threadId}`) return payload;
   if (payload.type === "queue.updated") {
     const queue = recoverableTurnQueues.reconcile(
       threadId,
@@ -5413,6 +5420,7 @@ async function startTaskTurnUnchecked(
     origin?: "desktop" | "im";
     source?: "user" | "goal-continuation";
     expectedGoalId?: string;
+    afterCompaction?: boolean;
   } = {},
 ): Promise<StartTurnResult> {
   const mainReceivedAt = Date.now();
@@ -5431,7 +5439,7 @@ async function startTaskTurnUnchecked(
   if (thread.status === "running" || thread.status === "waiting-approval") {
     throw new Error("Task already has an active turn.");
   }
-  if (compactingThreads.has(thread.id)) {
+  if (compactingThreads.has(thread.id) && !options.afterCompaction) {
     throw new Error("Wait for context compaction to finish.");
   }
   if (
@@ -5652,15 +5660,69 @@ async function startTaskTurnUnchecked(
   return { turnId, thread: store.getThread(thread.id) ?? thread };
 }
 
+function publishCompactionQueue(threadId: string): void {
+  emitPayload(threadId, `compaction-queue:${threadId}`, {
+    type: "queue.updated",
+    ...compactionFollowUps.snapshot(threadId),
+  });
+}
+
+async function resumeCompactionFollowUps(thread: Thread): Promise<void> {
+  let pending = compactionFollowUps.recover(thread.id);
+  while (pending.length > 0) {
+    const item = pending[0]!;
+    try {
+      if (activeTurns.has(thread.id)) {
+        await queueTurn(
+          "turn.follow-up",
+          { threadId: thread.id, ...item },
+          true,
+        );
+      } else {
+        await startTaskTurn(
+          { threadId: thread.id, mode: thread.mode, ...item },
+          {
+            origin: "desktop",
+            afterCompaction: true,
+          },
+        );
+      }
+      pending.shift();
+    } catch (error) {
+      const items = [...pending, ...compactionFollowUps.recover(thread.id)];
+      emitPayload(thread.id, `compaction-queue:${thread.id}`, {
+        type: "queue.recovered",
+        messages: items.map((item) => item.text),
+        items,
+      });
+      throw error;
+    }
+    if (pending.length === 0) pending = compactionFollowUps.recover(thread.id);
+  }
+}
+
 async function queueTurn(
   type: "turn.steer" | "turn.follow-up",
   input: QueueTurnInput,
+  afterCompaction = false,
 ): Promise<void> {
   if (!store || !agentProcess) {
     throw new Error("Agent process is not ready.");
   }
   const command = parseThreadCommand({ type, ...input });
   const thread = store.getThread(command.threadId);
+  if (thread && compactingThreads.has(thread.id) && !afterCompaction) {
+    if (type !== "turn.follow-up")
+      throw new Error("Wait for context compaction before steering this task.");
+    compactionFollowUps.add(
+      thread.id,
+      "followUp",
+      command.text,
+      command.attachments,
+    );
+    publishCompactionQueue(thread.id);
+    return;
+  }
   if (
     !thread ||
     (thread.status !== "running" && thread.status !== "waiting-approval")
@@ -5713,6 +5775,14 @@ async function controlTurnQueue(
   }
   const command = parseThreadCommand({ type, threadId });
   const thread = store.getThread(command.threadId);
+  if (thread && compactingThreads.has(thread.id)) {
+    if (type !== "turn.queue.clear")
+      throw new Error("Wait for context compaction before steering this task.");
+    const snapshot = compactionFollowUps.snapshot(thread.id);
+    compactionFollowUps.discard(thread.id);
+    publishCompactionQueue(thread.id);
+    return snapshot;
+  }
   if (
     !thread ||
     (thread.status !== "running" && thread.status !== "waiting-approval") ||
@@ -5742,6 +5812,16 @@ async function replaceTurnQueue(input: ReplaceQueuedTurnInput): Promise<void> {
   }
   const command = parseThreadCommand({ type: "turn.queue.replace", ...input });
   const thread = store.getThread(command.threadId);
+  if (thread && compactingThreads.has(thread.id)) {
+    compactionFollowUps.replaceFollowUp(
+      thread.id,
+      command.expectedFollowUp,
+      command.followUp,
+      (text) => text,
+    );
+    publishCompactionQueue(thread.id);
+    return;
+  }
   if (
     !thread ||
     (thread.status !== "running" && thread.status !== "waiting-approval") ||
@@ -9023,11 +9103,14 @@ function registerIpc(): void {
             );
           }
           try {
-            await agentProcess.request({
-              type: "thread.close",
-              requestId: randomUUID(),
-              threadId,
-            });
+            await agentProcess.request(
+              {
+                type: "thread.close",
+                requestId: randomUUID(),
+                threadId,
+              },
+              15_000,
+            );
             openedThreads.delete(threadId);
           } catch (error) {
             diagnosticBundleService?.record({
@@ -9066,12 +9149,17 @@ function registerIpc(): void {
       let transcriptDeleted = false;
       if (agentProcess?.available) {
         try {
-          await agentProcess.request({
-            type: "thread.delete",
-            requestId: randomUUID(),
-            threadId,
-            ...(thread.sessionFile ? { sessionFile: thread.sessionFile } : {}),
-          });
+          await agentProcess.request(
+            {
+              type: "thread.delete",
+              requestId: randomUUID(),
+              threadId,
+              ...(thread.sessionFile
+                ? { sessionFile: thread.sessionFile }
+                : {}),
+            },
+            15_000,
+          );
           transcriptDeleted = true;
         } catch (error) {
           diagnosticBundleService?.record({
@@ -9310,8 +9398,24 @@ function registerIpc(): void {
             ? { instructions: command.instructions }
             : {}),
         });
+        publishCompactionQueue(thread.id);
+        await resumeCompactionFollowUps(thread);
+      } catch (error) {
+        const items = compactionFollowUps.recover(thread.id);
+        if (items.length)
+          emitPayload(thread.id, `compaction-queue:${thread.id}`, {
+            type: "queue.recovered",
+            messages: items.map((item) => item.text),
+            items,
+          });
+        throw error;
       } finally {
         compactingThreads.delete(thread.id);
+        // The Pi queue owns successfully dispatched messages from here on.
+        emitPayload(thread.id, `compaction-queue:${thread.id}`, {
+          type: "queue.updated",
+          ...recoverableTurnQueues.snapshot(thread.id),
+        });
       }
     },
   );

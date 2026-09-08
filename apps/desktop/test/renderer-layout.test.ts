@@ -1810,7 +1810,7 @@ describe("renderer layout contract", () => {
     expect(reviewSource).toContain('className="review-scope-select"');
     expect(reviewSource).toContain('className="review-file-filter"');
     expect(reviewSource).toContain("setReviewFileQuery");
-    expect(reviewSource).toContain("setSelectedReviewFileId");
+    expect(reviewSource).toContain("setSelectedReviewFilePath(file.path)");
     expect(reviewSource).toContain('className="review-empty-illustration"');
     expect(reviewSource).toContain("{t.changesAppearHere}");
     expect(reviewSource).not.toContain('className="review-scopes"');
