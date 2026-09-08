@@ -420,8 +420,8 @@ const snapshot = () => {
       sidebar: surfaceStyle(
         sidebarMain,
         "--artemis-color-background-sidebar",
-        root.dataset.artemisTheme === "dark" ? 92
-          : navigationSidebar?.dataset.state === "collapsed" ? 96 : 72,
+        navigationSidebar?.dataset.state === "collapsed" ? 78
+          : root.dataset.artemisTheme === "dark" ? 92 : 72,
       ),
       composer: surfaceStyle(
         composerSurface,
@@ -968,8 +968,8 @@ async function verifyReferenceSliceGeometry(connection) {
   const compactInitial = await referenceSliceGeometry(connection);
   const initialSidebarWidth = Math.round(compactInitial.sidebar.width);
   assert(
-    initialSidebarWidth === 240,
-    `Compact resize fixture started at ${String(initialSidebarWidth)}px instead of 240px: ${JSON.stringify(compactInitial)}`,
+    initialSidebarWidth === 250,
+    `Compact resize fixture started at ${String(initialSidebarWidth)}px instead of 250px: ${JSON.stringify(compactInitial)}`,
   );
   await evaluate(
     connection,
