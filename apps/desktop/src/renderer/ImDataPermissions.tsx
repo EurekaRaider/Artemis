@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CaretRightIcon } from "@phosphor-icons/react";
 import {
   IM_SECURITY_VERSION,
   imPathWithinScope,
@@ -6,7 +7,7 @@ import {
   type ImDataScope,
   type ImScopeEntry,
 } from "@artemis/protocol";
-import { Button } from "@artemis/ui/actions";
+import { Button, IconButton } from "@artemis/ui/actions";
 import { Checkbox, Select } from "@artemis/ui/forms";
 import { InlineNotice } from "@artemis/ui/feedback";
 
@@ -137,15 +138,16 @@ export function ImDataPermissions({
             <div className="im-scope-row">
               <div className="im-scope-name" title={entry.path}>
                 {entry.directory && !entry.protected ? (
-                  <Button
+                  <IconButton
+                    className="im-scope-disclosure"
                     size="compact"
+                    variant="quiet"
+                    icon={<CaretRightIcon aria-hidden="true" />}
                     disabled={pending || disabled}
-                    aria-label={`${entries[entry.path] ? t("收起", "Collapse") : t("展开", "Expand")} ${entry.path}`}
+                    label={`${entries[entry.path] ? t("收起", "Collapse") : t("展开", "Expand")} ${entry.path}`}
                     aria-expanded={!!entries[entry.path]}
                     onClick={() => void expand(entry.path)}
-                  >
-                    {entries[entry.path] ? "▾" : "▸"}
-                  </Button>
+                  />
                 ) : (
                   <span className="im-scope-indent" aria-hidden="true" />
                 )}
@@ -158,6 +160,7 @@ export function ImDataPermissions({
               ) : (
                 <>
                   <Checkbox
+                    className="im-scope-check"
                     label={`${t("可处理", "Read")} ${entry.path}`}
                     labelVisibility="hidden"
                     checked={imPathWithinScope(entry.path, scope.readPaths)}
@@ -186,6 +189,7 @@ export function ImDataPermissions({
                     }
                   />
                   <Checkbox
+                    className="im-scope-check"
                     label={`${t("可修改", "Write")} ${entry.path}`}
                     labelVisibility="hidden"
                     checked={imPathWithinScope(entry.path, scope.writePaths)}

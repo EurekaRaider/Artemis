@@ -120,6 +120,60 @@ it("bulk selects only explicit unprotected entries for the chosen audience and r
   ).toEqual(["src", "README.md"]);
 });
 
+it("exposes disclosure state and preserves inherited permissions with keyboard controls", async () => {
+  const user = userEvent.setup();
+  stubWindowArtemis({
+    manageIm: vi.fn(async ({ path }: { path?: string }) =>
+      path === "src"
+        ? [{ path: "src/index.ts", directory: false, protected: false }]
+        : [{ path: "src", directory: true, protected: false }],
+    ),
+  });
+  function Editor() {
+    const [grant, setGrant] = useState(
+      executionGrantSchema.parse({
+        projectId: "p",
+        expiresAt: Date.now() + 60000,
+      }),
+    );
+    return (
+      <ImDataPermissions
+        grant={grant}
+        onChange={(security) => setGrant({ ...grant, security })}
+        t={t}
+        audiences={[]}
+        disabled={false}
+      />
+    );
+  }
+  render(<Editor />);
+  await user.click(screen.getByRole("button", { name: "全选可处理" }));
+  const disclosure = screen.getByRole("button", {
+    name: "展开 src",
+    expanded: false,
+  });
+  disclosure.focus();
+  await user.keyboard("{Enter}");
+  expect(screen.getByRole("button", { name: "收起 src", expanded: true })).toBe(
+    disclosure,
+  );
+  const inherited = screen.getByRole("checkbox", {
+    name: "可处理 src/index.ts",
+  }) as HTMLInputElement;
+  expect(inherited.checked).toBe(true);
+  expect(inherited.disabled).toBe(true);
+  await user.keyboard(" ");
+  expect(
+    screen.queryByRole("checkbox", { name: "可处理 src/index.ts" }),
+  ).toBeNull();
+  const read = screen.getByRole("checkbox", {
+    name: "可处理 src",
+  }) as HTMLInputElement;
+  read.focus();
+  await user.keyboard(" ");
+  expect(read.checked).toBe(false);
+});
+
 it("shows sensitive previews as inert text and sends only the reviewed content hash", async () => {
   const user = userEvent.setup();
   const candidate: ImOutboundCandidate = {

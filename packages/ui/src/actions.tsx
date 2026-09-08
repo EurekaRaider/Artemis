@@ -430,6 +430,7 @@ export function Button({
 }
 
 export interface IconButtonProps extends CommonActionProps {
+  readonly "aria-expanded"?: boolean | undefined;
   readonly icon: ReactNode;
   readonly iconSize?: ActionIconSize | undefined;
   readonly label: string;
@@ -437,6 +438,7 @@ export interface IconButtonProps extends CommonActionProps {
 }
 
 export function IconButton({
+  "aria-expanded": expanded,
   className,
   disabled,
   error,
@@ -459,6 +461,7 @@ export function IconButton({
       aria-busy={loading || undefined}
       aria-invalid={error || undefined}
       aria-label={label}
+      aria-expanded={expanded}
       aria-pressed={selected === undefined ? undefined : selected}
       className={className}
       data-artemis-component="icon-button"

@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
 import { DatabaseSync } from "node:sqlite";
-import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,7 +12,9 @@ import { ArtemisGateway } from "../../../packages/gateway/dist/index.js";
 // Production Electron/preload/Pi with a loopback model and synthetic channel. No personal account or model key is used.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const electron = createRequire(import.meta.url)("electron");
-const temporary = await mkdtemp(join(tmpdir(), "artemis-im-electron-"));
+const temporary = await realpath(
+  await mkdtemp(join(tmpdir(), "artemis-im-electron-")),
+);
 const data = join(temporary, "user-data");
 const project = join(temporary, "project");
 const membersOnly = process.argv.includes("--members-only");
@@ -1148,6 +1150,50 @@ try {
       Buffer.from(scopeWideCapture.data, "base64"),
     );
     records.push({ name: "bulk-scope-selection-excludes-protected-files" });
+    await click(button("展开 src"));
+    await until(
+      () =>
+        evaluate(
+          "!!document.querySelector('.im-scope-disclosure[aria-expanded=true]')",
+        ),
+      "expanded permission folder",
+    );
+    for (const theme of ["light", "dark"]) {
+      await evaluate(`window.artemis.setTheme(${JSON.stringify(theme)})`);
+      await pause(200);
+      await click("document.querySelector('.im-scope-tree')");
+      const controls = await evaluate(`(() => {
+        const disclosure = document.querySelector('.im-scope-disclosure');
+        const check = document.querySelector('.im-scope-check');
+        const indicator = check.querySelector('[data-part=indicator]');
+        const inherited = Array.from(document.querySelectorAll('.im-scope-check input')).find(input => input.checked && input.disabled);
+        return {
+          arrowBorder: getComputedStyle(disclosure).borderWidth,
+          arrowWidth: disclosure.querySelector('svg').getBoundingClientRect().width,
+          checkboxWidth: indicator.getBoundingClientRect().width,
+          checkboxRadius: getComputedStyle(indicator).borderRadius,
+          hitWidth: check.querySelector('label').getBoundingClientRect().width,
+          inheritedFill: getComputedStyle(inherited.nextElementSibling).backgroundColor,
+          selectedFill: getComputedStyle(indicator).backgroundColor,
+        };
+      })()`);
+      assert.equal(controls.arrowBorder, "0px");
+      assert.equal(controls.arrowWidth, 14);
+      assert.equal(controls.checkboxWidth, 16);
+      assert.equal(controls.checkboxRadius, "4px");
+      assert.ok(controls.hitWidth >= 32);
+      assert.equal(controls.inheritedFill, controls.selectedFill);
+      const capture = await send("Page.captureScreenshot", { format: "png" });
+      await writeFile(
+        join(output, `security-scope-refined-${theme}.png`),
+        Buffer.from(capture.data, "base64"),
+      );
+      records.push({
+        name: `refined-permission-controls-${theme}`,
+        ...controls,
+      });
+    }
+    await click(button("收起 src"));
     await evaluate(
       "Array.from(document.querySelectorAll('input[type=checkbox]')).find(i=>i.closest('label')?.textContent.includes('我确认以上文件范围')).focus()",
     );

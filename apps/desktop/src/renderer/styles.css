@@ -10977,6 +10977,75 @@ kbd {
   flex: 0 0 28px;
 }
 
+.im-scope-disclosure[data-artemis-component="icon-button"] {
+  flex: 0 0 28px;
+  inline-size: 28px;
+  min-block-size: 28px;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--artemis-space-1);
+}
+
+.im-scope-disclosure:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.im-scope-disclosure svg {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--artemis-motion-duration-fast)
+    var(--artemis-motion-easing-standard);
+}
+
+.im-scope-disclosure[aria-expanded="true"] svg {
+  transform: rotate(90deg);
+}
+
+.im-scope-check[data-artemis-component="checkbox"] {
+  display: flex;
+  inline-size: 32px;
+  block-size: 32px;
+  min-block-size: 32px;
+}
+
+.im-scope-check > label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.im-scope-check[data-artemis-component="checkbox"] [data-part="indicator"] {
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: var(--artemis-space-1);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.im-scope-check input:checked + [data-part="indicator"] {
+  background: var(--artemis-color-accent-primary);
+  border-color: var(--artemis-color-accent-primary);
+}
+
+.im-scope-check:has(input:disabled) > label {
+  cursor: default;
+}
+
+.im-scope-check:has(input:enabled):hover [data-part="indicator"] {
+  border-color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .im-scope-disclosure svg {
+    transition: none;
+  }
+}
+
 .im-scope-protected {
   grid-column: 2 / 4;
   color: var(--muted);
