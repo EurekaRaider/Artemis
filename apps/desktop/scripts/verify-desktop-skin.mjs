@@ -1014,6 +1014,17 @@ async function verifyReferenceSliceGeometry(connection) {
   const pointerStart = afterKeyboardResize.sidebarResizer;
   const pointerX = pointerStart.left + pointerStart.width / 2;
   const pointerY = pointerStart.top + pointerStart.height / 2;
+  const pointerTarget = await evaluate(
+    connection,
+    `(() => {
+      const target = document.elementFromPoint(${pointerX}, ${pointerY});
+      return { component: target?.getAttribute("data-artemis-component"), html: target?.outerHTML.slice(0, 500) };
+    })()`,
+  );
+  assert(
+    pointerTarget?.component === "application-shell-resizer",
+    `Sidebar resize handle is obstructed: ${JSON.stringify({ pointerStart, pointerTarget })}`,
+  );
   await connection.send("Input.dispatchMouseEvent", {
     button: "left",
     buttons: 1,

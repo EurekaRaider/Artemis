@@ -16858,14 +16858,28 @@ function createMainWindow(): BrowserWindow {
                         'Pending approval security content is incomplete.',
                       );
                     }
-                    approvalCard.scrollIntoView({ block: 'start' });
-                    await wait(350);
-                    const securityVisibleAtStart = securityParts.every((part) =>
-                      withinTimeline(part),
+                    const scrollUntilVisible = async (target, block, parts) => {
+                      // Timeline measurement can reposition a newly mounted card.
+                      // Require stable visible geometry after scrolling, rather
+                      // than sampling once during that layout adjustment.
+                      let stableSamples = 0;
+                      const deadline = performance.now() + 5_000;
+                      while (performance.now() < deadline) {
+                        target.scrollIntoView({ block, behavior: 'instant' });
+                        await wait(100);
+                        stableSamples = parts.every(withinTimeline)
+                          ? stableSamples + 1
+                          : 0;
+                        if (stableSamples >= 3) return true;
+                      }
+                      return false;
+                    };
+                    const securityVisibleAtStart = await scrollUntilVisible(
+                      approvalCard, 'start', securityParts,
                     );
-                    actions.scrollIntoView({ block: 'end' });
-                    await wait(350);
-                    const actionsVisibleAtEnd = withinTimeline(actions);
+                    const actionsVisibleAtEnd = await scrollUntilVisible(
+                      actions, 'end', [actions],
+                    );
                     const securityBottom = Math.max(
                       ...securityParts.map(
                         (part) => part.getBoundingClientRect().bottom,
