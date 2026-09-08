@@ -4,11 +4,6 @@
   "entrypoint": "docs/ui-prototype/artemis-ui.html",
   "files": [
     {
-      "path": "docs/ui-prototype/.DS_Store",
-      "bytes": 10244,
-      "sha256": "d78c48571c32b6deea8c32dac26bb11607d8e6861df8eaff5d1928ceb4782a4b"
-    },
-    {
       "path": "docs/ui-prototype/README.md",
       "bytes": 67962,
       "sha256": "38b9e6c251100d5ecbc56b6a1063120a408f6fe3b02251a5376951c1fbe38fd5"

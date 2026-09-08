@@ -1,4 +1,4 @@
-/* Production composition of the frozen 9556fac prototype. No demo runtime. */
+/* Production composition of the approved prototype, including the v143 sidebar handoff. */
 :root {
   --blue: var(--artemis-color-brand);
   --codex-workspace-bg: var(--artemis-color-canvas);
@@ -7,7 +7,7 @@
   --migration-sky-deep: var(--artemis-color-context-1);
 }
 .app-shell {
-  --sidebar-expanded-width: 260px;
+  --sidebar-expanded-width: 280px;
 }
 .sidebar-top {
   padding: 10px 10px 8px;
@@ -95,9 +95,7 @@
   font-weight: 600;
 }
 .sidebar .sidebar-header {
-  block-size: 38px;
-  min-block-size: 38px;
-  padding: 8px 10px 2px;
+  display: none;
 }
 .sidebar .sidebar-header [data-part="copy"] {
   display: none;
@@ -139,11 +137,11 @@
   background: var(--hover);
 }
 .project-group-row:hover .project-new-thread,
-.project-group-row:focus-within .project-new-thread,
+.project-group-row:has(:focus-visible) .project-new-thread,
 .project-group-row:hover .project-collapse-all,
-.project-group-row:focus-within .project-collapse-all,
+.project-group-row:has(:focus-visible) .project-collapse-all,
 .project-group-row:hover .project-group-select > svg,
-.project-group-row:focus-within .project-group-select > svg {
+.project-group-row:has(:focus-visible) .project-group-select > svg {
   opacity: 1;
 }
 .project-toggle[aria-expanded="true"] svg {
@@ -178,16 +176,17 @@
 
 .sidebar .sidebar-footer {
   gap: 7px;
-  padding: 10px;
-  min-block-size: 50px;
+  padding: 6px 10px 8px 14px;
+  block-size: 44px;
+  min-block-size: 44px;
 }
 .sidebar .local-indicator {
   flex: 1;
   min-inline-size: 0;
 }
 .sidebar .sidebar-profile-avatar {
-  inline-size: 30px;
-  block-size: 30px;
+  inline-size: 22px;
+  block-size: 22px;
   flex: none;
 }
 .sidebar .app-version {
@@ -245,17 +244,17 @@
   cursor: pointer;
 }
 .workspace-header {
-  block-size: 52px;
-  min-block-size: 52px;
-  flex: 0 0 52px;
-  padding: 0 10px 0 12px;
+  block-size: 48px;
+  min-block-size: 48px;
+  flex: 0 0 48px;
+  padding: 0 12px 0 18px;
   gap: 8px;
   background: var(--artemis-color-surface-header);
   position: relative;
   z-index: 30;
   border-block-end: 1px solid var(--border-soft);
 }
-.app-shell[data-sidebar-open="true"] .workspace-header .left-sidebar-toggle {
+.app-shell .workspace-header .left-sidebar-toggle {
   display: none;
 }
 .workspace-heading {
@@ -427,18 +426,6 @@
   background: var(--artemis-color-surface-dock);
   border-inline-start: 1px solid var(--border-soft);
 }
-.environment-popover {
-  background: color-mix(
-    in srgb,
-    var(--artemis-color-surface-base) 93%,
-    transparent
-  );
-  backdrop-filter: blur(64px) saturate(1.5);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--artemis-shadow-overlay);
-  z-index: 60;
-}
 .environment-popover .environment-section {
   border-color: var(--border-soft);
 }
@@ -536,7 +523,7 @@ textarea:focus {
 }
 @media (max-width: 1100px) {
   .app-shell {
-    --sidebar-expanded-width: 240px;
+    --sidebar-expanded-width: 250px;
   }
   .composer-wrap {
     padding: 0 12px 12px;
@@ -690,12 +677,6 @@ textarea:focus {
 
 .sidebar-rail {
   gap: 3px;
-  background: color-mix(
-    in srgb,
-    var(--artemis-color-background-sidebar) 72%,
-    transparent
-  );
-  backdrop-filter: blur(24px) saturate(1.35);
 }
 .sidebar-rail .rail-brand {
   display: grid;
@@ -724,14 +705,6 @@ textarea:focus {
   color: var(--muted);
   background: var(--hover);
 }
-[data-theme="dark"] .sidebar-rail {
-  background: color-mix(
-    in srgb,
-    var(--artemis-color-background-sidebar) 92%,
-    transparent
-  );
-}
-
 .rail-sep {
   inline-size: 22px;
   block-size: 1px;
@@ -746,4 +719,221 @@ textarea:focus {
   font-size: 12px;
   color: var(--muted);
   pointer-events: none;
+}
+
+/* v143 geometry: a bounded tree, a solid rail lane, and a full-width header. */
+.app-shell {
+  grid-template-rows: minmax(0, 1fr);
+  --sidebar-motion-ease: cubic-bezier(0.38, 0.08, 0.22, 1);
+  --sidebar-glass-sheen:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.34),
+      rgb(255 255 255 / 0.1) 38%,
+      transparent 62%
+    ),
+    linear-gradient(0deg, rgb(255 255 255 / 0.08), transparent 22%);
+  --sidebar-glass-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.92),
+    inset 0 0 0 1px rgb(255 255 255 / 0.24),
+    inset -1px 0 0 rgb(255 255 255 / 0.14),
+    inset 0 -1px 0 rgb(255 255 255 / 0.12), 0 1px 4px rgb(0 0 0 / 0.05),
+    0 8px 24px rgb(0 0 0 / 0.08);
+  --sidebar-rail-tint: 40%;
+  --sidebar-floating-glass: color-mix(
+    in srgb,
+    var(--artemis-color-background-sidebar) 78%,
+    transparent
+  );
+}
+[data-theme="dark"] .app-shell {
+  --sidebar-glass-sheen: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.06),
+    rgb(255 255 255 / 0.015) 40%,
+    transparent 65%
+  );
+  --sidebar-glass-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    inset 0 0 0 1px rgb(255 255 255 / 0.09),
+    inset -1px 0 0 rgb(255 255 255 / 0.05), 0 1px 4px rgb(0 0 0 / 0.28),
+    0 8px 24px rgb(0 0 0 / 0.3);
+  --sidebar-rail-tint: 46%;
+}
+.app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-top {
+  padding-block-start: 38px;
+}
+.app-shell[data-platform="darwin"] .workspace-header,
+.app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-brand {
+  -webkit-app-region: drag;
+}
+/* Hover drawers need pointer events across the entire route to the pin button. */
+.app-shell[data-platform="darwin"]
+  .sidebar[data-state="collapsed"]
+  .sidebar-brand {
+  -webkit-app-region: no-drag;
+}
+.app-shell[data-platform="darwin"]
+  :is(.workspace-header, .sidebar-brand)
+  :is(button, a, input, [role="menu"], [role="dialog"]) {
+  -webkit-app-region: no-drag;
+}
+.app-shell[data-platform="darwin"] .sidebar[data-state="ready"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  block-size: 38px;
+  -webkit-app-region: drag;
+}
+.app-shell .workspace {
+  overflow: visible;
+}
+/* Hover expansion reserves its full lane so the conversation never sits behind it. */
+.app-shell[data-sidebar-open="false"] {
+  transition: grid-template-columns 560ms var(--sidebar-motion-ease);
+}
+.app-shell[data-sidebar-open="false"][data-sidebar-peek="true"] {
+  grid-template-columns: var(--sidebar-expanded-width) minmax(0, 1fr);
+}
+.app-shell[data-sidebar-open="false"] .workspace-header {
+  transition: margin-inline-start 560ms var(--sidebar-motion-ease);
+}
+.app-shell[data-sidebar-open="false"][data-sidebar-peek="true"]
+  .workspace-header {
+  margin-inline-start: calc(-1 * var(--sidebar-expanded-width));
+}
+.app-shell[data-sidebar-open="false"] .workspace-header {
+  margin-inline-start: -48px;
+}
+.app-shell[data-platform="darwin"][data-sidebar-open="false"]
+  .workspace-header {
+  /* Native macOS controls extend farther than the prototype's simulated lights. */
+  padding-inline-start: 104px;
+}
+.workspace-header
+  :is(.environment-trigger, .left-sidebar-toggle, .right-sidebar-toggle) {
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: 10px;
+}
+.workspace-header
+  :is(.environment-trigger, .left-sidebar-toggle, .right-sidebar-toggle)
+  svg {
+  inline-size: 18px;
+  block-size: 18px;
+}
+.sidebar[data-state="collapsed"] {
+  background: linear-gradient(
+    transparent 48px,
+    var(--artemis-color-canvas) 48px
+  );
+  pointer-events: none;
+  border-inline-end: 0;
+}
+/* Keep the hover target alive while the rail becomes inert and the drawer slides in.
+   The transparent titlebar above it remains available to the workspace header. */
+.sidebar[data-state="collapsed"]::after {
+  content: "";
+  position: absolute;
+  inset: 48px 0 0;
+  pointer-events: auto;
+  z-index: -1;
+}
+.sidebar[data-state="collapsed"] > [data-part="rail"] {
+  margin-block-start: 48px;
+  block-size: calc(100% - 48px);
+  pointer-events: auto;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 160ms ease 150ms,
+    visibility 0s linear;
+}
+.sidebar[data-peek="true"] > [data-part="rail"] {
+  opacity: 0;
+  visibility: hidden;
+  /* The shared 200ms JS debounce has already elapsed, including inert. */
+  transition:
+    opacity 120ms ease,
+    visibility 0s linear;
+}
+.sidebar-rail,
+.sidebar[data-state="collapsed"] > [data-part="main"] {
+  border: 1px solid var(--border-soft);
+  border-block-start: 0;
+  border-inline-start: 0;
+  border-radius: 0 12px 12px 0;
+  box-shadow: var(--sidebar-glass-shadow);
+}
+.sidebar-rail {
+  background:
+    var(--sidebar-glass-sheen),
+    color-mix(
+      in srgb,
+      var(--artemis-color-background-sidebar) var(--sidebar-rail-tint),
+      transparent
+    );
+  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  backdrop-filter: url(#railGlass);
+}
+.sidebar[data-state="collapsed"] > [data-part="main"] {
+  inset-block: 48px 0;
+  block-size: auto;
+  background: var(--sidebar-floating-glass);
+  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  backdrop-filter: url(#drawerGlass);
+  transition:
+    transform 560ms var(--sidebar-motion-ease),
+    opacity 420ms var(--sidebar-motion-ease),
+    visibility 0s linear 560ms;
+}
+.sidebar[data-state="collapsed"][data-peek="true"] > [data-part="main"] {
+  transition-delay: 0s;
+}
+.app-shell[data-sidebar-animating="true"] {
+  transition: grid-template-columns 640ms var(--sidebar-motion-ease);
+}
+.app-shell[data-sidebar-animating="true"] .workspace-header {
+  transition:
+    margin-inline-start 640ms var(--sidebar-motion-ease),
+    padding-inline-start 640ms var(--sidebar-motion-ease);
+}
+.app-shell[data-sidebar-animating="true"] .sidebar {
+  overflow: hidden;
+}
+.app-shell[data-sidebar-animating="true"] .sidebar > [data-part="main"] {
+  min-inline-size: var(--sidebar-expanded-width);
+}
+.app-shell[data-sidebar-animating="true"] .project-sidebar-resizer {
+  visibility: hidden;
+}
+.environment-popover {
+  background: var(--sidebar-floating-glass);
+  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  backdrop-filter: url(#panelGlass);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  z-index: 60;
+}
+.nested-project > .project-row > :is(.project-new-thread, .project-action) {
+  opacity: 0;
+  pointer-events: none;
+}
+.nested-project
+  > .project-row:is(:hover, :has(:focus-visible))
+  > :is(.project-new-thread, .project-action) {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-sidebar-animating="true"],
+  .app-shell[data-sidebar-animating="true"] .workspace-header,
+  .sidebar > :is([data-part="main"], [data-part="rail"]) {
+    transition: none;
+  }
+}
+
+.app-shell[data-platform="darwin"] .environment-popover {
+  -webkit-app-region: no-drag;
 }

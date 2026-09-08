@@ -52,7 +52,12 @@ export function EnvironmentBranchIcon(props: IconProps) {
 }
 
 export function EnvironmentChangesIcon(props: IconProps) {
-  return <StandardEnvironmentIcon {...props} name="changes" size={20} />;
+  return (
+    <EnvironmentGitIcon {...props}>
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M9 8h6M12 5v6M9 16h6" />
+    </EnvironmentGitIcon>
+  );
 }
 
 export function EnvironmentLocalIcon(props: IconProps) {
@@ -64,7 +69,6 @@ export function EnvironmentCommitIcon(props: IconProps) {
     <EnvironmentGitIcon {...props}>
       <path d="M3.5 12h5M15.5 12h5" />
       <circle cx="12" cy="12" r="3.5" />
-      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
     </EnvironmentGitIcon>
   );
 }

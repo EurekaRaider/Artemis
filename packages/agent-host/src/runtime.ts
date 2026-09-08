@@ -62,6 +62,7 @@ import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
 import { registerArtemisBuiltinModels } from "./builtin-models.js";
 import { generateCommitMessage } from "./commit-message.js";
+import { generateTaskSummary } from "./task-summary.js";
 import { modeInstruction } from "./mode-instructions.js";
 import { toPiProviderConfig } from "./provider-configuration.js";
 import { forkPiSession } from "./session-fork.js";
@@ -2719,6 +2720,19 @@ export class ArtemisAgentHost {
       await this.getModelRuntime(),
       selection ?? this.configuration.selection,
       diff,
+      locale,
+    );
+  }
+
+  async generateTaskSummary(
+    title: string,
+    selection: ModelSelection | undefined,
+    locale: string,
+  ): Promise<string> {
+    return generateTaskSummary(
+      await this.getModelRuntime(),
+      selection ?? this.configuration.selection,
+      title,
       locale,
     );
   }

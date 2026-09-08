@@ -28,10 +28,7 @@ assert.equal(
   "Prototype parity requires a clean candidate",
 );
 const manifest = JSON.parse(
-  await readFile(
-    join(root, "docs/ui-migration-9556fac/prototype-manifest.json"),
-    "utf8",
-  ),
+  await readFile(join(root, "scripts/ui-prototype-manifest.json"), "utf8"),
 );
 for (const entry of manifest.files) {
   const bytes = await readFile(join(root, entry.path));

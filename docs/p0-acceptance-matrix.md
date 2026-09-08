@@ -46,3 +46,24 @@ Status values: `PASS`, `PARTIAL`, `TODO`, `BLOCKED`.
 
 Windows protocol tests do not count as native macOS evidence. All `TODO` and
 `BLOCKED` Must rows must be closed before describing the repository as Beta.
+
+## UI acceptance gaps carried forward
+
+The following gaps were retained when the historical UI migration records were
+removed. They are not new verification results, and existing screenshots or
+unit tests do not establish that they are closed:
+
+- Pixel-level prototype/production comparison and the complete page, theme and
+  error-state screenshot matrix.
+- All themes and error states for the nine Dock views, task-bar overlap,
+  model filtering and long-title behavior in native windows.
+- Real IM tenants, OAuth, remote devices and long-running Agent/terminal sessions.
+- Windows and macOS x64 native acceptance, signing, notarization, packaged
+  updates and rollback.
+
+The frozen prototype file hashes remain in
+[`scripts/ui-prototype-manifest.json`](../scripts/ui-prototype-manifest.json).
+`verify:latest-ui` and `verify:prototype-parity` still check this baseline; a
+changed prototype requires separate review rather than silently refreshed hashes.
+Historical local reports remain under `artifacts/ui-migration-9556fac/` and are
+bound to the source and build hashes recorded when those reports were generated.

@@ -63,7 +63,7 @@ const labels = {
     trigger: "Task environment",
     close: "Close",
     workspaceLabel: "Local checkout",
-    viewChanges: "View changes",
+    viewChanges: "Changes",
     changedFiles: (count: number) => `${count} changed files`,
     title: "Environment",
     addProject: "Add project",
@@ -172,7 +172,7 @@ const labels = {
     title: "环境",
     close: "关闭",
     workspaceLabel: "本地工作区",
-    viewChanges: "查看更改",
+    viewChanges: "变更",
     changedFiles: (count: number) => `${count} 个文件待提交`,
     addProject: "添加项目",
     changes: "变更",
@@ -453,6 +453,20 @@ export function environmentDisplayAgents(
     delete displayAgent.currentToolStartedAt;
     return displayAgent;
   });
+}
+
+export function environmentTopLevelAgents(
+  agents: readonly ChildAgentState[],
+  teams: readonly AgentTeamState[],
+): ChildAgentState[] {
+  const members = new Set(teams.flatMap((team) => team.memberAgentIds));
+  return agents.filter(
+    (agent) =>
+      !agent.teamId &&
+      !members.has(agent.agentId) &&
+      (!agent.parentAgentId || agent.parentAgentId === "parent") &&
+      (agent.depth === undefined || agent.depth === 1),
+  );
 }
 
 export function groupMcpUsage(
@@ -857,6 +871,24 @@ export function EnvironmentPanel({
   const [menuBranchName, setMenuBranchName] = useState("");
   const [pendingSwitchBranch, setPendingSwitchBranch] = useState<string>();
   const [showAllAgents, setShowAllAgents] = useState(false);
+  const [taskSummary, setTaskSummary] = useState<{
+    key: string;
+    text: string;
+  }>();
+  const taskSummaryKey = JSON.stringify([threadId, taskTitle, locale]);
+  useEffect(() => {
+    if (!open || !threadId || Array.from(taskTitle).length <= 20) return;
+    let cancelled = false;
+    void window.artemis
+      .getThreadTaskSummary(threadId)
+      .then((text) => {
+        if (!cancelled && text) setTaskSummary({ key: taskSummaryKey, text });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, threadId, taskTitle, taskSummaryKey]);
 
   const hidePanel = useCallback(() => {
     manuallyOpened.current = false;
@@ -1251,7 +1283,8 @@ export function EnvironmentPanel({
   ]);
 
   const displayAgents = useMemo(
-    () => environmentDisplayAgents(agents, teams),
+    () =>
+      environmentTopLevelAgents(environmentDisplayAgents(agents, teams), teams),
     [agents, teams],
   );
   const counts = useMemo(
@@ -1649,6 +1682,25 @@ export function EnvironmentPanel({
               <div className="environment-empty">{t.notGit}</div>
             ) : (
               <div className="environment-rows">
+                <button
+                  className="environment-text-action"
+                  onClick={() => {
+                    hidePanel();
+                    onOpenReview(
+                      gitInfo.unstagedCount > 0 || gitInfo.untrackedCount > 0
+                        ? "unstaged"
+                        : "staged",
+                    );
+                  }}
+                  type="button"
+                >
+                  <ChangesIcon />
+                  <span>{t.viewChanges}</span>
+                  <span className="environment-diff-total">
+                    <i>+{gitInfo.additions}</i>
+                    <b>−{gitInfo.deletions}</b>
+                  </span>
+                </button>
                 <div className="environment-setting-row" title={gitInfo.root}>
                   <EnvironmentLocalIcon aria-hidden="true" />
                   <span className="environment-setting-copy">
@@ -1688,38 +1740,21 @@ export function EnvironmentPanel({
                     </button>
                   </div>
                 </div>
-                <div className="environment-panel-actions">
-                  <button
-                    className="environment-text-action"
-                    onClick={() => {
-                      hidePanel();
-                      onOpenReview(
-                        gitInfo.unstagedCount > 0 || gitInfo.untrackedCount > 0
-                          ? "unstaged"
-                          : "staged",
-                      );
-                    }}
-                    type="button"
-                  >
-                    <ChangesIcon />
-                    <span>{t.viewChanges}</span>
-                  </button>
-                  <button
-                    className="environment-text-action commit-push-row"
-                    disabled={
-                      Boolean(gitBusy) || Boolean(panelGitAction.disabledReason)
-                    }
-                    onClick={() => {
-                      setGitError(undefined);
-                      setCommitOpen(true);
-                    }}
-                    title={panelGitAction.disabledReason}
-                    type="button"
-                  >
-                    <PushIcon />
-                    <span>{t.commitOrPush}</span>
-                  </button>
-                </div>
+                <button
+                  className="environment-text-action commit-push-row"
+                  disabled={
+                    Boolean(gitBusy) || Boolean(panelGitAction.disabledReason)
+                  }
+                  onClick={() => {
+                    setGitError(undefined);
+                    setCommitOpen(true);
+                  }}
+                  title={panelGitAction.disabledReason}
+                  type="button"
+                >
+                  <EnvironmentCommitIcon />
+                  <span>{t.commitOrPush}</span>
+                </button>
                 {pullRequestLoading && !pullRequestLookup && (
                   <div className="environment-pr-notice" role="status">
                     <span className="environment-row-icon">
@@ -1805,7 +1840,14 @@ export function EnvironmentPanel({
                   <div className="environment-setting-row">
                     <span className="environment-setting-copy">
                       <strong>{t.mainAgent}</strong>
-                      <small>{taskTitle}</small>
+                      <small
+                        className="environment-task-summary"
+                        title={taskTitle}
+                      >
+                        {taskSummary?.key === taskSummaryKey
+                          ? taskSummary.text
+                          : taskTitle}
+                      </small>
                     </span>
                     <span className="environment-task-state">
                       {taskStatusLabel}
@@ -1829,13 +1871,9 @@ export function EnvironmentPanel({
                       />
                     </span>
                     <span>
-                      <strong>{team.mission}</strong>
-                      <small>
-                        {team.memberAgentIds.length} ·{" "}
-                        {teamStatusLabels[team.status]}
-                      </small>
+                      <strong title={team.mission}>{team.mission}</strong>
+                      <small>{teamStatusLabels[team.status]}</small>
                     </span>
-                    <i>›</i>
                   </button>
                 ))}
                 {visibleAgents.map((agent) => (
@@ -1855,13 +1893,12 @@ export function EnvironmentPanel({
                       />
                     </span>
                     <span>
-                      <strong>{agent.label}</strong>
+                      <strong title={agent.label}>{agent.label}</strong>
                       <small>
                         {agentStatusLabels[agent.status]}
                         {agent.currentTool ? ` · ${agent.currentTool}` : ""}
                       </small>
                     </span>
-                    <i>›</i>
                   </button>
                 ))}
                 {displayAgents.length > 0 && (

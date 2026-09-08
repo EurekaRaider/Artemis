@@ -1,5 +1,7 @@
 # 原型改版交接说明 · 2026-09-06 晚（拉取上游之后）
 
+> **历史快照。** 实际应用已完成迁移并根据后续反馈修正；当前原型 v144 已反向同步这些结果。若本文与 [2026-09-08 实际界面同步交接](handoff-2026-09-08-production-sync.md) 冲突，以后者为准，尤其是悬停侧栏让位、78% 均匀玻璃、无边框环境面板与 Agent 层级。
+
 > 交接对象：接手 `docs/ui-prototype/` 的队友 agent。
 > 本次会话范围：v113 → v143（全部落在 `workspace-composition.css` 版本块 + `artemis-ui.html` 内联资产 + `workspace/workspace.js` 少量改动）。
 > 运行方式：`docs/ui-prototype` 下静态服务（如 `python3 -m http.server 4173`），打开 `http://127.0.0.1:4173/artemis-ui.html`。

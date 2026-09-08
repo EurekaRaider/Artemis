@@ -285,7 +285,7 @@ try {
       await page.waitForTimeout(250);
       assert.equal(
         await primary.evaluate((el) => getComputedStyle(el).color),
-        "rgb(255, 255, 255)",
+        "rgb(250, 250, 250)",
       );
       await page.evaluate(() => {
         const danger = ArtemisUI.button({ label: "Delete", variant: "danger" });

@@ -746,6 +746,7 @@ export interface ArtemisApi {
   manageIm(input: ImManagement): Promise<unknown>;
   getSnapshot(): Promise<DesktopSnapshot>;
   getThreadEvents(threadId: string): Promise<AgentEvent[]>;
+  getThreadTaskSummary(threadId: string): Promise<string | undefined>;
   getTokenUsageEvents(): Promise<AgentEvent[]>;
   getPromptHistory(): Promise<string[]>;
   rendererReady(): void;
@@ -1061,6 +1062,7 @@ export const IPC = {
   imManage: "artemis:im-manage",
   snapshot: "artemis:snapshot",
   threadEvents: "artemis:thread-events",
+  threadTaskSummary: "artemis:thread-task-summary",
   tokenUsageEvents: "artemis:token-usage-events",
   promptHistory: "artemis:prompt-history",
   rendererReady: "artemis:renderer-ready",

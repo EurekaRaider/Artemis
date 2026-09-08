@@ -329,23 +329,30 @@ describe("renderer layout contract", () => {
     expect(conversation).toMatch(/\boverflow:\s*hidden/u);
   });
 
-  it("reserves a draggable macOS title-bar area above the app content", () => {
+  it("extends the macOS sidebar to the native lights and keeps controls outside drag regions", () => {
+    const composition = readFileSync(
+      fileURLToPath(
+        new URL("../src/renderer/prototype-migration.css", import.meta.url),
+      ),
+      "utf8",
+    );
     expect(appSource).toContain("data-platform={snapshot.platform}");
     expect(mainProcessSource).toContain(
       'titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default"',
     );
-
-    const macShell = cssRule('.app-shell[data-platform="darwin"]');
-    const shell = publicUiCssRule(
-      '[data-artemis-component="application-shell"]',
+    expect(mainProcessSource).toContain(
+      "trafficLightPosition: { x: 18, y: 17 }",
     );
-    expect(macShell).toMatch(/\bpadding-block-start:\s*28px/u);
-    expect(shell).toMatch(/\bposition:\s*relative/u);
-
-    const dragRegion = cssRule('.app-shell[data-platform="darwin"]::before');
-    expect(dragRegion).toMatch(/-webkit-app-region:\s*drag/u);
-    expect(dragRegion).toMatch(/\bblock-size:\s*28px/u);
-    expect(dragRegion).toMatch(/\bposition:\s*absolute/u);
+    expect(stylesSource).not.toContain(
+      '.app-shell[data-platform="darwin"]::before',
+    );
+    expect(composition).toContain("-webkit-app-region: no-drag");
+    expect(
+      findCssDeclarations(
+        composition,
+        '.app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-top',
+      ),
+    ).toContain("padding-block-start: 38px");
     expect(publicUiStylesSource).not.toMatch(
       /data-platform|-webkit-app-region/u,
     );

@@ -1,3 +1,4 @@
+import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
 import { ImMemberMentionMenu, useImMemberMentions } from "./ImMemberMentions";
 import {
   lazy,
@@ -9,6 +10,7 @@ import {
   useRef,
   useState,
   useTransition,
+  type AnimationEvent as ReactAnimationEvent,
   type ClipboardEvent as ReactClipboardEvent,
   type CSSProperties,
   type DragEvent as ReactDragEvent,
@@ -1417,6 +1419,18 @@ function prepareThreadTitleScroll(
   );
 }
 
+function synchronizeTurnIndicator(event: ReactAnimationEvent<HTMLElement>) {
+  if (event.animationName !== "turn-indicator-breathe") return;
+  // A shared document-timeline origin keeps separately mounted indicators in phase.
+  for (const animation of (event.target as HTMLElement).getAnimations()) {
+    if (
+      animation instanceof CSSAnimation &&
+      animation.animationName === event.animationName
+    )
+      animation.startTime = 0;
+  }
+}
+
 export function App() {
   const imThreadStatus = useImThreadStatus();
   const { i18n } = useTranslation();
@@ -1569,14 +1583,57 @@ export function App() {
   );
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const sidebarHoverSuppressed = useRef(false);
+  const sidebarPeekTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const sidebarAnimationTimer = useRef<
+    ReturnType<typeof setTimeout> | undefined
+  >(undefined);
+  const [sidebarAnimating, setSidebarAnimating] = useState(false);
+  const closeSidebarPeek = useCallback(() => {
+    clearTimeout(sidebarPeekTimer.current);
+    sidebarPeekTimer.current = undefined;
+    setSidebarPeek(false);
+  }, []);
+  const requestSidebarPeek = () => {
+    if (
+      sidebarOpen ||
+      sidebarHoverSuppressed.current ||
+      sidebarPeek ||
+      sidebarPeekTimer.current !== undefined
+    )
+      return;
+    // Both visible surfaces and their inert state switch after the same debounce.
+    sidebarPeekTimer.current = setTimeout(() => {
+      sidebarPeekTimer.current = undefined;
+      setSidebarPeek(true);
+    }, 200);
+  };
+  useEffect(() => {
+    const releaseHover = () => {
+      sidebarHoverSuppressed.current = false;
+    };
+    window.addEventListener("mousemove", releaseHover);
+    return () => {
+      window.removeEventListener("mousemove", releaseHover);
+      clearTimeout(sidebarPeekTimer.current);
+      clearTimeout(sidebarAnimationTimer.current);
+    };
+  }, []);
   const changeSidebarOpen = useCallback(
     (open: boolean | ((current: boolean) => boolean)) => {
       const restoreFocus =
         projectSidebar.current?.contains(document.activeElement) ||
         document.activeElement?.classList.contains("left-sidebar-toggle");
-      setSidebarPeek(false);
+      closeSidebarPeek();
       sidebarHoverSuppressed.current = true;
+      clearTimeout(sidebarAnimationTimer.current);
+      setSidebarAnimating(true);
       setSidebarOpen(open);
+      sidebarAnimationTimer.current = setTimeout(
+        () => setSidebarAnimating(false),
+        720,
+      );
       // The rail remains available after the main navigation becomes inert.
       requestAnimationFrame(() => {
         if (!restoreFocus) return;
@@ -1589,17 +1646,17 @@ export function App() {
           ?.focus({ preventScroll: true });
       });
     },
-    [],
+    [closeSidebarPeek],
   );
   const [projectSidebarWidth, setProjectSidebarWidth] = useState<number>();
   const [defaultProjectSidebarWidth, setDefaultProjectSidebarWidth] = useState(
-    () => (window.innerWidth <= 1100 ? 240 : PROJECT_SIDEBAR_WIDTH_DEFAULT),
+    () => (window.innerWidth <= 1100 ? 250 : PROJECT_SIDEBAR_WIDTH_DEFAULT),
   );
   useEffect(() => {
     let compact = window.innerWidth <= 1060;
     const resize = () => {
       setDefaultProjectSidebarWidth(
-        window.innerWidth <= 1100 ? 240 : PROJECT_SIDEBAR_WIDTH_DEFAULT,
+        window.innerWidth <= 1100 ? 250 : PROJECT_SIDEBAR_WIDTH_DEFAULT,
       );
       const nextCompact = window.innerWidth <= 1060;
       if (nextCompact && !compact) changeSidebarOpen(false);
@@ -5417,43 +5474,44 @@ export function App() {
           "--sidebar-expanded-width": `${projectSidebarWidth ?? defaultProjectSidebarWidth}px`,
         } as CSSProperties
       }
+      data-sidebar-animating={sidebarAnimating || undefined}
+      data-sidebar-peek={(sidebarPeek && !sidebarOpen) || undefined}
       data-platform={snapshot.platform}
       data-renderer-ready="true"
       sidebarOpen={sidebarOpen}
       sidebarSize={projectSidebarWidth ?? defaultProjectSidebarWidth}
     >
+      <SidebarGlassFilters />
       <NavigationSidebar
         className="sidebar"
         peek={sidebarPeek && !sidebarOpen}
-        onMouseEnter={() => {
-          if (!sidebarOpen && !sidebarHoverSuppressed.current)
-            setSidebarPeek(true);
-        }}
-        onMouseMove={() => {
-          if (sidebarHoverSuppressed.current) {
-            sidebarHoverSuppressed.current = false;
-            return;
-          }
-          if (!sidebarOpen) setSidebarPeek(true);
-        }}
+        onMouseEnter={requestSidebarPeek}
+        onMouseMove={requestSidebarPeek}
         onMouseLeave={() => {
           sidebarHoverSuppressed.current = false;
-          if (!projectSidebar.current?.contains(document.activeElement))
-            setSidebarPeek(false);
+          if (
+            !projectSidebar.current
+              ?.querySelector('[data-part="main"]')
+              ?.querySelector(":focus-visible")
+          )
+            closeSidebarPeek();
         }}
         onBlur={(event) => {
           if (
             !event.currentTarget.contains(event.relatedTarget) &&
             !event.currentTarget.matches(":hover")
           )
-            setSidebarPeek(false);
+            closeSidebarPeek();
         }}
         onKeyDown={(event) => {
           if (event.key === "Escape" && sidebarPeek) {
-            setSidebarPeek(false);
-            projectSidebar.current
-              ?.querySelector<HTMLButtonElement>(".rail-brand")
-              ?.focus();
+            closeSidebarPeek();
+            sidebarHoverSuppressed.current = true;
+            requestAnimationFrame(() => {
+              projectSidebar.current
+                ?.querySelector<HTMLButtonElement>(".rail-brand")
+                ?.focus({ preventScroll: true });
+            });
           }
         }}
         rail={
@@ -5537,6 +5595,19 @@ export function App() {
               </span>
               <span className="local-user-name">{username}</span>
             </span>
+            {runtimeSettings?.update.currentVersion && (
+              <button
+                aria-label={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+                className="app-version"
+                onClick={(event) =>
+                  openSettings("maintenance", event.currentTarget)
+                }
+                title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+                type="button"
+              >
+                v{runtimeSettings.update.currentVersion}
+              </button>
+            )}
             {runtimeSettings?.update.availableVersion && (
               <button
                 className={`update-btn ${runtimeSettings.update.state}`}
@@ -5571,19 +5642,6 @@ export function App() {
                 }}
               >
                 <ArtemisIcon name="download" />
-              </button>
-            )}
-            {runtimeSettings?.update.currentVersion && (
-              <button
-                aria-label={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
-                className="app-version"
-                onClick={(event) =>
-                  openSettings("maintenance", event.currentTarget)
-                }
-                title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
-                type="button"
-              >
-                v{runtimeSettings.update.currentVersion}
               </button>
             )}
           </div>
@@ -6536,7 +6594,10 @@ export function App() {
             <Toolbar
               actions={
                 <div className="header-actions">
-                  <span className="status-pill">
+                  <span
+                    className="status-pill"
+                    onAnimationStart={synchronizeTurnIndicator}
+                  >
                     <span className={`status-dot ${statusDotStatus}`} />
                     <span className="status-pill-label">
                       {runPresentation.status === "completed"
@@ -6787,6 +6848,7 @@ export function App() {
                     !latestTimelineEntryIsCompaction && (
                       <TurnStatus
                         className={`turn-status ${runPresentation.status}`}
+                        onAnimationStart={synchronizeTurnIndicator}
                         durationLabel={
                           <time
                             dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}

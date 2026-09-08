@@ -1417,3 +1417,220 @@ body.sidebar-collapsed .sidebar-main {
     transform 560ms cubic-bezier(0.38, 0.08, 0.22, 1),
     opacity 420ms cubic-bezier(0.38, 0.08, 0.22, 1);
 }
+
+/* v144 · 2026-09-08 production → prototype.
+   Source: renderer/prototype-migration.css, styles.css, EnvironmentPanel.tsx.
+   Supersedes v129 drawer frost, v142 opaque/gradient panel and overlay-only peek.
+   Historical version blocks above are retained for design history. */
+body {
+  --sidebar-floating-glass: color-mix(in srgb, var(--bg-sidebar) 78%, transparent);
+  --sidebar-motion-ease: cubic-bezier(0.38, 0.08, 0.22, 1);
+}
+.titlebar-lights { top: 17px; }
+body.sidebar-collapsed .workspace-header { padding-left: 104px; }
+body.sidebar-collapsed:not(.sidebar-anim) .app-shell {
+  transition: grid-template-columns 560ms var(--sidebar-motion-ease);
+}
+body.sidebar-collapsed:not(.sidebar-anim) .workspace-header {
+  transition: margin-left 560ms var(--sidebar-motion-ease);
+}
+body.sidebar-collapsed[data-sidebar-peek="true"] .app-shell {
+  grid-template-columns: var(--sidebar-w, 280px) minmax(0, 1fr);
+}
+body.sidebar-collapsed[data-sidebar-peek="true"] .workspace-header {
+  margin-left: calc(-1 * var(--sidebar-w, 280px));
+}
+body.sidebar-collapsed .sidebar-brand,
+body.sidebar-collapsed .sidebar-brand button { -webkit-app-region: no-drag; }
+/* JS owns the shared 200ms debounce and inert. :hover must not race it. */
+body.sidebar-collapsed[data-sidebar-peek="false"] .sidebar .sidebar-main {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+body.sidebar-collapsed[data-sidebar-peek="true"] .sidebar .sidebar-main {
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+body.sidebar-collapsed .sidebar .sidebar-main {
+  transition: transform 560ms var(--sidebar-motion-ease), opacity 420ms var(--sidebar-motion-ease);
+  transition-delay: 0s;
+}
+body.sidebar-collapsed[data-sidebar-peek="false"] .sidebar .sidebar-rail {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 160ms ease 150ms, visibility 0s linear;
+}
+body.sidebar-collapsed[data-sidebar-peek="true"] .sidebar .sidebar-rail {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 120ms ease, visibility 0s linear;
+}
+html body.sidebar-collapsed .sidebar-main {
+  background: var(--sidebar-floating-glass);
+  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  backdrop-filter: url(#drawerGlass);
+  -webkit-backdrop-filter: url(#drawerGlass);
+}
+html[data-theme="dark"] body.sidebar-collapsed .sidebar-main {
+  background: var(--sidebar-floating-glass);
+}
+html .workspace-header .environment-popover.ui-floating {
+  background: var(--sidebar-floating-glass);
+  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
+  backdrop-filter: url(#panelGlass);
+  -webkit-backdrop-filter: url(#panelGlass);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  top: calc(100% + 18px);
+}
+html[data-theme="dark"] .workspace-header .environment-popover.ui-floating {
+  background: var(--sidebar-floating-glass);
+  border: 0;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+}
+.environment-popover .environment-rows > .environment-text-action {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 7px 0;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: start;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.environment-popover .environment-rows > .environment-text-action > span {
+  min-width: 0;
+  line-height: 18px;
+}
+.environment-popover .environment-rows > .environment-text-action > svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  justify-self: center;
+}
+.environment-popover .environment-rows > .environment-text-action:hover {
+  background: var(--selected);
+}
+.environment-diff-total { display: inline-flex; gap: 5px; white-space: nowrap; }
+.environment-diff-total i { color: #42c878; font-style: normal; font-weight: 400; }
+.environment-diff-total b { color: #ef6464; font-weight: 400; }
+.environment-popover .environment-activity-row {
+  padding: 7px 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border-soft);
+  gap: 6px;
+  grid-template-columns: 18px minmax(0, 1fr);
+}
+.environment-popover .environment-activity-row > span:nth-child(2) {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.environment-popover .environment-activity-row > .environment-row-icon {
+  width: 18px;
+  height: 18px;
+}
+.environment-popover .environment-activity-row strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 510;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.environment-popover .environment-activity-row small {
+  flex: 0 0 auto;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.environment-task-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation .timeline,
+.conversation .composer-wrap,
+.conversation .empty-state {
+  position: relative;
+  inline-size: calc(100% - var(--environment-panel-content-safe-inline-size, 0px));
+  margin-inline: auto;
+  inset-inline-end: calc(var(--environment-panel-content-safe-inline-size, 0px) / 2);
+}
+.status-pill .status-dot.running,
+.turn-status[data-state="running"] .pulse {
+  background: #d97706;
+  animation: turn-indicator-breathe 2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.sidebar-collapsed .app-shell,
+  body.sidebar-collapsed .workspace-header,
+  body.sidebar-collapsed .sidebar .sidebar-main,
+  body.sidebar-collapsed .sidebar .sidebar-rail { transition: none; }
+  .status-pill .status-dot.running,
+  .turn-status[data-state="running"] .pulse { animation: none; }
+}
+.environment-popover .environment-setting-copy { flex: 1 1 auto; }
+.environment-popover .environment-setting-copy > strong {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--text-2);
+}
+.environment-popover .environment-setting-row + .environment-setting-row {
+  padding-block: 6px 8px;
+}
+/* Dock bounds mirror workspace-dock-layout.ts and packages/ui/src/styles.css. */
+.conversation { min-width: min(320px, 100%); }
+body[data-dock="open"] .workspace-dock {
+  flex-shrink: 1;
+  min-width: min(440px, max(320px, calc(100% - 327px)));
+  max-width: min(1080px, calc(100% - 327px)) !important;
+}
+.dock-resizer { flex: 0 0 7px; width: 7px; }
+@media (max-width: 1100px) {
+  body[data-dock="open"] .workspace-dock {
+    min-width: min(380px, max(320px, calc(100% - 327px)));
+  }
+}
+@media (max-width: 820px) {
+  body[data-dock="open"] .workspace-dock {
+    position: absolute;
+    inset: 0 0 0 auto;
+    z-index: 3;
+    width: 100%;
+    min-width: min(320px, 100%);
+    max-width: 100% !important;
+  }
+  body[data-dock="open"] .dock-resizer { display: none !important; }
+}
+.workspace-content { position: relative; }
+/* Production composer controls collapse to icons when their container is narrow. */
+@container (max-width: 700px) {
+  .composer-toolbar, .composer-leading, .composer-trailing { gap: 4px; }
+  .policy-trigger, .model-btn {
+    flex: 0 0 32px;
+    justify-content: center;
+    padding: 0;
+    width: 32px;
+  }
+  .policy-trigger > span, .policy-trigger > svg:last-child,
+  .model-btn > .model-label, .model-btn > .chev { display: none; }
+}
+.workspace-header .workspace-heading { overflow: hidden; }
+/* Initial responsive state is a first render, not a collapse gesture. */
+body.sidebar-initializing .app-shell,
+body.sidebar-initializing .workspace-header,
+body.sidebar-initializing .sidebar .sidebar-main,
+body.sidebar-initializing .sidebar .sidebar-rail { transition: none !important; }

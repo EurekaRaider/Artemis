@@ -12,10 +12,11 @@ page.on('pageerror',e=>errors.push(e.message));
 async function check(name,fn){await fn();results.push(name);}
 async function open(key){
   if(['review','terminal','browser','files'].includes(key)){
+    if(await page.locator('body').getAttribute('data-dock')!=='open')await page.locator('#dockToggle').click();
     await page.locator('#tabAdd').click();await page.locator('#panelPicker [data-open-panel="'+key+'"]').click();
   }else if(key==='goal')await page.locator('.goal-pill').click();
   else if(key==='markdown'){await open('files');await page.locator('#dockPanelFiles [data-open-panel="markdown"]').click();}
-  else {await page.locator('#envTrigger').click();await page.locator('#envPop [data-open-panel="'+key+'"]').click();}
+  else {if(await page.locator('body').getAttribute('data-dock')==='open')await page.locator('#dockToggle').click();await page.locator('#envTrigger').click();await page.locator('#envPop [data-open-panel="'+key+'"]').click();}
 }
 try {
   await page.goto(base);
@@ -37,14 +38,14 @@ try {
     assert.equal(await page.locator('#dockEmpty').isVisible(),true);assert.equal(await page.locator('.tab-content > .tab-panel:visible').count(),0);
     await page.locator('.launch-btn[data-launch="files"]').click();assert.equal(await page.locator('#dockPanelFiles').isVisible(),true);
   });
-  await check('environment groups and commit dialog',async()=>{await page.locator('#envTrigger').click();await page.waitForTimeout(250);await page.screenshot({path:out+'/environment.png'});await page.locator('[data-dialog="commit"]').click();assert.equal(await page.locator('#prototypeDialog').evaluate(e=>e.open),true);await page.keyboard.press('Escape');});
+  await check('environment groups and commit dialog',async()=>{if(await page.locator('body').getAttribute('data-dock')==='open')await page.locator('#dockToggle').click();await page.locator('#envTrigger').click();await page.waitForTimeout(250);await page.screenshot({path:out+'/environment.png'});await page.locator('[data-dialog="commit"]').click();assert.equal(await page.locator('#prototypeDialog').evaluate(e=>e.open),true);await page.keyboard.press('Escape');});
   await page.locator('#envClose').click();
   await page.locator('#settingsBtn').click();
   for(const key of ['general','providers','im','agents','capabilities','maintenance']){
     await check('settings '+key,async()=>{await page.locator('.settings-tab[data-settings-panel="'+key+'"]').click();assert.equal(await page.locator('.settings-panel-content:visible').count(),1);assert.equal(await page.locator('.settings-panel-content:visible').getAttribute('data-panel'),key);await page.waitForTimeout(250);await page.screenshot({path:out+'/settings-'+key+'.png'});});
   }
   await check('settings keyboard/focus return',async()=>{await page.locator('#settingsClose').focus();await page.keyboard.press('Shift+Tab');assert.equal(await page.locator('.settings-panel').evaluate(e=>e.contains(document.activeElement)),true);await page.keyboard.press('Escape');assert.equal(await page.locator('#settingsBtn').evaluate(e=>e===document.activeElement),true);});
-  await check('resource panel switching',async()=>{await page.locator('[data-goto="resources"]').click();for(const key of ['plugins','connectors','mcp','skills']){await page.locator('[data-resource="'+key+'"]').click();assert.equal(await page.locator('.resource-pane:visible').getAttribute('data-resource-panel'),key);}});
+  await check('resource panel switching',async()=>{await page.locator('.sidebar-main [data-goto="resources"]').click();for(const key of ['plugins','connectors','mcp','skills']){await page.locator('[data-resource="'+key+'"]').click();assert.equal(await page.locator('.resource-pane:visible').getAttribute('data-resource-panel'),key);}});
   for(const width of [1440,1280,1024,980,768,390]){
     await check('viewport '+width,async()=>{
       await page.setViewportSize({width,height:900});await page.goto(base+'?width='+width+'#audit=1');await page.waitForTimeout(400);
@@ -55,6 +56,7 @@ try {
   }
   await check('minimum desktop height and task tree',async()=>{
     await page.setViewportSize({width:980,height:680});await page.goto(base+'?height=680#audit=1');await page.waitForTimeout(350);assert.equal(JSON.parse(await page.locator('#LAYOUT_OUT').textContent()).ok,true);
+    await page.locator('.rail-brand').click();await page.waitForTimeout(750);
     const head=page.locator('.project-head').first();await head.click();assert.equal(await head.getAttribute('aria-expanded'),'false');await head.click();assert.equal(await head.getAttribute('aria-expanded'),'true');
     await page.screenshot({path:out+'/desktop-minimum.png'});
   });

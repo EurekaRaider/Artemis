@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 347000,
+      "desktopCssBytes": 352000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -95,6 +95,14 @@
       "measuredDesktopCssBytes": 345545,
       "desktopCssIncreaseBytes": 2318,
       "reason": "Project permission tree, bulk actions, compact disclosure and checkbox controls, and conversation safe-area alignment add 2318 bytes (0.68%) over the last passing CI revision. Both revisions use the same Vite production pipeline and installed dependencies, substituting only the changed renderer styles.css for the baseline. The 347000-byte ceiling leaves 1455 bytes of headroom. JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
+    },
+    {
+      "date": "2026-09-08",
+      "baseHead": "7d5c7cb3aafb1c0683b0247801c29ba423f30f0b",
+      "baseDesktopCssBytes": 346933,
+      "measuredDesktopCssBytes": 350727,
+      "desktopCssIncreaseBytes": 3794,
+      "reason": "v143 sidebar geometry, uniform light/dark floating glass, native titlebar regions, synchronized hover layout and status indicators, stacked environment actions, compact agent rows and single-line task summaries add 3794 bytes (1.09%). The previous 347000-byte ceiling had only 67 bytes of headroom. Baseline and candidate use the same installed dependencies and Vite production pipeline, substituting only HEAD styles.css and prototype-migration.css for the isolated baseline. The 352000-byte CSS ceiling leaves 1273 bytes of headroom; JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
     }
   ],
   "startupBudgetRevisions": [

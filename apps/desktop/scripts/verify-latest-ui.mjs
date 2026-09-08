@@ -49,10 +49,7 @@ async function treeHash(directory) {
 const sourceFingerprint = await fingerprint();
 const rendererFingerprint = await treeHash(join(app, "dist-renderer"));
 const manifest = JSON.parse(
-  await readFile(
-    join(root, "docs/ui-migration-9556fac/prototype-manifest.json"),
-    "utf8",
-  ),
+  await readFile(join(root, "scripts/ui-prototype-manifest.json"), "utf8"),
 );
 for (const file of manifest.files)
   assert.equal(

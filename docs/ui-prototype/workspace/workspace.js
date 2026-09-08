@@ -7,6 +7,10 @@
     return Array.prototype.slice.call(document.querySelectorAll(s));
   };
   var body = document.body;
+  body.classList.add("sidebar-initializing");
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () { body.classList.remove("sidebar-initializing"); });
+  });
   var UI = window.ArtemisUI;
   UI.enhance(document);
   document.querySelectorAll(".ui-button,.ui-field").forEach(function (el) {
@@ -289,8 +293,33 @@
   var environmentPopover = UI.floating(envT, envP, {
     onOpenChange: function (open) {
       envT.classList.toggle("active", open);
+      requestAnimationFrame(syncEnvironmentSpace);
     },
   });
+  // Match the desktop's 24px reading safe area; close when less than 480px remains.
+  function syncEnvironmentSpace() {
+    var conversation = $("#conversation");
+    if (!conversation) return;
+    var property = "--environment-panel-content-safe-inline-size";
+    if (!environmentPopover.isOpen) {
+      conversation.style.removeProperty(property);
+      return;
+    }
+    var bounds = conversation.getBoundingClientRect();
+    // Use the settled anchor geometry, not the popover's entrance scale.
+    var panelStart = envT.parentElement.getBoundingClientRect().right - envP.offsetWidth;
+    var inset = Math.max(0, bounds.right - panelStart + 24);
+    if (bounds.width - inset < 480) {
+      environmentPopover.close();
+      conversation.style.removeProperty(property);
+      return;
+    }
+    conversation.style.setProperty(property, inset + "px");
+  }
+  var environmentResize = new ResizeObserver(syncEnvironmentSpace);
+  environmentResize.observe($("#conversation"));
+  environmentResize.observe(envP);
+  window.addEventListener("resize", syncEnvironmentSpace);
 
   /* ---------- 会话行「更多」菜单（对齐真实 thread-action/thread-menu：重命名/分叉/归档/删除对话） ---------- */
   var threadMenu = document.createElement("div");
@@ -965,7 +994,7 @@
       setTimeout(function () {
         updateCheck.disabled = false;
         updateCheck.textContent = "检查更新";
-        if (status) status.textContent = "当前版本 v1.4.40 · 已是最新版本";
+        if (status) status.textContent = "当前版本 v1.4.63 · 已是最新版本";
         notice("已是最新版本（演示）");
       }, 900);
     });
@@ -1581,10 +1610,10 @@
   }
   function dockLimits() {
     var cw = contentEl.getBoundingClientRect().width;
-    /* v74：主区 560px + 分割条 8px 保底，dock 最小 360px（防主内容区挤压变形） */
-    var min = Math.min(360, Math.max(320, cw - 568));
-    var max = Math.min(1080, cw - 568);
-    return { min: min, max: Math.max(min, max) };
+    // workspace-dock-layout.ts: 320px conversation + 7px resizer.
+    var responsiveMinimum = window.innerWidth <= 820 ? 320 : window.innerWidth <= 1100 ? 380 : 440;
+    var max = Math.max(320, Math.min(1080, Math.floor(cw - 327)));
+    return { min: Math.min(responsiveMinimum, max), max: max };
   }
   function setDockWidth(px, announce) {
     var lim = dockLimits();
@@ -1851,7 +1880,11 @@
     var push = $("[data-commit-action='push']");
     push.disabled = newBranch || gitDemo.changes > 0 || !gitDemo.ahead || !!gitDemo.pendingBranch;
     push.title = gitDemo.changes ? "请先提交更改" : !gitDemo.ahead ? "已同步" : "推送";
-    $(".environment-diff-total").innerHTML = $("#commitIncludeUnstaged").checked ? "<i>+42</i> <b>−12</b>" : "<i>+14</i> <b>−4</b>";
+    var additions = gitDemo.changes === 3 ? 42 : gitDemo.changes ? 28 : 0;
+    var deletions = gitDemo.changes === 3 ? 12 : gitDemo.changes ? 8 : 0;
+    $("#environmentDiffTotal").innerHTML = "<i>+" + additions + "</i> <b>−" + deletions + "</b>";
+    $("#prototypeDialog .environment-diff-total").innerHTML = $("#commitIncludeUnstaged").checked
+      ? $("#environmentDiffTotal").innerHTML : "<i>+" + (gitDemo.changes === 3 ? 14 : 0) + "</i> <b>−" + (gitDemo.changes === 3 ? 4 : 0) + "</b>";
   }
   $("#commitDestination").addEventListener("change", function () { syncGitDemo(); if (!$("#commitNewBranchRow").hidden) $("#commitNewBranch").focus(); });
   $("#commitNewBranch").addEventListener("input", syncGitDemo);
@@ -2229,49 +2262,66 @@
   var sidebarRail =
     sidebarEl && sidebarEl.querySelector(".sidebar-rail");
   var sidebarPeeked = false;
+  var sidebarPeekTimer = 0;
+  function cancelSidebarPeek() {
+    clearTimeout(sidebarPeekTimer);
+    sidebarPeekTimer = 0;
+  }
+  function requestSidebarPeek() {
+    if (!body.classList.contains("sidebar-collapsed") || body.classList.contains("sidebar-snap") || sidebarPeeked || sidebarPeekTimer) return;
+    sidebarPeekTimer = setTimeout(function () {
+      sidebarPeekTimer = 0;
+      sidebarPeeked = true;
+      syncSidebarInert();
+    }, 200);
+  }
   /* v121：折叠/展开切换动画门控（见 syncNavigation） */
   var sidebarAnimPrev = body.classList.contains("sidebar-collapsed");
   var sidebarAnimTimer = 0;
+  var sidebarWasPeeked = false;
   function syncSidebarInert() {
     if (!sidebarEl || !sidebarMain) return;
     var collapsed = body.classList.contains("sidebar-collapsed");
     sidebarEl.inert = false;
     var peek = collapsed && sidebarPeeked && !body.classList.contains("sidebar-snap");
     body.dataset.sidebarPeek = String(peek);
+    if (collapsed) sidebarWasPeeked = peek;
     sidebarMain.inert = collapsed && !peek;
     /* 抽屉打开时 rail 已被覆盖隐藏（v110 互斥），一并移出 tab 序列 */
     if (sidebarRail) sidebarRail.inert = !collapsed || peek;
   }
   if (sidebarEl) {
     sidebarEl.addEventListener("mouseenter", function () {
-      sidebarPeeked = !body.classList.contains("sidebar-snap");
-      syncSidebarInert();
+      requestSidebarPeek();
     });
     sidebarEl.addEventListener("mouseleave", function () {
+      cancelSidebarPeek();
       sidebarPeeked = sidebarMain.contains(document.activeElement);
       syncSidebarInert();
     });
   }
   if (sidebarEl) {
     sidebarEl.addEventListener("mousemove", function () {
-      if (body.classList.contains("sidebar-snap")) return;
-      sidebarPeeked = true; syncSidebarInert();
+      requestSidebarPeek();
     });
     sidebarEl.addEventListener("focusout", function (event) {
       if (!sidebarEl.contains(event.relatedTarget) && !sidebarEl.matches(":hover")) { sidebarPeeked = false; syncSidebarInert(); }
     });
     sidebarEl.addEventListener("keydown", function (event) {
       if (event.key === "Escape" && body.classList.contains("sidebar-collapsed")) {
+        cancelSidebarPeek();
         sidebarPeeked = false; body.classList.add("sidebar-snap"); syncSidebarInert(); $(".rail-brand").focus();
       }
     });
     $("#leftToggle").addEventListener("click", function () {
+      cancelSidebarPeek();
       sidebarPeeked = false; syncSidebarInert();
       if (body.classList.contains("sidebar-collapsed")) $(".rail-brand").focus({preventScroll:true});
     });
   }
   var compactSidebar = window.innerWidth <= 1060;
   if (compactSidebar) body.classList.add("sidebar-collapsed");
+  sidebarAnimPrev = body.classList.contains("sidebar-collapsed");
   window.addEventListener("resize", function () {
     var nextCompact = window.innerWidth <= 1060;
     if (nextCompact && !compactSidebar) { body.classList.add("sidebar-collapsed"); sidebarPeeked = false; syncSidebarInert(); }
@@ -2283,6 +2333,7 @@
         button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
+    var wasPeeked = sidebarWasPeeked;
     syncSidebarInert();
     var collapsed = body.classList.contains("sidebar-collapsed");
     /* v121/v129：折叠/展开切换瞬间挂 sidebar-anim 类 720ms，
@@ -2296,14 +2347,14 @@
       var shell = document.querySelector(".app-shell");
       var header = document.querySelector(".workspace-header");
       var prevTrack =
-        (getComputedStyle(document.documentElement).getPropertyValue("--sidebar-w") || "").trim() ||
+        (getComputedStyle(body).getPropertyValue("--sidebar-w") || "").trim() ||
         "280px";
       if (shell) {
-        shell.style.gridTemplateColumns = (collapsed ? prevTrack : "48px") + " minmax(0, 1fr)";
+        shell.style.gridTemplateColumns = (collapsed || wasPeeked ? prevTrack : "48px") + " minmax(0, 1fr)";
       }
       if (header) {
-        header.style.marginLeft = collapsed ? "0px" : "-48px";
-        header.style.paddingLeft = collapsed ? "18px" : "78px";
+        header.style.marginLeft = collapsed ? "0px" : wasPeeked ? "-" + prevTrack : "-48px";
+        header.style.paddingLeft = collapsed ? "18px" : "104px";
       }
       void (shell && shell.offsetWidth);
       body.classList.add("sidebar-anim");
@@ -2319,6 +2370,7 @@
     }
     $("#leftToggle").setAttribute("aria-expanded", String(!collapsed));
     sidebarHandle.tabIndex = collapsed ? -1 : 0;
+    sidebarWasPeeked = body.dataset.sidebarPeek === "true";
   }
   new MutationObserver(syncNavigation).observe(body, {
     attributes: true,
@@ -2329,8 +2381,18 @@
     button.addEventListener("click", function () {
       button.disabled = true;
       button.setAttribute("aria-label", "已停止");
-      $(".status-pill").textContent = "已停止";
+      $(".status-dot").classList.remove("running");
+      $(".status-label").textContent = "已停止";
+      $(".turn-status").dataset.state = "completed";
+      $(".turn-status-label").textContent = "已停止";
+      $(".environment-task-state").textContent = "已停止";
       notice("原型任务已停止");
+    });
+  });
+  document.addEventListener("animationstart", function (event) {
+    if (event.animationName !== "turn-indicator-breathe") return;
+    event.target.getAnimations().forEach(function (animation) {
+      if (animation.animationName === "turn-indicator-breathe") animation.startTime = 0;
     });
   });
   /* ---------- hash 状态（DOMContentLoaded 后执行） ---------- */
@@ -2482,19 +2544,19 @@
   var btn = document.getElementById("updateBtn");
   var chip = document.getElementById("versionChip");
   if (!btn || !chip) return;
-  var baseLabel = "发现新版本 v1.4.41，点击立即更新";
+  var baseLabel = "发现新版本 v1.4.64，点击立即更新";
   btn.addEventListener("click", function () {
     if (!btn.classList.contains("has-update")) return;
     btn.classList.replace("has-update", "updating");
-    btn.setAttribute("aria-label", "正在下载 v1.4.41");
-    btn.title = "正在下载 v1.4.41…";
+    btn.setAttribute("aria-label", "正在下载 v1.4.64");
+    btn.title = "正在下载 v1.4.64…";
     setTimeout(function () {
       btn.classList.replace("updating", "updated");
-      btn.setAttribute("aria-label", "已更新到 v1.4.41，重启后生效");
-      btn.title = "已更新到 v1.4.41，重启后生效";
-      chip.textContent = "v1.4.41";
-      chip.setAttribute("aria-label", "当前版本 v1.4.41");
-      chip.title = "当前版本 v1.4.41";
+      btn.setAttribute("aria-label", "已更新到 v1.4.64，重启后生效");
+      btn.title = "已更新到 v1.4.64，重启后生效";
+      chip.textContent = "v1.4.64";
+      chip.setAttribute("aria-label", "当前版本 v1.4.64");
+      chip.title = "当前版本 v1.4.64";
       setTimeout(function () {
         btn.classList.replace("updated", "has-update");
         btn.setAttribute("aria-label", baseLabel);

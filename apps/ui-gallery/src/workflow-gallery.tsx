@@ -151,7 +151,7 @@ export function WorkflowGallery() {
                 <GalleryActionIcon />
               </SourceEntryIcon>
               <SourceEntryBody>
-                <h2>visual-migration-ledger.md</h2>
+                <h2>architecture.md</h2>
                 <p>File · added to task</p>
               </SourceEntryBody>
             </SourceEntry>

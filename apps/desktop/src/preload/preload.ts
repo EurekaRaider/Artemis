@@ -22,6 +22,8 @@ const api: ArtemisApi = {
   manageIm: (input) => ipcRenderer.invoke(IPC.imManage, input),
   getSnapshot: () => ipcRenderer.invoke(IPC.snapshot),
   getThreadEvents: (threadId) => ipcRenderer.invoke(IPC.threadEvents, threadId),
+  getThreadTaskSummary: (threadId) =>
+    ipcRenderer.invoke(IPC.threadTaskSummary, threadId),
   getTokenUsageEvents: () => ipcRenderer.invoke(IPC.tokenUsageEvents),
   getPromptHistory: () => ipcRenderer.invoke(IPC.promptHistory),
   rendererReady: () =>

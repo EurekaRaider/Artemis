@@ -1435,11 +1435,11 @@ The main remaining gates are:
 
 ### Documentation
 
-| Product and acceptance                                 | Engineering and security                   |
-| ------------------------------------------------------ | ------------------------------------------ |
-| [P0 acceptance matrix](docs/p0-acceptance-matrix.md)   | [Architecture notes](docs/architecture.md) |
-| [Implementation status](docs/implementation-status.md) | [Security policy](SECURITY.md)             |
-| [Observable parity specification](docs/parity-spec.md) | [Engineering guidance](AGENTS.md)          |
+| Product and acceptance                               | Engineering and security                   |
+| ---------------------------------------------------- | ------------------------------------------ |
+| [Installation guide](docs/README_INSTALL.md)         | [Architecture notes](docs/architecture.md) |
+| [P0 acceptance matrix](docs/p0-acceptance-matrix.md) | [Security policy](SECURITY.md)             |
+| [IM deployment](docs/im-gateway.md)                  | [Engineering guidance](AGENTS.md)          |
 
 ### Independent product boundary
 

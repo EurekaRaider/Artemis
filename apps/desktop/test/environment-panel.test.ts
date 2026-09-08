@@ -17,6 +17,7 @@ import {
   environmentBranchMenuLayout,
   environmentAgentCounts,
   environmentDisplayAgents,
+  environmentTopLevelAgents,
   environmentGitAction,
   groupMcpUsage,
   projectPullRequestCheckSummary,
@@ -82,6 +83,22 @@ function pullRequest(
 }
 
 describe("task environment panel state", () => {
+  it("shows direct standalone agents while representing team members only by their team", () => {
+    const agents = [
+      { agentId: "direct", parentAgentId: "parent", depth: 1 },
+      { agentId: "legacy-direct" },
+      { agentId: "nested", parentAgentId: "direct", depth: 2 },
+      { agentId: "depth-only", depth: 2 },
+      { agentId: "member", parentAgentId: "parent", teamId: "team" },
+      { agentId: "legacy-member", parentAgentId: "parent" },
+    ] as ChildAgentState[];
+    const teams = [
+      { teamId: "team", memberAgentIds: ["member", "legacy-member"] },
+    ] as AgentTeamState[];
+    expect(
+      environmentTopLevelAgents(agents, teams).map((agent) => agent.agentId),
+    ).toEqual(["direct", "legacy-direct"]);
+  });
   it("mounts the popover between task status and the existing right dock", () => {
     const status = appSource.indexOf('className="status-pill"');
     const environment = appSource.indexOf("<EnvironmentPanel", status);

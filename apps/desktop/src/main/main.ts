@@ -6138,6 +6138,38 @@ async function cancelRunningGoalContinuation(threadId: string): Promise<void> {
 }
 
 function registerIpc(): void {
+  const taskSummaries = new Map<string, Promise<string | undefined>>();
+  ipcMain.handle(IPC.threadTaskSummary, async (_event, threadId: string) => {
+    const thread = store?.getThread(String(threadId ?? ""));
+    if (!thread || !agentProcess) return undefined;
+    const locale = currentLocale();
+    const selection =
+      thread.modelSelection ??
+      (await settingsStore?.runtimeConfiguration())?.selection;
+    if (!selection) return undefined;
+    const key = JSON.stringify([thread.id, thread.title, locale, selection]);
+    const cached = taskSummaries.get(key);
+    if (cached) return cached;
+    if (taskSummaries.size >= 128)
+      taskSummaries.delete(taskSummaries.keys().next().value!);
+    const pending = agentProcess
+      .request<string>(
+        {
+          type: "task.generate-summary",
+          requestId: randomUUID(),
+          title: thread.title,
+          locale,
+          selection,
+        },
+        25_000,
+      )
+      .catch(() => {
+        taskSummaries.delete(key);
+        return undefined;
+      });
+    taskSummaries.set(key, pending);
+    return pending;
+  });
   ipcMain.handle(IPC.snapshot, () => {
     if (!store) {
       throw new Error("Application store is not ready.");
@@ -14796,6 +14828,9 @@ function createMainWindow(): BrowserWindow {
     show: !smokeArtifacts,
     enableLargerThanScreen: smokeArtifacts && process.platform === "darwin",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    ...(process.platform === "darwin"
+      ? { trafficLightPosition: { x: 18, y: 17 } }
+      : {}),
     webPreferences: {
       preload: join(import.meta.dirname, "preload.cjs"),
       backgroundThrottling: !smokeMode,

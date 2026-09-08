@@ -124,20 +124,6 @@ body {
   }
 }
 
-.app-shell[data-platform="darwin"] {
-  padding-block-start: 28px;
-}
-
-.app-shell[data-platform="darwin"]::before {
-  -webkit-app-region: drag;
-  block-size: 28px;
-  content: "";
-  inset-block-start: 0;
-  inset-inline: 0;
-  position: absolute;
-}
-
-.app-shell[data-platform="darwin"] .project-sidebar-resizer,
 body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   inset-block-start: 28px;
 }
@@ -1057,7 +1043,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  top: calc(100% + 8px);
+  top: calc(100% + 18px);
   width: min(var(--environment-panel-inline-size), calc(100vw - 62px));
   z-index: 80;
   backdrop-filter: saturate(1.5) blur(28px);
@@ -1482,8 +1468,7 @@ button.environment-row:disabled {
 }
 
 .environment-chevron,
-.environment-external,
-.environment-activity-row > i {
+.environment-external {
   color: var(--muted);
   font-size: 18px;
   font-style: normal;
@@ -4098,6 +4083,7 @@ button.environment-row:disabled {
   width: 100%;
 }
 
+.status-pill .status-dot.running,
 .turn-status[data-state="running"] > [data-part="indicator"] {
   background: #d97706;
   animation: turn-indicator-breathe 2s ease-in-out infinite;
@@ -4116,6 +4102,7 @@ button.environment-row:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .status-pill .status-dot.running,
   .turn-status[data-state="running"] > [data-part="indicator"] {
     animation: none;
   }
@@ -9873,14 +9860,6 @@ kbd {
   color: var(--artemis-color-text-secondary);
 }
 
-.environment-panel-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  padding: 8px 0 0;
-  border-top: 1px solid var(--artemis-color-border-subtle);
-}
-
 .environment-setting-row > .environment-branch-control {
   flex: 0 1 52%;
   min-width: 0;
@@ -9918,48 +9897,34 @@ kbd {
   opacity: var(--artemis-opacity-disabled);
 }
 
-.environment-panel-actions .environment-text-action {
+.environment-rows > .environment-text-action {
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 5px 10px;
-  border: 1px solid var(--artemis-color-border-default);
-  background: var(--artemis-color-surface-raised);
+  gap: 8px;
+  min-height: 32px;
+  padding: 7px 0;
   font-weight: 500;
   text-align: start;
 }
 
-.environment-panel-actions .environment-text-action > span {
+.environment-rows > .environment-text-action > span {
   min-width: 0;
   line-height: 18px;
 }
 
-.environment-panel-actions .environment-text-action > svg {
+.environment-rows > .environment-text-action > svg {
   display: block;
   justify-self: center;
   stroke-width: 1.5;
 }
 
-.environment-panel-actions .commit-push-row:not(:disabled) {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
-}
-
-.environment-panel-actions .commit-push-row:hover:not(:disabled) {
-  background: var(--artemis-color-accent-hover);
-  color: var(--accent-text);
-}
-
-.environment-panel-actions
-  .environment-text-action:hover:not(:disabled):not(.commit-push-row) {
+.environment-rows > .environment-text-action:hover:not(:disabled) {
   background: var(--environment-selected-bg);
   color: var(--artemis-color-text-primary);
 }
 
-.environment-panel-actions .environment-text-action:active:not(:disabled) {
+.environment-rows > .environment-text-action:active:not(:disabled) {
   transform: scale(0.98);
 }
 
@@ -9983,7 +9948,7 @@ kbd {
 }
 
 .environment-setting-row > svg,
-.environment-panel-actions button > svg,
+.environment-rows > .environment-text-action > svg,
 .environment-compare-action > svg,
 .environment-branch-create-form button > svg {
   width: 16px;
@@ -10314,20 +10279,35 @@ kbd {
 }
 
 .environment-activity-row {
-  padding: 9px 0;
+  padding: 7px 0;
   border-radius: 0;
   border-bottom: 1px solid var(--artemis-color-border-subtle);
   gap: 6px;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
+  grid-template-columns: 18px minmax(0, 1fr);
+}
+
+.environment-activity-row > span:nth-child(2) {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.environment-activity-row > .environment-row-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .environment-activity-row strong {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 13px;
   line-height: 1.5;
   font-weight: 510;
 }
 
 .environment-activity-row small {
+  flex: 0 0 auto;
+  max-width: 50%;
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--artemis-color-text-tertiary);
@@ -10337,6 +10317,12 @@ kbd {
   font-size: 10.5px;
   color: var(--artemis-color-text-secondary);
   flex-shrink: 0;
+}
+
+.environment-task-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspace-files-panel {

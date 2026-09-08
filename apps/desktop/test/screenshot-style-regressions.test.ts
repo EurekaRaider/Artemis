@@ -39,6 +39,9 @@ describe("screenshot visual contracts", () => {
       background: "#d97706",
       animation: "turn-indicator-breathe 2s ease-in-out infinite",
     });
+    expect(declarations(desktop, ".status-pill .status-dot.running")).toEqual(
+      declarations(desktop, running),
+    );
     for (const [state, color] of [
       ["completed", "success"],
       ["failed", "danger"],
@@ -53,8 +56,9 @@ describe("screenshot visual contracts", () => {
     const reduced: string[] = [];
     desktop.walkAtRules("media", (rule) => {
       if (rule.params !== "(prefers-reduced-motion: reduce)") return;
-      rule.walkRules(running, (nested) => {
-        nested.walkDecls("animation", (decl) => reduced.push(decl.value));
+      rule.walkRules((nested) => {
+        if (nested.selectors.includes(running))
+          nested.walkDecls("animation", (decl) => reduced.push(decl.value));
       });
     });
     expect(reduced).toContain("none");
