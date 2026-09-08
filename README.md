@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="2373 passing tests" src="https://img.shields.io/badge/Tests-2373_passing-2EA44F" />
+  <img alt="2374 passing tests" src="https://img.shields.io/badge/Tests-2374_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -1219,7 +1219,7 @@ git push origin v1.4.64
 ### Build and test matrix
 
 The desktop CSS ceiling is 353,000 bytes: the same Vite pipeline measured
-352,353 bytes at the prior main commit and 352,296 bytes after this fix.
+352,353 bytes at the prior main commit and 352,386 bytes after the fixes (including reduced-motion sidebar handling).
 Startup and JavaScript budgets remain unchanged.
 
 ```powershell
@@ -1230,13 +1230,13 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current package test suites contain **2373 passing tests** (12 skipped).
+The current package test suites contain **2374 passing tests** (12 skipped).
 Repeated UI and UI Gallery runs inside the verification pipeline are counted
 once:
 
 | Gateway | Protocol | Platform | Agent Host | Theme Contract |  UI | Theme Artemis | UI Gallery | Desktop | **Total** |
 | ------: | -------: | -------: | ---------: | -------------: | --: | ------------: | ---------: | ------: | --------: |
-|     114 |      143 |       25 |        165 |             15 | 304 |             5 |        142 |    1460 |  **2373** |
+|     114 |      143 |       25 |        165 |             15 | 304 |             5 |        142 |    1461 |  **2374** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory

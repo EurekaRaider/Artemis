@@ -32,6 +32,29 @@ function declarations(sheet: postcss.Root, selector: string) {
 }
 
 describe("screenshot visual contracts", () => {
+  it("disables collapsed-sidebar hover transitions under reduced motion", () => {
+    const sheet = postcss.parse(
+      readFileSync(
+        new URL("../src/renderer/prototype-migration.css", import.meta.url),
+        "utf8",
+      ),
+    );
+    const reduced = new Set<string>();
+    sheet.walkAtRules("media", (media) => {
+      if (media.params !== "(prefers-reduced-motion: reduce)") return;
+      media.walkRules((rule) => {
+        rule.walkDecls("transition", (decl) => {
+          if (decl.value === "none")
+            for (const selector of rule.selectors) reduced.add(selector.trim());
+        });
+      });
+    });
+    expect(reduced.has('.app-shell[data-sidebar-open="false"]')).toBe(true);
+    expect(
+      reduced.has('.app-shell[data-sidebar-open="false"] .workspace-header'),
+    ).toBe(true);
+  });
+
   it("uses an orange breathing running dot and static success/failure colors", () => {
     const running =
       '.turn-status[data-state="running"] > [data-part="indicator"]';

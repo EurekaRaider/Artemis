@@ -379,6 +379,7 @@ const snapshot = () => {
       direction: getComputedStyle(root).direction,
       zoomFactor: preload?.zoomFactor() ?? null,
       reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+      sidebarOpen: appShell?.dataset.sidebarOpen ?? null,
       appShellTransitionDuration: appShell
         ? getComputedStyle(appShell).transitionDuration
         : null,
@@ -1869,6 +1870,11 @@ async function driveElectron() {
         `globalThis.__ARTEMIS_SKIN_SMOKE__.select(${JSON.stringify(skinIds[configuration.skin])})`,
       );
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 350));
+      await waitFor(
+        connection,
+        `document.querySelector('.app-shell')?.dataset.sidebarAnimating !== 'true'`,
+        "sidebar animation to settle before checking the runtime environment",
+      );
       const snapshot = await evaluate(
         connection,
         "globalThis.__ARTEMIS_SKIN_SMOKE__.snapshot()",
@@ -1897,7 +1903,10 @@ async function driveElectron() {
           ) < 0.001 &&
           snapshot.environment.reducedMotion === configuration.reducedMotion &&
           snapshot.environment.appShellTransitionDuration ===
-            (configuration.reducedMotion ? "0s" : "0.56s"),
+            (configuration.reducedMotion ||
+            snapshot.environment.sidebarOpen === "true"
+              ? "0s"
+              : "0.56s"),
         `Runtime environment failed: ${JSON.stringify({ configuration, environment: snapshot.environment })}`,
       );
       const expectedSurfaceCounts = {

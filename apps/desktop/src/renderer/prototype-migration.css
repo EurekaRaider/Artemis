@@ -927,6 +927,8 @@ textarea:focus {
   pointer-events: auto;
 }
 @media (prefers-reduced-motion: reduce) {
+  .app-shell[data-sidebar-open="false"],
+  .app-shell[data-sidebar-open="false"] .workspace-header,
   .app-shell[data-sidebar-animating="true"],
   .app-shell[data-sidebar-animating="true"] .workspace-header,
   .sidebar > :is([data-part="main"], [data-part="rail"]) {
