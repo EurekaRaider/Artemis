@@ -18,6 +18,7 @@ import { dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import * as asar from "@electron/asar";
+import { SEMANTIC_TOKEN_REGISTRY } from "@artemis/theme-contract";
 import { build as esbuild } from "esbuild";
 
 import {
@@ -46,6 +47,7 @@ const smokePreloadSourcePath = join(
   "src/preload/.desktop-skin-smoke-preload.ts",
 );
 const screenshots = [];
+const expectedTokenCount = Object.keys(SEMANTIC_TOKEN_REGISTRY).length;
 const runtimeViewport = Object.freeze({ width: 1_420, height: 920 });
 const conformanceMatrix = JSON.parse(
   await readFile(
@@ -1494,8 +1496,8 @@ async function driveElectron() {
       "globalThis.__ARTEMIS_SKIN_SMOKE__.renderEntrySnapshot",
     );
     assert(
-      renderEntry.tokenCount === 77,
-      "First React render lacked 77 tokens.",
+      renderEntry.tokenCount === expectedTokenCount,
+      `First React render has ${renderEntry.tokenCount} tokens; expected ${expectedTokenCount} from the current registry.`,
     );
     assert(
       renderEntry.attrs.skin === "com.artemis.default" &&
@@ -1529,7 +1531,7 @@ async function driveElectron() {
       systemLight.result.status === "applied" &&
         systemLight.snapshot.attrs.theme === "light" &&
         systemLight.snapshot.attrs.legacyTheme === null &&
-        systemLight.snapshot.tokenCount === 77,
+        systemLight.snapshot.tokenCount === expectedTokenCount,
       "System light bridge was incomplete.",
     );
     await connection.send("Emulation.setEmulatedMedia", {
@@ -1547,7 +1549,7 @@ async function driveElectron() {
     assert(
       systemDark.attrs.theme === "dark" &&
         systemDark.attrs.legacyTheme === null &&
-        systemDark.tokenCount === 77,
+        systemDark.tokenCount === expectedTokenCount,
       "System dark bridge was incomplete.",
     );
     await connection.send("Emulation.setEmulatedMedia", {
@@ -1563,7 +1565,7 @@ async function driveElectron() {
     assert(
       systemHighContrast.result.status === "applied" &&
         systemHighContrast.snapshot.attrs.contrast === "high" &&
-        systemHighContrast.snapshot.tokenCount === 77,
+        systemHighContrast.snapshot.tokenCount === expectedTokenCount,
       "System high-contrast bridge was incomplete.",
     );
     await connection.send("Emulation.setEmulatedMedia", {
@@ -1585,7 +1587,7 @@ async function driveElectron() {
       explicitLight.result.status === "applied" &&
         explicitLight.snapshot.attrs.theme === "light" &&
         explicitLight.snapshot.attrs.legacyTheme === "light" &&
-        explicitLight.snapshot.tokenCount === 77,
+        explicitLight.snapshot.tokenCount === expectedTokenCount,
       "Explicit light bridge was incomplete.",
     );
     await connection.send("Emulation.setEmulatedMedia", {
@@ -1888,7 +1890,7 @@ async function driveElectron() {
           snapshot.attrs.theme === configuration.theme &&
           snapshot.attrs.legacyTheme === configuration.theme &&
           snapshot.attrs.contrast === configuration.contrast &&
-          snapshot.tokenCount === 77 &&
+          snapshot.tokenCount === expectedTokenCount &&
           snapshot.tokens?.["color.canvas"] === canvas,
         `Runtime mode failed: ${JSON.stringify({ configuration, outcome })}`,
       );
@@ -2072,7 +2074,7 @@ async function driveElectron() {
         outcome.result.status === "fallback" &&
           outcome.result.reason === reason &&
           outcome.snapshot.attrs.skin === "com.artemis.default" &&
-          outcome.snapshot.tokenCount === 77 &&
+          outcome.snapshot.tokenCount === expectedTokenCount &&
           outcome.snapshot.state.portalSame &&
           outcome.snapshot.state.portalInheritedCanvas ===
             outcome.snapshot.tokens?.["color.canvas"],
@@ -2092,7 +2094,7 @@ async function driveElectron() {
       defaultFatal.result.status === "fatal" &&
         defaultFatal.result.activeSkinId === "com.artemis.default" &&
         defaultFatal.snapshot.attrs.skin === "com.artemis.default" &&
-        defaultFatal.snapshot.tokenCount === 77 &&
+        defaultFatal.snapshot.tokenCount === expectedTokenCount &&
         defaultFatal.snapshot.state.portalSame &&
         defaultFatal.snapshot.state.portalInheritedCanvas ===
           defaultFatal.snapshot.tokens?.["color.canvas"],
