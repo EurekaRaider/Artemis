@@ -18,6 +18,7 @@
   align-items: center;
   gap: 8px;
   margin-block-end: 8px;
+  padding: 2px 2px 2px 6px;
   min-inline-size: 0;
 }
 .brand-button {
@@ -70,7 +71,7 @@
   align-items: center;
   gap: 9px;
   inline-size: 100%;
-  block-size: 30px;
+  block-size: 32px;
   padding: 0 10px;
   border-radius: 8px;
   color: var(--muted);
@@ -94,9 +95,9 @@
   font-weight: 600;
 }
 .sidebar .sidebar-header {
-  block-size: 46px;
-  min-block-size: 46px;
-  padding: 7px 10px;
+  block-size: 38px;
+  min-block-size: 38px;
+  padding: 8px 10px 2px;
 }
 .sidebar .sidebar-header [data-part="copy"] {
   display: none;
@@ -109,8 +110,72 @@
   inline-size: 100%;
 }
 .sidebar .project-tree {
-  padding: 0 8px;
+  padding: 2px 10px 8px;
 }
+
+.project-group-row {
+  margin-block-end: 5px;
+  gap: 9px;
+}
+.project-group-select {
+  flex: 1;
+}
+.project-group-row .project-new-thread,
+.project-collapse-all {
+  opacity: 0;
+}
+.project-collapse-all {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 20px;
+  block-size: 20px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--muted-2);
+  cursor: pointer;
+}
+.project-collapse-all:hover {
+  background: var(--hover);
+}
+.project-group-row:hover .project-new-thread,
+.project-group-row:focus-within .project-new-thread,
+.project-group-row:hover .project-collapse-all,
+.project-group-row:focus-within .project-collapse-all,
+.project-group-row:hover .project-group-select > svg,
+.project-group-row:focus-within .project-group-select > svg {
+  opacity: 1;
+}
+.project-toggle[aria-expanded="true"] svg {
+  transform: scale(0.8125);
+}
+.thread-time {
+  grid-column: 3;
+  grid-row: 1;
+  min-inline-size: 20px;
+  text-align: end;
+  font-size: 11px;
+  color: var(--muted-2);
+  white-space: nowrap;
+}
+.thread-select:has(.im-thread-indicators) .thread-time {
+  grid-column: 4;
+}
+.project-thread-row > .thread-action {
+  position: absolute;
+  inset-inline-end: 7px;
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+}
+.project-thread-row:hover .thread-time,
+.project-thread-row:focus-within .thread-time {
+  opacity: 0;
+}
+.thread-select .status-dot.idle,
+.thread-select .status-dot.completed {
+  background: var(--border);
+}
+
 .sidebar .sidebar-footer {
   gap: 7px;
   padding: 10px;

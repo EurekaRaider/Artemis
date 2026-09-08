@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 342000,
+      "desktopCssBytes": 344000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -78,6 +78,14 @@
       "reason": "Full 9556fac prototype migration adds integrated navigation, rail/peek structure, composer and goal treatments, context colors, and 20 optional semantic token fallbacks. Isolated builds with identical installed dependencies measure 319175 bytes before and 337772 bytes after (+18597, 5.83%). The 342000-byte ceiling leaves 4228 bytes of headroom. JavaScript, shared UI, gallery, startup and workload ceilings remain unchanged.",
       "baseDesktopCssBytes": 319175,
       "desktopCssIncreaseBytes": 18597
+    },
+    {
+      "date": "2026-09-08",
+      "baseHead": "b4d1dc4f4ed3df82c0ebaf50b7aea9f1cf379242",
+      "baseDesktopCssBytes": 341875,
+      "measuredDesktopCssBytes": 343215,
+      "desktopCssIncreaseBytes": 1340,
+      "reason": "Issue #154 sidebar prototype alignment adds localized timestamps, hover action placement, group controls and folder state styling (+0.39%). The previous 342000-byte ceiling had 125 bytes of headroom. The 344000-byte ceiling leaves 785 bytes. Both revisions were measured with the same Vite pipeline and dependencies, substituting only the two changed renderer CSS files from baseHead. JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
     }
   ],
   "startupBudgetRevisions": [

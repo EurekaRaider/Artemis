@@ -93,8 +93,8 @@ describe("reported issues #56–#59", () => {
     expect(projects).toContain("onClick={() => void openProject()}");
     expect(projects).toContain("aria-label={t.openProject}");
     expect(temporarySection).toContain("onClick={beginTemporaryConversation}");
-    expect(stylesSource).toMatch(
-      /\.project-collection > \.project-row > \.project-new-thread,[\s\S]*?\.temporary-conversations > \.project-row \.project-new-thread\s*\{[^}]*opacity:\s*1/u,
+    expect(source("../src/renderer/prototype-migration.css")).toMatch(
+      /\.project-group-row:hover \.project-new-thread,[\s\S]*?\.project-group-row:focus-within \.project-new-thread,[^}]*opacity:\s*1/u,
     );
   });
 

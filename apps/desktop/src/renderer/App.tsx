@@ -255,6 +255,7 @@ import {
 } from "./workspace-dock-layout.js";
 import {
   clampProjectSidebarWidth,
+  formatSidebarTime,
   PROJECT_SIDEBAR_WIDTH_DEFAULT,
   PROJECT_SIDEBAR_WIDTH_MAX,
   PROJECT_SIDEBAR_WIDTH_MIN,
@@ -442,6 +443,8 @@ const copy = {
     showFewerTasks: "Show less",
     expandProjectHistory: "Expand conversation history",
     collapseProjectHistory: "Collapse conversation history",
+    collapseAllProjectHistories: "Collapse all project conversations",
+    expandAllProjectHistories: "Expand all project conversations",
     moreActions: "More task actions",
     taskNamePrompt: "Task name",
     archiveConfirm: "Archive this task?",
@@ -725,6 +728,8 @@ const copy = {
     showFewerTasks: "收起显示",
     expandProjectHistory: "展开对话记录",
     collapseProjectHistory: "折叠对话记录",
+    collapseAllProjectHistories: "收起全部项目会话",
+    expandAllProjectHistories: "展开全部项目会话",
     moreActions: "更多任务操作",
     taskNamePrompt: "任务名称",
     archiveConfirm: "归档这个任务？",
@@ -1391,7 +1396,7 @@ function prepareThreadTitleScroll(
 
   const titleWidth =
     content.firstElementChild instanceof HTMLElement
-      ? content.firstElementChild.scrollWidth
+      ? content.firstElementChild.getBoundingClientRect().width
       : content.scrollWidth;
   const distance = Math.ceil(titleWidth - viewport.clientWidth);
   if (distance <= 1) {
@@ -1696,14 +1701,16 @@ export function App() {
       },
     );
   }
-  const setProjectCollapsed = useCallback(
-    (projectId: string, collapsed: boolean) => {
+  const setProjectHistoriesCollapsed = useCallback(
+    (projectIds: readonly string[], collapsed: boolean) => {
       collapsedProjectIdsTouched.current = true;
       const previous = collapsedProjectIdsRef.current;
       const next = new Set(previous);
-      if (collapsed) next.add(projectId);
-      else next.delete(projectId);
-      if (next.size === previous.size && next.has(projectId) === collapsed) {
+      for (const projectId of projectIds) {
+        if (collapsed) next.add(projectId);
+        else next.delete(projectId);
+      }
+      if (next.size === previous.size) {
         return;
       }
       collapsedProjectIdsRef.current = next;
@@ -1717,6 +1724,11 @@ export function App() {
       );
     },
     [],
+  );
+  const setProjectCollapsed = useCallback(
+    (projectId: string, collapsed: boolean) =>
+      setProjectHistoriesCollapsed([projectId], collapsed),
+    [setProjectHistoriesCollapsed],
   );
   const setProjectRowCollapsed = useCallback(
     (rowId: string, collapsed: boolean) => {
@@ -3572,6 +3584,9 @@ export function App() {
       ),
     [runtimeSettings?.projectOrder, snapshot?.projects],
   );
+  const hasExpandedProject = projects.some(
+    (project) => !collapsedProjectIds.has(project.id),
+  );
   const temporaryThreads = sortProjectThreads(
     (snapshot?.threads ?? [])
       .filter((thread) => !thread.projectId && !thread.archived)
@@ -4092,9 +4107,10 @@ export function App() {
   }, [activeThread?.goal?.goalId, closeGoalEditor, workspaceTabs.tabs]);
 
   useEffect(() => {
-    if (!turnActive && activeThread?.goal?.status !== "active") return;
     setClockMs(Date.now());
-    const timer = window.setInterval(() => setClockMs(Date.now()), 1_000);
+    const interval =
+      turnActive || activeThread?.goal?.status === "active" ? 1_000 : 60_000;
+    const timer = window.setInterval(() => setClockMs(Date.now()), interval);
     return () => window.clearInterval(timer);
   }, [activeThread?.goal?.status, turnActive]);
 
@@ -5698,8 +5714,47 @@ export function App() {
                 title={projectsExpanded ? t.collapseProjects : t.expandProjects}
                 type="button"
               >
-                <ChevronIcon />
                 <span className="project-group-title">{t.projects}</span>
+                <ChevronIcon />
+              </button>
+              <button
+                aria-label={
+                  hasExpandedProject
+                    ? t.collapseAllProjectHistories
+                    : t.expandAllProjectHistories
+                }
+                className="project-collapse-all"
+                disabled={projects.length === 0}
+                onClick={() =>
+                  setProjectHistoriesCollapsed(
+                    projects.map((project) => project.id),
+                    hasExpandedProject,
+                  )
+                }
+                title={
+                  hasExpandedProject
+                    ? t.collapseAllProjectHistories
+                    : t.expandAllProjectHistories
+                }
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  {hasExpandedProject ? (
+                    <path d="M4 14h6v6M10 14l-7 7M20 10h-6V4M14 10l7-7" />
+                  ) : (
+                    <path d="M14.5 4H20v5.5M20 4l-5.5 5.5M9.5 20H4v-5.5M4 20l5.5-5.5" />
+                  )}
+                </svg>
               </button>
               <button
                 aria-label={t.openProject}
@@ -5830,6 +5885,8 @@ export function App() {
                             : t.expandProjectHistory
                         }
                         className="project-toggle"
+                        aria-expanded={projectOpen}
+                        aria-controls={`project-thread-list-${project.id}`}
                         onClick={() => toggleProjectHistory(project.id)}
                         title={
                           projectOpen
@@ -6048,11 +6105,10 @@ export function App() {
                                     setThreadMenuId(undefined);
                                   }}
                                 >
-                                  {thread.status !== "idle" && (
-                                    <span
-                                      className={`status-dot ${thread.status}`}
-                                    />
-                                  )}
+                                  <span
+                                    aria-hidden="true"
+                                    className={`status-dot ${thread.status}`}
+                                  />
                                   {imThreadStatus[thread.id] && (
                                     <ImThreadConnection
                                       status={imThreadStatus[thread.id]!}
@@ -6076,6 +6132,19 @@ export function App() {
                                       </span>
                                     </span>
                                   </span>
+                                  <time
+                                    className="thread-time"
+                                    dateTime={thread.updatedAt}
+                                    title={new Date(
+                                      thread.updatedAt,
+                                    ).toLocaleString(locale)}
+                                  >
+                                    {formatSidebarTime(
+                                      thread.updatedAt,
+                                      clockMs,
+                                      locale,
+                                    )}
+                                  </time>
                                 </button>
                                 <button
                                   aria-label={t.moreActions}
@@ -6215,10 +6284,10 @@ export function App() {
                 title={t.temporaryConversations}
                 type="button"
               >
-                <ChevronIcon />
                 <span className="project-group-title">
                   {t.temporaryConversations}
                 </span>
+                <ChevronIcon />
               </button>
               <button
                 aria-label={`${t.newTask}: ${t.temporaryConversations}`}
@@ -6297,9 +6366,10 @@ export function App() {
                         }}
                         type="button"
                       >
-                        {thread.status !== "idle" && (
-                          <span className={`status-dot ${thread.status}`} />
-                        )}
+                        <span
+                          aria-hidden="true"
+                          className={`status-dot ${thread.status}`}
+                        />
                         {imThreadStatus[thread.id] && (
                           <ImThreadConnection
                             status={imThreadStatus[thread.id]!}
@@ -6321,6 +6391,15 @@ export function App() {
                             </span>
                           </span>
                         </span>
+                        <time
+                          className="thread-time"
+                          dateTime={thread.updatedAt}
+                          title={new Date(thread.updatedAt).toLocaleString(
+                            locale,
+                          )}
+                        >
+                          {formatSidebarTime(thread.updatedAt, clockMs, locale)}
+                        </time>
                       </button>
                       <button
                         aria-label={t.moreActions}

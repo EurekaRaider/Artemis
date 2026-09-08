@@ -85,11 +85,12 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
     expect(cssDeclarations(".project-thread-row")).toContain("margin-left: 0");
     expect(cssDeclarations(".project-thread-row")).toContain("padding-left: 0");
 
-    const selectedRow = stylesSource.match(
-      /\.project-thread-row:hover\s*,\s*\.project-thread-row\.selected\s*\{(?<body>[^}]*)\}/u,
+    expect(cssDeclarations(".project-thread-row:hover")).toContain(
+      "background: var(--hover)",
     );
-    expect(selectedRow).not.toBeNull();
-    expect(selectedRow?.groups?.body).toContain("background: var(--selected)");
+    expect(cssDeclarations(".project-thread-row.selected")).toContain(
+      "background: var(--selected)",
+    );
   });
 
   it("keeps root groups icon-free and aligns their contents at the first project level", () => {

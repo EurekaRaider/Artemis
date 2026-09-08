@@ -279,7 +279,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 }
 
 .project-group + .project-group {
-  margin-top: 14px;
+  margin-top: 6px;
 }
 
 .project-collection-rows > .nested-project:first-child,
@@ -293,7 +293,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 }
 
 .nested-project + .nested-project {
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .project-row,
@@ -313,7 +313,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   color: var(--muted);
   font-size: 12.5px;
   font-weight: 590;
-  height: 30px;
+  height: 32px;
   line-height: 18.75px;
   padding-inline-end: 6px;
 }
@@ -340,6 +340,11 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 }
 
 .project-thread-row:hover,
+.project-row:hover,
+.project-group-row:focus-within {
+  background: var(--hover);
+}
+
 .project-thread-row.selected {
   background: var(--selected);
 }
@@ -351,7 +356,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   flex: 1;
   height: 100%;
   min-width: 0;
-  padding: 5px 6px 5px 36px;
+  padding: 5px 6px 5px 35px;
   display: flex;
   text-align: left;
   column-gap: 5px;
@@ -366,9 +371,9 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   flex: 1;
   height: 100%;
   min-width: 0;
-  padding: 6px;
-  text-align: left;
-  gap: 6px;
+  padding: 6px 6px 6px 10px;
+  text-align: start;
+  gap: 9px;
   font-size: 11px;
   font-weight: 620;
   letter-spacing: 0.05em;
@@ -468,7 +473,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 
 .project-thread-row {
   margin-left: 0;
-  min-height: 36px;
+  min-height: 32px;
   padding-left: 0;
   transition:
     opacity 120ms ease,
@@ -523,10 +528,11 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   flex: 1;
   height: 100%;
   min-width: 0;
-  padding: 4.5px 6px 4.5px 8px;
+  padding: 4.5px 8px;
+  grid-template-columns: var(--sidebar-marker-column) minmax(0, 1fr) auto;
   position: relative;
   text-align: left;
-  min-height: 36px;
+  min-height: 32px;
   column-gap: 7px;
   --sidebar-marker-column: 6px;
 }
@@ -541,7 +547,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 }
 
 .thread-select:has(.im-thread-indicators) {
-  grid-template-columns: var(--sidebar-marker-column) auto minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-marker-column) auto minmax(0, 1fr) auto;
 }
 
 .thread-select:has(.im-thread-indicators) .thread-title {
@@ -676,17 +682,12 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   width: 14px;
 }
 
-.project-collection > .project-row > .project-new-thread,
-.temporary-conversations > .project-row .project-new-thread {
-  opacity: 1;
-}
-
 .project-row.active .project-new-thread,
 .project-new-thread:focus-visible,
 .project-row.active .project-action,
 .project-action:focus-visible,
 .project-thread-row:hover .thread-action,
-.project-thread-row.selected .thread-action,
+.project-thread-row:focus-within .thread-action,
 .thread-action:focus-visible {
   opacity: 1;
 }
@@ -9399,8 +9400,10 @@ kbd {
   height: 12px;
 }
 .project-group-select > svg {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
+  flex: none;
+  opacity: 0;
 }
 .project-group-select[aria-expanded="false"] > svg {
   transform: rotate(-90deg);
