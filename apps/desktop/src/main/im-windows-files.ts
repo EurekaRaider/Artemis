@@ -351,21 +351,25 @@ export async function runWindowsImShell(input: {
     }
     input.assertCurrent();
     const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+    const powerShellHome = win32.join(
+      systemRoot,
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+    );
+    const command = [
+      "Import-Module Microsoft.PowerShell.Management,Microsoft.PowerShell.Utility -ErrorAction Stop",
+      input.command,
+    ].join("\n");
     const launch = buildWindowsAppContainerLaunch(
       {
-        executable: win32.join(
-          systemRoot,
-          "System32",
-          "WindowsPowerShell",
-          "v1.0",
-          "powershell.exe",
-        ),
+        executable: win32.join(powerShellHome, "powershell.exe"),
         args: [
           "-NoLogo",
           "-NoProfile",
           "-NonInteractive",
           "-EncodedCommand",
-          Buffer.from(input.command, "utf16le").toString("base64"),
+          Buffer.from(command, "utf16le").toString("base64"),
         ],
         cwd: stage,
         env: {
@@ -374,13 +378,7 @@ export async function runWindowsImShell(input: {
           ComSpec: win32.join(systemRoot, "System32", "cmd.exe"),
           PATH: win32.join(systemRoot, "System32"),
           // Only Windows' built-in modules are available; never inherit user modules.
-          PSModulePath: win32.join(
-            systemRoot,
-            "System32",
-            "WindowsPowerShell",
-            "v1.0",
-            "Modules",
-          ),
+          PSModulePath: win32.join(powerShellHome, "Modules"),
           USERPROFILE: stage,
           APPDATA: stage,
           LOCALAPPDATA: stage,
@@ -393,7 +391,8 @@ export async function runWindowsImShell(input: {
         workspaceAccess: "read",
         mode: "execute",
         network: input.network ? "allow" : "deny",
-        readOnlyPaths: [stage],
+        // Built-in module manifests are runtime code, outside the copied data.
+        readOnlyPaths: [stage, powerShellHome],
         writablePaths: input.scope.writePaths.map((p) => join(stage, p)),
       },
       {

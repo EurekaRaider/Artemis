@@ -71,6 +71,20 @@ describe("Windows scoped shell orchestration", () => {
           "AUTHORIZED",
         );
         await expect(readFile(join(stage, "private.txt"))).rejects.toThrow();
+        const readOnlyIndex = launch.args.indexOf("-ReadOnlyPathsBase64");
+        expect(
+          JSON.parse(
+            Buffer.from(launch.args[readOnlyIndex + 1]!, "base64").toString(),
+          ),
+        ).toEqual([
+          stage,
+          win32.join(
+            launch.env!.SystemRoot!,
+            "System32",
+            "WindowsPowerShell",
+            "v1.0",
+          ),
+        ]);
         const index = launch.args.indexOf("-WritablePathsBase64");
         expect(
           JSON.parse(Buffer.from(launch.args[index + 1]!, "base64").toString()),
