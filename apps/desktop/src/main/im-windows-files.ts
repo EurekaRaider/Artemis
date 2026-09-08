@@ -391,8 +391,7 @@ export async function runWindowsImShell(input: {
         workspaceAccess: "read",
         mode: "execute",
         network: input.network ? "allow" : "deny",
-        // Built-in module manifests are runtime code, outside the copied data.
-        readOnlyPaths: [stage, powerShellHome],
+        readOnlyPaths: [stage],
         writablePaths: input.scope.writePaths.map((p) => join(stage, p)),
       },
       {
