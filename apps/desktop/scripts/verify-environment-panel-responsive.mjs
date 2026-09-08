@@ -266,7 +266,9 @@ try {
       review.reviewGeometry?.root.width >= 320 &&
       review.reviewGeometry.toolbar?.width >= 320 &&
       review.reviewGeometry.reader?.width >= 320 &&
-      review.reviewGeometry.files?.width >= 320 &&
+      // The current split Review uses a 185px minimum file sidebar, with
+      // remaining width reserved for the diff reader.
+      review.reviewGeometry.files?.width >= 185 &&
       review.reviewGeometry.diffState === "selected" &&
       review.reviewGeometry.lineCount > 0,
     "RTL Review geometry is incomplete or too narrow to use.",

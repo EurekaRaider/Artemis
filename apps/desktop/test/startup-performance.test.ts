@@ -137,7 +137,10 @@ describe("desktop startup latency guardrails", () => {
     );
     expect(mainSource).toContain("Number(actionOpacity) >= 0.99");
     expect(conversationVerifierSource).toContain(
-      "20 - 1 / Math.max(1, Number(timeline.devicePixelRatio) || 1)",
+      "Math.round(20 * devicePixelRatio) - 1",
+    );
+    expect(conversationVerifierSource).toContain(
+      "visibleDevicePixels >= minimumVisibleDevicePixels",
     );
   });
 
