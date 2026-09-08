@@ -6674,11 +6674,6 @@ export function App() {
                         : {})}
                       sources={environmentSources}
                       taskTitle={activeThread?.title ?? activeProject.name}
-                      taskStatusLabel={
-                        runPresentation.status === "completed"
-                          ? t.completed
-                          : statusLabel(threadState, locale, clockMs)
-                      }
                       teams={environmentTeams}
                       {...(activeThreadId ? { threadId: activeThreadId } : {})}
                     />

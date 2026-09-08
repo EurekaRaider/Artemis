@@ -83,7 +83,7 @@ function pullRequest(
 }
 
 describe("task environment panel state", () => {
-  it("shows direct standalone agents while representing team members only by their team", () => {
+  it("includes direct team members and standalone agents while excluding the root and nested agents", () => {
     const agents = [
       { agentId: "direct", parentAgentId: "parent", depth: 1 },
       { agentId: "legacy-direct" },
@@ -91,13 +91,18 @@ describe("task environment panel state", () => {
       { agentId: "depth-only", depth: 2 },
       { agentId: "member", parentAgentId: "parent", teamId: "team" },
       { agentId: "legacy-member", parentAgentId: "parent" },
+      { agentId: "parent" },
+      {
+        agentId: "team-nested",
+        teamId: "team",
+        parentAgentId: "member",
+        depth: 2,
+      },
+      { agentId: "root-depth", depth: 0 },
     ] as ChildAgentState[];
-    const teams = [
-      { teamId: "team", memberAgentIds: ["member", "legacy-member"] },
-    ] as AgentTeamState[];
     expect(
-      environmentTopLevelAgents(agents, teams).map((agent) => agent.agentId),
-    ).toEqual(["direct", "legacy-direct"]);
+      environmentTopLevelAgents(agents).map((agent) => agent.agentId),
+    ).toEqual(["direct", "legacy-direct", "member", "legacy-member"]);
   });
   it("mounts the popover between task status and the existing right dock", () => {
     const status = appSource.indexOf('className="status-pill"');
@@ -153,7 +158,7 @@ describe("task environment panel state", () => {
 
   it("hides optional task sections until they contain activity", () => {
     expect(panelSource).toContain(
-      "(threadId || displayAgents.length > 0 || teams.length > 0) &&",
+      "(displayAgents.length > 0 || teams.length > 0) &&",
     );
     expect(panelSource).toContain("hasSourcePanelDetails &&");
     expect(panelSource).toContain("const sourceCallCount =");
@@ -162,7 +167,7 @@ describe("task environment panel state", () => {
 
   it("shows stable identity marks instead of generic person icons", () => {
     expect(panelSource).toContain("<ChildAgentIcon");
-    expect(panelSource).toContain("identity={team.teamId}");
+    expect(panelSource).toContain('className="environment-agent-team-trigger"');
     expect(panelSource).toContain("identity={agent.agentId}");
     expect(panelSource).not.toContain("function AgentIcon(");
     expect(stylesSource).toContain(

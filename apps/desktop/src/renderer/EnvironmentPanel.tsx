@@ -135,7 +135,6 @@ const labels = {
     unpushedCommitNotChecked: "Checks do not include unpushed commits.",
     differentHeadNotChecked: "Checks ran against a different commit.",
     agents: "Agent activity",
-    mainAgent: "Main agent",
     taskContext: "Context used in this task",
     sourceSummary: (attachments: number, calls: number) =>
       `${attachments} attachments · ${calls} tool calls`,
@@ -241,7 +240,6 @@ const labels = {
     unpushedCommitNotChecked: "检查不包含尚未推送的提交。",
     differentHeadNotChecked: "检查运行于另一个提交。",
     agents: "Agent 活动",
-    mainAgent: "主 Agent",
     taskContext: "本次任务所用的上下文",
     sourceSummary: (attachments: number, calls: number) =>
       `${attachments} 个附件 · ${calls} 次工具调用`,
@@ -457,13 +455,10 @@ export function environmentDisplayAgents(
 
 export function environmentTopLevelAgents(
   agents: readonly ChildAgentState[],
-  teams: readonly AgentTeamState[],
 ): ChildAgentState[] {
-  const members = new Set(teams.flatMap((team) => team.memberAgentIds));
   return agents.filter(
     (agent) =>
-      !agent.teamId &&
-      !members.has(agent.agentId) &&
+      agent.agentId !== "parent" &&
       (!agent.parentAgentId || agent.parentAgentId === "parent") &&
       (agent.depth === undefined || agent.depth === 1),
   );
@@ -794,7 +789,6 @@ export function EnvironmentPanel({
   refreshKey,
   sources,
   taskTitle,
-  taskStatusLabel,
   teams,
   threadId,
 }: {
@@ -822,7 +816,6 @@ export function EnvironmentPanel({
   refreshKey?: string;
   sources: TaskSourceState[];
   taskTitle: string;
-  taskStatusLabel?: string;
   teams: AgentTeamState[];
   threadId?: string;
 }) {
@@ -871,24 +864,6 @@ export function EnvironmentPanel({
   const [menuBranchName, setMenuBranchName] = useState("");
   const [pendingSwitchBranch, setPendingSwitchBranch] = useState<string>();
   const [showAllAgents, setShowAllAgents] = useState(false);
-  const [taskSummary, setTaskSummary] = useState<{
-    key: string;
-    text: string;
-  }>();
-  const taskSummaryKey = JSON.stringify([threadId, taskTitle, locale]);
-  useEffect(() => {
-    if (!open || !threadId || Array.from(taskTitle).length <= 20) return;
-    let cancelled = false;
-    void window.artemis
-      .getThreadTaskSummary(threadId)
-      .then((text) => {
-        if (!cancelled && text) setTaskSummary({ key: taskSummaryKey, text });
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [open, threadId, taskTitle, taskSummaryKey]);
 
   const hidePanel = useCallback(() => {
     manuallyOpened.current = false;
@@ -1283,8 +1258,7 @@ export function EnvironmentPanel({
   ]);
 
   const displayAgents = useMemo(
-    () =>
-      environmentTopLevelAgents(environmentDisplayAgents(agents, teams), teams),
+    () => environmentTopLevelAgents(environmentDisplayAgents(agents, teams)),
     [agents, teams],
   );
   const counts = useMemo(
@@ -1398,15 +1372,23 @@ export function EnvironmentPanel({
       })
     : ({ kind: "idle", disabledReason: t.loading } as const);
   const activityPreviewLimit = 2;
-  const visibleTeams = showAllAgents
-    ? teams
-    : teams.slice(0, activityPreviewLimit);
   const visibleAgents = showAllAgents
     ? displayAgents
-    : displayAgents.slice(
-        0,
-        Math.max(0, activityPreviewLimit - visibleTeams.length),
-      );
+    : displayAgents.slice(0, activityPreviewLimit);
+  const teamGroups = teams.map((team) => ({
+    team,
+    agents: visibleAgents.filter((agent) =>
+      agent.teamId
+        ? agent.teamId === team.teamId
+        : team.memberAgentIds.includes(agent.agentId),
+    ),
+  }));
+  const groupedAgentIds = new Set(
+    teamGroups.flatMap((group) => group.agents.map((agent) => agent.agentId)),
+  );
+  const standaloneAgents = visibleAgents.filter(
+    (agent) => !groupedAgentIds.has(agent.agentId),
+  );
   const visibleBranches = environmentBranchMenuBranches(
     gitInfo?.branches ?? [],
     branchQuery,
@@ -1610,6 +1592,32 @@ export function EnvironmentPanel({
       setGitBusy(undefined);
     }
   };
+
+  const renderAgentRow = (agent: ChildAgentState) => (
+    <button
+      className="environment-activity-row"
+      key={agent.agentId}
+      onClick={() => {
+        hidePanel();
+        onOpenAgent(agent);
+      }}
+      type="button"
+    >
+      <span className="environment-row-icon">
+        <ChildAgentIcon
+          className="environment-agent-mark"
+          identity={agent.agentId}
+        />
+      </span>
+      <span>
+        <strong title={agent.label}>{agent.label}</strong>
+        <small>
+          {agentStatusLabels[agent.status]}
+          {agent.currentTool ? ` · ${agent.currentTool}` : ""}
+        </small>
+      </span>
+    </button>
+  );
 
   return (
     <EnvironmentControl data-dock-open={dockOpen} open={open} ref={control}>
@@ -1820,10 +1828,10 @@ export function EnvironmentPanel({
             )}
           </EnvironmentSection>
 
-          {(threadId || displayAgents.length > 0 || teams.length > 0) && (
+          {(displayAgents.length > 0 || teams.length > 0) && (
             <EnvironmentSection
               action={
-                displayAgents.length + teams.length > activityPreviewLimit ? (
+                displayAgents.length > activityPreviewLimit ? (
                   <button
                     className="environment-text-action"
                     onClick={() => setShowAllAgents((current) => !current)}
@@ -1836,71 +1844,32 @@ export function EnvironmentPanel({
               title={t.agents}
             >
               <div className="environment-activity-list">
-                {threadId && (
-                  <div className="environment-setting-row">
-                    <span className="environment-setting-copy">
-                      <strong>{t.mainAgent}</strong>
-                      <small
-                        className="environment-task-summary"
-                        title={taskTitle}
-                      >
-                        {taskSummary?.key === taskSummaryKey
-                          ? taskSummary.text
-                          : taskTitle}
-                      </small>
-                    </span>
-                    <span className="environment-task-state">
-                      {taskStatusLabel}
-                    </span>
-                  </div>
-                )}
-                {visibleTeams.map((team) => (
-                  <button
-                    className="environment-activity-row"
+                {teamGroups.map(({ team, agents: members }) => (
+                  <div
+                    aria-label={team.mission}
+                    className="environment-agent-group"
                     key={team.teamId}
-                    onClick={() => {
-                      hidePanel();
-                      onOpenTeam(team);
-                    }}
-                    type="button"
+                    role="group"
                   >
-                    <span className="environment-row-icon">
-                      <ChildAgentIcon
-                        className="environment-agent-mark"
-                        identity={team.teamId}
-                      />
-                    </span>
-                    <span>
-                      <strong title={team.mission}>{team.mission}</strong>
-                      <small>{teamStatusLabels[team.status]}</small>
-                    </span>
-                  </button>
+                    <button
+                      className="environment-agent-team-trigger"
+                      onClick={() => {
+                        hidePanel();
+                        onOpenTeam(team);
+                      }}
+                      title={`${team.mission} · ${teamStatusLabels[team.status]}`}
+                      type="button"
+                    >
+                      <span>{t.teams}</span>
+                      <strong>{team.mission}</strong>
+                      <EnvironmentChevronIcon />
+                    </button>
+                    <div className="environment-agent-team-children">
+                      {members.map(renderAgentRow)}
+                    </div>
+                  </div>
                 ))}
-                {visibleAgents.map((agent) => (
-                  <button
-                    className="environment-activity-row"
-                    key={agent.agentId}
-                    onClick={() => {
-                      hidePanel();
-                      onOpenAgent(agent);
-                    }}
-                    type="button"
-                  >
-                    <span className="environment-row-icon">
-                      <ChildAgentIcon
-                        className="environment-agent-mark"
-                        identity={agent.agentId}
-                      />
-                    </span>
-                    <span>
-                      <strong title={agent.label}>{agent.label}</strong>
-                      <small>
-                        {agentStatusLabels[agent.status]}
-                        {agent.currentTool ? ` · ${agent.currentTool}` : ""}
-                      </small>
-                    </span>
-                  </button>
-                ))}
+                {standaloneAgents.map(renderAgentRow)}
                 {displayAgents.length > 0 && (
                   <p className="environment-agent-summary">
                     {t.agentSummary(counts.total, counts.active)} · {t.queued}{" "}

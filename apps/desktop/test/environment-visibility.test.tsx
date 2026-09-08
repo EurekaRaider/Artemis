@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps, CSSProperties } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -137,6 +137,175 @@ function resize(width: number) {
 }
 const dialog = () =>
   screen.queryByRole("dialog", { name: "Environment", exact: true });
+
+describe("environment agent activity", () => {
+  const child = {
+    type: "child-agent.status" as const,
+    agentId: "child",
+    parentAgentId: "parent",
+    depth: 1,
+    label: "Layout check",
+    status: "running" as const,
+    updatedAt: "2026-09-06T00:00:00Z",
+  };
+
+  it("hides the activity section when the task has no children or teams", async () => {
+    await renderReady(fixture());
+    expect(dialog()).toBeVisible();
+    expect(screen.queryByText("Main agent")).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "Agent activity" }),
+    ).toBeNull();
+  });
+
+  it("shows only direct children and preserves preview expansion and navigation", async () => {
+    const onOpenAgent = vi.fn();
+    const children = [
+      child,
+      ...[2, 3].map((index) => ({
+        ...child,
+        agentId: `child-${index}`,
+        label: `Layout check ${index}`,
+      })),
+    ];
+    await renderReady(
+      fixture({
+        onOpenAgent,
+        agents: [
+          ...children,
+          {
+            ...child,
+            agentId: "nested",
+            parentAgentId: child.agentId,
+            depth: 2,
+            label: "Nested check",
+          },
+        ],
+      }),
+    );
+    expect(screen.queryByText("Main agent")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Nested check/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Layout check 3/ })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "View all", exact: true }),
+    );
+    expect(
+      screen.getByRole("button", { name: /Layout check 3/ }),
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Show less", exact: true }),
+    );
+    expect(screen.queryByRole("button", { name: /Layout check 3/ })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: /Layout check\s*Started working/ }),
+    );
+    expect(onOpenAgent).toHaveBeenCalledWith(child);
+  });
+
+  it("lists direct children beneath the team entry and opens the selected child", async () => {
+    const children = [
+      "cxx-plan-wrapper",
+      "csharp-plan-bindings",
+      "cli-validate-plan",
+      "actor-review-fixes",
+      "fleet-plan-c-abi",
+      "typed-flash-rebase-verify",
+    ].map((label) => ({ ...child, agentId: label, label, teamId: "team" }));
+    const nested = {
+      ...child,
+      agentId: "nested",
+      label: "Nested team member",
+      parentAgentId: children[0]!.agentId,
+      depth: 2,
+      teamId: "team",
+    };
+    const team = {
+      type: "agent-team.status" as const,
+      teamId: "team",
+      mission: "Follow the handoff document and finish the remaining work",
+      status: "completed" as const,
+      memberAgentIds: [
+        ...children.map((member) => member.agentId),
+        nested.agentId,
+      ],
+      requiredAgentIds: children.map((member) => member.agentId),
+      maxMembers: 8,
+      updatedAt: child.updatedAt,
+    };
+    const onOpenAgent = vi.fn();
+    const { rerender } = await renderReady(fixture({ teams: [team] }));
+    expect(screen.getByRole("group", { name: team.mission })).toBeVisible();
+    expect(document.querySelectorAll(".environment-activity-row")).toHaveLength(
+      0,
+    );
+    rerender(
+      fixture({
+        agents: [...children, nested],
+        teams: [team],
+        onOpenAgent,
+      }),
+    );
+    expect(screen.queryByText("Main agent")).toBeNull();
+    const group = screen.getByRole("group", { name: team.mission });
+    expect(
+      within(group).getByRole("button", { name: new RegExp(team.mission) }),
+    ).toHaveClass("environment-agent-team-trigger");
+    expect(screen.queryByText(nested.label)).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /cxx-plan-wrapper/ }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /typed-flash-rebase-verify/ }),
+    ).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "View all", exact: true }),
+    );
+    for (const member of children) {
+      const row = within(group).getByRole("button", {
+        name: new RegExp(`${member.label}\\s*Completed`),
+      });
+      expect(row).toBeVisible();
+      expect(row.parentElement).toHaveClass("environment-agent-team-children");
+    }
+    expect(screen.queryByText(nested.label)).toBeNull();
+    expect(screen.getByText(/6 total · 0 active/)).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: /cxx-plan-wrapper/ }),
+    );
+    expect(onOpenAgent).toHaveBeenCalledWith({
+      ...children[0],
+      status: "completed",
+    });
+  });
+
+  it("opens each team from its own group header, including teams with no loaded children", async () => {
+    const teams = ["First team", "Second team"].map((mission) => ({
+      type: "agent-team.status" as const,
+      teamId: mission,
+      mission,
+      status: "running" as const,
+      memberAgentIds: [],
+      requiredAgentIds: [],
+      maxMembers: 8,
+      updatedAt: child.updatedAt,
+    }));
+    const onOpenTeam = vi.fn();
+    await renderReady(fixture({ teams, onOpenTeam }));
+    expect(
+      screen.queryByRole("button", { name: "View all", exact: true }),
+    ).toBeNull();
+    for (const team of teams) {
+      expect(
+        within(screen.getByRole("group", { name: team.mission })).getByRole(
+          "button",
+          { name: new RegExp(team.mission) },
+        ),
+      ).toBeVisible();
+    }
+    await userEvent.click(screen.getByRole("button", { name: /Second team/ }));
+    expect(onOpenTeam).toHaveBeenCalledWith(teams[1]);
+  });
+});
 
 describe("environment panel automatic visibility", () => {
   it("keeps a new conversation closed, then opens after the conversation starts", async () => {
