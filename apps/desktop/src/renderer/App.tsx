@@ -1617,9 +1617,8 @@ export function App() {
   });
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
 
-  const openSettings = (tab: SettingsEntryTab = "general") => {
-    if (document.activeElement instanceof HTMLButtonElement)
-      settingsTrigger.current = document.activeElement;
+  const openSettings = (tab: SettingsEntryTab, trigger: HTMLButtonElement) => {
+    settingsTrigger.current = trigger;
     setSettingsTab(tab);
     setSettingsOpen(true);
   };
@@ -5486,7 +5485,7 @@ export function App() {
               className="rail-avatar"
               title={username}
               aria-label={username}
-              onClick={() => openSettings("general")}
+              onClick={(event) => openSettings("general", event.currentTarget)}
             >
               {userInitials(username)}
             </button>
@@ -5495,7 +5494,7 @@ export function App() {
               className="rail-item"
               aria-label={t.settings}
               title={t.settings}
-              onClick={() => openSettings()}
+              onClick={(event) => openSettings("general", event.currentTarget)}
             >
               <SettingsIcon />
             </button>
@@ -5508,8 +5507,7 @@ export function App() {
               type="button"
               aria-label={t.settings}
               title={t.settings}
-              onClick={() => openSettings()}
-              ref={settingsTrigger}
+              onClick={(event) => openSettings("general", event.currentTarget)}
             >
               <SettingsIcon />
             </button>
@@ -5563,7 +5561,9 @@ export function App() {
               <button
                 aria-label={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
                 className="app-version"
-                onClick={() => openSettings("maintenance")}
+                onClick={(event) =>
+                  openSettings("maintenance", event.currentTarget)
+                }
                 title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
                 type="button"
               >

@@ -15033,10 +15033,22 @@ function createMainWindow(): BrowserWindow {
                   document.documentElement.dir = 'rtl';
                 }
                 if (view === 'feedback-layout-settings') {
-                  const activity = [...document.querySelectorAll('.activity-button')].find(
+                  // Zoom dispatches resize asynchronously. Wait for the sidebar's
+                  // responsive state before choosing the visible Settings entry.
+                  const expectedSidebarOpen = String(window.innerWidth > 1060);
+                  for (let attempt = 0; attempt < 100; attempt += 1) {
+                    if (document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') === expectedSidebarOpen) break;
+                    await wait(50);
+                  }
+                  if (document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') !== expectedSidebarOpen) {
+                    throw new Error('Settings sidebar did not settle after zoom.');
+                  }
+                  const activity = [...document.querySelectorAll('.activity-button, .rail-item')].find(
                     (candidate) =>
-                      candidate.getAttribute('aria-label') === 'Settings' ||
-                      candidate.getAttribute('title') === 'Settings',
+                      candidate.checkVisibility({ visibilityProperty: true }) &&
+                      !candidate.closest('[inert], [aria-hidden="true"]') &&
+                      (candidate.getAttribute('aria-label') === 'Settings' ||
+                      candidate.getAttribute('title') === 'Settings'),
                   );
                   if (!(activity instanceof HTMLButtonElement)) {
                     throw new Error('Settings activity button missing.');
@@ -15057,6 +15069,7 @@ function createMainWindow(): BrowserWindow {
                   );
                   await wait(250);
                   const focusReturned = document.activeElement === activity;
+                  const focusAfterClose = document.activeElement?.outerHTML?.slice(0, 500);
                   activity.click();
                   await wait(700);
                   dialog = document.querySelector(
@@ -15066,6 +15079,8 @@ function createMainWindow(): BrowserWindow {
                     view,
                     firstOpenFocusInside,
                     focusReturned,
+                    focusAfterClose,
+                    trigger: activity.outerHTML.slice(0, 500),
                     reopened: dialog instanceof HTMLDialogElement,
                     nativeModal: dialog instanceof HTMLDialogElement && dialog.open,
                   };

@@ -465,8 +465,7 @@ describe("renderer layout contract", () => {
     );
     expect(sidebar).toContain('className="rail-item"');
     expect(sidebar).toContain('className="activity-button foot-icon"');
-    expect(sidebar).toContain("ref={settingsTrigger}");
-    expect(sidebar).toContain("onClick={() => openSettings()}");
+    expect(sidebar).toContain('openSettings("general", event.currentTarget)');
     expect(sidebar).toContain("<SettingsIcon />");
     expect(sidebar).not.toContain("t.commandMenu");
     expect(appSource).not.toContain("commandMenuOpen");
@@ -505,7 +504,9 @@ describe("renderer layout contract", () => {
     expect(sidebarFooterSource).toContain(
       "runtimeSettings?.update.currentVersion",
     );
-    expect(sidebarFooterSource).toContain('openSettings("maintenance")');
+    expect(sidebarFooterSource).toContain(
+      'openSettings("maintenance", event.currentTarget)',
+    );
     expect(sidebarFooterSource).toContain(
       "v{runtimeSettings.update.currentVersion}",
     );
