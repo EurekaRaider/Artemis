@@ -208,7 +208,8 @@ describe.runIf(process.platform === "win32")(
       } finally {
         await rm(root, { recursive: true, force: true });
       }
-    }, 90000);
+      // Four native broker requests each compile their helper (~23s on CI).
+    }, 120000);
     it("refuses stale writeback before modifying any original file", async () => {
       const root = await mkdtemp(join(tmpdir(), "artemis-im-conflict-"));
       const files = new WindowsImFiles(helper);

@@ -1265,10 +1265,13 @@ async function verifyReferenceSliceGeometry(connection) {
       Math.abs(before.sidebar.width - initialSidebarWidth) <= 1 &&
       Math.abs(before.workspace.width - (1440 - initialSidebarWidth)) <= 1 &&
       before.headerControls.every(
-        ({ geometry: control }) =>
+        ({ selector, geometry: control }) =>
           control &&
-          control.top >= before.toolbar.top - 1 &&
-          control.bottom <= before.toolbar.bottom + 1,
+          (selector === ".left-sidebar-toggle"
+            ? control.width === 0 && control.height === 0
+            : control.width > 0 &&
+              control.top >= before.toolbar.top - 1 &&
+              control.bottom <= before.toolbar.bottom + 1),
       ) &&
       transitions.sameNodes &&
       transitions.sidebarCollapsedInteractionBlocked &&

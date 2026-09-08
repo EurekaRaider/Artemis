@@ -14,6 +14,12 @@
     }
   ],
   [
+    "normal|[data-layout=\"integrated\"] [data-artemis-component=\"application-shell-resizer\"]",
+    {
+      "z-index": "81"
+    }
+  ],
+  [
     "normal|[data-layout=\"integrated\"] [data-artemis-component=\"navigation-sidebar\"]",
     {
       "position": "relative",
