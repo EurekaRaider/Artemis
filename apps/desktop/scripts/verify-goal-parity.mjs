@@ -276,13 +276,22 @@ try {
     const leftInset = audit.goalBar.left - audit.goalComposer.left;
     const rightInset = audit.goalComposer.right - audit.goalBar.right;
     const overlap = audit.goalBar.bottom - audit.goalComposer.top;
+    const contextRow = audit.goalContextRow;
     if (
-      Math.abs(leftInset - 13) > 1 ||
-      Math.abs(rightInset - 13) > 1 ||
-      Math.abs(overlap - 4) > 1
+      !contextRow ||
+      leftInset < 0 ||
+      rightInset < 0 ||
+      audit.goalBar.left < contextRow.left - 1 ||
+      audit.goalBar.right > contextRow.right + 1 ||
+      audit.goalBar.top < contextRow.top - 1 ||
+      audit.goalBar.bottom > contextRow.bottom + 1 ||
+      audit.goalBar.width < Math.min(92, contextRow.width) - 1 ||
+      audit.goalBar.width > Math.min(360, contextRow.width) + 1 ||
+      audit.goalBar.height < 26 ||
+      contextRow.top < audit.goalComposer.top
     ) {
       throw new Error(
-        `${id} rail geometry drifted: ${JSON.stringify({ leftInset, rightInset, overlap })}`,
+        `${id} inline Goal capsule geometry drifted: ${JSON.stringify({ goalBar: audit.goalBar, contextRow, leftInset, rightInset, overlap })}`,
       );
     }
     if (
@@ -315,6 +324,12 @@ try {
       backgroundColor: "rgba(0, 0, 0, 0)",
       borderColor: "rgba(0, 0, 0, 0)",
     };
+    const capsuleMainStyle = {
+      ...railActionStyle,
+      borderColor: quietStyle?.color,
+      borderStyle: "none",
+      borderWidth: "0px",
+    };
     const focusMatches = requireFocus
       ? shared?.focus?.active === true &&
         shared.focus.outlineColor === quietStyle?.focusOutlineColor &&
@@ -329,9 +344,9 @@ try {
       shared.main.size !== "compact" ||
       shared.main.variant !== "quiet" ||
       shared.main.display !== "flex" ||
-      shared.main.minBlockSize !== "28px" ||
+      shared.main.minBlockSize !== "24px" ||
       shared.main.justifyContent !== "flex-start" ||
-      !visualMatches(shared.main, railActionStyle) ||
+      !visualMatches(shared.main, capsuleMainStyle) ||
       shared?.badge?.component !== "badge" ||
       shared.badge.tone !== tone ||
       shared.badge.display !== "flex" ||
@@ -347,8 +362,8 @@ try {
           action.size !== "compact" ||
           action.variant !== "quiet" ||
           action.display !== "flex" ||
-          action.inlineSize !== "28px" ||
-          action.minBlockSize !== "28px" ||
+          action.inlineSize !== "22px" ||
+          action.minBlockSize !== "22px" ||
           !visualMatches(action, railActionStyle),
       ) ||
       !focusMatches
@@ -397,8 +412,8 @@ try {
     }
     for (const geometry of audit.goalActionGeometry ?? []) {
       if (
-        Math.abs(geometry.width - 28) > 0.1 ||
-        Math.abs(geometry.height - 28) > 0.1 ||
+        Math.abs(geometry.width - 22) > 0.1 ||
+        Math.abs(geometry.height - 22) > 0.1 ||
         Math.abs(geometry.iconWidth - 14) > 0.1 ||
         Math.abs(geometry.iconHeight - 14) > 0.1
       ) {

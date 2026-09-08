@@ -15035,12 +15035,13 @@ function createMainWindow(): BrowserWindow {
                 if (view === 'feedback-layout-settings') {
                   // Zoom dispatches resize asynchronously. Wait for the sidebar's
                   // responsive state before choosing the visible Settings entry.
-                  const expectedSidebarOpen = String(window.innerWidth > 1060);
+                  const expectedWidth = ${JSON.stringify(Math.round(window.getContentBounds().width / smokeScale))};
+                  const expectedSidebarOpen = String(expectedWidth > 1060);
                   for (let attempt = 0; attempt < 100; attempt += 1) {
-                    if (document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') === expectedSidebarOpen) break;
+                    if (Math.abs(window.innerWidth - expectedWidth) <= 1 && document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') === expectedSidebarOpen) break;
                     await wait(50);
                   }
-                  if (document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') !== expectedSidebarOpen) {
+                  if (Math.abs(window.innerWidth - expectedWidth) > 1 || document.querySelector('.app-shell')?.getAttribute('data-sidebar-open') !== expectedSidebarOpen) {
                     throw new Error('Settings sidebar did not settle after zoom.');
                   }
                   const activity = [...document.querySelectorAll('.activity-button, .rail-item')].find(
@@ -17815,6 +17816,7 @@ function createMainWindow(): BrowserWindow {
                         height: goalBarBounds.height,
                       }
                     : null,
+                  goalContextRow: document.querySelector('.composer-context-row')?.getBoundingClientRect().toJSON() ?? null,
                   goalComposer: composerBounds
                     ? {
                         top: composerBounds.top,
