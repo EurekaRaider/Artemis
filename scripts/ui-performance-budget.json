@@ -83,9 +83,9 @@
       "date": "2026-09-08",
       "baseHead": "b4d1dc4f4ed3df82c0ebaf50b7aea9f1cf379242",
       "baseDesktopCssBytes": 341875,
-      "measuredDesktopCssBytes": 343215,
-      "desktopCssIncreaseBytes": 1340,
-      "reason": "Issue #154 sidebar prototype alignment adds localized timestamps, hover action placement, group controls and folder state styling (+0.39%). The previous 342000-byte ceiling had 125 bytes of headroom. The 344000-byte ceiling leaves 785 bytes. Both revisions were measured with the same Vite pipeline and dependencies, substituting only the two changed renderer CSS files from baseHead. JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
+      "measuredDesktopCssBytes": 343227,
+      "desktopCssIncreaseBytes": 1352,
+      "reason": "Issue #154 sidebar prototype alignment adds localized timestamps, hover action placement, group controls and folder state styling (+0.40%). The previous 342000-byte ceiling had 125 bytes of headroom. The 344000-byte ceiling leaves 773 bytes. Both revisions were measured with the same Vite pipeline and dependencies, substituting only the two changed renderer CSS files from baseHead. JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
     }
   ],
   "startupBudgetRevisions": [

@@ -120,7 +120,7 @@
 .project-group-select {
   flex: 1;
 }
-.project-group-row .project-new-thread,
+.project-row.project-group-row .project-new-thread,
 .project-collapse-all {
   opacity: 0;
 }
