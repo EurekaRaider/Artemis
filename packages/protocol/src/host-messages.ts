@@ -125,6 +125,13 @@ export interface AgentConcurrencyRuntimeStatus {
 
 export type AgentHostCommand =
   | {
+      type: "git.generate-commit-message";
+      requestId: string;
+      diff: string;
+      locale: string;
+      selection?: ModelSelection;
+    }
+  | {
       type: "runtime.configure";
       requestId: string;
       configuration: AgentRuntimeConfiguration;

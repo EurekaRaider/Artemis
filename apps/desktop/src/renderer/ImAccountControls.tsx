@@ -4,6 +4,7 @@ import {
   type ImIdentity,
   type ImPairingRequest,
 } from "@artemis/protocol";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { Button } from "@artemis/ui/actions";
 import { InlineNotice } from "@artemis/ui/feedback";
 import type { ImTranslate } from "./ImNavigation";
@@ -118,7 +119,7 @@ export function ImAccounts({
       {requests.map((request) => (
         <InlineNotice
           key={request.id}
-          tone="info"
+          tone="warning"
           className="im-pairing-request"
         >
           <p>
@@ -205,17 +206,19 @@ export function ImAccounts({
               </div>
             ) : null}
             <span hidden={confirming === key}>
-              <Button
-                variant="quiet"
-                className="management-text-action is-destructive"
+              <button
+                type="button"
+                aria-label={t("解除绑定", "Unpair")}
+                title={t("解除绑定", "Unpair")}
+                className="im-icon-action"
                 disabled={busy}
                 onClick={(event) => {
                   trigger.current = event.currentTarget;
                   setConfirming(key);
                 }}
               >
-                {t("解除绑定", "Unpair")}
-              </Button>
+                <ArtemisIcon name="unlink" />
+              </button>
             </span>
           </div>
         );

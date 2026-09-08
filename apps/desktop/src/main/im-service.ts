@@ -522,18 +522,49 @@ export class ImService {
         : {}),
       identities: structuredClone(this.identities),
       pairingRequests: structuredClone(this.pairingRequests),
-      connections: structuredClone(this.channelStatus),
+      connections: structuredClone(this.channelStatus).map((value) => {
+        const connection = value as Record<string, unknown>;
+        return this.state === "error" && connection.state !== "disabled"
+          ? { ...connection, state: "error", error: this.error }
+          : connection;
+      }),
       spaces: structuredClone(this.displaySpaces()),
       remoteTasks: this.list<Binding>("bindings").map((b) => ({
         threadId: b.threadId,
         channel: b.request.identity.channel,
         kind: b.request.conversation.kind,
+        connectionState: this.threadConnectionState(b),
         ...(b.request.conversation.kind === "group" &&
         b.request.conversation.spaceId
           ? { group: this.groupContext(b) }
           : {}),
       })),
     };
+  }
+  private threadConnectionState(
+    binding: Binding,
+  ): NonNullable<
+    NonNullable<ImStatus["remoteTasks"]>[number]["connectionState"]
+  > {
+    if (!this.config.enabled) return "disabled";
+    const connection = this.channelStatus.find((value) => {
+      const candidate = value as Record<string, unknown>;
+      return (
+        candidate.id === binding.request.conversation.connectionId &&
+        candidate.channel === binding.request.identity.channel
+      );
+    }) as Record<string, unknown> | undefined;
+    if (connection?.state === "disabled") return "disabled";
+    if (this.state !== "connected") return this.state;
+    if (this.leaseUntil <= Date.now()) return "unknown";
+    switch (connection?.state) {
+      case "connected":
+      case "connecting":
+      case "error":
+        return connection.state;
+      default:
+        return "unknown";
+    }
   }
   private groupContext(binding: Binding) {
     const spaceId = binding.request.conversation.spaceId!;

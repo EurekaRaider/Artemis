@@ -488,12 +488,18 @@ export async function commitProjectChanges(
   workspace: string,
   message: unknown,
   includeUnstaged = true,
+  generateMessage?: (diff: string) => Promise<string>,
 ): Promise<ProjectGitCommitResult> {
   const root = await requireRepositoryRoot(workspace);
   if (typeof message !== "string") {
     throw new Error("Commit message is invalid.");
   }
   const normalizedMessage = message.trim();
+  if (!normalizedMessage && !generateMessage) {
+    throw new Error(
+      "AI commit-message generation is unavailable. Enter a message manually.",
+    );
+  }
   if (normalizedMessage.length > 10_000) {
     throw new Error("Commit message must not exceed 10,000 characters.");
   }
@@ -528,12 +534,45 @@ export async function commitProjectChanges(
   if (!staged) {
     throw new Error("There are no staged changes to commit.");
   }
-  const stagedPaths = staged.split("\0").filter(Boolean);
-  const generatedMessage =
-    stagedPaths.length === 1
-      ? `Update ${stagedPaths[0]}`
-      : `Update ${stagedPaths.length} files`;
-  await runGit(root, ["commit", "-m", normalizedMessage || generatedMessage]);
+  let commitMessage = normalizedMessage;
+  if (!commitMessage) {
+    const tree = (await runGit(root, ["write-tree"])).trim();
+    const diff = await runGit(root, [
+      "diff",
+      "--cached",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--unified=3",
+      "--",
+    ]);
+    const paths = staged
+      .split("\0")
+      .filter(Boolean)
+      .map((path) => JSON.stringify(path))
+      .join("\n");
+    const summary = `Staged files:\n${paths.slice(0, 12_000)}\n\nStaged diff:\n${diff.slice(0, 80_000)}${paths.length > 12_000 || diff.length > 80_000 ? "\n[Input truncated to fit the summary limit]" : ""}`;
+    commitMessage = (await generateMessage!(summary)).trim();
+    if (
+      !commitMessage ||
+      commitMessage.length > 10_000 ||
+      commitMessage.includes("\0")
+    ) {
+      throw new Error(
+        "AI returned an invalid commit message. Enter a message manually.",
+      );
+    }
+    const after = await inspectGitBranches(root);
+    if (
+      after.currentBranch !== before.currentBranch ||
+      after.headOid !== before.headOid ||
+      (await runGit(root, ["write-tree"])).trim() !== tree
+    ) {
+      throw new Error(
+        "The repository changed while AI was generating the message. Review the changes and retry.",
+      );
+    }
+  }
+  await runGit(root, ["commit", "-m", commitMessage]);
   const commit = (await runGit(root, ["rev-parse", "HEAD"])).trim();
   return { commit, gitInfo: await inspectGitBranches(root) };
 }

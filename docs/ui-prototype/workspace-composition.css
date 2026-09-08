@@ -67,9 +67,9 @@
 .document-reader h2 {font-size:18px;margin:22px 0 8px;}
 .document-reader ol {padding-left:22px;}
 .document-reader blockquote {border-left:3px solid var(--accent);padding:8px 14px;background:var(--surface-2);margin-top:24px;}
-.settings-panel {width:min(1040px,94vw);height:min(720px,90dvh);border-radius:var(--r-panel);}
-.settings-body {grid-template-columns:212px minmax(0,1fr);}
-.settings-content {padding:24px 28px;}
+.settings-panel {width:min(860px,92vw);max-width:calc(100vw - 32px);height:min(560px,84dvh);border-radius:18px;}
+.settings-body {grid-template-columns:196px minmax(0,1fr);}
+.settings-content {padding:18px 22px;}
 .settings-content .setting-group-title {font-size:13px;letter-spacing:0;text-transform:none;}
 .settings-panel-content {min-width:0;}
 .resource-pane {margin-top:12px;}
@@ -130,9 +130,7 @@ body.sidebar-collapsed .app-shell {grid-template-columns:0 minmax(0,1fr);}
 @media(max-width:1060px) {
   .app-shell,body.sidebar-collapsed .app-shell {grid-template-columns:0 minmax(0,1fr);}
   .project-sidebar-resizer {display:none;}
-  .settings-body {grid-template-columns:1fr;}
-  .settings-tabs {flex-direction:row;overflow:auto;}
-  .settings-tab {white-space:nowrap;flex-shrink:0;}
+
 }
 
 
@@ -356,3 +354,22 @@ body.sidebar-collapsed .sidebar:hover .sidebar-rail {
   pointer-events: none;
   transition: opacity 120ms var(--ease);
 }
+
+/* 2026-09-08：当前生产设置导航尺寸、选中态与窄窗阈值。 */
+.settings-tabs .settings-tab.ui-tab { gap:8px;padding:7px 11px;font-size:12.5px;border-color:transparent;box-shadow:none; }
+.settings-tabs .settings-tab.ui-tab[aria-selected="true"] { background:var(--selected);color:var(--text);border-color:transparent;box-shadow:none;font-weight:510; }
+@media(max-width:980px) {
+  .settings-body {grid-template-columns:1fr;}
+  .settings-tabs {flex-direction:row;overflow:auto;}
+  .settings-tab {white-space:nowrap;flex-shrink:0;}
+}
+.prototype-dialog.environment-git-dialog {width:430px;max-width:calc(100vw - 40px);max-height:calc(100vh - 40px);border-radius:20px;}
+.prototype-dialog.environment-git-dialog::backdrop {background:rgb(0 0 0 / 42%);backdrop-filter:none;}
+
+/* 窄窗默认收起，由脚本维护，手动固定展开仍然生效。 */
+body:not(.sidebar-collapsed) .app-shell {grid-template-columns:var(--sidebar-w,260px) minmax(0,1fr);}
+body.sidebar-collapsed .app-shell {grid-template-columns:48px minmax(0,1fr);}
+body.sidebar-collapsed[data-sidebar-peek="false"] .sidebar-main {transform:translateX(-100%);opacity:0;pointer-events:none;}
+body.sidebar-collapsed[data-sidebar-peek="false"] .sidebar-rail {opacity:1;visibility:visible;pointer-events:auto;}
+body.sidebar-collapsed[data-sidebar-peek="true"] .sidebar-main {transform:none;opacity:1;pointer-events:auto;}
+body.sidebar-collapsed[data-sidebar-peek="true"] .sidebar-rail {opacity:0;visibility:hidden;pointer-events:none;}

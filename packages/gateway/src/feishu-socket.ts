@@ -135,6 +135,7 @@ export class FeishuSocketAdapter extends FeishuAdapter {
   }
   override status(): ChannelStatus {
     const lifecycle = this.socket?.getConnectionStatus().state;
+    if (lifecycle === "connected") this.connectionError = false;
     const error = this.ingestionError
       ? "Feishu event could not be saved. Check Gateway storage."
       : lifecycle === "failed" || this.connectionError

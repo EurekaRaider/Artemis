@@ -112,7 +112,8 @@ describe("Codex conversation shell contract", () => {
     );
     expect(projectTree).toContain('className="project-toggle"');
     expect(projectTree).toContain("aria-expanded={projectOpen}");
-    expect(projectTree).toContain("<FolderIcon />");
+    expect(projectTree).toContain("<FolderIcon open={projectOpen} />");
+    expect(projectTree).toContain('name="edit-square"');
     expect(projectTree).toMatch(
       /className="project-toggle"[\s\S]*?onClick=\{\(\)\s*=>\s*toggleProjectHistory\(project\.id\)\}/u,
     );

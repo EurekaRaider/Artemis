@@ -24,7 +24,7 @@ import {
 import { ImGroupTaskComposer } from "../src/renderer/ImGroupTaskComposer.js";
 import { ImGroupMembers } from "../src/renderer/ImGroupMembers.js";
 import { ImSavedSpaces } from "../src/renderer/ImSavedSpaces.js";
-import { useImThreadDevices } from "../src/renderer/ImThreadDevices.js";
+import { useImThreadStatus } from "../src/renderer/ImThreadConnection.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 
 const identity = (userId: string, channel: "slack" | "feishu") => ({
@@ -277,7 +277,7 @@ describe("group collaboration UI", () => {
       ],
     }));
     stubWindowArtemis({ getImStatus });
-    const { result } = renderHook(useImThreadDevices);
+    const { result } = renderHook(useImThreadStatus);
     await act(async () => {});
     expect(result.current.group?.group?.members).toHaveLength(2);
     expect(result.current.direct?.group).toBeUndefined();

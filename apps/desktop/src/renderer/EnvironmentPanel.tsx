@@ -50,7 +50,10 @@ import {
   EnvironmentCheckIcon,
   EnvironmentChevronIcon,
   EnvironmentCommitIcon,
+  EnvironmentCompareIcon,
   EnvironmentExternalIcon,
+  EnvironmentGithubIcon,
+  EnvironmentLocalIcon,
   EnvironmentPullRequestIcon,
   EnvironmentSearchIcon,
 } from "./EnvironmentPanelIcons.js";
@@ -82,7 +85,10 @@ const labels = {
     noCompareBase: "Choose a base in Review",
     commitOrPush: "Commit or push",
     commitMessage: "Commit message",
-    commitMessagePlaceholder: "Commit message (leave blank to generate)…",
+    commitMessagePlaceholder:
+      "Commit message (leave blank for an AI summary of the changes)…",
+    generatingCommit: "AI summary & commit…",
+    generatingPush: "AI summary, commit & push…",
     includeUnstaged: "Include unstaged changes",
     commit: "Commit",
     commitAndPush: "Commit and push",
@@ -167,7 +173,7 @@ const labels = {
     close: "关闭",
     workspaceLabel: "本地工作区",
     viewChanges: "查看更改",
-    changedFiles: (count: number) => `${count} 个文件有未提交更改`,
+    changedFiles: (count: number) => `${count} 个文件待提交`,
     addProject: "添加项目",
     changes: "变更",
     local: "本地",
@@ -187,7 +193,9 @@ const labels = {
     noCompareBase: "请在审查中选择基准",
     commitOrPush: "提交或推送",
     commitMessage: "提交说明",
-    commitMessagePlaceholder: "提交信息（留空将自动生成）…",
+    commitMessagePlaceholder: "提交信息（留空由 AI 总结本次改动）…",
+    generatingCommit: "AI 总结并提交中…",
+    generatingPush: "AI 总结并提交、推送中…",
     includeUnstaged: "包含未暂存的更改",
     commit: "提交",
     commitAndPush: "提交并推送",
@@ -534,7 +542,7 @@ function ChangesIcon() {
 }
 
 function PushIcon() {
-  return <EnvironmentCommitIcon />;
+  return <ArtemisIcon name="push" />;
 }
 
 function PullRequestIcon() {
@@ -1395,9 +1403,9 @@ export function EnvironmentPanel({
       void loadPullRequest();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      await loadGit();
       setGitError(message);
       onMessage(message, true);
-      await loadGit();
     } finally {
       setGitBusy(undefined);
     }
@@ -1425,9 +1433,9 @@ export function EnvironmentPanel({
       void loadPullRequest();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      await loadGit();
       setGitError(message);
       onMessage(message, true);
-      await loadGit();
     } finally {
       setGitBusy(undefined);
     }
@@ -1465,9 +1473,9 @@ export function EnvironmentPanel({
       void loadPullRequest();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      await loadGit();
       setGitError(message);
       onMessage(message, true);
-      await loadGit();
     } finally {
       setGitBusy(undefined);
     }
@@ -1543,15 +1551,17 @@ export function EnvironmentPanel({
       {open && (
         <EnvironmentPanelSurface id={panelId} label={t.title} ref={panel}>
           <header className="environment-panel-header">
-            <strong>
+            <strong title={project.name}>
               {t.title} · {project.name}
             </strong>
             <button
-              className="environment-text-action"
+              aria-label={t.close}
+              className="environment-header-action"
               onClick={closePanel}
+              title={t.close}
               type="button"
             >
-              {t.close}
+              <ArtemisIcon name="close" />
             </button>
           </header>
           {imGroup && (
@@ -1576,7 +1586,12 @@ export function EnvironmentPanel({
               </button>
             }
             className="git-environment-section"
-            title="Git"
+            title={
+              <>
+                <EnvironmentGithubIcon />
+                <span>Git</span>
+              </>
+            }
           >
             {gitLoading && !gitInfo ? (
               <div className="environment-empty" role="status">
@@ -1594,13 +1609,14 @@ export function EnvironmentPanel({
             ) : (
               <div className="environment-rows">
                 <div className="environment-setting-row" title={gitInfo.root}>
+                  <EnvironmentLocalIcon aria-hidden="true" />
                   <span className="environment-setting-copy">
                     <strong>{t.workspaceLabel}</strong>
-                    <small>{project.name}</small>
                   </span>
-                  <span className="environment-local-badge">Local</span>
+                  <span className="environment-local-badge">{t.local}</span>
                 </div>
                 <div className="environment-setting-row">
+                  <BranchIcon />
                   <span className="environment-setting-copy">
                     <strong>{t.branch}</strong>
                     <small>{t.changedFiles(gitInfo.changeCount)}</small>
@@ -1644,7 +1660,8 @@ export function EnvironmentPanel({
                     }}
                     type="button"
                   >
-                    {t.viewChanges}
+                    <ChangesIcon />
+                    <span>{t.viewChanges}</span>
                   </button>
                   <button
                     className="environment-text-action commit-push-row"
@@ -1658,7 +1675,8 @@ export function EnvironmentPanel({
                     title={panelGitAction.disabledReason}
                     type="button"
                   >
-                    {t.commitOrPush}
+                    <PushIcon />
+                    <span>{t.commitOrPush}</span>
                   </button>
                 </div>
                 {pullRequestLoading && !pullRequestLookup && (
@@ -1902,6 +1920,7 @@ export function EnvironmentPanel({
                     disabled={Boolean(gitBusy) || !menuBranchName.trim()}
                     type="submit"
                   >
+                    <EnvironmentAddIcon aria-hidden="true" />
                     {gitBusy === "branch" ? t.changingBranch : t.create}
                   </button>
                 </div>
@@ -1917,6 +1936,7 @@ export function EnvironmentPanel({
                   }}
                   type="button"
                 >
+                  <EnvironmentCompareIcon />
                   {t.compareBranch}
                 </button>
                 <label className="environment-branch-search">
@@ -2022,6 +2042,7 @@ export function EnvironmentPanel({
           >
             <form
               aria-label={t.commitOrPush}
+              aria-busy={Boolean(gitBusy)}
               aria-modal="true"
               className="environment-git-dialog"
               onKeyDown={(event) => {
@@ -2195,9 +2216,13 @@ export function EnvironmentPanel({
                   title={commitDisabledReason}
                   type="submit"
                 >
-                  <ChangesIcon />
+                  <EnvironmentCommitIcon />
                   <strong>
-                    {gitBusy === "commit" ? t.committing : t.commit}
+                    {gitBusy === "commit"
+                      ? commitMessage.trim()
+                        ? t.committing
+                        : t.generatingCommit
+                      : t.commit}
                   </strong>
                   <kbd>⌘↵</kbd>
                 </button>
@@ -2211,7 +2236,11 @@ export function EnvironmentPanel({
                 >
                   <PushIcon />
                   <strong>
-                    {gitBusy === "commit-push" ? t.pushing : t.commitAndPush}
+                    {gitBusy === "commit-push"
+                      ? commitMessage.trim()
+                        ? t.pushing
+                        : t.generatingPush
+                      : t.commitAndPush}
                   </strong>
                 </button>
                 <button

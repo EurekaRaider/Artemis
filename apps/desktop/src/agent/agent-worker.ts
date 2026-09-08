@@ -101,6 +101,13 @@ async function handle(command: AgentHostCommand): Promise<void> {
   try {
     let data: unknown;
     switch (command.type) {
+      case "git.generate-commit-message":
+        data = await host.generateCommitMessage(
+          command.diff,
+          command.selection,
+          command.locale,
+        );
+        break;
       case "runtime.configure":
         await host.configure(command.configuration);
         break;

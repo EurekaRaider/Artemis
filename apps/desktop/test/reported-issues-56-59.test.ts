@@ -94,7 +94,7 @@ describe("reported issues #56–#59", () => {
     expect(projects).toContain("aria-label={t.openProject}");
     expect(temporarySection).toContain("onClick={beginTemporaryConversation}");
     expect(stylesSource).toMatch(
-      /\.project-collection \.project-new-thread,[\s\S]*?\.temporary-conversations > \.project-row \.project-new-thread\s*\{[^}]*opacity:\s*1/u,
+      /\.project-collection > \.project-row > \.project-new-thread,[\s\S]*?\.temporary-conversations > \.project-row \.project-new-thread\s*\{[^}]*opacity:\s*1/u,
     );
   });
 

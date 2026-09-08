@@ -1124,6 +1124,119 @@ describe("IM desktop and Gateway loop", () => {
       release();
     }
   });
+  it.each(["slack", "feishu"] as const)(
+    "reports the bound %s connection and follows disconnect, recovery and disable",
+    async (channel) => {
+      const f = await fixture(channel);
+      await f.send("/new project plan");
+      const originalFetch = globalThis.fetch;
+      let state = "connected";
+      let missing = false;
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (...args) => {
+        if (String(args[0]).endsWith("/v1/device/status")) {
+          const body = await (await originalFetch(...args)).json();
+          return Response.json({
+            ...body,
+            connections: [
+              {
+                id: "other",
+                channel,
+                name: "Other workspace",
+                state: "connected",
+              },
+              {
+                id: "w",
+                channel: "wecom",
+                name: "Other platform",
+                state: "connected",
+              },
+              ...(!missing
+                ? [{ id: "w", channel, name: "Bound workspace", state }]
+                : []),
+            ],
+          });
+        }
+        return originalFetch(...args);
+      });
+      for (const next of [
+        "connected",
+        "connecting",
+        "error",
+        "disabled",
+        "connected",
+      ]) {
+        state = next;
+        await f.service.poll();
+        expect(f.service.status().remoteTasks[0]).toMatchObject({
+          connectionState: next,
+        });
+        expect(
+          f.service.status().remoteTasks[0]!.devicePresence,
+        ).toBeUndefined();
+      }
+      missing = true;
+      await f.service.poll();
+      expect(f.service.status().remoteTasks[0]).toMatchObject({
+        connectionState: "unknown",
+      });
+      missing = false;
+      await f.service.poll();
+      await f.service.save({ ...f.service.status().settings, enabled: false });
+      expect(f.service.status().remoteTasks[0]).toMatchObject({
+        connectionState: "disabled",
+      });
+    },
+  );
+  it("invalidates cached channel signals when the Gateway is unreachable and restores them after recovery", async () => {
+    const f = await fixture();
+    await f.send("/new project plan");
+    const originalFetch = globalThis.fetch;
+    let offline = false;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (...args) => {
+        if (String(args[0]).endsWith("/v1/device/status")) {
+          if (offline) throw new Error("Gateway unreachable");
+          const response = await originalFetch(...args);
+          const body = await response.json();
+          return Response.json({
+            ...body,
+            connections: [
+              { id: "w", channel: "wecom", name: "Test", state: "connected" },
+            ],
+          });
+        }
+        return originalFetch(...args);
+      });
+    try {
+      await f.service.poll();
+      expect(f.service.status().connections).toMatchObject([
+        { state: "connected" },
+      ]);
+      expect(f.service.status().remoteTasks[0]).toMatchObject({
+        connectionState: "connected",
+      });
+      offline = true;
+      await f.service.poll();
+      expect(f.service.status()).toMatchObject({
+        state: "error",
+        connections: [{ state: "error", error: "Gateway unreachable" }],
+      });
+      expect(f.service.status().remoteTasks[0]).toMatchObject({
+        connectionState: "error",
+      });
+      offline = false;
+      await f.service.poll();
+      expect(f.service.status().connections).toMatchObject([
+        { state: "connected" },
+      ]);
+      expect(f.service.status().remoteTasks[0]).toMatchObject({
+        connectionState: "connected",
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
   it("refreshes pairing while paused without accepting or running tasks", async () => {
     const f = await fixture();
     await f.service.save({ ...f.service.status().settings, enabled: false });

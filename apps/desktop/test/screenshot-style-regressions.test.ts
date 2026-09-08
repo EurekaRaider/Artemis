@@ -32,6 +32,33 @@ function declarations(sheet: postcss.Root, selector: string) {
 }
 
 describe("screenshot visual contracts", () => {
+  it("uses an orange breathing running dot and static success/failure colors", () => {
+    const running =
+      '.turn-status[data-state="running"] > [data-part="indicator"]';
+    expect(declarations(desktop, running)).toMatchObject({
+      background: "#d97706",
+      animation: "turn-indicator-breathe 2s ease-in-out infinite",
+    });
+    for (const [state, color] of [
+      ["completed", "success"],
+      ["failed", "danger"],
+    ]) {
+      const terminal = declarations(
+        shared,
+        `[data-artemis-component="turn-status"][data-state="${state}"] [data-part="indicator"]`,
+      );
+      expect(terminal.background).toBe(`var(--artemis-color-status-${color})`);
+      expect(terminal.animation).toBeUndefined();
+    }
+    const reduced: string[] = [];
+    desktop.walkAtRules("media", (rule) => {
+      if (rule.params !== "(prefers-reduced-motion: reduce)") return;
+      rule.walkRules(running, (nested) => {
+        nested.walkDecls("animation", (decl) => reduced.push(decl.value));
+      });
+    });
+    expect(reduced).toContain("none");
+  });
   it("centers all workspace tab close glyphs independently of the text baseline", () => {
     const close =
       '[data-artemis-component="workspace-tab"] > [data-part="close"]';
@@ -196,7 +223,9 @@ describe("screenshot visual contracts", () => {
     expect(app).toContain('className="sidebar-brand"');
     expect(app).toContain('className="rail-brand"');
     expect(app).toContain('import artemisIcon from "../../build/icon.png"');
-    expect(app).toContain('<img alt="" aria-hidden="true" src={artemisIcon} />');
+    expect(app).toContain(
+      '<img alt="" aria-hidden="true" src={artemisIcon} />',
+    );
     expect(declarations(desktop, ".artemis-mark").background).toBe(
       "transparent",
     );

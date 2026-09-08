@@ -86,11 +86,11 @@ export function ImNavigation({
     { id: "gateway", label: t("Gateway 与设备", "Gateway & device") },
     { id: "pairing", label: t("配对与账号", "Pairing & accounts") },
     { id: "permissions", label: t("项目授权", "Project permissions") },
-    { id: "spaces", label: t("群协作空间", "Group spaces") },
     { id: "setup-guide", label: t("设置指引", "Setup guide") },
   ] as const;
   const options = [
     ...IM_CHANNELS.map((id) => ({ id, label: imChannelLabel(id, t) })),
+    { id: "spaces" as const, label: t("群消息接入", "Group messages") },
     ...common,
   ];
   const commonSelected = common.some((item) => item.id === view);
@@ -132,7 +132,10 @@ export function ImNavigation({
     >
       {options
         .filter(
-          (item) => !compact || IM_CHANNELS.includes(item.id as ImChannel),
+          (item) =>
+            !compact ||
+            IM_CHANNELS.includes(item.id as ImChannel) ||
+            item.id === "spaces",
         )
         .map((item, index) => {
           const channel = IM_CHANNELS.includes(item.id as ImChannel);
@@ -142,7 +145,7 @@ export function ImNavigation({
           const health = imConnectionHealth(channelConnections);
           return (
             <div className="im-nav-item" key={item.id} role="presentation">
-              {!compact && (index === 0 || index === 3) && (
+              {!compact && (index === 0 || index === 4) && (
                 <span className="im-nav-label" role="presentation">
                   {index === 0 ? t("渠道", "Channels") : t("通用", "General")}
                 </span>

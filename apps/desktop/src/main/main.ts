@@ -8562,6 +8562,24 @@ function registerIpc(): void {
         context.workspacePath,
         message,
         includeUnstaged,
+        async (diff) => {
+          if (!agentProcess) throw new Error("Agent process is not ready.");
+          const selection = context.threadId
+            ? store?.getThread(context.threadId)?.modelSelection
+            : undefined;
+          const generated = await agentProcess.request<string>(
+            {
+              type: "git.generate-commit-message",
+              requestId: randomUUID(),
+              diff,
+              locale: currentLocale(),
+              ...(selection ? { selection } : {}),
+            },
+            75_000,
+          );
+          assertProjectGitMutationAllowed(context.project.id);
+          return generated;
+        },
       );
     },
   );

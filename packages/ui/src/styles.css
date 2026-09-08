@@ -3741,7 +3741,7 @@
   [data-artemis-component="settings-surface"] > [data-part="body"] {
     display: grid;
     flex: 1 1 auto;
-    grid-template-columns: 13.25rem minmax(0, 1fr);
+    grid-template-columns: 196px minmax(0, 1fr);
     min-inline-size: 0;
     min-block-size: 0;
   }
@@ -3777,17 +3777,14 @@
     [data-artemis-component="tabs"]
     [data-part="tab"] {
     justify-content: flex-start;
-    min-block-size: calc(
-      var(--artemis-size-control-compact) + var(--artemis-space-1)
-    );
+    min-block-size: 32px;
     text-align: start;
-    font-size: var(--artemis-typography-label-size);
+    font-size: 12.5px;
     line-height: 1.4;
     font-weight: 500;
-    padding: calc(var(--artemis-space-1) * 1.5)
-      calc(var(--artemis-space-2) + 2px);
-    gap: calc(var(--artemis-space-2) - 1px);
-    border: 1px solid transparent;
+    padding: 7px 11px;
+    gap: 8px;
+    border: 0;
     border-radius: var(--artemis-radius-control);
     color: var(--artemis-color-text-secondary);
   }
@@ -3800,8 +3797,7 @@
     gap: var(--artemis-space-5);
     min-inline-size: 0;
     min-block-size: 0;
-    padding: var(--artemis-space-6)
-      calc(var(--artemis-space-6) + var(--artemis-space-1));
+    padding: 18px 22px;
     overflow: auto;
     scrollbar-gutter: auto;
   }
@@ -4819,11 +4815,11 @@
     > [data-part="navigation"]
     [data-artemis-component="tabs"]
     [data-part="tab"][aria-selected="true"] {
-    background: var(--artemis-color-surface-base);
+    background: var(--artemis-color-interaction-selected);
     color: var(--artemis-color-text-primary);
-    border-color: var(--artemis-color-border-subtle);
-    box-shadow: 0 1px 3px
-      color-mix(in srgb, var(--artemis-color-text-primary) 8%, transparent);
+    border-color: transparent;
+    box-shadow: none;
+    font-weight: 510;
   }
 
   [data-artemis-component="tabs"] [data-part="icon"] {

@@ -437,14 +437,6 @@
 .context-usage-breakdown [data-context-category="5"] {
   background: var(--artemis-color-context-6);
 }
-.im-thread-devices [data-connected="true"] {
-  color: var(--success);
-  opacity: 1;
-}
-.im-thread-devices [data-connected="false"] {
-  color: var(--muted-2);
-  opacity: 0.38;
-}
 .settings-panel,
 .resource-page {
   border-color: var(--border);

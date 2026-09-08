@@ -1061,7 +1061,33 @@ body[data-view="automations"] .pg-auto {
   margin: -8px 0 0 2px;
 }
 .turn-status .pulse {
-  background: var(--accent);
+  background: #d97706;
+  animation: none;
+}
+.turn-status[data-state="running"] .pulse {
+  animation: turn-indicator-breathe 2s ease-in-out infinite;
+}
+.turn-status[data-state="completed"] .pulse {
+  background: var(--success);
+}
+.turn-status[data-state="failed"] .pulse {
+  background: var(--danger);
+}
+@keyframes turn-indicator-breathe {
+  0%,
+  100% {
+    opacity: 0.8;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .turn-status[data-state="running"] .pulse {
+    animation: none;
+  }
 }
 
 /* 工具活动分组卡 */
@@ -5512,3 +5538,76 @@ body.sidebar-snap .sidebar-rail {
 body.sidebar-collapsed .sidebar-brand .activity-mark {
   cursor: pointer;
 }
+
+/* 2026-09-08：反向同步早间生产 UI 调整。 */
+.im-thread-indicators { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--text-3); }
+.im-thread-group, .im-thread-connection, .im-thread-computers { display: inline-flex; flex: none; }
+.im-thread-group svg { width: 16px; height: 16px; }
+.im-thread-connection svg, .im-thread-computers svg { width: 14px; height: 14px; }
+.im-thread-connection[data-state="connected"], .im-thread-computers[data-state="online"] { color: var(--success); }
+.im-thread-connection[data-state="connecting"], .im-thread-computers[data-state="unknown"] { color: var(--warning); }
+.im-thread-connection[data-state="error"] { color: var(--danger); }
+.im-thread-computers[data-state="offline"] { color: var(--text-3); }
+.thread-more, .proj-act, .group-add { display: inline-grid; place-items: center; padding: 0; line-height: 1; }
+.thread-more svg, .proj-act svg, .group-add svg { display: block; width: 16px; height: 16px; }
+.project-item:not(.active) > .project-head .acts { opacity: 0; pointer-events: none; }
+.project-item.active > .project-head .acts, .project-item > .project-head:focus-within .acts { opacity: 1; pointer-events: auto; }
+.attach, .user-message-attachment { display: inline-flex; align-items: center; gap: 6px; height: 24px; max-width: min(280px, 100%); padding: 0 4px 0 9px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--sunken); color: var(--text-2); font-family: var(--mono); font-size: 10.5px; }
+.attach > svg, .user-message-attachment > svg { flex: none; width: 14px; height: 14px; }
+.attachment-name, .user-message-attachment > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach .x { display: grid; place-items: center; flex: none; width: 16px; height: 16px; padding: 0; border-radius: 5px; }
+.attach .x:hover { background: var(--hover); color: var(--danger); }
+.user-message-attachment { padding-inline-end: 9px; }
+.message-attachments, .user-caps { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-bottom: 8px; }
+.im-group-entry { width: 100%; text-align: start; margin-bottom: 14px; cursor: pointer; }
+.im-group-entry span { display: block; color: var(--text-2); font-size: 12px; margin-top: 5px; }
+.im-channel-card[aria-selected="true"], .im-more.selected { background: var(--selected); border-color: var(--border); }
+#composerModelFilter { margin: 4px 8px 8px; width: calc(100% - 16px); }
+#composerModelEmpty { padding: 0 12px; }
+.mg-opt[hidden] { display: none; }
+.git-section-title { display: flex; align-items: center; gap: 6px; text-transform: none; }
+.git-section-title svg { width: 16px; height: 16px; }
+#envPop > .panel-toolbar { padding: 6px 0; min-height: 36px; }
+#envPop > .panel-toolbar > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#envPop { padding: 0 12px 10px; }
+#envPop .setting-row { min-height: 32px; padding: 5px 0; gap: 8px; }
+#envPop .setting-row + .setting-row { padding: 6px 0 8px; }
+#envPop .setting-row .label { font-size: 12px; font-weight: 500; line-height: 18px; }
+#envPop .setting-row .desc { font-size: 11px; line-height: 16px; }
+#environmentBranch { min-width: 0; max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 6px; }
+.environment-panel-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 8px 0 0; border-top: 1px solid var(--border-soft); }
+.environment-panel-actions .btn { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; gap: 6px; min-height: 30px; padding: 5px 10px; border: 1px solid var(--border); text-align: start; font-weight: 500; }
+.environment-panel-actions .btn svg { width: 16px; height: 16px; }
+.environment-panel-actions .commit-push-row { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.environment-git-dialog { width: 430px; max-width: calc(100vw - 40px); max-height: calc(100vh - 40px); padding: 10px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text); box-shadow: 0 24px 72px rgb(0 0 0 / 46%); }
+.environment-git-dialog::backdrop { background: rgb(0 0 0 / 42%); }
+.environment-git-dialog form { display: flex; flex-direction: column; min-width: 0; }
+.environment-git-destination { display: flex; align-items: center; gap: 9px; padding: 0 10px; min-height: 40px; }
+.environment-git-destination select { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font-size: 15px; font-weight: 560; padding: 8px; }
+#commitMessage { width: 100%; min-height: 132px; resize: none; padding: 12px 10px 6px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 14px; line-height: 1.5; }
+#commitMessage::placeholder { color: var(--text-2); }
+.environment-git-include { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 46px; padding: 0 10px 8px; }
+.environment-git-include input { margin: 0; width: 20px; height: 20px; accent-color: var(--text); }
+.environment-diff-total { font: 12px var(--mono); }
+.environment-diff-total i { color: var(--success); font-style: normal; }
+.environment-diff-total b { color: var(--danger); font-weight: 400; }
+.environment-git-actions { display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--border-soft); padding-top: 8px; }
+.environment-git-actions button { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 42px; padding: 0 10px; background: transparent; border: 0; border-radius: 12px; color: var(--text); text-align: start; cursor: pointer; }
+.environment-git-actions button:hover:not(:disabled) { background: var(--hover); }
+.environment-git-actions button.primary:not(:disabled) { background: var(--accent); color: var(--accent-contrast); }
+.environment-git-actions button.primary kbd { color: inherit; background: transparent; }
+.environment-git-actions button:disabled { opacity: 0.36; cursor: default; }
+.environment-git-include strong, .environment-git-actions strong { font-size: 14px; font-weight: 560; }
+.environment-git-actions svg { width: 20px; height: 20px; }
+#commitFeedback { margin: 8px 10px 2px; font-size: 11px; }
+#commitNewBranchRow { margin: 8px 10px; }
+
+.sidebar-brand .activity-mark, .sidebar-rail .rail-brand { background: transparent; padding: 0; border: 0; width: 30px; height: 30px; min-width: 30px; border-radius: 0; }
+.artemis-brand-image { display: block; width: 30px; height: 30px; object-fit: contain; }
+.project-item.active > .project-head .acts, .project-item > .project-head:focus-within .acts { visibility: visible; }
+.project-head .acts { visibility: visible; }
+
+.environment-panel-actions .commit-push-row:hover { background:var(--accent-hover);color:var(--accent-contrast); }
+.sidebar-rail .rail-brand, .sidebar-rail .artemis-brand-image { width:34px;height:34px;min-width:34px; }
+.goal-pill:focus-within .goal-acts {max-width:80px;opacity:1;}
+.environment-setting-row > svg {flex:none;width:16px;height:16px;}

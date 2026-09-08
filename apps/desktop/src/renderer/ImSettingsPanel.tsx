@@ -98,6 +98,7 @@ export function ImSettingsPanel({
   const [focusTarget, setFocusTarget] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
   const wasReady = useRef(false);
+  const enteredManagement = useRef(false);
   const mounted = useRef(true);
   const [channel, setChannel] = useState<ImChannel>("wecom");
   const [pairingPlatform, setPairingPlatform] = useState<ImChannel | "lark">();
@@ -160,7 +161,7 @@ export function ImSettingsPanel({
   useEffect(() => {
     let active = true;
     let refreshing = false;
-    const timer = window.setInterval(async () => {
+    const refreshStatus = async () => {
       if (running.current || refreshing) return;
       refreshing = true;
       const epoch = refreshEpoch.current;
@@ -180,10 +181,15 @@ export function ImSettingsPanel({
       } finally {
         refreshing = false;
       }
-    }, 3000);
+    };
+    const timer = window.setInterval(() => void refreshStatus(), 2000);
+    window.addEventListener("focus", refreshStatus);
+    document.addEventListener("visibilitychange", refreshStatus);
     return () => {
       active = false;
       window.clearInterval(timer);
+      window.removeEventListener("focus", refreshStatus);
+      document.removeEventListener("visibilitychange", refreshStatus);
     };
   }, []);
   useEffect(() => {
@@ -197,19 +203,28 @@ export function ImSettingsPanel({
     if (!root || typeof ResizeObserver === "undefined") return;
     const dialog = root.closest(".settings-panel");
     const observer = new ResizeObserver(() =>
-      setCompact(
-        root.clientWidth < 560 || (!!dialog && dialog.clientWidth < 720),
-      ),
+      setCompact(root.clientWidth < 720),
     );
     observer.observe(root);
     if (dialog) observer.observe(dialog);
     return () => observer.disconnect();
   }, [!!settings]);
-  const connections = (status?.connections ?? []) as ImConnectionStatus[];
+  const connections = ((status?.connections ?? []) as ImConnectionStatus[]).map(
+    (connection) =>
+      refreshError && connection.state !== "disabled"
+        ? { ...connection, state: "error" as const, error: refreshError }
+        : connection,
+  );
   const hasBot = connections.some((c) => c.state === "connected");
   const ready = hasBot && !!status?.identities.length;
   useEffect(() => {
-    if (ready && !wasReady.current && !reviewing) {
+    if (
+      ready &&
+      !wasReady.current &&
+      !reviewing &&
+      !enteredManagement.current
+    ) {
+      enteredManagement.current = true;
       const connected = connections.find((c) => c.state === "connected");
       if (connected) {
         setView(connected.channel);
@@ -219,7 +234,6 @@ export function ImSettingsPanel({
         setAdminToken("");
         setEditingCredentials(false);
         setPairCode(undefined);
-        setFocusTarget("im-bot");
       }
     }
     wasReady.current = ready;
@@ -619,15 +633,17 @@ export function ImSettingsPanel({
           "Connect at least one bot channel first.",
         )
       : "";
-  const summary = !settings.deviceId
-    ? t("未配置", "Not configured")
-    : !settings.enabled
-      ? t("已暂停", "Paused")
-      : status?.state === "error"
-        ? stateLabels.error
-        : !hasBot
-          ? t("等待机器人连接", "Waiting for a bot")
-          : stateLabels[status?.state ?? "connecting"];
+  const summary = refreshError
+    ? t("状态更新失败", "Status unavailable")
+    : !status?.settings.deviceId
+      ? t("未配置", "Not configured")
+      : !status.settings.enabled
+        ? t("已暂停", "Paused")
+        : status?.state === "error"
+          ? stateLabels.error
+          : !hasBot
+            ? t("等待机器人连接", "Waiting for a bot")
+            : stateLabels[status?.state ?? "connecting"];
   const health = imConnectionHealth(connections);
   return (
     <div
@@ -646,12 +662,18 @@ export function ImSettingsPanel({
             )}
           </p>
         </div>
-        <div className="im-header-state">
+        <div
+          className="im-header-state"
+          title={t(
+            "机器人接入状态；不代表手机或电脑上的 IM 客户端在线状态。",
+            "Bot connection status; separate from IM client presence on phones and computers.",
+          )}
+        >
           <span className="im-status-pill" role="status">
             <span
               className="im-dot"
               data-state={
-                settings.enabled
+                status?.settings.enabled
                   ? health.failed
                     ? "error"
                     : status?.state
@@ -672,7 +694,7 @@ export function ImSettingsPanel({
               "暂停会保留已有配置与授权。",
               "Pausing keeps configuration and grants.",
             )}
-            checked={settings.enabled}
+            checked={status?.settings.enabled ?? settings.enabled}
             disabled={busy || (!settings.enabled && !!enableReason)}
             description={!settings.enabled ? enableReason : undefined}
             onCheckedChange={(enabled) =>
@@ -712,6 +734,19 @@ export function ImSettingsPanel({
       )}
       {view === "guide" ? (
         <div className="im-wizard">
+          <Button
+            className="im-platform-card"
+            disabled={busy}
+            onClick={() => selectView("spaces")}
+          >
+            <strong>{t("群消息接入", "Group messages")}</strong>
+            <span>
+              {t(
+                "连接群聊或频道，创建同平台或跨平台协作空间",
+                "Connect groups or channels in a shared collaboration space",
+              )}
+            </span>
+          </Button>
           <ImSetupGuide
             locale={locale}
             {...(status ? { status } : {})}

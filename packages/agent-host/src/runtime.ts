@@ -61,6 +61,7 @@ import {
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 
 import { registerArtemisBuiltinModels } from "./builtin-models.js";
+import { generateCommitMessage } from "./commit-message.js";
 import { modeInstruction } from "./mode-instructions.js";
 import { toPiProviderConfig } from "./provider-configuration.js";
 import { forkPiSession } from "./session-fork.js";
@@ -2707,6 +2708,19 @@ export class ArtemisAgentHost {
         ? { selection: structuredClone(this.configuration.selection) }
         : {}),
     };
+  }
+
+  async generateCommitMessage(
+    diff: string,
+    selection: ModelSelection | undefined,
+    locale: string,
+  ): Promise<string> {
+    return generateCommitMessage(
+      await this.getModelRuntime(),
+      selection ?? this.configuration.selection,
+      diff,
+      locale,
+    );
   }
 
   async openThread(request: OpenThreadRequest): Promise<{

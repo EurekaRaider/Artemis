@@ -137,7 +137,7 @@ import { MarkdownContent } from "./MarkdownContent.js";
 import { normalizeBrowserAddress } from "./browser-navigation.js";
 import { CodexSelect } from "./CodexSelect.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
-import { ImThreadDevices, useImThreadDevices } from "./ImThreadDevices.js";
+import { ImThreadConnection, useImThreadStatus } from "./ImThreadConnection.js";
 import { ComposerContextBar } from "./ComposerContextBar.js";
 import { ContextUsageIndicator } from "./ContextUsageIndicator.js";
 import { GoalBar } from "./GoalBar.js";
@@ -161,7 +161,10 @@ import {
   resolveTimelineScrollTarget,
   type TimelineScrollSnapshot,
 } from "./timeline-scroll.js";
-import { formatWorkedDuration } from "./turn-timeline.js";
+import {
+  formatWorkedDuration,
+  userMessageAttachments,
+} from "./turn-timeline.js";
 import { HighlightedCodeLine } from "./WorkspaceFileEditor.js";
 import {
   WorkspaceFileIcon,
@@ -1410,7 +1413,7 @@ function prepareThreadTitleScroll(
 }
 
 export function App() {
-  const imThreadDevices = useImThreadDevices();
+  const imThreadStatus = useImThreadStatus();
   const { i18n } = useTranslation();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
   const [activeProjectId, setActiveProjectId] = useState<string>();
@@ -1854,7 +1857,7 @@ export function App() {
     [updateActiveComposerDraft],
   );
   const groupMentions = useImMemberMentions({
-    group: activeThreadId ? imThreadDevices[activeThreadId]?.group : undefined,
+    group: activeThreadId ? imThreadStatus[activeThreadId]?.group : undefined,
     text: prompt,
     setText: setPrompt,
     input: promptInput,
@@ -5835,14 +5838,13 @@ export function App() {
                         }
                         type="button"
                       >
-                        <ChevronIcon />
+                        <FolderIcon open={projectOpen} />
                       </button>
                       <button
                         className="project-select"
                         onClick={() => toggleProjectHistory(project.id)}
                         title={project.path}
                       >
-                        <FolderIcon />
                         <span className="project-title">{project.name}</span>
                       </button>
                       <button
@@ -5851,7 +5853,11 @@ export function App() {
                         onClick={() => beginNewConversation(project.id)}
                         title={t.newTask}
                       >
-                        <PlusIcon />
+                        <ArtemisIcon
+                          name="edit-square"
+                          width={16}
+                          height={16}
+                        />
                       </button>
                       <button
                         aria-label={t.moreProjectActions}
@@ -5864,7 +5870,7 @@ export function App() {
                         }}
                         title={t.moreProjectActions}
                       >
-                        ···
+                        <ArtemisIcon name="more" width={16} height={16} />
                       </button>
                       {projectMenuId === project.id && (
                         <div className="project-menu">
@@ -6047,9 +6053,9 @@ export function App() {
                                       className={`status-dot ${thread.status}`}
                                     />
                                   )}
-                                  {imThreadDevices[thread.id] && (
-                                    <ImThreadDevices
-                                      devices={imThreadDevices[thread.id]!}
+                                  {imThreadStatus[thread.id] && (
+                                    <ImThreadConnection
+                                      status={imThreadStatus[thread.id]!}
                                       locale={locale}
                                     />
                                   )}
@@ -6084,7 +6090,11 @@ export function App() {
                                   }}
                                   title={t.moreActions}
                                 >
-                                  ···
+                                  <ArtemisIcon
+                                    name="more"
+                                    width={16}
+                                    height={16}
+                                  />
                                 </button>
                                 {threadMenuId === thread.id && (
                                   <div className="thread-menu">
@@ -6290,9 +6300,9 @@ export function App() {
                         {thread.status !== "idle" && (
                           <span className={`status-dot ${thread.status}`} />
                         )}
-                        {imThreadDevices[thread.id] && (
-                          <ImThreadDevices
-                            devices={imThreadDevices[thread.id]!}
+                        {imThreadStatus[thread.id] && (
+                          <ImThreadConnection
+                            status={imThreadStatus[thread.id]!}
                             locale={locale}
                           />
                         )}
@@ -6324,7 +6334,7 @@ export function App() {
                         title={t.moreActions}
                         type="button"
                       >
-                        ···
+                        <ArtemisIcon name="more" width={16} height={16} />
                       </button>
                       {threadMenuId === thread.id && (
                         <div className="thread-menu">
@@ -6498,7 +6508,7 @@ export function App() {
                       }}
                       imGroup={
                         activeThread
-                          ? imThreadDevices[activeThread.id]?.group
+                          ? imThreadStatus[activeThread.id]?.group
                           : undefined
                       }
                       attachments={attachments}
@@ -7253,6 +7263,9 @@ export function App() {
                             {attachments.map((attachment, index) => (
                               <figure
                                 className="composer-attachment"
+                                data-kind={
+                                  isPromptImage(attachment) ? "image" : "file"
+                                }
                                 key={`${attachment.name}-${index}`}
                               >
                                 {isPromptImage(attachment) ? (
@@ -7266,13 +7279,6 @@ export function App() {
                                     className="composer-file-preview"
                                   >
                                     <FileIcon />
-                                    <span>
-                                      {attachment.name
-                                        .split(".")
-                                        .pop()
-                                        ?.slice(0, 8)
-                                        .toLocaleUpperCase() || "FILE"}
-                                    </span>
                                   </div>
                                 )}
                                 <button
@@ -7449,7 +7455,7 @@ export function App() {
                             onPaste={handleAttachmentPaste}
                             placeholder={
                               activeThread &&
-                              imThreadDevices[activeThread.id]?.group
+                              imThreadStatus[activeThread.id]?.group
                                 ? locale.startsWith("zh")
                                   ? "输入 @ 选择成员，描述要它完成的任务…"
                                   : "Type @ to choose a member and describe their task…"
@@ -10353,6 +10359,7 @@ function Timeline({
     if (kind === "user") {
       const message = state.userMessages[id];
       if (!message) return null;
+      const messageAttachments = userMessageAttachments(state, id);
       const skillNames = selectedSkillNamesForPrompt(message.text);
       const visibleText = promptWithoutSelectedSkills(message.text);
       const editable =
@@ -10422,6 +10429,24 @@ function Timeline({
           key={entry}
           kind="user"
         >
+          {messageAttachments.length > 0 && (
+            <div className="message-attachments">
+              {messageAttachments.map((source) => (
+                <span
+                  className="user-message-attachment"
+                  key={source.sourceId}
+                  title={source.name}
+                >
+                  <ArtemisIcon
+                    name={source.kind === "image" ? "image" : "file"}
+                    width={14}
+                    height={14}
+                  />
+                  <span>{source.name}</span>
+                </span>
+              ))}
+            </div>
+          )}
           {visibleText && (
             <div className="user-message-text">{visibleText}</div>
           )}

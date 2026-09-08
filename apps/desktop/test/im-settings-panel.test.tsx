@@ -127,6 +127,47 @@ const nav = (name: string) =>
   screen.getByRole("tab", { name: new RegExp(name) });
 
 describe("production IM settings", () => {
+  it.each(["slack", "feishu", "wecom"] as const)(
+    "refreshes %s connection signals after disconnect, failure, and recovery",
+    async (channel) => {
+      vi.useFakeTimers();
+      const f = fixture();
+      f.set({
+        state: "connected",
+        settings: { ...f.get().settings, enabled: true },
+        connections: [{ ...connection, channel }],
+        identities: [{ ...identity, channel }],
+      });
+      render(<ImSettingsPanel locale="zh-CN" />);
+      await act(async () => {});
+      const signal = () => document.querySelector(`#im-nav-${channel} .im-dot`);
+      expect(signal()).toHaveAttribute("data-state", "connected");
+      f.set({ connections: [{ ...connection, channel, state: "connecting" }] });
+      await act(() => vi.advanceTimersByTimeAsync(2000));
+      expect(signal()).toHaveAttribute("data-state", "connecting");
+      f.manage.mockRejectedValueOnce(new Error("Gateway offline"));
+      await act(() => vi.advanceTimersByTimeAsync(2000));
+      expect(signal()).toHaveAttribute("data-state", "error");
+      f.set({ connections: [{ ...connection, channel, state: "connected" }] });
+      await act(async () => window.dispatchEvent(new Event("focus")));
+      expect(signal()).toHaveAttribute("data-state", "connected");
+    },
+  );
+  it("preserves credential edits across disconnect and reconnect", async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "更换" }));
+    fireEvent.change(screen.getByLabelText("Bot Secret"), {
+      target: { value: "unsaved-secret" },
+    });
+    f.set({ connections: [{ ...connection, state: "error" }] });
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    f.set({ connections: [connection] });
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    expect(screen.getByLabelText("Bot Secret")).toHaveValue("unsaved-secret");
+  });
   it("loads local groups automatically on entry and restores a saved space after reopening settings", async () => {
     const f = fixture();
     const space = {
@@ -156,7 +197,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     const first = render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("群协作空间"));
+    await user.click(nav("群消息接入"));
     expect(
       await screen.findByRole("checkbox", {
         name: "Test bot · existing-group",
@@ -169,7 +210,7 @@ describe("production IM settings", () => {
     first.unmount();
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("群协作空间"));
+    await user.click(nav("群消息接入"));
     await user.click(
       await screen.findByRole("button", { name: "打开已保存配置：Saved team" }),
     );
@@ -446,7 +487,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("群协作空间"));
+    await user.click(nav("群消息接入"));
     const save = screen.getByRole("button", { name: "保存空间并等待各群确认" });
     expect(save).toBeDisabled();
     expect(screen.getByLabelText("空间配置（JSON）")).not.toBeVisible();
@@ -861,7 +902,7 @@ describe("production IM settings", () => {
     const user = userEvent.setup();
     render(<ImSettingsPanel locale="zh-CN" />);
     await screen.findByRole("heading", { name: "应用凭据" });
-    await user.click(nav("群协作空间"));
+    await user.click(nav("群消息接入"));
     const summary = screen.getByText("高级：查看诊断或手动编辑配置");
     expect(summary.closest("details")).not.toHaveAttribute("open");
     await user.click(summary);
@@ -966,6 +1007,49 @@ describe("pairing code lifecycle", () => {
     expect(copy).toHaveBeenLastCalledWith("pair new-code");
     await act(() => vi.advanceTimersByTimeAsync(300000));
     expect(screen.getByRole("button", { name: "复制配对指令" })).toBeDisabled();
+  });
+  it("opens group setup directly from the first-time wizard", async () => {
+    fixture(false);
+    const user = userEvent.setup();
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await user.click(await screen.findByRole("button", { name: /群消息接入/ }));
+    expect(screen.getByRole("tab", { name: "群消息接入" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByText("创建与连接 IM 群协作空间")).toBeVisible();
+  });
+  it("keeps group messages directly accessible in compact navigation", async () => {
+    const select = vi.fn();
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <ImNavigation
+        view="slack"
+        onSelect={select}
+        connections={[connection]}
+        compact
+        t={t}
+      />,
+    );
+    const groups = screen.getByRole("tab", { name: "群消息接入" });
+    await user.click(groups);
+    expect(select).toHaveBeenLastCalledWith("spaces");
+    rerender(
+      <ImNavigation
+        view="spaces"
+        onSelect={select}
+        connections={[connection]}
+        compact
+        t={t}
+      />,
+    );
+    expect(groups).toHaveAttribute("aria-selected", "true");
+    expect(groups).toHaveAttribute("aria-controls", "im-panel-spaces");
+    expect(document.querySelectorAll("#im-nav-spaces")).toHaveLength(1);
+    await user.click(screen.getByRole("tab", { name: /通用/ }));
+    expect(
+      screen.queryByRole("menuitem", { name: "群消息接入" }),
+    ).not.toBeInTheDocument();
   });
   it("uses the compact general menu with keyboard selection and Escape focus restoration", async () => {
     const select = vi.fn();

@@ -80,6 +80,33 @@ function fixture(receive = vi.fn(), receiveCard = vi.fn()) {
 }
 
 describe("Feishu Gateway long connection", () => {
+  it.each(["feishu", "lark"] as const)(
+    "clears a failed %s handshake after the SDK reconnects",
+    async (domain) => {
+      let state = "failed";
+      const adapter = new FeishuSocketAdapter(
+        { ...config, domain },
+        vi.fn(),
+        () =>
+          ({
+            start: async () => {
+              throw new Error("Handshake failed");
+            },
+            close: vi.fn(),
+            getConnectionStatus: () => ({ state, reconnectAttempts: 0 }),
+          }) as Pick<WSClient, "start" | "close" | "getConnectionStatus">,
+      );
+      adapter.start();
+      await Promise.resolve();
+      expect(adapter.status().state).toBe("error");
+      state = "connected";
+      expect(adapter.status()).toMatchObject({ state: "connected" });
+      expect(adapter.status().error).toBeUndefined();
+      state = "reconnecting";
+      expect(adapter.status().state).toBe("connecting");
+      adapter.stop();
+    },
+  );
   it("uses the Lark SDK domain and gives a region-specific error without exposing credentials", () => {
     const createSocket = vi.fn(() => ({
       start: vi.fn().mockResolvedValue(undefined),

@@ -1576,7 +1576,7 @@ describe("renderer layout contract", () => {
     expect(settingsSurface).toMatch(/\bdisplay:\s*flex/u);
     expect(settingsBody).toMatch(/\bdisplay:\s*grid/u);
     expect(publicUiStylesSource).toContain(
-      "grid-template-columns: 13.25rem minmax(0, 1fr)",
+      "grid-template-columns: 196px minmax(0, 1fr)",
     );
     expect(cssRule(".profile-avatar-input")).toMatch(
       /\bposition:\s*absolute[\s\S]*\bwidth:\s*1px/u,

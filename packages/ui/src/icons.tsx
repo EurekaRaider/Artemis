@@ -58,6 +58,7 @@ export const ARTEMIS_ICON_NAMES = [
   "image",
   "lock",
   "attach",
+  "unlink",
   "send",
   "warning",
   "environment",
@@ -116,6 +117,13 @@ export const ARTEMIS_ICON_NAMES = [
 export type ArtemisIconName = (typeof ARTEMIS_ICON_NAMES)[number];
 
 const ARTEMIS_ICON_GLYPHS = {
+  unlink: (
+    <>
+      <path d="m9.2 14.8 5.6-5.6" />
+      <path d="M11 16.2 8.6 18.6a2.55 2.55 0 0 1-3.6-3.6l2.4-2.4" />
+      <path d="M13 7.8l2.4-2.4a2.55 2.55 0 0 1 3.6 3.6l-2.4 2.4" />
+    </>
+  ),
   mobile: (
     <>
       <rect x="6" y="3" width="12" height="18" rx="4" />

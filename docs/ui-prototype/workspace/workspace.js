@@ -21,7 +21,7 @@
     sidebarHandle.setAttribute("aria-valuenow", String(width));
   }
   UI.splitPane(sidebarHandle, {
-    initial: $(".sidebar").getBoundingClientRect().width || 252,
+    initial: window.innerWidth <= 1100 ? 240 : 260,
     step: 16,
     home: function () {
       return 208;
@@ -568,8 +568,11 @@
         x.classList.remove("active");
       });
       t.classList.add("active");
+      $$(".project-item").forEach(function (project) { project.classList.toggle("active", project.contains(t)); });
     });
   });
+
+  $$(".project-item").forEach(function (project) { project.classList.toggle("active", !!project.querySelector(".thread.active")); });
 
   $$(".switch").forEach(function (sw) {
     UI.toggle(sw);
@@ -610,20 +613,23 @@
           section.hidden = section.getAttribute("data-im-view") !== view;
         });
       imMoreMenu.hidden = true;
+      imMoreBtn.setAttribute("aria-expanded", "false");
+      imMoreBtn.classList.toggle("selected", ["gateway", "pairing", "projects", "guide"].includes(view));
     }
     imNav.addEventListener("click", function (ev) {
       var btn = ev.target.closest("[data-im-view]");
       if (btn) imSelect(btn.getAttribute("data-im-view"));
       if (ev.target === imMoreBtn || imMoreBtn.contains(ev.target))
-        imMoreMenu.hidden = !imMoreMenu.hidden;
+        { imMoreMenu.hidden = !imMoreMenu.hidden; imMoreBtn.setAttribute("aria-expanded", String(!imMoreMenu.hidden)); }
     });
     imNav.addEventListener("keydown", function (ev) {
-      if (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") return;
-      var tabs = $$('#imNavList .im-channel-card');
+      if (ev.key === "Escape") { imMoreMenu.hidden = true; imMoreBtn.setAttribute("aria-expanded", "false"); imMoreBtn.focus(); return; }
+      if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(ev.key) || ev.target.closest("#imMoreMenu")) return;
+      var tabs = $$('#imNavList .im-channel-card').filter(function (tab) { return tab.getClientRects().length > 0; });
       var i = tabs.findIndex(function (t) {
         return t.getAttribute("aria-selected") === "true";
       });
-      var next = (i + (ev.key === "ArrowDown" ? 1 : -1) + tabs.length) % tabs.length;
+      var next = (i + (["ArrowDown", "ArrowRight"].includes(ev.key) ? 1 : -1) + tabs.length) % tabs.length;
       tabs[next].focus();
       imSelect(tabs[next].getAttribute("data-im-view"));
       ev.preventDefault();
@@ -867,7 +873,7 @@
   });
   var settingsTabs = UI.tabs($(".settings-tabs"), {
     selector: ".settings-tab",
-    orientation: "vertical",
+    get orientation() { return window.innerWidth <= 980 ? "horizontal" : "vertical"; },
     panelFor: function (tab) {
       return $(
         '.settings-panel-content[data-panel="' +
@@ -875,6 +881,9 @@
           '"]',
       );
     },
+  });
+  window.addEventListener("resize", function () {
+    $(".settings-tabs").setAttribute("aria-orientation", window.innerWidth <= 980 ? "horizontal" : "vertical");
   });
   function selectSettings(key) {
     var tab = $('.settings-tab[data-settings-panel="' + key + '"]');
@@ -1825,12 +1834,60 @@
   $$("[data-dialog]").forEach(function (b) {
     b.addEventListener("click", function () {
       commitDialog.open(this);
+      $("#commitMessage").focus();
     });
   });
-  $("#prototypeDialog").addEventListener("close", function () {
-    if (this.returnValue === "confirm")
-      notice("提交表单演示完成，仓库未发生变化");
-  });
+  var gitDemo = { branch: "main", changes: 3, ahead: 0, pendingBranch: null };
+  var commitForm = $("#commitForm");
+  function syncGitDemo() {
+    $("#environmentBranch").textContent = gitDemo.branch + " ▾";
+    $("#gitChangeCount").textContent = gitDemo.changes + " 个文件待提交";
+    $("#commitDestination option[value='main']").textContent = gitDemo.branch;
+    $("#commitNewBranchRow").hidden = $("#commitDestination").value !== "new";
+    var newBranch = $("#commitDestination").value === "new";
+    var canCommit = gitDemo.changes > 0 && (!newBranch || !!$("#commitNewBranch").value.trim());
+    $("[data-commit-action='commit']").disabled = !canCommit;
+    $("[data-commit-action='commit-push']").disabled = !canCommit || !!gitDemo.pendingBranch || (!$("#commitIncludeUnstaged").checked && gitDemo.changes > 1);
+    var push = $("[data-commit-action='push']");
+    push.disabled = newBranch || gitDemo.changes > 0 || !gitDemo.ahead || !!gitDemo.pendingBranch;
+    push.title = gitDemo.changes ? "请先提交更改" : !gitDemo.ahead ? "已同步" : "推送";
+    $(".environment-diff-total").innerHTML = $("#commitIncludeUnstaged").checked ? "<i>+42</i> <b>−12</b>" : "<i>+14</i> <b>−4</b>";
+  }
+  $("#commitDestination").addEventListener("change", function () { syncGitDemo(); if (!$("#commitNewBranchRow").hidden) $("#commitNewBranch").focus(); });
+  $("#commitNewBranch").addEventListener("input", syncGitDemo);
+  $("#commitIncludeUnstaged").addEventListener("change", syncGitDemo);
+  function commitDemo(action) {
+    var button = $("[data-commit-action='" + action + "']");
+    if (button.disabled || commitForm.getAttribute("aria-busy") === "true") return;
+    var newBranch = $("#commitDestination").value === "new" ? $("#commitNewBranch").value.trim() : null;
+    if (newBranch && (/\s|\.\.|[~^:?*\[\\]/.test(newBranch) || /[/.]$/.test(newBranch))) {
+      $("#commitFeedback").textContent = "请输入有效的分支名称"; return;
+    }
+    var auto = action !== "push" && !$("#commitMessage").value.trim();
+    var label = button.querySelector("strong");
+    var original = label.textContent;
+    label.textContent = auto ? (action === "commit" ? "AI 总结并提交中…" : "AI 总结并提交、推送中…") : (action === "push" ? "推送中…" : "提交中…");
+    commitForm.setAttribute("aria-busy", "true");
+    Array.from(commitForm.elements).forEach(function (control) { control.disabled = true; });
+    setTimeout(function () {
+      if (newBranch) { gitDemo.branch = newBranch; applyBranch(newBranch); }
+      if (action !== "push") { gitDemo.changes = $("#commitIncludeUnstaged").checked ? 0 : Math.max(0, gitDemo.changes - 1); gitDemo.ahead++; }
+      if (action !== "commit") gitDemo.ahead = 0;
+      if (gitDemo.pendingBranch && !gitDemo.changes) { gitDemo.branch = gitDemo.pendingBranch; applyBranch(gitDemo.branch); gitDemo.pendingBranch = null; }
+      commitForm.setAttribute("aria-busy", "false");
+      Array.from(commitForm.elements).forEach(function (control) { control.disabled = false; });
+      label.textContent = original;
+      $("#commitFeedback").textContent = (auto ? "AI 总结与" : "") + original + "已完成（演示），仓库未发生变化。";
+      $("#commitMessage").value = "";
+      $("#commitDestination").value = "main";
+      syncGitDemo();
+    }, 900);
+  }
+  $$("[data-commit-action]").forEach(function (button) { button.addEventListener("click", function () { commitDemo(button.dataset.commitAction); }); });
+  commitForm.addEventListener("keydown", function (event) { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); commitDemo("commit"); } });
+  $("#prototypeDialog").addEventListener("cancel", function (event) { if (commitForm.getAttribute("aria-busy") === "true") event.preventDefault(); });
+  $("#prototypeDialog").addEventListener("close", function () { gitDemo.pendingBranch = null; $("#commitMessage").value = ""; $("#commitDestination").value = "main"; syncGitDemo(); });
+  syncGitDemo();
   // Reuse context menus for project, branch and model choices.
   var choiceMenu = document.createElement("div");
   choiceMenu.className = "panel-picker context-choice";
@@ -1869,9 +1926,24 @@
   }
   $("#environmentBranch").addEventListener("click", function () {
     var trigger = this;
-    choose(trigger, ["main", "feat/im-feishu"], function (value) {
-      applyBranch(value);
+    choose(trigger, ["main", "feat/im-feishu", "＋ 新建分支", "比较分支"], function (value) {
+      if (value === "比较分支") { openPanel("review"); return; }
+      if (value === "＋ 新建分支") {
+        commitDialog.open(trigger); $("#commitDestination").value = "new"; syncGitDemo(); $("#commitNewBranch").focus(); return;
+      }
+      if (value === gitDemo.branch) return;
+      if (gitDemo.changes) {
+        gitDemo.pendingBranch = value;
+        commitDialog.open(trigger);
+        $("#commitFeedback").textContent = "先提交当前更改，再切换到 " + value + "（演示）";
+        syncGitDemo();
+      } else { gitDemo.branch = value; applyBranch(value); syncGitDemo(); }
     });
+    var search = document.createElement("input");
+    search.type = "search"; search.className = "im-field-input"; search.placeholder = "搜索分支…"; search.setAttribute("aria-label", "搜索分支");
+    choiceMenu.prepend(search);
+    search.addEventListener("input", function () { choiceMenu.querySelectorAll("button").forEach(function (button, index) { button.hidden = index < 2 && !button.textContent.toLowerCase().includes(search.value.toLowerCase()); }); });
+    search.focus();
   });
 
   /* ---------- 模型与推理强度（Zcode 式两组联动，选中即回写单行触发条） ---------- */
@@ -1879,6 +1951,16 @@
   if (modelPicker) {
     var modelTrigger = $("#modelBtn");
 
+    var composerModelFilter = $("#composerModelFilter");
+    composerModelFilter.addEventListener("input", function () {
+      var query = this.value.trim().toLocaleLowerCase();
+      var matches = 0;
+      modelPicker.querySelectorAll("[data-model]").forEach(function (option) {
+        option.hidden = !(option.textContent + " " + (option.dataset.provider || "")).toLocaleLowerCase().includes(query);
+        if (!option.hidden) matches++;
+      });
+      $("#composerModelEmpty").hidden = matches > 0;
+    });
     function modelClose(focus) {
       modelPicker.classList.remove("open");
       modelTrigger.setAttribute("aria-expanded", "false");
@@ -1887,6 +1969,8 @@
     modelTrigger.addEventListener("click", function () {
       var opening = !modelPicker.classList.contains("open");
       if (opening) {
+        composerModelFilter.value = "";
+        composerModelFilter.dispatchEvent(new Event("input"));
         modelPicker.classList.add("open");
         modelTrigger.setAttribute("aria-expanded", "true");
       } else {
@@ -1955,19 +2039,34 @@
       b.closest(".attach").remove();
       var atts = document.querySelector(".attachments");
       if (atts) atts.hidden = atts.children.length === 0;
+      $("#sendBtn").disabled = !input.value.trim() && !atts.children.length;
     });
   });
-  $("#sendBtn").disabled = true;
+  $("#sendBtn").disabled = !$$(".attachments .attach").length;
   input.addEventListener("input", function () {
-    $("#sendBtn").disabled = !this.value.trim();
+    $("#sendBtn").disabled = !this.value.trim() && !$$(".attachments .attach").length;
   });
   function sendDemo() {
     var value = input.value.trim();
-    if (!value) return;
+    var attachments = $$(".attachments .attach");
+    if (!value && !attachments.length) return;
     body.dataset.empty = "0"; /* v124：空会话态发首条消息即回时间线（原空态隐藏滚动区导致消息不可见） */
     var message = document.createElement("article");
     message.className = "user-message";
-    message.textContent = value;
+    if (attachments.length) {
+      var caps = document.createElement("div");
+      caps.className = "message-attachments";
+      attachments.forEach(function (attachment) {
+        var chip = attachment.cloneNode(true);
+        chip.className = "user-message-attachment";
+        chip.querySelector("button").remove();
+        caps.appendChild(chip);
+        attachment.remove();
+      });
+      message.appendChild(caps);
+      $(".attachments").hidden = true;
+    }
+    message.appendChild(document.createTextNode(value));
     $(".timeline").appendChild(message);
     input.value = "";
     input.style.height = "";
@@ -2134,20 +2233,47 @@
     if (!sidebarEl || !sidebarMain) return;
     var collapsed = body.classList.contains("sidebar-collapsed");
     sidebarEl.inert = false;
-    sidebarMain.inert = collapsed && !sidebarPeeked;
+    var peek = collapsed && sidebarPeeked && !body.classList.contains("sidebar-snap");
+    body.dataset.sidebarPeek = String(peek);
+    sidebarMain.inert = collapsed && !peek;
     /* 抽屉打开时 rail 已被覆盖隐藏（v110 互斥），一并移出 tab 序列 */
-    if (sidebarRail) sidebarRail.inert = collapsed && sidebarPeeked;
+    if (sidebarRail) sidebarRail.inert = !collapsed || peek;
   }
   if (sidebarEl) {
     sidebarEl.addEventListener("mouseenter", function () {
-      sidebarPeeked = true;
+      sidebarPeeked = !body.classList.contains("sidebar-snap");
       syncSidebarInert();
     });
     sidebarEl.addEventListener("mouseleave", function () {
-      sidebarPeeked = false;
+      sidebarPeeked = sidebarMain.contains(document.activeElement);
       syncSidebarInert();
     });
   }
+  if (sidebarEl) {
+    sidebarEl.addEventListener("mousemove", function () {
+      if (body.classList.contains("sidebar-snap")) return;
+      sidebarPeeked = true; syncSidebarInert();
+    });
+    sidebarEl.addEventListener("focusout", function (event) {
+      if (!sidebarEl.contains(event.relatedTarget) && !sidebarEl.matches(":hover")) { sidebarPeeked = false; syncSidebarInert(); }
+    });
+    sidebarEl.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && body.classList.contains("sidebar-collapsed")) {
+        sidebarPeeked = false; body.classList.add("sidebar-snap"); syncSidebarInert(); $(".rail-brand").focus();
+      }
+    });
+    $("#leftToggle").addEventListener("click", function () {
+      sidebarPeeked = false; syncSidebarInert();
+      if (body.classList.contains("sidebar-collapsed")) $(".rail-brand").focus({preventScroll:true});
+    });
+  }
+  var compactSidebar = window.innerWidth <= 1060;
+  if (compactSidebar) body.classList.add("sidebar-collapsed");
+  window.addEventListener("resize", function () {
+    var nextCompact = window.innerWidth <= 1060;
+    if (nextCompact && !compactSidebar) { body.classList.add("sidebar-collapsed"); sidebarPeeked = false; syncSidebarInert(); }
+    compactSidebar = nextCompact;
+  });
   function syncNavigation() {
     $$(".activity-button[data-goto]").forEach(function (button) {
       if (button.dataset.goto === body.dataset.view)
@@ -2418,5 +2544,8 @@
     var label = paused ? "继续目标" : "暂停目标";
     btn.setAttribute("aria-label", label);
     btn.title = label;
+    var pill = document.getElementById("goalPill");
+    pill.dataset.goalState = paused ? "paused" : "active";
+    pill.title = paused ? "目标已暂停" : "目标进行中";
   });
 })();

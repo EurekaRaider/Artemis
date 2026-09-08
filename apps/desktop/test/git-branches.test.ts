@@ -253,30 +253,91 @@ describe("project Git branches", () => {
     expect((await git(path, "ls-files", "delete-me.txt")).trim()).toBe("");
   });
 
-  it("can commit only staged changes and generate an empty commit message", async () => {
+  it("summarizes only staged content with AI when the message is blank", async () => {
     const path = await repository();
     await writeFile(join(path, "staged.txt"), "staged\n", "utf8");
     await writeFile(join(path, "unstaged.txt"), "unstaged\n", "utf8");
     await git(path, "add", "staged.txt");
 
-    const result = await commitProjectChanges(path, "", false);
+    const result = await commitProjectChanges(path, "", false, async (diff) => {
+      expect(diff).toContain("+staged");
+      expect(diff).not.toContain("unstaged.txt");
+      return "Add staged notes for the task";
+    });
 
     expect(result.commit).toMatch(/^[a-f0-9]{40}$/u);
     expect((await git(path, "log", "-1", "--pretty=%s")).trim()).toBe(
-      "Update staged.txt",
+      "Add staged notes for the task",
     );
     expect(result.gitInfo.changeCount).toBe(1);
     expect(result.gitInfo.untrackedCount).toBe(1);
     expect((await git(path, "ls-files", "unstaged.txt")).trim()).toBe("");
   });
 
+  it("uses an AI content summary for whitespace-only messages and all selected changes", async () => {
+    const path = await repository();
+    await writeFile(
+      join(path, "README.md"),
+      "# Artemis\nOffline setup guide\n",
+    );
+    await writeFile(
+      join(path, "guide.txt"),
+      "Install the desktop application\n",
+    );
+    await commitProjectChanges(path, "  \n ", true, async (diff) => {
+      expect(diff).toContain("+Offline setup guide");
+      expect(diff).toContain("+Install the desktop application");
+      return "Document offline desktop setup\n\nExplain installation in the setup guide.";
+    });
+    expect(await git(path, "log", "-1", "--pretty=%B")).toContain(
+      "Document offline desktop setup",
+    );
+  });
+
+  it("keeps changes and creates no commit when AI generation fails", async () => {
+    const path = await repository();
+    const head = await git(path, "rev-parse", "HEAD");
+    await writeFile(join(path, "README.md"), "# Changed\n");
+    await expect(
+      commitProjectChanges(path, "", true, async () => {
+        throw new Error("Model unavailable");
+      }),
+    ).rejects.toThrow("Model unavailable");
+    expect(await git(path, "rev-parse", "HEAD")).toBe(head);
+    expect((await inspectGitBranches(path)).stagedCount).toBe(1);
+  });
+
+  it("rejects an empty AI answer without silently falling back to a file-count message", async () => {
+    const path = await repository();
+    const head = await git(path, "rev-parse", "HEAD");
+    await writeFile(join(path, "README.md"), "# Changed\n");
+    await expect(
+      commitProjectChanges(path, "", true, async () => "  "),
+    ).rejects.toThrow("invalid commit message");
+    expect(await git(path, "rev-parse", "HEAD")).toBe(head);
+  });
+
+  it("refuses to commit a changed index under an AI summary of an earlier snapshot", async () => {
+    const path = await repository();
+    const head = await git(path, "rev-parse", "HEAD");
+    await writeFile(join(path, "README.md"), "# Changed\n");
+    await expect(
+      commitProjectChanges(path, "", true, async () => {
+        await writeFile(join(path, "later.txt"), "later change\n");
+        await git(path, "add", "later.txt");
+        return "Update the readme";
+      }),
+    ).rejects.toThrow("repository changed");
+    expect(await git(path, "rev-parse", "HEAD")).toBe(head);
+  });
+
   it("rejects staged-only commits when nothing is staged", async () => {
     const path = await repository();
     await writeFile(join(path, "unstaged.txt"), "unstaged\n", "utf8");
 
-    await expect(commitProjectChanges(path, "", false)).rejects.toThrow(
-      /no staged changes/u,
-    );
+    await expect(
+      commitProjectChanges(path, "", false, async () => "unused"),
+    ).rejects.toThrow(/no staged changes/u);
   });
 
   it("rejects non-string commit messages before staging changes", async () => {

@@ -132,6 +132,8 @@ export const imSettingsSchema = z
   .strict();
 export type ImSettings = z.infer<typeof imSettingsSchema>;
 export interface ImDevicePresence {
+  /** False when client presence is unavailable; never infer it from a bot connection. */
+  known?: boolean;
   mobile: boolean;
   desktop: boolean;
 }
@@ -219,6 +221,8 @@ export interface ImStatus {
     threadId: string;
     channel: string;
     kind: string;
+    /** Effective Artemis-to-IM connection, not the user's client presence. */
+    connectionState?: ImConnectionStatus["state"] | "unknown";
     devicePresence?: ImDevicePresence;
     group?: ImGroupContext;
   }>;

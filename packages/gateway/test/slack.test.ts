@@ -54,6 +54,7 @@ const adapters: SlackAdapter[] = [];
 afterEach(() => {
   adapters.splice(0).forEach((a) => a.stop());
   sockets.length = 0;
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 function api() {
@@ -193,6 +194,36 @@ describe("Slack Socket Mode", () => {
     expect(socket.send).not.toHaveBeenCalled();
     adapter.stop();
     expect(adapter.status().state).toBe("disabled");
+  });
+  it("uses silent ping/pong heartbeats and reconnects after a missing pong", async () => {
+    vi.useFakeTimers();
+    api();
+    const receive = vi.fn();
+    const adapter = new SlackAdapter(config, receive);
+    adapters.push(adapter);
+    adapter.start();
+    await vi.advanceTimersByTimeAsync(0);
+    const socket = sockets[0];
+    const hello = Buffer.from(
+      JSON.stringify({ type: "hello", connection_info: { app_id: "A1" } }),
+    );
+    socket.emit("message", hello);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(socket.ping).toHaveBeenCalledOnce();
+    socket.emit("pong");
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(adapter.status().state).toBe("connected");
+    expect(socket.ping).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(socket.terminate).toHaveBeenCalledOnce();
+    expect(adapter.status().state).toBe("error");
+    expect(socket.send).not.toHaveBeenCalled();
+    expect(receive).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(sockets).toHaveLength(2);
+    expect(adapter.status().state).toBe("connecting");
+    sockets[1].emit("message", hello);
+    expect(adapter.status().state).toBe("connected");
   });
   it("rejects an app token from another Slack app before accepting events", async () => {
     api();
