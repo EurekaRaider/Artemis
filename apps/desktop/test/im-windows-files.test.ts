@@ -69,6 +69,8 @@ const helper = fileURLToPath(
 describe.runIf(process.platform === "win32")(
   "Windows IM native file and shell boundary",
   () => {
+    // Each native request starts PowerShell and compiles the broker. This case
+    // performs multiple real requests; each still has its own 60-second limit.
     it("creates files and lists a scoped directory while rejecting junctions, hard links and secrets", async () => {
       const root = await mkdtemp(join(tmpdir(), "artemis-im-files-"));
       const scope = {
@@ -128,7 +130,7 @@ describe.runIf(process.platform === "win32")(
       } finally {
         await rm(root, { recursive: true, force: true });
       }
-    }, 60000);
+    }, 180000);
 
     it("executes PowerShell on authorized data and applies only scoped changes", async () => {
       const root = await mkdtemp(join(tmpdir(), "artemis-im-shell-"));

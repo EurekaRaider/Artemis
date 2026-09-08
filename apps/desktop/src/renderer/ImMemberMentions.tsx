@@ -1,4 +1,11 @@
-import { useEffect, useState, type KeyboardEvent, type RefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type RefObject,
+} from "react";
 import { imGroupMentionTargets, type ImGroupContext } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
 
@@ -16,6 +23,14 @@ export function useImMemberMentions({
   const [cursor, setCursor] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [active, setActive] = useState(0);
+  const pendingCursor = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const position = pendingCursor.current;
+    if (position === null) return;
+    pendingCursor.current = null;
+    input.current?.focus();
+    input.current?.setSelectionRange(position, position);
+  }, [text, input]);
   const members = group
     ? imGroupMentionTargets(group).filter((m) => m.state !== "unavailable")
     : [];
@@ -45,15 +60,9 @@ export function useImMemberMentions({
         : (element?.selectionStart ?? text.length);
     const prefix = text.slice(0, start);
     const inserted = `${prefix && !/[\s，。；：、(（]$/u.test(prefix) ? " " : ""}${token} `;
+    pendingCursor.current = start + inserted.length;
     setText(`${prefix}${inserted}${text.slice(end)}`);
     setDismissed(true);
-    window.requestAnimationFrame(() => {
-      element?.focus();
-      element?.setSelectionRange(
-        start + inserted.length,
-        start + inserted.length,
-      );
-    });
   };
   return {
     open,

@@ -364,16 +364,25 @@ try {
         timeline.viewport,
         "clientHeight >= 48 and scrollHeight > clientHeight",
       );
-      const minimumVisibleMessagePixels =
-        20 - 1 / Math.max(1, Number(timeline.devicePixelRatio) || 1);
+      const devicePixelRatio = Math.max(
+        1,
+        Number(timeline.devicePixelRatio) || 1,
+      );
+      // Compare rasterized pixels: fractional layout coordinates can differ by
+      // 1/64 CSS px even when they paint the same number of device pixels.
+      const visibleDevicePixels = Math.round(
+        timeline.visibleMessagePixels * devicePixelRatio,
+      );
+      const minimumVisibleDevicePixels = Math.round(20 * devicePixelRatio) - 1;
       assert(
         "conversation-message-visible",
         timeline.visibleMessageCount > 0 &&
-          timeline.visibleMessagePixels >= minimumVisibleMessagePixels,
+          visibleDevicePixels >= minimumVisibleDevicePixels,
         {
           count: timeline.visibleMessageCount,
           pixels: timeline.visibleMessagePixels,
-          minimum: minimumVisibleMessagePixels,
+          visibleDevicePixels,
+          minimumVisibleDevicePixels,
         },
         "at least one message within one device pixel of 20 visible CSS px",
       );

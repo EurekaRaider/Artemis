@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { resolve, win32 } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -185,6 +185,7 @@ describe("sandbox execution contracts", () => {
         executable: "powershell.exe",
         args: ["-NoProfile", "-Command", "Write-Output 'a&b'"],
         cwd: "C:\\task",
+        env: { SystemRoot: "C:\\Windows", PATH: "C:\\Windows\\System32" },
       },
       {
         workspacePath: "C:\\task",
@@ -201,7 +202,13 @@ describe("sandbox execution contracts", () => {
     );
 
     expect(launch).toMatchObject({
-      executable: "powershell.exe",
+      executable: win32.join(
+        process.env.SystemRoot ?? "C:\\Windows",
+        "System32",
+        "WindowsPowerShell",
+        "v1.0",
+        "powershell.exe",
+      ),
       implementation: "windows-appcontainer",
     });
     expect(launch.args[launch.args.indexOf("-RuntimePath") + 1]).toBe(

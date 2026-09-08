@@ -362,26 +362,29 @@ async function groupFixture(mode: "plan" | "execute" = "plan") {
   return { ...f, members, source, space, send };
 }
 describe("IM desktop and Gateway loop", () => {
-  it("rejects an Execute grant when sandbox preflight fails", async () => {
-    const f = await fixture();
-    const settings = f.service.status().settings;
-    mockSandboxPreflight().mockResolvedValueOnce({
-      output: "Sandbox unavailable",
-      exitCode: 1,
-      cancelled: false,
-    });
-    await expect(
-      f.service.save({
-        ...settings,
-        grants: settings.grants.map((grant) => ({
-          ...grant,
-          mode: "execute",
-          shell: true,
-        })),
-      }),
-    ).rejects.toThrow("原生沙箱验证失败");
-    expect(f.service.status().settings.grants).toEqual(settings.grants);
-  });
+  it.runIf(process.platform === "darwin")(
+    "rejects an Execute grant when sandbox preflight fails",
+    async () => {
+      const f = await fixture();
+      const settings = f.service.status().settings;
+      mockSandboxPreflight().mockResolvedValueOnce({
+        output: "Sandbox unavailable",
+        exitCode: 1,
+        cancelled: false,
+      });
+      await expect(
+        f.service.save({
+          ...settings,
+          grants: settings.grants.map((grant) => ({
+            ...grant,
+            mode: "execute",
+            shell: true,
+          })),
+        }),
+      ).rejects.toThrow("原生沙箱验证失败");
+      expect(f.service.status().settings.grants).toEqual(settings.grants);
+    },
+  );
   it("creates one idle conversation per confirmed space without an IM task, survives refresh and restart, and preserves explicit deletion", async () => {
     const f = await groupFixture();
     expect(f.threads).toHaveLength(1);

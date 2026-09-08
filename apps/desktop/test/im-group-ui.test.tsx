@@ -180,6 +180,11 @@ describe("group collaboration UI", () => {
     expect(button).toBeDisabled();
   });
   it("selects @ members by keyboard without submitting, and resolves equal names to different computers", async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
     const user = userEvent.setup(),
       send = vi.fn();
     function Composer() {
@@ -216,8 +221,10 @@ describe("group collaboration UI", () => {
     expect(screen.getByLabelText("Prompt")).toHaveValue("@Bob ");
     expect(send).not.toHaveBeenCalled();
     await user.type(screen.getByLabelText("Prompt"), "检查接口");
+    act(() => frames.splice(0).forEach((callback) => callback(0)));
+    await user.keyboard("！");
     await user.keyboard("{Enter}");
-    expect(send).toHaveBeenCalledWith("@Bob 检查接口");
+    expect(send).toHaveBeenCalledWith("@Bob 检查接口！");
     const duplicate = {
       ...group,
       members: group.members.map((m) => ({ ...m, name: "张三" })),

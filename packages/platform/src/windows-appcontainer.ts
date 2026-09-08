@@ -1,4 +1,4 @@
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, resolve, win32 } from "node:path";
 
 import { normalizeSandboxPolicy } from "./sandbox-executor.js";
 import { encodeWindowsSandboxSpecification } from "./windows-sandbox-spec.js";
@@ -46,7 +46,14 @@ export function buildWindowsAppContainerLaunch(
   }).toString("base64");
 
   return {
-    executable: "powershell.exe",
+    // Resolve the host helper independently of the restricted child PATH.
+    executable: win32.join(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe",
+    ),
     args: [
       "-NoLogo",
       "-NoProfile",
