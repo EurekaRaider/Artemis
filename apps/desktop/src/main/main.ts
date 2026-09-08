@@ -16699,6 +16699,16 @@ function createMainWindow(): BrowserWindow {
                       trigger.click();
                       await wait(300);
                     }
+                    const approvalSelector = view === 'environment-feedback-approval'
+                      ? '.approval-card[data-artemis-component="approval-card"]'
+                      : '.approval-card[data-artemis-component="result-disclosure"]';
+                    const approvalDeadline = Date.now() + 8_000;
+                    while (
+                      !document.querySelector(approvalSelector) &&
+                      Date.now() < approvalDeadline
+                    ) {
+                      await wait(100);
+                    }
                     if (view !== 'environment-feedback-approval') {
                       const disclosure = document.querySelector(
                         '.approval-card[data-artemis-component="result-disclosure"]',
