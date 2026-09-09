@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 355000,
+      "desktopCssBytes": 356000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -54,6 +54,15 @@
     }
   },
   "bundleBudgetRevisions": [
+    {
+      "date": "2026-09-09",
+      "baseHead": "adca24db4ee6f2c0eac6973f3bc05c06450046fb",
+      "measurementHead": "7008a4ddec6e91b38c8b39eb244255c07f26b552",
+      "baseDesktopCssBytes": 354554,
+      "measuredDesktopCssBytes": 355323,
+      "desktopCssIncreaseBytes": 769,
+      "reason": "Environment panel grid alignment, team summary rows and text truncation add 769 bytes (0.22%). CI runs 34309646024 and 34312197731 measured the passing base and candidate with the production pipeline. The previous 355000-byte ceiling had 446 bytes of headroom; the 356000-byte ceiling leaves 677 bytes. JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
+    },
     {
       "date": "2026-09-06",
       "baseHead": "22af9a1438eda49d7243225af41a12f06cc40dea",

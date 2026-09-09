@@ -208,6 +208,7 @@ try {
     delete environment.ARTEMIS_DEV_SERVER_URL;
     const caseUserDataDirectory = join(temporaryDirectory, "user-data", id);
     const userDataPreexisting = existsSync(caseUserDataDirectory);
+    console.log(`Goal parity launching: ${id}`);
     const launchOutcome = {
       userDataPreexisting,
       result: spawnSync(
@@ -227,6 +228,8 @@ try {
           env: environment,
           maxBuffer: 2 * 1024 * 1024,
           timeout: 45_000,
+          // spawnSync waits for exit after timeout; Electron may ignore SIGTERM.
+          killSignal: "SIGKILL",
         },
       ),
     };
@@ -236,6 +239,7 @@ try {
         [
           `Goal smoke view ${id} failed.`,
           launchResult.error?.message,
+          `status=${String(launchResult.status)} signal=${String(launchResult.signal)}`,
           launchResult.stdout,
           launchResult.stderr,
         ]
