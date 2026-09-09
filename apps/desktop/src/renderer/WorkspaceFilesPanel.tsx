@@ -138,8 +138,8 @@ function DirectoryTree({
                   >
                     <ArtemisIcon
                       name={open ? "folder-open" : "folder"}
-                      height={16}
-                      width={16}
+                      height={20}
+                      width={20}
                     />
                   </span>
                 ) : (
