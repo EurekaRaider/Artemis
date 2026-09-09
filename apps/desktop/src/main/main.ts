@@ -19632,6 +19632,11 @@ function createMainWindow(): BrowserWindow {
                           const horizontalOverflow = timeline
                             ? [...timeline.querySelectorAll('*')]
                                 .filter((candidate) => {
+                                  // SVG descendants use SVG coordinates, not CSS box overflow.
+                                  // Keep checking the outer SVG viewport and its HTML container.
+                                  if (candidate instanceof SVGElement && candidate.ownerSVGElement) {
+                                    return false;
+                                  }
                                   const style = getComputedStyle(candidate);
                                   return (
                                     candidate.scrollWidth >
