@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 356000,
+      "desktopCssBytes": 357000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -120,6 +120,14 @@
       "measuredDesktopCssBytes": 354554,
       "desktopCssIncreaseBytes": 170,
       "reason": "The current main branch already exceeds the previous 353000-byte ceiling after approval menu styling. PR #164 adds 170 bytes (0.05%) for 5px turn indicators and 13px conversation text. Both builds use identical installed dependencies and the Vite production pipeline, substituting only main styles.css for the baseline. The 355000-byte ceiling leaves 446 bytes of headroom. JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
+    },
+    {
+      "date": "2026-09-09",
+      "baseHead": "2c2ab87c62884567cbe2edd250e434155e748b13",
+      "baseDesktopCssBytes": 355323,
+      "measuredDesktopCssBytes": 356653,
+      "desktopCssIncreaseBytes": 1330,
+      "reason": "Issues #166-169 add scoped composer typography tokens, shared sidebar/Dock motion timing, and bounded branch/menu layouts: 1330 bytes (0.37%). Baseline and candidate use identical dependencies and the Vite production pipeline, substituting only the two changed desktop stylesheets for the baseline. The 357000-byte CSS ceiling leaves 347 bytes of headroom. JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
     }
   ],
   "startupBudgetRevisions": [

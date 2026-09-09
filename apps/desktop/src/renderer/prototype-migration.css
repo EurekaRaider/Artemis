@@ -1,5 +1,8 @@
 /* Production composition of the approved prototype, including the v143 sidebar handoff. */
 :root {
+  --conversation-text-size: 13px;
+  --composer-menu-label-size: 12px;
+  --composer-menu-description-size: 11px;
   --blue: var(--artemis-color-brand);
   --codex-workspace-bg: var(--artemis-color-canvas);
   --environment-menu-bg: var(--artemis-color-surface-popover);
@@ -283,7 +286,7 @@
   padding-block-end: 58px;
 }
 .conversation .markdown-body {
-  font-size: 15px;
+  font-size: var(--conversation-text-size);
   line-height: 1.7;
 }
 .composer-wrap {
@@ -725,6 +728,7 @@ textarea:focus {
 /* v143 geometry: a bounded tree, a solid rail lane, and a full-width header. */
 .app-shell {
   grid-template-rows: minmax(0, 1fr);
+  --sidebar-motion-duration: 640ms;
   --sidebar-motion-ease: cubic-bezier(0.38, 0.08, 0.22, 1);
   --sidebar-glass-sheen:
     linear-gradient(
@@ -892,12 +896,15 @@ textarea:focus {
   transition-delay: 0s;
 }
 .app-shell[data-sidebar-animating="true"] {
-  transition: grid-template-columns 640ms var(--sidebar-motion-ease);
+  transition: grid-template-columns var(--sidebar-motion-duration)
+    var(--sidebar-motion-ease);
 }
 .app-shell[data-sidebar-animating="true"] .workspace-header {
   transition:
-    margin-inline-start 640ms var(--sidebar-motion-ease),
-    padding-inline-start 640ms var(--sidebar-motion-ease);
+    margin-inline-start var(--sidebar-motion-duration)
+      var(--sidebar-motion-ease),
+    padding-inline-start var(--sidebar-motion-duration)
+      var(--sidebar-motion-ease);
 }
 .app-shell[data-sidebar-animating="true"] .sidebar {
   overflow: hidden;
@@ -927,12 +934,22 @@ textarea:focus {
   opacity: 1;
   pointer-events: auto;
 }
+[data-artemis-component="workspace-dock"]:not([data-state="resizing"]),
+[data-artemis-component="workspace-dock-resizer"] {
+  transition-duration: var(--sidebar-motion-duration);
+  transition-timing-function: var(--sidebar-motion-ease);
+}
+[data-artemis-component="workspace-dock"][data-state="closed"] {
+  transition-delay: 0s, 0s, 0s, 0s, 0s, 0s, var(--sidebar-motion-duration);
+}
 @media (prefers-reduced-motion: reduce) {
   .app-shell[data-sidebar-open="false"],
   .app-shell[data-sidebar-open="false"] .workspace-header,
   .app-shell[data-sidebar-animating="true"],
   .app-shell[data-sidebar-animating="true"] .workspace-header,
-  .sidebar > :is([data-part="main"], [data-part="rail"]) {
+  .sidebar > :is([data-part="main"], [data-part="rail"]),
+  [data-artemis-component="workspace-dock"]:not([data-state="resizing"]),
+  [data-artemis-component="workspace-dock-resizer"] {
     transition: none;
   }
 }

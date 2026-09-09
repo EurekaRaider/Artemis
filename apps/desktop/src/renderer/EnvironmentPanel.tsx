@@ -1714,7 +1714,7 @@ export function EnvironmentPanel({
                   </span>
                   <span className="environment-local-badge">{t.local}</span>
                 </div>
-                <div className="environment-setting-row">
+                <div className="environment-setting-row environment-branch-row">
                   <BranchIcon />
                   <span className="environment-setting-copy">
                     <strong>{t.branch}</strong>
@@ -1734,6 +1734,7 @@ export function EnvironmentPanel({
                         }
                       }}
                       ref={branchTrigger}
+                      title={gitInfo.currentBranch ?? t.detached}
                       type="button"
                     >
                       <span className="environment-row-copy">

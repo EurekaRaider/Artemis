@@ -1214,14 +1214,14 @@ audit step; all other gates remain required.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.5.0`. After verification succeeds, native GitHub-hosted runners build
+`v1.5.1`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.5.0
-git push origin v1.5.0
+git tag v1.5.1
+git push origin v1.5.1
 ```
 
 ### Build and test matrix
@@ -1234,14 +1234,18 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-Version 1.5.0 refreshes the product screenshots and architecture overview to
-match the current desktop, including the workspace dock, Agent teams and IM
-collaboration. All workspace packages, theme metadata and MCP client identities
-use the same release version.
+Version 1.5.1 harmonizes conversation text at 13px and composer menu labels
+and descriptions at 12px and 11px, retaining existing control hit targets.
+The Dock now shares the pinned sidebar's 640ms motion and easing. Long Git
+branch names truncate with a full-name tooltip without wrapping the label.
+Conversation action menus render above the sidebar footer and flip upward
+near the window edge, retaining outside-click and Escape dismissal.
+All workspace packages, theme metadata and MCP client identities use the same
+release version. Product screenshots retain their original capture provenance.
 The production lockfile resolves `js-yaml` to `4.3.2`, fixing
 [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh).
 
-The full `npm test` run for **1.5.0**, verified on September 9, 2026,
+The full `npm test` run for **1.5.1**, verified on September 9, 2026,
 contains **2379 passing tests** (12 skipped).
 Repeated UI and UI Gallery runs inside the verification pipeline are counted
 once:
@@ -1278,13 +1282,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.5.0` packaging configuration produces:
+The `1.5.1` packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.5.0.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.5.0.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.5.0.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.5.1.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.5.1.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.5.1.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

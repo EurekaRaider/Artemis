@@ -35,7 +35,7 @@ import {
   TurnChangeSummary,
   TurnExecutionDisclosure,
 } from "@artemis/ui/conversation";
-import { Dialog, LoadingState, Toast } from "@artemis/ui/feedback";
+import { Dialog, LoadingState, Popover, Toast } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import artemisIcon from "../../build/icon.png";
 import { PanelHeader, Toolbar } from "@artemis/ui/layout";
@@ -1530,6 +1530,7 @@ export function App() {
   const [activeView, setActiveView] = useState<ActiveView>("workspace");
   const [projectMenuId, setProjectMenuId] = useState<string>();
   const [threadMenuId, setThreadMenuId] = useState<string>();
+  const threadMenuAnchor = useRef<HTMLButtonElement | null>(null);
   const [threadRename, setThreadRename] = useState<{
     threadId: string;
     title: string;
@@ -5597,6 +5598,10 @@ export function App() {
         onBlur={(event) => {
           if (
             !event.currentTarget.contains(event.relatedTarget) &&
+            !(
+              event.relatedTarget instanceof Element &&
+              event.relatedTarget.closest(".thread-menu")
+            ) &&
             !event.currentTarget.matches(":hover")
           )
             closeSidebarPeek();
@@ -6304,8 +6309,12 @@ export function App() {
                                 </button>
                                 <button
                                   aria-label={t.moreActions}
+                                  aria-haspopup="menu"
+                                  aria-expanded={threadMenuId === thread.id}
                                   className="thread-action"
-                                  onClick={() => {
+                                  onClick={(event) => {
+                                    threadMenuAnchor.current =
+                                      event.currentTarget;
                                     setProjectMenuId(undefined);
                                     setThreadMenuId((current) =>
                                       current === thread.id
@@ -6322,13 +6331,25 @@ export function App() {
                                   />
                                 </button>
                                 {threadMenuId === thread.id && (
-                                  <div className="thread-menu">
+                                  <Popover
+                                    anchorRef={threadMenuAnchor}
+                                    align="end"
+                                    className="thread-menu"
+                                    label={t.moreActions}
+                                    onOpenChange={(open) => {
+                                      if (!open) setThreadMenuId(undefined);
+                                    }}
+                                    open
+                                    role="menu"
+                                  >
                                     <button
+                                      role="menuitem"
                                       onClick={() => beginRenameThread(thread)}
                                     >
                                       {t.renameTask}
                                     </button>
                                     <button
+                                      role="menuitem"
                                       disabled={
                                         thread.status === "running" ||
                                         thread.status === "waiting-approval"
@@ -6338,6 +6359,7 @@ export function App() {
                                       {t.forkTask}
                                     </button>
                                     <button
+                                      role="menuitem"
                                       disabled={
                                         thread.status === "running" ||
                                         thread.status === "waiting-approval"
@@ -6349,6 +6371,7 @@ export function App() {
                                       {t.archiveTask}
                                     </button>
                                     <button
+                                      role="menuitem"
                                       className="danger"
                                       disabled={
                                         thread.status === "running" ||
@@ -6358,7 +6381,7 @@ export function App() {
                                     >
                                       {t.deleteTask}
                                     </button>
-                                  </div>
+                                  </Popover>
                                 )}
                               </>
                             )}
@@ -6552,8 +6575,11 @@ export function App() {
                       </button>
                       <button
                         aria-label={t.moreActions}
+                        aria-haspopup="menu"
+                        aria-expanded={threadMenuId === thread.id}
                         className="thread-action"
-                        onClick={() => {
+                        onClick={(event) => {
+                          threadMenuAnchor.current = event.currentTarget;
                           setProjectMenuId(undefined);
                           setThreadMenuId((current) =>
                             current === thread.id ? undefined : thread.id,
@@ -6565,11 +6591,25 @@ export function App() {
                         <ArtemisIcon name="more" width={16} height={16} />
                       </button>
                       {threadMenuId === thread.id && (
-                        <div className="thread-menu">
-                          <button onClick={() => beginRenameThread(thread)}>
+                        <Popover
+                          anchorRef={threadMenuAnchor}
+                          align="end"
+                          className="thread-menu"
+                          label={t.moreActions}
+                          onOpenChange={(open) => {
+                            if (!open) setThreadMenuId(undefined);
+                          }}
+                          open
+                          role="menu"
+                        >
+                          <button
+                            role="menuitem"
+                            onClick={() => beginRenameThread(thread)}
+                          >
                             {t.renameTask}
                           </button>
                           <button
+                            role="menuitem"
                             disabled={
                               thread.status === "running" ||
                               thread.status === "waiting-approval"
@@ -6579,6 +6619,7 @@ export function App() {
                             {t.forkTask}
                           </button>
                           <button
+                            role="menuitem"
                             disabled={
                               thread.status === "running" ||
                               thread.status === "waiting-approval"
@@ -6588,6 +6629,7 @@ export function App() {
                             {t.archiveTask}
                           </button>
                           <button
+                            role="menuitem"
                             className="danger"
                             disabled={
                               thread.status === "running" ||
@@ -6597,7 +6639,7 @@ export function App() {
                           >
                             {t.deleteTask}
                           </button>
-                        </div>
+                        </Popover>
                       )}
                     </>
                   )}
