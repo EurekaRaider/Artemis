@@ -1212,14 +1212,14 @@ audit step; all other gates remain required.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.65`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.66`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.65
-git push origin v1.4.65
+git tag v1.4.66
+git push origin v1.4.66
 ```
 
 ### Build and test matrix
@@ -1236,8 +1236,11 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The v1.4.65 compact Dock, environment spacing, and project preview fixes produce
-352,998 bytes of desktop CSS, within the unchanged 353,000-byte budget.
+Version 1.4.66 aligns sidebar and conversation status dots at 5px and sets
+conversation message text to 13px. It also retains the larger directory-tree
+folder icons and synchronizes the icon catalog contract with the shipped icons.
+The desktop CSS measures 354,554 bytes, 170 bytes above the current main baseline,
+within the documented 355,000-byte budget.
 The production lockfile resolves `js-yaml` to `4.3.2`, fixing
 [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh).
 
@@ -1276,13 +1279,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.65` packaging configuration produces:
+The `1.4.66` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.65.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.65.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.65.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.66.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.66.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.66.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They
