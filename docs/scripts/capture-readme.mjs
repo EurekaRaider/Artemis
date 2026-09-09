@@ -210,7 +210,14 @@ const page = await app.firstWindow();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const screenshots = [];
+let viewport;
 async function capture(name) {
+  await page.waitForTimeout(700);
+  const closeEnvironment = page.locator(
+    ".environment-panel-header .environment-header-action",
+  );
+  if (await closeEnvironment.isVisible()) await closeEnvironment.click();
+  await page.mouse.move(300, 20);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(350);
   const visibleText = await page.locator("body").innerText();
@@ -227,14 +234,12 @@ async function capture(name) {
   );
   await page.screenshot({
     path: join(out, name + ".png"),
-    clip: { x: 0, y: 28, width: 1440, height: 900 },
     scale: "css",
   });
   const bytes = await readFile(join(out, name + ".png"));
   screenshots.push({
     file: name + ".png",
-    width: 1440,
-    height: 900,
+    ...viewport,
     bytes: bytes.length,
     sha256: createHash("sha256").update(bytes).digest("hex"),
   });
@@ -269,9 +274,14 @@ try {
     }));
   });
   await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].setContentSize(1440, 928),
+    BrowserWindow.getAllWindows()[0].setContentSize(1440, 850),
   );
+  viewport = await page.evaluate(() => ({
+    width: innerWidth,
+    height: innerHeight,
+  }));
   await page.evaluate(async () => {
+    await window.artemis.setWorkspaceDockWidth(560);
     await window.artemis.setLanguage("en");
     await window.artemis.setTheme("light");
   });
@@ -333,23 +343,23 @@ try {
   await capture("terminal");
   await page.locator(".environment-trigger").click();
   await page
-    .locator(".environment-activity-row")
+    .locator(".environment-agent-team-trigger")
     .filter({ hasText: "Research library" })
     .click();
   await capture("agent-team");
   await page
-    .locator(".activity-bar")
+    .locator(".sidebar-footer")
     .getByRole("button", { name: "Settings", exact: true })
     .click();
   await page.locator("#settings-tab-general-button").click();
   await capture("settings-general");
   await page.locator(".settings-header").getByRole("button").click();
-  for (const [index, name] of [
-    [1, "resources"],
-    [2, "token-usage"],
-    [3, "automations"],
+  for (const [view, name] of [
+    ["resources", "resources"],
+    ["token-usage", "token-usage"],
+    ["automations", "automations"],
   ]) {
-    await page.locator(".activity-button").nth(index).click();
+    await page.locator(`.sidebar-nav [data-nav-view="${view}"]`).click();
     await page.waitForTimeout(600);
     await capture(name);
   }
@@ -390,8 +400,8 @@ try {
       "Local working tree, including in-progress changes present at capture time.",
     platform: "macOS " + process.arch,
     renderer: "Production Electron build",
-    viewport: { width: 1440, height: 900 },
-    data: "Isolated synthetic project, conversation, usage, agent and disabled automation fixtures. Presentation identity replaced with Artemis in the isolated snapshot handler. No provider turn was submitted. Native titlebar excluded.",
+    viewport,
+    data: "Isolated synthetic project, conversation, usage, agent and disabled automation fixtures. Presentation identity replaced with Artemis in the isolated snapshot handler. No provider turn was submitted. Application viewport captured without cropping.",
     privacy: {
       displayName: "Artemis",
       visiblePersonalNames: false,

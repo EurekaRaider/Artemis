@@ -2,12 +2,12 @@
 
 ## Desktop screenshots
 
-The README screenshots were captured on September 6, 2026 from a locally built
-Artemis 1.4.62 desktop running on macOS arm64. They show the production Electron
+The README screenshots were captured on September 9, 2026 from a locally built
+Artemis 1.5.0 desktop running on macOS arm64. They show the production Electron
 renderer, not the UI prototype or component Gallery.
 
-Each capture is 1440 × 900 CSS pixels at 100% zoom, with the native titlebar
-excluded. The [capture manifest](images/screenshots/manifest.json) records the
+Each capture is 1440 × 850 CSS pixels at 100% zoom, with the full application viewport
+included. The [capture manifest](images/screenshots/manifest.json) records the
 source HEAD, working-tree qualification, timestamp, renderer security settings,
 image dimensions and SHA-256 hashes. These are local working-tree captures;
 they are not screenshots of a signed release.

@@ -1136,7 +1136,9 @@ loop. Raw Pi events pass through `PiAdapter` before reaching the Artemis
 protocol. Durable UI events receive authoritative IDs and sequences before
 persistence and publication; live child-Agent activity uses coalesced IPC
 batches. Model providers and the optional Feishu/Slack gateway remain separate
-integrations.
+integrations. IM-originated tasks use scoped remote tools with a host file
+broker and native sandbox, never the desktop Shell fallback. Desktop Shell
+commands support observation windows, continued execution, waiting and cancellation.
 
 | Boundary                       | Responsibility                                                                                                                                          |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1212,21 +1214,17 @@ audit step; all other gates remain required.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.66`. After verification succeeds, native GitHub-hosted runners build
+`v1.5.0`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.66
-git push origin v1.4.66
+git tag v1.5.0
+git push origin v1.5.0
 ```
 
 ### Build and test matrix
-
-The desktop CSS ceiling is 353,000 bytes: the same Vite pipeline measured
-352,353 bytes at the prior main commit and 352,386 bytes after the fixes (including reduced-motion sidebar handling).
-Startup and JavaScript budgets remain unchanged.
 
 ```powershell
 npm test
@@ -1236,15 +1234,15 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-Version 1.4.66 aligns sidebar and conversation status dots at 5px and sets
-conversation message text to 13px. It also retains the larger directory-tree
-folder icons and synchronizes the icon catalog contract with the shipped icons.
-The desktop CSS measures 354,554 bytes, 170 bytes above the current main baseline,
-within the documented 355,000-byte budget.
+Version 1.5.0 refreshes the product screenshots and architecture overview to
+match the current desktop, including the workspace dock, Agent teams and IM
+collaboration. All workspace packages, theme metadata and MCP client identities
+use the same release version.
 The production lockfile resolves `js-yaml` to `4.3.2`, fixing
 [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh).
 
-The current package test suites contain **2379 passing tests** (12 skipped).
+The full `npm test` run for **1.5.0**, verified on September 9, 2026,
+contains **2379 passing tests** (12 skipped).
 Repeated UI and UI Gallery runs inside the verification pipeline are counted
 once:
 
@@ -1262,8 +1260,9 @@ automations, usage insights, persisted project ordering, local profile images,
 configuration import, Skills, MCP, extensions, Terminal behavior and
 Windows-native extension sandbox boundaries.
 
-The release dependency tree also reports **0 known vulnerabilities** through
-`npm audit`.
+The production dependency audit for this release reports **0 high or critical
+vulnerabilities**, with 1 moderate and 3 low findings. The configured release
+audit gate passes; these remaining findings are not counted as fixed.
 
 Windows-native verification additionally exercises the desktop-user PTY with
 workspace/outside writes and network access, local stdio MCP inside AppContainer
@@ -1279,13 +1278,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.66` packaging configuration produces:
+The `1.5.0` packaging configuration produces:
 
-| Target                    | Artifacts                                                        |
-| ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.66.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.66.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.66.dmg` and `.zip`   |
+| Target                    | Artifacts                                                       |
+| ------------------------- | --------------------------------------------------------------- |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.5.0.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.5.0.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.5.0.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

@@ -174,10 +174,10 @@
         <rect width="1280" height="864" fill="#f5f5f7" />
         <text x="40" y="60" class="title">Artemis system architecture</text>
         <text x="40" y="92" class="subtitle">
-          A local desktop. One Pi agent loop. Explicit boundaries.
+          Local tasks, shared IM spaces and one Pi agent loop.
         </text>
         <text x="1240" y="60" text-anchor="end" class="tech">
-          IMPLEMENTATION OVERVIEW
+          VERSION 1.5.0
         </text>
 
         <!-- Process boundaries precede all connectors and nodes. -->
@@ -263,7 +263,7 @@
             Root sessions → local Pi JSONL
           </text>
           <text x="724" y="344" class="body">
-            Child sessions → memory + scheduler
+            Child agents → teams + concurrency
           </text>
         </g>
         <g data-node="providers">
@@ -292,9 +292,9 @@
           />
           <text x="84" y="484" class="name">Optional IM gateway</text>
           <text x="84" y="512" class="body">
-            Feishu / Slack · paired devices
+            Feishu / Slack · scoped grants
           </text>
-          <text x="84" y="536" class="tech">@artemis/gateway</text>
+          <text x="84" y="536" class="tech">Pairing · shared groups</text>
         </g>
         <g data-node="storage">
           <rect x="400" y="452" width="200" height="96" rx="8" class="store" />
@@ -328,7 +328,7 @@
           Desktop-user filesystem and network.
         </text>
         <text x="40" y="748" class="body">
-          Shell: Execute + approval. Terminal: user-opened.
+          Shell: approval + wait / cancel. Terminal: user-opened.
         </text>
         <text x="492" y="696" class="tag">Local stdio MCP</text>
         <text x="492" y="724" class="body">
@@ -346,11 +346,11 @@
         </text>
         <line x1="40" y1="784" x2="1240" y2="784" stroke="#0000001f" />
         <text x="40" y="820" class="body">
-          Project tasks use the Local checkout. Temporary chats use an isolated
-          generated workspace.
+          IM tools: scoped file broker + native sandbox; no desktop Shell
+          fallback.
         </text>
         <text x="1240" y="820" text-anchor="end" class="tech">
-          DASHED EDGES: EVENT RETURN / OPTIONAL IM
+          LOCAL CHECKOUT · ISOLATED TEMPORARY CHATS
         </text>
       </svg>
     </main>
