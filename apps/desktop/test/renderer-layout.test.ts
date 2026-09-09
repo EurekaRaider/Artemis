@@ -2137,7 +2137,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("onKeyDown={resizeWorkspaceDockFromKeyboard}");
     expect(appSource).toContain("workspaceDockWidthAfterKey(");
     expect(workspaceDockLayoutSource).toContain('if (key === "Home")');
-    expect(workspaceDockLayoutSource).toContain("workspaceWidth * 0.62");
+    expect(workspaceDockLayoutSource).toContain("DEFAULT_WORKSPACE_DOCK_WIDTH");
     expect(workspaceDockLayoutSource).toContain(
       'if (key === "End") return bounds.max',
     );
@@ -2180,7 +2180,7 @@ describe("renderer layout contract", () => {
     expect(projectSidebarResizer).toMatch(/\btouch-action:\s*none/u);
 
     expect(dock).toMatch(
-      /\bflex:\s*0\s+1\s+var\(--workspace-dock-width,\s*62%\)/u,
+      /\bflex:\s*0\s+1\s+var\(--workspace-dock-width,\s*22\.5rem\)/u,
     );
     expect(dock).toMatch(/\binline-size:\s*var\(--workspace-dock-width/u);
     expect(dock).toMatch(/calc\(100%\s*-\s*20\.4375rem\)/u);

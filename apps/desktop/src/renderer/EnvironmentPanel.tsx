@@ -987,7 +987,7 @@ export function EnvironmentPanel({
       workspace,
       conversation,
       inset,
-      enoughSpace: inset === 0 || bounds.width - inset >= 480,
+      enoughSpace: inset === 0 || bounds.width - inset - 24 >= 480,
     };
   }, []);
 

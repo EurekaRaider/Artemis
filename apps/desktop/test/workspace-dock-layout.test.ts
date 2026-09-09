@@ -8,13 +8,13 @@ import {
 } from "../src/renderer/workspace-dock-layout.js";
 
 describe("workspace dock layout", () => {
-  it("preserves responsive minimums while reserving conversation space", () => {
+  it("allows compact panels while reserving conversation space", () => {
     expect(workspaceDockWidthBounds(1_400, 1_400)).toEqual({
-      min: 440,
+      min: 320,
       max: 1_073,
     });
     expect(workspaceDockWidthBounds(900, 1_000)).toEqual({
-      min: 380,
+      min: 320,
       max: 573,
     });
     expect(workspaceDockWidthBounds(700, 800)).toEqual({
@@ -22,7 +22,7 @@ describe("workspace dock layout", () => {
       max: 373,
     });
     expect(workspaceDockWidthBounds(1_213, 1_512, 328)).toEqual({
-      min: 440,
+      min: 320,
       max: 558,
     });
   });
@@ -56,7 +56,7 @@ describe("workspace dock layout", () => {
     ).toBe(476);
     expect(
       workspaceDockWidthAfterKey(500, "Home", "rtl", bounds, 900, 24),
-    ).toBe(558);
+    ).toBe(380);
     expect(workspaceDockWidthAfterKey(500, "End", "rtl", bounds, 900, 24)).toBe(
       720,
     );

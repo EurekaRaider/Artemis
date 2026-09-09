@@ -1,5 +1,6 @@
 export const MIN_CONVERSATION_WIDTH = 320;
 export const MIN_WORKSPACE_DOCK_WIDTH = 320;
+export const DEFAULT_WORKSPACE_DOCK_WIDTH = 360;
 export const MAX_WORKSPACE_DOCK_WIDTH = 1_080;
 export const WORKSPACE_DOCK_RESIZER_WIDTH = 7;
 
@@ -14,11 +15,9 @@ export type WorkspaceDockResizeKey =
 
 export function workspaceDockWidthBounds(
   workspaceWidth: number,
-  viewportWidth: number,
+  _viewportWidth: number,
   reservedWorkspaceWidth = 0,
 ): WorkspaceDockWidthBounds {
-  const responsiveMinimum =
-    viewportWidth <= 820 ? 320 : viewportWidth <= 1_100 ? 380 : 440;
   const availableMaximum = Math.floor(
     workspaceWidth -
       MIN_CONVERSATION_WIDTH -
@@ -30,7 +29,7 @@ export function workspaceDockWidthBounds(
     Math.min(MAX_WORKSPACE_DOCK_WIDTH, availableMaximum),
   );
   return {
-    min: Math.min(responsiveMinimum, max),
+    min: MIN_WORKSPACE_DOCK_WIDTH,
     max,
   };
 }
@@ -58,11 +57,11 @@ export function workspaceDockWidthAfterKey(
   key: WorkspaceDockResizeKey,
   direction: WorkspaceDirection,
   bounds: WorkspaceDockWidthBounds,
-  workspaceWidth: number,
+  _workspaceWidth: number,
   step: number,
 ): number {
   if (key === "Home") {
-    return clampWorkspaceDockWidth(workspaceWidth * 0.62, bounds);
+    return clampWorkspaceDockWidth(DEFAULT_WORKSPACE_DOCK_WIDTH, bounds);
   }
   if (key === "End") return bounds.max;
   const increaseKey = direction === "rtl" ? "ArrowRight" : "ArrowLeft";

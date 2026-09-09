@@ -1061,7 +1061,13 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   margin-top: 6px;
 }
 
-.environment-section + .environment-section,
+.environment-section + .environment-section {
+  background: var(--artemis-color-surface-sunken);
+  border-radius: 8px;
+  padding: 8px;
+  border-top: 0;
+}
+
 .turn-change-more .turn-change-files {
   background: var(--panel-2);
   border-top: 0;
@@ -1117,6 +1123,16 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   line-height: 1;
   padding: 0;
   width: 24px;
+}
+
+.environment-panel-header > button {
+  width: 20px;
+  height: 20px;
+}
+
+.environment-panel-header > button svg {
+  width: 12px;
+  height: 12px;
 }
 
 .environment-text-action {
@@ -4200,11 +4216,16 @@ button.environment-row:disabled {
 .conversation .conversation-empty-state {
   position: relative;
   inline-size: calc(
-    100% - var(--environment-panel-content-safe-inline-size, 0px)
+    100% - var(--environment-panel-content-safe-inline-size, 0px) -
+      min(24px, var(--environment-panel-content-safe-inline-size, 0px))
   );
   margin-inline: auto;
   inset-inline-end: calc(
-    var(--environment-panel-content-safe-inline-size, 0px) / 2
+    (
+        var(--environment-panel-content-safe-inline-size, 0px) -
+          min(24px, var(--environment-panel-content-safe-inline-size, 0px))
+      ) /
+      2
   );
 }
 

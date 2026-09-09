@@ -383,18 +383,18 @@ describe("environment panel automatic visibility", () => {
   });
 
   it("opens with sufficient space and restores at the exact width threshold without moving prompt focus", async () => {
-    workspaceWidth = 833;
+    workspaceWidth = 857;
     await renderReady(fixture());
     expect(dialog()).toBeNull();
     const prompt = screen.getByRole("textbox", { name: "Prompt" });
     prompt.focus();
-    resize(834);
+    resize(858);
     expect(dialog()).toBeVisible();
     await waitFor(() =>
       expect(window.artemis.getProjectGitInfo).toHaveBeenCalled(),
     );
     expect(prompt).toHaveFocus();
-    resize(833);
+    resize(857);
     expect(dialog()).toBeNull();
     resize(1800);
     expect(dialog()).toBeVisible();
@@ -402,10 +402,10 @@ describe("environment panel automatic visibility", () => {
   });
 
   it("measures actual content bounds and configured panel width, including sidebar-only resizes", async () => {
-    workspaceWidth = 873;
+    workspaceWidth = 897;
     await renderReady(fixture({}, 320));
     expect(dialog()).toBeNull();
-    resize(874);
+    resize(898);
     expect(dialog()).toBeVisible();
     resize(800);
     expect(dialog()).toBeNull();

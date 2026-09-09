@@ -587,10 +587,7 @@ try {
       const expectedHome = Math.round(
         Math.min(
           interaction.home.resizer.maximum,
-          Math.max(
-            interaction.home.resizer.minimum,
-            interaction.home.workspaceContent.width * 0.62,
-          ),
+          Math.max(interaction.home.resizer.minimum, 360),
         ),
       );
       assert(

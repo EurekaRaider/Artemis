@@ -104,6 +104,26 @@ describe("EncryptedSettingsStore", () => {
     ).rejects.toThrow("unique");
   });
 
+  it("persists the expanded project conversation preview state", async () => {
+    const { filePath, store } = await createStore();
+    await expect(store.expandedProjectIds()).resolves.toEqual([]);
+    await expect(
+      store.setExpandedProjectIds(["project-b", "project-c"]),
+    ).resolves.toEqual(["project-b", "project-c"]);
+
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.expandedProjectIds()).resolves.toEqual([
+      "project-b",
+      "project-c",
+    ]);
+    await expect(
+      reopened.setExpandedProjectIds(["project-b", "project-b"]),
+    ).rejects.toThrow("unique");
+  });
+
   it("persists a bounded local profile avatar and supports removal", async () => {
     const { filePath, store } = await createStore();
     const avatar = `data:image/webp;base64,${Buffer.from("avatar").toString("base64")}`;

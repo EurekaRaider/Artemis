@@ -726,8 +726,8 @@ const copy = {
     confirmationDangerTitle: "此操作无法撤销",
     confirmationCancel: "取消",
     confirmationAccept: "确认",
-    showMoreTasks: "展开显示",
-    showFewerTasks: "收起显示",
+    showMoreTasks: "显示更多",
+    showFewerTasks: "收起更多",
     expandProjectHistory: "展开对话记录",
     collapseProjectHistory: "折叠对话记录",
     collapseAllProjectHistories: "收起全部项目会话",
@@ -1468,6 +1468,8 @@ export function App() {
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const expandedProjectIdsRef = useRef<Set<string>>(new Set());
+  const expandedProjectIdsTouched = useRef(false);
   const projectTreeElement = useRef<HTMLDivElement>(null);
   const [treeActiveRowId, setTreeActiveRowId] = useState<string>();
   const focusProjectTreeRow = useCallback((rowId: string) => {
@@ -1714,6 +1716,9 @@ export function App() {
   const collapsedProjectIdsPersistence = useRef<
     ProjectOrderPersistenceQueue | undefined
   >(undefined);
+  const expandedProjectIdsPersistence = useRef<
+    ProjectOrderPersistenceQueue | undefined
+  >(undefined);
   const projectThreadOrderPersistence = useRef(
     new Map<string, ProjectOrderPersistenceQueue>(),
   );
@@ -1763,6 +1768,44 @@ export function App() {
       },
     );
   }
+  if (!expandedProjectIdsPersistence.current) {
+    expandedProjectIdsPersistence.current = createProjectOrderPersistenceQueue({
+      save: (projectIds) => window.artemis.setExpandedProjectIds(projectIds),
+      onPersisted: (projectIds) => {
+        const next = new Set(projectIds);
+        expandedProjectIdsRef.current = next;
+        setExpandedProjectIds(next);
+        setRuntimeSettings((current) =>
+          current ? { ...current, expandedProjectIds: projectIds } : current,
+        );
+      },
+      onRejected: (projectIds, error) => {
+        const previous = new Set(projectIds);
+        expandedProjectIdsRef.current = previous;
+        setExpandedProjectIds(previous);
+        setRuntimeSettings((current) =>
+          current ? { ...current, expandedProjectIds: projectIds } : current,
+        );
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      },
+    });
+  }
+  const toggleProjectPreview = useCallback((projectId: string) => {
+    expandedProjectIdsTouched.current = true;
+    const previous = expandedProjectIdsRef.current;
+    const next = new Set(previous);
+    if (next.has(projectId)) next.delete(projectId);
+    else next.add(projectId);
+    expandedProjectIdsRef.current = next;
+    setExpandedProjectIds(next);
+    void expandedProjectIdsPersistence.current?.persist(
+      [...next],
+      [...previous],
+    );
+  }, []);
   const setProjectHistoriesCollapsed = useCallback(
     (projectIds: readonly string[], collapsed: boolean) => {
       collapsedProjectIdsTouched.current = true;
@@ -3339,6 +3382,14 @@ export function App() {
           if (!collapsedProjectIdsTouched.current) {
             collapsedProjectIdsRef.current = persistedCollapsed;
             setCollapsedProjectIds(persistedCollapsed);
+          }
+          const persistedExpanded = new Set(value.expandedProjectIds ?? []);
+          expandedProjectIdsPersistence.current?.initialize([
+            ...persistedExpanded,
+          ]);
+          if (!expandedProjectIdsTouched.current) {
+            expandedProjectIdsRef.current = persistedExpanded;
+            setExpandedProjectIds(persistedExpanded);
           }
           setApprovalPolicy(value.approvalPolicy);
           setRuntimeSettings(
@@ -6318,15 +6369,8 @@ export function App() {
                                 ? 0
                                 : -1
                             }
-                            onClick={() =>
-                              setExpandedProjectIds((current) => {
-                                const next = new Set(current);
-                                if (next.has(project.id))
-                                  next.delete(project.id);
-                                else next.add(project.id);
-                                return next;
-                              })
-                            }
+                            aria-expanded={expanded}
+                            onClick={() => toggleProjectPreview(project.id)}
                             type="button"
                           >
                             {expanded ? t.showFewerTasks : t.showMoreTasks}

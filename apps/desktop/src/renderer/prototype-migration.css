@@ -279,6 +279,7 @@
   min-block-size: 0;
 }
 .timeline-scroll {
+  scrollbar-gutter: stable both-edges;
   padding-block-end: 58px;
 }
 .conversation .markdown-body {
@@ -938,4 +939,21 @@ textarea:focus {
 
 .app-shell[data-platform="darwin"] .environment-popover {
   -webkit-app-region: no-drag;
+}
+
+/* Match the Projects heading action spacing without shifting the title column. */
+.nested-project .project-action {
+  margin-inline-start: 9px;
+}
+
+.nested-project > .project-row,
+.nested-project .project-select {
+  cursor: grab;
+}
+
+.nested-project > .project-row:active,
+.nested-project .project-select:active,
+.nested-project.dragging > .project-row,
+.nested-project.dragging .project-select {
+  cursor: grabbing;
 }

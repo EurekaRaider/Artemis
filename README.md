@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="2374 passing tests" src="https://img.shields.io/badge/Tests-2374_passing-2EA44F" />
+  <img alt="2375 passing tests" src="https://img.shields.io/badge/Tests-2375_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -296,14 +296,20 @@ other everyday tasks.
   start projectless work from the Temporary chats header, collapse that section
   with its state preserved across restarts, and collapse individual project
   histories with each project's state restored independently. Drag projects
-  into a preferred order that survives restart, and resize the persisted
+  into a preferred order that survives restart, with grab/grabbing cursor feedback, and resize the persisted
   top-aligned sidebar to fit long task names or reclaim workspace space. The
-  sidebar uses a 320ms shell-eased transition. Preview five tasks before expanding,
+  sidebar uses a 320ms shell-eased transition. Preview five tasks before expanding, remember each project's “Show more / Show less”
+  choice across restarts,
   and create, rename, search, archive, restore, fork, delete or switch tasks
   from the sidebar. Running and approval-waiting tasks stay at the top, ordered
   by the most recently submitted prompt when several are active. Sidebar action
   menus dismiss on outside click or Escape. Project folder centers and task
   status lights share a column, and project/task labels share their text origin.
+  Project action buttons use the same spacing as the Projects heading.
+  The tool Dock opens at a compact 360px default, permits resizing down to 320px,
+  and restores manually chosen widths; narrow windows retain the full-width overlay.
+  Environment source and Agent team sections use the sunken surface color, with
+  a smaller close control and equal content margins beside the open panel.
   Deletion reports progress and errors; Agent Host cleanup requests have a bounded
   timeout so an unresponsive host cannot silently stall project-task removal.
 - **Temporary chats** — start, persist, archive, fork and delete a
@@ -1206,14 +1212,14 @@ audit step; all other gates remain required.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.4.64`. After verification succeeds, native GitHub-hosted runners build
+`v1.4.65`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.4.64
-git push origin v1.4.64
+git tag v1.4.65
+git push origin v1.4.65
 ```
 
 ### Build and test matrix
@@ -1230,13 +1236,16 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-The current package test suites contain **2374 passing tests** (12 skipped).
+The v1.4.65 compact Dock, environment spacing, and project preview fixes produce
+352,998 bytes of desktop CSS, within the unchanged 353,000-byte budget.
+
+The current package test suites contain **2375 passing tests** (12 skipped).
 Repeated UI and UI Gallery runs inside the verification pipeline are counted
 once:
 
 | Gateway | Protocol | Platform | Agent Host | Theme Contract |  UI | Theme Artemis | UI Gallery | Desktop | **Total** |
 | ------: | -------: | -------: | ---------: | -------------: | --: | ------------: | ---------: | ------: | --------: |
-|     114 |      143 |       25 |        165 |             15 | 304 |             5 |        142 |    1461 |  **2374** |
+|     114 |      143 |       25 |        165 |             15 | 304 |             5 |        142 |    1462 |  **2375** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1265,13 +1274,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.4.64` packaging configuration produces:
+The `1.4.65` packaging configuration produces:
 
 | Target                    | Artifacts                                                        |
 | ------------------------- | ---------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.64.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.64.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.64.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.4.65.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.4.65.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.4.65.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

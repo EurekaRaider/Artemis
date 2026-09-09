@@ -1782,6 +1782,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     projectOrder,
     projectThreadOrder,
     collapsedProjectIds,
+    expandedProjectIds,
     projectSidebarWidth,
     temporaryConversationsOpen,
     workspaceDockWidth,
@@ -1799,6 +1800,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     settingsStore.projectOrder(),
     settingsStore.projectThreadOrder(),
     settingsStore.collapsedProjectIds(),
+    settingsStore.expandedProjectIds(),
     settingsStore.projectSidebarWidth(),
     settingsStore.temporaryConversationsOpen(),
     settingsStore.workspaceDockWidth(),
@@ -1827,6 +1829,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     projectOrder,
     projectThreadOrder,
     collapsedProjectIds,
+    expandedProjectIds,
     ...(projectSidebarWidth === undefined ? {} : { projectSidebarWidth }),
     temporaryConversationsOpen,
     ...(workspaceDockWidth === undefined ? {} : { workspaceDockWidth }),
@@ -6368,6 +6371,15 @@ function registerIpc(): void {
         throw new Error("Agent settings are not ready.");
       }
       return settingsStore.setCollapsedProjectIds(projectIds);
+    },
+  );
+  ipcMain.handle(
+    IPC.settingsExpandedProjectIdsSet,
+    async (_event, projectIds: string[]): Promise<string[]> => {
+      if (!settingsStore) {
+        throw new Error("Agent settings are not ready.");
+      }
+      return settingsStore.setExpandedProjectIds(projectIds);
     },
   );
   ipcMain.handle(

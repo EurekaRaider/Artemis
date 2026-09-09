@@ -61,6 +61,7 @@ interface PersistedSettings {
   projectOrder?: string[];
   projectThreadOrder?: Record<string, string[]>;
   collapsedProjectIds?: string[];
+  expandedProjectIds?: string[];
   projectSidebarWidth?: number;
   temporaryConversationsOpen?: boolean;
   workspaceDockWidth?: number;
@@ -391,6 +392,20 @@ export class EncryptedSettingsStore {
     const validated = validateProjectOrder(projectIds);
     const settings = await this.load();
     settings.collapsedProjectIds = validated;
+    await this.save(settings);
+    return [...validated];
+  }
+
+  async expandedProjectIds(): Promise<string[]> {
+    return [...((await this.load()).expandedProjectIds ?? [])];
+  }
+
+  async setExpandedProjectIds(
+    projectIds: readonly string[],
+  ): Promise<string[]> {
+    const validated = validateProjectOrder(projectIds);
+    const settings = await this.load();
+    settings.expandedProjectIds = validated;
     await this.save(settings);
     return [...validated];
   }
@@ -810,6 +825,15 @@ export class EncryptedSettingsStore {
           (() => {
             try {
               validateProjectOrder(parsed.collapsedProjectIds);
+              return false;
+            } catch {
+              return true;
+            }
+          })()) ||
+        (parsed.expandedProjectIds !== undefined &&
+          (() => {
+            try {
+              validateProjectOrder(parsed.expandedProjectIds);
               return false;
             } catch {
               return true;

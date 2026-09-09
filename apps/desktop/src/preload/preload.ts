@@ -216,6 +216,8 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.settingsProjectOrderSet, order),
   setProjectThreadOrder: (projectId, order) =>
     ipcRenderer.invoke(IPC.settingsProjectThreadOrderSet, projectId, order),
+  setExpandedProjectIds: (projectIds) =>
+    ipcRenderer.invoke(IPC.settingsExpandedProjectIdsSet, projectIds),
   setCollapsedProjectIds: (projectIds) =>
     ipcRenderer.invoke(IPC.settingsCollapsedProjectIdsSet, projectIds),
   setProjectSidebarWidth: (width) =>
