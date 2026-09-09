@@ -90,9 +90,9 @@ const cases = [
     scale: 2,
     theme: "light",
     view: "environment-pr-checks",
-    // At 200% zoom, leave room for the panel plus the 480px reading area.
+    // At 200% zoom, reserve the panel, symmetric 24px margins and 480px reading area.
     // Narrow-window auto-close is covered by verify-environment-panel-responsive.
-    width: 1_800,
+    width: 1_900,
   },
   {
     caseId: "approval-panel-dark-rtl-200",
