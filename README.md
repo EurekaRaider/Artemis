@@ -1238,6 +1238,8 @@ npm run verify:screenshot-matrix
 
 The v1.4.65 compact Dock, environment spacing, and project preview fixes produce
 352,998 bytes of desktop CSS, within the unchanged 353,000-byte budget.
+The production lockfile resolves `js-yaml` to `4.3.2`, fixing
+[GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh).
 
 The current package test suites contain **2375 passing tests** (12 skipped).
 Repeated UI and UI Gallery runs inside the verification pipeline are counted
