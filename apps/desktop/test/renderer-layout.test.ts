@@ -836,9 +836,7 @@ describe("renderer layout contract", () => {
     expect(mainProcessSource).toContain(
       "risk: effectiveApprovalRisk(approvalOperation)",
     );
-    expect(appSource).toContain(
-      "低、中风险自动批准；高风险仅在你明确要求该操作时自动批准",
-    );
+    expect(appSource).toContain("自动批准低、中风险及你明确要求的高风险操作");
   });
 
   it("collapses resolved approval details and keeps pending cards aligned", () => {
@@ -1235,19 +1233,19 @@ describe("renderer layout contract", () => {
     expect(mainProcessSource).toContain("cancelTaskTurn(threadId)");
   });
 
-  it("renders all approval policies and persists the selected policy", () => {
+  it("renders the three selectable approval policies and persists the selected policy", () => {
     expect(appSource).toContain('className="approval-policy-trigger"');
     expect(appSource).toContain('className="approval-policy-menu"');
     expect(appSource).toContain('changeApprovalPolicy("ask")');
     expect(appSource).toContain('changeApprovalPolicy("agent")');
     expect(appSource).toContain('changeApprovalPolicy("full-access")');
-    expect(appSource).toContain('changeApprovalPolicy("custom")');
+    expect(appSource).not.toContain('changeApprovalPolicy("custom")');
     expect(appSource).toContain("window.artemis.setApprovalPolicy(policy)");
     expect(cssRule(".approval-policy-control")).toMatch(
       /\bposition:\s*static/u,
     );
     expect(cssRule(".approval-policy-menu")).toMatch(
-      /\bbox-sizing:\s*border-box[\s\S]*\bleft:\s*12px[\s\S]*\boverflow-y:\s*auto[\s\S]*\bposition:\s*absolute[\s\S]*\bwidth:\s*min\(410px,\s*calc\(100%\s*-\s*24px\)\)/u,
+      /\bbox-sizing:\s*border-box[\s\S]*\bleft:\s*12px[\s\S]*\boverflow-y:\s*auto[\s\S]*\bposition:\s*absolute[\s\S]*\bwidth:\s*min\(350px,\s*calc\(100%\s*-\s*24px\)\)/u,
     );
   });
 
