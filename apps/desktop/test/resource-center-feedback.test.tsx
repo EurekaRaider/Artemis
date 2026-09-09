@@ -71,6 +71,11 @@ describe("Resource Center catalog feedback", () => {
       />,
     );
     const tabs = screen.getByRole("tablist");
+    const container = tabs.parentElement!;
+    Object.defineProperty(container, "clientWidth", {
+      configurable: true,
+      value: 260,
+    });
     expect(screen.queryByRole("button", { name: "Marketplaces →" })).toBeNull();
     Object.defineProperty(tabs, "clientWidth", {
       configurable: true,
@@ -90,7 +95,9 @@ describe("Resource Center catalog feedback", () => {
       key: "End",
     });
     expect(select).toHaveBeenCalledWith("b");
-    Object.defineProperty(tabs, "clientWidth", { value: 600 });
+    // Content fits the whole row while the visible arrows still consume space.
+    Object.defineProperty(tabs, "clientWidth", { value: 450 });
+    Object.defineProperty(container, "clientWidth", { value: 500 });
     act(() => resize());
     expect(screen.queryByRole("button", { name: "Marketplaces →" })).toBeNull();
   });

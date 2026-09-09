@@ -10,7 +10,7 @@ export function MarketplaceTabs(props: TabsProps<string>) {
     const root = rootRef.current;
     const tabs = root?.querySelector<HTMLElement>('[role="tablist"]');
     if (!root || !tabs) return;
-    const measure = () => setOverflow(tabs.scrollWidth > tabs.clientWidth + 1);
+    const measure = () => setOverflow(tabs.scrollWidth > root.clientWidth + 1);
     const observer = new ResizeObserver(measure);
     observer.observe(root);
     observer.observe(tabs);
