@@ -1092,7 +1092,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 .environment-section > header > h2 {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   text-transform: none;
 }
 
@@ -2053,12 +2053,6 @@ button.environment-row:disabled {
   color: var(--text);
   cursor: pointer;
   padding: 4px 8px;
-}
-
-.environment-agent-summary {
-  color: var(--artemis-color-text-tertiary);
-  font-size: 10.5px;
-  margin: 8px 0 0;
 }
 
 .environment-view-all {
@@ -9941,8 +9935,12 @@ kbd {
   padding-block: 6px 8px;
 }
 
-.environment-rows > .environment-setting-row {
-  padding-inline: 8px;
+.git-environment-section .environment-setting-row,
+.environment-popover .sources-section .environment-setting-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 7px 0;
 }
 
 .environment-setting-copy {
@@ -9970,7 +9968,7 @@ kbd {
   flex-shrink: 0;
   font-size: 11px;
   line-height: 18px;
-  padding-inline: 6px;
+  padding-inline: 0;
   color: var(--artemis-color-text-secondary);
 }
 
@@ -9986,14 +9984,15 @@ kbd {
 
 .environment-branch-control .environment-row {
   padding: 4px 6px;
+  margin-inline: -6px;
   min-height: 28px;
   border-radius: 8px;
   font-size: 12px;
   gap: 4px;
   display: flex;
   justify-content: flex-end;
-  max-width: 100%;
-  width: 100%;
+  max-width: none;
+  width: calc(100% + 12px);
 }
 
 .environment-popover .environment-text-action {
@@ -10004,6 +10003,16 @@ kbd {
   font-size: 12px;
   line-height: 18px;
   color: var(--artemis-color-text-primary);
+}
+
+.environment-section > header > .environment-text-action,
+.environment-popover .environment-view-all {
+  padding-inline: 6px;
+  margin-inline: -6px;
+}
+
+.environment-section > header > .environment-header-action {
+  margin-inline-end: -4px;
 }
 
 .environment-popover .environment-text-action:disabled {
@@ -10017,9 +10026,11 @@ kbd {
   align-items: center;
   gap: 8px;
   min-height: 32px;
-  padding: 7px 8px;
+  padding: 7px 6px;
+  margin-inline: -6px;
   font-weight: 500;
   text-align: start;
+  width: calc(100% + 12px);
 }
 
 .environment-rows > .environment-text-action > span {
@@ -10393,39 +10404,57 @@ kbd {
 }
 
 .environment-agent-team-trigger {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  width: calc(100% + 12px);
   min-width: 0;
-  padding: 6px 8px;
+  padding: 7px 6px;
+  margin-inline: -6px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--artemis-color-text-tertiary);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 18px;
   text-align: start;
 }
 
-.environment-agent-team-trigger > span {
-  flex-shrink: 0;
+.environment-team-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
-.environment-agent-team-trigger > strong {
-  flex: 1;
-  min-width: 0;
+.environment-team-copy > strong {
+  color: var(--artemis-color-text-primary);
+  font-weight: 500;
+}
+
+.environment-team-copy > small {
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 400;
+}
+
+.environment-agent-team-trigger > .environment-row-icon {
+  width: 16px;
+  height: 18px;
+}
+
+.environment-agent-team-trigger .environment-row-icon > svg {
+  width: 16px;
+  height: 16px;
+  color: var(--artemis-color-text-tertiary);
 }
 
 .environment-agent-team-trigger > svg {
-  flex-shrink: 0;
-  width: 14px;
-  height: 14px;
+  align-self: center;
+  width: 16px;
+  height: 16px;
   transform: rotate(-90deg);
 }
 
@@ -10440,7 +10469,7 @@ kbd {
 }
 
 .environment-agent-team-children {
-  padding-inline-start: 4px;
+  padding-inline-start: 0;
 }
 
 .environment-agent-group + .environment-agent-group {
@@ -10448,11 +10477,13 @@ kbd {
 }
 
 .environment-activity-row {
-  padding: 7px 4px;
+  padding: 7px 6px;
+  margin-inline: -6px;
   border-bottom: 0;
   border-radius: 6px;
-  gap: 6px;
-  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  grid-template-columns: 16px minmax(0, 1fr);
+  width: calc(100% + 12px);
 }
 
 .environment-activity-row > span:nth-child(2) {
@@ -10462,8 +10493,8 @@ kbd {
 }
 
 .environment-activity-row > .environment-row-icon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .environment-activity-row strong {
@@ -10477,7 +10508,10 @@ kbd {
 .environment-activity-row small {
   flex: 0 0 auto;
   max-width: 50%;
-  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
   line-height: 1.5;
   color: var(--artemis-color-text-tertiary);
 }

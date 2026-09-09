@@ -1263,10 +1263,6 @@ export function EnvironmentPanel({
     () => environmentTopLevelAgents(environmentDisplayAgents(agents, teams)),
     [agents, teams],
   );
-  const counts = useMemo(
-    () => environmentAgentCounts(displayAgents),
-    [displayAgents],
-  );
   const agentStatusLabels: Record<ChildAgentState["status"], string> = {
     queued: t.agentQueued,
     running: t.agentRunning,
@@ -1722,7 +1718,6 @@ export function EnvironmentPanel({
                   <BranchIcon />
                   <span className="environment-setting-copy">
                     <strong>{t.branch}</strong>
-                    <small>{t.changedFiles(gitInfo.changeCount)}</small>
                   </span>
                   <div className="environment-branch-control">
                     <button
@@ -1867,8 +1862,13 @@ export function EnvironmentPanel({
                       title={`${team.mission} · ${teamStatusLabels[team.status]}`}
                       type="button"
                     >
-                      <span>{t.teams}</span>
-                      <strong>{team.mission}</strong>
+                      <span className="environment-row-icon">
+                        <EnvironmentAgentsIcon />
+                      </span>
+                      <span className="environment-team-copy">
+                        <strong>{t.teams}</strong>
+                        <small>{team.mission}</small>
+                      </span>
                       <EnvironmentChevronIcon />
                     </button>
                     <div className="environment-agent-team-children">
@@ -1877,15 +1877,6 @@ export function EnvironmentPanel({
                   </div>
                 ))}
                 {standaloneAgents.map(renderAgentRow)}
-                {displayAgents.length > 0 && (
-                  <p className="environment-agent-summary">
-                    {t.agentSummary(counts.total, counts.active)}
-                    {counts.queued > 0 && ` · ${t.queued} ${counts.queued}`}
-                    {counts.blocked > 0 && ` · ${t.blocked} ${counts.blocked}`}
-                    {counts.completed > 0 &&
-                      ` · ${t.completed} ${counts.completed}`}
-                  </p>
-                )}
               </div>
             </EnvironmentSection>
           )}
@@ -1912,11 +1903,11 @@ export function EnvironmentPanel({
               }
             >
               <div className="environment-setting-row">
+                <EnvironmentSourcesIcon />
                 <span className="environment-setting-copy">
                   <strong>
                     {t.sourceSummary(attachmentCount, sourceCallCount)}
                   </strong>
-                  <small>{t.taskContext}</small>
                 </span>
                 <button
                   className="environment-view-all environment-text-action"
