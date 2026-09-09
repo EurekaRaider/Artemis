@@ -279,7 +279,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 }
 
 .nested-project + .nested-project {
-  margin-top: 0;
+  margin-top: 2px;
 }
 
 .project-row,
@@ -4360,6 +4360,12 @@ button.environment-row:disabled {
   max-width: 920px;
   padding: 10px 10px 10px 13px;
   width: calc(100% - 40px);
+}
+
+.composer-wrap .turn-error-banner {
+  margin: 0 0 10px;
+  max-width: none;
+  width: 100%;
 }
 
 .turn-error-banner > span {
@@ -10682,8 +10688,17 @@ kbd {
   background: var(--hover);
   border-color: transparent;
 }
-.management-text-action.is-destructive[data-artemis-component="button"] {
+.management-destructive-action[data-variant="quiet"] {
+  color: var(--muted);
+  background: transparent;
+  border-color: transparent;
+}
+.management-destructive-action[data-variant="quiet"]:is(
+    :hover,
+    :focus-visible
+  ):not(:disabled) {
   color: var(--danger);
+  background: var(--hover);
 }
 .added-model-row[data-artemis-component="management-row"] {
   background: transparent;

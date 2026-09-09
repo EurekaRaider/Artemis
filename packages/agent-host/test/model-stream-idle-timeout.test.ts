@@ -2,6 +2,17 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import {
+  createAssistantMessageEventStream,
+  type Api,
+  type Model,
+} from "@earendil-works/pi-ai";
+import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import {
+  withConnectionRecovery,
+  type ConnectionRecoveryUpdate,
+} from "../src/connection-recovery.js";
+
 import type { AgentPayload } from "@artemis/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -51,6 +62,7 @@ async function createHost(modelStreamIdleTimeoutMs: number) {
         {
           currentTurnId: string | undefined;
           session: {
+            sessionId: string;
             prompt(text: string): Promise<void>;
             abort(): Promise<void>;
             _emit(event: unknown): void;
@@ -99,6 +111,96 @@ describe("main model stream idle timeout", () => {
         "The model produced no streaming activity for 20 ms. Artemis cancelled the stalled request; retry the turn or choose another model.",
     });
     expect(thread.currentTurnId).toBeUndefined();
+    host.dispose();
+  });
+
+  it("keeps the same Pi turn alive while the request watchdog retries silently", async () => {
+    const { host, payloads, thread } = await createHost(20);
+    vi.useFakeTimers();
+    const started = deferredSignal();
+    const recovered = {
+      role: "assistant",
+      content: [{ type: "text", text: "Recovered" }],
+      api: "openai-responses",
+      provider: "test",
+      model: "test",
+      stopReason: "stop",
+      timestamp: 0,
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+    } as const;
+    let calls = 0;
+    const streamSimple = vi.fn(() => {
+      const stream = createAssistantMessageEventStream();
+      if (++calls === 3)
+        queueMicrotask(() =>
+          stream.push({
+            type: "done",
+            reason: "stop",
+            message: { ...recovered, content: [...recovered.content] },
+          }),
+        );
+      return stream;
+    });
+    const runtime = withConnectionRecovery(
+      { streamSimple } as unknown as ModelRuntime,
+      (sessionId, update) => {
+        (
+          host as unknown as {
+            handleConnectionRecovery(
+              sessionId: string | undefined,
+              update: ConnectionRecoveryUpdate,
+            ): void;
+          }
+        ).handleConnectionRecovery(sessionId, update);
+      },
+      { idleTimeoutMs: 20, wait: async () => undefined },
+    );
+    thread.session.abort = vi.fn(async () => {});
+    thread.session.prompt = vi.fn(async () => {
+      const stream = runtime.streamSimple(
+        { id: "test", api: "openai-responses", provider: "test" } as Model<Api>,
+        { messages: [] },
+        { sessionId: thread.session.sessionId },
+      );
+      started.resolve();
+      for await (const event of stream) {
+        if (event.type === "done") {
+          thread.session._emit({ type: "message_end", message: event.message });
+          thread.session._emit({ type: "agent_settled" });
+        }
+      }
+    });
+    const prompt = host.prompt(
+      "thread-idle-timeout",
+      "turn-retry",
+      "Wait for a response.",
+      "execute",
+    );
+    await started.promise;
+    await vi.advanceTimersByTimeAsync(40);
+    await prompt;
+    expect(thread.session.prompt).toHaveBeenCalledOnce();
+    expect(thread.session.abort).not.toHaveBeenCalled();
+    expect(streamSimple).toHaveBeenCalledTimes(3);
+    expect(
+      payloads.filter(
+        (payload) =>
+          payload.type === "turn.activity" && payload.phase === "reconnecting",
+      ),
+    ).toMatchObject([
+      { kind: "stream-stalled", attempt: 1, maxAttempts: 2 },
+      { kind: "stream-stalled", attempt: 2, maxAttempts: 2 },
+    ]);
+    expect(payloads.some((payload) => payload.type === "turn.failed")).toBe(
+      false,
+    );
     host.dispose();
   });
 

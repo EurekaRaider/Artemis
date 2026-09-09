@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { AppLocale, Project, Thread } from "@artemis/protocol";
-import { Button, Icon } from "@artemis/ui/actions";
+import { Button, Icon, IconButton } from "@artemis/ui/actions";
 import { DataSurface } from "@artemis/ui/data";
 import { EmptyState } from "@artemis/ui/feedback";
 import { SearchField } from "@artemis/ui/forms";
@@ -187,13 +187,14 @@ export function ArchivePage({
                 <Button onClick={() => onRestore(thread)} variant="quiet">
                   {t.archiveRestore}
                 </Button>
-                <Button
-                  className="management-text-action is-destructive"
+                <IconButton
+                  className="management-destructive-action"
+                  icon={<ArtemisIcon name="trash" />}
+                  label={`${t.archiveDelete}: ${thread.title}`}
+                  title={t.archiveDelete}
                   onClick={() => onDelete(thread)}
                   variant="quiet"
-                >
-                  {t.archiveDelete}
-                </Button>
+                />
               </div>
             </ManagementCard>
           ))}

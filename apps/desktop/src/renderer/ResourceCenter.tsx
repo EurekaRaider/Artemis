@@ -2065,11 +2065,13 @@ export function ResourceCenter({
           </small>
           {installed && installedPlugin ? (
             <Button
+              className="management-destructive-action"
+              icon={<TrashIcon />}
               disabled={operationPending || busyId === plugin.id}
               onClick={() =>
                 runResourceOperation(() => removePlugin(installedPlugin))
               }
-              variant="danger"
+              variant="quiet"
             >
               {t.remove}
             </Button>
@@ -2810,7 +2812,7 @@ export function ResourceCenter({
                         title={t.update}
                       />
                       <IconButton
-                        className="resource-icon-button"
+                        className="resource-icon-button management-destructive-action"
                         disabled={operationPending || busyId === plugin.id}
                         icon={<TrashIcon />}
                         label={`${t.remove} ${pluginPageText(plugin.displayName)}`}
@@ -2818,7 +2820,7 @@ export function ResourceCenter({
                           runResourceOperation(() => removePlugin(plugin))
                         }
                         title={t.remove}
-                        variant="danger"
+                        variant="quiet"
                       />
                       <Switch
                         checked={pluginIsEnabled(plugin)}

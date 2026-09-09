@@ -367,7 +367,7 @@ describe("screenshot visual contracts", () => {
       )["grid-template-columns"],
     ).toBe("minmax(0, 1fr) auto");
   });
-  it("uses plain model labels, flat added-model rows, and text-only destructive actions", () => {
+  it("uses plain model labels, flat added-model rows, and neutral destructive actions", () => {
     expect(
       declarations(desktop, ".token-usage-models .token-usage-model-action"),
     ).toMatchObject({
@@ -397,9 +397,9 @@ describe("screenshot visual contracts", () => {
     expect(
       declarations(
         desktop,
-        '.management-text-action.is-destructive[data-artemis-component="button"]',
+        '.management-destructive-action[data-variant="quiet"]',
       ).color,
-    ).toBe("var(--danger)");
+    ).toBe("var(--muted)");
   });
   it("uses one installed-capabilities container with divided rows", () => {
     expect(declarations(desktop, ".resource-installed-list").border).toBe(

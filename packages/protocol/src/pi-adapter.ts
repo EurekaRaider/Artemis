@@ -533,7 +533,9 @@ export class PiAdapter {
                 "ARTEMIS_STREAM_INTERRUPTED:",
               )
                 ? { code: "STREAM_INTERRUPTED" }
-                : {}),
+                : this.pendingFailureMessage.startsWith("MODEL_STREAM_STALLED:")
+                  ? { code: "MODEL_STREAM_STALLED" }
+                  : {}),
             },
           ];
         }

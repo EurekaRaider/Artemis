@@ -17,7 +17,7 @@ import type {
   ShellProfileMode,
   WindowsShellPreference,
 } from "@artemis/protocol";
-import { Button } from "@artemis/ui/actions";
+import { Button, IconButton } from "@artemis/ui/actions";
 import {
   ConfirmationDialog,
   Dialog,
@@ -1422,8 +1422,10 @@ export function SettingsPanel({
                           return (
                             <ManagementRow
                               actions={
-                                <Button
-                                  className="management-text-action is-destructive"
+                                <IconButton
+                                  className="management-destructive-action"
+                                  icon={<ArtemisIcon name="trash" />}
+                                  title={t.delete}
                                   disabled={busy}
                                   label={`${t.delete}: ${catalogModel?.name ?? model.modelId}`}
                                   onClick={() => {
@@ -1431,9 +1433,7 @@ export function SettingsPanel({
                                     setModelDeleteTarget(model);
                                   }}
                                   variant="quiet"
-                                >
-                                  {t.delete}
-                                </Button>
+                                />
                               }
                               className="added-model-row"
                               description={`${model.providerId} · ${model.modelId} · ${new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(model.contextWindow)} token`}
@@ -1759,13 +1759,14 @@ export function SettingsPanel({
                             >
                               {t.edit}
                             </Button>
-                            <Button
+                            <IconButton
+                              className="management-destructive-action"
+                              icon={<ArtemisIcon name="trash" />}
+                              label={`${t.delete}: ${provider.id}`}
+                              title={t.delete}
                               disabled={busy}
                               onClick={() => setProviderDeleteTarget(provider)}
-                              variant="danger"
-                            >
-                              {t.delete}
-                            </Button>
+                            />
                           </span>
                         }
                         description={

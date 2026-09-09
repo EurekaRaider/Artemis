@@ -1,6 +1,6 @@
 # Management appearance review — September 9, 2026
 
-Issues #170–#176 use the Direction A prototype as the reference. This review
+Issues #170–#177 use the Direction A prototype as the reference. This review
 covers the production renderer in both light and dark themes; it does not
 exercise remote providers, live IM tenants, or installed plugin executables.
 Fixtures use a local project, an archived conversation, a disabled automation,
@@ -14,7 +14,7 @@ an offline marketplace, one MCP entry, and one skill.
 | Page canvas            | `ui/tokens.css`: Direction A `--bg`                                                                     | Resource, automation and archive pages incorrectly used panel fill. Use canvas: light `#fafafa`, dark `#141414`.                                                                                                                                                     |
 | Cards and lists        | `ui/compat.css`: `--raised` maps to `--surface`; `.card`, `.res-tab.active`                             | Marketplace and automation cards and selected resource categories incorrectly used popover fill. Use panel fill: light `#ffffff`, dark `#202020`. MCP/Skills rows and the installed list already use this panel token; the corrected canvas restores their contrast. |
 | Buttons                | `ui/primitives/controls.css`: `.ui-button` variants                                                     | Secondary buttons use light `#e5e5e5` / dark `#303030`; hover uses surface-2. Quiet actions are transparent and gain the surface-3 hover fill. Primary and destructive confirmation buttons retain semantic colors.                                                  |
-| Archive                | `.archive-row`, `.archive-actions`                                                                      | Restore the canvas and exact row hover token. Keep primary Open, quiet Restore, and quiet red Delete. Existing delete confirmation and archive operations remain intact.                                                                                             |
+| Archive                | `.archive-row`, `.archive-actions`                                                                      | Restore the canvas and exact row hover token. Keep primary Open, quiet Restore, and a neutral trash icon that gains danger color on hover or keyboard focus. Existing delete confirmation and archive operations remain intact.                                      |
 | Settings structure     | `.settings-panel`, `.settings-body`, `.settings-content`, `.setting-group`; `workspace-composition.css` | Keep the existing 860px panel, 196px navigation, 18px/22px content padding, flat groups, and subtle row separators. Correct the outer dialog fill and the final prototype's 13px group headings.                                                                     |
 | Settings provider tabs | `.seg-ctl`                                                                                              | Keep selected panel fill; correct the light-theme track from user-message gray to surface-3. Audit both built-in and custom provider forms.                                                                                                                          |
 | Switches               | `ui/primitives/controls.css`: `.ui-switch`                                                              | Resource and settings thumbs remain white in both themes. Enabled resource tracks retain the green switch token.                                                                                                                                                     |
@@ -68,3 +68,20 @@ historical image bytes are reconstructed or claimed recoverable.
       Escape dismissal, missing/corrupt image feedback, and aligned single-border
       add menus. All 45 checks passed in isolated Electron, with no renderer
       exceptions. Corrupt image fixtures intentionally trigger image load errors.
+
+## Model failure notice (#177)
+
+The task failure banner now lives in the composer container, sharing its
+responsive width and environment-panel offset. Archived conversations retain
+their existing in-flow notice. Model silence has a distinct bounded-retry status,
+and persistent failures point to the model selector and provider settings.
+
+- [x] Inject synthetic stalled-model activity and failure events in isolated
+      Electron. Across light/dark, LTR/RTL, 1440px/800px and open/closed Dock,
+      verify exact banner/composer horizontal bounds, localized recovery guidance,
+      retry status and dismissal. All 41 checks passed without renderer errors.
+
+Runtime tests separately cover the 120-second policy using accelerated clocks,
+two 5s/10s retries, cancellation, delta renewal, same-turn integration, and no
+replay after partial output. These fixtures do not diagnose a live provider's
+network, account or endpoint configuration.

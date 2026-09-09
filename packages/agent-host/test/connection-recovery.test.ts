@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
@@ -393,5 +393,135 @@ describe("connection recovery", () => {
         "401 https://api.example.test/v1?key=secret Authorization: Bearer abc.def /Users/alice/project Cookie: session=private",
       ),
     ).toBe("401 [URL] Authorization: [REDACTED]");
+  });
+});
+
+describe("bounded idle stream recovery", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("retries only the silent request twice with the same context and 5/10 second delays", async () => {
+    vi.useFakeTimers();
+    const context = { messages: [] };
+    const recovered = message("stop");
+    const streamSimple = vi
+      .fn()
+      .mockImplementationOnce(() => createAssistantMessageEventStream())
+      .mockImplementationOnce(() => createAssistantMessageEventStream())
+      .mockImplementationOnce(() =>
+        eventStream([{ type: "done", reason: "stop", message: recovered }]),
+      );
+    const updates: ConnectionRecoveryUpdate[] = [];
+    const wait = vi.fn(async (_delayMs: number) => undefined);
+    const runtime = withConnectionRecovery(
+      { streamSimple } as unknown as ModelRuntime,
+      (_, update) => updates.push(update),
+      { idleTimeoutMs: 20, wait },
+    );
+    const collected = collect(runtime.streamSimple(model, context));
+    await vi.advanceTimersByTimeAsync(40);
+    expect((await collected).at(-1)?.type).toBe("done");
+    expect(streamSimple).toHaveBeenCalledTimes(3);
+    expect(streamSimple.mock.calls.every((call) => call[1] === context)).toBe(
+      true,
+    );
+    expect(wait.mock.calls.map((call) => call[0])).toEqual([5000, 10000]);
+    expect(
+      updates.filter((update) => update.phase === "reconnecting"),
+    ).toMatchObject([
+      { kind: "stream-stalled", attempt: 1, maxAttempts: 2 },
+      { kind: "stream-stalled", attempt: 2, maxAttempts: 2 },
+    ]);
+    expect(streamSimple.mock.calls[0]?.[2].signal.aborted).toBe(true);
+  });
+
+  it("stops after two retries and tells the user exactly where to change models", async () => {
+    vi.useFakeTimers();
+    const streamSimple = vi.fn(() => createAssistantMessageEventStream());
+    const runtime = withConnectionRecovery(
+      { streamSimple } as unknown as ModelRuntime,
+      () => undefined,
+      { idleTimeoutMs: 20, wait: async () => undefined },
+    );
+    const collected = collect(runtime.streamSimple(model, { messages: [] }));
+    await vi.advanceTimersByTimeAsync(60);
+    const events = await collected;
+    expect(streamSimple).toHaveBeenCalledTimes(3);
+    expect(events.at(-1)).toMatchObject({
+      type: "error",
+      error: {
+        errorMessage: expect.stringContaining(
+          "model selector at the bottom right of the composer",
+        ),
+      },
+    });
+  });
+
+  it("does not retry after partial output", async () => {
+    vi.useFakeTimers();
+    const partial = message("stop");
+    const streamSimple = vi.fn(() =>
+      eventStream([
+        { type: "text_delta", contentIndex: 0, delta: "Partial", partial },
+      ]),
+    );
+    const runtime = withConnectionRecovery(
+      { streamSimple } as unknown as ModelRuntime,
+      () => undefined,
+      { idleTimeoutMs: 20 },
+    );
+    const collected = collect(runtime.streamSimple(model, { messages: [] }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect((await collected).at(-1)).toMatchObject({
+      type: "error",
+      error: {
+        errorMessage: expect.stringContaining("ARTEMIS_STREAM_INTERRUPTED"),
+      },
+    });
+    expect(streamSimple).toHaveBeenCalledTimes(1);
+  });
+
+  it("renews request idleness on nonempty streamed deltas", async () => {
+    vi.useFakeTimers();
+    const source = createAssistantMessageEventStream();
+    const partial = message("stop");
+    const runtime = withConnectionRecovery(
+      { streamSimple: () => source } as unknown as ModelRuntime,
+      () => undefined,
+      { idleTimeoutMs: 20 },
+    );
+    const collected = collect(runtime.streamSimple(model, { messages: [] }));
+    for (let index = 0; index < 3; index++) {
+      await vi.advanceTimersByTimeAsync(15);
+      source.push({ type: "text_delta", contentIndex: 0, delta: "x", partial });
+      await vi.advanceTimersByTimeAsync(0);
+    }
+    source.push({ type: "done", reason: "stop", message: partial });
+    expect((await collected).at(-1)?.type).toBe("done");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("cancels a silent provider immediately even when it ignores its abort signal", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const streamSimple = vi.fn(() => createAssistantMessageEventStream());
+    const runtime = withConnectionRecovery(
+      { streamSimple } as unknown as ModelRuntime,
+      () => undefined,
+      { idleTimeoutMs: 20 },
+    );
+    const collected = collect(
+      runtime.streamSimple(
+        model,
+        { messages: [] },
+        { signal: controller.signal },
+      ),
+    );
+    controller.abort();
+    expect((await collected).at(-1)).toMatchObject({
+      type: "error",
+      reason: "aborted",
+    });
+    expect(streamSimple).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

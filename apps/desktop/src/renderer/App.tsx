@@ -563,6 +563,10 @@ const copy = {
     waitingNetwork: "Waiting for network · retrying in {{seconds}}s",
     reconnecting:
       "Reconnecting {{attempt}}/{{maximum}} · retrying in {{seconds}}s",
+    modelRetrying:
+      "Model silent · retry {{attempt}}/{{maximum}} in {{seconds}}s",
+    modelStreamStalled:
+      "The model remains unresponsive. Use the model selector at the bottom right of the composer to choose another model, then resend your message. If other models also fail, check the provider endpoint and network connection in Settings.",
     rateLimited: "Service rate limited · retrying in {{seconds}}s",
     connectionRecovered: "Connection restored",
     taskInterrupted:
@@ -846,6 +850,10 @@ const copy = {
     waitingForModel: "等待模型",
     waitingNetwork: "正在等待网络恢复 · {{seconds}} 秒后重试",
     reconnecting: "正在重新连接 {{attempt}}/{{maximum}} · {{seconds}} 秒后重试",
+    modelRetrying:
+      "模型暂无响应 · {{seconds}} 秒后重试 {{attempt}}/{{maximum}}",
+    modelStreamStalled:
+      "模型持续无响应。请从输入框右下角的模型选择器切换模型，再重新发送消息；若其他模型也失败，请在设置中检查服务商地址和网络连接。",
     rateLimited: "服务暂时限流 · {{seconds}} 秒后重试",
     connectionRecovered: "连接已恢复",
     taskInterrupted: "任务已中断；为避免重复执行写操作，需要确认后继续",
@@ -1247,7 +1255,9 @@ function statusLabel(
         if (activity.maxAttempts === undefined) {
           return t.waitingNetwork.replace("{{seconds}}", String(seconds));
         }
-        return t.reconnecting
+        return (
+          activity.kind === "stream-stalled" ? t.modelRetrying : t.reconnecting
+        )
           .replace("{{attempt}}", String(activity.attempt ?? 1))
           .replace("{{maximum}}", String(activity.maxAttempts))
           .replace("{{seconds}}", String(seconds));
@@ -1276,6 +1286,7 @@ function localizedTurnFailure(
   message: string,
   code?: string,
 ): string {
+  if (code === "MODEL_STREAM_STALLED") return copy.modelStreamStalled;
   if (code === "STREAM_INTERRUPTED") return copy.streamInterrupted;
   if (code === "AGENT_HOST_INTERRUPTED") return copy.agentHostInterrupted;
   return message;
@@ -3741,6 +3752,27 @@ export function App() {
   const activeTurnFailure = activeThreadId
     ? turnFailureNotices[activeThreadId]
     : undefined;
+  const turnFailureBanner = activeTurnFailure ? (
+    <div className="turn-error-banner" role="alert">
+      <span>{activeTurnFailure}</span>
+      <button
+        aria-label={t.dismissTurnError}
+        onClick={() =>
+          activeThreadId &&
+          setTurnFailureNotices((current) =>
+            reduceTurnFailureNotices(current, {
+              type: "dismiss",
+              threadId: activeThreadId,
+            }),
+          )
+        }
+        title={t.dismissTurnError}
+        type="button"
+      >
+        <CloseIcon />
+      </button>
+    </div>
+  ) : null;
   const dockWidthBounds = workspaceDockWidthBounds(
     workspaceContent.current?.clientWidth ?? window.innerWidth,
     window.innerWidth,
@@ -7054,27 +7086,7 @@ export function App() {
                     )}
                 </TimelineViewport>
 
-                {activeTurnFailure && (
-                  <div className="turn-error-banner" role="alert">
-                    <span>{activeTurnFailure}</span>
-                    <button
-                      aria-label={t.dismissTurnError}
-                      onClick={() =>
-                        activeThreadId &&
-                        setTurnFailureNotices((current) =>
-                          reduceTurnFailureNotices(current, {
-                            type: "dismiss",
-                            threadId: activeThreadId,
-                          }),
-                        )
-                      }
-                      title={t.dismissTurnError}
-                      type="button"
-                    >
-                      <CloseIcon />
-                    </button>
-                  </div>
-                )}
+                {activeThread?.archived && turnFailureBanner}
 
                 {activeThread?.archived && (
                   <div className="archived-readonly" role="status">
@@ -7095,6 +7107,7 @@ export function App() {
 
                 {!activeThread?.archived && (
                   <div className="composer-wrap">
+                    {turnFailureBanner}
                     {taskPlan && (
                       <TaskPlanProgress locale={locale} plan={taskPlan} />
                     )}

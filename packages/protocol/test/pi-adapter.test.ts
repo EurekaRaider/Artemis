@@ -259,6 +259,23 @@ describe("PiAdapter", () => {
     ]);
   });
 
+  it("preserves stalled-model failure codes for localized recovery guidance", () => {
+    const adapter = new PiAdapter("turn-stalled");
+    const message = "MODEL_STREAM_STALLED: Two automatic retries also stalled.";
+    adapter.adapt({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [],
+        stopReason: "error",
+        errorMessage: message,
+      },
+    });
+    expect(adapter.adapt({ type: "agent_settled" })).toEqual([
+      { type: "turn.failed", code: "MODEL_STREAM_STALLED", message },
+    ]);
+  });
+
   it("does not fail a turn when Pi recovers from a transient model error", () => {
     const adapter = new PiAdapter("turn-1");
 

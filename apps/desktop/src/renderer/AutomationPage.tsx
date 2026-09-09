@@ -72,6 +72,8 @@ const text = {
     empty: "No automations yet.",
     enabled: "Enabled",
     paused: "Paused",
+    pauseTask: "Pause task",
+    enableTask: "Enable task",
     authorizationRequired: "Authorization required",
     authorize: "Authorize",
     runNow: "Run now",
@@ -124,6 +126,8 @@ const text = {
     empty: "还没有定时任务。",
     enabled: "已启用",
     paused: "已暂停",
+    pauseTask: "暂停任务",
+    enableTask: "开启任务",
     authorizationRequired: "需要授权",
     authorize: "授权",
     runNow: "立即运行",
@@ -844,6 +848,7 @@ export function AutomationPage(props: {
               <div className="automation-actions">
                 {automation.authorizationState === "required" && (
                   <Button
+                    icon={<ArtemisIcon name="approval" />}
                     disabled={busy}
                     onClick={() =>
                       void invoke(() =>
@@ -855,6 +860,7 @@ export function AutomationPage(props: {
                   </Button>
                 )}
                 <Button
+                  icon={<ArtemisIcon name="send" />}
                   disabled={
                     busy || automation.authorizationState === "required"
                   }
@@ -867,6 +873,21 @@ export function AutomationPage(props: {
                   {t.runNow}
                 </Button>
                 <Button
+                  icon={
+                    automation.enabled ? (
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      >
+                        <path d="M9 5v14M15 5v14" />
+                      </svg>
+                    ) : (
+                      <ArtemisIcon name="send" />
+                    )
+                  }
                   disabled={busy}
                   onClick={() =>
                     void invoke(() =>
@@ -877,15 +898,18 @@ export function AutomationPage(props: {
                     )
                   }
                 >
-                  {automation.enabled ? t.paused : t.enabled}
+                  {automation.enabled ? t.pauseTask : t.enableTask}
                 </Button>
                 <Button
+                  icon={<ArtemisIcon name="edit" />}
                   disabled={busy}
                   onClick={() => setDraft(draftForAutomation(automation))}
                 >
                   {t.edit}
                 </Button>
                 <Button
+                  className="management-destructive-action"
+                  icon={<ArtemisIcon name="trash" />}
                   disabled={busy}
                   onClick={() =>
                     void invoke(async () => {
@@ -895,7 +919,7 @@ export function AutomationPage(props: {
                       await window.artemis.deleteAutomation(automation.id);
                     })
                   }
-                  variant="danger"
+                  variant="quiet"
                 >
                   {t.delete}
                 </Button>

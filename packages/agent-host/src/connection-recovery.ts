@@ -29,14 +29,19 @@ const SENSITIVE_FAILURE_POSIX_HOME_PATH =
 export type ConnectionRecoveryUpdate =
   | {
       phase: "reconnecting";
+      kind?: "stream-stalled";
+      maxAttempts?: number;
       attempt: number;
       delayMs: number;
       attemptId: string;
     }
   | { phase: "recovered"; attemptId: string }
-  | { phase: "interrupted"; attemptId: string };
+  | { phase: "interrupted"; attemptId: string }
+  | { phase: "stream-started" }
+  | { phase: "stream-finished" };
 
 export interface ConnectionRecoveryOptions {
+  idleTimeoutMs?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
   wait?: (delayMs: number, signal?: AbortSignal) => Promise<void>;
@@ -137,6 +142,55 @@ function terminalFailure(
   return { type: "error", reason: stopReason, error };
 }
 
+class IdleStreamError extends Error {
+  constructor(timeoutMs: number) {
+    super(
+      `MODEL_STREAM_STALLED: The model produced no streaming activity for ${timeoutMs / 1000} seconds.`,
+    );
+  }
+}
+
+async function* watchStream(
+  source: AsyncIterable<AssistantMessageEvent>,
+  controller: AbortController,
+  signal: AbortSignal,
+  timeoutMs: number,
+) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let fail!: (error: Error) => void;
+  const stopped = new Promise<never>((_, reject) => {
+    fail = reject;
+  });
+  const abort = () => fail(new DOMException("Aborted", "AbortError"));
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      fail(new IdleStreamError(timeoutMs));
+      controller.abort();
+    }, timeoutMs);
+  };
+  signal.addEventListener("abort", abort, { once: true });
+  arm();
+  if (signal.aborted) abort();
+  const iterator = source[Symbol.asyncIterator]();
+  try {
+    while (true) {
+      const next = await Promise.race([iterator.next(), stopped]);
+      if (next.done) return;
+      if (
+        "delta" in next.value &&
+        typeof next.value.delta === "string" &&
+        next.value.delta.length > 0
+      )
+        arm();
+      yield next.value;
+    }
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", abort);
+  }
+}
+
 let recoverySequence = 0;
 
 function recoveringStream(
@@ -163,88 +217,137 @@ function recoveringStream(
     let semanticOutput = false;
     let attempt = 0;
     let reconnecting = false;
-
-    while (true) {
-      let terminal: AssistantMessageEvent | undefined;
-      try {
-        const source = runtime.streamSimple(model, context, {
-          ...options,
-          maxRetries: 0,
-        });
-        for await (const event of source) {
-          if (event.type === "start") {
-            if (!emittedStart) {
-              emittedStart = true;
-              output.push(event);
+    let idleRetries = 0;
+    if (recoveryOptions.idleTimeoutMs !== undefined)
+      onUpdate(options?.sessionId, { phase: "stream-started" });
+    try {
+      while (true) {
+        let terminal: AssistantMessageEvent | undefined;
+        let stalled = false;
+        const controller = new AbortController();
+        const signal = options?.signal
+          ? AbortSignal.any([options.signal, controller.signal])
+          : controller.signal;
+        try {
+          const source = runtime.streamSimple(model, context, {
+            ...options,
+            maxRetries: 0,
+            signal,
+          });
+          const events =
+            recoveryOptions.idleTimeoutMs === undefined
+              ? source
+              : watchStream(
+                  source,
+                  controller,
+                  signal,
+                  recoveryOptions.idleTimeoutMs,
+                );
+          for await (const event of events) {
+            if (event.type === "start") {
+              if (!emittedStart) {
+                emittedStart = true;
+                output.push(event);
+              }
+              continue;
             }
-            continue;
+            if (event.type === "error") {
+              terminal = event;
+              break;
+            }
+            if (reconnecting) {
+              reconnecting = false;
+              onUpdate(options?.sessionId, {
+                phase: "recovered",
+                attemptId: `${requestId}:${attempt}`,
+              });
+            }
+            semanticOutput = true;
+            output.push(event);
+            if (event.type === "done") return;
           }
-          if (event.type === "error") {
-            terminal = event;
-            break;
-          }
-          if (reconnecting) {
-            reconnecting = false;
-            onUpdate(options?.sessionId, {
-              phase: "recovered",
-              attemptId: `${requestId}:${attempt}`,
-            });
-          }
-          semanticOutput = true;
-          output.push(event);
-          if (event.type === "done") return;
+        } catch (error) {
+          stalled = error instanceof IdleStreamError;
+          terminal = terminalFailure(
+            model,
+            error instanceof Error ? error.message : String(error),
+          );
         }
-      } catch (error) {
-        terminal = terminalFailure(
-          model,
-          error instanceof Error ? error.message : String(error),
-        );
-      }
 
-      const message =
-        terminal?.type === "error" ? terminal.error.errorMessage : undefined;
-      if (!terminal || !isConnectionFailure(message)) {
-        output.push(
-          terminal
-            ? sanitizedTerminalFailure(terminal)
-            : terminalFailure(model, "The model stream ended unexpectedly."),
-        );
-        return;
-      }
-      if (semanticOutput) {
-        const attemptId = `${requestId}:unsafe`;
-        onUpdate(options?.sessionId, { phase: "interrupted", attemptId });
-        output.push(
-          terminalFailure(
-            model,
-            "ARTEMIS_STREAM_INTERRUPTED: Output had already begun, so automatic replay was stopped to avoid duplicate text or tool side effects. Confirm before continuing.",
-          ),
-        );
-        return;
-      }
+        if (options?.signal?.aborted) {
+          output.push(
+            terminalFailure(
+              model,
+              "The model request was cancelled.",
+              "aborted",
+            ),
+          );
+          return;
+        }
+        const message =
+          terminal?.type === "error" ? terminal.error.errorMessage : undefined;
+        if (!terminal || (!stalled && !isConnectionFailure(message))) {
+          output.push(
+            terminal
+              ? sanitizedTerminalFailure(terminal)
+              : terminalFailure(model, "The model stream ended unexpectedly."),
+          );
+          return;
+        }
+        if (semanticOutput) {
+          const attemptId = `${requestId}:unsafe`;
+          onUpdate(options?.sessionId, { phase: "interrupted", attemptId });
+          output.push(
+            terminalFailure(
+              model,
+              "ARTEMIS_STREAM_INTERRUPTED: Output had already begun, so automatic replay was stopped to avoid duplicate text or tool side effects. Confirm before continuing.",
+            ),
+          );
+          return;
+        }
 
-      attempt += 1;
-      const delayMs = Math.min(maxDelay, baseDelay * 2 ** (attempt - 1));
-      const attemptId = `${requestId}:${attempt}`;
-      reconnecting = true;
-      onUpdate(options?.sessionId, {
-        phase: "reconnecting",
-        attempt,
-        delayMs,
-        attemptId,
-      });
-      try {
-        await wait(delayMs, options?.signal);
-      } catch {
-        output.push(
-          terminalFailure(
-            model,
-            "The reconnect wait was cancelled.",
-            "aborted",
-          ),
+        if (stalled && idleRetries >= 2) {
+          output.push(
+            terminalFailure(
+              model,
+              `${message} Two automatic retries also stalled. Use the model selector at the bottom right of the composer to choose another model, then resend your message. If other models also fail, check the provider endpoint and network connection in Settings.`,
+            ),
+          );
+          return;
+        }
+        if (stalled) idleRetries += 1;
+        attempt += 1;
+        const delayMs = Math.min(
+          maxDelay,
+          baseDelay * 2 ** ((stalled ? idleRetries : attempt) - 1),
         );
-        return;
+        const attemptId = `${requestId}:${attempt}`;
+        reconnecting = true;
+        onUpdate(options?.sessionId, {
+          phase: "reconnecting",
+          attempt: stalled ? idleRetries : attempt,
+          ...(stalled
+            ? { kind: "stream-stalled" as const, maxAttempts: 2 }
+            : {}),
+          delayMs,
+          attemptId,
+        });
+        try {
+          await wait(delayMs, options?.signal);
+        } catch {
+          output.push(
+            terminalFailure(
+              model,
+              "The reconnect wait was cancelled.",
+              "aborted",
+            ),
+          );
+          return;
+        }
       }
+    } finally {
+      if (recoveryOptions.idleTimeoutMs !== undefined)
+        onUpdate(options?.sessionId, { phase: "stream-finished" });
     }
   })();
 

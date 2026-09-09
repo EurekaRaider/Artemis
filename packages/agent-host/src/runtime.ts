@@ -1298,19 +1298,30 @@ export class ArtemisAgentHost {
       (candidate) => candidate.session.sessionId === sessionId,
     );
     if (!hosted?.currentTurnId) return;
+    if (update.phase === "stream-started") {
+      // The request watchdog owns stream retries; the turn guard covers gaps outside it.
+      hosted.modelStreamWatchdog?.pause();
+      return;
+    }
+    if (update.phase === "stream-finished") {
+      hosted.modelStreamWatchdog?.resume();
+      return;
+    }
     if (update.phase === "reconnecting") {
       hosted.modelStreamWatchdog?.pause();
       this.sink.emit(hosted.threadId, hosted.currentTurnId, {
         type: "turn.activity",
         phase: "reconnecting",
-        kind: "connection",
+        kind: update.kind ?? "connection",
+        ...(update.maxAttempts === undefined
+          ? {}
+          : { maxAttempts: update.maxAttempts }),
         attempt: update.attempt,
         delayMs: update.delayMs,
         attemptId: update.attemptId,
       });
       return;
     }
-    hosted.modelStreamWatchdog?.resume();
     this.sink.emit(hosted.threadId, hosted.currentTurnId, {
       type: "turn.activity",
       phase: update.phase,
@@ -1480,6 +1491,7 @@ export class ArtemisAgentHost {
       return withConnectionRecovery(
         withPromptCacheController(runtime, this.promptCache),
         (sessionId, update) => this.handleConnectionRecovery(sessionId, update),
+        { idleTimeoutMs: this.modelStreamIdleTimeoutMs },
       );
     });
     return this.modelRuntimePromise;
