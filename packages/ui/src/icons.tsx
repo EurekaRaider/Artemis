@@ -74,6 +74,9 @@ export const ARTEMIS_ICON_NAMES = [
   "context",
   "check",
   "approval",
+  "approval-ask",
+  "approval-agent",
+  "approval-full",
   "tool-activity",
   "workspace-tab",
   "tab-scroll",
@@ -497,6 +500,21 @@ const ARTEMIS_ICON_GLYPHS = {
     <>
       {" "}
       <path d="M12 3.5 20 7v5c0 4.8-3.4 7.6-8 8.5C7.4 19.6 4 16.8 4 12V7z"></path>{" "}
+    </>
+  ),
+  "approval-ask": (
+    <path d="M8 12V5a1.5 1.5 0 0 1 3 0v6-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v5c0 5-2.5 8-7 8-3 0-5-2-6.5-4.5L3 12a1.5 1.5 0 0 1 2.5-1.5L8 14" />
+  ),
+  "approval-agent": (
+    <>
+      <path d="M12 3.5 20 7v5c0 4.8-3.4 7.6-8 8.5C7.4 19.6 4 16.8 4 12V7z" />
+      <path d="m8 9 2.5 3L8 15m5 0h3" />
+    </>
+  ),
+  "approval-full": (
+    <>
+      <path d="M12 3.5 20 7v5c0 4.8-3.4 7.6-8 8.5C7.4 19.6 4 16.8 4 12V7z" />
+      <path d="M12 8v5m0 3h.01" />
     </>
   ),
   "tool-activity": (

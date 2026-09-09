@@ -614,7 +614,7 @@ const copy = {
     dropAttachments: "Drop files to attach",
     dropAttachmentsDetail:
       "Images, text, code, PDF, Word, Excel, or PowerPoint",
-    approvalPolicy: "Approval permissions",
+    approvalPolicy: "How should Artemis approve actions?",
     askApproval: "Request approval",
     askApprovalDetail:
       "Always ask before non-MCP external changes or network access",
@@ -896,14 +896,13 @@ const copy = {
     dropAttachments: "松开即可添加文件",
     dropAttachmentsDetail:
       "支持图片、文本、代码、PDF、Word、Excel 和 PowerPoint",
-    approvalPolicy: "审批权限",
+    approvalPolicy: "应如何批准 Artemis 操作？",
     askApproval: "请求批准",
-    askApprovalDetail: "非 MCP 的外部更改或网络访问前始终询问",
-    agentApproval: "替我审批",
-    agentApprovalDetail:
-      "低、中风险自动批准；高风险仅在你明确要求该操作时自动批准",
+    askApprovalDetail: "外部更改和联网前询问（MCP 除外）",
+    agentApproval: "帮我批准",
+    agentApprovalDetail: "自动批准低、中风险及你明确要求的高风险操作",
     fullAccess: "完全访问权限",
-    fullAccessDetail: "自动批准 Execute 中支持的操作，包括明确要求的本机路径",
+    fullAccessDetail: "自动批准执行操作，包括你明确要求的本机路径",
     fullAccessUnavailable: "需要先安装原生命令沙箱",
     customApproval: "自定义",
     customApprovalDetail: "使用已保存的批准；沙箱内 MCP 自动调用",
@@ -7728,7 +7727,12 @@ export function App() {
                                     }
                                     role="menuitemradio"
                                   >
-                                    <ApprovalIcon />
+                                    <ArtemisIcon
+                                      className="icon"
+                                      name="approval-ask"
+                                      width={18}
+                                      height={18}
+                                    />
                                     <span>
                                       <strong>{t.askApproval}</strong>
                                       <small>{t.askApprovalDetail}</small>
@@ -7750,7 +7754,12 @@ export function App() {
                                     }
                                     role="menuitemradio"
                                   >
-                                    <ApprovalIcon />
+                                    <ArtemisIcon
+                                      className="icon"
+                                      name="approval-agent"
+                                      width={18}
+                                      height={18}
+                                    />
                                     <span>
                                       <strong>{t.agentApproval}</strong>
                                       <small>{t.agentApprovalDetail}</small>
@@ -7777,7 +7786,12 @@ export function App() {
                                     }
                                     role="menuitemradio"
                                   >
-                                    <ApprovalIcon warning />
+                                    <ArtemisIcon
+                                      className="icon"
+                                      name="approval-full"
+                                      width={18}
+                                      height={18}
+                                    />
                                     <span>
                                       <strong>{t.fullAccess}</strong>
                                       <small>
@@ -7790,28 +7804,6 @@ export function App() {
                                       {approvalPolicy === "full-access"
                                         ? "✓"
                                         : ""}
-                                    </b>
-                                  </button>
-                                  <button
-                                    aria-checked={approvalPolicy === "custom"}
-                                    className={
-                                      approvalPolicy === "custom"
-                                        ? "selected"
-                                        : ""
-                                    }
-                                    disabled={approvalChangeLocked}
-                                    onClick={() =>
-                                      void changeApprovalPolicy("custom")
-                                    }
-                                    role="menuitemradio"
-                                  >
-                                    <ModeIcon />
-                                    <span>
-                                      <strong>{t.customApproval}</strong>
-                                      <small>{t.customApprovalDetail}</small>
-                                    </span>
-                                    <b aria-hidden="true">
-                                      {approvalPolicy === "custom" ? "✓" : ""}
                                     </b>
                                   </button>
                                 </div>
