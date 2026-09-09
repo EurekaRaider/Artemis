@@ -44,7 +44,9 @@ const labels = {
     openSource: "Open source",
     openImage: "Open image",
     closeImage: "Close image preview",
-    previewUnavailable: "This image preview is unavailable.",
+    previewUnavailable:
+      "This image is missing or cannot be read. Attach it again to preview it.",
+    imageUnavailable: "Image unavailable",
     showDetails: "Show tool call details",
     hideDetails: "Hide tool call details",
   },
@@ -69,7 +71,8 @@ const labels = {
     openSource: "打开来源",
     openImage: "打开图片",
     closeImage: "关闭图片预览",
-    previewUnavailable: "此图片预览不可用。",
+    previewUnavailable: "图片已丢失或无法读取，请重新附加图片后预览。",
+    imageUnavailable: "图片不可用",
     showDetails: "显示工具调用详情",
     hideDetails: "隐藏工具调用详情",
   },
@@ -391,9 +394,26 @@ export function SourcesPanel({
   >();
   const [previewError, setPreviewError] = useState<string>();
   const closePreviewButton = useRef<HTMLButtonElement>(null);
+  const imageRequest = useRef(0);
+  const [unavailableImages, setUnavailableImages] = useState<Set<string>>(
+    new Set(),
+  );
+  const markUnavailable = (key: string) => {
+    setUnavailableImages((current) => new Set(current).add(key));
+  };
+
+  useEffect(() => {
+    setPreview(undefined);
+    setPreviewError(undefined);
+    setUnavailableImages(new Set());
+    return () => {
+      imageRequest.current += 1;
+    };
+  }, [threadId]);
 
   useEffect(() => {
     let cancelled = false;
+    setSourceImages({});
     const imageSources = attachmentSources.filter(
       (source) => source.kind === "image",
     );
@@ -405,6 +425,7 @@ export function SourcesPanel({
             await window.artemis.readTaskSourceImage(threadId, source.sourceId),
           ] as const;
         } catch {
+          if (!cancelled) markUnavailable(source.sourceId);
           return undefined;
         }
       }),
@@ -431,16 +452,25 @@ export function SourcesPanel({
 
   const openPersistedImage = async (source: AttachmentSource) => {
     setPreviewError(undefined);
+    const request = imageRequest.current;
     try {
       const image =
         sourceImages[source.sourceId] ??
         (await window.artemis.readTaskSourceImage(threadId, source.sourceId));
+      if (request !== imageRequest.current) return;
       setSourceImages((current) => ({
         ...current,
         [source.sourceId]: image,
       }));
+      setUnavailableImages((current) => {
+        const next = new Set(current);
+        next.delete(source.sourceId);
+        return next;
+      });
       setPreview(image);
     } catch {
+      if (request !== imageRequest.current) return;
+      markUnavailable(source.sourceId);
       setPreviewError(t.previewUnavailable);
     }
   };
@@ -472,22 +502,25 @@ export function SourcesPanel({
         )}
         {attachments.map((attachment, index) => {
           const image = !("type" in attachment);
+          const imageKey = `draft:${index}:${attachment.name}`;
+          const unavailable = unavailableImages.has(imageKey);
           const content = (
             <>
-              {image ? (
+              {image && !unavailable ? (
                 <img
                   alt=""
+                  onError={() => markUnavailable(imageKey)}
                   src={`data:${attachment.mimeType};base64,${attachment.data}`}
                 />
               ) : (
                 <SourceEntryIcon>
-                  <AttachmentIcon image={false} />
+                  <AttachmentIcon image={image} />
                 </SourceEntryIcon>
               )}
               <SourceEntryBody>
                 <h2>{attachment.name}</h2>
                 <p>{attachment.mimeType}</p>
-                <p>{t.draft}</p>
+                <p>{unavailable ? t.imageUnavailable : t.draft}</p>
               </SourceEntryBody>
             </>
           );
@@ -516,11 +549,13 @@ export function SourcesPanel({
 
         {attachmentSources.map((source) => {
           const image = sourceImages[source.sourceId];
+          const unavailable = unavailableImages.has(source.sourceId);
           const content = (
             <>
-              {image ? (
+              {image && !unavailable ? (
                 <img
                   alt=""
+                  onError={() => markUnavailable(source.sourceId)}
                   src={`data:${image.mimeType};base64,${image.data}`}
                 />
               ) : (
@@ -531,7 +566,7 @@ export function SourcesPanel({
               <SourceEntryBody>
                 <h2>{source.name}</h2>
                 <p>{source.mimeType}</p>
-                <p>{t.sent}</p>
+                <p>{unavailable ? t.imageUnavailable : t.sent}</p>
               </SourceEntryBody>
             </>
           );
@@ -645,6 +680,10 @@ export function SourcesPanel({
             </header>
             <img
               alt={preview.name}
+              onError={() => {
+                setPreview(undefined);
+                setPreviewError(t.previewUnavailable);
+              }}
               src={`data:${preview.mimeType};base64,${preview.data}`}
             />
           </section>

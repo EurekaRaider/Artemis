@@ -23,6 +23,7 @@ import {
   ResourceSurface,
 } from "@artemis/ui/management";
 import { Tabs } from "@artemis/ui/navigation";
+import { MarketplaceTabs } from "./MarketplaceTabs.js";
 
 import type {
   CodexPluginMarketplace,
@@ -2514,26 +2515,16 @@ export function ResourceCenter({
 
           {renderProgressAndMessage()}
 
-          <div className="resource-market-controls">
-            <Tabs
-              className="resource-scope-tabs"
-              disabled={operationPending}
-              label={t.marketplaces}
-              onValueChange={(sourceId) =>
-                runResourceOperation(() => selectMarketplace(sourceId))
-              }
-              options={marketplaceTabOptions}
-              size="compact"
-              value={activeMarketplaceTabOption.value}
-            />
-            <small>
-              {marketplaceFilter
-                ? t.allResults
-                : selectedMarketplaceSource
-                  ? marketplaceSourceLabel(selectedMarketplaceSource)
-                  : t.local}
-            </small>
-          </div>
+          <MarketplaceTabs
+            disabled={operationPending}
+            label={t.marketplaces}
+            onValueChange={(sourceId) =>
+              runResourceOperation(() => selectMarketplace(sourceId))
+            }
+            options={marketplaceTabOptions}
+            size="compact"
+            value={activeMarketplaceTabOption.value}
+          />
 
           {isArtemisPluginShop && !marketplaceFilter && (
             <ManagementCard className="resource-runtime-banner resource-marketplace-account-banner">

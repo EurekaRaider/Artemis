@@ -9,15 +9,37 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   CatalogSearchNotice,
   ResourceCenter,
 } from "../src/renderer/ResourceCenter.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
+import { MarketplaceTabs } from "../src/renderer/MarketplaceTabs.js";
 
-afterEach(() => cleanup());
+let resize: () => void;
+beforeEach(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: () => void) {
+        resize = callback;
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: vi.fn(),
+  });
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+});
 
 function expectLinkedTabPanels(selector: string): void {
   const tablist = document.querySelector(selector);
@@ -35,6 +57,44 @@ function expectLinkedTabPanels(selector: string): void {
 }
 
 describe("Resource Center catalog feedback", () => {
+  it("shows scroll controls only on overflow without changing tab selection", () => {
+    const select = vi.fn();
+    render(
+      <MarketplaceTabs
+        label="Marketplaces"
+        value="a"
+        onValueChange={select}
+        options={[
+          { value: "a", label: "First", id: "a", panelId: "panel-a" },
+          { value: "b", label: "Second", id: "b", panelId: "panel-b" },
+        ]}
+      />,
+    );
+    const tabs = screen.getByRole("tablist");
+    expect(screen.queryByRole("button", { name: "Marketplaces →" })).toBeNull();
+    Object.defineProperty(tabs, "clientWidth", {
+      configurable: true,
+      value: 200,
+    });
+    Object.defineProperty(tabs, "scrollWidth", {
+      configurable: true,
+      value: 500,
+    });
+    const scroll = vi.fn();
+    Object.defineProperty(tabs, "scrollBy", { value: scroll });
+    act(() => resize());
+    fireEvent.click(screen.getByRole("button", { name: "Marketplaces →" }));
+    expect(scroll).toHaveBeenCalledWith({ left: 150 });
+    expect(select).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("tab", { name: "First" }), {
+      key: "End",
+    });
+    expect(select).toHaveBeenCalledWith("b");
+    Object.defineProperty(tabs, "clientWidth", { value: 600 });
+    act(() => resize());
+    expect(screen.queryByRole("button", { name: "Marketplaces →" })).toBeNull();
+  });
+
   it("keeps polite status semantics when search changes from loading to empty", async () => {
     const user = userEvent.setup();
     function Example() {

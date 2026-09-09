@@ -6668,6 +6668,28 @@ export function App() {
       />
 
       <section className="workspace">
+        {activeView !== "workspace" && (
+          <Toolbar
+            actions={null}
+            className="workspace-header"
+            label={activeWorkspaceLabel}
+          >
+            <div className="workspace-header-leading">
+              <button
+                aria-expanded={sidebarOpen}
+                aria-label={t.leftSidebar}
+                className="left-sidebar-toggle"
+                onClick={() => changeSidebarOpen((open) => !open)}
+                title={t.leftSidebar}
+              >
+                <LeftSidebarIcon />
+              </button>
+              <div className="workspace-heading">
+                <strong dir="auto">{activeWorkspaceLabel}</strong>
+              </div>
+            </div>
+          </Toolbar>
+        )}
         {activeView === "token-usage" ? (
           <Suspense fallback={<div className="view-loading">…</div>}>
             <TokenUsagePage

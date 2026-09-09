@@ -493,6 +493,24 @@
       "important": false,
       "owner": "Desktop 9556fac Dock composition",
       "reason": "The frozen prototype uses a one CSS-pixel divider between conversation and Dock."
+    },
+    {
+      "atRules": [],
+      "selector": ":is(.resource-page, .settings-panel) [data-artemis-component=\"switch\"] [data-part=\"thumb\"]",
+      "property": "background",
+      "value": "#fff",
+      "important": false,
+      "owner": "Issues #171 and #175 management switch prototype parity",
+      "reason": "The approved prototype in docs/ui-prototype/ui/primitives/controls.css uses a white thumb in both themes. Existing inverse/surface/status tokens change by theme; scope this exact color to resource and settings switches. Verified in real Electron in dark and light modes."
+    },
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] [data-part=\"menu\"]",
+      "property": "inset-block-end",
+      "value": "calc( 100% + var(--artemis-space-2) + var(--artemis-border-width-default) )",
+      "important": false,
+      "owner": "Issue #170 composer mode menu placement",
+      "reason": "Place the mode menu above its bottom-anchored composer trigger with the same gap as project and branch menus, preventing bottom-window clipping."
     }
   ]
 }

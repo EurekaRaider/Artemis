@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToolActivityGroupCard } from "../src/renderer/App.js";
 import { TokenUsagePage } from "../src/renderer/TokenUsagePage.js";
 import { ResourceCenter } from "../src/renderer/ResourceCenter.js";
@@ -11,6 +11,24 @@ import type { SettingsSnapshot, McpServerStatus } from "../src/shared/api.js";
 import { stubWindowArtemis } from "./renderer-test-utils.js";
 
 vi.mock("../src/renderer/desktop-skin-bootstrap.js", () => ({}));
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: vi.fn(),
+  });
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+});
 
 describe("reported screenshot regressions", () => {
   it("opens the compact plan capsule from the keyboard and preserves each step's accessible status", async () => {

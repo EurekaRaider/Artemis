@@ -3,6 +3,7 @@
   --conversation-text-size: 13px;
   --composer-menu-label-size: 12px;
   --composer-menu-description-size: 11px;
+  --management-control-bg: light-dark(#e5e5e5, #303030);
   --blue: var(--artemis-color-brand);
   --codex-workspace-bg: var(--artemis-color-canvas);
   --environment-menu-bg: var(--artemis-color-surface-popover);
@@ -509,6 +510,38 @@
 .settings-panel [data-artemis-component="management-row"] {
   border-color: var(--border-soft);
 }
+
+:is(.resource-page, .archive-page, .automation-page, .settings-panel)
+  :is(
+    [data-artemis-component="button"],
+    [data-artemis-component="icon-button"]
+  )[data-variant="secondary"] {
+  background: var(--management-control-bg);
+  border-color: var(--border-soft);
+}
+:is(.resource-page, .archive-page, .automation-page, .settings-panel)
+  :is(
+    [data-artemis-component="button"],
+    [data-artemis-component="icon-button"]
+  )[data-variant="secondary"]:hover:not(:disabled) {
+  background: var(--artemis-color-surface-sunken);
+  border-color: var(--border);
+}
+:is(.resource-page, .archive-page, .automation-page, .settings-panel)
+  :is(
+    [data-artemis-component="button"],
+    [data-artemis-component="icon-button"]
+  )[data-variant="quiet"] {
+  background: transparent;
+  border-color: transparent;
+}
+:is(.resource-page, .archive-page, .automation-page, .settings-panel)
+  :is(
+    [data-artemis-component="button"],
+    [data-artemis-component="icon-button"]
+  )[data-variant="quiet"]:hover:not(:disabled) {
+  background: var(--management-control-bg);
+}
 /* The approved prototype intentionally removes these focus halos. Keyboard behavior remains native. */
 .composer:focus-within,
 .sidebar-search:focus-within {
@@ -602,6 +635,12 @@ textarea:focus {
 [data-artemis-component="switch"][data-state="checked"] [data-part="track"] {
   background: var(--artemis-color-switch-on);
   border-color: var(--artemis-color-switch-on);
+}
+
+:is(.resource-page, .settings-panel)
+  [data-artemis-component="switch"]
+  [data-part="thumb"] {
+  background: #fff;
 }
 
 .workspace-header > [data-part="leading"] {

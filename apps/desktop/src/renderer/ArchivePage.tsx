@@ -184,10 +184,14 @@ export function ArchivePage({
                 <Button onClick={() => onOpen(thread)} variant="primary">
                   {t.archiveOpen}
                 </Button>
-                <Button onClick={() => onRestore(thread)}>
+                <Button onClick={() => onRestore(thread)} variant="quiet">
                   {t.archiveRestore}
                 </Button>
-                <Button onClick={() => onDelete(thread)} variant="danger">
+                <Button
+                  className="management-text-action is-destructive"
+                  onClick={() => onDelete(thread)}
+                  variant="quiet"
+                >
                   {t.archiveDelete}
                 </Button>
               </div>

@@ -19,7 +19,7 @@ persistent tasks, guarded execution modes, Git-native Review, real terminals, au
 <p>
   <img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078D4?logo=windows&logoColor=white" />
   <img alt="macOS Apple Silicon and Intel x64" src="https://img.shields.io/badge/macOS-Apple Silicon%20%7C%20Intel x64-111111?logo=apple&logoColor=white" />
-  <img alt="2379 passing tests" src="https://img.shields.io/badge/Tests-2379_passing-2EA44F" />
+  <img alt="2396 passing tests" src="https://img.shields.io/badge/Tests-2396_passing-2EA44F" />
   <img alt="Maximum 64 active agents" src="https://img.shields.io/badge/Agents-max_64-F5A524" />
 </p>
 
@@ -1214,14 +1214,14 @@ audit step; all other gates remain required.
 
 `.github/workflows/release.yml` runs the same source gate when a `v*.*.*` tag is
 pushed. The tag must exactly match the root package version, for example
-`v1.5.1`. After verification succeeds, native GitHub-hosted runners build
+`v1.5.2`. After verification succeeds, native GitHub-hosted runners build
 Windows x64, macOS Apple Silicon arm64 and macOS Intel x64 packages. A final job
 checks the exact five-file package set before creating one GitHub Release, so a
 failed platform build cannot publish a partial release.
 
 ```bash
-git tag v1.5.1
-git push origin v1.5.1
+git tag v1.5.2
+git push origin v1.5.2
 ```
 
 ### Build and test matrix
@@ -1234,25 +1234,34 @@ npm run format:check
 npm run verify:screenshot-matrix
 ```
 
-Version 1.5.1 harmonizes conversation text at 13px and composer menu labels
-and descriptions at 12px and 11px, retaining existing control hit targets.
-The Dock now shares the pinned sidebar's 640ms motion and easing. Long Git
-branch names truncate with a full-name tooltip without wrapping the label.
-Conversation action menus render above the sidebar footer and flip upward
-near the window edge, retaining outside-click and Escape dismissal.
+Version 1.5.2 adds consistent inset hover rows to the composer's project,
+branch and mode menus, with 12px option labels and the mode menu opening above
+the composer. Plugin switches retain white thumbs in dark mode. Marketplace
+tabs stay on one line, truncate long names, and show horizontal scroll arrows
+when space runs out; the redundant marketplace label is removed.
+Resource, archive and automation pages retain the workspace header and use
+the prototype canvas/card hierarchy. Settings and management buttons share
+the prototype's secondary and quiet states; archived deletion remains a
+text action with the existing confirmation. The [management appearance
+checklist](docs/management-appearance-audit.md) records the reference mapping
+and both-theme review of all six settings sections.
+Sources add rounded,
+inset attachment hover rows and aligned MCP content. Missing or unreadable
+images show explicit feedback; valid local images retain thumbnails and
+previews. The Dock add menu uses one border and aligned icon/text columns.
 All workspace packages, theme metadata and MCP client identities use the same
 release version. Product screenshots retain their original capture provenance.
 The production lockfile resolves `js-yaml` to `4.3.2`, fixing
 [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh).
 
-The full `npm test` run for **1.5.1**, verified on September 9, 2026,
-contains **2379 passing tests** (12 skipped).
+The full `npm test` run for **1.5.2**, verified on September 9, 2026,
+contains **2396 passing tests** (12 skipped).
 Repeated UI and UI Gallery runs inside the verification pipeline are counted
 once:
 
 | Gateway | Protocol | Platform | Agent Host | Theme Contract |  UI | Theme Artemis | UI Gallery | Desktop | **Total** |
 | ------: | -------: | -------: | ---------: | -------------: | --: | ------------: | ---------: | ------: | --------: |
-|     114 |      143 |       25 |        165 |             15 | 307 |             5 |        142 |    1463 |  **2379** |
+|     114 |      143 |       25 |        165 |             15 | 307 |             5 |        142 |    1480 |  **2396** |
 
 Coverage includes replay-safe protocol reduction, mode policy, per-conversation
 model isolation, projectless Temporary workspace/fork/cleanup policy, memory
@@ -1282,13 +1291,13 @@ operations. A fresh build therefore needs only this repository and its npm
 development dependencies; neither the build machine nor the user's computer
 needs a Codex installation.
 
-The `1.5.1` packaging configuration produces:
+The `1.5.2` packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.5.1.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.5.1.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.5.1.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.5.2.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.5.2.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.5.2.dmg` and `.zip`   |
 
 > [!WARNING]
 > **macOS GitHub Release packages are not Apple distribution builds.** They

@@ -2,7 +2,13 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -331,5 +337,106 @@ describe("Sources workspace file navigation", () => {
       screen.queryByRole("button", { name: "Open file" }),
     ).not.toBeInTheDocument();
     expect(onOpenFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("SourcesPanel image failures", () => {
+  const image = {
+    name: "reference.png",
+    mimeType: "image/png",
+    data: "aW1hZ2U=",
+  };
+  const source = {
+    type: "task.source.added",
+    sourceId: "image-1",
+    kind: "image",
+    name: image.name,
+    mimeType: image.mimeType,
+    timestamp: "2026-09-09T00:00:00Z",
+  } as const;
+  const props = {
+    agents: [],
+    attachments: [],
+    locale: "en" as const,
+    mcpUsages: [],
+    onOpenUrl: () => undefined,
+    sources: [source],
+  };
+
+  it("loads persisted thumbnails and opens and closes their preview", async () => {
+    const readTaskSourceImage = vi.fn().mockResolvedValue(image);
+    stubWindowArtemis({ readTaskSourceImage });
+    const { container } = render(<SourcesPanel {...props} threadId="task-1" />);
+    await waitFor(() =>
+      expect(container.querySelector(".attachment img")).not.toBeNull(),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Open image: reference.png" }),
+    );
+    expect(screen.getByRole("dialog").querySelector("img")).toHaveAttribute(
+      "src",
+      "data:image/png;base64,aW1hZ2U=",
+    );
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(readTaskSourceImage).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows unavailable source feedback before a missing image is clicked", async () => {
+    stubWindowArtemis({
+      readTaskSourceImage: vi.fn().mockRejectedValue(new Error("ENOENT")),
+    });
+    render(<SourcesPanel {...props} threadId="task-1" />);
+    const row = screen.getByRole("button", {
+      name: "Open image: reference.png",
+    });
+    await waitFor(() => expect(row).toHaveTextContent("Image unavailable"));
+    await userEvent.click(row);
+    expect(screen.getByText(/missing or cannot be read/)).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("replaces undecodable thumbnails and never leaves a broken preview open", async () => {
+    stubWindowArtemis({
+      readTaskSourceImage: vi.fn().mockResolvedValue(image),
+    });
+    const { container } = render(<SourcesPanel {...props} threadId="task-1" />);
+    await waitFor(() =>
+      expect(container.querySelector(".attachment img")).not.toBeNull(),
+    );
+    fireEvent.error(container.querySelector(".attachment img")!);
+    expect(
+      screen.getByRole("button", { name: "Open image: reference.png" }),
+    ).toHaveTextContent("Image unavailable");
+    expect(container.querySelector(".attachment img")).toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Open image: reference.png" }),
+    );
+    fireEvent.error(screen.getByRole("dialog").querySelector("img")!);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText(/missing or cannot be read/)).toBeVisible();
+  });
+
+  it("ignores pending image reads after switching tasks", async () => {
+    let resolveOld!: (value: typeof image) => void;
+    stubWindowArtemis({
+      readTaskSourceImage: vi.fn().mockImplementation((threadId) =>
+        threadId === "task-1"
+          ? new Promise((resolve) => {
+              resolveOld = resolve;
+            })
+          : Promise.reject(new Error("ENOENT")),
+      ),
+    });
+    const { rerender, container } = render(
+      <SourcesPanel {...props} threadId="task-1" />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Open image: reference.png" }),
+    );
+    rerender(<SourcesPanel {...props} threadId="task-2" />);
+    await act(async () => resolveOld(image));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(container.querySelector(".attachment img")).toBeNull();
   });
 });
