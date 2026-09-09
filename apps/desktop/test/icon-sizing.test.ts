@@ -245,7 +245,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     [".agent-team-member-disclosure svg", 12],
     [
       ".workspace-file-kind .seti-file-icon,\n.workspace-file-kind .seti-file-icon svg",
-      21,
+      16,
     ],
     [".workspace-tab-menu svg", 17],
     [".sources-panel-icon svg", 16],

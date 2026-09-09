@@ -45,6 +45,7 @@ import { ChildAgentIcon } from "./ChildAgentIcon.js";
 import { ImGroupMembers } from "./ImGroupMembers.js";
 import {
   EnvironmentAddIcon,
+  EnvironmentAgentsIcon,
   EnvironmentBranchIcon as CodexBranchIcon,
   EnvironmentChangesIcon as CodexChangesIcon,
   EnvironmentCheckIcon,
@@ -56,6 +57,7 @@ import {
   EnvironmentLocalIcon,
   EnvironmentPullRequestIcon,
   EnvironmentSearchIcon,
+  EnvironmentSourcesIcon,
 } from "./EnvironmentPanelIcons.js";
 
 const labels = {
@@ -139,7 +141,7 @@ const labels = {
     sourceSummary: (attachments: number, calls: number) =>
       `${attachments} attachments · ${calls} tool calls`,
     agentSummary: (total: number, active: number) =>
-      `${total} total · ${active} active`,
+      `${total} tasks · ${active > 0 ? `${active} active` : "None running"}`,
     noAgents: "No sub-agents have been used in this task.",
     teams: "Teams",
     agentQueued: "Waiting to start",
@@ -244,7 +246,7 @@ const labels = {
     sourceSummary: (attachments: number, calls: number) =>
       `${attachments} 个附件 · ${calls} 次工具调用`,
     agentSummary: (total: number, active: number) =>
-      `共 ${total} 个 · ${active} 个活跃`,
+      `共 ${total} 个任务，${active > 0 ? `${active} 个活跃` : "暂无运行"}`,
     noAgents: "当前任务尚未使用子代理。",
     teams: "团队",
     agentQueued: "等待开始",
@@ -1841,7 +1843,12 @@ export function EnvironmentPanel({
                   </button>
                 ) : undefined
               }
-              title={t.agents}
+              title={
+                <>
+                  <EnvironmentAgentsIcon />
+                  {t.agents}
+                </>
+              }
             >
               <div className="environment-activity-list">
                 {teamGroups.map(({ team, agents: members }) => (
@@ -1872,9 +1879,11 @@ export function EnvironmentPanel({
                 {standaloneAgents.map(renderAgentRow)}
                 {displayAgents.length > 0 && (
                   <p className="environment-agent-summary">
-                    {t.agentSummary(counts.total, counts.active)} · {t.queued}{" "}
-                    {counts.queued} · {t.blocked} {counts.blocked} ·{" "}
-                    {t.completed} {counts.completed}
+                    {t.agentSummary(counts.total, counts.active)}
+                    {counts.queued > 0 && ` · ${t.queued} ${counts.queued}`}
+                    {counts.blocked > 0 && ` · ${t.blocked} ${counts.blocked}`}
+                    {counts.completed > 0 &&
+                      ` · ${t.completed} ${counts.completed}`}
                   </p>
                 )}
               </div>
@@ -1895,7 +1904,12 @@ export function EnvironmentPanel({
                 </button>
               }
               className="sources-section"
-              title={t.sources}
+              title={
+                <>
+                  <EnvironmentSourcesIcon />
+                  {t.sources}
+                </>
+              }
             >
               <div className="environment-setting-row">
                 <span className="environment-setting-copy">

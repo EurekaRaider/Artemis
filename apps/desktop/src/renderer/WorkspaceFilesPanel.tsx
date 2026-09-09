@@ -82,7 +82,7 @@ export function WorkspaceFileIcon({
       aria-hidden="true"
       className="workspace-file-kind"
       data-file-type={presentation.type}
-      data-icon-source="seti"
+      data-icon-source="artemis"
       data-seti-color={icon.color}
     >
       <span
@@ -132,7 +132,16 @@ function DirectoryTree({
               expanded={open}
               icon={
                 directory ? (
-                  <span className="workspace-file-kind" />
+                  <span
+                    className="workspace-file-kind workspace-folder-icon"
+                    aria-hidden="true"
+                  >
+                    <ArtemisIcon
+                      name={open ? "folder-open" : "folder"}
+                      height={16}
+                      width={16}
+                    />
+                  </span>
                 ) : (
                   <WorkspaceFileIcon
                     path={entry.path}

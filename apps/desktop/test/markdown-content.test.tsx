@@ -249,7 +249,7 @@ describe("MarkdownContent", () => {
     ];
     expect(new Set(icons.map((icon) => icon.svg))).toHaveLength(3);
     expect(icons[0]?.svg).toBe(
-      workspaceFileLinkIcon("components/Button.jsx").svg,
+      workspaceFileLinkIcon("components/Button.tsx").svg,
     );
   });
 

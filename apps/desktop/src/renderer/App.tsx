@@ -1898,6 +1898,7 @@ export function App() {
   const recoveredQueueEventIds = useRef(new Set<string>());
   const promptInput = useRef<HTMLTextAreaElement>(null);
   const previousPendingUserInputId = useRef<string | undefined>(undefined);
+  const approvalPolicyRoot = useRef<HTMLDivElement>(null);
   const modelPickerRoot = useRef<HTMLDivElement>(null);
   const modelPickerHoverCloseTimer = useRef<number | undefined>(undefined);
   const slashCommandMenu = useRef<HTMLDivElement>(null);
@@ -2239,6 +2240,19 @@ export function App() {
       window.clearTimeout(removeTimer);
     };
   }, [activeToastId]);
+
+  useEffect(() => {
+    if (!approvalMenuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!approvalPolicyRoot.current?.contains(event.target as Node)) {
+        setApprovalMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+    };
+  }, [approvalMenuOpen]);
 
   useEffect(() => {
     if (!modelPickerOpen) return;
@@ -7689,7 +7703,10 @@ export function App() {
                             >
                               <PlusIcon />
                             </button>
-                            <div className="approval-policy-control">
+                            <div
+                              className="approval-policy-control"
+                              ref={approvalPolicyRoot}
+                            >
                               <button
                                 aria-expanded={approvalMenuOpen}
                                 aria-haspopup="menu"
@@ -7701,8 +7718,17 @@ export function App() {
                                 }}
                                 title={t.approvalPolicy}
                               >
-                                <ApprovalIcon
-                                  warning={approvalPolicy === "full-access"}
+                                <ArtemisIcon
+                                  className="icon"
+                                  name={
+                                    approvalPolicy === "full-access"
+                                      ? "approval-full"
+                                      : approvalPolicy === "agent"
+                                        ? "approval-agent"
+                                        : "approval-ask"
+                                  }
+                                  width={18}
+                                  height={18}
                                 />
                                 <span>{approvalPolicyLabel}</span>
                                 <ChevronIcon />

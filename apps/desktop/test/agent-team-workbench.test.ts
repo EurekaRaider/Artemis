@@ -74,11 +74,12 @@ describe("agent-team workbench", () => {
     expect(childAgentIconSource).toContain(
       "function childAgentMarkHash(identity: string)",
     );
-    expect(childAgentIconSource).toContain("shape: (hash >>> 8) % 8");
+    expect(childAgentIconSource).toContain("shape: (hash >>> 8) % 6");
     expect(appSource).toContain("identity={child.agentId}");
-    expect(childAgentIconSource).toContain('"#4f86ff"');
-    expect(childAgentIconSource).toContain('"#1fc9ae"');
-    expect(childAgentIconSource).toContain('opacity="0.32"');
+    expect(childAgentIconSource).toContain('"#77acee"');
+    expect(childAgentIconSource).toContain('"#72c4ae"');
+    expect(childAgentIconSource).toContain('strokeWidth="1.5"');
+    expect(childAgentIconSource).not.toContain('opacity="0.32"');
     expect(stylesSource).toContain(".child-agent-mark {");
   });
 

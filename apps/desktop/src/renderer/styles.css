@@ -1062,10 +1062,8 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 }
 
 .environment-section + .environment-section {
-  background: var(--artemis-color-surface-sunken);
-  border-radius: 8px;
-  padding: 8px;
-  border-top: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--artemis-color-border-subtle);
 }
 
 .turn-change-more .turn-change-files {
@@ -1084,26 +1082,47 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 .environment-section h2 {
   color: var(--artemis-color-text-tertiary);
   font-size: 11px;
-  font-weight: 620;
-  letter-spacing: 0.06em;
+  font-weight: 500;
+  letter-spacing: normal;
   margin: 0;
   line-height: 16.5px;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
-.git-environment-section > header > h2 {
+.environment-section > header > h2 {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   text-transform: none;
 }
 
-.git-environment-section > header > h2 > svg {
+.environment-section > header > h2 > svg {
   display: block;
   width: 16px;
   height: 16px;
   flex-shrink: 0;
   color: var(--text);
+}
+
+/* Functional icon accents stay local to the environment panel. */
+.environment-popover svg[data-environment-tone="purple"] {
+  color: light-dark(#7862b8, #a59be5);
+}
+
+.environment-popover svg[data-environment-tone="blue"] {
+  color: light-dark(#3978bc, #77acee);
+}
+
+.environment-popover svg[data-environment-tone="cyan"] {
+  color: light-dark(#328399, #7bbecc);
+}
+
+.environment-popover svg[data-environment-tone="amber"] {
+  color: light-dark(#a66b22, #e8b16c);
+}
+
+.environment-popover svg[data-environment-tone="mint"] {
+  color: light-dark(#31846f, #72c4ae);
 }
 
 .environment-header-action,
@@ -2621,15 +2640,15 @@ button.environment-row:disabled {
 
 .workspace-file-link-icon {
   display: inline-block;
-  height: 1em;
-  margin-right: 0.24em;
-  vertical-align: -0.13em;
-  width: 1em;
+  height: 1.05em;
+  margin-inline-end: 0.3em;
+  vertical-align: -0.15em;
+  width: 1.05em;
 }
 
 .workspace-file-link-icon svg {
   display: block;
-  fill: currentColor;
+  fill: none;
   height: 100%;
   overflow: visible;
   width: 100%;
@@ -3549,7 +3568,7 @@ button.environment-row:disabled {
 
 .child-agent-mark {
   display: block;
-  fill: currentColor;
+  fill: none;
   flex: 0 0 auto;
   height: 18px;
   overflow: visible;
@@ -4002,7 +4021,7 @@ button.environment-row:disabled {
 
 .agent-team-member strong,
 .sources-agent-row strong {
-  font-weight: 510;
+  font-weight: 400;
   font-size: 13px;
 }
 
@@ -6895,15 +6914,19 @@ button.sources-panel-entry.attachment:focus-visible {
   width: 22px;
 }
 
+.workspace-folder-icon {
+  color: light-dark(#328399, #7bbecc);
+}
+
 .workspace-file-kind .seti-file-icon,
 .workspace-file-kind .seti-file-icon svg {
   display: block;
-  height: 21px;
-  width: 21px;
+  height: 16px;
+  width: 16px;
 }
 
 .workspace-file-kind .seti-file-icon svg {
-  fill: currentColor;
+  fill: none;
   overflow: visible;
 }
 
@@ -10386,7 +10409,7 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .environment-agent-team-trigger > svg {
@@ -10407,12 +10430,17 @@ kbd {
 }
 
 .environment-agent-team-children {
-  padding-inline-start: 12px;
+  padding-inline-start: 4px;
+}
+
+.environment-agent-group + .environment-agent-group {
+  margin-top: 8px;
 }
 
 .environment-activity-row {
-  padding: 7px 8px;
-  border-bottom: 1px solid var(--artemis-color-border-subtle);
+  padding: 7px 4px;
+  border-bottom: 0;
+  border-radius: 6px;
   gap: 6px;
   grid-template-columns: 18px minmax(0, 1fr);
 }
@@ -10433,7 +10461,7 @@ kbd {
   min-width: 0;
   font-size: 13px;
   line-height: 1.5;
-  font-weight: 510;
+  font-weight: 400;
 }
 
 .environment-activity-row small {
@@ -11230,4 +11258,32 @@ kbd {
   > :is(.project-new-thread, .project-action) {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Give language marks their natural width; never squeeze their letterforms. */
+.workspace-files-panel [data-artemis-component="workspace-file-tree-row"] {
+  grid-template-columns: 1.0625rem 34px minmax(0, 1fr);
+}
+
+.workspace-files-panel
+  [data-artemis-component="workspace-file-tree-row"]
+  [data-part="icon"] {
+  inline-size: 28px;
+}
+
+.workspace-file-kind:has([data-language-mark]),
+.workspace-file-kind .seti-file-icon:has([data-language-mark]) {
+  width: 28px;
+}
+
+.workspace-file-kind .seti-file-icon svg[data-language-mark] {
+  width: 28px;
+}
+
+.workspace-file-link-icon:has([data-language-mark="regular"]) {
+  width: 1.26em;
+}
+
+.workspace-file-link-icon:has([data-language-mark="wide"]) {
+  width: 1.785em;
 }

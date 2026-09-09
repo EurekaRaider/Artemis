@@ -268,7 +268,7 @@ describe("environment agent activity", () => {
       expect(row.parentElement).toHaveClass("environment-agent-team-children");
     }
     expect(screen.queryByText(nested.label)).toBeNull();
-    expect(screen.getByText(/6 total · 0 active/)).toBeVisible();
+    expect(screen.getByText(/6 tasks · None running/)).toBeVisible();
     await userEvent.click(
       screen.getByRole("button", { name: /cxx-plan-wrapper/ }),
     );

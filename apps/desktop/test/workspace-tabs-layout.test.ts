@@ -320,8 +320,8 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(fileEditorSources).toContain("filePresentation(entry.path)");
     expect(directoryTreeSource).toContain("<WorkspaceFileIcon");
     expect(fileEditorSources).toContain("function WorkspaceFileIcon");
-    expect(fileEditorSources).toContain('from "seti-file-icons"');
-    expect(fileEditorSources).toContain('data-icon-source="seti"');
+    expect(fileEditorSources).not.toContain('from "seti-file-icons"');
+    expect(fileEditorSources).toContain('data-icon-source="artemis"');
     expect(fileEditorSources).toContain("dangerouslySetInnerHTML");
     expect(fileEditorSources).toContain('aria-hidden="true"');
     expect(fileEditorSources).toContain("data-file-type={presentation.type}");
@@ -355,9 +355,9 @@ describe("Codex-like workspace tab layout contract", () => {
           symlink: false,
         }),
       );
-      expect(markup).toContain('data-icon-source="seti"');
+      expect(markup).toContain('data-icon-source="artemis"');
       expect(markup).toContain("<svg");
-      expect(markup).not.toContain("<text");
+      expect(markup).not.toContain("<script");
     }
 
     expect(setiFileIcon("README.md", filePresentation("README.md")).svg).toBe(

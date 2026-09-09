@@ -392,6 +392,10 @@ export const MarkdownContent = memo(function MarkdownContent({
     text,
   ]);
 
+  // Keep React from resetting the HTML on callback-only renders and removing
+  // the trusted file icons and resolved images installed after sanitization.
+  const markup = useMemo(() => ({ __html: html }), [html]);
+
   useLayoutEffect(() => {
     const root = contentRoot.current;
     if (!root || !fileLinkIcons) return;
@@ -405,7 +409,7 @@ export const MarkdownContent = memo(function MarkdownContent({
       if (!href || !iconRoot) continue;
       const icon = workspaceFileLinkIcon(href);
       iconRoot.dataset.setiColor = icon.color;
-      // The SVG is bundled with seti-file-icons; no Markdown input is parsed here.
+      // The SVG uses local constant glyphs; no Markdown input is inserted into it.
       iconRoot.innerHTML = icon.svg;
     }
   }, [fileLinkIcons, html]);
@@ -518,7 +522,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   return (
     <article
       className={className ? `${className} markdown-body` : "markdown-body"}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={markup}
       onClick={openDelegatedLink}
       onContextMenu={openFileLinkMenu}
       ref={contentRoot}
