@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   McpConfigStore,
@@ -12,6 +12,13 @@ import {
 import type { McpServerConfig } from "../src/shared/api.js";
 
 const temporaryDirectories: string[] = [];
+let workspacePath: string;
+
+beforeEach(async () => {
+  workspacePath = await mkdtemp(join(tmpdir(), "artemis-mcp-workspace-"));
+  temporaryDirectories.push(workspacePath);
+});
+
 function stdioServer(
   overrides: Partial<Extract<McpServerConfig, { transport: "stdio" }>> = {},
 ): Extract<McpServerConfig, { transport: "stdio" }> {
@@ -22,7 +29,7 @@ function stdioServer(
     enabled: true,
     command: "codegraph",
     args: ["serve", "--mcp"],
-    workspacePath: "C:\\code",
+    workspacePath,
     allowNetwork: false,
     env: {},
     envVars: [],

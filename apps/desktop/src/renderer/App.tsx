@@ -6751,6 +6751,31 @@ export function App() {
                         projectBranchActionsDisabled ||
                         Boolean(activeThread?.archived)
                       }
+                      onOpenUsage={() => setActiveView("token-usage")}
+                      workspaceIsWorktree={Boolean(
+                        activeThread && activeThread.target !== "local",
+                      )}
+                      onWorktreesChanged={async () => {
+                        const refreshed = await window.artemis.getSnapshot();
+                        setSnapshot((current) =>
+                          preserveLoadedEvents(refreshed, current),
+                        );
+                      }}
+                      onWorkspaceHandoff={
+                        activeThread
+                          ? async (destination) => {
+                              await window.artemis.handoffWorkspace(
+                                activeThread.id,
+                                destination,
+                              );
+                              const refreshed =
+                                await window.artemis.getSnapshot();
+                              setSnapshot((current) =>
+                                preserveLoadedEvents(refreshed, current),
+                              );
+                            }
+                          : undefined
+                      }
                       agents={environmentAgents}
                       onMentionMember={groupMentions.insert}
                       memberRemovalDisabled={turnActive || busy}

@@ -488,6 +488,7 @@ export async function removeManagedWorktree(
     "--porcelain=v1",
     "-z",
     "--untracked-files=all",
+    ...(!input.force ? ["--ignored"] : []),
   ]);
   const dirty = status.length > 0;
   if (dirty && !input.force) {
@@ -667,4 +668,65 @@ export async function restoreWorktreeSnapshot(
       ...Object.keys(manifest.untrackedSymlinks),
     ],
   };
+}
+
+export async function inspectWorktreeCleanup(path: string): Promise<{
+  clean: boolean;
+  pushedToGitHub: boolean;
+  error?: string;
+}> {
+  let clean = false;
+  try {
+    const status = await runGit(path, [
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+      "--ignored",
+    ]);
+    clean = status.length === 0;
+    const remotes = (await runGit(path, ["remote"]))
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean);
+    for (const remote of remotes) {
+      const url = (
+        await runGit(path, ["remote", "get-url", "--push", remote])
+      ).trim();
+      if (
+        !/^(?:https:\/\/(?:[^/@]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)[^/]+\/[^/]+\/?$/.test(
+          url,
+        )
+      )
+        continue;
+      // Query current remote tips rather than trusting stale remote-tracking refs.
+      const tips = (await runGit(path, ["ls-remote", "--heads", url]))
+        .trim()
+        .split(/\r?\n/);
+      for (const tip of tips) {
+        const sha = tip.split(/\s/)[0];
+        if (!sha || !/^[a-f0-9]{40,64}$/.test(sha)) continue;
+        try {
+          await execFileAsync(
+            "git",
+            ["merge-base", "--is-ancestor", "HEAD", sha],
+            {
+              cwd: path,
+              timeout: 30_000,
+              windowsHide: true,
+            },
+          );
+          return { clean, pushedToGitHub: true };
+        } catch {
+          /* Missing remote commits or non-ancestor: do not recommend. */
+        }
+      }
+    }
+    return { clean, pushedToGitHub: false };
+  } catch (error) {
+    return {
+      clean,
+      pushedToGitHub: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }

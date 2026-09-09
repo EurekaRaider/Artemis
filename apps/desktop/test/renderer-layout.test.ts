@@ -940,7 +940,7 @@ describe("renderer layout contract", () => {
     );
   });
 
-  it("keeps desktop tasks local and exposes no Worktree controls", () => {
+  it("creates tasks locally by default and exposes explicit workspace handoff", () => {
     const createThreadStart = appSource.indexOf(
       "const createThread = useCallback",
     );
@@ -967,7 +967,9 @@ describe("renderer layout contract", () => {
     expect(appSource).not.toContain('className="target-switcher"');
     expect(appSource).not.toContain('className="workspace-target-badge"');
     expect(appSource).not.toContain('className="branch-glyph"');
-    expect(appSource).not.toContain("window.artemis.handoffWorkspace");
+    expect(appSource).toContain("window.artemis.handoffWorkspace");
+    expect(appSource).toContain("onWorkspaceHandoff={");
+    expect(appSource).toContain("onWorktreesChanged={");
     expect(appSource).not.toContain("window.artemis.branchizeWorktree");
     expect(appSource).not.toContain("window.artemis.cleanupWorktree");
     expect(appSource).not.toContain("window.artemis.restoreWorktreeSnapshot");

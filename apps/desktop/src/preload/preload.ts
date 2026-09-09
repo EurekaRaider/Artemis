@@ -110,6 +110,8 @@ const api: ArtemisApi = {
   prepareThread: (threadId) => ipcRenderer.invoke(IPC.threadPrepare, threadId),
   branchizeWorktree: (threadId, branchName) =>
     ipcRenderer.invoke(IPC.worktreeBranchize, threadId, branchName),
+  listWorktreeCleanupCandidates: () =>
+    ipcRenderer.invoke(IPC.worktreeListCleanup),
   cleanupWorktree: (threadId, force) =>
     ipcRenderer.invoke(IPC.worktreeCleanup, threadId, force),
   restoreWorktreeSnapshot: (worktreeId) =>

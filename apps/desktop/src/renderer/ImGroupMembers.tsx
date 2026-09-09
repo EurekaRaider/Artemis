@@ -26,15 +26,6 @@ export function ImGroupMembers({
   return (
     <EnvironmentSection title={t("群协作成员", "Group collaboration members")}>
       <div className="environment-setting-copy im-group-members">
-        <strong>{group.name}</strong>
-        <small>
-          {group.targetDeviceIds
-            ? t(
-                "本对话的目标成员与电脑",
-                "Target members and computers for this conversation",
-              )
-            : t("已加入此 Artemis 空间的成员", "Members of this Artemis space")}
-        </small>
         {group.stale && (
           <small role="status">
             {t(
@@ -71,26 +62,32 @@ export function ImGroupMembers({
               role="listitem"
             >
               <span className="environment-setting-copy">
-                <strong>{member.name}</strong>
-                <small title={member.deviceId}>
-                  {imChannelLabel(member.identity.channel, t)} ·{" "}
-                  {member.deviceName || member.deviceId}
+                <strong
+                  className="im-member-heading"
+                  title={`${member.name} · ${imChannelLabel(member.identity.channel, t)} · ${member.deviceName || member.deviceId}`}
+                >
+                  <span>{member.name}</span>
+                  <span className="im-member-device">
+                    {member.deviceName || member.deviceId}
+                  </span>
+                </strong>
+                <small className="im-member-status">
+                  <span>
+                    {group.stale || member.state === "unknown"
+                      ? t("状态未知", "Status unknown")
+                      : member.state === "unavailable"
+                        ? t(
+                            "账号或电脑已不可用",
+                            "Account or computer unavailable",
+                          )
+                        : member.state === "online"
+                          ? t("电脑在线", "Computer online")
+                          : t("电脑离线或暂停", "Computer offline or paused")}
+                  </span>
+                  {member.deviceId === group.executingDeviceId && (
+                    <span>{t("本任务执行者", "Executes this task")}</span>
+                  )}
                 </small>
-                <small>
-                  {group.stale || member.state === "unknown"
-                    ? t("状态未知", "Status unknown")
-                    : member.state === "unavailable"
-                      ? t(
-                          "账号或电脑已不可用",
-                          "Account or computer unavailable",
-                        )
-                      : member.state === "online"
-                        ? t("电脑在线", "Computer online")
-                        : t("电脑离线或暂停", "Computer offline or paused")}
-                </small>
-                {member.deviceId === group.executingDeviceId && (
-                  <small>{t("本任务执行者", "Executes this task")}</small>
-                )}
               </span>
               {onRemove && (
                 <ImMemberRemoval

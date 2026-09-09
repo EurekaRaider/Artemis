@@ -205,6 +205,18 @@ export interface ReviewMutationResult {
   recoveryPath?: string;
 }
 
+export interface WorktreeCleanupCandidate {
+  worktree: TaskWorktree;
+  title: string;
+  projectName: string;
+  busy: boolean;
+  expired: boolean;
+  clean: boolean;
+  pushedToGitHub: boolean;
+  recommended: boolean;
+  error?: string;
+}
+
 export interface CleanupWorktreeResult {
   thread: Thread;
   worktree: TaskWorktree;
@@ -819,6 +831,7 @@ export interface ArtemisApi {
     threadId: string,
     branchName: string,
   ): Promise<TaskWorktree>;
+  listWorktreeCleanupCandidates(): Promise<WorktreeCleanupCandidate[]>;
   cleanupWorktree(
     threadId: string,
     force: boolean,
@@ -1095,6 +1108,7 @@ export const IPC = {
   threadCompact: "artemis:thread-compact",
   threadPrepare: "artemis:thread-prepare",
   worktreeBranchize: "artemis:worktree-branchize",
+  worktreeListCleanup: "artemis:worktree-list-cleanup",
   worktreeCleanup: "artemis:worktree-cleanup",
   worktreeRestoreSnapshot: "artemis:worktree-restore-snapshot",
   worktreeHandoff: "artemis:worktree-handoff",

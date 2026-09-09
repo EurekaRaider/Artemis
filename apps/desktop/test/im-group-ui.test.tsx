@@ -261,7 +261,13 @@ describe("group collaboration UI", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent("Alice laptop");
     expect(rows[0]).toHaveTextContent("电脑离线或暂停");
-    expect(rows[1]).toHaveTextContent("Slack");
+    expect(
+      within(rows[1]!).getByTitle("Bob · Slack · Bob desktop"),
+    ).toBeVisible();
+    expect(screen.queryByText(group.name)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("已加入此 Artemis 空间的成员"),
+    ).not.toBeInTheDocument();
     expect(within(rows[1]!).getByText("本任务执行者")).toBeVisible();
     rerender(
       <ImGroupMembers group={{ ...group, stale: true }} locale="zh-CN" />,

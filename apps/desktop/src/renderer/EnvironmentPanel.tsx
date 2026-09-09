@@ -42,6 +42,7 @@ import type {
 import { localizedCopy } from "../shared/i18n-resources.js";
 import { legacyLocale } from "../shared/locales.js";
 import { ChildAgentIcon } from "./ChildAgentIcon.js";
+import { EnvironmentWorkspaceMenu } from "./EnvironmentWorkspaceMenu.js";
 import { ImGroupMembers } from "./ImGroupMembers.js";
 import {
   EnvironmentAddIcon,
@@ -54,7 +55,6 @@ import {
   EnvironmentCompareIcon,
   EnvironmentExternalIcon,
   EnvironmentGithubIcon,
-  EnvironmentLocalIcon,
   EnvironmentPullRequestIcon,
   EnvironmentSearchIcon,
   EnvironmentSourcesIcon,
@@ -776,6 +776,10 @@ export function EnvironmentPanel({
   onMentionMember,
   onRemoveMember,
   memberRemovalDisabled,
+  workspaceIsWorktree,
+  onWorkspaceHandoff,
+  onWorktreesChanged,
+  onOpenUsage,
   locale,
   mcpUsages,
   onAddProject,
@@ -803,6 +807,11 @@ export function EnvironmentPanel({
   onMentionMember?: ((token: string) => void) | undefined;
   onRemoveMember?: ((deviceId: string) => Promise<boolean>) | undefined;
   memberRemovalDisabled?: boolean | undefined;
+  workspaceIsWorktree?: boolean | undefined;
+  onOpenUsage?: (() => void) | undefined;
+  onWorktreesChanged?: (() => Promise<void>) | undefined;
+  onWorkspaceHandoff?:
+    ((destination: "local" | "managed-worktree") => Promise<void>) | undefined;
   locale: AppLocale;
   mcpUsages: McpToolUsageState[];
   onAddProject: () => void;
@@ -1142,12 +1151,12 @@ export function EnvironmentPanel({
   useEffect(() => {
     if (!gitActive) return;
     void loadGit();
-  }, [gitActive, loadGit, refreshKey]);
+  }, [gitActive, loadGit, refreshKey, workspaceIsWorktree]);
 
   useEffect(() => {
     if (!open) return;
     void loadPullRequest();
-  }, [loadPullRequest, open, refreshKey]);
+  }, [loadPullRequest, open, refreshKey, workspaceIsWorktree]);
 
   useEffect(
     () =>
@@ -1707,18 +1716,17 @@ export function EnvironmentPanel({
                     <b>−{gitInfo.deletions}</b>
                   </span>
                 </button>
-                <div className="environment-setting-row" title={gitInfo.root}>
-                  <EnvironmentLocalIcon aria-hidden="true" />
-                  <span className="environment-setting-copy">
-                    <strong>{t.workspaceLabel}</strong>
-                  </span>
-                  <span className="environment-local-badge">{t.local}</span>
-                </div>
+                <EnvironmentWorkspaceMenu
+                  locale={locale}
+                  path={gitInfo.root ?? project.path}
+                  worktree={workspaceIsWorktree}
+                  disabled={actionsDisabled || Boolean(gitBusy)}
+                  onHandoff={onWorkspaceHandoff}
+                  onWorktreesChanged={onWorktreesChanged}
+                  onOpenUsage={onOpenUsage}
+                  onMessage={onMessage}
+                />
                 <div className="environment-setting-row environment-branch-row">
-                  <BranchIcon />
-                  <span className="environment-setting-copy">
-                    <strong>{t.branch}</strong>
-                  </span>
                   <div className="environment-branch-control">
                     <button
                       aria-controls="environment-branch-menu"
@@ -1737,6 +1745,7 @@ export function EnvironmentPanel({
                       title={gitInfo.currentBranch ?? t.detached}
                       type="button"
                     >
+                      <BranchIcon />
                       <span className="environment-row-copy">
                         <strong>{gitInfo.currentBranch ?? t.detached}</strong>
                       </span>

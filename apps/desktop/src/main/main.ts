@@ -183,9 +183,11 @@ import {
   branchizeManagedWorktree,
   createManagedWorktree,
   listGitWorktrees,
-  removeManagedWorktree,
+  removeManagedWorktree as removeManagedWorktreeFromGit,
+  inspectWorktreeCleanup,
   restoreWorktreeSnapshot,
 } from "./git-worktree.js";
+import { WorktreeCapacity } from "./worktree-capacity.js";
 import { AppStore } from "./store.js";
 import { TurnChangeSetService } from "./turn-change-set.js";
 import {
@@ -678,6 +680,7 @@ let imService: ImService | undefined;
 const openedThreads = new Set<string>();
 const openingThreads = new Map<string, Promise<void>>();
 const activeTurns = new Map<string, string>();
+const cleaningWorktreeThreads = new Set<string>();
 const cancellingTurns = new Set<string>();
 const compactingThreads = new Set<string>();
 const compactionFollowUps = new RecoverableTurnQueues();
@@ -2461,17 +2464,42 @@ async function launchWorkspaceFile(
   });
 }
 
+const worktreeCapacity = new WorktreeCapacity();
+
+async function removeManagedWorktree(
+  input: Parameters<typeof removeManagedWorktreeFromGit>[0],
+) {
+  const result = await removeManagedWorktreeFromGit(input);
+  worktreeCapacity.release(basename(input.worktreePath));
+  return result;
+}
+
 async function createManagedTaskWorktree(
   project: Project,
   threadId: string,
   startPoint?: string,
 ): Promise<TaskWorktree> {
-  const created = await createManagedWorktree({
-    repositoryPath: project.path,
-    managedRoot: managedWorktreeRoot(project.id),
-    id: threadId,
-    ...(startPoint ? { startPoint } : {}),
-  });
+  const release = worktreeCapacity.reserve(
+    threadId,
+    (store?.listWorktrees() ?? [])
+      .filter(
+        (item) =>
+          item.target === "managed-worktree" && item.status === "active",
+      )
+      .map((item) => item.threadId),
+  );
+  let created;
+  try {
+    created = await createManagedWorktree({
+      repositoryPath: project.path,
+      managedRoot: managedWorktreeRoot(project.id),
+      id: threadId,
+      ...(startPoint ? { startPoint } : {}),
+    });
+  } catch (error) {
+    release();
+    throw error;
+  }
   const now = new Date().toISOString();
   return {
     id: randomUUID(),
@@ -5405,6 +5433,11 @@ async function startTaskTurn(
   input: StartTurnInput,
   options: Parameters<typeof startTaskTurnUnchecked>[1] = {},
 ): Promise<StartTurnResult> {
+  if (cleaningWorktreeThreads.has(input.threadId)) {
+    throw new Error(
+      "Worktree cleanup is in progress. Retry after it finishes.",
+    );
+  }
   const release = imService?.reserveStart(
     input.threadId,
     input.mode,
@@ -9483,6 +9516,41 @@ function registerIpc(): void {
     },
   );
 
+  ipcMain.handle(IPC.worktreeListCleanup, async () => {
+    if (!store) throw new Error("Application is not ready.");
+    const entries = store
+      .listWorktrees()
+      .filter(
+        (item) =>
+          item.target === "managed-worktree" && item.status === "active",
+      );
+    return Promise.all(
+      entries.map(async (worktree) => {
+        const thread = store!.getThread(worktree.threadId);
+        const project = store!.getProject(worktree.projectId);
+        const busy =
+          !thread ||
+          thread.status === "running" ||
+          thread.status === "waiting-approval" ||
+          activeTurns.has(worktree.threadId);
+        const expired =
+          Date.now() - Date.parse(thread?.updatedAt ?? worktree.updatedAt) >=
+          30 * 24 * 60 * 60 * 1000;
+        const inspection = await inspectWorktreeCleanup(worktree.path);
+        return {
+          worktree,
+          title: thread?.title ?? worktree.threadId,
+          projectName: project?.name ?? worktree.projectId,
+          busy,
+          expired,
+          ...inspection,
+          recommended:
+            !busy && expired && inspection.clean && inspection.pushedToGitHub,
+        };
+      }),
+    );
+  });
+
   ipcMain.handle(
     IPC.worktreeCleanup,
     async (
@@ -9512,30 +9580,42 @@ function registerIpc(): void {
       ) {
         throw new Error("Stop the active turn before cleaning its worktree.");
       }
-      const context = await resolveThreadWorkspace(thread);
-      if (!context.worktree || context.worktree.target !== "managed-worktree") {
-        throw new Error("Task does not use a managed worktree.");
+      if (cleaningWorktreeThreads.has(thread.id)) {
+        throw new Error("Worktree cleanup is already in progress.");
       }
-      if (openedThreads.has(thread.id)) {
-        await agentProcess.request({
-          type: "thread.close",
-          requestId: randomUUID(),
-          threadId: thread.id,
+      cleaningWorktreeThreads.add(thread.id);
+      try {
+        const context = await resolveThreadWorkspace(thread);
+        if (
+          !context.worktree ||
+          context.worktree.target !== "managed-worktree"
+        ) {
+          throw new Error("Task does not use a managed worktree.");
+        }
+        if (openedThreads.has(thread.id)) {
+          await agentProcess.request({
+            type: "thread.close",
+            requestId: randomUUID(),
+            threadId: thread.id,
+          });
+          openedThreads.delete(thread.id);
+        }
+        terminalService?.closeThread(thread.id);
+        const removed = await removeManagedWorktree({
+          repositoryPath: context.project.path,
+          managedRoot: managedWorktreeRoot(context.project.id),
+          worktreePath: context.worktree.path,
+          recoveryRoot: worktreeRecoveryRoot(context.project.id),
+          force: command.force,
         });
-        openedThreads.delete(thread.id);
+        return store.completeWorktreeCleanup(
+          thread.id,
+          context.worktree.id,
+          removed.recoveryPath,
+        );
+      } finally {
+        cleaningWorktreeThreads.delete(thread.id);
       }
-      const removed = await removeManagedWorktree({
-        repositoryPath: context.project.path,
-        managedRoot: managedWorktreeRoot(context.project.id),
-        worktreePath: context.worktree.path,
-        recoveryRoot: worktreeRecoveryRoot(context.project.id),
-        force: command.force,
-      });
-      return store.completeWorktreeCleanup(
-        thread.id,
-        context.worktree.id,
-        removed.recoveryPath,
-      );
     },
   );
 

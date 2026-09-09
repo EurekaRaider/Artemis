@@ -1112,24 +1112,29 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   color: var(--text);
 }
 
-/* Functional icon accents stay local to the environment panel. */
-.environment-popover svg[data-environment-tone="purple"] {
+/* Share functional icon accents with the portaled workspace menu. */
+:is(.environment-popover, .environment-workspace-menu, .environment-branch-menu)
+  svg[data-environment-tone="purple"] {
   color: light-dark(#7862b8, #a59be5);
 }
 
-.environment-popover svg[data-environment-tone="blue"] {
+:is(.environment-popover, .environment-workspace-menu, .environment-branch-menu)
+  svg[data-environment-tone="blue"] {
   color: light-dark(#3978bc, #77acee);
 }
 
-.environment-popover svg[data-environment-tone="cyan"] {
+:is(.environment-popover, .environment-workspace-menu, .environment-branch-menu)
+  svg[data-environment-tone="cyan"] {
   color: light-dark(#328399, #7bbecc);
 }
 
-.environment-popover svg[data-environment-tone="amber"] {
+:is(.environment-popover, .environment-workspace-menu, .environment-branch-menu)
+  svg[data-environment-tone="amber"] {
   color: light-dark(#a66b22, #e8b16c);
 }
 
-.environment-popover svg[data-environment-tone="mint"] {
+:is(.environment-popover, .environment-workspace-menu, .environment-branch-menu)
+  svg[data-environment-tone="mint"] {
   color: light-dark(#31846f, #72c4ae);
 }
 
@@ -5094,10 +5099,25 @@ button.environment-row:disabled {
 }
 
 .review-scope-select [data-artemis-component="select"] [data-part="menu"] {
+  color: var(--artemis-color-text-primary);
+  font: 500 12px/18px var(--ui-font);
   inset-inline-end: auto;
   inset-inline-start: 0;
   min-inline-size: 150px;
   z-index: 80;
+}
+
+.review-scope-select [data-artemis-component="select"] [data-part="check"] {
+  color: var(--artemis-color-text-secondary);
+}
+
+.review-scope-select
+  [data-artemis-component="select"]
+  [data-part="option"]:hover,
+.review-scope-select
+  [data-artemis-component="select"]
+  [data-part="option"][data-active="true"] {
+  background: var(--artemis-color-interaction-selected);
 }
 
 .sandbox-notice {
@@ -9953,7 +9973,7 @@ kbd {
 }
 
 .git-environment-section .environment-branch-row {
-  grid-template-columns: 16px auto minmax(0, 1fr);
+  display: block;
 }
 
 .environment-branch-row .environment-setting-copy {
@@ -9979,14 +9999,6 @@ kbd {
   line-height: 16px;
   color: var(--artemis-color-text-tertiary);
   overflow-wrap: anywhere;
-}
-
-.environment-local-badge {
-  flex-shrink: 0;
-  font-size: 11px;
-  line-height: 18px;
-  padding-inline: 0;
-  color: var(--artemis-color-text-secondary);
 }
 
 .environment-setting-row > .environment-branch-control {
@@ -11347,4 +11359,245 @@ kbd {
 
 .workspace-file-link-icon:has([data-language-mark="wide"]) {
   width: 1.785em;
+}
+
+.im-member-heading,
+.im-member-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.im-member-heading > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.im-member-device {
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11px;
+  font-weight: 400;
+}
+.im-member-status {
+  flex-wrap: wrap;
+  column-gap: 8px;
+}
+.environment-branch-row .environment-row {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  gap: 8px;
+}
+.environment-branch-row .environment-row > svg {
+  width: 16px;
+  height: 16px;
+}
+.environment-branch-control .environment-row-copy {
+  flex: 1;
+  min-width: 0;
+  text-align: start;
+}
+.environment-branch-control .environment-row-copy > strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.environment-workspace-trigger,
+.environment-workspace-menu > [data-part="content"] > button {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--artemis-color-text-secondary);
+  border-radius: 8px;
+  min-height: 28px;
+  padding: 4px 6px;
+  text-align: start;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.environment-workspace-trigger {
+  margin-inline: -6px;
+  width: calc(100% + 12px);
+}
+.environment-workspace-trigger:hover,
+.environment-workspace-trigger[aria-expanded="true"],
+.environment-workspace-trigger:focus-visible,
+.environment-workspace-menu
+  > [data-part="content"]
+  > button:hover:not(:disabled) {
+  background: var(--environment-selected-bg);
+}
+.environment-workspace-trigger svg,
+.environment-workspace-menu svg {
+  width: 16px;
+  height: 16px;
+}
+.environment-workspace-menu {
+  width: 240px;
+  max-width: calc(100vw - 24px);
+  padding: 8px;
+  background: var(--environment-menu-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 18px 46px rgb(0 0 0 / 38%);
+  z-index: 120;
+}
+.environment-workspace-menu > [data-part="content"] > button {
+  padding: 5px 10px;
+  min-height: 30px;
+  color: var(--artemis-color-text-primary);
+}
+.environment-workspace-menu > [data-part="content"] > button:focus-visible {
+  background: var(--environment-selected-bg);
+  outline: 1px solid var(--artemis-color-text-tertiary);
+  outline-offset: -1px;
+}
+.environment-workspace-menu > [data-part="content"] > button:disabled {
+  opacity: var(--artemis-opacity-disabled);
+}
+.environment-workspace-menu .environment-branch-heading,
+.environment-branch-menu .environment-branch-heading {
+  padding: 2px 10px 6px;
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16.5px;
+}
+
+.environment-workspace-menu
+  > [data-part="content"]
+  > .environment-workspace-usage {
+  position: relative;
+  border-radius: 8px;
+  margin-top: 13px;
+}
+.environment-workspace-usage::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: -7px;
+  border-top: 1px solid var(--border-soft);
+  pointer-events: none;
+}
+
+.environment-branch-menu {
+  padding: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+}
+.environment-branch-menu .environment-compare-action,
+.environment-branch-list > button,
+.environment-branch-actions > button {
+  gap: 8px;
+  padding: 5px 10px;
+  min-height: 30px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.environment-branch-list > button {
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+}
+.environment-branch-actions > button {
+  grid-template-columns: 16px minmax(0, 1fr);
+}
+.environment-branch-menu button > svg {
+  width: 16px;
+  height: 16px;
+}
+.environment-branch-search {
+  min-height: 36px;
+  gap: 8px;
+  padding: 5px 10px;
+  margin-block: 6px;
+}
+.environment-branch-search > input {
+  font-size: 12px;
+  line-height: 18px;
+}
+.environment-branch-list {
+  padding: 0;
+}
+.environment-branch-actions {
+  margin-top: 6px;
+  padding: 6px 0 0;
+}
+.environment-branch-menu button:focus-visible {
+  outline: 1px solid var(--artemis-color-text-tertiary);
+  outline-offset: -1px;
+}
+
+.worktree-manager {
+  width: min(720px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  padding: 24px;
+}
+.worktree-manager-list {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+.worktree-manager-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.worktree-manager-item > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.worktree-manager-item code,
+.worktree-manager-item small {
+  overflow-wrap: anywhere;
+}
+.worktree-manager-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.worktree-manager {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 72px rgb(0 0 0 / 36%);
+  font-size: 13px;
+}
+.worktree-manager h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+.worktree-manager p {
+  line-height: 1.6;
+}
+.worktree-manager-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.worktree-manager-item small,
+.worktree-manager-item code {
+  color: var(--muted);
+  font-size: 12px;
+}
+.worktree-manager-actions button {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.worktree-manager-actions button:not(:disabled):hover {
+  background: var(--panel);
+}
+.worktree-manager-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

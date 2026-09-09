@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 357000,
+      "desktopCssBytes": 362000,
       "desktopJsBytes": 1900000,
       "desktopLargestJsBytes": 875000,
       "galleryCssBytes": 182000,
@@ -128,6 +128,14 @@
       "measuredDesktopCssBytes": 356653,
       "desktopCssIncreaseBytes": 1330,
       "reason": "Issues #166-169 add scoped composer typography tokens, shared sidebar/Dock motion timing, and bounded branch/menu layouts: 1330 bytes (0.37%). Baseline and candidate use identical dependencies and the Vite production pipeline, substituting only the two changed desktop stylesheets for the baseline. The 357000-byte CSS ceiling leaves 347 bytes of headroom. JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
+    },
+    {
+      "date": "2026-09-09",
+      "baseHead": "b25bb834936fcd4987e1b7c9ed7c6971703b5a7f",
+      "baseDesktopCssBytes": 356653,
+      "measuredDesktopCssBytes": 361578,
+      "desktopCssIncreaseBytes": 4925,
+      "reason": "Worktree management, workspace and branch menus, compact IM member rows, and Review select states add 4925 bytes (1.38%). Baseline and candidate use identical dependencies and the Vite production pipeline; an isolated baseline build substitutes only HEAD renderer styles.css without changing working files. The 362000-byte CSS ceiling leaves 422 bytes of headroom. JavaScript, shared UI, gallery, startup and workload ceilings are unchanged."
     }
   ],
   "startupBudgetRevisions": [

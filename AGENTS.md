@@ -37,9 +37,13 @@
 - The Browser may access HTTP and HTTPS with JavaScript, cookies, and web
   storage, but must not expose Node integration, preload APIs, or local-file
   access.
-- Interactive tasks run only in the project's Local checkout. Do not
-  reintroduce managed or permanent Worktree user flows without an explicit
-  product request; preserve legacy persisted data and backend compatibility.
+- Interactive tasks default to the project's Local checkout. Users may
+  explicitly hand off to a managed worktree through the workspace menu.
+  Managed worktrees are limited to 10 across all projects, including pending
+  creations. Cleanup defaults select idle, clean worktrees whose task has not
+  changed for 30 days and whose HEAD is confirmed on GitHub; deletion requires
+  user confirmation. Preserve legacy permanent-worktree data and backend
+  compatibility without reintroducing permanent-worktree creation controls.
 - Tests for a policy regression precede any relaxation of these boundaries.
 
 ## Product and release contracts

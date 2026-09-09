@@ -56,6 +56,31 @@ afterEach(async () => {
 });
 
 describe("managed Git worktrees", () => {
+  it("preserves ignored local files during manual cleanup", async () => {
+    const { root, managedRoot, recoveryRoot } = await createRepository();
+    const worktree = await createManagedWorktree({
+      repositoryPath: root,
+      managedRoot,
+      id: "ignored-files",
+    });
+    await writeFile(join(worktree.path, ".gitignore"), "private.txt\n");
+    await git(worktree.path, "add", ".gitignore");
+    await git(worktree.path, "commit", "-m", "ignore private file");
+    await writeFile(join(worktree.path, "private.txt"), "keep me");
+    await expect(
+      removeManagedWorktree({
+        repositoryPath: root,
+        managedRoot,
+        recoveryRoot,
+        worktreePath: worktree.path,
+        force: false,
+      }),
+    ).rejects.toThrow("uncommitted changes");
+    expect(await readFile(join(worktree.path, "private.txt"), "utf8")).toBe(
+      "keep me",
+    );
+  });
+
   it("creates a detached worktree without touching local dirty changes", async () => {
     const { root, managedRoot } = await createRepository();
     await writeFile(join(root, "README.md"), "# Dirty local\n", "utf8");
