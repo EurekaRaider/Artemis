@@ -10474,6 +10474,18 @@ kbd {
   margin: 0;
 }
 
+/* Composer @-mention menu + attached chip (D#152 PR4). */
+.custom-agent-mention-menu .custom-agent-color,
+.composer-selected-agent .custom-agent-color {
+  flex: none;
+  align-self: center;
+}
+
+.custom-agent-mention-menu .slash-command-suggestion > span:last-child,
+.composer-selected-agent .composer-selected-skill-copy {
+  min-width: 0;
+}
+
 .agent-concurrency-hardware > div {
   display: flex;
   align-items: center;

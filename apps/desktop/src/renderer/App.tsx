@@ -224,7 +224,13 @@ import {
   updateComposerDraft,
   type ComposerDraft,
   type ComposerDrafts,
+  type CustomAgentDraftReference,
 } from "./composer-drafts.js";
+import {
+  CustomAgentMentionMenu,
+  customAgentColorToken,
+  useCustomAgentMention,
+} from "./CustomAgentMention.js";
 import { groupApprovedApprovals } from "./approval-groups.js";
 import { parseGoalCommand } from "./goal-command.js";
 import {
@@ -623,6 +629,13 @@ const copy = {
     addAttachments: "Add files or images",
     removeAttachment: "Remove attachment",
     removeSelectedSkill: "Remove loaded Skill",
+    customAgentMentionHeading: "@ Sub-agent · bind to this message",
+    selectedCustomAgent: "Sub-agent",
+    removeSelectedCustomAgent: "Remove sub-agent",
+    customAgentWhileRunning:
+      "@ sub-agent dispatch needs an idle task. Stop the current run first.",
+    customAgentControlConflict:
+      "Remove the @ sub-agent chip before running a / command.",
     attachmentLimit: "Attach up to 20 images and 10 documents, 200 MiB total.",
     inspectAttachments: "Inspect the attached file(s).",
     dropAttachments: "Drop files to attach",
@@ -917,6 +930,11 @@ const copy = {
     addAttachments: "添加文件或图片",
     removeAttachment: "移除附件",
     removeSelectedSkill: "移除已加载 Skill",
+    customAgentMentionHeading: "@ 子智能体 · 绑定到这条消息",
+    selectedCustomAgent: "子智能体",
+    removeSelectedCustomAgent: "移除子智能体",
+    customAgentWhileRunning: "@ 调用子智能体需要任务空闲，请先停止当前执行。",
+    customAgentControlConflict: "使用 / 指令前请先移除 @ 子智能体。",
     attachmentLimit: "最多添加 20 张图片和 10 个文档，合计 200 MiB。",
     inspectAttachments: "请查看已附加的文件。",
     dropAttachments: "松开即可添加文件",
@@ -1973,6 +1991,7 @@ export function App() {
     attachments,
     prompt,
     selectedSkillNames: selectedComposerSkillNames,
+    customAgentReference,
   } = activeComposerDraft;
   const draftAttachments = useRef(new Map<string, PromptAttachment[]>());
   draftAttachments.current.set(activeComposerDraftKey, attachments);
@@ -1999,6 +2018,33 @@ export function App() {
     text: prompt,
     setText: setPrompt,
     input: promptInput,
+  });
+  const setCustomAgentReference = useCallback(
+    (reference: CustomAgentDraftReference | undefined) => {
+      updateActiveComposerDraft((current) => {
+        const next = { ...current };
+        if (reference === undefined) delete next.customAgentReference;
+        else next.customAgentReference = reference;
+        return next;
+      });
+    },
+    [updateActiveComposerDraft],
+  );
+  // In a confirmed IM group thread @ already means member targeting, so the
+  // sub-agent menu stays out of the way there.
+  const imGroupConfirmed = !!(
+    activeThreadId && imThreadStatus[activeThreadId]?.group?.confirmed
+  );
+  const customAgentMention = useCustomAgentMention({
+    definitions: runtimeSettings?.customAgents ?? [],
+    projectId:
+      (snapshot?.threads ?? []).find((thread) => thread.id === activeThreadId)
+        ?.projectId ?? activeProjectId,
+    text: prompt,
+    setText: setPrompt,
+    input: promptInput,
+    enabled: customAgentReference === undefined && !imGroupConfirmed,
+    onSelect: setCustomAgentReference,
   });
   const copyConversationText = useCallback(
     async (text: string) => {
@@ -5184,8 +5230,9 @@ export function App() {
       promptHistoryNavigation.current = { index: -1, draft: "" };
       setPrompt("");
       setSelectedComposerSkillNames([]);
+      setCustomAgentReference(undefined);
     },
-    [setPrompt, setSelectedComposerSkillNames],
+    [setPrompt, setSelectedComposerSkillNames, setCustomAgentReference],
   );
 
   const recordPromptSubmission = useCallback(
@@ -5217,6 +5264,12 @@ export function App() {
       runModeCommand?.kind === "command" ? runModeCommand.mode : mode;
     const commandPrompt =
       runModeCommand?.kind === "command" ? runModeCommand.prompt : rawPrompt;
+    // A @ sub-agent chip binds to a plain dispatch message. Control
+    // commands (/plan, /goal, /compact, …) never carry one.
+    if (customAgentReference && commandPrompt.trimStart().startsWith("/")) {
+      setToast({ error: true, message: t.customAgentControlConflict });
+      return;
+    }
     if (runModeCommand?.kind === "command") {
       setMode(submittedMode);
       if (
@@ -5350,6 +5403,12 @@ export function App() {
       }
 
       if (activeThread && turnActive) {
+        // Explicit @ dispatch requires an idle thread this phase; the
+        // follow-up queue has no invocation-record carriage yet.
+        if (customAgentReference) {
+          setToast({ error: true, message: t.customAgentWhileRunning });
+          return;
+        }
         await window.artemis.followUpTurn({
           threadId: currentThread.id,
           text,
@@ -5370,6 +5429,18 @@ export function App() {
         submittedAt,
         ...(pendingAttachments.length
           ? { attachments: pendingAttachments }
+          : {}),
+        // The renderer mints one invocationId per submission; IPC retries
+        // of this call reuse it and the store dedups by (thread, id) +
+        // content fingerprint.
+        ...(customAgentReference
+          ? {
+              customAgentReference: {
+                definitionId: customAgentReference.definitionId,
+                revision: customAgentReference.revision,
+                invocationId: crypto.randomUUID(),
+              },
+            }
           : {}),
       });
       recordPromptSubmission(currentThread.id, submittedAt);
@@ -5405,6 +5476,7 @@ export function App() {
     clearSubmittedPrompt,
     closeGoalEditor,
     createThread,
+    customAgentReference,
     mode,
     openGoalEditor,
     prompt,
@@ -5413,6 +5485,8 @@ export function App() {
     t.compactFailed,
     t.compactRequiresTask,
     t.compactWhileRunning,
+    t.customAgentControlConflict,
+    t.customAgentWhileRunning,
     t.goal,
     t.goalCleared,
     t.goalReplaceConfirm,
@@ -7594,6 +7668,30 @@ export function App() {
                               </div>
                             );
                           })}
+                        {!skillCommandMenuOpen && customAgentReference && (
+                          <div
+                            className="composer-selected-skill composer-selected-agent"
+                            data-custom-agent={customAgentReference.definitionId}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`custom-agent-color custom-agent-color-${customAgentColorToken(customAgentReference.color)}`}
+                            />
+                            <span className="composer-selected-skill-copy">
+                              <small>{t.selectedCustomAgent}</small>
+                              <strong>@{customAgentReference.name}</strong>
+                            </span>
+                            <button
+                              aria-label={`${t.removeSelectedCustomAgent}: ${customAgentReference.name}`}
+                              className="composer-selected-skill-remove"
+                              onClick={() => setCustomAgentReference(undefined)}
+                              title={t.removeSelectedCustomAgent}
+                              type="button"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        )}
                         {attachments.length > 0 && (
                           <ComposerAttachments
                             key={activeComposerDraftKey}
@@ -7628,31 +7726,44 @@ export function App() {
                           mentions={groupMentions}
                           zh={locale.startsWith("zh")}
                         />
+                        <CustomAgentMentionMenu
+                          mention={customAgentMention}
+                          zh={locale.startsWith("zh")}
+                        />
                         <div className="composer-input">
                           <textarea
                             aria-activedescendant={
                               groupMentions.open
                                 ? `im-member-mention-${groupMentions.activeIndex}`
-                                : skillCommandMenuOpen &&
-                                    slashCommandSuggestions.length > 0
-                                  ? `skill-command-option-${activeSlashSuggestion}`
-                                  : undefined
+                                : customAgentMention.open
+                                  ? `custom-agent-mention-${customAgentMention.activeIndex}`
+                                  : skillCommandMenuOpen &&
+                                      slashCommandSuggestions.length > 0
+                                    ? `skill-command-option-${activeSlashSuggestion}`
+                                    : undefined
                             }
                             aria-autocomplete="list"
                             aria-controls={
                               groupMentions.open
                                 ? "im-member-mention-menu"
-                                : skillCommandMenuOpen
-                                  ? "skill-command-menu"
-                                  : undefined
+                                : customAgentMention.open
+                                  ? "custom-agent-mention-menu"
+                                  : skillCommandMenuOpen
+                                    ? "skill-command-menu"
+                                    : undefined
                             }
                             aria-expanded={
-                              groupMentions.open || skillCommandMenuOpen
+                              groupMentions.open ||
+                              customAgentMention.open ||
+                              skillCommandMenuOpen
                             }
                             aria-label={t.prompt}
                             onChange={(event) => {
                               const value = event.target.value;
                               groupMentions.changed(
+                                event.target.selectionStart,
+                              );
+                              customAgentMention.changed(
                                 event.target.selectionStart,
                               );
                               setPrompt(value);
@@ -7662,13 +7773,17 @@ export function App() {
                                 draft: value,
                               };
                             }}
-                            onSelect={(event) =>
+                            onSelect={(event) => {
                               groupMentions.selected(
                                 event.currentTarget.selectionStart,
-                              )
-                            }
+                              );
+                              customAgentMention.selected(
+                                event.currentTarget.selectionStart,
+                              );
+                            }}
                             onKeyDown={(event) => {
                               if (groupMentions.keyDown(event)) return;
+                              if (customAgentMention.keyDown(event)) return;
                               if (
                                 event.key === "Tab" &&
                                 event.shiftKey &&
