@@ -15041,7 +15041,7 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
     createdAt: now,
     updatedAt: now,
   });
-  if (view === "environment-non-git") {
+  if (view.startsWith("environment-non-git")) {
     await rm(join(workspace, ".git"), { recursive: true, force: true });
   }
   if (view === "environment-unstarted") return;
@@ -15096,7 +15096,7 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
         text: "实现任务环境面板，并验证 Git、子代理、MCP 和来源信息。",
       },
     },
-    ...(process.env.ARTEMIS_SMOKE_VIEW === "environment-empty"
+    ...(["environment-empty", "environment-non-git-empty"].includes(view)
       ? []
       : ([
           {
@@ -15250,7 +15250,7 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
       },
     });
   }
-  if (process.env.ARTEMIS_SMOKE_VIEW !== "environment-empty") {
+  if (!["environment-empty", "environment-non-git-empty"].includes(view)) {
     await taskSourceImages().save(threadId, "source-screen", {
       name: "Codex 环境信息参考.png",
       mimeType: "image/png",
@@ -17182,7 +17182,7 @@ function createMainWindow(): BrowserWindow {
                     if (!document.querySelector('.conversation-empty-state')) throw new Error('New conversation did not reach the empty state: ' + create.outerHTML);
                     return;
                   }
-                  if (view === 'environment-unstarted' || view === 'environment-non-git') return;
+                  if (view === 'environment-unstarted' || view.startsWith('environment-non-git')) return;
                   if (view === 'environment-context-usage') {
                     document.querySelector('.context-usage-indicator')?.focus();
                     await wait(250);

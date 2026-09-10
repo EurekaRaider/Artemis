@@ -2315,30 +2315,6 @@ button.environment-row:disabled {
   padding: 5px 7px;
 }
 
-.environment-empty {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.55;
-  padding: 8px;
-}
-
-.environment-empty.error {
-  align-items: flex-start;
-  color: var(--danger);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.environment-empty.error button {
-  background: var(--panel-3);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  color: var(--text);
-  cursor: pointer;
-  padding: 4px 8px;
-}
-
 .environment-view-all {
   align-items: center;
   align-self: center;
