@@ -893,7 +893,6 @@ export function EnvironmentPanel({
   const [open, setOpen] = useState(false);
   const [gitInfo, setGitInfo] = useState<ProjectGitInfo>();
   const [gitError, setGitError] = useState<string>();
-  const [gitLoading, setGitLoading] = useState(false);
   const [pullRequestLookup, setPullRequestLookup] =
     useState<ProjectPullRequestLookup>();
   const [pullRequestError, setPullRequestError] = useState<string>();
@@ -918,6 +917,28 @@ export function EnvironmentPanel({
   const [menuBranchName, setMenuBranchName] = useState("");
   const [pendingSwitchBranch, setPendingSwitchBranch] = useState<string>();
   const [showAllAgents, setShowAllAgents] = useState(false);
+
+  const displayAgents = useMemo(
+    () => environmentTopLevelAgents(environmentDisplayAgents(agents, teams)),
+    [agents, teams],
+  );
+  const attachmentCount =
+    attachments.length +
+    sources.filter(
+      (source) => source.kind === "file" || source.kind === "image",
+    ).length;
+  const sourceCallCount =
+    mcpUsages.length +
+    sources.filter((source) => source.kind === "web-search").length;
+  const hasSourcePanelDetails = attachmentCount + sourceCallCount > 0;
+
+  const hasPanelContent =
+    gitInfo?.managed === true ||
+    displayAgents.length > 0 ||
+    teams.length > 0 ||
+    hasSourcePanelDetails ||
+    Boolean(imGroup);
+  const panelVisible = open && hasPanelContent;
 
   const hidePanel = useCallback(() => {
     manuallyOpened.current = false;
@@ -1058,7 +1079,8 @@ export function EnvironmentPanel({
       // Preserve explicit opening and menu focus until the reading area
       // becomes too narrow. Dock transitions restore automatic visibility.
       const nextOpen =
-        (wantsOpen.current ?? (defaultOpen && gitInfo?.managed === true)) &&
+        hasPanelContent &&
+        (wantsOpen.current ?? defaultOpen) &&
         space.enoughSpace &&
         (manuallyOpened.current || !dockOpen);
       if (nextOpen === openRef.current) return;
@@ -1082,10 +1104,10 @@ export function EnvironmentPanel({
       observer?.disconnect();
       window.removeEventListener("resize", syncVisibility);
     };
-  }, [defaultOpen, dockOpen, gitInfo?.managed, measureContentSpace]);
+  }, [defaultOpen, dockOpen, hasPanelContent, measureContentSpace]);
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!panelVisible) return;
     const workspace = control.current?.closest(".workspace");
     const conversation = workspace?.querySelector<HTMLElement>(".conversation");
     if (!workspace || !conversation) return;
@@ -1121,11 +1143,10 @@ export function EnvironmentPanel({
       window.removeEventListener("resize", reserveSpace);
       conversation.style.removeProperty(property);
     };
-  }, [hidePanel, measureContentSpace, open]);
+  }, [hidePanel, measureContentSpace, panelVisible]);
 
   const loadGit = useCallback(async () => {
     const id = ++gitRequest.current;
-    setGitLoading(true);
     setGitError(undefined);
     try {
       const info = await window.artemis.getProjectGitInfo(project.id, threadId);
@@ -1134,8 +1155,6 @@ export function EnvironmentPanel({
       if (gitRequest.current === id) {
         setGitError(error instanceof Error ? error.message : String(error));
       }
-    } finally {
-      if (gitRequest.current === id) setGitLoading(false);
     }
   }, [project.id, threadId]);
 
@@ -1312,10 +1331,6 @@ export function EnvironmentPanel({
     open,
   ]);
 
-  const displayAgents = useMemo(
-    () => environmentTopLevelAgents(environmentDisplayAgents(agents, teams)),
-    [agents, teams],
-  );
   const agentStatusLabels: Record<ChildAgentState["status"], string> = {
     queued: t.agentQueued,
     running: t.agentRunning,
@@ -1437,15 +1452,6 @@ export function EnvironmentPanel({
     gitInfo?.branches ?? [],
     branchQuery,
   );
-  const attachmentCount =
-    attachments.length +
-    sources.filter(
-      (source) => source.kind === "file" || source.kind === "image",
-    ).length;
-  const sourceCallCount =
-    mcpUsages.length +
-    sources.filter((source) => source.kind === "web-search").length;
-  const hasSourcePanelDetails = attachmentCount + sourceCallCount > 0;
 
   const viewAllSources = () => {
     hidePanel();
@@ -1664,17 +1670,21 @@ export function EnvironmentPanel({
   );
 
   return (
-    <EnvironmentControl data-dock-open={dockOpen} open={open} ref={control}>
+    <EnvironmentControl
+      data-dock-open={dockOpen}
+      open={panelVisible}
+      ref={control}
+    >
       <EnvironmentTrigger
         controls={panelId}
-        expanded={open}
+        expanded={panelVisible}
         icon={<EnvironmentIcon />}
         label={t.trigger}
         onClick={togglePanel}
         ref={trigger}
         title={t.trigger}
       />
-      {open && (
+      {panelVisible && (
         <EnvironmentPanelSurface id={panelId} label={t.title} ref={panel}>
           <header className="environment-panel-header">
             <strong title={project.name}>
@@ -1699,40 +1709,27 @@ export function EnvironmentPanel({
               removalDisabled={memberRemovalDisabled}
             />
           )}
-          <EnvironmentSection
-            action={
-              <button
-                aria-label={t.addProject}
-                className="environment-header-action"
-                onClick={onAddProject}
-                title={t.addProject}
-                type="button"
-              >
-                <EnvironmentAddIcon aria-hidden="true" />
-              </button>
-            }
-            className="git-environment-section"
-            title={
-              <>
-                <EnvironmentGithubIcon />
-                <span>Git</span>
-              </>
-            }
-          >
-            {gitLoading && !gitInfo ? (
-              <div className="environment-empty" role="status">
-                {t.loading}
-              </div>
-            ) : gitError && !gitInfo ? (
-              <div className="environment-empty error" role="alert">
-                <span>{gitError}</span>
-                <button onClick={() => void loadGit()} type="button">
-                  {t.retry}
+          {gitInfo?.managed && (
+            <EnvironmentSection
+              action={
+                <button
+                  aria-label={t.addProject}
+                  className="environment-header-action"
+                  onClick={onAddProject}
+                  title={t.addProject}
+                  type="button"
+                >
+                  <EnvironmentAddIcon aria-hidden="true" />
                 </button>
-              </div>
-            ) : !gitInfo?.managed ? (
-              <div className="environment-empty">{t.notGit}</div>
-            ) : (
+              }
+              className="git-environment-section"
+              title={
+                <>
+                  <EnvironmentGithubIcon />
+                  <span>Git</span>
+                </>
+              }
+            >
               <div className="environment-rows">
                 <button
                   className="environment-text-action"
@@ -1868,8 +1865,8 @@ export function EnvironmentPanel({
                   </div>
                 )}
               </div>
-            )}
-          </EnvironmentSection>
+            </EnvironmentSection>
+          )}
 
           {(displayAgents.length > 0 || teams.length > 0) && (
             <EnvironmentSection

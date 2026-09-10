@@ -143,7 +143,6 @@ describe("task environment panel state", () => {
     expect(appSource).not.toContain(
       '${workspaceDockOpen ? "dock-open" : "dock-closed"}',
     );
-    expect(panelSource).toContain("gitLoading && !gitInfo");
   });
 
   it("uses the v69 floating panel proportions", () => {

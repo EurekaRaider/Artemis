@@ -5584,8 +5584,9 @@ button.environment-row:disabled {
 .composer textarea {
   background: transparent;
   border: 0;
+  field-sizing: content;
   line-height: 1.55;
-  max-height: 180px;
+  max-height: 50vh;
   min-height: 52px;
   outline: 0;
   padding: 0;

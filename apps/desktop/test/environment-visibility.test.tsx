@@ -351,7 +351,56 @@ describe("environment panel automatic visibility", () => {
       await userEvent.click(
         screen.getByRole("button", { name: "Task environment" }),
       );
+      expect(dialog()).toBeNull();
+    },
+  );
+
+  it.each(["agents", "sources", "both"] as const)(
+    "shows %s without Git and hides the panel when the last content disappears",
+    async (content) => {
+      vi.mocked(window.artemis.getProjectGitInfo).mockResolvedValue({
+        managed: false,
+      } as never);
+      const child = {
+        type: "child-agent.status" as const,
+        agentId: "child",
+        depth: 1,
+        label: "Document review",
+        status: "running" as const,
+        updatedAt: "2026-09-10T00:00:00Z",
+      };
+      const source = {
+        type: "task.source.added" as const,
+        sourceId: "search",
+        kind: "web-search" as const,
+        query: "Documentation",
+        timestamp: "2026-09-10T00:00:00Z",
+      };
+      const { rerender, container } = await renderReady(fixture());
+      expect(dialog()).toBeNull();
+      rerender(
+        fixture({
+          agents: content !== "sources" ? [child] : [],
+          sources: content !== "agents" ? [source] : [],
+        }),
+      );
       expect(dialog()).toBeVisible();
+      expect(screen.queryByText("Git", { exact: true })).toBeNull();
+      if (content !== "sources")
+        expect(
+          screen.getByRole("button", { name: /Document review/ }),
+        ).toBeVisible();
+      if (content !== "agents")
+        expect(screen.getByRole("heading", { name: "Sources" })).toBeVisible();
+      rerender(fixture());
+      expect(dialog()).toBeNull();
+      expect(
+        container
+          .querySelector<HTMLElement>(".conversation")!
+          .style.getPropertyValue(
+            "--environment-panel-content-safe-inline-size",
+          ),
+      ).toBe("");
     },
   );
 
