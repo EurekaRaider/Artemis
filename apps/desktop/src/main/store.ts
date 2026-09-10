@@ -28,6 +28,14 @@ import {
   type ThreadGoalStatus,
   type TurnChangeFile,
   type WorkspaceTarget,
+  canTransitionInvocation,
+  normalizeAgentToken,
+  type CustomAgentDefinition,
+  type CustomAgentInvocationRecord,
+  type CustomAgentInvocationStatus,
+  type CustomAgentModelPolicy,
+  type CustomAgentThinkingPolicy,
+  type CustomAgentToolPolicy,
 } from "@artemis/protocol";
 
 import type { ReviewComment, ReviewCommentAnchor } from "../shared/api.js";
@@ -176,6 +184,7 @@ export interface TurnChangeSetRecord {
 const THREAD_SESSION_DATABASE_VERSION = 10;
 const THREAD_GOAL_DATABASE_VERSION = 11;
 const DATABASE_VERSION = 12;
+const CUSTOM_AGENTS_DATABASE_VERSION = 13;
 const EVENT_PROTOCOL_DATABASE_VERSION = 9;
 
 export interface EventAppendInput {
@@ -200,6 +209,79 @@ export interface ApprovalGrantQuery {
   projectId: string;
   operation: string;
   fingerprint: string;
+}
+
+interface CustomAgentRow {
+  id: string;
+  revision: number;
+  name: string;
+  normalized_name: string;
+  description: string;
+  color: string;
+  enabled: number;
+  instructions: string;
+  scope: "all" | "selected";
+  model_policy_json: string;
+  thinking_policy_json: string;
+  tool_policy_json: string;
+  allow_automatic_invocation: number;
+  triggers_json: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CustomAgentInvocationRow {
+  thread_id: string;
+  invocation_id: string;
+  request_fingerprint: string;
+  definition_id: string;
+  definition_revision: number;
+  definition_name: string;
+  turn_id: string | null;
+  instance_id: string | null;
+  status: CustomAgentInvocationStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+function customAgentFromRow(row: CustomAgentRow): CustomAgentDefinition {
+  return {
+    id: row.id,
+    revision: row.revision,
+    name: row.name,
+    description: row.description,
+    color: row.color,
+    enabled: row.enabled === 1,
+    instructions: row.instructions,
+    scope: row.scope,
+    modelPolicy: JSON.parse(row.model_policy_json) as CustomAgentModelPolicy,
+    thinkingPolicy: JSON.parse(
+      row.thinking_policy_json,
+    ) as CustomAgentThinkingPolicy,
+    toolPolicy: JSON.parse(row.tool_policy_json) as CustomAgentToolPolicy,
+    allowAutomaticInvocation: row.allow_automatic_invocation === 1,
+    triggers: JSON.parse(row.triggers_json) as string[],
+    createdAt: Date.parse(row.created_at),
+    updatedAt: Date.parse(row.updated_at),
+  };
+}
+
+function customAgentInvocationFromRow(
+  row: CustomAgentInvocationRow,
+): CustomAgentInvocationRecord {
+  return {
+    threadId: row.thread_id,
+    invocationId: row.invocation_id,
+    requestFingerprint: row.request_fingerprint,
+    definitionId: row.definition_id,
+    definitionRevision: row.definition_revision,
+    definitionName: row.definition_name,
+    turnId: row.turn_id,
+    instanceId: row.instance_id,
+    status: row.status,
+    createdAt: Date.parse(row.created_at),
+    updatedAt: Date.parse(row.updated_at),
+  };
 }
 
 function projectFromRow(row: ProjectRow): Project {
@@ -419,6 +501,49 @@ export class AppStore {
         updated_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS custom_agents (
+        id TEXT PRIMARY KEY,
+        revision INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        normalized_name TEXT NOT NULL UNIQUE,
+        description TEXT NOT NULL,
+        color TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        instructions TEXT NOT NULL,
+        scope TEXT NOT NULL CHECK(scope IN ('all', 'selected')),
+        model_policy_json TEXT NOT NULL,
+        thinking_policy_json TEXT NOT NULL,
+        tool_policy_json TEXT NOT NULL,
+        allow_automatic_invocation INTEGER NOT NULL DEFAULT 0,
+        triggers_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS custom_agent_projects (
+        agent_id TEXT NOT NULL REFERENCES custom_agents(id) ON DELETE CASCADE,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        PRIMARY KEY (agent_id, project_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS custom_agent_invocations (
+        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+        invocation_id TEXT NOT NULL,
+        request_fingerprint TEXT NOT NULL,
+        definition_id TEXT NOT NULL,
+        definition_revision INTEGER NOT NULL,
+        definition_name TEXT NOT NULL,
+        turn_id TEXT,
+        instance_id TEXT,
+        status TEXT NOT NULL CHECK(status IN (
+          'pending', 'dispatch-committed', 'finished', 'cancelled',
+          'outcome-unknown'
+        )),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (thread_id, invocation_id)
+      );
+
       CREATE TABLE IF NOT EXISTS events (
         event_id TEXT PRIMARY KEY,
         thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
@@ -614,6 +739,12 @@ export class AppStore {
       .get() as { user_version: number };
     if (goalMigratedVersion.user_version < DATABASE_VERSION) {
       this.advanceDatabaseVersion(DATABASE_VERSION);
+    }
+    const customAgentsVersion = this.database
+      .prepare("PRAGMA user_version")
+      .get() as { user_version: number };
+    if (customAgentsVersion.user_version < CUSTOM_AGENTS_DATABASE_VERSION) {
+      this.advanceDatabaseVersion(CUSTOM_AGENTS_DATABASE_VERSION);
     }
   }
 
@@ -2621,6 +2752,314 @@ export class AppStore {
       }
     }
     return { projects, threads, worktrees, events, locale, platform, sandbox };
+  }
+
+  // ---------------------------------------------------------------------
+  // Custom sub-agent definitions (D#152 PR2)
+  // ---------------------------------------------------------------------
+
+  createCustomAgent(
+    input: {
+      name: string;
+      description: string;
+      color: string;
+      instructions: string;
+      scope: "all" | "selected";
+      projectIds?: string[];
+      modelPolicy?: CustomAgentModelPolicy;
+      thinkingPolicy?: CustomAgentThinkingPolicy;
+      toolPolicy?: CustomAgentToolPolicy;
+      allowAutomaticInvocation?: boolean;
+      triggers?: string[];
+    },
+  ): CustomAgentDefinition {
+    const now = new Date().toISOString();
+    const id = randomUUID();
+    const normalizedName = normalizeAgentToken(input.name);
+    const modelPolicy = input.modelPolicy ?? { kind: "inherit" };
+    const thinkingPolicy = input.thinkingPolicy ?? { kind: "inherit" };
+    const toolPolicy = input.toolPolicy ?? { kind: "inherit" };
+    const projectIds = input.projectIds ?? [];
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      this.database
+        .prepare(
+          `INSERT INTO custom_agents (
+            id, revision, name, normalized_name, description, color, enabled,
+            instructions, scope, model_policy_json, thinking_policy_json,
+            tool_policy_json, allow_automatic_invocation, triggers_json,
+            created_at, updated_at
+          ) VALUES (?, 1, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          input.name,
+          normalizedName,
+          input.description,
+          input.color,
+          input.instructions,
+          input.scope,
+          JSON.stringify(modelPolicy),
+          JSON.stringify(thinkingPolicy),
+          JSON.stringify(toolPolicy),
+          input.allowAutomaticInvocation ? 1 : 0,
+          JSON.stringify(input.triggers ?? []),
+          now,
+          now,
+        );
+      for (const projectId of projectIds) {
+        this.database
+          .prepare(
+            "INSERT INTO custom_agent_projects (agent_id, project_id) VALUES (?, ?)",
+          )
+          .run(id, projectId);
+      }
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+    const created = this.getCustomAgent(id);
+    if (!created) throw new Error("Failed to create custom agent.");
+    return created;
+  }
+
+  getCustomAgent(id: string): CustomAgentDefinition | undefined {
+    const row = this.database
+      .prepare("SELECT * FROM custom_agents WHERE id = ?")
+      .get(id) as unknown as CustomAgentRow | undefined;
+    return row ? customAgentFromRow(row) : undefined;
+  }
+
+  listCustomAgents(): CustomAgentDefinition[] {
+    const rows = this.database
+      .prepare("SELECT * FROM custom_agents ORDER BY normalized_name")
+      .all() as unknown as CustomAgentRow[];
+    return rows.map(customAgentFromRow);
+  }
+
+  listCustomAgentProjectIds(agentId: string): string[] {
+    const rows = this.database
+      .prepare(
+        "SELECT project_id FROM custom_agent_projects WHERE agent_id = ? ORDER BY project_id",
+      )
+      .all(agentId) as unknown as Array<{ project_id: string }>;
+    return rows.map((row) => row.project_id);
+  }
+
+  /**
+   * Definitions effective for a project, per the approved scope contract:
+   * `all` always applies; `selected` applies only when linked — zero links
+   * never widens to global. Projectless callers pass null and only receive
+   * `all` definitions. Disabled definitions are excluded.
+   */
+  listEffectiveCustomAgents(projectId: string | null): CustomAgentDefinition[] {
+    return this.listCustomAgents().filter((definition) => {
+      if (!definition.enabled) return false;
+      if (definition.scope === "all") return true;
+      if (projectId === null) return false;
+      return this.listCustomAgentProjectIds(definition.id).includes(projectId);
+    });
+  }
+
+  /**
+   * Revision-checked update. Definition fields and project links are saved
+   * in the same transaction; a stale expectedRevision rejects the write as
+   * CUSTOM_AGENT_REVISION_CONFLICT without touching stored content.
+   */
+  updateCustomAgent(
+    id: string,
+    expectedRevision: number,
+    patch: {
+      name?: string;
+      description?: string;
+      color?: string;
+      enabled?: boolean;
+      instructions?: string;
+      scope?: "all" | "selected";
+      projectIds?: string[];
+      modelPolicy?: CustomAgentModelPolicy;
+      thinkingPolicy?: CustomAgentThinkingPolicy;
+      toolPolicy?: CustomAgentToolPolicy;
+      allowAutomaticInvocation?: boolean;
+      triggers?: string[];
+    },
+  ): CustomAgentDefinition {
+    const current = this.getCustomAgent(id);
+    if (!current) {
+      throw new Error("CUSTOM_AGENT_NOT_FOUND");
+    }
+    if (current.revision !== expectedRevision) {
+      throw new Error("CUSTOM_AGENT_REVISION_CONFLICT");
+    }
+    const now = new Date().toISOString();
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      // Re-check inside the transaction: no other writer may have advanced
+      // the revision between the optimistic check and the write.
+      const guarded = this.database
+        .prepare(
+          `UPDATE custom_agents SET
+            revision = revision + 1,
+            name = ?, normalized_name = ?, description = ?, color = ?,
+            enabled = ?, instructions = ?, scope = ?,
+            model_policy_json = ?, thinking_policy_json = ?,
+            tool_policy_json = ?, allow_automatic_invocation = ?,
+            triggers_json = ?, updated_at = ?
+          WHERE id = ? AND revision = ?`,
+        )
+        .run(
+          patch.name ?? current.name,
+          normalizeAgentToken(patch.name ?? current.name),
+          patch.description ?? current.description,
+          patch.color ?? current.color,
+          (patch.enabled ?? current.enabled) ? 1 : 0,
+          patch.instructions ?? current.instructions,
+          patch.scope ?? current.scope,
+          JSON.stringify(patch.modelPolicy ?? current.modelPolicy),
+          JSON.stringify(patch.thinkingPolicy ?? current.thinkingPolicy),
+          JSON.stringify(patch.toolPolicy ?? current.toolPolicy),
+          (patch.allowAutomaticInvocation ??
+          current.allowAutomaticInvocation)
+            ? 1
+            : 0,
+          JSON.stringify(patch.triggers ?? current.triggers),
+          now,
+          id,
+          expectedRevision,
+        );
+      if (guarded.changes === 0) {
+        throw new Error("CUSTOM_AGENT_REVISION_CONFLICT");
+      }
+      if (patch.projectIds !== undefined) {
+        this.database
+          .prepare("DELETE FROM custom_agent_projects WHERE agent_id = ?")
+          .run(id);
+        for (const projectId of patch.projectIds) {
+          this.database
+            .prepare(
+              "INSERT INTO custom_agent_projects (agent_id, project_id) VALUES (?, ?)",
+            )
+            .run(id, projectId);
+        }
+      }
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+    const updated = this.getCustomAgent(id);
+    if (!updated) throw new Error("Failed to update custom agent.");
+    return updated;
+  }
+
+  deleteCustomAgent(id: string): void {
+    // Links cascade; invocation history keeps its definition id/revision/
+    // name snapshot and is intentionally NOT cascade-deleted.
+    this.database.prepare("DELETE FROM custom_agents WHERE id = ?").run(id);
+  }
+
+  // ---------------------------------------------------------------------
+  // Custom agent invocation dedup records (D#152 plan section 6)
+  // ---------------------------------------------------------------------
+
+  /**
+   * Insert the invocation record, or return the existing record for the
+   * same (threadId, invocationId). An existing record with a different
+   * request fingerprint is an INVOCATION_CONFLICT — the same id must never
+   * bind to different content.
+   */
+  upsertCustomAgentInvocation(
+    record: Omit<CustomAgentInvocationRecord, "createdAt" | "updatedAt">,
+  ): { record: CustomAgentInvocationRecord; inserted: boolean } {
+    const now = new Date().toISOString();
+    const inserted = this.database
+      .prepare(
+        `INSERT OR IGNORE INTO custom_agent_invocations (
+          thread_id, invocation_id, request_fingerprint, definition_id,
+          definition_revision, definition_name, turn_id, instance_id, status,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        record.threadId,
+        record.invocationId,
+        record.requestFingerprint,
+        record.definitionId,
+        record.definitionRevision,
+        record.definitionName,
+        record.turnId,
+        record.instanceId,
+        record.status,
+        now,
+        now,
+      );
+    const existing = this.getCustomAgentInvocation(
+      record.threadId,
+      record.invocationId,
+    );
+    if (!existing) throw new Error("Failed to persist invocation record.");
+    if (existing.requestFingerprint !== record.requestFingerprint) {
+      throw new Error("INVOCATION_CONFLICT");
+    }
+    return { record: existing, inserted: inserted.changes > 0 };
+  }
+
+  getCustomAgentInvocation(
+    threadId: string,
+    invocationId: string,
+  ): CustomAgentInvocationRecord | undefined {
+    const row = this.database
+      .prepare(
+        `SELECT * FROM custom_agent_invocations
+         WHERE thread_id = ? AND invocation_id = ?`,
+      )
+      .get(threadId, invocationId) as unknown as
+      | CustomAgentInvocationRow
+      | undefined;
+    return row ? customAgentInvocationFromRow(row) : undefined;
+  }
+
+  /**
+   * Status transitions follow the contract state machine; an illegal
+   * transition is rejected instead of silently mutating the record.
+   */
+  transitionCustomAgentInvocation(
+    threadId: string,
+    invocationId: string,
+    to: CustomAgentInvocationStatus,
+    patch: { turnId?: string; instanceId?: string } = {},
+  ): CustomAgentInvocationRecord {
+    const current = this.getCustomAgentInvocation(threadId, invocationId);
+    if (!current) throw new Error("INVOCATION_NOT_FOUND");
+    if (!canTransitionInvocation(current.status, to)) {
+      throw new Error(
+        `INVOCATION_ILLEGAL_TRANSITION:${current.status}->${to}`,
+      );
+    }
+    const now = new Date().toISOString();
+    const updated = this.database
+      .prepare(
+        `UPDATE custom_agent_invocations
+         SET status = ?, turn_id = COALESCE(?, turn_id),
+             instance_id = COALESCE(?, instance_id), updated_at = ?
+         WHERE thread_id = ? AND invocation_id = ? AND status = ?`,
+      )
+      .run(
+        to,
+        patch.turnId ?? null,
+        patch.instanceId ?? null,
+        now,
+        threadId,
+        invocationId,
+        current.status,
+      );
+    if (updated.changes === 0) {
+      throw new Error("INVOCATION_TRANSITION_LOST_RACE");
+    }
+    const next = this.getCustomAgentInvocation(threadId, invocationId);
+    if (!next) throw new Error("Invocation record vanished.");
+    return next;
   }
 
   close(): void {

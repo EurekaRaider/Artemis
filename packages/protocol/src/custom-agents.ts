@@ -310,6 +310,8 @@ export interface CustomAgentInvocationRecord {
   requestFingerprint: string;
   definitionId: string;
   definitionRevision: number;
+  /** Name snapshot: history survives definition deletion. */
+  definitionName: string;
   turnId: string | null;
   instanceId: string | null;
   status: CustomAgentInvocationStatus;
