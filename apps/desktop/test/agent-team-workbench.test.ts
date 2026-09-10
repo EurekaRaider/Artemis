@@ -19,7 +19,7 @@ const mainSource = source("../src/main/main.ts");
 const workerSource = source("../src/agent/agent-worker.ts");
 
 describe("agent-team workbench", () => {
-  it("opens a non-stealing right-dock team tab from the first persisted event", () => {
+  it("reconciles existing right-dock team pages from persisted events", () => {
     expect(appSource).toContain('event.payload.type === "agent-team.status"');
     expect(appSource).toContain("agentTeamWorkspaceTab(");
     expect(appSource).toContain("reconcileAgentTeamWorkspaceTab(");

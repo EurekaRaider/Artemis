@@ -128,7 +128,10 @@ export function reconcileAgentTeamWorkspaceTab(
       existing.agentTeamId !== tab.agentTeamId,
   );
   if (!replacesPreviousTeam) {
-    return reduceWorkspaceTabs(state, { type: "ensure", tab });
+    // History and live status may refresh an open page, never open one.
+    return state.tabs.some((existing) => existing.id === tab.id)
+      ? reduceWorkspaceTabs(state, { type: "ensure", tab })
+      : state;
   }
 
   return {

@@ -3533,9 +3533,6 @@ export function App() {
               ),
             ),
           }));
-          if (activeThreadIdRef.current === event.threadId) {
-            setWorkspaceDockOpen(true);
-          }
         }
         if (event.payload.type === "turn.started") {
           setTurnFailureNotices((current) =>
@@ -3993,12 +3990,6 @@ export function App() {
         agentTeamWorkspaceTab(latestAgentTeam.teamId, t.agentTeam),
       ),
     }));
-    if (
-      latestAgentTeam.status !== "completed" &&
-      latestAgentTeam.status !== "aborted"
-    ) {
-      setWorkspaceDockOpen(true);
-    }
   }, [activeThreadId, latestAgentTeam, t.agentTeam]);
   const activePendingUserInputId = threadState?.order
     .filter((entry) => entry.startsWith("input:"))
