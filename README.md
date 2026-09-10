@@ -1235,8 +1235,8 @@ npm run verify:screenshot-matrix
 ```
 
 Version 1.5.4 shortens the project menu action to “Remove project” (“移除项目”)
-and uses regular text weight. Active-task protection and the existing removal
-confirmation remain in place.
+and centers regular-weight text inside a compact menu. Active-task protection
+and the existing removal confirmation remain in place.
 
 This release gives model/provider and archive deletion neutral trash icons,
 softens plugin uninstall and automation delete actions, pairs automation actions
