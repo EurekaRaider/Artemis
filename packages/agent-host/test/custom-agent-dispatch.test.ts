@@ -15,7 +15,11 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import type { CustomAgentDefinition } from "@artemis/protocol";
+import {
+  freezeInstanceSnapshot,
+  type CustomAgentDefinition,
+  type CustomAgentInstanceSnapshot,
+} from "@artemis/protocol";
 
 import { ArtemisAgentHost } from "../src/runtime.js";
 
@@ -50,6 +54,29 @@ function definition(
     updatedAt: 0,
     ...overrides,
   };
+}
+
+function frozenSnapshot(
+  overrides: Partial<CustomAgentInstanceSnapshot> = {},
+): CustomAgentInstanceSnapshot {
+  return freezeInstanceSnapshot({
+    definitionId: "def-1",
+    definitionRevision: 2,
+    definitionName: "code-reviewer",
+    instructions: "Review carefully.",
+    catalogId: "turn:turn-1",
+    projectId: null,
+    resolvedModel: {
+      providerId: "kimi-coding",
+      modelId: "k3",
+      thinkingLevel: "off",
+    },
+    effectiveCapabilities: ["shell", "filesystem-write", "business-read"],
+    invocationSource: "model-explicit",
+    selectionBasis: "explicit-reference",
+    frozenAt: 0,
+    ...overrides,
+  });
 }
 
 interface HostedStub {
@@ -294,7 +321,7 @@ describe("custom agent revocation", () => {
       activityVersion: 0,
       activityWaiters: new Set(),
       subtreeIntegrated: false,
-      customAgentSnapshot: { definitionId: "def-1" },
+      customAgentSnapshot: frozenSnapshot(),
     };
     controller.signal.addEventListener("abort", () =>
       cancelled.push(child.agentId),
@@ -334,7 +361,7 @@ describe("custom agent revocation", () => {
       status: "running",
       startedAt: Date.now(),
       controller,
-      customAgentSnapshot: { definitionId: "def-1" },
+      customAgentSnapshot: frozenSnapshot(),
       turnId: "turn-1",
       mode: "execute",
       parentAgentId: "root",

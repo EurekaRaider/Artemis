@@ -1922,9 +1922,9 @@ export class ArtemisAgentHost {
             customAgent: {
               definitionId: child.customAgentSnapshot.definitionId,
               definitionRevision: child.customAgentSnapshot.definitionRevision,
-              name: child.customAgentSnapshot.name,
-              providerId: child.customAgentSnapshot.providerId,
-              modelId: child.customAgentSnapshot.modelId,
+              name: child.customAgentSnapshot.definitionName,
+              providerId: child.customAgentSnapshot.resolvedModel.providerId,
+              modelId: child.customAgentSnapshot.resolvedModel.modelId,
               invocationSource: child.customAgentSnapshot.invocationSource,
               ...(child.customAgentSnapshot.invocationId
                 ? { invocationId: child.customAgentSnapshot.invocationId }

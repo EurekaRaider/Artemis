@@ -260,6 +260,8 @@ export interface CustomAgentInstanceSnapshot {
   /** P0-user | P0-model | P1-lexical | P2-semantic (never for explicit). */
   invocationSource: "user-explicit" | "model-explicit" | "model-automatic";
   selectionBasis: "explicit-reference" | "lexical-name" | "lexical-trigger" | "semantic";
+  /** Stable idempotency key for explicit user invocations (plan section 6). */
+  invocationId?: string;
   frozenAt: number;
 }
 
