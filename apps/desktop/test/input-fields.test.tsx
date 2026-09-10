@@ -609,7 +609,7 @@ describe("settings management operation contract (MIG5A)", () => {
 
     await userEvent.click(
       screen.getByRole("button", {
-        name: "Scan Codex, OpenCode, and Claude Code",
+        name: "Scan configuration",
       }),
     );
 

@@ -166,7 +166,7 @@ describe("screenshot visual contracts", () => {
       "36px",
     );
   });
-  it("gives select options intrinsic menu width and a stable checkmark column", () => {
+  it("gives select options bounded intrinsic menu width and a stable checkmark column", () => {
     expect(
       declarations(
         shared,
@@ -174,7 +174,9 @@ describe("screenshot visual contracts", () => {
       ),
     ).toMatchObject({
       "inline-size": "max-content",
-      "min-inline-size": "100%",
+      "min-inline-size": "min(100%, 12rem)",
+      "max-inline-size": "20rem",
+      "box-sizing": "border-box",
       "inset-inline-start": "0",
     });
     expect(

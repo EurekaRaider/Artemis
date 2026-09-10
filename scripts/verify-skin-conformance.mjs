@@ -583,12 +583,22 @@ const expectedCssRules = new Map([
     },
   ],
   [
+    'normal|[data-artemis-component="select"] [data-part="trigger"], [data-artemis-component="select"] [data-part="search"]',
+    {
+      "min-block-size":
+        "calc( var(--artemis-size-control-compact) + var(--artemis-space-1) )",
+      padding: "var(--artemis-space-1) var(--artemis-space-2)",
+      "font-size": "var(--artemis-typography-label-size)",
+      "line-height": "1.5",
+    },
+  ],
+  [
     'normal|[data-artemis-component="select"] [data-part="trigger"]',
     {
       display: "flex",
       "align-items": "center",
       "justify-content": "space-between",
-      gap: "var(--artemis-space-3)",
+      gap: "var(--artemis-space-2)",
       "text-align": "start",
       cursor: "pointer",
     },
@@ -628,8 +638,12 @@ const expectedCssRules = new Map([
       "z-index": "20",
       "inset-block-start": "calc(100% + var(--artemis-space-1))",
       "inset-inline-start": "0",
+      "box-sizing": "border-box",
       "inline-size": "max-content",
-      "min-inline-size": "100%",
+      "min-inline-size": "min(100%, 12rem)",
+      "max-inline-size": "20rem",
+      "font-size": "var(--artemis-typography-label-size)",
+      "line-height": "1.5",
       overflow: "hidden",
       padding: "var(--artemis-space-1)",
       background: "var(--artemis-color-surface-raised)",
@@ -640,12 +654,15 @@ const expectedCssRules = new Map([
   ],
   [
     'normal|[data-artemis-component="select"] [data-part="search"]',
-    { "margin-block-end": "var(--artemis-space-1)" },
+    {
+      "min-block-size": "var(--artemis-size-control-compact)",
+      "margin-block-end": "var(--artemis-space-1)",
+    },
   ],
   [
     'normal|[data-artemis-component="select"] [data-part="listbox"]',
     {
-      "max-block-size": "calc(var(--artemis-size-control-comfortable) * 6)",
+      "max-block-size": "calc(var(--artemis-size-control-compact) * 7)",
       overflow: "auto",
     },
   ],
@@ -653,11 +670,12 @@ const expectedCssRules = new Map([
     'normal|[data-artemis-component="select"] [data-part="option"]',
     {
       display: "grid",
+      "box-sizing": "border-box",
       "grid-template-columns": "var(--artemis-space-4) minmax(0, 1fr)",
       "align-items": "center",
-      gap: "var(--artemis-space-2)",
+      gap: "var(--artemis-space-1)",
       "min-block-size": "var(--artemis-size-control-compact)",
-      "padding-inline": "var(--artemis-space-2)",
+      padding: "var(--artemis-space-1) var(--artemis-space-2)",
       "border-radius": "var(--artemis-radius-control)",
       "text-align": "start",
       "overflow-wrap": "anywhere",

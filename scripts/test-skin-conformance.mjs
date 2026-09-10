@@ -15,6 +15,16 @@ const baseMatrix = JSON.parse(
     "utf8",
   ),
 );
+const baselineResult = spawnSync(process.execPath, [verifier], {
+  cwd: root,
+  encoding: "utf8",
+});
+if (baselineResult.status !== 0) {
+  throw new Error(
+    `Current skin conformance baseline failed: ${baselineResult.stderr || baselineResult.stdout}`,
+  );
+}
+
 let rejected = 0;
 let rejectedCss = 0;
 let rejectedCli = 0;
@@ -155,6 +165,16 @@ try {
 }
 
 const surfaceDeclaration = "background: var(--artemis-color-surface-base);";
+await rejectCss("select loses compact trigger height", (css) =>
+  replaceRequired(
+    css,
+    "var(--artemis-size-control-compact) + var(--artemis-space-1)",
+    "var(--artemis-size-control-comfortable) + var(--artemis-space-1)",
+  ),
+);
+await rejectCss("select menu loses width bound", (css) =>
+  replaceRequired(css, "max-inline-size: 20rem;", "max-inline-size: none;"),
+);
 await rejectCss("select constrained to trigger width", (css) =>
   replaceRequired(css, "inline-size: max-content;", "inline-size: 100%;"),
 );
@@ -274,12 +294,12 @@ rejectCli(
   "unexpected positional argument",
 );
 
-if (rejected !== 34 || rejectedCss !== 16 || rejectedCli !== 5) {
+if (rejected !== 36 || rejectedCss !== 18 || rejectedCli !== 5) {
   throw new Error(
-    `Conformance negative coverage is incomplete: ${rejected}/34 total, ${rejectedCss}/16 CSS, ${rejectedCli}/5 CLI`,
+    `Conformance negative coverage is incomplete: ${rejected}/36 total, ${rejectedCss}/18 CSS, ${rejectedCli}/5 CLI`,
   );
 }
 
 console.log(
-  `Skin conformance negative verification passed (${rejected}/34 rejected; ${rejectedCss}/16 CSS fixtures; ${rejectedCli}/5 CLI fixtures)`,
+  `Skin conformance negative verification passed (${rejected}/36 rejected; ${rejectedCss}/18 CSS fixtures; ${rejectedCli}/5 CLI fixtures)`,
 );

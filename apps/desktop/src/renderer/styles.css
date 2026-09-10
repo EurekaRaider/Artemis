@@ -7746,7 +7746,7 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .configuration-import [data-artemis-component="checkbox"] {
-  gap: 8px;
+  gap: var(--artemis-space-2);
   min-block-size: 28px;
   font-size: 12px;
 }
@@ -7756,7 +7756,7 @@ button.sources-panel-entry.attachment:focus-visible {
   [data-part="indicator"] {
   inline-size: 16px;
   block-size: 16px;
-  border-radius: 4px;
+  border-radius: var(--artemis-space-1);
   font-size: 11px;
   line-height: 1;
 }
