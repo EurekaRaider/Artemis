@@ -671,6 +671,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 .project-action:focus-visible,
 .project-thread-row:hover .thread-action,
 .project-thread-row:focus-within .thread-action,
+.thread-action[aria-expanded="true"],
 .thread-action:focus-visible {
   opacity: 1;
 }
@@ -4467,18 +4468,23 @@ button.environment-row:disabled {
   z-index: 20;
 }
 
-/* Keep the scrollbar at the workspace edge while centering both content rows
-   in the space beside the environment panel. Logical offsets also support RTL. */
+/* Both rows reserve the same two 8px scrollbar gutters and use the conversation
+   width, so the scroll viewport cannot narrow or shift the history column. */
 .conversation .timeline,
 .conversation .timeline-scroll > .turn-status,
 .conversation .composer-wrap,
 .conversation .conversation-empty-state {
   position: relative;
-  inline-size: calc(
-    100% - var(--environment-panel-content-safe-inline-size, 0px) -
-      min(24px, var(--environment-panel-content-safe-inline-size, 0px))
+  --conversation-column-width: min(
+    960px,
+    calc(
+      100cqi - 16px - var(--environment-panel-content-safe-inline-size, 0px) -
+        min(24px, var(--environment-panel-content-safe-inline-size, 0px))
+    )
   );
-  margin-inline: auto;
+  inline-size: var(--conversation-column-width);
+  max-inline-size: 960px;
+  margin-inline: calc((100% - var(--conversation-column-width)) / 2);
   inset-inline-end: calc(
     (
         var(--environment-panel-content-safe-inline-size, 0px) -
