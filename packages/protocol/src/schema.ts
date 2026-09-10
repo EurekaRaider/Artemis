@@ -669,6 +669,26 @@ export const childAgentPayloadSchema = z.object({
     .string()
     .max(4 * 1024)
     .optional(),
+  /**
+   * Custom sub-agent instance identity (D#152): which definition/revision
+   * this instance runs, its resolved model, and the invocation id for
+   * explicit user references. Metadata only — never the instructions.
+   */
+  customAgent: z
+    .object({
+      definitionId: z.string().min(1),
+      definitionRevision: z.number().int().positive(),
+      name: z.string().min(1),
+      providerId: z.string().min(1),
+      modelId: z.string().min(1),
+      invocationSource: z.enum([
+        "user-explicit",
+        "model-explicit",
+        "model-automatic",
+      ]),
+      invocationId: z.string().min(1).optional(),
+    })
+    .optional(),
 });
 export type ChildAgentPayload = z.infer<typeof childAgentPayloadSchema>;
 

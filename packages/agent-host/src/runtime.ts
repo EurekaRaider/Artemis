@@ -975,6 +975,7 @@ export interface ChildAgentSnapshot {
   currentToolStartedAt?: string;
   output?: string;
   error?: string;
+  customAgent?: NonNullable<ChildAgentPayload["customAgent"]>;
 }
 
 const CHILD_MIN_SUSPECT_SILENCE_MILLISECONDS = 60_000;
@@ -1916,6 +1917,21 @@ export class ArtemisAgentHost {
         : {}),
       ...(child.output ? { output: child.output } : {}),
       ...(child.error ? { error: child.error } : {}),
+      ...(child.customAgentSnapshot
+        ? {
+            customAgent: {
+              definitionId: child.customAgentSnapshot.definitionId,
+              definitionRevision: child.customAgentSnapshot.definitionRevision,
+              name: child.customAgentSnapshot.name,
+              providerId: child.customAgentSnapshot.providerId,
+              modelId: child.customAgentSnapshot.modelId,
+              invocationSource: child.customAgentSnapshot.invocationSource,
+              ...(child.customAgentSnapshot.invocationId
+                ? { invocationId: child.customAgentSnapshot.invocationId }
+                : {}),
+            },
+          }
+        : {}),
     };
   }
 
@@ -1958,6 +1974,7 @@ export class ArtemisAgentHost {
       updatedAt: snapshot.updatedAt,
       lastActivityAt: snapshot.lastActivityAt,
       ...(snapshot.startedAt ? { startedAt: snapshot.startedAt } : {}),
+      ...(snapshot.customAgent ? { customAgent: snapshot.customAgent } : {}),
       ...(snapshot.currentTool ? { currentTool: snapshot.currentTool } : {}),
       ...(snapshot.currentToolStartedAt
         ? { currentToolStartedAt: snapshot.currentToolStartedAt }

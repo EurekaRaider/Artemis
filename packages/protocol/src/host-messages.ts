@@ -207,6 +207,23 @@ export type AgentHostCommand =
       memoryContext?: string;
       collaborationContext?: string;
       recovery?: TurnRecovery;
+      /**
+       * Per-turn effective custom sub-agent definitions for this thread's
+       * project, resolved by the main process at dispatch time (D#152).
+       * This is the per-turn catalog snapshot; later edits do not affect
+       * the running turn.
+       */
+      customAgents?: CustomAgentDefinition[];
+      /**
+       * A validated explicit user invocation (structured @ reference).
+       * The host must materialize exactly one instance for it; the model
+       * cannot forge this source.
+       */
+      customAgentInvocation?: {
+        invocationId: string;
+        definitionId: string;
+        revision: number;
+      };
     }
   | {
       type: "turn.cancel";
