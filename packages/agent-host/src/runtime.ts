@@ -1173,16 +1173,17 @@ function terminalAgentStopReason(
 }
 
 /** Capability classes the child-agent runtime baseline can ever allow. */
-const CUSTOM_AGENT_CHILD_BASELINE: ReadonlySet<CapabilityClass> = new Set([
-  "shell",
-  "filesystem-write",
-  "mcp",
-  "spawn-agent",
-  "business-read",
-]);
+export const CUSTOM_AGENT_CHILD_BASELINE: ReadonlySet<CapabilityClass> =
+  new Set([
+    "shell",
+    "filesystem-write",
+    "mcp",
+    "spawn-agent",
+    "business-read",
+  ]);
 
 /** Stable builtin tool ids mapped to capability classes for allowlists. */
-function resolveCustomAgentToolCapabilities(
+export function resolveCustomAgentToolCapabilities(
   ref: CustomAgentToolRef,
 ): ReadonlySet<CapabilityClass> {
   if (ref.kind === "mcp") {

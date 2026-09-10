@@ -364,4 +364,131 @@ describe("custom agent store", () => {
     expect(reopened.getCustomAgent(agent.id)?.name).toBe("migrated");
     reopened.close();
   });
+
+  it("binds an invocation instance exactly once while committed", async () => {
+    const store = await openStore();
+    const projectId = makeProject(store, "/tmp/bind");
+    const now = new Date().toISOString();
+    store.createThread({
+      id: "thread-bind",
+      projectId,
+      title: "t",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const agent = store.createCustomAgent({
+      name: "binder",
+      description: "",
+      color: "green",
+      instructions: "",
+      scope: "all",
+    });
+    store.upsertCustomAgentInvocation({
+      threadId: "thread-bind",
+      invocationId: "inv-bind",
+      requestFingerprint: "fp",
+      definitionId: agent.id,
+      definitionRevision: 1,
+      definitionName: "binder",
+      turnId: null,
+      instanceId: null,
+      status: "pending",
+    });
+    // Pending records are not bound yet — only committed dispatches bind.
+    store.bindCustomAgentInvocationInstance(
+      "thread-bind",
+      "inv-bind",
+      "instance-a",
+    );
+    expect(
+      store.getCustomAgentInvocation("thread-bind", "inv-bind")?.instanceId,
+    ).toBeNull();
+    store.transitionCustomAgentInvocation(
+      "thread-bind",
+      "inv-bind",
+      "dispatch-committed",
+      { turnId: "turn-1" },
+    );
+    store.bindCustomAgentInvocationInstance(
+      "thread-bind",
+      "inv-bind",
+      "instance-a",
+    );
+    // A second bind never rewrites the first.
+    store.bindCustomAgentInvocationInstance(
+      "thread-bind",
+      "inv-bind",
+      "instance-b",
+    );
+    const bound = store.getCustomAgentInvocation("thread-bind", "inv-bind");
+    expect(bound?.instanceId).toBe("instance-a");
+    expect(bound?.turnId).toBe("turn-1");
+    expect(store.listCustomAgentInvocationsForThread("thread-bind")).toHaveLength(1);
+    store.close();
+  });
+
+  it("boot sweep marks stale pending invocations outcome-unknown only", async () => {
+    const store = await openStore();
+    const projectId = makeProject(store, "/tmp/sweep");
+    const now = new Date().toISOString();
+    store.createThread({
+      id: "thread-sweep",
+      projectId,
+      title: "t",
+      mode: "execute",
+      target: "local",
+      status: "idle",
+      pinned: false,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const agent = store.createCustomAgent({
+      name: "swept",
+      description: "",
+      color: "green",
+      instructions: "",
+      scope: "all",
+    });
+    const base = {
+      threadId: "thread-sweep",
+      requestFingerprint: "fp",
+      definitionId: agent.id,
+      definitionRevision: 1,
+      definitionName: "swept",
+      turnId: null,
+      instanceId: null,
+    };
+    store.upsertCustomAgentInvocation({
+      ...base,
+      invocationId: "inv-pending",
+      status: "pending",
+    });
+    store.upsertCustomAgentInvocation({
+      ...base,
+      invocationId: "inv-committed",
+      status: "pending",
+    });
+    store.transitionCustomAgentInvocation(
+      "thread-sweep",
+      "inv-committed",
+      "dispatch-committed",
+      { turnId: "turn-9" },
+    );
+    expect(store.markStalePendingCustomAgentInvocations()).toBe(1);
+    expect(
+      store.getCustomAgentInvocation("thread-sweep", "inv-pending")?.status,
+    ).toBe("outcome-unknown");
+    // Committed records survive the sweep untouched.
+    expect(
+      store.getCustomAgentInvocation("thread-sweep", "inv-committed")?.status,
+    ).toBe("dispatch-committed");
+    expect(store.markStalePendingCustomAgentInvocations()).toBe(0);
+    store.close();
+  });
 });

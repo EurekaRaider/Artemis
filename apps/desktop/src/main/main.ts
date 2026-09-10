@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
 import { AttachmentStore } from "./attachment-store.js";
+import {
+  customAgentRequestFingerprint,
+  validateCustomAgentInput,
+  validateCustomAgentSendReference,
+  validateCustomAgentToolPolicy,
+} from "./custom-agent-validation.js";
 import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
 import { ImService } from "./im-service.js";
 import { turnRecoveryContext, type TurnCheckpoint } from "./turn-recovery.js";
@@ -71,12 +77,14 @@ import type {
   AutomationEvent,
   AutomationRun,
   BrokerExecutionRequest,
+  CustomAgentDefinition,
   ModelSelection,
   PromptAttachment,
   PromptImage,
   Project,
   ProviderConnection,
   RiskLevel,
+  RunMode,
   ShellRuntimeConfiguration,
   TaskWorktree,
   Thread,
@@ -85,6 +93,12 @@ import type {
   UserInputResolution,
   UserInputMultiQuestionResolution,
 } from "@artemis/protocol";
+import { computeEffectiveCapabilities } from "@artemis/protocol";
+import { canTransitionInvocation } from "@artemis/protocol";
+import {
+  CUSTOM_AGENT_CHILD_BASELINE,
+  resolveCustomAgentToolCapabilities,
+} from "@artemis/agent-host";
 
 import {
   AGENT_CONCURRENCY_FALLBACK,
@@ -298,6 +312,7 @@ import {
   type CodexPluginPreview,
   type CodexPluginSource,
   type CreateThreadInput,
+  type CustomAgentCapabilityPreview,
   type ForkThreadResult,
   type HandoffWorkspaceResult,
   type InstalledSkill,
@@ -1441,6 +1456,10 @@ async function applyAgentRuntime(
   }
   resolved.mcpTools = mcpClientManager?.tools() ?? [];
   resolved.extensionTools = trustedExtensionManager?.tools() ?? [];
+  // Full custom sub-agent definitions (including dedicated instructions)
+  // travel only on this trusted main→worker channel; renderers receive
+  // catalog metadata without instructions (D#152 plan section 3).
+  resolved.customAgents = store?.listCustomAgents() ?? [];
   await agentProcess.request(
     {
       type: "runtime.configure",
@@ -1869,6 +1888,21 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
       rollbackAvailable: false,
     },
     agentConcurrency,
+    // Metadata only — dedicated instructions stay off snapshots (D#152).
+    customAgents: (store?.listCustomAgents() ?? []).map((definition) => ({
+      id: definition.id,
+      revision: definition.revision,
+      name: definition.name,
+      description: definition.description,
+      color: definition.color,
+      enabled: definition.enabled,
+      scope: definition.scope,
+      projectIds: store?.listCustomAgentProjectIds(definition.id) ?? [],
+      allowAutomaticInvocation: definition.allowAutomaticInvocation,
+      triggers: definition.triggers,
+      createdAt: definition.createdAt,
+      updatedAt: definition.updatedAt,
+    })),
     ...(profileAvatar === undefined ? {} : { profileAvatar }),
     projectOrder,
     projectThreadOrder,
@@ -2639,11 +2673,74 @@ function applyPayloadSideEffects(
       }
       activeTurns.delete(threadId);
       break;
+    case "child-agent.status": {
+      // Bind custom-agent invocation records to their materialized
+      // instance and close them out on terminal status (D#152 section 6).
+      // Event replay can re-deliver terminal states, so transitions are
+      // gated on the contract state machine instead of assumed legal.
+      const customAgent = payload.customAgent;
+      if (!customAgent?.invocationId) break;
+      const invocationRecord = store.getCustomAgentInvocation(
+        threadId,
+        customAgent.invocationId,
+      );
+      if (!invocationRecord) break;
+      store.bindCustomAgentInvocationInstance(
+        threadId,
+        customAgent.invocationId,
+        payload.agentId,
+      );
+      const terminalInvocationStatus =
+        payload.status === "completed" || payload.status === "failed"
+          ? "finished"
+          : payload.status === "cancelled"
+            ? "cancelled"
+            : undefined;
+      if (
+        terminalInvocationStatus &&
+        canTransitionInvocation(
+          invocationRecord.status,
+          terminalInvocationStatus,
+        )
+      ) {
+        store.transitionCustomAgentInvocation(
+          threadId,
+          customAgent.invocationId,
+          terminalInvocationStatus,
+          { instanceId: payload.agentId },
+        );
+      }
+      break;
+    }
     case "turn.failed":
       store.updateThread(threadId, { status: "failed" });
       publishAutomationRun(
         store.updateAutomationRunForThread(threadId, "failed", payload.message),
       );
+      // A coded CUSTOM_AGENT_/INVOCATION_ failure means the explicit
+      // dispatch was rejected before any instance could start; cancel the
+      // committed record instead of leaving it ambiguous (D#152). The
+      // failing turn is the thread's active turn at this point.
+      {
+        const failedTurnId = activeTurns.get(threadId);
+        if (/^(?:CUSTOM_AGENT|INVOCATION)_/.test(payload.message)) {
+          for (const record of store.listCustomAgentInvocationsForThread(
+            threadId,
+          )) {
+            if (
+              record.turnId === failedTurnId &&
+              record.status === "dispatch-committed" &&
+              !record.instanceId
+            ) {
+              store.transitionCustomAgentInvocation(
+                threadId,
+                record.invocationId,
+                "cancelled",
+              );
+            }
+          }
+        }
+      }
       activeTurns.delete(threadId);
       break;
   }
@@ -5724,6 +5821,52 @@ async function startTaskTurnUnchecked(
     /(?:\b(?:create|set|start)\b[^\n]{0,80}\bgoal\b|\bgoal\b[^\n]{0,80}\b(?:create|set|start)\b|(?:创建|设置|开始|建立).{0,40}(?:目标|Goal))/iu.test(
       requestText,
     );
+  // Per-turn effective custom sub-agent catalog (D#152): resolved once at
+  // dispatch time from the trusted projectId and frozen onto the
+  // checkpoint; later edits apply to later turns only. The model can never
+  // supply a projectId to widen this set.
+  const turnCustomAgents = store.listEffectiveCustomAgents(
+    thread.projectId ?? null,
+  );
+  let customAgentInvocation:
+    | { invocationId: string; definitionId: string; revision: number }
+    | undefined;
+  let customAgentInvocationFingerprint: string | undefined;
+  if (input.customAgentReference !== undefined) {
+    const reference = validateCustomAgentSendReference(
+      input.customAgentReference,
+    );
+    const definition = turnCustomAgents.find(
+      (candidate) => candidate.id === reference.definitionId,
+    );
+    if (!definition) {
+      throw new Error(
+        `CUSTOM_AGENT_NOT_FOUND: the referenced custom sub-agent is not effective for this project.`,
+      );
+    }
+    if (!definition.enabled) {
+      throw new Error(
+        `CUSTOM_AGENT_DISABLED: custom sub-agent "${definition.name}" is disabled.`,
+      );
+    }
+    if (definition.revision !== reference.revision) {
+      throw new Error(
+        `CUSTOM_AGENT_REVISION_CONFLICT: custom sub-agent "${definition.name}" was edited; refresh the reference and retry.`,
+      );
+    }
+    customAgentInvocationFingerprint = customAgentRequestFingerprint({
+      threadId: thread.id,
+      text: requestText,
+      attachmentIds: attachments.map((attachment) => attachment.id),
+      definitionId: definition.id,
+      revision: definition.revision,
+    });
+    customAgentInvocation = {
+      invocationId: reference.invocationId,
+      definitionId: definition.id,
+      revision: definition.revision,
+    };
+  }
   const checkpoint: TurnCheckpoint = {
     threadId: thread.id,
     turnId,
@@ -5736,6 +5879,8 @@ async function startTaskTurnUnchecked(
     ...(thread.goal ? { goal: thread.goal } : {}),
     ...(memoryContext ? { memoryContext } : {}),
     ...(collaborationContext ? { collaborationContext } : {}),
+    customAgents: turnCustomAgents,
+    ...(customAgentInvocation ? { customAgentInvocation } : {}),
   };
   try {
     await emitInitialTurn(
@@ -5754,6 +5899,49 @@ async function startTaskTurnUnchecked(
     throw error;
   }
   activeTurns.set(thread.id, turnId);
+  if (customAgentInvocation && customAgentInvocationFingerprint) {
+    // Persist the dedup record BEFORE the dispatch can start a child
+    // instance. The unique key is (threadId, invocationId); a same-id
+    // different-content request is an INVOCATION_CONFLICT from the store.
+    // A dispatch-committed record with the same fingerprint is an IPC
+    // retry and is reused as-is.
+    const definition = turnCustomAgents.find(
+      (candidate) => candidate.id === customAgentInvocation.definitionId,
+    );
+    if (!definition) {
+      throw new Error("CUSTOM_AGENT_NOT_FOUND: definition vanished.");
+    }
+    const { record } = store.upsertCustomAgentInvocation({
+      threadId: thread.id,
+      invocationId: customAgentInvocation.invocationId,
+      requestFingerprint: customAgentInvocationFingerprint,
+      definitionId: definition.id,
+      definitionRevision: definition.revision,
+      definitionName: definition.name,
+      turnId,
+      instanceId: null,
+      status: "pending",
+    });
+    if (record.status === "pending") {
+      store.transitionCustomAgentInvocation(
+        thread.id,
+        customAgentInvocation.invocationId,
+        "dispatch-committed",
+        { turnId },
+      );
+    } else if (record.status === "outcome-unknown") {
+      throw new Error(
+        "INVOCATION_OUTCOME_UNKNOWN: this invocation was left ambiguous after a crash; send a new message to re-execute it.",
+      );
+    } else if (
+      record.status === "finished" ||
+      record.status === "cancelled"
+    ) {
+      throw new Error(
+        "INVOCATION_CONFLICT: this invocation already completed; send a new message for a new execution.",
+      );
+    }
+  }
   if (goalCreationAuthorized) {
     goalCreationAuthorizations.add(turnId);
   }
@@ -5868,6 +6056,25 @@ async function resumeInterruptedTurns(): Promise<void> {
         ...(thread.goal ? { goal: thread.goal } : {}),
         recovery,
       };
+      if (checkpoint.customAgentInvocation) {
+        // Crash window: the committed dispatch may or may not have started
+        // the child before the process died. Never blindly re-dispatch —
+        // mark outcome-unknown and resume the parent turn without the
+        // explicit instance; the user re-executes with a new invocation.
+        const invocation = checkpoint.customAgentInvocation;
+        const record = store?.getCustomAgentInvocation(
+          threadId,
+          invocation.invocationId,
+        );
+        if (record?.status === "dispatch-committed") {
+          store?.transitionCustomAgentInvocation(
+            threadId,
+            invocation.invocationId,
+            "outcome-unknown",
+          );
+        }
+        delete resumed.customAgentInvocation;
+      }
       store.saveTurnCheckpoint(resumed);
       if (checkpoint.goalCreationAuthorized)
         goalCreationAuthorizations.add(turnId);
@@ -7368,6 +7575,106 @@ function registerIpc(): void {
       await globalInstructionsStore.save(content);
       await applyAgentRuntime();
       return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
+    IPC.customAgentsGet,
+    (_event, id: string): CustomAgentDefinition | undefined => {
+      if (!store) throw new Error("Application store is not ready.");
+      if (typeof id !== "string" || id.length === 0) {
+        throw new Error("CUSTOM_AGENT_INVALID: id is required");
+      }
+      // Editor-only endpoint: the one place renderers may read dedicated
+      // instructions. Catalogs, logs, and diagnostics never see them.
+      return store.getCustomAgent(id);
+    },
+  );
+  ipcMain.handle(
+    IPC.customAgentsCreate,
+    async (_event, raw: unknown): Promise<SettingsSnapshot> => {
+      const appStore = store;
+      if (!appStore) throw new Error("Application store is not ready.");
+      const input = validateCustomAgentInput(raw, (projectId) =>
+        Boolean(appStore.getProject(projectId)),
+      );
+      appStore.createCustomAgent(input);
+      await applyAgentRuntime();
+      return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
+    IPC.customAgentsUpdate,
+    async (
+      _event,
+      id: string,
+      expectedRevision: number,
+      raw: unknown,
+    ): Promise<SettingsSnapshot> => {
+      const appStore = store;
+      if (!appStore) throw new Error("Application store is not ready.");
+      if (typeof id !== "string" || id.length === 0) {
+        throw new Error("CUSTOM_AGENT_INVALID: id is required");
+      }
+      if (
+        typeof expectedRevision !== "number" ||
+        !Number.isInteger(expectedRevision) ||
+        expectedRevision < 1
+      ) {
+        throw new Error(
+          "CUSTOM_AGENT_INVALID: expectedRevision must be a positive integer",
+        );
+      }
+      const input = validateCustomAgentInput(raw, (projectId) =>
+        Boolean(appStore.getProject(projectId)),
+      );
+      appStore.updateCustomAgent(id, expectedRevision, input);
+      // Revocation push: disabled/deleted definitions cancel not-yet-
+      // started instances inside the worker via reconcile on configure.
+      await applyAgentRuntime();
+      return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
+    IPC.customAgentsDelete,
+    async (_event, id: string): Promise<SettingsSnapshot> => {
+      if (!store) throw new Error("Application store is not ready.");
+      if (typeof id !== "string" || id.length === 0) {
+        throw new Error("CUSTOM_AGENT_INVALID: id is required");
+      }
+      store.deleteCustomAgent(id);
+      await applyAgentRuntime();
+      return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
+    IPC.customAgentsPreviewCapabilities,
+    (
+      _event,
+      raw: unknown,
+      mode: RunMode,
+    ): CustomAgentCapabilityPreview => {
+      if (mode !== "execute" && mode !== "plan" && mode !== "review") {
+        throw new Error("CUSTOM_AGENT_INVALID: unknown run mode");
+      }
+      const input = raw as { toolPolicy?: unknown } | null | undefined;
+      const toolPolicy = validateCustomAgentToolPolicy(input?.toolPolicy);
+      const liveGrants = new Set(CUSTOM_AGENT_CHILD_BASELINE);
+      if ((mcpClientManager?.tools() ?? []).length === 0) {
+        liveGrants.delete("mcp");
+      }
+      const capabilities = computeEffectiveCapabilities(
+        {
+          runMode: mode,
+          childBaseline: CUSTOM_AGENT_CHILD_BASELINE,
+          // Root-parent preview: the parent may pass down the full child
+          // baseline. Per-instance intersections can only shrink from here.
+          parentDelegatable: CUSTOM_AGENT_CHILD_BASELINE,
+          liveGrants,
+        },
+        toolPolicy,
+        resolveCustomAgentToolCapabilities,
+      );
+      return { mode, capabilities: [...capabilities].sort() };
     },
   );
   ipcMain.handle(
@@ -20499,6 +20806,17 @@ app
     );
     markStartupStage("diagnostics-ready");
     store = new AppStore(join(app.getPath("userData"), "artemis.sqlite"));
+    // Boot sweep (D#152): pending invocation records are crash remnants —
+    // they can never legitimately survive a restart. Mark them
+    // outcome-unknown so they are never silently re-dispatched.
+    const staleInvocations = store.markStalePendingCustomAgentInvocations();
+    if (staleInvocations > 0) {
+      diagnosticBundleService?.record({
+        source: "main",
+        severity: "warning",
+        message: `Marked ${staleInvocations} stale custom-agent invocation(s) outcome-unknown after restart.`,
+      });
+    }
     turnChangeSetService = new TurnChangeSetService(
       join(app.getPath("userData"), "turn-changes"),
       store,

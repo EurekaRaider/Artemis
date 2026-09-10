@@ -3020,6 +3020,55 @@ export class AppStore {
     return row ? customAgentInvocationFromRow(row) : undefined;
   }
 
+  listCustomAgentInvocationsForThread(
+    threadId: string,
+  ): CustomAgentInvocationRecord[] {
+    const rows = this.database
+      .prepare(
+        `SELECT * FROM custom_agent_invocations
+         WHERE thread_id = ? ORDER BY created_at, invocation_id`,
+      )
+      .all(threadId) as unknown as CustomAgentInvocationRow[];
+    return rows.map(customAgentInvocationFromRow);
+  }
+
+  /**
+   * Bind the materialized instance to a committed invocation. Only fills
+   * instance_id once, only while dispatch-committed — never mutates
+   * status or rewrites an existing binding.
+   */
+  bindCustomAgentInvocationInstance(
+    threadId: string,
+    invocationId: string,
+    instanceId: string,
+  ): void {
+    this.database
+      .prepare(
+        `UPDATE custom_agent_invocations
+         SET instance_id = ?, updated_at = ?
+         WHERE thread_id = ? AND invocation_id = ?
+           AND status = 'dispatch-committed' AND instance_id IS NULL`,
+      )
+      .run(instanceId, new Date().toISOString(), threadId, invocationId);
+  }
+
+  /**
+   * Boot sweep: `pending` records only legitimately exist between send
+   * validation and dispatch commit inside one process. A record still
+   * pending at startup is a crash remnant — mark it outcome-unknown so it
+   * is never silently re-dispatched (D#152 plan section 6).
+   */
+  markStalePendingCustomAgentInvocations(): number {
+    const result = this.database
+      .prepare(
+        `UPDATE custom_agent_invocations
+         SET status = 'outcome-unknown', updated_at = ?
+         WHERE status = 'pending'`,
+      )
+      .run(new Date().toISOString());
+    return Number(result.changes);
+  }
+
   /**
    * Status transitions follow the contract state machine; an illegal
    * transition is rejected instead of silently mutating the record.

@@ -12,6 +12,10 @@ import type {
   AutomationRun,
   AutomationSchedule,
   AutomationTarget,
+  CustomAgentDefinition,
+  CustomAgentModelPolicy,
+  CustomAgentThinkingPolicy,
+  CustomAgentToolPolicy,
   PromptAttachment,
   PromptImage,
   ProviderConnection,
@@ -64,6 +68,58 @@ export interface StartTurnInput {
   mode: RunMode;
   attachments?: PromptAttachment[];
   submittedAt?: number;
+  /**
+   * Structured @ reference to a custom sub-agent definition (D#152).
+   * invocationId is minted by the renderer per user submission and reused
+   * across IPC retries; the main process binds it to threadId + content
+   * fingerprint so duplicate delivery never dispatches twice.
+   */
+  customAgentReference?: {
+    definitionId: string;
+    revision: number;
+    invocationId: string;
+  };
+}
+
+/**
+ * Custom sub-agent metadata safe for renderers (D#152): never carries the
+ * dedicated instructions body. The settings editor fetches full
+ * definitions through a dedicated endpoint instead.
+ */
+export interface CustomAgentSummary {
+  id: string;
+  revision: number;
+  name: string;
+  description: string;
+  color: string;
+  enabled: boolean;
+  scope: "all" | "selected";
+  projectIds: string[];
+  allowAutomaticInvocation: boolean;
+  triggers: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Create/update payload for a custom sub-agent definition. */
+export interface SaveCustomAgentInput {
+  name: string;
+  description: string;
+  color: string;
+  instructions: string;
+  scope: "all" | "selected";
+  projectIds: string[];
+  modelPolicy: CustomAgentModelPolicy;
+  thinkingPolicy: CustomAgentThinkingPolicy;
+  toolPolicy: CustomAgentToolPolicy;
+  allowAutomaticInvocation: boolean;
+  triggers: string[];
+}
+
+/** Effective-capability preview for the settings form (project/mode aware). */
+export interface CustomAgentCapabilityPreview {
+  mode: RunMode;
+  capabilities: string[];
 }
 
 export interface StartTurnResult {
@@ -325,6 +381,8 @@ export interface SettingsSnapshot {
   trustedExtensions: TrustedExtensionStatus[];
   update: ReleaseUpdateStatus;
   agentConcurrency: AgentConcurrencyStatus;
+  /** Custom sub-agent definitions (metadata only, no instructions). */
+  customAgents: CustomAgentSummary[];
   profileAvatar?: string;
   projectOrder?: string[];
   projectThreadOrder?: Record<string, string[]>;
@@ -962,6 +1020,24 @@ export interface ArtemisApi {
     { imported: number; settings: SettingsSnapshot } | undefined
   >;
   saveGlobalAgents(content: string): Promise<SettingsSnapshot>;
+  /** Full definition for the settings editor (includes instructions). */
+  customAgentsGet(id: string): Promise<CustomAgentDefinition | undefined>;
+  customAgentsCreate(input: SaveCustomAgentInput): Promise<SettingsSnapshot>;
+  customAgentsUpdate(
+    id: string,
+    expectedRevision: number,
+    input: SaveCustomAgentInput,
+  ): Promise<SettingsSnapshot>;
+  customAgentsDelete(id: string): Promise<SettingsSnapshot>;
+  /**
+   * Effective-capability preview for the settings form, computed with the
+   * same intersection the runtime uses. Labeled per mode; not a final
+   * grant until a dispatch is accepted.
+   */
+  customAgentsPreviewCapabilities(
+    input: Pick<SaveCustomAgentInput, "toolPolicy">,
+    mode: RunMode,
+  ): Promise<CustomAgentCapabilityPreview>;
   scanConfigurationImports(): Promise<ConfigurationImportPreview>;
   importConfiguration(
     request: ConfigurationImportRequest,
@@ -1246,6 +1322,12 @@ export const IPC = {
   extensionRemove: "artemis:extension-remove",
   updateCheck: "artemis:update-check",
   updateInstall: "artemis:update-install",
+  customAgentsGet: "artemis:custom-agents-get",
+  customAgentsCreate: "artemis:custom-agents-create",
+  customAgentsUpdate: "artemis:custom-agents-update",
+  customAgentsDelete: "artemis:custom-agents-delete",
+  customAgentsPreviewCapabilities:
+    "artemis:custom-agents-preview-capabilities",
   diagnosticsExport: "artemis:diagnostics-export",
   diagnosticsRendererError: "artemis:diagnostics-renderer-error",
   updateStatus: "artemis:update-status",

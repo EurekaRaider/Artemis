@@ -285,6 +285,15 @@ const api: ArtemisApi = {
   importPiCredentials: () => ipcRenderer.invoke(IPC.settingsPiImport),
   saveGlobalAgents: (content) =>
     ipcRenderer.invoke(IPC.settingsGlobalAgentsSave, content),
+  customAgentsGet: (id) => ipcRenderer.invoke(IPC.customAgentsGet, id),
+  customAgentsCreate: (input) =>
+    ipcRenderer.invoke(IPC.customAgentsCreate, input),
+  customAgentsUpdate: (id, expectedRevision, input) =>
+    ipcRenderer.invoke(IPC.customAgentsUpdate, id, expectedRevision, input),
+  customAgentsDelete: (id) =>
+    ipcRenderer.invoke(IPC.customAgentsDelete, id),
+  customAgentsPreviewCapabilities: (input, mode) =>
+    ipcRenderer.invoke(IPC.customAgentsPreviewCapabilities, input, mode),
   scanConfigurationImports: () => ipcRenderer.invoke(IPC.settingsImportScan),
   importConfiguration: (request) =>
     ipcRenderer.invoke(IPC.settingsImportApply, request),
